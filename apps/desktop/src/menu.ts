@@ -28,9 +28,11 @@ export function buildMenu(folders: MenuFolders, isDev: boolean, actions: MenuAct
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        ...(isDev ? [{ role: 'toggleDevTools' } as const] : []),
+        // Not the roles' Ctrl+R and Ctrl+Shift+R: they are the shell's (reverse search), and a
+        // focused terminal must receive them
+        { role: 'reload', accelerator: 'F5' },
+        { role: 'forceReload', accelerator: 'Shift+F5' },
+        ...(isDev ? [{ role: 'toggleDevTools', accelerator: 'F12' } as const] : []),
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
@@ -39,7 +41,11 @@ export function buildMenu(folders: MenuFolders, isDev: boolean, actions: MenuAct
         { role: 'togglefullscreen' },
       ],
     },
-    { role: 'windowMenu' },
+    // windowMenu's Close is Ctrl+W, which is the shell's (delete word); Alt+F4 still closes the window
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close', accelerator: 'Alt+F4' }],
+    },
     {
       label: 'Help',
       submenu: [{ label: 'Check for updates…', click: actions.checkForUpdates }],

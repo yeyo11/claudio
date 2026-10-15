@@ -16,6 +16,11 @@ tunnel.enabled is true: the pod runs a tailscaled of its own. Once it is signed 
 Remote access, anyone who can sign in to Claudio can serve this pod on that tailnet (`tailscale
 serve`), around the Service and the Ingress. It refuses to open while the auth mode is "none".
 {{- end }}
+{{- if .Values.terminal.enabled }}
+
+terminal.enabled is true: anyone who can sign in to Claudio can open a shell in this pod, as the
+image's user, with the credentials kept in the app. It stays unavailable while the auth mode is "none".
+{{- end }}
 {{- if not (include "claudio.secretKeySecret" .) }}
 
 No secretKey was given: the key that seals the credentials kept in the app is made on the data
