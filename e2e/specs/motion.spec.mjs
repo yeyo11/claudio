@@ -73,6 +73,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
   // ---- the ecosystem's live surfaces: a card, a row and a work item whose chat is running ----
   let projectId = null;
   let chatId = null;
+  let terminalId = null;
   const flowChats = [];
   const assistantRuns = [];
   try {
@@ -194,6 +195,31 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     await open(`/projects/${projectId}/assistant`, `main ${energy}`);
     const assistant = await page.eval(loops());
     check(assistant.length === 0, `the phone's assistant: nothing repeats at subtle (${assistant.join(', ')})`);
+
+    // ---- the terminal: its cursor blinks at full and sits still at subtle and off ----
+    // The terminal is the person's own shell, not a live agent: it never earns a loop of its own
+    await page.viewport(1440, 900);
+    await page.eval(`localStorage.setItem('claudio-terminal-renderer', 'dom');`);
+    await api.put('/terminal/settings', { enabled: true });
+    const shell = await api.post('/terminals', { projectId });
+    check(shell.status === 201, `a terminal was opened (${shell.status})`);
+    terminalId = shell.body?.id ?? null;
+    const cursor = `
+      const el = document.querySelector('.term .xterm-rows .xterm-cursor');
+      return { cursor: !!el, blink: !!document.querySelector('.term .xterm-cursor-blink') };`;
+    for (const level of ['full', 'subtle', 'off']) {
+      await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
+      await open(`/terminals?project=${projectId}`, '.term .xterm-rows .xterm-cursor');
+      const seen = await page.eval(cursor);
+      check(seen.cursor, `the terminal draws its cursor at ${level}`);
+      if (level === 'full') {
+        check(seen.blink, 'the cursor blinks at full');
+      } else {
+        check(!seen.blink, `the cursor is steady at ${level}`);
+        const running = await page.eval(loops('.term'));
+        check(running.length === 0, `the terminal: nothing repeats at ${level} (${running.join(', ')})`);
+      }
+    }
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
@@ -218,6 +244,9 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
         await page.sleep(250);
       }
     }
+    if (terminalId) await api.del(`/terminals/${terminalId}`).catch(() => {});
+    await api.put('/terminal/settings', { enabled: false }).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-terminal-renderer');`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
 };
