@@ -159,7 +159,11 @@ can change mid-chat.
    `source: 'claudeai'` and only for an account that has them enabled (the CLI login at the time of
    writing has none; `claude mcp list` shows the same). `mcp_authenticate` (`{ serverName,
    redirectUri? }`) is accepted on stdin in this mode (an unknown server answers `Server not found`);
-   its answer for a real connector pending authorisation is still to record (part B).
+   for a claude.ai connector pending authorisation it answers (recorded 2026-10-15 on
+   `claude.ai AgentMail`) `{ authUrl, requiresUserAction: true, callbackExpected: false }`, where
+   `authUrl` is a claude.ai page (`…/api/organizations/<org>/mcp/start-auth/<server>?product_surface=sdk-cli`)
+   that runs the whole sign-in itself: Claudio opens it and receives no callback. Afterwards the
+   connector reads `connected` on a later `mcp_status` (part B polls for it).
 
    **Built in two parts.** A: the connectors overview from a short-lived probe session reading
    `mcp_status` (default account's environment, polled until settled, cached a minute as today), with
