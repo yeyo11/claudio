@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T09:00:00Z
-updated_at: 2026-10-15T09:00:00Z
+updated_at: 2026-10-15T13:00:00Z
 tags:
     - plan
     - fork
@@ -150,13 +150,25 @@ no code, and credits claude-swap in the package's README.
   of the other kinds are removed from it (`child-env.ts`). Two chats can run on two accounts at the
   same time. A live chat stays on its account until it is launched again.
 
-**Usage per account** comes from the `rate_limit_event` Claude emits on stream-json
-(`rate_limit_info`: `status`, `resetsAt`, `rateLimitType`, `utilization`) and from a result with a
-429. The latest reading per account and window is current state in `<data>/accounts/limits.json`,
-written atomically, an older reading never replacing a newer one; the history is rows in the
+**Usage per account** comes from two sources, both within the one rule (events and files the CLI
+writes):
+
+- The `rate_limit_event` Claude emits on stream-json (`rate_limit_info`: `status`, `resetsAt`,
+  `rateLimitType`, `utilization`) and a result with a 429. This is the live, authoritative reading,
+  written as a turn runs.
+- **The CLI's own `cachedUsageUtilization`**, the block the signed-in CLI caches in its config
+  (`~/.claude.json` / the account dir's config): `fetchedAtMs`, and per window (`five_hour`,
+  `seven_day`) `utilization` and `resets_at`. Since each account is its own `CLAUDE_CONFIG_DIR`,
+  reading that dir's cache gives a **last-known reading for an account that has not run a turn in
+  this session** — the gap the stream alone leaves. It is an undocumented cache, so it is best-effort
+  and stamped with its `fetchedAtMs`: a fresher stream reading always wins, and a reading older than
+  its window's reset reads `unknown`.
+
+The latest reading per account and window is current state in `<data>/accounts/limits.json`, written
+atomically, an older reading (by its stamp) never replacing a newer one; the history is rows in the
 existing `usage_history` table, and switches in the existing `rotation_events` table (neither was
-ever dropped; no migration is needed). An account that has not run a turn has no reading
-(`unknown`), and a reading whose reset has passed reads `unknown` again.
+ever dropped; no migration is needed). An account with neither a stream reading nor a cache reads
+`unknown`.
 
 **Choosing an account**, at every launch of a chat that is not pinned:
 
@@ -281,6 +293,9 @@ the other stages would make every merge conflict.
     the `"5h"` of today's fixtures);
   - `--resume` of a session started on one account, from another account's dir with the linked
     `projects/`.
+  - the shape of `cachedUsageUtilization` in a real account dir's config (the window keys actually
+    present, whether it is written without a turn, how `fetchedAtMs` moves), to confirm it is a
+    usable idle-account reading before `a2` relies on it.
   A fact that contradicts this plan becomes a correction here before `a2` starts.
 - `a1` shared types: `Account` (`id`, `kind`, `alias`, `email`, `organization`, `plan`, `enabled`,
   `signedIn`, `limits`), `AccountsSettings` (`rotateOnLimit`, `threshold`, `hysteresis`,
@@ -288,8 +303,9 @@ the other stages would make every merge conflict.
   `AccountSwitchedEvent`, `RunAccountRotatedEvent`, `ChatStartOptions.account`,
   `Execution.account`, `Overview.accounts`; schemas regenerated.
 - `a2` `packages/accounts`: the store, the dirs and links (from `account-config.ts`), `envFor`,
-  `identify`, `login`, the readings, `choose`, the binary, and their tests against a fake `claude`
-  that honours `CLAUDE_CONFIG_DIR`. Depends on a0, a1.
+  `identify`, `login`, the readings (stream events, and `cachedUsageUtilization` read from each
+  account dir's config as the idle-account fallback, stamped and best-effort), `choose`, the binary,
+  and their tests against a fake `claude` that honours `CLAUDE_CONFIG_DIR`. Depends on a0, a1.
 - `a3` core: `child-env.ts` and the Claude driver launch with the chat's account; `account` on
   chats, executions and records; choosing at launch; the limit path in `rotation.ts` (mark, choose,
   replay, then wait); readiness of Claude from the accounts; `usage_history` and `rotation_events`

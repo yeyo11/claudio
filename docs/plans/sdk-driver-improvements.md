@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T12:00:00Z
-updated_at: 2026-10-15T12:30:00Z
+updated_at: 2026-10-15T13:00:00Z
 tags:
     - plan
     - providers
@@ -133,6 +133,15 @@ can change mid-chat.
    `mcp_status` is a sturdier source for the same information: read it from a short-lived session
    (or a session Claudio already has open) and fold it into `ConnectorsOverview`, keeping the
    `claude mcp list` scrape only as a fallback until the CLI ships `--json`.
+
+   **A connector that needs authorisation can be invisible today.** On the owner's machine
+   `claude mcp list` printed only the connected servers, while a claude.ai connector pending auth
+   (`claude.ai AgentMail`, found in `~/.claude/mcp-needs-auth-cache.json`) did not appear at all, so
+   the panel could neither show it nor offer to authorise it. claude.ai connectors are pulled by the
+   CLI from the signed-in account (feature-flagged), not from local config — the account's enabled
+   set is what decides whether Gmail or Calendar ever show, which is the person's to change on
+   claude.ai. `mcp_status` reports servers with their auth state, so it surfaces the pending ones the
+   scrape misses, and the authorise path below acts on them.
 
    **Authorising a connector in the app.** The control subtypes `mcp_authenticate` and
    `mcp_oauth_callback_url` let a session start a connector's OAuth sign-in from inside Claudio,
