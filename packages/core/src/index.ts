@@ -87,6 +87,7 @@ import { TunnelManager } from './tunnel.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
+import { ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
@@ -249,6 +250,7 @@ export {
   type AssistantLaunch,
   type AssistantProject,
 } from './assistant.ts';
+export { ProjectDocsError, ProjectDocsService, ProjectDocsStore, mcpServerPrefix, parseDocUrl, type DocsRuntime } from './project-docs.ts';
 export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
 export {
   FLOW_CAUSE,
@@ -403,6 +405,8 @@ export class Core {
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
   readonly connectors: Connectors;
+  /** The Claude Docs each project knows, read and created through the Docs connector */
+  readonly projectDocs: ProjectDocsService;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   /** The first setup's sign-ins: a key or a device code per tool, one live session per tool and host */
@@ -1060,6 +1064,7 @@ export class Core {
       void this.sessions.listSessions().catch(() => undefined);
     });
     this.connectors = new Connectors(config);
+    this.projectDocs = new ProjectDocsService({ config, runtime: this.runtime, connectors: this.connectors });
     // A project's agent file is also a team member's: the team announces it, however it was written
     this.resources = new ConfigResources((change) => {
       if (change.kind !== 'agents' || change.scope.kind !== 'project') return;
