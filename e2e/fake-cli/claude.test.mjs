@@ -116,6 +116,13 @@ test('a turn runs its commands for real and ends with a result', async () => {
   await c.done();
 });
 
+test('the init lists the subagent tool, so a session never reads as a CLI missing subagents', async () => {
+  const c = chat();
+  const init = await c.next((e) => e.type === 'system' && e.subtype === 'init');
+  assert.ok(init.tools.includes('Agent') || init.tools.includes('Task'), `tools: ${init.tools.join(', ')}`);
+  await c.done();
+});
+
 test('a running command beats with the elapsed time offset, and hears messages at its next step', { skip: !linux && 'needs /proc' }, async () => {
   const c = chat({ CLAUDIO_FAKE_CLI_HEARTBEAT_MS: '100' });
   c.say('elapsed: 200\nrun: sleep 30\nrun: sleep 31');

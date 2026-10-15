@@ -176,7 +176,9 @@ emit({
   cwd: process.cwd(),
   model,
   permissionMode,
-  tools: ['Bash'],
+  // The subagent tool a real CLI always lists: without it the detector reads the first session as a
+  // CLI missing subagents, and Claude Code turns `degraded` for every spec after it
+  tools: ['Agent', 'Bash'],
   mcp_servers: [],
   slash_commands: ['compact', 'context', 'cost', 'review'],
   claude_code_version: VERSION,

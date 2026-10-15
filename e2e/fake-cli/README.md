@@ -50,7 +50,7 @@ event), `--model` (`sonnet` → `claude-sonnet-5`; a full name is kept), `--perm
 `<repo>/.claude/worktrees/<name>` on a branch `worktree-<name>` (or reuses it) and works there, which
 is the `cwd` of its `init`; outside one it says so on stderr and works in place.
 
-**On start:** `{"type":"system","subtype":"init", cwd, model, permissionMode, tools:["Bash"], mcp_servers:[], claude_code_version, …}`.
+**On start:** `{"type":"system","subtype":"init", cwd, model, permissionMode, tools:["Agent","Bash"], mcp_servers:[], claude_code_version, …}`.
 No transcript is written to the config directory, unless `CLAUDIO_FAKE_CLI_TRANSCRIPT=1` or the
 scripts file has `"@transcript": true` (read when the process starts) and `CLAUDE_CONFIG_DIR` is set:
 then it appends to `$CLAUDE_CONFIG_DIR/projects/<cwd with every non-alphanumeric as ->/<session>.jsonl`
