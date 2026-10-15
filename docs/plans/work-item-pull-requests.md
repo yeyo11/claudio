@@ -28,10 +28,10 @@ checkout that falls further behind `origin/main` after every merge.
 Option A (owner, 2026-09-28): **approving a card opens its pull request**. The person merges it on
 GitHub as always (squash). **A merged PR moves the card to Done and brings the checkout forward.**
 
-Since code hosts phase 4 the person can also merge from Agentry (Merge, Auto-merge, Update from
+Since code hosts phase 4 the person can also merge from Claudio (Merge, Auto-merge, Update from
 base), still as their own click and never a run or a chat token; a merge from there reaches Done
 through the same `merged()` path. See [code-hosts.md](../code-hosts.md#merging) and
-[work-items.md](../work-items.md#merging-from-agentry).
+[work-items.md](../work-items.md#merging-from-claudio).
 
 Rejected:
 
@@ -40,14 +40,14 @@ Rejected:
 
 ## The one rule, and who pushes
 
-Everything goes through `git` and `gh`, both run by Agentry's core process **on the person's
+Everything goes through `git` and `gh`, both run by Claudio's core process **on the person's
 request**, exactly as `Orchestrator.pullRequest()` (`packages/core/src/orchestrator.ts`) already
-pushes an integration branch and runs `gh pr create`. No GitHub REST call from Agentry, no SDK, no
+pushes an integration branch and runs `gh pr create`. No GitHub REST call from Claudio, no SDK, no
 call to Anthropic.
 
 **No flow run ever pushes.** `stageRules` in `packages/core/src/flow.ts` keeps `Bash(git push)` and
 `Bash(git push *)` denied in every stage, and that includes the Developer run that resolves a
-conflict. The push is Agentry's own, after the person approved.
+conflict. The push is Claudio's own, after the person approved.
 
 ## Terms
 
@@ -71,7 +71,7 @@ code the web words in en/es, and the raw detail in mono:
 | `no-remote` | The project has no `origin` remote. |
 | `unsupported-host` | `origin` has no host, a ported host, or a host neither `gh` nor `glab` is signed in to. |
 | `cli-missing` | The host's CLI is not found, or `--version` fails. |
-| `cli-incompatible` | The CLI's version is below the minimum Agentry works with. |
+| `cli-incompatible` | The CLI's version is below the minimum Claudio works with. |
 | `cli-signed-out` | The CLI is not signed in to the host. |
 | `no-default-branch` | Neither way above finds the default branch. |
 
@@ -144,7 +144,7 @@ waiting for approval as before. Git or gh output is never shown raw as the only 
      item's newest passing `verify` flow run. An item with no such run lists the criteria with their
      checked state only;
   3. `## Work item`: the key and a link to the card, `<web origin>/tasks/<KEY>`, built from the
-     origin Agentry serves its web UI on (the configured public URL when there is one).
+     origin Claudio serves its web UI on (the configured public URL when there is one).
 
 ## Conflicts
 
@@ -160,8 +160,8 @@ When step 2 leaves conflicted paths (`conflictedPaths()` in `git.ts`):
   lists every conflicting path and asks the Developer to resolve the conflicts and commit the merge.
   The Developer continues its own chat, as after a bounce. The rules stay the same, and `git push`
   stays denied.
-- **When the Developer's run ends**, Agentry checks the worktree:
-  - no conflicted path left and the merge still open: Agentry commits the merge (`commitAll`);
+- **When the Developer's run ends**, Claudio checks the worktree:
+  - no conflicted path left and the merge still open: Claudio commits the merge (`commitAll`);
   - conflicts left: the run ends `failed` with the new cause `conflict-unresolved`, which the web
     words;
   - otherwise the run ends normally, and the item moves to `in_review` and QA verifies as usual.
@@ -276,7 +276,7 @@ JSON, error, timestamps), added by one migration at the end of `MIGRATIONS` in
 
 Each route needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in the README's
 Work items table. Regenerate the OpenAPI schemas with
-`pnpm --filter @agentry/api openapi:schemas`.
+`pnpm --filter @claudio/api openapi:schemas`.
 
 ## Screens
 
@@ -319,7 +319,7 @@ added: the page already has its primary action.
   updated, at approval).
 - Hosts other than GitHub, and webhooks.
 - Deleting the remote branch after a merge (GitHub's own setting decides that).
-- Merging from Agentry: the person merges on GitHub.
+- Merging from Claudio: the person merges on GitHub.
 
 ## Docs to update in the same PR
 
@@ -332,7 +332,7 @@ added: the page already has its primary action.
   - add the approval's PR to "What a run's end moves";
   - add the remembered approval after a conflict;
   - add `conflict-unresolved` to the causes;
-  - add that the push is Agentry's own, while `git push` stays denied to every run.
+  - add that the push is Claudio's own, while `git push` stays denied to every run.
 - **README**: add the two routes to the Work items table.
 
 ## As built

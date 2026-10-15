@@ -100,9 +100,9 @@ user hits the limit too, and waiting for the reset is the only thing that helps 
      manager-wide `lastRateLimit`, so it must be kept **per chat** and handed over with the result
      or the rotation outcome;
   2. the earliest `resetsAt` of an exhausted window among the pool's accounts (`claude-swap list`);
-  3. otherwise `null`. Agentry then tries again after a fallback of 15 min, and the board says
+  3. otherwise `null`. Claudio then tries again after a fallback of 15 min, and the board says
      "reset time unknown".
-- Agentry resumes the task by itself at `resetsAt` + 60 s of grace, with the same limit continuation
+- Claudio resumes the task by itself at `resetsAt` + 60 s of grace, with the same limit continuation
   and **without spending an attempt**. If that execution is rejected again, the task goes back to
   `limited` with the new reset. Only a real error counts as an attempt.
 - The timer survives a restart. `limit` is persisted with the orchestration. On recovery, a `limited`
@@ -153,7 +153,7 @@ switch on `OrchestrationTaskStatus`. Today these are `lib/shell-live.ts`,
 
 - `packages/shared/src/types.ts`: `OrchestrationTaskStatus` gains `'limited'`.
   `OrchestrationTaskState` gains `limit?: { reason: string; resetsAt: string | null; since: string } | null`.
-  Then regenerate `apps/api/src/openapi/schemas.json` (`pnpm --filter @agentry/api openapi:schemas`).
+  Then regenerate `apps/api/src/openapi/schemas.json` (`pnpm --filter @claudio/api openapi:schemas`).
   No new route, so no change to `routes.ts` or the README's REST tables.
 - `packages/core/src/chats.ts`: keep the rejected event's `resetsAt` per chat, and expose it (on
   `RunResult`, e.g. `rateLimitResetsAt?: string`, or through the rotation outcome).

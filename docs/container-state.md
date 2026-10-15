@@ -12,17 +12,17 @@ tags:
 
 > **Claudio.** The image installs Claude Code alone: Codex, Gemini, Copilot and OpenCode, their
 > `provider-homes` and the size they added are gone ([plans/claude-only-fork.md](plans/claude-only-fork.md)).
-> What follows is the decision as Agentry took it; `gh` and `glab` keep their homes under
+> What follows is the decision as Claudio took it; `gh` and `glab` keep their homes under
 > `/data/provider-homes`.
 
-Two things went wrong in the Docker image: it carried one agent when Agentry drives five, and an
+Two things went wrong in the Docker image: it carried one agent when Claudio drives five, and an
 update could lose a person's account setup, transcripts and projects without anything saying so.
 This page records what was found, what was decided and what it costs. How to run and update the
 image is in [deploy.md](deploy.md#updating-a-container-without-losing-anything).
 
 ## What was wrong
 
-**Data lost at an update.** The README's first command named one volume, `-v agentry-data:/data`.
+**Data lost at an update.** The README's first command named one volume, `-v claudio-data:/data`.
 The image declares `VOLUME` for `/home/node/.claude`, `/workspace` and `/data`, so Docker made an
 anonymous volume for the two the command did not name. Replacing the container, which is what the
 Updates card in Settings told people to do ("the volumes keep every chat, setting and credential"),
@@ -62,11 +62,11 @@ nothing moved the chart's tag, so a plain `helm install` ran a very old release.
   with the command that names all three volumes, before any update command. It cannot tell a new
   empty named volume from the intended one (Compose started from another folder), so the compose
   file and the README tell people to set `COMPOSE_PROJECT_NAME` once.
-- **Every command names three volumes, and the workspace is one of them.** `agentry-workspace`, not
+- **Every command names three volumes, and the workspace is one of them.** `claudio-workspace`, not
   `$PWD/workspace`. A folder of one's own is fine as an absolute path.
 - **The chart's tag follows the release.** `values.yaml` carries release-please's marker, and a test
   checks it equals the root `package.json` version, so it cannot go stale silently again.
-- **No forced compose project name.** Adding `name: agentry` would rename the volumes of everyone
+- **No forced compose project name.** Adding `name: claudio` would rename the volumes of everyone
   whose folder is called something else and look like the data was lost, which is the failure this
   page is about.
 

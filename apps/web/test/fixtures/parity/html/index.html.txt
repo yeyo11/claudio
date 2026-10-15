@@ -8,11 +8,11 @@
     <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Agentry</title>
+    <title>Claudio</title>
     <script>
       // Stamp the saved theme before first paint (src/lib/theme.tsx owns it afterwards)
       try {
-        var theme = localStorage.getItem('agentry-theme');
+        var theme = localStorage.getItem('claudio-theme');
         if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
       } catch (e) {}
     </script>

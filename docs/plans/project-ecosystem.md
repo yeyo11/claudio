@@ -34,7 +34,7 @@ orchestration 5 (`ecosystem-review-fixes`) fixed the review of the whole feature
 
 ## Why
 
-Agentry runs chats and orchestrations, but it has nowhere to say *what the project needs done*. Work
+Claudio runs chats and orchestrations, but it has nowhere to say *what the project needs done*. Work
 starts from a prompt typed on the spot and leaves no trace once the chat is closed. The resources of
 a project (agents, skills, commands) are written by hand in an editor, with no help and no relation
 to what the project is. A project is only `{ id, name, path }`, and the only thing that can be
@@ -107,7 +107,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
 ### Team, memory and documents (orchestration 3)
 
 26. **A team member is a CLI agent file** in the project's `.claude/agents/`, so it also works from a
-    terminal, plus role metadata Agentry keeps (role, responsibility, model, what it may write).
+    terminal, plus role metadata Claudio keeps (role, responsibility, model, what it may write).
 27. **The assistant proposes the team** after reading the project, and the person accepts member by
     member. With nothing to read, the template's team is offered.
 28. **Flow by column, switchable per project**: each column has a responsible role that acts when a
@@ -118,7 +118,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
     resumed. After a maximum number of bounces, set per project, the item waits for the person.
 31. **A model per role**, editable: Opus for Product Owner and Architect, Sonnet for the others.
 32. **Shared memory** is the CLI's own (`CLAUDE.md` and the project's memory directory) plus a
-    **project journal** Agentry keeps (decisions taken, items closed), handed to each agent when it
+    **project journal** Claudio keeps (decisions taken, items closed), handed to each agent when it
     starts.
 33. **Every role proposes memory entries and the person approves each one.** No private memory per
     role.
@@ -162,7 +162,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
     `model-aliases.json` in the data dir, and the name is derived from the id by rule
     (`claude-sonnet-5` is "Sonnet 5", `claude-opus-5-5` "Opus 5.5", `claude-haiku-4-5-20251001`
     "Haiku 4.5", a `[1m]` variant "(1M)"). An alias no chat has run on yet shows alone. Rejected: a
-    list of Agentry's own (stale with every CLI release) and asking Anthropic (the one rule).
+    list of Claudio's own (stale with every CLI release) and asking Anthropic (the one rule).
 
 ## Not in orchestration 1
 
@@ -188,7 +188,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
    `MIGRATIONS` in `packages/core/src/db.ts`. Never edit a migration that already exists.
 8. **Every new route** gets a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in the
    README's REST API tables. After changing `packages/shared/src/types.ts`, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the result.
+   `pnpm --filter @claudio/api openapi:schemas` and commit the result.
 9. **Every change reaches the event feed.** A work item or a project's modules changing emits an
    `AgentryEvent` that names what changed and carries the ids to refetch it.
 10. **Never touch the real `~/.claude`.** Tests and experiments set `CLAUDE_CONFIG_DIR` and the data
@@ -328,7 +328,7 @@ of the prototype tasks hold on each.
   `PUT /projects/:id/settings` read and replace the document, validated.
 - Changing the key prefix does not rename the keys of existing work items' history; the item's
   number is what is stored, and the key is composed when read.
-- Removing a project from Agentry keeps its settings document and its work items, so importing the
+- Removing a project from Claudio keeps its settings document and its work items, so importing the
   directory again brings them back. Say so in the route's description.
 - Emits `project.updated`.
 - **Done when**: tests cover the defaults, the templates, validation, the key derivation and its
@@ -724,13 +724,13 @@ Written by the planner on 2026-09-27 where the plan left a choice open; the owne
 - **A member runs as its agent through the CLI**: `claude --agent <agent>` with `--model` from the
   member, in the item's worktree. The agent file in `.claude/agents/<agent>.md` is the role's
   instructions, so the same member works from a terminal.
-- **What a member may write** (`writes`) is enforced on the chats Agentry starts for it, through the
+- **What a member may write** (`writes`) is enforced on the chats Claudio starts for it, through the
   CLI's permission rules (`--disallowedTools` for `Edit`/`Write` outside those paths). From a
   terminal it is only the agent's instructions; the member screen says so.
 - **The starting team** comes from the project's template (four roles in "Software profesional").
   Proposing a team by reading the project is orchestration 4: the empty Team screen offers only the
   template's team and "add a member" here.
-- **The journal is Agentry's**: rows in SQLite per project, written when an item reaches `done`
+- **The journal is Claudio's**: rows in SQLite per project, written when an item reaches `done`
   (its title, who approved it, its links), when a person approves a memory proposal addressed to it,
   and by hand. It is handed to every flow run with `--append-system-prompt`, the newest entries
   first, capped at a size the task decides and documents.
@@ -740,7 +740,7 @@ Written by the planner on 2026-09-27 where the plan left a choice open; the owne
   for the person, who approves (optionally editing it), or rejects. Nothing is written before.
 - **Documents written by a run** (the Product Owner's specification, an architecture decision, QA's
   report) are files in the project's documents folder (`documents.path`, default `docs`), written by
-  the agent itself in the worktree, and reported in the result so Agentry links them to the item
+  the agent itself in the worktree, and reported in the result so Claudio links them to the item
   with the role that wrote them.
 - **The flow**, per decision 28 to 30, only while `flow.enabled`:
   - a card entering a column that has a responsible role starts that role's run on the item: refine
@@ -868,7 +868,7 @@ Written by the planner on 2026-09-27; the owner can reopen them.
 - **An assistant run is a chat through the CLI** in the project's directory, read-only: the read
   tools only (`Read`, `Grep`, `Glob`, `LS`, and `Bash` limited to `git log`/`git status`/`ls`),
   with `--json-schema` for its answer. It never writes a file; everything it proposes is written
-  by Agentry when the person accepts it. Model `sonnet` by default, editable per run.
+  by Claudio when the person accepts it. Model `sonnet` by default, editable per run.
 - **What a run reads**: the repository, the project's `CLAUDE.md` and memory, its journal, its
   existing work items (so it does not propose them again), its team and its resources. What it
   read is kept on the run and shown ("Ver lo que ha leído").
@@ -964,7 +964,7 @@ of orchestrations 1 to 4 apply, the web ones included. The numbers below are the
 - **"Work on it" always works in its own `task/<key>` worktree**, branched from the project's HEAD
   (or from the node's branch when a node worked on the item); nothing removes a worktree an item
   holds.
-- **Chats Agentry starts on its own are titled in the person's language**: the first line of their
+- **Chats Claudio starts on its own are titled in the person's language**: the first line of their
   prompt is a short Spanish or English title ("Asistente de <project>", "<KEY> · <title>"), since a
   chat's title is its first prompt.
 - **Documents' size limit is 1 MiB**, the API's body limit, everywhere (core, docs, UI).
@@ -1035,14 +1035,14 @@ Decisions taken by the planner where a gap needed one; the owner can reopen them
     from the run's partial structured output or its stream; the save stays the person's.
 
 **Language**
-13. **Every prompt Agentry writes for a chat starts with a first line in the person's language**,
+13. **Every prompt Claudio writes for a chat starts with a first line in the person's language**,
     `KEY · title` for "Work on it" and each orchestration node, "Asistente de <project>" for the
     assistant, "<Role> · <KEY>" for a flow run; the instructions for Claude after it may stay in
     English. The orchestration draft's objective is in the person's language.
 14. **The team template's responsibilities are shown in the person's language**: core keeps English
     in the agent file (Claude reads it), and the web translates a responsibility that is still the
     template's by role; an edited one shows as written.
-15. **A chat Agentry does not run** is named in the history by its title, resolved when the history
+15. **A chat Claudio does not run** is named in the history by its title, resolved when the history
     is read, not by its id.
 
 **API and data**
@@ -1087,7 +1087,7 @@ Decisions taken by the planner where a gap needed one; the owner can reopen them
 ## Orchestration 7: `ecosystem-design`
 
 The designer reviewed the 66 draft screens and delivered the official reference of the ecosystem
-(2026-09-28, `agentry-ecosistema.zip`): a patch over `e0c24a7` that touches only `docs/` (161 files),
+(2026-09-28, `claudio-ecosistema.zip`): a patch over `e0c24a7` that touches only `docs/` (161 files),
 `docs/design-system/ecosystem-review.md` with the change of every screen and what development needs,
 and "Decisions of the ecosystem design review" in `docs/design-system.md` answering the ten open
 questions. This orchestration brings the app to that reference. It starts once orchestration 6 is
@@ -1150,7 +1150,7 @@ Documents module stays as built. Nothing below is decided.
 - **Documents as a project knowledge base, not only the repository's `docs/`.** Material a task
   needs, such as an API contract, should not have to be versioned. Whether a document is versioned
   must be a choice, not a rule: per document, per folder or per project, with a default that may
-  depend on the kind of document. Local documents would live in Agentry's data directory and reach
+  depend on the kind of document. Local documents would live in Claudio's data directory and reach
   a chat through the CLI's `--add-dir`; versioned ones stay in the repository.
 - **Integrations, managed clearly from chats.** An integration would be a record (name, base URL per
   environment, authentication, its contract from the knowledge base, notes, optionally its MCP
@@ -1342,7 +1342,7 @@ as the validated prototypes draw it, where this plan said none.
 
 - the wizard at `/projects/new`, which replaces the create and import dialogs;
 - the project page as a header over tabs that follow the modules;
-- Agentry's settings above Claude Code's in Ajustes;
+- Claudio's settings above Claude Code's in Ajustes;
 - each project card showing its key and modules.
 
 Where it went past the plan:
@@ -1476,9 +1476,9 @@ the four routes with `team.changed`.
 
 Where it went past the plan:
 
-- Agentry knows which agent files are still its own by their hash, in
+- Claudio knows which agent files are still its own by their hash, in
   `data/team-files/<projectId>.json`. It rewrites a file to follow the metadata only while the file
-  is byte for byte what Agentry wrote, and reports any other file as `drifted` or `missing`.
+  is byte for byte what Claudio wrote, and reports any other file as `drifted` or `missing`.
 - "From template" also fills the flow's empty columns, and leaves the flow off.
 - Two members may not share a role.
 - A project with no template, or with Simple, is offered the software team.
@@ -1680,7 +1680,7 @@ of its captures did not complete: Suggest tasks while running, and the light pho
 
 **What orchestration 4 left open**, listed in [assistant.md](../assistant.md#known-gaps):
 
-- an assistant chat is titled by its prompt ("You are Agentry's project assi…");
+- an assistant chat is titled by its prompt ("You are Claudio's project assi…");
 - `CLAUDE.md` can show twice in what a run read;
 - "Crear con IA" does not stream the file;
 - "Sugerir tareas"' focus travels as the run's `description`;
@@ -1707,7 +1707,7 @@ The four orchestrations delivered all 40 decisions. What they left open is close
 ### Merging `main` (0.22.0) into the branch
 
 While the ecosystem was built, `main` gained managed claude-swap (#104), the pinned chat moved off
-an exhausted account (#106), `AGENTRY_API_URL` for every chat (#107), the localhost.run tunnel
+an exhausted account (#106), `CLAUDIO_API_URL` for every chat (#107), the localhost.run tunnel
 (#110), pushes on iOS (#111), lists that keep their filters and the phone layout polish (#113), and
 the changes review (#115). The merge keeps both sides; where they met, it settled these:
 
@@ -1801,7 +1801,7 @@ from their commits and the code.
 
 **`review-5`** re-ran every reproduction on the merged branch and fixed what the six left:
 
-- A fork of an Agentry-run chat is handed back, and assistant runs no longer record their prompt.
+- A fork of an Claudio-run chat is handed back, and assistant runs no longer record their prompt.
 - The item's link says its flow run failed.
 - `POST /chats` answers 400 to a body of the wrong shape.
 - A team change writes only the team and the flow.

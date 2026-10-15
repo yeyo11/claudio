@@ -9,7 +9,7 @@ tags:
 ---
 # What goes over the wire between the UI and the API
 
-The web UI, the desktop tray and any other client talk to Agentry through two channels:
+The web UI, the desktop tray and any other client talk to Claudio through two channels:
 
 - **REST with JSON**, the contract being `packages/shared/src/types.ts`, typed in the web by one
   `request<T>()` in `apps/web/src/api.ts` and cached by TanStack Query.
@@ -78,11 +78,11 @@ summary) and `apps/web/test/activity-feed.test.ts` (the patch and its delays).
 - **JSON stays; no MessagePack, Protobuf or CBOR.** Compression already removes most of what a
   binary format would save, and JSON is what the OpenAPI contract, `curl` and the agents that call
   this API read.
-- **Settings stay in JSON, not TOML.** TOML's advantage is comments, and Agentry rewrites its
+- **Settings stay in JSON, not TOML.** TOML's advantage is comments, and Claudio rewrites its
   settings files from the UI (`writeAtomic(JSON.stringify(…))`), which would drop them. The rule in
   CONTRIBUTING (settings-shaped documents in JSON files) stands.
 - **LLM-oriented formats (TOON, ZON) are not for the browser.** Where they could matter is what
-  Agentry puts in front of a model; that is weighed in
+  Claudio puts in front of a model; that is weighed in
   [plans/agent-wire-format.md](plans/agent-wire-format.md).
 
 ## Known gaps

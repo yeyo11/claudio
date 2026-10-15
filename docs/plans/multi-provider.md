@@ -15,8 +15,8 @@ tags:
 ---
 # Multiple agent providers
 
-> **Agentry history.** Claudio, the fork, drives Claude Code only and removed every other vendor
-> ([plans/claude-only-fork.md](claude-only-fork.md)). This plan describes what Agentry built before
+> **Claudio history.** Claudio, the fork, drives Claude Code only and removed every other vendor
+> ([plans/claude-only-fork.md](claude-only-fork.md)). This plan describes what Claudio built before
 > that and is kept as the record of why; nothing in it is built in Claudio, and the current reference
 > is [providers.md](../providers.md).
 
@@ -28,7 +28,7 @@ decision points, and claude-swap retired. Four of its decisions are open for the
 answered phase 1's open questions on 2026-09-30; see "Decisions" at the end, and "Outcome of
 phase 1".
 
-On 2026-09-30 the owner decided that Agentry is no longer a wrapper around Claude Code: it has grown
+On 2026-09-30 the owner decided that Claudio is no longer a wrapper around Claude Code: it has grown
 into an orchestrator of its own, and it should drive other coding agents too. On a clean install it
 must find the agents on the machine on its own, say which of them are ready, and why the others are
 not.
@@ -64,9 +64,9 @@ Detection techniques the design uses:
 - **Probe semantics:** aliases, commands that require another one, unsupported platforms, and
   "absent" kept apart from "could not check".
 
-## What Agentry has today
+## What Claudio has today
 
-Agentry already speaks the Claude Code CLI's control protocol, which is what the Agent SDK wraps:
+Claudio already speaks the Claude Code CLI's control protocol, which is what the Agent SDK wraps:
 `packages/core/src/chats.ts` runs `claude -p --input-format stream-json --output-format stream-json`
 and exchanges `control_request` / `control_response` for `can_use_tool`, `interrupt`,
 `set_permission_mode` and `set_model`. So the SDK would add types, not capabilities (see Decision 2).
@@ -100,7 +100,7 @@ The manifest declares:
 - `commands`: the binary and its aliases, `requires` (other commands), `unsupportedPlatforms`;
 - `configHomes`: where it keeps state, and the variable that moves it (`CLAUDE_CONFIG_DIR`,
   `CODEX_HOME`, …), which also tells whether it was **used before** on this machine;
-- `versions`: the range Agentry's driver is tested against (`>=2.1 <3`), and how to read the
+- `versions`: the range Claudio's driver is tested against (`>=2.1 <3`), and how to read the
   version;
 - `install`: the vendor's install page, and the command that verifies an install;
 - `auth`: how to tell whether the provider is signed in (a subcommand with `--json`, a credentials
@@ -117,7 +117,7 @@ Detection produces, per provider and per host (local now, SSH and containers lat
 |---|---|---|
 | `ready` | Installed, compatible version, signed in, handshake passed | — |
 | `degraded` | Works, with a warning (version outside the tested range, limit near) | Update, or keep going |
-| `signed-out` | Installed and compatible, no credentials | Sign in, from Agentry |
+| `signed-out` | Installed and compatible, no credentials | Sign in, from Claudio |
 | `incompatible` | Installed, version too old or too new for the driver | Update or pin |
 | `used-before` | Its config home exists but the binary is not found | Install, or point to the binary |
 | `not-installed` | No trace of it | Install |
@@ -129,7 +129,7 @@ Each non-ready state carries a typed reason code, the same taxonomy everywhere: 
 ### 3. Capabilities are declared, then confirmed
 
 The manifest declares what the driver can do. The handshake confirms it for the installed version
-(the Codex `initialize` reply, Claude's `system/init`). Every feature in Agentry that needs one
+(the Codex `initialize` reply, Claude's `system/init`). Every feature in Claudio that needs one
 asks the registry, and the UI hides or explains what a provider lacks instead of failing:
 
 `interactivePermissions`, `structuredOutput`, `resume`, `fork`, `interrupt`, `setModel`,
@@ -150,7 +150,7 @@ A driver implements a small required core and optional parts gated by the capabi
 The decision engine's `DecisionProvider` is the template. A message sent whose delivery cannot be
 confirmed is reported as unknown and never retried on its own.
 
-### 5. Tool policy in Agentry's words
+### 5. Tool policy in Claudio's words
 
 Flow stages, the assistant, the supervisor and the planner stop writing Claude rules. They state a
 `ToolPolicy`: read files, edit files, run commands (with an allowlist of prefixes), network,
@@ -181,7 +181,7 @@ is not offered for that stage.
 A clean install opens on a **Providers** step, before anything else:
 
 - the providers found, grouped by state, with their version and account;
-- one primary action per state: **Sign in** runs the provider's own login from Agentry;
+- one primary action per state: **Sign in** runs the provider's own login from Claudio;
   **Install** opens the provider's install page (decision 3), and detection picks the binary up on
   its own once it lands on PATH;
 - the default provider is the first `ready` one, in the order the person can reorder later in
@@ -194,9 +194,9 @@ enabled provider.
 ### 8. The rule, rewritten
 
 The one rule (CLAUDE.md, CONTRIBUTING.md) was about Claude Code. What made it good still holds, and
-it is where Agentry stays strict. Proposed wording:
+it is where Claudio stays strict. Proposed wording:
 
-> Agentry reaches each agent **only through the interface its vendor ships for programs**: CLI
+> Claudio reaches each agent **only through the interface its vendor ships for programs**: CLI
 > flags, the vendor's official SDK, a documented stream or RPC protocol, the files the CLI writes.
 > No terminal scraping, no undocumented HTTP endpoints, no second login of our own.
 
@@ -205,7 +205,7 @@ The decision engine's exception for Jev stays as it is.
 ## Providers, in order
 
 1. **Claude Code**, on its CLI's stream-json control protocol (decision 2), moved behind the driver
-   interface with the behaviour Agentry has today. This is the proof the interface is right.
+   interface with the behaviour Claudio has today. This is the proof the interface is right.
 2. **Every other provider, in parallel** (decision 4), each in its own PR once the interface exists:
    - **Codex:** `codex app-server` (JSON-RPC over JSONL, with an `initialize` handshake), and
      `CODEX_HOME` for accounts.
@@ -267,8 +267,8 @@ Scope limits of phase 1:
 
 - **Detection only.** No provider other than Claude Code starts a chat. Chats, flows and
   orchestrations keep running exactly as today.
-- **Sign in:** Claude Code's action opens the account flow Agentry already has (Settings →
-  Account). Every other provider links to its vendor's sign-in page; signing in from Agentry comes
+- **Sign in:** Claude Code's action opens the account flow Claudio already has (Settings →
+  Account). Every other provider links to its vendor's sign-in page; signing in from Claudio comes
   with its driver.
 - **Handshakes spend nothing.** A handshake that would cost tokens or quota is not run; the
   provider's readiness then rests on version and auth.
@@ -306,12 +306,12 @@ Scope limits of phase 1:
     `ProvidersSettings` (enabled, order, default, binary override per provider), and the
     `providers.changed` event (`AgentryEventBase`, like `system.release`).
   - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated).
-  - Checks: shared tests, `pnpm --filter @agentry/api openapi:schemas` with no drift.
+  - Checks: shared tests, `pnpm --filter @claudio/api openapi:schemas` with no drift.
 - `c2` (the user's PATH), dependsOn none.
   - Move `apps/desktop/src/shell-path.ts` into `packages/core/src/providers/path.ts` and extend it:
     login-shell PATH with sentinels, a timeout and a typed failure
     (`no-shell | timeout | spawn-error | empty-path`), a fast-path marker in the environment
-    (`AGENTRY_SHELL_PATH_PROBE=1`) that rc files can test; resolving a command with `fs` (`X_OK`,
+    (`CLAUDIO_SHELL_PATH_PROBE=1`) that rc files can test; resolving a command with `fs` (`X_OK`,
     no `which` spawn); the install-directory fallback (nvm ordered by its `default` alias, volta,
     asdf, mise, bun, pnpm, npm-global, `~/.local/bin`, `~/.claude/local`, Homebrew, nix, snap).
     The desktop app imports it from core. The server uses it at start, so a server started from a
@@ -425,13 +425,13 @@ runs `pnpm typecheck` and the tests of the packages it touches; no worker runs `
 ### What phase 2 builds
 
 - **A driver interface** (section 4), with Claude Code behind it in `packages/core/src/providers/claude-code/`.
-  `ChatManager` keeps what is Agentry's (chats, executions, queueing, tokens, persistence, rotation
+  `ChatManager` keeps what is Claudio's (chats, executions, queueing, tokens, persistence, rotation
   requests) and asks the chat's driver for everything that is the CLI's (flags, environment, the
   stream, the control protocol, claude-swap).
 - **A `provider` on every chat:** the runtime, the stored record (a column of `chats`), the shared
   `Chat` type and the API. It defaults to the first provider in the person's order that has a
   session driver; in phase 2 that is always `claude-code`.
-- **`ToolPolicy`** (section 5) in Agentry's words, translated by the Claude driver into
+- **`ToolPolicy`** (section 5) in Claudio's words, translated by the Claude driver into
   `--allowedTools` / `--disallowedTools` (and `--tools` for a confined run). Flow stages, the
   assistant, the orchestrator's own runs and the shipped presets state a policy instead of rules.
 - **A neutral `RunEvent`:** the driver maps stream-json onto it; `type`, `subtype` and raw `data`
@@ -482,7 +482,7 @@ returns `null` for a provider that has a manifest and no driver yet.
 export interface ProviderDriver {
   readonly manifest: ProviderManifest;
 
-  /** Agentry's policy in the provider's own terms, and what it cannot enforce */
+  /** Claudio's policy in the provider's own terms, and what it cannot enforce */
   translatePolicy(policy: ToolPolicy): PolicyTranslation;
   /** What the picker offers for this provider, each with its tier when it has one */
   models(): ProviderModel[];
@@ -516,11 +516,11 @@ export interface DriverSession {
 }
 ```
 
-- `SessionLaunch` is what `LiveChat.opts` holds today, minus Agentry-only fields: session id,
+- `SessionLaunch` is what `LiveChat.opts` holds today, minus Claudio-only fields: session id,
   resume or fork source, name, model, effort, permission mode, native tool rules, the confinement,
   MCP config, worktree, budget, `permissionPrompts`, schema, internal, uploads directory, agent
   and agents file, account. `LaunchPlan` is `{ bin, args, env, unsetEnv }`; `ChatManager` adds
-  `AGENTRY_CHAT_ID`, `AGENTRY_API_URL` and the minted `AGENTRY_API_TOKEN` itself, as today.
+  `CLAUDIO_CHAT_ID`, `CLAUDIO_API_URL` and the minted `CLAUDIO_API_TOKEN` itself, as today.
 - `DriverEvent` is internal to core, richer than `RunEvent`, and neutral: `init` (session id,
   model, cwd, mode, `EffectiveEnvironment`), `mode-changed`, `message` (a `TranscriptEntry` and
   its stop reason), `block-started` / `delta` / `structured-delta` / `block-stopped`, `heartbeat`,
@@ -557,7 +557,7 @@ the Claude module for the same reason.
 In `packages/shared/src/types.ts`, since a preset carries one over the API:
 
 ```ts
-/** A shell command a policy allows or denies, in Agentry's words */
+/** A shell command a policy allows or denies, in Claudio's words */
 export type CommandRule =
   | { command: string; args: 'none' }   // exactly this command, no arguments
   | { command: string; args: 'some' }   // this command followed by arguments
@@ -656,7 +656,7 @@ export interface RunEvent {
   init?: RunInit;               // init
   outcome?: RunOutcome;         // result
   task?: RunTaskChange;         // task
-  data?: Record<string, unknown>; // notice only: Agentry's own words
+  data?: Record<string, unknown>; // notice only: Claudio's own words
 }
 ```
 
@@ -667,7 +667,7 @@ export interface RunEvent {
   (`started | updated | progress | ended | listed`), `taskKind` (`command | agent | workflow | other`),
   `status`, `description`, `summary`.
 - `type`, `subtype` and the raw `data` go. `other` carries only the text of a stdout line the driver
-  could not read; a protocol event Agentry does not use is no longer buffered as `other`. Nothing
+  could not read; a protocol event Claudio does not use is no longer buffered as `other`. Nothing
   reads those today: the web reads `kind`, `entry`, `status`, `text` and `block` only
   (`apps/web/src/lib/chats.ts`), and no test reads `type`, `subtype` or `data`.
 
@@ -684,7 +684,7 @@ export interface RunEvent {
 ### Capabilities, declared then confirmed
 
 `ProviderStatus` gains `confirmed: { at: string; version: string; capabilities: ProviderCapability[] } | null`.
-The Claude handshake is the `system/init` of a session Agentry was starting anyway, since a
+The Claude handshake is the `system/init` of a session Claudio was starting anyway, since a
 handshake of its own would spend tokens (phase 1's rule). From it, `confirm` takes the version
 (`claude_code_version`, checked against the manifest's range) and confirms `subagents` (`Task` or
 `Agent` among `tools`), `workflowTool` (`Workflow`), `mcp` (`mcp_servers` present) and
@@ -740,7 +740,7 @@ the provider. So:
    `types.ts` (the `RunEvent` block, the `MODEL_ALIASES` line, `Chat.provider`).
 5. **Regenerated schemas are never merged by hand.** On a conflict in
    `apps/api/src/openapi/schemas*`, the integration takes either side and runs
-   `pnpm --filter @agentry/api openapi:schemas` again.
+   `pnpm --filter @claudio/api openapi:schemas` again.
 
 ### How each task proves there is no drift
 
@@ -783,7 +783,7 @@ the provider. So:
     `packages/core/test/claude-args.test.ts`, `packages/core/test/stream-golden.test.ts`,
     `packages/core/test/fixtures/golden/*.json`, new `REPLAY` fixtures under
     `packages/core/test/fixtures/`.
-  - Checks: `pnpm typecheck`; `pnpm --filter @agentry/core test`; `pnpm --filter @agentry/api test`;
+  - Checks: `pnpm typecheck`; `pnpm --filter @claudio/core test`; `pnpm --filter @claudio/api test`;
     `git diff --stat 2313937d -- packages/*/test apps/*/test` shows only new files.
 - `g2` (shared types, additive), dependsOn none.
   - Adds `ToolPolicy`, `CommandRule`, `PolicyTranslation`, `ModelTier`, `ModelOption.tier`,
@@ -792,11 +792,11 @@ the provider. So:
     `ProviderReasonCode` `capability-missing`. Removes nothing.
   - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated),
     `packages/shared/test/*` for any new validator.
-  - Checks: `pnpm --filter @agentry/shared test`; `openapi:schemas` with no drift; `pnpm typecheck`.
+  - Checks: `pnpm --filter @claudio/shared test`; `openapi:schemas` with no drift; `pnpm typecheck`.
 - `g3` (the `provider` column), dependsOn none.
   - Files: `packages/core/src/db.ts` (the migration, `saveChats`, `loadChats`),
     `packages/core/src/chat-records.ts` (`provider?`, `LEGACY_PROVIDER`), `packages/core/test/db.test.ts`.
-  - Checks: `pnpm --filter @agentry/core test`, with the migration test over a database at the
+  - Checks: `pnpm --filter @claudio/core test`, with the migration test over a database at the
     previous `user_version`.
 
 ### M1 · `claude-driver`, dependsOn M0
@@ -813,8 +813,8 @@ the provider. So:
   - Files: `packages/core/src/chats.ts`, `live-chat.ts`, `providers/driver.ts`,
     `providers/registry.ts`, `providers/claude-code/{driver,args,stream,control,branches}.ts`,
     `packages/core/src/index.ts` (wiring only), `packages/core/test/provider-registry.test.ts`.
-  - Checks: `pnpm typecheck`; `pnpm --filter @agentry/core test` with the goldens untouched;
-    `pnpm --filter @agentry/api test`; `grep -n "stream_event\|control_request\|can_use_tool\|cswap" packages/core/src/chats.ts packages/core/src/live-chat.ts`
+  - Checks: `pnpm typecheck`; `pnpm --filter @claudio/core test` with the goldens untouched;
+    `pnpm --filter @claudio/api test`; `grep -n "stream_event\|control_request\|can_use_tool\|cswap" packages/core/src/chats.ts packages/core/src/live-chat.ts`
     finds nothing.
 - `t1` (the Claude policy translation, pure), dependsOn g2.
   - `providers/claude-code/policy.ts`, the table above. `editRules` and `commandRules` are copied
@@ -822,7 +822,7 @@ the provider. So:
     translation against every row of the "old rule → policy" table.
   - Files: `packages/core/src/providers/claude-code/policy.ts`,
     `packages/core/test/fixtures/legacy-tool-rules.ts`, `packages/core/test/tool-policy-golden.test.ts`.
-  - Check: `pnpm --filter @agentry/core test`.
+  - Check: `pnpm --filter @claudio/core test`.
 
 ### M2 · `provider-neutral`, dependsOn M1
 
@@ -843,7 +843,7 @@ the provider. So:
   - Files: `tool-policy.ts`, `flow.ts`, `assistant.ts`, `orchestrator.ts`, `chat-tools.ts`,
     `supervisor.ts`, `providers/claude-code/driver.ts` (one line), `index.ts` (`launchAssistantRun`
     only), tests.
-  - Checks: `pnpm --filter @agentry/core test` (the policy golden with its two deltas); the API's
+  - Checks: `pnpm --filter @claudio/core test` (the policy golden with its two deltas); the API's
     `tool-presets` tests; `grep -n "'Bash\|'Edit'\|'Read'\|WebFetch" packages/core/src/{flow,assistant,orchestrator,chat-tools}.ts`
     finds only comments.
 - `n2` (neutral `RunEvent`), dependsOn d1.
@@ -868,7 +868,7 @@ the provider. So:
 - `n4` (the provider through the API), dependsOn d1.
   - `ChatService` resolves `provider` (request, else `defaultSessionProvider`). It answers `400` for
     a provider with no session driver, and runs the capability gates of "Capabilities, declared
-    then confirmed". `Chat.provider` becomes required: a chat Agentry runs takes its runtime's,
+    then confirmed". `Chat.provider` becomes required: a chat Claudio runs takes its runtime's,
     and a chat read from Claude's transcripts takes the Claude driver's id.
   - Files: `packages/shared/src/types.ts` (the `Chat.provider` line), `packages/core/src/chat-service.ts`,
     `apps/api/src/routes/chats.ts`, `apps/api/src/openapi/schemas*`, API tests (a chat on
@@ -891,7 +891,7 @@ the provider. So:
     `driverConformance(name, harness)`. The harness gives a driver, an environment with the
     provider's fake on `PATH`, and how to script a turn. Each case is skipped, with its reason, when
     the driver does not declare the capability it needs:
-    1. A start gives one `init` with the session id Agentry chose, and confirmed capabilities
+    1. A start gives one `init` with the session id Claudio chose, and confirmed capabilities
        within the declared ones.
     2. A turn gives assistant `message`s and then one `result`, with statuses
        `starting → busy → idle`; with `keepAlive: false` the process exits and the chat is
@@ -918,7 +918,7 @@ the provider. So:
     policy table; the phase-2 status line is updated.
   - Files: `packages/core/test/conformance/*`, `packages/core/test/conformance-claude-code.test.ts`,
     `packages/core/test/fixtures/*.jsonl`, `docs/providers.md`.
-  - Check: `pnpm --filter @agentry/core test`.
+  - Check: `pnpm --filter @claudio/core test`.
 
 When M3 is merged into the branch: the full `pnpm typecheck`, `pnpm test`, `pnpm build` and
 `pnpm e2e` (every spec unchanged), `git diff 2313937d -- e2e/specs` empty, the plan's "Outcome of
@@ -969,15 +969,15 @@ and `pnpm e2e` run once, at the end, on the branch.
 - **One ACP driver** in `packages/core/src/providers/acp/`, used by three manifests (`copilot`,
   `gemini`, `opencode`). Each manifest names its command, arguments, environment and capabilities;
   the protocol code is shared. What differs per agent is data, not code paths.
-- **Agentry's policy enforced on agents that do not take Claude's rules.** `PolicyTranslation` gains
+- **Claudio's policy enforced on agents that do not take Claude's rules.** `PolicyTranslation` gains
   provider settings and host enforcement. A **policy judge** in core answers an agent's permission
   requests from the run's `ToolPolicy` before anything reaches a person. `git push` stays denied on
   every provider that runs a flow stage.
 - **Native session ids.** Codex and the ACP agents choose their own session ids, unlike Claude, where
-  Agentry imposes one. A chat keeps its Agentry id and records its provider's id beside it.
+  Claudio imposes one. A chat keeps its Claudio id and records its provider's id beside it.
 - **A `TranscriptStore` per provider**, with ChatService routing by the chat's provider: Claude's
   JSONL (today's `SessionStore`, behind the interface), Codex through `app-server` (decision P3-3),
-  OpenCode's SQLite database read-only, and the stream Agentry recorded for Copilot and Gemini
+  OpenCode's SQLite database read-only, and the stream Claudio recorded for Copilot and Gemini
   (decision P3-2).
 - **Fakes that speak each protocol,** built from the recordings below, for the core conformance suite
   and for e2e. The suite is generalised so it no longer assumes Claude's session id or rule lists.
@@ -1002,9 +1002,9 @@ These are named so that no worker "finishes" them:
   do not declare `structuredOutput`. Flow verify stages, the decision engine's `cli` provider and the
   planner need a schema. On these three providers such runs are refused, and the provider is not
   offered for them.
-- **Signing in from Agentry.** Sign-in stays a link to the vendor's page (decision 3). ACP's
+- **Signing in from Claudio.** Sign-in stays a link to the vendor's page (decision 3). ACP's
   `authenticate` method and Codex's `account/login/start` are not called.
-- **Reading another vendor's credentials.** Agentry never reads `auth.json` contents beyond "a JSON
+- **Reading another vendor's credentials.** Claudio never reads `auth.json` contents beyond "a JSON
   object with at least one key" (phase 1's probe). It never reads OpenCode's `account`,
   `control_account` or `credential` tables, and never touches a keyring.
 - **The Docker image** keeps shipping Claude Code only (decision 5 is still open).
@@ -1039,7 +1039,7 @@ fixtures.
 | Protocol source | `codex app-server generate-json-schema --out <dir>` and `generate-ts --out <dir>` write the whole protocol: 104 client request methods, 10 server requests, 83 server notifications, 1 client notification (`initialized`). **The driver's types are generated from this output and pinned per recorded version**, not written by hand |
 | Process | `codex app-server` speaks over stdio. With a `CODEX_HOME` that does not exist it warns ("could not create PATH aliases") and goes on; under `/tmp` it refuses to create its helper binaries and goes on. It exits 0 shortly after stdin closes, even with a turn active |
 | Wire | Requests carry `"jsonrpc":"2.0"`. Responses and notifications from the server **omit `jsonrpc`**, and notifications add `emittedAtMs`. Errors: unknown method `-32600` "Invalid request: unknown variant …" (with the full method list), signed-out rate limits `-32600` "codex account authentication required to read rate limits". The reader must not require `jsonrpc` on what it reads |
-| `initialize` | Params: `{ clientInfo: { name, title, version }, capabilities: { experimentalApi, requestAttestation, optOutNotificationMethods? } }`. Reply: `{ userAgent: "agentry_recorder/0.159.3 (Ubuntu 24.4.0; x86_64) dumb (…)", codexHome, platformFamily: "unix", platformOs: "linux" }`. Then `remoteControl/status/changed` (`disabled`). **The version is in `userAgent`.** `clientInfo.name` becomes the thread's `originator` |
+| `initialize` | Params: `{ clientInfo: { name, title, version }, capabilities: { experimentalApi, requestAttestation, optOutNotificationMethods? } }`. Reply: `{ userAgent: "claudio_recorder/0.159.3 (Ubuntu 24.4.0; x86_64) dumb (…)", codexHome, platformFamily: "unix", platformOs: "linux" }`. Then `remoteControl/status/changed` (`disabled`). **The version is in `userAgent`.** `clientInfo.name` becomes the thread's `originator` |
 | Signed out | `account/read` → `{ account: null, requiresOpenaiAuth: true }`. `codex login status` exits 1 with "Not logged in" on stderr. `model/list` **works signed out**. `thread/start` works signed out and pre-connects a websocket that fails 401 on stderr, without spending anything |
 | Models | `model/list` → 8 models, each `{ id, displayName, description, hidden, isDefault, defaultReasoningEffort, supportedReasoningEfforts[], inputModalities, serviceTiers, … }`. On 2026-10-01: `gpt-6.1-sol` (default), `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`; efforts `low/medium/high/xhigh/max/ultra` (a subset on some) |
 | `thread/start` | `{ cwd, approvalPolicy, sandbox, model?, config?, developerInstructions?, ephemeral? }`. **There is no client-chosen id**: the server answers `thread.id` (UUIDv7, `sessionId` equal to it), `thread.path` (the rollout file), `model`, `approvalPolicy`, `sandbox` (as a policy object), `reasoningEffort`, then sends `thread/started`. The rollout file `CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl` is created at the first turn, not at `thread/start` |
@@ -1078,7 +1078,7 @@ plan mode). It wrote only inside the sandbox `COPILOT_HOME`. Its first `--acp` s
 **auto-updated the owner's `~/.local/bin/copilot` in place, from 1.0.65 to 1.0.90**. What this means
 for the design:
 
-- every Copilot process Agentry starts gets `COPILOT_AUTO_UPDATE=false` and `--no-auto-update`, so a
+- every Copilot process Claudio starts gets `COPILOT_AUTO_UPDATE=false` and `--no-auto-update`, so a
   run never replaces the person's binary or leaves the tested version on its own;
 - an empty `COPILOT_HOME` does not mean signed out, so readiness keeps `no-probe` until a session
   answers;
@@ -1096,7 +1096,7 @@ for the design:
 | Agent methods (bundle source of 0.62.0, not observed on the wire) | `initialize`, `authenticate`, `newSession`, `loadSession`, `prompt`, `cancel`, `setSessionMode`, `unstable_setSessionModel`; `session/new` answers `models { availableModels, currentModelId }` and modes `default`, `auto_edit`, `yolo`, `plan`; permission options `allow_once`, `allow_always`, `reject_once`, `reject_always` |
 | Flags (help) | `--approval-mode default\|auto_edit\|yolo\|plan`, `--policy <files>` (policy engine), `--admin-policy`, `--allowed-mcp-server-names`, `--include-directories`, `--skip-trust`, `-m/--model`, `--session-id` (non-ACP), `-w/--worktree`. `--allowed-tools` is deprecated in favour of the policy engine |
 | Policy engine (docs: geminicli.com/docs/reference/policy-engine) | TOML rules `{ toolName, commandPrefix \| commandRegex, argsPattern, decision: allow \| deny \| ask_user, priority, modes, interactive }`, tiers Default < Extension < Workspace < User < Admin; `ask_user` in non-interactive mode is `deny` |
-| Dependency | Ships `@github/keytar`: Google sign-in credentials can live in the OS keyring, so Agentry does not read them |
+| Dependency | Ships `@github/keytar`: Google sign-in credentials can live in the OS keyring, so Claudio does not read them |
 
 #### OpenCode 1.18.34 (`opencode acp`)
 
@@ -1154,11 +1154,11 @@ today's behaviour, and the phase 2 goldens stay byte-identical.
 ```ts
 export interface ProviderDriver {
   // …phase 2 members unchanged…
-  /** Who names the session: Agentry (`imposed`, Claude) or the agent (`assigned`, Codex and ACP) */
+  /** Who names the session: Claudio (`imposed`, Claude) or the agent (`assigned`, Codex and ACP) */
   readonly sessionIds: 'imposed' | 'assigned';
   /** The permission modes this provider can honour, each with its native value; the picker offers only these */
   permissionModes(): Array<{ mode: PermissionMode; native: string }>;
-  /** Reads what the provider wrote; null when it keeps nothing Agentry can read */
+  /** Reads what the provider wrote; null when it keeps nothing Claudio can read */
   readonly transcripts: TranscriptStore | null;
   /** A handshake that spends nothing, for detection: version, account, models, confirmed capabilities */
   handshake?(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult>;
@@ -1168,7 +1168,7 @@ export interface SessionLaunch {
   // …phase 2 members unchanged…
   /** The agent's own id once it has named the session; null before the first process confirms it */
   nativeId: string | null;
-  /** Agentry's policy for this run; the driver applies the settings part, the judge the host part */
+  /** Claudio's policy for this run; the driver applies the settings part, the judge the host part */
   policy: ToolPolicy | null;
 }
 ```
@@ -1182,7 +1182,7 @@ export interface SessionLaunch {
   `version`), never `completed`.
 - **Process ownership without argv.** Claude's `liveSessions` reads the session from argv; Codex and
   ACP processes carry no session id in argv. `processes.ts` gains `agentryChildren()`: on Linux it
-  reads `AGENTRY_CHAT_ID` from `/proc/<pid>/environ` of the same user's processes (ChatManager
+  reads `CLAUDIO_CHAT_ID` from `/proc/<pid>/environ` of the same user's processes (ChatManager
   already sets it on every spawn). It returns `[]` elsewhere. `sessionHolders` and `liveSessions` of
   both new drivers use it, plus the pids they spawned in this process. Leftovers from a dead wrapper
   end on their own: every one of the four CLIs exits on stdin EOF (recorded).
@@ -1212,7 +1212,7 @@ export interface PolicyTranslation {
   rules: { allowedTools: string[]; disallowedTools: string[]; tools?: string[] };
   /** Native settings the launch applies, each with the part it enforces (a sandbox mode, inline config, a policy file) */
   settings?: Array<{ part: PolicyPart; key: string; value: unknown }>;
-  /** Parts Agentry enforces by answering the agent's permission requests through the judge */
+  /** Parts Claudio enforces by answering the agent's permission requests through the judge */
   host?: PolicyPart[];
   unsupported: string[];
 }
@@ -1262,7 +1262,7 @@ so it stops naming `claude-code`.
 ### Permission modes
 
 Phase 2 kept `PermissionMode` as Claude's list and deferred a neutral mode to "the second driver".
-The proposal (decision P3-1) keeps the list as Agentry's vocabulary and lets each driver declare the
+The proposal (decision P3-1) keeps the list as Claudio's vocabulary and lets each driver declare the
 subset it honours:
 
 | `PermissionMode` | Codex | Copilot | Gemini | OpenCode |
@@ -1296,8 +1296,8 @@ Files under `packages/core/src/providers/codex/`:
 | `transcripts.ts` | the `TranscriptStore` (decision P3-3) |
 
 **Lifecycle.** `launch` returns `{ bin: codex, args: ['app-server'], env }`, with `CODEX_HOME`
-taken from the person's environment and never set by Agentry. `attach` then runs, in order:
-`initialize` (clientInfo `agentry`, `experimentalApi: false`), then `initialized`, then
+taken from the person's environment and never set by Claudio. `attach` then runs, in order:
+`initialize` (clientInfo `claudio`, `experimentalApi: false`), then `initialized`, then
 
 - `thread/start` for a new chat, with `cwd`, `sandbox`, `approvalPolicy`, `model`, `config` and
   `developerInstructions` (the append-system-prompt);
@@ -1366,7 +1366,7 @@ two converge in review), `driver.ts` (`AcpDriver(manifest, profile)`), `session.
 translation's flags (Copilot), `--policy <file>` (Gemini) or `OPENCODE_CONFIG_CONTENT` (OpenCode),
 and `--model` for Copilot. `attach` runs `initialize` with
 `{ protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } }`.
-The agent works on the disk itself; Agentry offers no file system or terminal. Then:
+The agent works on the disk itself; Claudio offers no file system or terminal. Then:
 
 - `session/new { cwd, mcpServers }` for a new chat, with the chat's MCP servers translated to ACP's
   `stdio`/`http`/`sse` entries;
@@ -1424,7 +1424,7 @@ It is read-only by construction:
 1. **Finding the file**, the way OpenCode does: `OPENCODE_DB` when set (honoured, recorded), else
    `$XDG_DATA_HOME/opencode/opencode.db` (default `~/.local/share/opencode/opencode.db`, recorded
    with `db path`). The channel-named variant `opencode-<channel>.db` is used when the manifest's
-   detected channel is not latest, beta or prod (source, phase 1). Agentry never runs `opencode db
+   detected channel is not latest, beta or prod (source, phase 1). Claudio never runs `opencode db
    path` to find it, because that command creates and migrates the database (recorded).
 2. **Opening it:** `new DatabaseSync(path, { readOnly: true })` from `node:sqlite` (no new
    dependency), then `PRAGMA query_only = 1` and `PRAGMA busy_timeout = 250`. Never `immutable=1`,
@@ -1464,14 +1464,14 @@ page reads for an OpenCode chat, since ACP reports no cost.
   table. The rollout JSONL files are not parsed: their format is internal (`session_meta`,
   `response_item`, `event_msg`, `world_state`, … as recorded), and the API is the vendor's
   documented, versioned surface for it.
-- **Copilot and Gemini** (decision P3-2, recommended): Agentry records the stream it received, as
+- **Copilot and Gemini** (decision P3-2, recommended): Claudio records the stream it received, as
   rows, in a new table `chat_entries` (`chat_id`, `seq`, `entry` JSON, `at`; primary key
   `(chat_id, seq)`). That is a stream, so it goes in SQLite (CONTRIBUTING). The table is written for
   every non-Claude chat, and is the transcript for providers whose `transcripts` is null. Their
   sessions started in a terminal are not listed in phase 3.
 
 `ChatService` resolves a chat's store by its provider and native id, so `detail`, `export`,
-`search`, `resume` and `delete` (delete removes only Agentry's rows; it never deletes another
+`search`, `resume` and `delete` (delete removes only Claudio's rows; it never deletes another
 vendor's history) work the same for every provider.
 
 ### Fakes and the conformance suite
@@ -1546,7 +1546,7 @@ fakes' logic, copied, not imported, so that e2e never depends on core's test tre
 string about a Claude-only feature keeps "Claude Code", and the feature is shown only for Claude
 chats or in Claude's settings. `ChatUiConfig.agentName` (chat-ui) becomes
 `agentNameFor(chat: ChatSummary): string`, injected by the web app from the provider labels, so
-`@agentry/chat-ui` still names no vendor (its boundaries test).
+`@claudio/chat-ui` still names no vendor (its boundaries test).
 
 | Where | Keys that become `{{agent}}` | Keys that stay Claude's (feature shown for Claude only) |
 |---|---|---|
@@ -1592,7 +1592,7 @@ the first six rows contains "Claude".
   `host?`; `Chat.providerSessionId: string | null`; `ChatToolConfig.policy?`;
   `ProviderReasonCode` `auth-required`, `schema-untested`, `busy`;
   `ProviderStatus.permissionModes?: PermissionMode[]`. They are additive, then
-  `pnpm --filter @agentry/api openapi:schemas`.
+  `pnpm --filter @claudio/api openapi:schemas`.
 - **Routes:** no new route. `POST /chats` already takes `provider`. `GET /providers/:id/models`
   already exists, and now answers from the catalog cache for Codex and from the session's config
   options for ACP. `GET /providers` gains `permissionModes`. `README.md`: the `/providers` rows
@@ -1756,14 +1756,14 @@ When W is merged into the branch: the full `pnpm typecheck`, `pnpm test`, `pnpm 
 | the other locale files, `GLOSSARY.md` | `u3` |
 
 Regenerated OpenAPI schemas are never merged by hand: on a conflict, take either side and run
-`pnpm --filter @agentry/api openapi:schemas` again.
+`pnpm --filter @claudio/api openapi:schemas` again.
 
 ### Risks
 
 | Risk | Where | What holds it |
 |---|---|---|
 | `git push` reaches a remote from a non-Claude stage | `c2`, `a2` | Two independent layers per provider (native setting or rule, plus the judge); conformance cases 11 and 16; Copilot and Gemini flow stages stay off until `r1` confirms their native rule under ACP |
-| Codex `workspace-write` lets a `git push` to a local path succeed (no network needed) | `c2` | Documented; Agentry's worktrees push to the real `origin`; the judge sees escalations only. Accepted for phase 3 and listed in `docs/providers.md` |
+| Codex `workspace-write` lets a `git push` to a local path succeed (no network needed) | `c2` | Documented; Claudio's worktrees push to the real `origin`; the judge sees escalations only. Accepted for phase 3 and listed in `docs/providers.md` |
 | A CLI updates itself mid-run (recorded for Copilot) and leaves the tested range | `x1`, manifests | `COPILOT_AUTO_UPDATE=false` + `--no-auto-update`; OpenCode `autoupdate: false`; the handshake re-reads the version after a binary change |
 | Codex's protocol moves fast (0.159 → 0.161 alpha the same day) and `app-server` is `[experimental]` | `c2` | Types generated per recorded version; range `<0.160.0`; above it is `degraded`, not broken; a schema diff test per new recording |
 | The ACP capability set changes between patch releases (Copilot 1.0.65 → 1.0.90 recorded) | `a2` | `confirm` from `initialize` on every process; the manifest's set is the ceiling, the handshake the truth |
@@ -1780,7 +1780,7 @@ The owner delegated these four to the assistant ("take the freedom to do everyth
 is complete"); each was settled on its recommendation. The options are kept for the record.
 
 1. **P3-1. Permission modes on providers other than Claude.**
-   - **Recommended:** keep `PermissionMode` as Agentry's vocabulary, each driver declaring the modes
+   - **Recommended:** keep `PermissionMode` as Claudio's vocabulary, each driver declaring the modes
      it honours and their native value (the table in "Permission modes"); the picker offers only
      those.
    - A new neutral list (`ask`, `edits`, `plan`, `auto`, `all`) mapped to every provider, Claude
@@ -1788,9 +1788,9 @@ is complete"); each was settled on its recommendation. The options are kept for 
    - Each provider's own modes, shown with the provider's names (Copilot's Agent / Plan / Autopilot,
      Gemini's `auto_edit`, …).
 2. **P3-2. Transcripts for Copilot and Gemini chats.**
-   - **Recommended:** Agentry records what it streamed, as rows (`chat_entries`), and that is their
+   - **Recommended:** Claudio records what it streamed, as rows (`chat_entries`), and that is their
      transcript. Sessions started in a terminal are not listed in phase 3.
-   - ACP `session/load` replay: a short-lived reader process loads a session and Agentry keeps the
+   - ACP `session/load` replay: a short-lived reader process loads a session and Claudio keeps the
      replayed updates. It lists terminal sessions too (`session/list`, Copilot and OpenCode), but
      starts the agent, and its MCP servers, to read history.
    - Per-agent file readers (Copilot's `session-state/<id>/events.jsonl`, Gemini's chat files), as
@@ -1801,7 +1801,7 @@ is complete"); each was settled on its recommendation. The options are kept for 
      surface.
    - The rollout JSONL files under `CODEX_HOME/sessions/`: no process, but an internal format
      (`response_item`, `event_msg`, `world_state`) that changes without notice.
-   - Agentry's own `chat_entries`, as for Copilot and Gemini: simplest, but Codex sessions run in a
+   - Claudio's own `chat_entries`, as for Copilot and Gemini: simplest, but Codex sessions run in a
      terminal are not listed.
 4. **P3-4. OpenCode without credentials.** OpenCode opens sessions on free hosted models ("OpenCode
    Zen") with no sign-in (recorded).
@@ -1809,7 +1809,7 @@ is complete"); each was settled on its recommendation. The options are kept for 
      probes). With none it is `signed-out`, and a person can opt in, in Settings → Providers, to
      "use OpenCode's free models", with a line saying where the code goes.
    - `ready` without credentials, using the free models by default.
-   - Free models never used: Agentry always passes a model from a signed-in provider, and OpenCode
+   - Free models never used: Claudio always passes a model from a signed-in provider, and OpenCode
      without credentials is `signed-out` with no opt-in.
 
 ## Outcome of phase 3
@@ -1897,7 +1897,7 @@ and `pnpm e2e` run once, at the end, on the branch.
   its CLI. Nothing switches credentials, and nothing reads another vendor's credential files.
 - **Moving a live session.** A session belongs to its provider: Claude's JSONL cannot be resumed by
   Codex, and the reverse is just as impossible. A move always means a new chat (decision P4-1).
-- **Summarising with a model.** The handoff is built by code from what Agentry already has. A
+- **Summarising with a model.** The handoff is built by code from what Claudio already has. A
   summary written by an agent would spend on a provider while the work is short of quota, and would
   be one more thing to trust.
 - **Budgets on providers that report no cost.** A run under a budget (`flow.maxCostUsd`, a task's
@@ -1938,14 +1938,14 @@ and `pnpm e2e` run once, at the end, on the branch.
 | A chat pinned to an account runs `cswap run <n> --share-history -- claude …`. An account may have its own `CLAUDE_CONFIG_DIR`, with `projects/` linked back so transcripts stay readable | `providers/claude-code/args.ts:65-76`, `account-config.ts:14-25`, `accounts.ts:462-474` |
 | claude-swap state: `accounts.json` (auto-switch) and `account-config.json` (config dirs, rotation policies) in the data directory; the managed binary in `data/tools`; the tables `rotation_events` and `usage_history` | `accounts.ts:197`, `account-config.ts:97`, `cswap-install.ts:48`, `db.ts:55-65, 146-155` |
 | Fakes: the core Claude fake has `FAKE-LIMIT-ONCE` (a 429, then the replay succeeds). The Codex fake has `RATE`. The ACP fake has none. The e2e Claude fake has no limit script. e2e runs with `CSWAP_BIN` pointing at nothing | `test/fixtures/fake-claude.mjs:14`, `fake-codex-app-server.mjs:18, 312`, `fake-acp-agent.mjs:31`, `e2e/run.mjs:183, 196` |
-| Docker installs claude-swap and declares its volume. Compose and Helm mount it | `docker/Dockerfile:62-80, 104`, `docker-compose.yml:18, 28, 64`, `deploy/helm/agentry/templates/deployment.yaml:108` |
+| Docker installs claude-swap and declares its volume. Compose and Helm mount it | `docker/Dockerfile:62-80, 104`, `docker-compose.yml:18, 28, 64`, `deploy/helm/claudio/templates/deployment.yaml:108` |
 
 Two of these facts change the shape of the plan:
 
 - **Automated work must name its provider and carry its policy** before anything can move it. If
   it does not, a move to Codex would hand Codex Claude's rule strings and no `git push` guard.
 - **Claude's limit is only known while it runs.** claude-swap polled each account's usage, and that
-  goes. Between turns, Agentry knows the last `rate_limit_event` it saw, and nothing newer. The UI
+  goes. Between turns, Claudio knows the last `rate_limit_event` it saw, and nothing newer. The UI
   says how old the reading is.
 
 ### How a limit is detected, per provider
@@ -2016,7 +2016,7 @@ export interface RunNeeds {
   needs: ProviderCapability[];        // structuredOutput for a schema, budgetLimit for a budget, …
   policy: ToolPolicy | null;          // null only for a person's chat with custom native rules
   nativeRules: boolean;               // the chat runs on rules typed for one provider
-  automated: boolean;                 // Agentry started it: gitPush must be denied and enforced
+  automated: boolean;                 // Claudio started it: gitPush must be denied and enforced
   exclude: ProviderId[];              // providers this run already left in its chain, until their reset
 }
 
@@ -2067,7 +2067,7 @@ already asked for this attempt.
 1. **Record.** `ProviderLimits` marks the provider. `run.rateLimited` is emitted with `provider` and
    `resetsAt`.
 2. **Who decides.**
-   - A **person's chat** (origin `agentry`, not internal, no schema): nothing happens on its own
+   - A **person's chat** (origin `claudio`, not internal, no schema): nothing happens on its own
      (decision P4-2). The chat gets a limit banner (see "What the person sees"). Its actions are the
      feasible ones, and the setting's action is shown first.
    - **Automated work** (flow run, orchestration task, assistant run, a schedule's chat): the
@@ -2096,7 +2096,7 @@ already asked for this attempt.
      3. When the cap passes without a known reset, the row ends `failed`. The run fails with
         `limit-wait-expired`.
      `run.limitWaiting` is emitted when the wait starts.
-5. **Restart of Agentry.** `rotation.recover()` re-arms the timers of the `waiting` rows whose chat
+5. **Restart of Claudio.** `rotation.recover()` re-arms the timers of the `waiting` rows whose chat
    this process restored. A claim whose `claimed_until` has passed may be taken again. The chat's
    record keeps `keepAlive: false`, so a replay run by a process that restored the chat ends its
    process after the turn, as the one that started it would; before, the restored copy kept the
@@ -2120,7 +2120,7 @@ code, never by a model. It is English, like every prompt (the English records ru
 12 KiB:
 
 1. **What was asked:** the chat's first prompt, and for a flow run or a task, the stage's or the
-   task's own prompt as Agentry sent it.
+   task's own prompt as Claudio sent it.
 2. **What was done:** the edit steps (`editStepsFromEntries`: each changed file with the sentence the
    agent wrote before changing it); the commands run, with their exit code (the last 20); and the
    checklist (the agent's task list or plan entries) with its state.
@@ -2315,12 +2315,12 @@ export interface ModelMapEntry {
 | API | `routes/accounts.ts` and its 18 rows in `openapi/routes.ts`; `security.ts` and `security/auth.ts` references; the README's Accounts table |
 | Shared | `CswapInfo`, `CswapManagedInfo`, `AccountSummary`, `AccountUsage*`, `AutoSwitch*`, `AccountsOverview`, `AccountsSnapshot`, `SwitchAccountRequest`, `AddAccountTokenRequest`, `SetAccountAliasRequest`, `RotationPolicy*`, `AccountConfig`, `UpdateAccountConfigRequest`, `UsageHistoryPoint`, `RunAccountRotatedEvent`, `AccountSwitchedEvent`, `ChatStartOptions.account`, `Execution.account`, `Overview.accounts`, `Overview.rateLimit`, `tokenSource: 'cswap'` |
 | Web | `pages/Accounts.tsx`, `pages/accounts/**`, `lib/cswap.ts`, the claude-swap parts of `CliCard.tsx`, `UpdatesCard.tsx`, `AccountTab.tsx`, `SecurityTab.tsx`, `StatusBar.tsx` (`AccountCard`), `lib/usage-now.ts` and `lib/shell-live.ts` (`swapUsageWindows`), `accountsConfig.json` (both locales); `/accounts` redirects to `/settings?tab=providers` |
-| Packaging | `docker/Dockerfile` (the claude-swap install and its `VOLUME`), `docker-compose.yml`, `deploy/helm/agentry/**`, `.env.example`, `.github/workflows/ci.yml`, `apps/desktop/src/*` references |
+| Packaging | `docker/Dockerfile` (the claude-swap install and its `VOLUME`), `docker-compose.yml`, `deploy/helm/claudio/**`, `.env.example`, `.github/workflows/ci.yml`, `apps/desktop/src/*` references |
 | Docs and tests | `docs/desktop.md` "Multiple accounts", `docs/deploy.md`, `docs/plans/managed-claude-swap.md` and `docs/pinned-chat-rotation.md` marked superseded (kept as history); `e2e/specs/accounts-config.spec.mjs`, `packages/core/test/{accounts,account-config,cswap-install}.test.ts`, `apps/web/test/cswap.test.ts`; the web fixtures regenerated; `DesktopCuentas.html` and `MobileCuentas.html` removed from the references |
 
 **Migration** for someone who used claude-swap (recommended form, decision P4-4):
 
-1. **Nothing is deleted that Agentry did not write for itself.**
+1. **Nothing is deleted that Claudio did not write for itself.**
    - claude-swap's data (`~/.local/share/claude-swap`, its accounts and tokens) is not touched, and
      `cswap` keeps working from a terminal.
    - `accounts.json` and `account-config.json` stay in the data directory, unread.
@@ -2330,18 +2330,18 @@ export interface ModelMapEntry {
    token saved through Settings → Account (`credentials.json`) applies again and wins, as it did
    before claude-swap. The notice says which one is in force: the web reads `tokenSource` from
    `GET /system`, which already carries it, so the notice's own payload does not repeat it.
-3. **A one-time notice** appears when any of `accounts.json`, `account-config.json`, Agentry's
+3. **A one-time notice** appears when any of `accounts.json`, `account-config.json`, Claudio's
    managed copy (`data/tools`) or `CSWAP_BIN` is found at boot. It is on Home's setup rows and at the
    top of Settings → Providers until dismissed. Dismissing it writes `cswap-retirement.json` in the
    data directory, a small document of its own rather than a key of `app-settings.json`: that file's
    keys are settings a person edits, each with an environment override and a row in the settings API,
    and a one-time notice flag is none of those. It says:
-   - Agentry no longer switches Claude accounts, and work now moves between providers;
+   - Claudio no longer switches Claude accounts, and work now moves between providers;
    - which account Claude Code is signed in with (`claude auth status`);
    - how to change it (sign in again in Claude Code, or save a token in Settings → Account);
    - which projects had a rotation policy, now gone, with a link to their provider order;
    - that claude-swap and its accounts are untouched.
-   Its one action is **Remove Agentry's copy of claude-swap**, offered only when the managed copy
+   Its one action is **Remove Claudio's copy of claude-swap**, offered only when the managed copy
    exists. It deletes `data/tools/**` and nothing else.
 4. **Pinned chats** lose the pin; their next execution runs on the account in force. Old executions
    keep `account` in their stored JSON, which the type no longer reads.
@@ -2436,7 +2436,7 @@ ALTER TABLE flow_runs ADD COLUMN provider TEXT;
   (`run.providerMoved`: from, to, action, `decidedBy`); `RunLimitWaitingEvent`
   (`run.limitWaiting`: provider, `resetsAt`).
 - Decisions: the three ids and the `model` subject kind (`g7`).
-- Then `pnpm --filter @agentry/api openapi:schemas`.
+- Then `pnpm --filter @claudio/api openapi:schemas`.
 
 **Routes** (each with a summary and a tag, and a README row):
 
@@ -2704,7 +2704,7 @@ side and regenerate.
 | ACP quota failures are not recognised | `g4`, `r2` | Ordinary failures until recorded; ACP agents are only ever targets |
 | A handoff carries an injection from the transcript to the next agent | `g6` | `pasted()` with `PASTED_NOTE`; no tool output over 2 KiB; redaction |
 | The handoff misleads (a stale or partial picture) | product, `provider.on-limit` | `restart` offered beside it; git state, not the agent's word, says what changed; the resolver measures it |
-| Retirement locks a multi-account user out, or changes the account silently | `d3`, `d6` | Nothing outside Agentry's own files is deleted; the notice names the account in force and how to change it |
+| Retirement locks a multi-account user out, or changes the account silently | `d3`, `d6` | Nothing outside Claudio's own files is deleted; the notice names the account in force and how to change it |
 | A waiting run holds a `maxParallel` slot for hours | `d4` | Accepted: it bounds paid work in flight; the wait cap; "Move now" and "Stop waiting" |
 | The default-provider gap (automated work on Claude's rules) is hit before phase 4 lands | today | `d4` fixes it; until then `docs/providers.md` says automated work expects Claude Code first in the order |
 
@@ -2720,7 +2720,7 @@ The owner took the recommended option of each, and said to follow the recommenda
 3. **P4-3.** A fresh install's model mapping is empty; the first limit with no mapping waits and
    opens the editor on the missing pair, and a person accepts every suggestion.
 4. **P4-4.** claude-swap users keep the account it left active; a one-time notice names it, lists
-   the rotation policies that are gone and offers to remove Agentry's copy. Its own data is never
+   the rotation policies that are gone and offers to remove Claudio's copy. Its own data is never
    touched.
 
 ## Outcome of phase 4
@@ -2794,28 +2794,28 @@ a later release.
    products, including agents built on the Claude Agent SDK. Use the API key authentication methods
    described in the Quickstart instead"*, and that its branding guidelines do not permit calling an
    integrating product "Claude Code". On the SDK, a person with a Pro or Max subscription could not
-   use Claude in Agentry without an approval, and the UI would lose the name. The same page points
+   use Claude in Claudio without an approval, and the UI would lose the name. The same page points
    to running the CLI as a subprocess with `-p` as the way to drive the agent from another program,
-   which is what Agentry does, and the control protocol it already speaks (`control_request` for
+   which is what Claudio does, and the control protocol it already speaks (`control_request` for
    `can_use_tool`, `interrupt`, `set_permission_mode`, `set_model`) gives what the SDK would. So the
    Claude driver is `chats.ts`'s protocol, moved behind the driver interface. Rejected: the SDK with
    API keys only; the SDK while asking Anthropic for an approval. The generalised rule keeps "the
    vendor's official SDK" for other vendors, whose terms are read before one is used.
 3. **Install is a link to the vendor's page.** Rejected: running the install from
-   Agentry, and showing the command. Detection's watchers make up for it: the person does not press
+   Claudio, and showing the command. Detection's watchers make up for it: the person does not press
    Refresh after installing.
 4. **All providers after Claude, in parallel:** Codex, ACP and Copilot. Rejected: one at a time.
 5. **Still open:** which CLIs the Docker image ships (Claude Code only today).
 
 ## Rotation moves to providers (owner, 2026-09-30)
 
-Agentry used to rotate between several Claude Code accounts through claude-swap (`cswap auto`,
+Claudio used to rotate between several Claude Code accounts through claude-swap (`cswap auto`,
 `rotateAndResume` in `packages/core/src/index.ts`, `FlowService.awaitsRotation`) so work went on
 when one account ran out. That ends. Rotation now happens **between providers**: each vendor sees
-one account used normally, which keeps Agentry within every vendor's terms, and the person's work
+one account used normally, which keeps Claudio within every vendor's terms, and the person's work
 goes on in another agent instead of stopping.
 
-6. **One account per provider.** Agentry uses the account the person signed in with in each
+6. **One account per provider.** Claudio uses the account the person signed in with in each
    provider's CLI. claude-swap, managed accounts and automatic account switching are retired:
    `accounts.ts`, `account-config.ts`, `cswap-install.ts`, `cswap-pin.ts`, the claude-swap parts of
    `chats.ts` and the Accounts page. Rejected: several accounts without rotation; keeping

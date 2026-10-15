@@ -66,7 +66,7 @@ out on purpose.
 3. Items that must be looked at on purpose, because they are easy to wave through:
    - The README rows for every route either plan added. Check them against `routes.ts`.
    - `?token=` routes: post-roadmap says five. Count them in the code.
-   - The OpenAPI schemas: `pnpm --filter @agentry/api openapi:schemas` must leave no diff.
+   - The OpenAPI schemas: `pnpm --filter @claudio/api openapi:schemas` must leave no diff.
    - `e2e/harness.test.mjs`: post-roadmap's "done" requires it green. CI does not run it (decided
      against), so run it by hand with `node --test e2e/harness.test.mjs`.
    - The fake-CLI specs (`fakeCli = true`) and the health action buttons.

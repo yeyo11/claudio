@@ -32,14 +32,14 @@ the reasons there.
 
 - **A banner on every page while read-only is on.** The Security tab says so; a person who turned
   it on knows.
-- **A sign-in through an identity provider.** Agentry validates a JWT; a browser login flow
+- **A sign-in through an identity provider.** Claudio validates a JWT; a browser login flow
   (authorization code + PKCE) is a product of its own.
 - **Helm Ingress, the chart under release-please, a real cluster in CI, and the e2e harness test in
   CI.** Packaging work, taken separately.
 
 ## The one rule, again
 
-Agentry reaches Claude Code **only through its CLI**: flags, subcommands, stream-json events, files
+Claudio reaches Claude Code **only through its CLI**: flags, subcommands, stream-json events, files
 the CLI writes. No SDK, no HTTP call to Anthropic, no terminal scraping. If a piece of a feature
 below cannot be expressed that way, leave it out and say so in your result instead of inventing a
 surface.
@@ -57,7 +57,7 @@ surface.
 5. **Every long command under `timeout`**, e.g. `timeout 300 pnpm test`. If a command hits its
    timeout twice, stop retrying it and report it in your result.
 6. **After touching `packages/shared/src/types.ts`**, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the regenerated schemas. CI fails on
+   `pnpm --filter @claudio/api openapi:schemas` and commit the regenerated schemas. CI fails on
    drift.
 7. **Every new route** needs a summary and a tag in `apps/api/src/openapi/routes.ts` (a test
    enforces it) and a row in the README REST API tables, which you add yourself.
@@ -120,8 +120,8 @@ What matters is that the churn in `types.ts` happens mostly here.
 - **Audit filters.** `GET /audit` takes `method` and `status` beside `path`. The path filter in
   `db.ts` (`auditPage`) escapes `%`, `_` and `\` with `ESCAPE '\'`, so a filter on `%` matches a
   literal percent. Tests with paths that contain `%` and `_`.
-- **Recovering the token without file access.** Today `AGENTRY_AUTH_TOKEN` is read only on a
-  fresh install (`security/auth.ts`, `fromEnvironment`). Add `AGENTRY_AUTH_TOKEN_RESET=1`: on
+- **Recovering the token without file access.** Today `CLAUDIO_AUTH_TOKEN` is read only on a
+  fresh install (`security/auth.ts`, `fromEnvironment`). Add `CLAUDIO_AUTH_TOKEN_RESET=1`: on
   start, the token in the environment replaces the stored hash, the change is written to the audit
   log with actor `env`, and the same value is not applied twice (keep the hash of the last value
   applied, so a restart with the variable still set changes nothing). Document it in
@@ -148,7 +148,7 @@ workflow engine green.
 - **A cost limit for the fixer.** `maxCostUsd` on the spec goes to the CLI as `--max-budget-usd`,
   with what is left after each attempt; when it is spent, the verification is `failed` with a
   report that says so. `VerificationState.costUsd` accumulates it and the graph's cost includes it.
-- **An install step Agentry adds itself.** With `install` absent, detect the lockfile in the
+- **An install step Claudio adds itself.** With `install` absent, detect the lockfile in the
   integration worktree (`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `package-lock.json`
   → `npm ci`, `yarn.lock` → `yarn install --frozen-lockfile`) and run it before the commands, as
   its own row in `VerificationState.commands`. `install: null` disables it; a string replaces it.
@@ -197,7 +197,7 @@ The optional supervisor of [agent-observability.md](agent-observability.md) §3,
 - `supervisor.json` in the data directory (settings-shaped): `enabled: false`, `model: 'haiku'`,
   `autoSend: false`, `maxCostUsd: 0.05`. `GET /settings/supervisor`, `PUT /settings/supervisor`.
 - When enabled, a `health.changed` that reaches `bad` wakes it **once per signal per chat**, not on
-  every tick: a housekeeping chat (`origin: internal`, no Agentry transcript record, the
+  every tick: a housekeeping chat (`origin: internal`, no Claudio transcript record, the
   `read-only` preset, `--max-budget-usd` from the config) gets the signal and the worker's last
   steps read from its transcript (tool calls with inputs and results cut to a few lines, the last
   message), and answers with a hint of one or two lines.
@@ -248,7 +248,7 @@ write but do not run.
   `POST /chats/:id/permissions/:requestId`, and the item leaves the list when answered without
   opening the chat. A question (`AskUserQuestion`), a plan approval and "allow with edited
   arguments" keep the link that opens the prompt: two buttons cannot answer them.
-- A sentence on the Security tab about `AGENTRY_AUTH_TOKEN_RESET` as the recovery path.
+- A sentence on the Security tab about `CLAUDIO_AUTH_TOKEN_RESET` as the recovery path.
 
 ### `web-chats-tools` (deps `tool-presets-2`, `loose-rotation`)
 
@@ -268,7 +268,7 @@ write but do not run.
 - Supervisor: the toggle, model and cost ceiling in Settings; on a chat's or task's health badge,
   the proposal with **Send**, **Edit** (prefills the hint box) and **Dismiss**; a notification for
   `supervisor.proposed`.
-- Editor tab: reads and writes `/settings/editor`. On load, when `agentry-editor:v1` is in
+- Editor tab: reads and writes `/settings/editor`. On load, when `claudio-editor:v1` is in
   `localStorage` and the server has nothing yet, migrate it once and remove the key.
 
 ### `web-schedules-usage-2` (deps `scheduling-2`, `usage-2`, `i18n-server-strings`)
@@ -276,7 +276,7 @@ write but do not run.
 - Schedules: drop the two 30 s `refetchInterval`s in `api.ts` and refresh from `schedule.*` on the
   feed (the fallback poll while the stream is down stays, like every other list); `overlap` in the
   form with a sentence saying what it does; `overlapped` runs with their own `Tag`.
-- Usage: a `DatePicker` in `components/controls` (a calendar of Agentry's own: keyboard, `aria`,
+- Usage: a `DatePicker` in `components/controls` (a calendar of Claudio's own: keyboard, `aria`,
   both themes, no library) for the custom range; the project export as a download on the project's
   Activity tab and on the Usage page when a project is selected.
 - Server strings: the web translates connector and health strings by `code`, falling back to the
@@ -314,7 +314,7 @@ the navigation from before #60 (Dashboard, Sessions). Make them reproducible.
   tables (check them route by route against `routes.ts`), the stills of `media` next to the
   sections they show, the tour's alt text rewritten for the new navigation, the security recovery
   path, and the Known limitations list updated (remove what this orchestration fixed).
-- `SECURITY.md` and `.env.example`: `AGENTRY_AUTH_TOKEN_RESET`.
+- `SECURITY.md` and `.env.example`: `CLAUDIO_AUTH_TOKEN_RESET`.
 - `ROADMAP.md`: move everything delivered into **Done**; leave in **Next** only the decided-against
   list at the top of this plan and what a task reported as left out, each with its reason; keep
   **Out of reach of the CLI** as it is.
@@ -370,7 +370,7 @@ Tasks and dependencies:
 | `media` | `web-security-2`, `web-chats-tools`, `web-orchestration-3`, `web-schedules-usage-2`, `e2e-health-actions` |
 | `docs` | `media` |
 
-The install step in `verification.commands` is explicit because the install step Agentry adds
+The install step in `verification.commands` is explicit because the install step Claudio adds
 itself is what `verification-2` builds: this orchestration cannot use it yet.
 
 ## What "done" means
@@ -399,7 +399,7 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
 - **`security-2`** — `GET /audit` takes `method` (exact, case-insensitive) and `status` (a code or a
   class), and the path filter is escaped with `ESCAPE '\'`, so `%` and `_` — common in ids and
   encoded segments — match themselves. An unreadable status is a `400`, not an empty page.
-  `AGENTRY_AUTH_TOKEN_RESET=1` makes the token in the environment replace the stored hash on start,
+  `CLAUDIO_AUTH_TOKEN_RESET=1` makes the token in the environment replace the stored hash on start,
   audited with actor `env`; the hash of the value applied is kept, so a restart with the variables
   still set does not undo a token rotated since. Only the credential changes: mode, OIDC and
   read-only stay what `auth.json` says.
@@ -434,7 +434,7 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
   async generator so only one transcript is in memory, the project resolved before the first byte (an
   unknown one is still a `404`), and `content-disposition` on the response. A chat that disappears
   between the listing and its turn is named in its place in the Markdown and left out of the JSON;
-  housekeeping chats are not exported, being Agentry's errands rather than work done in the project.
+  housekeeping chats are not exported, being Claudio's errands rather than work done in the project.
   The route takes `?token=` like the chat export, since a browser follows it as a download.
 - **`i18n-server-strings`** — every health reason and hint is written from a catalogue keyed by a
   stable code over the params that made it fire, and `health.changed` carries the worst signal's code
@@ -467,7 +467,7 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
   refuse with a `400` is named under the filter and never sent), and **Allow** and **Deny** on a
   waiting notification for a plain tool permission, answered without opening the chat; a question, a
   plan or an edited-arguments request keeps only its link, because two buttons cannot answer those.
-  The token card names `AGENTRY_AUTH_TOKEN_RESET` as the way back in.
+  The token card names `CLAUDIO_AUTH_TOKEN_RESET` as the way back in.
 - **`web-chats-tools`** — the default preset and **Restore shipped presets** behind a confirmation;
   the new-chat, resume and fork forms each saying what leaving the preset unpicked runs with, each
   able to opt out with "No preset"; a template renamed where it is listed, through the `PATCH` that
@@ -485,7 +485,7 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
 - **`web-schedules-usage-2`** — the two 30 s `refetchInterval`s are gone; both schedule queries poll
   only while the stream is down. `overlap` is in the form with a sentence saying what the chosen one
   does, and `overlapped` and `queued` runs have their own tags, since both are the policy at work
-  rather than a failure. The `DatePicker` in `components/controls` is Agentry's own: the WAI-ARIA
+  rather than a failure. The `DatePicker` in `components/controls` is Claudio's own: the WAI-ARIA
   date picker pattern, one focusable day moved by the arrows, Home/End and Page Up/Down, today marked
   by more than colour, the week starting where the locale starts it, and the arithmetic in
   `lib/calendar` so it is tested without a DOM. The project export is two download links, on the
@@ -503,7 +503,7 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
   chat that really writes and commits in its own worktree, and a four-worker graph with checks on the
   merged branch, then drives one headless Chrome through `e2e/driver.mjs` at 1280×800. Chrome and the
   wrapper each lead their own process group and are killed by pid on every way out. The fake CLI grew
-  `say:`, `--worktree` and `AGENTRY_FAKE_CLI_SCRIPTS` for it, with every default left as it was, so
+  `say:`, `--worktree` and `CLAUDIO_FAKE_CLI_SCRIPTS` for it, with every default left as it was, so
   the specs that use the fake see no change. Frames are `Page.captureScreenshot` PNGs decoded in the
   script and encoded with **gifenc** — pure JavaScript, no dependencies of its own, no native binary,
   and `ffmpeg` is not on the machines that build this — over one palette quantized across every
@@ -523,8 +523,8 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
   identity provider, and the packaging work.
 - Nothing in this plan turned out to be impossible over the CLI, so nothing was dropped for that
   reason. The supervisor, the one piece that needed a second model, asks for it the way every other
-  Agentry feature does: a `claude` process with a preset and a budget.
-- One thing was seen and left alone: a chat Agentry starts is titled with the name the wrapper
+  Claudio feature does: a `claude` process with a preset and a budget.
+- One thing was seen and left alone: a chat Claudio starts is titled with the name the wrapper
   generated until its transcript is on disk, after which its first prompt becomes the title. It is on
   the roadmap's short **Noticed and not fixed** list, because it belongs to how a chat is named
   rather than to any task here.
@@ -536,7 +536,7 @@ This section checks every bullet of the [Outcome](#outcome) (stages 0–3),
 [What "done" means](#what-done-means) against `main` at 0.29.1, following
 [verify-roadmap-plans.md](verify-roadmap-plans.md) (CW-7). The marks are the ones
 [roadmap-completion](roadmap-completion.md#verification-2026-10-01) uses: done, fixed, dropped and
-open. Since this plan, the web UI has been split into `@agentry/ui` and `@agentry/chat-ui`, so some
+open. Since this plan, the web UI has been split into `@claudio/ui` and `@claudio/chat-ui`, so some
 evidence is in those packages now.
 
 ### Decided against
@@ -545,7 +545,7 @@ evidence is in those packages now.
 | --- | --- | --- |
 | A banner on every page while read-only is on | dropped | ROADMAP *Decided against, for now*: "a person who turned it on knows" |
 | A sign-in through an identity provider | dropped | ROADMAP *Decided against, for now*. README Known limitations: "does not sign anyone in with OIDC: it only validates a JWT" |
-| Helm Ingress, the chart under release-please, a real cluster in CI | dropped | ROADMAP *Decided against, for now*, "Packaging, taken separately". There is still no Ingress template in `deploy/helm/agentry/templates`, and `release-please-config.json` does not name the chart |
+| Helm Ingress, the chart under release-please, a real cluster in CI | dropped | ROADMAP *Decided against, for now*, "Packaging, taken separately". There is still no Ingress template in `deploy/helm/claudio/templates`, and `release-please-config.json` does not name the chart |
 | The e2e harness test in CI | done | Decided against here, then built by #128: `.github/workflows/ci.yml`, `checks` job, step "The e2e runner and its shards" runs `node --test e2e/shards.test.mjs e2e/harness.test.mjs`. ROADMAP's packaging bullet no longer lists it |
 
 ### Outcome
@@ -553,7 +553,7 @@ evidence is in those packages now.
 | Item | Mark | Evidence / reason |
 | --- | --- | --- |
 | Stage 0 `types` | done | `AuditFilter`, `ToolPresetsConfig.defaultPresetId`, `VerificationSpec.maxCostUsd`/`install`/`failGraph`, `VerificationState.costUsd`, `RotationPolicy.looseChats`, `ScheduleOverlap`, `ScheduleRunStatus` with `overlapped` and `queued`, `ProjectExport`, `Localized`, `HealthSignal.reasonCode`/`hintCode`/`params`, `SupervisorConfig`, `SupervisorProposal`, `ChatHealth.proposal` in `packages/shared/src/types.ts`. Regenerating the schemas leaves no diff |
-| `security-2` | done | `auditPage` in `packages/core/src/db.ts` (`path LIKE ? ESCAPE '\'`, method and status), `AGENTRY_AUTH_TOKEN_RESET` in `security/auth.ts`, `.env.example`, `SECURITY.md` and the README; `packages/core/test/security.test.ts`, `apps/api/test/security.test.ts` |
+| `security-2` | done | `auditPage` in `packages/core/src/db.ts` (`path LIKE ? ESCAPE '\'`, method and status), `CLAUDIO_AUTH_TOKEN_RESET` in `security/auth.ts`, `.env.example`, `SECURITY.md` and the README; `packages/core/test/security.test.ts`, `apps/api/test/security.test.ts` |
 | `tool-presets-2` | done | `GET /config/tool-presets` → `{ defaultPresetId, presets }`, `PUT /config/tool-presets/default`, `POST /config/tool-presets/restore`. `chat-tools.test.ts`: "restoring the shipped presets…", "a fork runs with the tools and servers of its source…", "a resume that picks no servers starts them as they are defined now" |
 | `verification-2` | done | `packages/core/src/verification.ts`; `verification.test.ts` (from "a spec keeps its cost limit, install step and failGraph…" through "a verification recorded before the fixer had a cost reads as zero") |
 | `loose-rotation` | done | `account-config.ts`; `account-config.test.ts` "at most one policy governs the chats without a project…" and "a chat without a project runs under the loose chats policy…" |
@@ -569,7 +569,7 @@ evidence is in those packages now.
 | `web-orchestration-3`: the Editor tab on `/settings/editor` | dropped | Removed with the editor integration (#115), as for `editor-settings-server` |
 | `web-schedules-usage-2` | done | Schedule queries poll only through `useFallbackInterval()` (`apps/web/src/api.ts`); `overlapped` and `queued` tags in `pages/Schedules.tsx`. The `DatePicker` is now in `packages/ui/src/components/controls/DatePicker.tsx`, with its arithmetic in `packages/ui/src/lib/calendar.ts` and tested by `apps/web/test/calendar.test.ts`. The project export is in `components/ProjectExport.tsx`, on the Usage page and as the project dashboard's export widget, since the Activity tab became a dashboard. `server-strings.test.ts` in the web checks the catalogue against core. `schedules.spec.mjs` and `usage.spec.mjs` pass |
 | `media` | done | `scripts/record-media.mjs` behind `pnpm media`. The README shows no screen from before Night Shift: every still and the tour were recorded again by this script, in #101 (Night Shift), #115 (changes review) and #118 (ecosystem). It was not run again here |
-| `docs`: README, `SECURITY.md`, `.env.example`, ROADMAP, the landed notes | done | Every one of the 276 routes in `routes.ts` has a README row, checked by script. `AGENTRY_AUTH_TOKEN_RESET` is in all three places |
+| `docs`: README, `SECURITY.md`, `.env.example`, ROADMAP, the landed notes | done | Every one of the 276 routes in `routes.ts` has a README row, checked by script. `CLAUDIO_AUTH_TOKEN_RESET` is in all three places |
 | `docs`: "the `?token=` list grown to five routes" | fixed | The code (`QUERY_TOKEN` in `apps/api/src/security.ts`) and the README name five. The OpenAPI description of `POST /security/token` named three. Fixed in `6d48feef` (`docs(api): name all five ?token= routes in the token route's description`). Until then only three of the five had a test; `e0efe0eb` (`test(api): cover ?token= on a chat's stream and an attachment's content`) adds the other two |
 
 ### What no task built
@@ -578,7 +578,7 @@ evidence is in those packages now.
 | --- | --- | --- |
 | The three decided-against items | dropped | As in [Decided against](#decided-against) above, except the harness test in CI, which #128 built |
 | Nothing was impossible over the CLI | done | The supervisor is a `claude` process with the `read-only` preset and `--max-budget-usd` (`supervisor.ts`). A search for `@anthropic-ai` and `api.anthropic.com` in the source finds only the npm registry read of `cli-version.ts` and a test fixture |
-| A chat Agentry starts is titled with the generated name until its transcript is on disk | done | Fixed in the UI by #101: `displayTitle` in `packages/shared/src/chat-title.ts` shows the first prompt when the title is the generated `<dir>-<id prefix>`. `firstPrompt` comes from the request before the transcript exists (`chat-service.ts`: `summary?.firstPrompt ?? runtime?.prompt`). Every chat surface uses it (`apps/web/test/chat-model.test.ts`, "a chat reads as its first prompt, not as the name Agentry gave the CLI"). The API's `title` field still carries the generated name until the transcript is on disk, and that is what an API reader sees. Removed from ROADMAP's *Noticed and not fixed* |
+| A chat Claudio starts is titled with the generated name until its transcript is on disk | done | Fixed in the UI by #101: `displayTitle` in `packages/shared/src/chat-title.ts` shows the first prompt when the title is the generated `<dir>-<id prefix>`. `firstPrompt` comes from the request before the transcript exists (`chat-service.ts`: `summary?.firstPrompt ?? runtime?.prompt`). Every chat surface uses it (`apps/web/test/chat-model.test.ts`, "a chat reads as its first prompt, not as the name Claudio gave the CLI"). The API's `title` field still carries the generated name until the transcript is on disk, and that is what an API reader sees. Removed from ROADMAP's *Noticed and not fixed* |
 
 ### What "done" means
 
@@ -605,7 +605,7 @@ only a unit test.
   `e0efe0eb`: `# pass 35`, `# fail 0`. The web suite, run again after `ff8e0b3d` added a test:
   `# pass 969`, `# fail 0`.
 - `pnpm build`: passes (`✓ built in 13.93s`, `BUILD EXIT 0`).
-- `pnpm --filter @agentry/api openapi:schemas`: `wrote 502 schemas`, and `git status` shows no diff.
+- `pnpm --filter @claudio/api openapi:schemas`: `wrote 502 schemas`, and `git status` shows no diff.
 - `node --test e2e/harness.test.mjs`: **14 tests pass on their own; the run as a whole is flaky under
   load.** In one run at a load near 58, 10 passed and 4 failed. Two failed because a probe spec never
   started inside the 12 s run limit. Two failed with `API did not start`: the runner waits about 20 s
@@ -659,7 +659,7 @@ are closed: the full suite ran (below), the e2e runner now waits up to 120 s for
 | --- | --- | --- |
 | A banner on every page while read-only is on | dropped | ROADMAP *Decided against, for now* |
 | A sign-in through an identity provider | dropped | ROADMAP *Decided against, for now*; README Known limitations |
-| Helm Ingress, the chart under release-please, a real cluster in CI | dropped | ROADMAP *Decided against, for now*. No Ingress in `deploy/helm/agentry/templates`; `release-please-config.json` does not name the chart |
+| Helm Ingress, the chart under release-please, a real cluster in CI | dropped | ROADMAP *Decided against, for now*. No Ingress in `deploy/helm/claudio/templates`; `release-please-config.json` does not name the chart |
 | The e2e harness test in CI | done | Built by #128: `ci.yml` runs `node --test e2e/shards.test.mjs e2e/harness.test.mjs` |
 
 ### Outcome
@@ -667,7 +667,7 @@ are closed: the full suite ran (below), the e2e runner now waits up to 120 s for
 | Item | Mark | Evidence / reason |
 | --- | --- | --- |
 | Stage 0 `types` | done | As on 2026-10-01, every type but one is still in `types.ts`: `RotationPolicy.looseChats` went with the rotation policies in #188 (see `loose-rotation`). `openapi:schemas` leaves no diff |
-| `security-2` | done | `auditPage` with `ESCAPE '\'` in `db.ts`, `AGENTRY_AUTH_TOKEN_RESET` in `.env.example`, `SECURITY.md`, the README and `packages/core/src/index.ts`; `security.test.ts` (core and api) |
+| `security-2` | done | `auditPage` with `ESCAPE '\'` in `db.ts`, `CLAUDIO_AUTH_TOKEN_RESET` in `.env.example`, `SECURITY.md`, the README and `packages/core/src/index.ts`; `security.test.ts` (core and api) |
 | `tool-presets-2` | done | The three tool-preset routes in `routes.ts`; `chat-tools.test.ts` (restore, fork, resume) |
 | `verification-2` | done | `verification.ts`; `verification.test.ts` (cost limit, install step, `failGraph`, a cost of zero) |
 | `loose-rotation` | dropped | Retired with claude-swap by multiple providers phase 4 (#188): decision 6 keeps one account per provider, so there is no account rotation to set a policy for, and a usage limit now moves work between providers by the global or the project's order ([Out of scope](multi-provider.md#out-of-scope-2), [providers.md](../providers.md#rotation-at-a-limit)). `account-config.ts` and its test are gone |
@@ -693,7 +693,7 @@ are closed: the full suite ran (below), the e2e runner now waits up to 120 s for
 | --- | --- | --- |
 | The three decided-against items | dropped | As in [Decided against](#decided-against-1) above; the harness test in CI was built by #128 |
 | Nothing was impossible over the CLI | done | The supervisor is a CLI process with a preset and a budget. `@anthropic-ai` appears in the source only as the npm package name `cli-version.ts` reads and in that route's description; `api.anthropic.com` appears nowhere |
-| A chat Agentry starts is titled with the generated name until its transcript is on disk | done | Does not reproduce in the UI: `displayTitle` (`packages/shared/src/chat-title.ts`) shows the first prompt, which `chat-service.ts` takes from the request before the transcript exists (`summary?.firstPrompt ?? runtime?.prompt`); `chat-model.test.ts` "a chat reads as its first prompt…". The API's `title` field still carries the generated name until then, as on 2026-10-01 |
+| A chat Claudio starts is titled with the generated name until its transcript is on disk | done | Does not reproduce in the UI: `displayTitle` (`packages/shared/src/chat-title.ts`) shows the first prompt, which `chat-service.ts` takes from the request before the transcript exists (`summary?.firstPrompt ?? runtime?.prompt`); `chat-model.test.ts` "a chat reads as its first prompt…". The API's `title` field still carries the generated name until then, as on 2026-10-01 |
 
 ### What "done" means
 

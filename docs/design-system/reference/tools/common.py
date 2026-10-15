@@ -144,7 +144,7 @@ BRAND = ('<svg class="logo-mark" width="26" height="26" viewBox="9.5 10 100 100"
 
 def page(title, body, mobile=False, css=''):
   return f'''<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · {title}</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{{margin:0;background:var(--bg)}}{css}</style><script>function t(){{var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){{e.setAttribute("data-theme",m)}})}}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<html lang="es"><head><meta charset="utf-8"><title>Claudio · {title}</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{{margin:0;background:var(--bg)}}{css}</style><script>function t(){{var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){{e.setAttribute("data-theme",m)}})}}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 {body}
 <script>t()</script>
 </body></html>
@@ -176,12 +176,12 @@ def sidebar(active, live=None, project='claude-wrapper', assistant=False):
   return f'''<div class="side">
 <nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
 <div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
-<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span></a>
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span></a>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral">{ico('sidebar')}</button>
 </div>
 <button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)">{ico('search')}<span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
 <div class="col" style="gap: 1px">
-{item('home', 'Main.html', 'home', 'Inicio')}{(chr(10) + item('assistant', 'DesktopAsistenteAgentry.html', 'sparkle', 'Asistente')) if assistant else ''}
+{item('home', 'Main.html', 'home', 'Inicio')}{(chr(10) + item('assistant', 'DesktopAsistenteClaudio.html', 'sparkle', 'Asistente')) if assistant else ''}
 {item('chats', 'DesktopChats.html', 'chats', 'Chats', '<span class="count">197</span>')}
 {item('tasks', 'DesktopTablero.html', 'tasks', 'Tareas', f'<span class="count">{TASKS_OPEN[project]}</span>' if project in TASKS_OPEN else '')}
 {item('orch', 'DesktopOrquestaciones.html', 'orch', 'Orquestaciones', '<span class="count-pill live">1</span>')}

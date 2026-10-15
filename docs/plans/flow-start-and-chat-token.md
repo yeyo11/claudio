@@ -9,7 +9,7 @@ tags:
     - chats
     - proposed
 ---
-# Plan: starting the cards already on the board, and a token for the chats Agentry starts
+# Plan: starting the cards already on the board, and a token for the chats Claudio starts
 
 Status: **built** (part 1 by CW-9, part 2 by CW-10); proposed, decided with the owner on 2026-09-28, right after the project ecosystem
 (#118) was merged. Two small changes found on the first real use of the flow.
@@ -45,25 +45,25 @@ as the actor. Web: the prompt on the Flow screen after saving `enabled: true`, i
 dialog, en/es. Tests: core (queued in order, caps respected, epics and Done left out), web, and an
 e2e step in `team-gaps` or `team.spec`.
 
-## 2. A chat Agentry starts gets its own API token
+## 2. A chat Claudio starts gets its own API token
 
-**What happened.** Every chat gets `AGENTRY_API_URL` ([chat-environment.md](../chat-environment.md))
+**What happened.** Every chat gets `CLAUDIO_API_URL` ([chat-environment.md](../chat-environment.md))
 so it calls the wrapper that started it. With the API in token mode (the owner's desktop app, set up
 for the tunnel), the chat has no credential: every call answers 401, so the variable is useless
 exactly where it matters. Diagnosing the case above, the chat had to read `wrapper.db` read-only
 instead.
 
-**Decision (option A).** Agentry mints a **token per chat run**, handed as `AGENTRY_API_TOKEN` next to
-`AGENTRY_API_URL`:
+**Decision (option A).** Claudio mints a **token per chat run**, handed as `CLAUDIO_API_TOKEN` next to
+`CLAUDIO_API_URL`:
 
 - short-lived and revoked when the chat's process ends;
 - accepted only from loopback;
 - stored hashed, like the owner's token (`auth.json` keeps only a hash);
-- audited as the chat (`AGENTRY_CHAT_ID`), so a write says which chat made it;
+- audited as the chat (`CLAUDIO_CHAT_ID`), so a write says which chat made it;
 - honoured in token mode and ignored (not needed) when the API is open.
 
 Rejected: B, loopback without a token (any local process would get full access), and C, waiting for
-the Agentry assistant's MCP server ([agentry-assistant.md](agentry-assistant.md)), which will itself
+the Claudio assistant's MCP server ([agentry-assistant.md](agentry-assistant.md)), which will itself
 need this credential to call the API.
 
 **Shape.** Core/API: a chat-token store in the security layer, minted in the chat runtime when it

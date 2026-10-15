@@ -1,11 +1,11 @@
-# Contributing to Agentry
+# Contributing to Claudio
 
 Thanks for taking the time. This is a small project with a couple of strong opinions, and knowing
 them up front saves everyone a round of review.
 
 ## The one rule
 
-**Agentry reaches each agent only through the interface its vendor ships for programs**: CLI
+**Claudio reaches each agent only through the interface its vendor ships for programs**: CLI
 flags, the vendor's official SDK, a documented stream or RPC protocol, the files the CLI writes. No
 terminal scraping, no undocumented HTTP endpoints, no second login of our own. If a feature cannot
 be expressed as a documented surface of the agent's own, it does not belong here yet. An agent that
@@ -13,11 +13,11 @@ only has an interactive terminal interface is not a provider. What a provider is
 one, is in [docs/providers.md](docs/providers.md). For Claude Code, the table in
 [README.md](README.md#how-it-talks-to-claude) lists every surface currently in use.
 
-This is what keeps the project honest: whatever an agent does, Agentry does, and nothing more.
+This is what keeps the project honest: whatever an agent does, Claudio does, and nothing more.
 
 **Code hosts follow the same rule.** GitHub is reached through `gh` and GitLab through `glab`, with
 the session the person already has in each, and through their `api` subcommands, which call the
-host's documented API. No REST client of Agentry's own, no token of Agentry's own for a code host,
+host's documented API. No REST client of Claudio's own, no token of Claudio's own for a code host,
 and no agent ever pushes. Every call to `gh` or `glab` goes through `packages/core/src/hosts/exec.ts`
 and nowhere else; an adapter builds the call and never runs it. glab's `config.yml` is read for
 host names only, never a token. What a code host is, and how to add one, is in
@@ -25,20 +25,20 @@ host names only, never a token. What a code host is, and how to add one, is in
 
 **Issue trackers follow it too.** GitHub Issues and GitLab Issues are reached through the same
 `gh` and `glab` and the same `hosts/exec.ts`, with the host's session. YouTrack is reached only
-through JetBrains' `youtrack-app`; the YouTrack token Agentry keeps is passed in the child's
+through JetBrains' `youtrack-app`; the YouTrack token Claudio keeps is passed in the child's
 environment, never in argv. A tracker's adapter, fake and every argument or output shape come from
 a recording of the real CLI committed under `packages/core/test/fixtures/recordings/`; a tracker
 listed before its CLI is recorded is `unknown` with the reason `not-recorded`. Jira is not
 supported. Issue text is a stranger's: stored as a quoted block, never as instructions.
 What a tracker is, and how to add one, is in [docs/trackers.md](docs/trackers.md).
 
-**One bounded exception: typed decision services.** Agentry may call an optional outside service
+**One bounded exception: typed decision services.** Claudio may call an optional outside service
 that only answers small typed questions (a choice, a score, a yes/no) for its decision engine.
 Today there is exactly one, TypeSafe's Jev. It is allowed only while all of this holds: it is off
 by default and used with the owner's own key; it never replaces or reaches Claude Code (it writes
 no text or code, runs no agent and makes no call to Anthropic); it receives only the state a
 decision point declares, after the owner has consented to that point having seen a preview of it;
-and Agentry works in full with the `cli` provider alone, which asks the same questions through the
+and Claudio works in full with the `cli` provider alone, which asks the same questions through the
 Claude Code CLI (`--json-schema`). See
 [docs/decisions/decision-engine.md](docs/decisions/decision-engine.md).
 
@@ -48,22 +48,22 @@ You need Node >= 22, pnpm, and the Claude Code CLI on your `PATH`.
 
 ```bash
 pnpm install
-pnpm dev          # API on :8787, Vite on :5173
+pnpm dev          # API on :8797, Vite on :5181
 ```
 
-If `:8787` is taken, the API stops and says so instead of moving: Vite proxies `/api` there, and
-another Agentry on that port (a worktree's dev server, the desktop app) would answer the new UI
+If `:8797` is taken, the API stops and says so instead of moving: Vite proxies `/api` there, and
+another Claudio on that port (a worktree's dev server, the desktop app) would answer the new UI
 with old routes. Stop what holds it, or run with `PORT=<free>` and `VITE_API_TARGET=http://127.0.0.1:<free>`.
 
 The API serves the built UI too, so `pnpm build && pnpm start` gives you the production shape on
-`:8787` alone.
+`:8797` alone.
 
 For the Linux desktop app in `apps/desktop`, `pnpm desktop:dev` builds the UI and the API bundle and
 opens Electron, and `pnpm desktop:dist` produces the AppImage and `.deb` in `apps/desktop/release/`.
 See [docs/desktop.md](docs/desktop.md).
 
 A dev server and the desktop app often run at the same time, each with its own data. A chat reaches
-the wrapper that runs it through `AGENTRY_API_URL` in its environment, never through a port it
+the wrapper that runs it through `CLAUDIO_API_URL` in its environment, never through a port it
 assumes ([docs/chat-environment.md](docs/chat-environment.md)).
 
 ## Before you open a pull request
@@ -82,7 +82,7 @@ CI also regenerates the OpenAPI component schemas and fails if they differ from 
 so if you touched a shared type:
 
 ```bash
-pnpm --filter @agentry/api openapi:schemas
+pnpm --filter @claudio/api openapi:schemas
 ```
 
 Every route must carry a summary and a tag — there is a test that enforces it.
@@ -108,7 +108,7 @@ searches are documents nobody wrote.
 - **TypeScript, strict, no `any`.** `noUncheckedIndexedAccess` is on; respect it rather than
   casting around it.
 - **English for everything technical; the person's language for what a person reads.** Code,
-  comments, docs, commit messages, the prompts Agentry sends to an agent, schemas, agent files, and
+  comments, docs, commit messages, the prompts Claudio sends to an agent, schemas, agent files, and
   what agents record (the journal, memory entries, acceptance criteria, criteria notes, QA comments)
   are English, even when the work item or the chat is in Spanish: the flow, the agent files and the
   assistant say so in one shared sentence, `RECORDS_IN_ENGLISH` (`packages/core/src/team.ts`). UI
@@ -162,8 +162,8 @@ searches are documents nobody wrote.
 | `packages/shared` | Types shared by every other package |
 | `packages/core` | The CLI driver: runs, sessions, accounts, orchestration, config, storage |
 | `apps/api` | Fastify REST API and the OpenAPI document |
-| `packages/ui` | `@agentry/ui`: the web's primitives (tokens, controls, dialogs, toasts, icons, illustrations, formatters, Markdown, highlighting) |
-| `packages/chat-ui` | `@agentry/chat-ui`: the conversation (transcript, composer, permission prompts, chat hooks) |
+| `packages/ui` | `@claudio/ui`: the web's primitives (tokens, controls, dialogs, toasts, icons, illustrations, formatters, Markdown, highlighting) |
+| `packages/chat-ui` | `@claudio/chat-ui`: the conversation (transcript, composer, permission prompts, chat hooks) |
 | `apps/web` | React UI, built on the two packages above |
 | `apps/desktop` | Electron shell and packaging for the Linux desktop app |
 | `e2e/` | Browser suite driven over the Chrome DevTools Protocol |

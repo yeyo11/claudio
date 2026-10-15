@@ -8,19 +8,19 @@ tags:
     - tokens
     - built
 ---
-# Plan: the format of what Agentry hands to a model
+# Plan: the format of what Claudio hands to a model
 
 Status: **built on 2026-10-08** (CW-33, landed in #221): compact JSON and chosen fields shipped, TOON not adopted. See
-[Outcome](#outcome). It belongs to the Agentry MCP server
+[Outcome](#outcome). It belongs to the Claudio MCP server
 ([[plans/agentry-mcp-server.md]], built), whose rule is "one `text` content
-holding compact JSON", and to anything else Agentry writes into a prompt: the orchestration
+holding compact JSON", and to anything else Claudio writes into a prompt: the orchestration
 planner's context, a worker's dependency results, the assistant's sources.
 
 ## The question
 
 Formats designed to save tokens when data goes into a model's context have appeared: **TOON**
 (Token-Oriented Object Notation, `@toon-format/toon`) and **ZON**. They drop the repeated keys of a
-list of objects by writing a header once and one row per item. Should Agentry's tools answer in one
+list of objects by writing a header once and one row per item. Should Claudio's tools answer in one
 of them instead of JSON?
 
 This is not about the browser. Between the UI and the API, JSON with compression is the answer
@@ -50,7 +50,7 @@ What this says:
 3. **Pretty-printed JSON is the one clear waste**: 25 to 35 % over compact JSON, whatever the data.
 4. **ZON is not a candidate.** Its npm package (`zon-format` 1.3.1) depends at run time on
    `openai`, `@azure/openai` and `dotenv`: a model SDK inside a serialisation library is a supply
-   chain Agentry does not take, and the one rule rules out an SDK anyway. TOON has no dependencies.
+   chain Claudio does not take, and the one rule rules out an SDK anyway. TOON has no dependencies.
 
 ## Proposal
 
@@ -61,11 +61,11 @@ What this says:
    parameter the model has to learn. Detail tools and nested results stay JSON.
 3. **Only if the bench says so.** TOON is adopted for a tool when, on real data, it saves at least
    15 % of the tokens **and** the model answers the bench questions as well as with JSON.
-4. **Never pretty-print** anything Agentry puts in front of a model.
+4. **Never pretty-print** anything Claudio puts in front of a model.
 
 ## The bench
 
-A script, `scripts/wire-format-bench.mjs`, against a running Agentry (`AGENTRY_API_URL`):
+A script, `scripts/wire-format-bench.mjs`, against a running Claudio (`CLAUDIO_API_URL`):
 
 - For each list tool, it reads the real data and encodes it as compact JSON and as TOON.
 - It asks a set of questions whose answers are in the data ("which chats are waiting?", "which task
@@ -81,7 +81,7 @@ tokenizer endpoint.
 ## Not in this plan
 
 - Changing the REST API's format. JSON stays the contract.
-- Changing what the CLI's stream-json looks like, which is not Agentry's to choose.
+- Changing what the CLI's stream-json looks like, which is not Claudio's to choose.
 
 ## Outcome
 
@@ -109,7 +109,7 @@ Decision per tool: **no tool answers TOON**; every one stays compact JSON.
   nests its task counts. Making rows uniform to favour TOON would spend tokens on nulls, which
   field selection exists to save.
 - `@toon-format/toon` (4.1.1, no dependencies) is therefore **not** a dependency of any package.
-  To rerun the bench, add it to `packages/mcp` for the run (`pnpm --filter @agentry/mcp add -D @toon-format/toon`)
+  To rerun the bench, add it to `packages/mcp` for the run (`pnpm --filter @claudio/mcp add -D @toon-format/toon`)
   and drop it afterwards.
 - Limits of the measure: one run, three questions per tool, one model, the data of one day. It is
   enough to say TOON does not clear 15 % here, not to rank the formats.

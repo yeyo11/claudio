@@ -42,9 +42,9 @@ timeout or a setup error. Each was run with its `todo` mark in place, and the ru
 ## How to run them
 
 - **Unit (web):** `apps/web/test/chat-audit-client.test.ts` (from the client worker) and
-  `apps/web/test/chat-audit-repro.test.ts` (new). Both run in `pnpm --filter @agentry/web test`.
+  `apps/web/test/chat-audit-repro.test.ts` (new). Both run in `pnpm --filter @claudio/web test`.
 - **Core:** `packages/core/test/chat-delivery-audit.test.ts` (from the server worker) and
-  `packages/core/test/chat-audit-repro.test.ts` (new). Both run in `pnpm --filter @agentry/core test`.
+  `packages/core/test/chat-audit-repro.test.ts` (new). Both run in `pnpm --filter @claudio/core test`.
 - **Browser, end to end:** `e2e/specs/chat-audit-delivery.spec.mjs` (new, `fakeCli`). It is a no-op
   unless `E2E_CHAT_AUDIT=1`, so the suite on the merged branch stays green while the bugs stand. Each
   scenario prints `REPRODUCED` or `NOT REPRODUCED` with its evidence instead of failing; `check`
@@ -61,7 +61,7 @@ timeout or a setup error. Each was run with its `todo` mark in place, and the ru
 ### What the fake CLIs gained (additive knobs only)
 
 - `e2e/fake-cli/claude`:
-  - **Transcript.** `AGENTRY_FAKE_CLI_TRANSCRIPT=1`, or `"@transcript": true` in the scripts file (a
+  - **Transcript.** `CLAUDIO_FAKE_CLI_TRANSCRIPT=1`, or `"@transcript": true` in the scripts file (a
     spec cannot set the server's environment), with `CLAUDE_CONFIG_DIR` set. The fake then writes
     `$CLAUDE_CONFIG_DIR/projects/<cwd>/<session>.jsonl` in the shape CLI 2.1 uses: `user` and
     `assistant` lines, `tool_result` lines under the uuids it streamed, `queue-operation` lines, and a

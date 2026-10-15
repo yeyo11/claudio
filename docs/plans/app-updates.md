@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: knowing about a new release, and taking it
 
-Tell every Agentry — Docker, desktop, a browser tab, a phone — that a newer release exists, and let
+Tell every Claudio — Docker, desktop, a browser tab, a phone — that a newer release exists, and let
 the desktop app install it from inside the app. Make a page that outlived a deploy notice and
 reload itself on request, instead of running last week's code against this week's server.
 
@@ -19,7 +19,7 @@ CONTRIBUTING.md. Where a task prompt and this plan disagree, the plan wins.
 
 ## Why
 
-Nothing in Agentry today knows that a release came out.
+Nothing in Claudio today knows that a release came out.
 
 - **The desktop app** has no update check at all. [desktop.md](../desktop.md) says to re-run
   `install.sh` to update, which works only if you already know there is something to update to.
@@ -31,7 +31,7 @@ Nothing in Agentry today knows that a release came out.
   where an installed app stays alive in the background for days, that can be a long time, and the
   first lazy chunk it asks for under a renamed hash fails.
 - **Docker** has the same blind spot. Settings already has **Check for updates** for the Claude
-  Code CLI (`packages/core/src/cli-version.ts`), but nothing like it for Agentry itself.
+  Code CLI (`packages/core/src/cli-version.ts`), but nothing like it for Claudio itself.
 
 ## Direction
 
@@ -40,12 +40,12 @@ Three pieces, and each one does a different job:
 1. **The server says whether a newer release exists.** One check against GitHub's latest release,
    once a day and on demand, built the same way as the CLI check: a JSON document in the data
    directory, never a network call while serving a page, and off with an environment variable. It
-   is the single source of truth for "is there a newer Agentry", for every deployment and every
+   is the single source of truth for "is there a newer Claudio", for every deployment and every
    client connected to it.
 2. **The page notices that the server changed under it.** The server puts its version in the
    `stream.hello` it already sends on every connection to `GET /api/events`. A page whose own
    build version differs offers a reload. This works with or without a service worker, and so on
-   `http://<lan-ip>:8787`, where most people run Agentry and where there is no service worker at
+   `http://<lan-ip>:8787`, where most people run Claudio and where there is no service worker at
    all.
 3. **The desktop app installs the release itself**, through `electron-updater`. Version 6.x has an
    updater for each Linux package: `AppImageUpdater` replaces the file in place, and `DebUpdater`
@@ -60,8 +60,8 @@ There is one timer, one daily request to GitHub, and one answer every surface ag
 
 ## The one rule, again
 
-Agentry reaches Claude Code **only through its CLI**, and nothing here goes near that boundary. The
-release check talks to `api.github.com`, about Agentry's own repository. The CLI check stays exactly
+Claudio reaches Claude Code **only through its CLI**, and nothing here goes near that boundary. The
+release check talks to `api.github.com`, about Claudio's own repository. The CLI check stays exactly
 as it is, and the two are separate cards in Settings.
 
 ## Not in this orchestration
@@ -96,7 +96,7 @@ as it is, and the two are separate cards in Settings.
 5. **Every long command under `timeout`**, e.g. `timeout 300 pnpm test`. If a command hits its
    timeout twice, stop retrying it and report it in your result.
 6. **After touching `packages/shared/src/types.ts`**, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the regenerated schemas.
+   `pnpm --filter @claudio/api openapi:schemas` and commit the regenerated schemas.
 7. **Every new route** needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in
    the README REST API tables.
 8. **TypeScript strict, no `any`**, respect `noUncheckedIndexedAccess`. Comments explain why.
@@ -117,15 +117,15 @@ as it is, and the two are separate cards in Settings.
 ### `release-watch` (shared, core, api, docker)
 
 - **The check.** `packages/core/src/release-watch.ts`, built like `CliVersionWatch`: it reads
-  `https://api.github.com/repos/yeyo11/agentry/releases/latest` (which never returns a draft or a
-  pre-release), or `AGENTRY_RELEASES_URL` when that is set. It stores
+  `https://api.github.com/repos/yeyo11/claudio/releases/latest` (which never returns a draft or a
+  pre-release), or `CLAUDIO_RELEASES_URL` when that is set. It stores
   `{ latest, publishedAt, url, checkedAt }` in `release.json`, runs 60 s after start and then once
-  a day, and is turned off with `AGENTRY_UPDATE_CHECK=off` (the button keeps working). It sends
+  a day, and is turned off with `CLAUDIO_UPDATE_CHECK=off` (the button keeps working). It sends
   `accept: application/vnd.github+json` and a `user-agent`, which GitHub requires. Unauthenticated
   requests are limited to 60 an hour, and one a day stays far below that. Share the timer and
   storage machinery with `CliVersionWatch` rather than copying it, and reuse `compareVersions`. The
   tag `v0.18.0` compares as `0.18.0`.
-- **What kind of install this is.** `AGENTRY_DISTRIBUTION`: `docker`, `appimage`, `deb` or unset
+- **What kind of install this is.** `CLAUDIO_DISTRIBUTION`: `docker`, `appimage`, `deb` or unset
   (from source). The image's `docker/Dockerfile` sets `docker`. The desktop main process sets
   `appimage` when `process.env.APPIMAGE` is set, and otherwise `deb` when `resources/package-type`
   says so. The UI uses it to decide which action to offer.
@@ -137,18 +137,18 @@ as it is, and the two are separate cards in Settings.
   kind (see *Not in this orchestration*), so `notificationsFor` ignores it.
 - **Routes:** `GET /api/system/release` (reads the stored answer, never the network) and
   `POST /api/system/release/check`, next to `/system/cli-version`.
-- **`stream.hello` carries `version`**, which is `AGENTRY_VERSION`.
+- **`stream.hello` carries `version`**, which is `CLAUDIO_VERSION`.
 - **Tests** in core with an injected `fetch` and clock: the daily timing, a failure that keeps the
   previous answer, the `v` prefix, a pre-release current version, and the event published once per
   new version.
 
 ### `desktop-updater` (desktop, CI)
 
-- **Dependency and bundling.** `electron-updater` as a runtime dependency of `@agentry/desktop`,
+- **Dependency and bundling.** `electron-updater` as a runtime dependency of `@claudio/desktop`,
   bundled into `main.cjs` by `scripts/build.mjs` like everything else (only `dist/` ships, see
   `electron-builder.yml`). Check that the bundle loads in the packaged app, not only in
   `desktop:dev`.
-- **Publishing metadata.** Add `publish: { provider: github, owner: yeyo11, repo: agentry }` to
+- **Publishing metadata.** Add `publish: { provider: github, owner: yeyo11, repo: claudio }` to
   `electron-builder.yml` so it writes `latest-linux.yml`, the AppImage `.blockmap` and
   `resources/package-type` in the `.deb`. electron-builder must **not** publish on its own, so pass
   `--publish never`: `desktop.yml` stays the only thing that uploads. Extend its upload step and
@@ -173,9 +173,9 @@ as it is, and the two are separate cards in Settings.
   the quit path stops the server child before the updater replaces the files.
 - **Menus.** Help → **Check for updates…**. When a download is ready, the tray menu gets a line
   **Restart to update to X** (in English, like the rest of the tray).
-- **AppImage file names.** `install.sh` installs `Agentry.AppImage`, a name with no version in it,
+- **AppImage file names.** `install.sh` installs `Claudio.AppImage`, a name with no version in it,
   so the updater replaces the file in place and the launcher entry keeps working. A hand-downloaded
-  `Agentry-<version>-x86_64.AppImage` is replaced by a file under the new name. Leave a note about
+  `Claudio-<version>-x86_64.AppImage` is replaced by a file under the new name. Leave a note about
   that for the `docs` task.
 
 ## Stage 1
@@ -186,7 +186,7 @@ as it is, and the two are separate cards in Settings.
   release-please keeps in step with every package.
 - **A mismatch offers a reload.** The page compares its version with `stream.hello.version` on
   every connection, so a reconnection after a server restart is the moment it notices. When they
-  differ, it shows a non-blocking banner, **Agentry was updated to X. Reload**. It never reloads on
+  differ, it shows a non-blocking banner, **Claudio was updated to X. Reload**. It never reloads on
   its own, because a half-written message in the composer is worth more than being current. A
   failed dynamic import (`Failed to fetch dynamically imported module`, or `ChunkLoadError`) shows
   the same banner instead of a broken route.
@@ -216,14 +216,14 @@ as it is, and the two are separate cards in Settings.
 - **An indicator** that is visible without opening Settings: a dot with an accessible label on the
   Settings entry of the sidebar and the bottom tab bar, while `updateAvailable` is true. It never
   goes in the bell.
-- **e2e:** point `AGENTRY_RELEASES_URL` at a fixture the harness serves, press **Check for
+- **e2e:** point `CLAUDIO_RELEASES_URL` at a fixture the harness serves, press **Check for
   updates**, and expect the newer version, the Docker instructions and the indicator.
 
 ## Stage 2 — documentation
 
 ### `docs` (deps all)
 
-- **README:** `AGENTRY_UPDATE_CHECK`, `AGENTRY_RELEASES_URL` and `AGENTRY_DISTRIBUTION` in the
+- **README:** `CLAUDIO_UPDATE_CHECK`, `CLAUDIO_RELEASES_URL` and `CLAUDIO_DISTRIBUTION` in the
   environment table, `release.json` in the volumes table, and the two REST rows checked against the
   code.
 - **`docs/desktop.md`:** an *Updating* section covering the menu entry, the download, the restart
@@ -273,12 +273,12 @@ found while building it.
   day old) and `compareVersions`. `CliVersionWatch` sits on it unchanged in behaviour, and
   `ReleaseWatch` (`release-watch.ts`) asks GitHub's latest release, strips the tag's `v`, refuses a
   tag that is not a version and keeps `{ latest, publishedAt, url, checkedAt }` in `release.json`.
-  `AGENTRY_UPDATE_CHECK=off`, `AGENTRY_RELEASES_URL` and `AGENTRY_DISTRIBUTION` work as planned;
+  `CLAUDIO_UPDATE_CHECK=off`, `CLAUDIO_RELEASES_URL` and `CLAUDIO_DISTRIBUTION` work as planned;
   an unset or unknown distribution is `'source'` rather than null, so the UI never handles a missing
   value. `system.release` goes out once per newer version, and the memory of what was announced
   starts from `release.json`, so a restart does not repeat it. `GET /api/system/release` and
   `POST /api/system/release/check` are documented, `stream.hello` carries `version`, and the image
-  sets `AGENTRY_DISTRIBUTION=docker`.
+  sets `CLAUDIO_DISTRIBUTION=docker`.
 - **The desktop updater** (`desktop-updater`). electron-updater 6.8.9, bundled into `main.cjs`;
   `apps/desktop/src/updater.ts` is the planned state machine, with four `unsupported` reasons
   (`development`, `read-only`, `unknown-package`, and `no-elevation` for a `.deb` with no graphical
@@ -289,11 +289,11 @@ found while building it.
   silently and relaunches after the old process exits, so the new one gets the single-instance lock;
   a failed install starts the server again. The server drops `ELECTRON_RUN_AS_NODE` from its own
   environment as it starts, so the chats and commands it runs no longer inherit it. The main process passes `appimage` or `deb` to its server
-  as `AGENTRY_DISTRIBUTION`. `desktop.yml` attaches `latest-linux.yml` to the draft release with the
+  as `CLAUDIO_DISTRIBUTION`. `desktop.yml` attaches `latest-linux.yml` to the draft release with the
   packages, and electron-builder runs with `--publish never`.
-- **The reload offer** (`web-reload`). The build knows its version (`__AGENTRY_VERSION__` from the
+- **The reload offer** (`web-reload`). The build knows its version (`__CLAUDIO_VERSION__` from the
   root `package.json`) and compares it with `stream.hello.version` on every connection. The banner
-  (**Agentry was updated to X. Reload**) blocks nothing, never reloads by itself, stays dismissed
+  (**Claudio was updated to X. Reload**) blocks nothing, never reloads by itself, stays dismissed
   until the server moves to yet another version, and is withdrawn if the server goes back. Every lazy
   route goes through `lazyPage()`: a missing chunk raises the banner and renders "this page belongs to
   an older version" instead of breaking, and `vite:preloadError` and unhandled chunk rejections are
@@ -312,12 +312,12 @@ found while building it.
   older or newer shell cannot break the card. A dot with an accessible label marks Settings in the
   sidebar, and More plus Settings inside its sheet on a phone; the bell is untouched.
 - **Documentation** (`docs`). The README's environment, volumes, REST and events rows, an Updating
-  section in [desktop.md](../desktop.md), Updating Agentry in [deploy.md](../deploy.md), and the
+  section in [desktop.md](../desktop.md), Updating Claudio in [deploy.md](../deploy.md), and the
   ROADMAP.
 
 ### Where it differs from the plan
 
-- **Install on quit is Agentry's, not electron-updater's.** Setting `autoInstallOnAppQuit = true`
+- **Install on quit is Claudio's, not electron-updater's.** Setting `autoInstallOnAppQuit = true`
   after a download does nothing: electron-updater registers its quit handler only if the flag is
   already on when the download finishes. So the flag stays off, and `install({ whenIdle: true })`
   makes the app's own quit path install the update once the server child has stopped, which is also
@@ -360,8 +360,8 @@ found while building it.
 Found while building or reviewing this work, and fixed in the same pull request:
 
 - **The Docker command on the card** was right only for a compose file on the published image; the
-  repository's own `docker-compose.yml` builds `agentry:dev` and the README's quick start uses
-  `docker run`. The card now gives a command per setup, as [deploy.md](../deploy.md#updating-agentry)
+  repository's own `docker-compose.yml` builds `claudio:dev` and the README's quick start uses
+  `docker run`. The card now gives a command per setup, as [deploy.md](../deploy.md#updating-claudio)
   does.
 - **`ELECTRON_RUN_AS_NODE=1` leaked into chats started from the desktop app**: the shell starts the
   server with it, and every process the server spawned inherited it, so an Electron app launched from
@@ -390,13 +390,13 @@ Found while building or reviewing this work, and fixed in the same pull request:
 - **e2e specs**, run once in the verification phase on the merged branch: `reload.spec.mjs` fakes a
   `stream.hello` with another version through a new `page.onNewDocument()` and expects the banner,
   its role, no axe violations, no reload by itself, dismiss and a real reload; `updates.spec.mjs`
-  checks for a release against a fixture the harness serves (`AGENTRY_RELEASES_URL`, with
-  `AGENTRY_UPDATE_CHECK=off` and `AGENTRY_DISTRIBUTION=docker` for every spec) and expects the newer
+  checks for a release against a fixture the harness serves (`CLAUDIO_RELEASES_URL`, with
+  `CLAUDIO_UPDATE_CHECK=off` and `CLAUDIO_DISTRIBUTION=docker` for every spec) and expects the newer
   version, the Docker commands, the notes link, the dot on Settings and on More at phone width, the
   bell unchanged, and a server-side check reaching the open page through `system.release`.
 - **The packaged desktop app**, built with `pnpm desktop:dist` and started headless under
   `xvfb-run` with a separate config folder: the bundle with electron-updater loads, the server starts
-  with `AGENTRY_DISTRIBUTION=appimage`, and the AppImage's `AppRun` honours
+  with `CLAUDIO_DISTRIBUTION=appimage`, and the AppImage's `AppRun` honours
   `APPIMAGE_EXIT_AFTER_INSTALL`, so a silent install exits instead of starting the new version twice.
 - **More e2e, added while fixing the above:** `reload.spec.mjs` blocks the Usage chunk through a
   new `page.blockUrls()` (CDP `Network.setBlockedURLs`, bypassing the service worker) and expects
@@ -408,7 +408,7 @@ Found while building or reviewing this work, and fixed in the same pull request:
   notifications instead of the bell's label, which a notification from an earlier spec could change.
 - **A real update of the packaged app.** Two AppImages, 0.17.1 and 0.17.2, built with the publish
   provider pointed at a local HTTP feed serving the 0.17.2 `latest-linux.yml`; the 0.17.1 one
-  installed as `Agentry.AppImage` and started under Xvfb with a separate config folder, and driven
+  installed as `Claudio.AppImage` and started under Xvfb with a separate config folder, and driven
   over CDP through the preload's `download()` and `install({})`. It downloaded and verified the
   release, stopped its server, replaced the file (its SHA-512 then matched 0.17.2's) and came back as
   0.17.2 about 5 s later, with only the new image mounted. The first two runs are what found the

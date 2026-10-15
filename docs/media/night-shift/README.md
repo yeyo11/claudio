@@ -4,7 +4,7 @@ Pairs of the main screens before and after the [Night Shift redesign](../../plan
 for the docs task and the pull request. Names are `<screen>-<desktop|phone>-<dark|light>-<before|after>.webp`.
 
 - **Desktop** is 1440 × 1024 and **phone** is 390 × 844, in Spanish, with `motion=full`.
-- **Before** is the UI of Agentry 0.17.1, the installed release before the redesign. **After** is
+- **Before** is the UI of Claudio 0.17.1, the installed release before the redesign. **After** is
   the `worktree-e9acede9-consistency` branch with every redesign task merged.
 - Both ran against the same isolated sandbox that `scripts/record-media.mjs` builds: the fake CLI,
   a stub claude-swap with three accounts, three imported projects and six chats. One chat and one

@@ -50,7 +50,7 @@ the UI reads as flat and dull:
 ## Direction
 
 The base is near-black neutrals with Geist / Geist Mono, IDE density, hairline borders, mono labels
-and a status bar. On top of it we keep what makes Agentry recognisable: the terracotta →
+and a status bar. On top of it we keep what makes Claudio recognisable: the terracotta →
 rose gradient, the energy border on what is alive, the braille spinner, the live rail, and cyan
 reserved for live work. The design system has the tokens, the component map and the rules.
 
@@ -333,7 +333,7 @@ References: `Main` (desktop) and `MobileInicio`.
 
 References: `DesktopChats` and `MobileChats`.
 
-- **Desktop table.** Columns: status dot or spinner, Chat, Project, Origin badge (agentry /
+- **Desktop table.** Columns: status dot or spinner, Chat, Project, Origin badge (claudio /
   terminal), Context (thin bar with threshold colours), Cost and Activity. Rows are grouped by day
   under mono `t-label` heads with counts.
   - The **title is the first prompt**, clamped to one line. Under it go the id, "Interactivo" and
@@ -499,7 +499,7 @@ References: the matching `Desktop*` and `Mobile*` screens.
 
 References: `DesktopAjustes` and `MobileAjustes`.
 
-- **Desktop.** The 20 tabs become a grouped side nav: Agentry (Appearance, Notifications, Editor,
+- **Desktop.** The 20 tabs become a grouped side nav: Claudio (Appearance, Notifications, Editor,
   Account), Claude Code (Instructions, Settings, Memory, Rules, Output styles), Extensions (MCP
   servers, Plugins, Skills, Agents, Commands, Workflows, Tool presets) and System (Files, Install,
   Supervisor, Security). Deep links `?tab=` keep working.
@@ -680,7 +680,7 @@ the orchestration's verification phase on the merged branch.
 **Follow-up pass.** A second pass on the merged branch closed what the tasks had left:
 
 - Every place that shows a chat (sidebar Live, Home, the chat page, the palette, notifications)
-  titles it by its first prompt through `displayTitle()` (in `@agentry/shared`, so the server's
+  titles it by its first prompt through `displayTitle()` (in `@claudio/shared`, so the server's
   event and notification titles use it too); `ChatRef` gained an optional
   `firstPrompt` for that (additive, no route changes).
 - One segmented bar: `ProgressBar variant="segments"` replaces `.segbar`, `.live-segbar` and

@@ -160,7 +160,7 @@ the upgrade test builds the release before it without assuming this migration is
 
 Changing anything needs the project **imported and with its Board module on**; otherwise the routes
 answer 409. Reads only need the project imported, so switching the module off never makes its items
-look lost. Items of a project removed from Agentry stay readable by id but leave every list, and
+look lost. Items of a project removed from Claudio stay readable by id but leave every list, and
 nothing changes them until the directory is imported again (which takes the same project id back).
 
 `GET /work-items` and `GET /work-items/board` are the **All projects** view: every item of the
@@ -249,7 +249,7 @@ rejected because it changes `main` without a PR or CI, and warnings alone (C) be
 reach `main` without a person pushing each branch by hand.
 
 `PullRequestService` (`packages/core/src/pull-requests.ts`) runs `git` itself and reaches the host
-through its CLI (`gh` for GitHub, `glab` for GitLab) behind the `CodeHost` adapters, in Agentry's
+through its CLI (`gh` for GitHub, `glab` for GitLab) behind the `CodeHost` adapters, in Claudio's
 own process, as the person and only on their request, as `Orchestrator.pullRequest()` does for an
 integration branch. What a code host is, how a project's host is detected and what every CLI call
 goes through is in [code-hosts.md](code-hosts.md). No agent ever pushes: every flow run keeps `git push` denied
@@ -296,7 +296,7 @@ among its changes.
 worktree, markers and all, the PR row goes to `conflict` with the conflicting paths, and the item
 moves to `in_progress` as the person (the approval was theirs) with the cause `pr.conflict`; the
 history names the files. With the flow on, that move starts the Developer's run, whose prompt lists
-every path; when it ends, Agentry commits the merge if it is resolved but still open, or fails the run
+every path; when it ends, Claudio commits the merge if it is resolved but still open, or fails the run
 with `conflict-unresolved` if paths are left. The approval is remembered (`awaiting-verify`), so QA's
 pass opens the PR with no second click, unless a person moved the item meanwhile. Without a flow, the
 item waits in `in_progress` with the conflict on its page, and approving again after the person
@@ -346,7 +346,7 @@ decision can start the same fix. The path mirrors a conflict:
    unless a person moved the card since it started: that drops the remembered approval, as for a
    conflict. A **decision's** fix becomes `awaiting-push`; the item waits in `in_review` with
    `waiting: 'approval'` and the button reads **Push the fix** (`POST /change-requests/:id/push-fix`).
-5. The push is Agentry's own, a plain `git push` after committing what the Developer left, never
+5. The push is Claudio's own, a plain `git push` after committing what the Developer left, never
    forced. A failure leaves the fix `awaiting-push` with `error.code: 'push'` and the button retries.
    A success clears the fix state and sets `waiting: 'merge'`; the change request picks up the new
    head.
@@ -358,11 +358,11 @@ allows is not a failure. Fixes are counted per head (`fix_attempts`); the decisi
 project's `flow.checksFixAttempts` (default 2, at most 5) and a person's click is never counted.
 
 Out of scope: updating the branches of other open items when `main` moves, webhooks, deleting the
-remote branch after a merge, and merging from Agentry.
+remote branch after a merge, and merging from Claudio.
 
-### Merging from Agentry
+### Merging from Claudio
 
-Since code hosts phase 4 the person no longer has to leave Agentry to merge an open pull request.
+Since code hosts phase 4 the person no longer has to leave Claudio to merge an open pull request.
 The owner's decision of 2026-09-28 (the person merges) is unchanged; what changed is where the click
 is. Everything about the state, the blockers, the GitLab pipeline guard and the calls is in
 [code-hosts.md](code-hosts.md#merging); this section is what it means for an item.
@@ -370,8 +370,8 @@ is. Everything about the state, the blockers, the GitLab pipeline guard and the 
 - **Whose click it is.** Merge, Auto-merge and Update from base are the person's, from the item
   page. A run, a decision point and a chat token never merge: the routes answer a chat token with
   403, and no code in the core starts a merge by itself. The `change_request_merges` audit records the
-  person (or `agentry` for the disarm before a push).
-- **From Agentry to Done.** `MergeService.merge` writes the audit row, merges on the host, re-reads
+  person (or `claudio` for the disarm before a push).
+- **From Claudio to Done.** `MergeService.merge` writes the audit row, merges on the host, re-reads
   to confirm, and then calls `merged(id)`, which is the row's own check run as if the watcher had
   seen the merge. That is the existing path described above: the item moves to Done from any column,
   as the person, with the cause `pr.merged`, the worktree is removed only when clean, the local
@@ -380,8 +380,8 @@ is. Everything about the state, the blockers, the GitLab pipeline guard and the 
   the click only makes it immediate.
 - **Auto-merge is not Done.** An armed auto-merge changes nothing on the item: it reaches Done when
   the host merges and the watcher reads it.
-- **Agentry's pushes turn it off.** A fix, an address run and Update from base each disarm an armed
-  auto-merge as `agentry` before the push, and the push does not happen if the host cannot confirm
+- **Claudio's pushes turn it off.** A fix, an address run and Update from base each disarm an armed
+  auto-merge as `claudio` before the push, and the push does not happen if the host cannot confirm
   it is off. The person arms it again.
 - **Update from base and the Developer.** The service merges the base into the branch and pushes, or
   returns the conflicting paths (409) and leaves the worktree as it was. Sending those paths to the
@@ -777,7 +777,7 @@ client does not know the next number.
 
 ### A write from a chat
 
-A chat that calls the work-item routes with its own token (the Agentry assistant's write tools, after
+A chat that calls the work-item routes with its own token (the Claudio assistant's write tools, after
 the person allowed the call) is recorded as who made the change. `chatWriteContext` in
 `apps/api/src/routes/work-items.ts` reads the request's `chat:<id>` label: create, PATCH, move and
 comment, and the assistant's proposal accept and discard, record the history entry with the actor

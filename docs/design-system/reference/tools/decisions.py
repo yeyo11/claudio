@@ -204,7 +204,7 @@ def unavailable_warning(phone=False):
   return (f'<div class="callout callout-warn" role="status" style="align-items: flex-start; border-radius: var(--r-lg)">{ico("warn", "ico", "color: var(--warn); flex-shrink: 0; margin-top: 1px")}'
           f'<div class="col grow" style="gap: 8px; min-width: 0"><span style="font-weight: 500; color: var(--fg)">Jev no disponible</span>'
           f'<span>4 de las últimas 10 peticiones no han llegado: 3 por tiempo agotado y 1 por límite de tasa. La última fue hace 11 min. '
-          f'Agentry sigue con su comportamiento de siempre y no espera a Jev.</span>'
+          f'Claudio sigue con su comportamiento de siempre y no espera a Jev.</span>'
           f'<div class="row" style="gap: 8px; flex-wrap: wrap">{btns}</div></div></div>')
 
 
@@ -324,7 +324,7 @@ def history_card(cli):
 
 
 SETTINGS_NAV = [
-  ('Agentry', ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Decisiones']),
+  ('Claudio', ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Decisiones']),
   ('Claude Code', ['Instrucciones', 'Ajustes', 'Memoria', 'Reglas', 'Output styles']),
   ('Extensiones', ['Servidores MCP', 'Plugins', 'Skills', 'Agentes', 'Comandos', 'Workflows', 'Presets de herramientas']),
   ('Sistema', ['Archivos', 'Instalar', 'Seguridad']),
@@ -347,7 +347,7 @@ def jump():
 
 def desktop_main(cli):
   head = ('<div class="col" style="gap: 4px"><h2 class="t-h1" style="font-size: 20px">Decisiones</h2>'
-          '<p class="fg-2 t-sm" style="margin: 0">Preguntas cortas con respuesta tipada que Agentry resuelve por ti, con el CLI o con Jev. Cada punto empieza apagado y tú decides cuándo pasa a sombra o a activo.</p></div>')
+          '<p class="fg-2 t-sm" style="margin: 0">Preguntas cortas con respuesta tipada que Claudio resuelve por ti, con el CLI o con Jev. Cada punto empieza apagado y tú decides cuándo pasa a sombra o a activo.</p></div>')
   return (f'<main class="col grow" style="padding: 26px 32px; gap: 18px; min-width: 0">{head}{jump()}{engine_section(cli)}{points_card(cli)}{supervisor_card()}{history_card(cli)}</main>')
 
 
@@ -380,7 +380,7 @@ def consent_dialog(cli):
   else:
     notice = (f'<div class="callout callout-warn" style="align-items: flex-start">{ico("shield", "ico", "flex-shrink: 0; color: var(--warn)")}<div class="col" style="gap: 4px">'
               '<span style="font-weight: 500; color: var(--fg)">Este contenido sale de tu equipo</span>'
-              '<span>Se envía a un servicio externo de TypeSafe con tu clave. Jev no guarda nada solo en el plan enterprise. Si la forma del estado cambia, Agentry te lo volverá a preguntar.</span></div></div>')
+              '<span>Se envía a un servicio externo de TypeSafe con tu clave. Jev no guarda nada solo en el plan enterprise. Si la forma del estado cambia, Claudio te lo volverá a preguntar.</span></div></div>')
     foot_btn = 'Consentir y pasar a sombra'
   return f'''<div style="position: absolute; inset: 0; z-index: 30"><div class="scrim">
 <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dec-consent" style="width: 640px; max-height: calc(100% - 48px)">
@@ -493,7 +493,7 @@ def mhistory():
 def mobile_page(name, title, cli=False, sheet='', offset=0):
   body = f'''{mhead('Decisiones')}
 <div class="m-body" style="gap: 16px">
-<p class="t-sm fg-2" style="margin: 0 4px; line-height: 1.5">Preguntas cortas con respuesta tipada que Agentry resuelve por ti, con el CLI o con Jev. Tú decides cuándo cada punto pasa a sombra o a activo.</p>
+<p class="t-sm fg-2" style="margin: 0 4px; line-height: 1.5">Preguntas cortas con respuesta tipada que Claudio resuelve por ti, con el CLI o con Jev. Tú decides cuándo cada punto pasa a sombra o a activo.</p>
 {mjump()}
 {mengine(cli)}
 {mpoints(cli)}

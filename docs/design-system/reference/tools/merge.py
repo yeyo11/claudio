@@ -161,7 +161,7 @@ def block_offer(host, mobile=False, lead=True):
   name, noun, num, _ = MR_HOST[host]
   rows = row('Método', '<span class="badge">squash</span><span class="t-xs fg-3">Es el método por defecto del repositorio</span>')
   rows += row('Comprobaciones', f'{ci_badge("pending")}<span class="t-xs fg-2">2 obligatorias sin terminar</span>', '')
-  note = f'{name} fusionará la {noun} cuando terminen. Sin Agentry abierto también.'
+  note = f'{name} fusionará la {noun} cuando terminen. Sin Claudio abierto también.'
   return wrap(host, BADGE['checks'], rows, foot(note, btn('Activar fusión automática', mobile, 'btn btn-primary' if lead else 'btn', 'play'), mobile), mobile)
 
 
@@ -181,7 +181,7 @@ def block_armed(host, mobile=False):
   rows = armed_rows(host, 'yeyo', 'hace 4 min', 'squash', waits, mobile)
   rows += row('Mensaje', f'<span class="mono t-xs fg-2" style="overflow-wrap: anywhere">{SUBJECT[host]}</span>')
   rows += row('Rama', '<span class="t-xs fg-2">Se borra al fusionar</span>')
-  note = 'Si Agentry sube cambios a la rama, la desactiva antes y te avisa para que la actives otra vez.'
+  note = 'Si Claudio sube cambios a la rama, la desactiva antes y te avisa para que la actives otra vez.'
   return wrap(host, BADGE['armed'], rows, foot(note, '', mobile), mobile)
 
 
@@ -213,7 +213,7 @@ def block_moved(host='github', mobile=False):
               btn('Ver los cambios', mobile, 'btn btn-ghost'))
   callout = (f'<div class="rv-row"><span class="callout callout-warn" role="note" style="align-items: flex-start; grid-column: 1 / -1">'
              f'{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}<span><b style="color: var(--fg); font-weight: 500">La rama cambió mientras mirabas, y no se fusionó nada.</b> '
-             f'Lee los cambios nuevos y vuelve a fusionar: Agentry nunca fusiona un commit que no hayas visto.</span></span></div>')
+             f'Lee los cambios nuevos y vuelve a fusionar: Claudio nunca fusiona un commit que no hayas visto.</span></span></div>')
   acts = btn('Fusionar', mobile, extra=' disabled') + btn('Volver a leer', mobile, 'btn btn-primary', 'retry')
   return wrap(host, BADGE['moved'], callout + rows, foot('', acts, mobile), mobile)
 
@@ -253,7 +253,7 @@ def item_desktop(name, title, draft, height=1240):
   # The zone has one gradient action, Merge (or Submit review while a draft waits): Work on it turns neutral
   h = _swap(h, '<a href="DesktopChatTarea.html" class="btn btn-primary">', '<a href="DesktopChatTarea.html" class="btn">')
   h = _swap(h, 'height: 1024px', f'height: {height}px')
-  write(name, h.replace('<title>Agentry · Tarea (desktop)', f'<title>Agentry · {title} (desktop)'))
+  write(name, h.replace('<title>Claudio · Tarea (desktop)', f'<title>Claudio · {title} (desktop)'))
 
 
 def item_mobile(name, title, draft, shift=0, method='squash'):
@@ -275,7 +275,7 @@ def states(mobile):
      block_ready('github', mobile, warning=True)),
     ('GitHub: ofrece la fusión automática', 'BLOCKED por comprobaciones obligatorias pendientes y allow_auto_merge activo: Fusionar no se ofrece y activar es lo primero.',
      block_offer('github', mobile)),
-    ('GitHub: fusión automática activada', 'Quién, cuándo y con qué método; Desactivar. Agentry la desactiva antes de subir a la rama y lo avisa.',
+    ('GitHub: fusión automática activada', 'Quién, cuándo y con qué método; Desactivar. Claudio la desactiva antes de subir a la rama y lo avisa.',
      block_armed('github', mobile)),
     ('GitLab: esperando a la pipeline', 'waiting-for-pipeline: el commit nuevo aún no tiene pipeline. Lo único vivo es el spinner junto al verbo; Fusionar sigue apagado.',
      block_waiting(mobile)),
@@ -350,7 +350,7 @@ def tone_badge(tone, word):
 
 
 def acts(items, mobile=False):
-  """The remedy: a neutral button that does it in Agentry, or a link to the host's own page. Never a command."""
+  """The remedy: a neutral button that does it in Claudio, or a link to the host's own page. Never a command."""
   out = ''
   for label, kind in items:
     if kind == 'ext':
@@ -369,7 +369,7 @@ def note(tone, word, code, text, detail, actions=(), mobile=False):
 
 # code, tone, word, then per host: (the text, the host's own field and value, the remedy) or None when the host
 # has no such state. The text is the table's, with {noun} and the names filled in as the host calls them.
-# Every row of "What blocks a merge", in the order Agentry reads them: the first that applies is shown.
+# Every row of "What blocks a merge", in the order Claudio reads them: the first that applies is shown.
 ROWS = [
   ('not-open', '', 'cerrada',
    ('Esta PR está cerrada.', 'state: CLOSED · MERGED', []),
@@ -573,7 +573,7 @@ def block_section():
 RULES = [
   ('01', 'El primero que aplica gana', 'Se lee la tabla en orden y se muestra un solo bloqueo con su remedio. Los demás van debajo, en una línea con su código, para que se vea lo que falta después.'),
   ('02', 'Cada color, una cosa', 'Rojo: en conflicto o fallida. Aviso: una regla o una pieza que falta lo frena. Idle: te espera a ti. Cian: el host está calculando o hay comprobaciones en marcha, y solo ahí algo se mueve. Siempre con su palabra.'),
-  ('03', 'Un remedio, nunca un comando', 'Una acción de Agentry o un enlace al host, neutros. Si no hay remedio (una hora programada), no se inventa uno. Agentry no ofrece saltarse una regla.'),
+  ('03', 'Un remedio, nunca un comando', 'Una acción de Claudio o un enlace al host, neutros. Si no hay remedio (una hora programada), no se inventa uno. Claudio no ofrece saltarse una regla.'),
   ('04', 'La palabra sigue al host', 'PR y #12 en GitHub, MR y !12 en GitLab. El campo que lo causa se nombra como lo nombra cada host, en mono.'),
 ]
 
@@ -588,7 +588,7 @@ DS_HEIGHT = 5500
 
 
 def ds_merge():
-  head = ('<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · alojamientos de código · fusión</span>'
+  head = ('<header class="col" style="gap: 8px"><span class="t-label">Claudio design system · alojamientos de código · fusión</span>'
           '<h1 class="t-display" style="margin: 0">Por qué no se puede fusionar</h1>'
           '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Cada estado que impide fusionar una PR o una MR, en GitHub y en GitLab: su frase, el campo del host que lo causa y su remedio. '
           'Una palabra junto a cada color y una sola acción por bloqueo.</p></header>')
@@ -642,7 +642,7 @@ def guard():
 
 def omrg_desktop():
   summary = '<span class="mono t-xs fg-2" style="font-variant-numeric: tabular-nums">CI superada · sin conflictos con main · sin revisiones pendientes</span>'
-  after = ('<span class="t-xs fg-3 grow" style="line-height: 1.45">Al fusionar, Agentry marca la orquestación como fusionada y quita los 7 worktrees. '
+  after = ('<span class="t-xs fg-3 grow" style="line-height: 1.45">Al fusionar, Claudio marca la orquestación como fusionada y quita los 7 worktrees. '
            'La rama local se queda.</span>')
   return (f'<section class="card card-pad col" style="gap: 14px"><div class="row" style="gap: 10px"><h2 class="t-h2 grow">Su merge request</h2>'
           f'<span class="mono t-xs fg-2">6/6 ramas de tarea fusionadas</span></div>{mr_row("passing", "lista para fusionar")}'
@@ -674,7 +674,7 @@ def omrg_page_mobile():
           '<span class="mono t-xs fg-2" style="line-height: 1.5">CI superada · sin conflictos con main · sin revisiones pendientes</span>'
           f'<span class="t-label">Método</span>{omrg_method_seg()}'
           f'{branch_box()}{commit_fields(True)}{guard()}'
-          '<span class="t-xs fg-3" style="line-height: 1.45">Al fusionar, Agentry marca la orquestación como fusionada y quita los 7 worktrees. La rama local se queda.</span></section>')
+          '<span class="t-xs fg-3" style="line-height: 1.45">Al fusionar, Claudio marca la orquestación como fusionada y quita los 7 worktrees. La rama local se queda.</span></section>')
   foot = f'<div class="m-foot"><button type="button" class="btn btn-lg btn-primary grow" style="justify-content: center">{ico("check", "ico ico-lg")}Fusionar MR !14</button></div>'
   inner = f'{m_head()}\n<div class="m-body" style="gap: 14px"><div class="row" style="gap: 6px; overflow: hidden">{chips}</div>{body}</div>\n{foot}'
   write('MobileOrquestacionFusion.html', mobile('Orquestación, fusionar', inner, 'glow-top', 'background-size: 100% 300px'))

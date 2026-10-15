@@ -16,7 +16,7 @@ tags:
 
 Carries out the three steps of [[decisions/english-technical-language.md]] now that the ecosystem is merged (PR #118, 2026-09-28). The decision is not reopened here; this spec only says where the rule lands and how it is checked.
 
-> **English, always**: code, comments, docs, commit messages, prompts Agentry sends to Claude, schemas, agent files, and **the technical records agents write**: the project journal, memory entries, acceptance criteria and QA comments, even when the person chats in Spanish.
+> **English, always**: code, comments, docs, commit messages, prompts Claudio sends to Claude, schemas, agent files, and **the technical records agents write**: the project journal, memory entries, acceptance criteria and QA comments, even when the person chats in Spanish.
 > **The person's language**: UI copy, through i18n with en/es parity, and whatever a person writes (work items, comments, chat messages). A chat's title stays in the person's language.
 
 ## State today (checked on main)
@@ -50,7 +50,7 @@ The quoting clause keeps a person's text (an item's title, a comment) unaltered 
 | Starting agent file | `team.ts` · `agentFileContent` | In "## How a flow run ends", after the list of fields. |
 | Assistant | `assistant-answer.ts` · `assistantPrompt` | In "## What to propose", for every kind (project, work-items, resources), naming what it proposes: team members' responsibilities, agent/skill/command files, work items (title, description, acceptance criteria) and reasons. After `assistantTitle`, which stays line 1. |
 
-Optional, same PR: the `description` of `summary`, `criteria[].note` and `memoryProposals[].text` in the flow's JSON schema (`flow.ts`, near `TARGET_KINDS`) may say "in English". The schema is Agentry's own, not a route type, so no OpenAPI regeneration is triggered. If `packages/shared/src/types.ts` is touched, regenerate with `pnpm --filter @agentry/api openapi:schemas`.
+Optional, same PR: the `description` of `summary`, `criteria[].note` and `memoryProposals[].text` in the flow's JSON schema (`flow.ts`, near `TARGET_KINDS`) may say "in English". The schema is Claudio's own, not a route type, so no OpenAPI regeneration is triggered. If `packages/shared/src/types.ts` is touched, regenerate with `pnpm --filter @claudio/api openapi:schemas`.
 
 ### Out of scope
 
@@ -69,7 +69,7 @@ Checks: `pnpm typecheck`, `pnpm test`. No UI, route or e2e change.
 
 ## Implementation (CW-2)
 
-- `RECORDS_IN_ENGLISH` is exported from `packages/core/src/team.ts` (and the `@agentry/core` barrel), because both `flow.ts` and `assistant-answer.ts` already import `team.ts`.
+- `RECORDS_IN_ENGLISH` is exported from `packages/core/src/team.ts` (and the `@claudio/core` barrel), because both `flow.ts` and `assistant-answer.ts` already import `team.ts`.
 - `flowPrompt` puts it on its own line right before the closing "End with the structured result…" line, for every stage; `flowTitle` stays line 1.
 - `agentFileContent` puts it in "## How a flow run ends", after the list of result fields.
 - `assistantPrompt` puts it at the end of "## What to propose" for every kind, followed by one sentence that names what the assistant proposes (team members' responsibilities, agent, skill and command files, work items with their title, description and acceptance criteria, and each reason); `assistantTitle` stays line 1.
@@ -84,7 +84,7 @@ The Developer's write scope is `packages/`, `apps/`, `e2e/`, `scripts/` and `doc
 
 ```markdown
 - **Language.** Everything technical is English: code, comments, docs, commit messages, the
-  prompts Agentry sends to Claude, schemas, agent files, and the records agents write (the project
+  prompts Claudio sends to Claude, schemas, agent files, and the records agents write (the project
   journal, memory entries, acceptance criteria and QA comments), even when the person chats in
   Spanish. The person's language is kept for UI copy, through i18n with en/es parity, for whatever
   a person writes (work items, comments, chat messages), and for a chat's title. Prompts carry this
@@ -109,7 +109,7 @@ gained the pasted-content note, the unattended text and the think-first lines: t
 stays the last thing before each closing line, after them. Part 1 landed with it: the rule is in
 CONTRIBUTING.md (House style) and CLAUDE.md (Conventions). The prompts added since were checked:
 the decision engine's answers carry no free text (its schema has no reason field), and the change
-request bodies and the verification's fix prompts are Agentry's own English, so none needed the
+request bodies and the verification's fix prompts are Claudio's own English, so none needed the
 sentence.
 
 ## Related

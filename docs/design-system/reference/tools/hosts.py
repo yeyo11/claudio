@@ -41,7 +41,7 @@ MAIN = [
        reason='Instalado, con sesión iniciada y respondiendo.'),
   dict(id='gitlab', state='degraded', version='1.134.0', path='~/.local/bin/glab',
        hosts=[('gitlab.com', 'yeyo')],
-       reason='Funciona, pero la 1.134.0 es más nueva que la 1.120.0, la última con la que se ha probado Agentry.'),
+       reason='Funciona, pero la 1.134.0 es más nueva que la 1.120.0, la última con la que se ha probado Claudio.'),
 ]
 
 # Scenarios for the states the first machine lacks: each is a pair of CLIs on an imagined machine
@@ -49,18 +49,18 @@ SCENARIOS = [
   ('Un gh antiguo y un glab sin sesión', [
     dict(id='github', state='incompatible', version='2.45.0', path='/usr/bin/gh',
          hosts=[('github.com', 'yeyo-dev')],
-         reason='La 2.45.0 es anterior a la 2.92.0, la más antigua con la que funciona Agentry.'),
+         reason='La 2.45.0 es anterior a la 2.92.0, la más antigua con la que funciona Claudio.'),
     dict(id='gitlab', state='signed-out', version='1.120.0', path='~/.local/bin/glab',
          hosts=[('git.inmoseo.net', None)],
          reason='glab está instalado, pero no tiene la sesión iniciada en ningún host.'),
   ]),
   ('Sin gh y un glab que no responde', [
     dict(id='github', state='not-installed', version='', path='',
-         hosts=[], reason='gh no está instalado, o Agentry no lo encuentra.'),
+         hosts=[], reason='gh no está instalado, o Claudio no lo encuentra.'),
     dict(id='gitlab', state='unknown', version='', path='~/.local/bin/glab',
-         hosts=[], reason='glab no ha respondido en 10 s, así que Agentry lo ha detenido.'),
+         hosts=[], reason='glab no ha respondido en 10 s, así que Claudio lo ha detenido.'),
   ]),
-  ('Justo después de abrir Agentry', [
+  ('Justo después de abrir Claudio', [
     dict(id='github', state='checking', version='', path='', hosts=[], reason='Leyendo la versión y los hosts…'),
     dict(id='gitlab', state='checking', version='', path='', hosts=[], reason=''),
   ]),
@@ -152,7 +152,7 @@ def bin_panel(h):
   return f'''<div class="prov-bin" role="group" aria-label="Binario de {cli}" style="padding-left: 68px">
 <span class="t-label">Binario de {cli}</span>
 <div class="prov-bin-row"><label class="field field-mono grow">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/glab/bin/glab" aria-label="Ruta del binario de {cli}"></label><button type="button" class="btn">Buscar…</button></div>
-<span class="form-hint">Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span>
+<span class="form-hint">Claudio usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span>
 <div class="row" style="gap: 8px"><button type="button" class="btn">Comprobar y guardar</button><button type="button" class="btn btn-ghost">Cancelar</button><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm">Usar el del PATH</button></div>
 </div>'''
 
@@ -160,7 +160,7 @@ def bin_panel(h):
 def settings_nav():
   out = []
   for g, items in SETTINGS_NAV:
-    if g == 'Agentry':
+    if g == 'Claudio':
       items = ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Proveedores', 'Integraciones', 'Decisiones']
     links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Integraciones" else ""}" style="height: 30px; font-size: 13px">{i}</a>' for i in items)
     out.append(f'<div class="col" style="gap: 1px"><span class="t-label" style="padding: 0 10px 4px">{g}</span>{links}</div>')
@@ -168,7 +168,7 @@ def settings_nav():
           '<h1 class="t-h1" style="padding-left: 10px; font-size: 20px">Ajustes</h1>' + ''.join(out) + '</nav>')
 
 
-INTRO = ('Agentry abre y sigue las PR de GitHub (<span class="mono">#12</span>) y las MR de GitLab (<span class="mono">!12</span>) con los programas '
+INTRO = ('Claudio abre y sigue las PR de GitHub (<span class="mono">#12</span>) y las MR de GitLab (<span class="mono">!12</span>) con los programas '
          '<span class="mono">gh</span> y <span class="mono">glab</span> de este equipo. No guarda ninguna clave: usa la sesión que ya tiene cada programa.')
 OTHER_HOST = '¿Falta un host? Inicia sesión en él con el programa que corresponda y aparecerá aquí solo.'
 
@@ -236,7 +236,7 @@ def nothing_body(large):
     acts = (f'<div class="col" style="gap: 8px; align-self: stretch"><a href="#" class="btn btn-lg btn-primary" style="justify-content: center">Ver cómo instalar gh{ico("ext", "ico ico-sm")}</a>'
             f'<button type="button" class="btn btn-lg" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button></div>')
   return f'''<div class="empty-state" style="padding: {"24px 24px 32px" if large else "16px 8px 20px"}">{il}
-<h2 class="t-h2">Agentry no encuentra gh ni glab</h2>
+<h2 class="t-h2">Claudio no encuentra gh ni glab</h2>
 <p>Sin uno de los dos no puede abrir PR ni MR. Instálalo y aparecerá aquí solo, sin volver a comprobar.</p>
 {acts}
 <div class="col" style="gap: 8px; align-items: center"><span class="t-label">O también</span><div class="row" style="gap: 6px; flex-wrap: wrap; justify-content: center">{chips}</div></div></div>'''
@@ -300,7 +300,7 @@ def binary_sheet(h):
 <p class="prov-reason" style="font-size: 14px">{h["reason"]}</p>
 <div class="col" style="gap: 8px"><span class="t-label">Binario de {cli}</span>
 <label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/glab/bin/glab" aria-label="Ruta del binario de {cli}" style="font-size: 16px"></label>
-<span class="form-hint">Agentry lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span></div>
+<span class="form-hint">Claudio lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span></div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary">Comprobar y guardar</button>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">Usar el del PATH</button><button type="button" class="btn btn-lg btn-ghost">Cancelar</button></div></div>
 </div>'''
@@ -360,7 +360,7 @@ def p2_section():
 # ================================================================ p3 · readiness notes and MR wording
 # The seven reasons a project offers no PR or MR (PullRequestNotReadyReason in plans/code-hosts.md, "Readiness"),
 # each as the board's quiet note and the item page's note, with its remedy. A remedy is a link, or an
-# Agentry action, never a command to copy: (label, True) opens the host's or the CLI's own page.
+# Claudio action, never a command to copy: (label, True) opens the host's or the CLI's own page.
 #   code, when, host (for the noun), board line, item sentence, the CLI's own line, remedies
 REASONS = [
   ('not-git', 'la ruta no es un repositorio git', None,
@@ -372,20 +372,20 @@ REASONS = [
    'Aprobarla no abre una PR ni una MR: el proyecto no tiene un remoto llamado origin.',
    "error: No such remote 'origin'", [('Cómo añadir un remoto', True)]),
   ('unsupported-host', 'ni gh ni glab conocen el host', None,
-   'Sin PR ni MR: Agentry no llega a git.inmoseo.net.',
-   'Aprobarla no abre una PR ni una MR: Agentry no llega a git.inmoseo.net, porque ni gh ni glab han iniciado sesión allí.',
+   'Sin PR ni MR: Claudio no llega a git.inmoseo.net.',
+   'Aprobarla no abre una PR ni una MR: Claudio no llega a git.inmoseo.net, porque ni gh ni glab han iniciado sesión allí.',
    'git.inmoseo.net · pagos/api', [('Abrir Ajustes → Integraciones', False)]),
   ('no-default-branch', 'ni git ni la CLI la nombran', 'github',
    'Sin PR: no se encuentra la rama predeterminada.',
-   'Aprobarla no abre una PR: Agentry no ha encontrado la rama predeterminada de este repositorio.',
+   'Aprobarla no abre una PR: Claudio no ha encontrado la rama predeterminada de este repositorio.',
    'gh: HTTP 404: Not Found (repos/yeyo/claude-wrapper)', [('Documentación de gh', True)]),
   ('cli-missing', 'glab no se encuentra o no responde', 'gitlab',
    'Sin MR: glab no está instalado.',
-   'Aprobarla no abre una MR: glab no está instalado, o Agentry no lo encuentra.',
+   'Aprobarla no abre una MR: glab no está instalado, o Claudio no lo encuentra.',
    'glab: command not found', [('Ver instalación', True), ('Elegir binario', False)]),
   ('cli-incompatible', 'versión por debajo del mínimo', 'gitlab',
    'Sin MR: glab 1.80.0 es demasiado antigua.',
-   'Aprobarla no abre una MR: glab 1.80.0 es anterior a la 1.120.0, la más antigua con la que funciona Agentry.',
+   'Aprobarla no abre una MR: glab 1.80.0 es anterior a la 1.120.0, la más antigua con la que funciona Claudio.',
    'glab 1.80.0', [('Ver instalación', True)]),
   ('cli-signed-out', 'la CLI no tiene sesión en ese host', 'gitlab',
    'Sin MR: glab no ha iniciado sesión.',
@@ -476,7 +476,7 @@ def orch_integration(opened):
   if opened:
     mr = (f'<a href="#" class="pr-row" target="_blank" rel="noreferrer" aria-label="Abrir MR !14 en GitLab" style="min-height: 44px"><span class="pr-num">MR !14</span>'
           f'<span class="pr-branch">orch/spanish-copy → main</span><span class="badge b-idle">esperando fusión</span>{ci_badge("passing")}{ext_ico()}</a>')
-    foot = (f'<div class="row" style="gap: 10px"><span class="t-xs fg-3 grow" style="line-height: 1.45">Agentry sigue la MR en git.inmoseo.net con glab 1.120.0. Cuando se fusione, te lo dirá aquí y quitará los worktrees.</span>'
+    foot = (f'<div class="row" style="gap: 10px"><span class="t-xs fg-3 grow" style="line-height: 1.45">Claudio sigue la MR en git.inmoseo.net con glab 1.120.0. Cuando se fusione, te lo dirá aquí y quitará los worktrees.</span>'
             f'<a href="#" class="btn" target="_blank" rel="noreferrer">{ext_ico()}Abrir MR !14 en GitLab</a></div>')
     title = 'Su merge request'
   else:
@@ -535,7 +535,7 @@ def orch_mr_mobile(name, opened, dialog=False):
     card_ = (f'<section class="card col" style="padding: 14px; gap: 12px"><span class="row" style="gap: 8px"><span class="t-label grow">Su merge request</span><span class="mono t-xs fg-3">6/6 ramas fusionadas</span></span>'
              f'<a href="#" class="pr-row" target="_blank" rel="noreferrer" aria-label="Abrir MR !14 en GitLab"><span class="pr-num">MR !14</span><span class="pr-branch">orch/spanish-copy → main</span>'
              f'<span class="badge b-idle">esperando fusión</span>{ci_badge("passing")}</a>'
-             f'<span class="t-xs fg-3" style="line-height: 1.45">Agentry sigue la MR en git.inmoseo.net. Cuando se fusione, te lo dirá aquí y quitará los worktrees.</span></section>')
+             f'<span class="t-xs fg-3" style="line-height: 1.45">Claudio sigue la MR en git.inmoseo.net. Cuando se fusione, te lo dirá aquí y quitará los worktrees.</span></section>')
     foot = f'<div class="m-foot"><a href="#" class="btn btn-lg grow" style="justify-content: center" target="_blank" rel="noreferrer">{ext_ico("ico ico-lg")}Abrir MR !14 en GitLab</a></div>'
   else:
     card_ = (f'<section class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="t-label grow">Integración</span><span class="mono t-xs fg-3">6/6 ramas fusionadas</span></span>'
@@ -559,9 +559,9 @@ def orch_mr_mobile(name, opened, dialog=False):
 
 # ---------------------------------------------------------------- DSIntegraciones
 def ds_integrations():
-  head = ('<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · alojamientos de código · integraciones</span>'
+  head = ('<header class="col" style="gap: 8px"><span class="t-label">Claudio design system · alojamientos de código · integraciones</span>'
           '<h1 class="t-display" style="margin: 0">Integraciones</h1>'
-          '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Cómo dice Agentry dónde vive el código de un proyecto y si puede hablar con ese host. '
+          '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Cómo dice Claudio dónde vive el código de un proyecto y si puede hablar con ese host. '
           'Siempre una palabra de estado junto al color, una razón en lenguaje llano y una sola acción.</p></header>')
   sections = [p2_section(), p3_section()]
   body = (f'<div class="app col" data-theme="dark" style="width: 1440px; height: 4400px; padding: 56px 64px; gap: 40px; overflow: hidden">'

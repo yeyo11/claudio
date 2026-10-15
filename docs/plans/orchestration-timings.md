@@ -41,7 +41,7 @@ change behaviour and are measured with what this one adds.
 
 ## The one rule
 
-Everything comes from what Agentry already records about the CLI runs it starts: execution start and
+Everything comes from what Claudio already records about the CLI runs it starts: execution start and
 end, outcome and error, and the transcripts the CLI writes (read by the script through the existing
 `/chats/:id/export?format=json`). No new call to anything but the CLI.
 
@@ -79,7 +79,7 @@ export interface ChatOrchestration {
 ```
 
 - `chatOrchestrations()` builds the map from the chat records' `orchestrationId` and
-  `orchestrationTaskId`, which every chat Agentry starts for a graph already has. The pseudo-ids map
+  `orchestrationTaskId`, which every chat Claudio starts for a graph already has. The pseudo-ids map
   to roles: `__integration__` → `integration`, `__verification__` → `verification`, `__synthesis__` →
   `synthesis`, `__workflow__` → `workflow`, and any other id → `task`. The current
   task-session and `synthesisRunId` entries stay as a fallback for chats without a record. Every
@@ -159,13 +159,13 @@ Definitions, one per figure, so the tests can pin them:
 ## 4. `scripts/orchestration-timings.mjs`
 
 A dependency-free Node script (`node scripts/orchestration-timings.mjs [id…] [--min-tasks N]
-[--json]`). It reads `AGENTRY_API_URL` and exits with a clear message when the variable is unset,
-without guessing a port. It sends `Authorization: Bearer $AGENTRY_API_TOKEN` when that is set. It
+[--json]`). It reads `CLAUDIO_API_URL` and exits with a clear message when the variable is unset,
+without guessing a port. It sends `Authorization: Bearer $CLAUDIO_API_TOKEN` when that is set. It
 prints the plan's tables in Markdown, in the same columns:
 
 1. Phase split over the finished graphs with at least `--min-tasks` tasks (default 5): Tasks vs
    After the tasks, hours and share.
-2. Per graph: after the tasks, Agentry running checks, fixer (attempts). This comes from
+2. Per graph: after the tasks, Claudio running checks, fixer (attempts). This comes from
    `/timings`.
 3. Per graph: critical path chain (`a → b → c`), its length, and parallelism.
 4. Limit waits per task, over 5 min.
@@ -207,7 +207,7 @@ is not polled every second.
 
 ## 6. Contract and docs
 
-- `packages/shared/src/types.ts`: the types above. Then `pnpm --filter @agentry/api openapi:schemas`.
+- `packages/shared/src/types.ts`: the types above. Then `pnpm --filter @claudio/api openapi:schemas`.
 - `apps/api/src/openapi/routes.ts`: `'GET /orchestrations/:id/timings'` with a summary, the
   `Orchestration` tag and `ok: ref('OrchestrationTimings')`.
 - README REST table (Orchestrations): a row for the route, placed after `GET /orchestrations/:id`.

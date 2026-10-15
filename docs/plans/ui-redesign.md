@@ -68,9 +68,9 @@ The chosen style is close to OpenCode's: a sober, terminal-flavoured tool for de
 
 ## The one rule, again
 
-Agentry reaches Claude Code **only through its CLI**: flags, subcommands, stream-json events, files
+Claudio reaches Claude Code **only through its CLI**: flags, subcommands, stream-json events, files
 the CLI writes. No SDK, no HTTP call to Anthropic, no terminal scraping. Everything "live" below
-comes from the stream-json events Agentry already reads. If a piece of a feature cannot be expressed
+comes from the stream-json events Claudio already reads. If a piece of a feature cannot be expressed
 that way, leave it out and say so in your result instead of inventing a surface.
 
 ## Not in this orchestration
@@ -98,7 +98,7 @@ that way, leave it out and say so in your result instead of inventing a surface.
 5. **Every long command under `timeout`**, e.g. `timeout 300 pnpm test`. If a command hits its
    timeout twice, stop retrying it and report it in your result.
 6. **After touching `packages/shared/src/types.ts`**, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the regenerated schemas. CI fails on
+   `pnpm --filter @claudio/api openapi:schemas` and commit the regenerated schemas. CI fails on
    drift.
 7. **Every new route** needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in
    the README REST API tables, which you add yourself.
@@ -392,7 +392,7 @@ additive:
   changes (`shell` stamped `is-desktop`; add the small web call yourself in `lib/theme.tsx`, guarded
   by `window.agentryDesktop`).
 - **Tray:** an icon whose tooltip says what is live ("2 working · 1 waiting"), with a menu: Open
-  Agentry, New chat, the live items (open them), Quit. Data from the local server the app started
+  Claudio, New chat, the live items (open them), Quit. Data from the local server the app started
   (`/api/overview` and the event feed), never from Claude directly.
 - **Progress:** `win.setProgressBar()` with the running orchestrations' combined fraction (cleared
   when none), and `app.setBadgeCount()` with chats waiting for a person, where the platform supports
@@ -466,7 +466,7 @@ verified it.
 
 Written by the `docs` task from what each task reported. Every task finished on its first attempt.
 No task ran `pnpm e2e`; the suite runs once, on the integrated branch, in the verification phase, and
-its result is not part of this section. Nothing needed a CLI surface Agentry does not already use:
+its result is not part of this section. Nothing needed a CLI surface Claudio does not already use:
 everything live comes from the stream-json events the CLI writes with `--include-partial-messages`.
 
 ### `live-activity`
@@ -479,7 +479,7 @@ cwd, a command's description, a pattern, a subagent's description, a URL's host,
 80 characters) and a `ChatActivityTracker` fed event by event — a pending permission prompt wins over
 the newest open tool call, which wins over a streaming block; a call is registered at
 `content_block_start` and its label completed later without resetting `since`; sidechain entries are
-ignored, because what the chat is doing is the `Task` call. Only a process Agentry owns reports an
+ignored, because what the chat is doing is the `Task` call. Only a process Claudio owns reports an
 activity. The feed throttles to one event per chat per second, keeping the newest change of the
 window rather than dropping it; the web patches it into the list, overview and orchestration caches
 (`patchActivity`) instead of refetching. OpenAPI schemas regenerated; `GET /events` documented.
@@ -546,7 +546,7 @@ items); added `shell.spec.mjs`.
 Delete disabled with its reason). A pill composer with a mono status line that opens the running
 chat's settings or the resume options (a popover, a sheet on a phone); ■ interrupt when the box is
 empty and the chat works; `.live-energy` while it works. An inspector with Summary, Activity, Changes
-and Environment, a side panel from 1100 px remembered in `localStorage` (`agentry-chat-inspector`),
+and Environment, a side panel from 1100 px remembered in `localStorage` (`claudio-chat-inspector`),
 a sheet below. The transcript shows the author only when it changes, groups consecutive tool calls
 into a step ("3 tools · 10s · 1 failed"), draws each call as a mono row with an outcome rail,
 replaces "Claude is working…" with the `ActivityTicker` (the chat's own stream first,
@@ -667,7 +667,7 @@ dashboard and the four views at 420 px and sideways overflow at 768 px.
 Windows and the traffic lights at (18, 19) on macOS; the preload exposes `setTitleBarTheme`
 (accepted only from the local server's page, only hex colours) and `onNavigate`; the web sends the
 theme's `--bg` and `--text` whenever the theme changes. A tray whose tooltip and first menu line say
-what is live, with Open Agentry, New chat, up to eight live items and Quit, opening items through the
+what is live, with Open Claudio, New chat, up to eight live items and Quit, opening items through the
 page's router; its data comes only from the local server (`/api/overview`, the chat and
 orchestration lists when something runs, re-read from `/api/events` through a small hand-written SSE
 reader, at most every 1.5 s, polling every 30 s while the feed is down). `setProgressBar` with the
@@ -676,7 +676,7 @@ has `pnpm test`, and the root `pnpm test` includes it.
 
 **Left out.** Closing the window still quits (no background mode was asked for). The tray and menus
 are English only. No badge on Windows (Electron needs an overlay icon there). A token set only from
-the UI is unknown to the tray, whose requests are then refused; it uses `AGENTRY_AUTH_TOKEN` from the
+the UI is unknown to the tray, whose requests are then refused; it uses `CLAUDIO_AUTH_TOKEN` from the
 environment.
 
 **Verified.** `pnpm typecheck` clean; desktop 17/17; web 252/252; the desktop bundle builds. The

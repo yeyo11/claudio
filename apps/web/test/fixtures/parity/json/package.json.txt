@@ -1,5 +1,5 @@
 {
-  "name": "@agentry/web",
+  "name": "@claudio/web",
   "version": "0.11.1",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "parity": "tsx scripts/parity.ts"
   },
   "dependencies": {
-    "@agentry/shared": "workspace:*",
+    "@claudio/shared": "workspace:*",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.5.2",

@@ -6,7 +6,7 @@ tags:
     - report
     - prompts
 ---
-# QA report: CW-24, Agentry's prompts for Opus 5.5 and Sonnet 5.5
+# QA report: CW-24, Claudio's prompts for Opus 5.5 and Sonnet 5.5
 
 This report covers the branch at `0f100fe4`: three commits (feat, test, docs) and 47 files. I read
 the diff in full for `packages/core/src` and `packages/shared/src`, the new tests, the OpenAPI
@@ -20,7 +20,7 @@ them. `git` and `node --version` ran. So criterion `564ce460` ("pnpm typecheck a
 is **not verified**, and the item cannot pass on reading alone.
 
 **To close it**, run `pnpm typecheck`, `pnpm test` and
-`pnpm --filter @agentry/api openapi:schemas` (then `git diff --exit-code apps/api/src/openapi`) on
+`pnpm --filter @claudio/api openapi:schemas` (then `git diff --exit-code apps/api/src/openapi`) on
 this branch. If all three pass, nothing else I found blocks a pass.
 
 ## What the reading confirmed
@@ -99,7 +99,7 @@ Nothing that depended on the removed patterns is left.
 **The verdict is still fail, for the same reason.** This session is in don't-ask mode, and every
 `pnpm` call is denied, `pnpm --version` included. So `564ce460` (typecheck and tests pass) is not
 verified for a second time. A person, or a QA run that is allowed to run `pnpm`, needs to run
-`pnpm typecheck`, `pnpm test` and `pnpm --filter @agentry/api openapi:schemas && git diff
+`pnpm typecheck`, `pnpm test` and `pnpm --filter @claudio/api openapi:schemas && git diff
 --exit-code apps/api/src/openapi`. If all three pass, the item passes.
 
 ## The checks, run by the Developer on 236e0b8b (2026-09-29)
@@ -110,7 +110,7 @@ The Developer's session can run `pnpm`, so these were run on the branch at `236e
 - `pnpm --workspace-concurrency=1 test`: exit 0. That is `pnpm test` with the packages run one
   after another instead of in parallel. The totals: shared 31, desktop 49, core 865, web 856,
   api 174, and no failures.
-- `pnpm --filter @agentry/api openapi:schemas && git diff --exit-code apps/api/src/openapi`: no
+- `pnpm --filter @claudio/api openapi:schemas && git diff --exit-code apps/api/src/openapi`: no
   drift.
 
 One web test fails in plain parallel `pnpm test` on this machine: `highlight.test.ts`, "the first
@@ -152,7 +152,7 @@ QA read:
 - `pnpm typecheck`: exit 0.
 - `pnpm --workspace-concurrency=1 test`: exit 0. Totals: shared 31, desktop 49, core 865, web 856,
   api 174, no failures.
-- `pnpm --filter @agentry/api openapi:schemas && git diff --exit-code apps/api/src/openapi`: no
+- `pnpm --filter @claudio/api openapi:schemas && git diff --exit-code apps/api/src/openapi`: no
   drift.
 
 The web test `highlight.test.ts` still depends on load in a parallel run. That comes from

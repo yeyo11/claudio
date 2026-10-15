@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Agentry drives the Claude Code CLI, so most reports need to say which CLI it was
+        Claudio drives the Claude Code CLI, so most reports need to say which CLI it was
         talking to and how it was running. The fields below are what makes a report actionable.
 
   - type: textarea
@@ -49,7 +49,7 @@ body:
   - type: input
     id: claudio-version
     attributes:
-      label: Agentry version or commit
+      label: Claudio version or commit
     validations:
       required: true
 

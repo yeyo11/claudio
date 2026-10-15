@@ -11,7 +11,7 @@ tags:
 Status: **Verified on `a0d6f2967` (0.33.1)**, with the full `pnpm e2e` run: see
 [Verification (2026-10-07)](#verification-2026-10-07), and the first pass in
 [Verification (2026-10-01)](#verification-2026-10-01). Run as one orchestration on top of `main` at
-`f78fab7` (`feat!: chats, projects and Agentry's own model`). Every task below landed except the
+`f78fab7` (`feat!: chats, projects and Claudio's own model`). Every task below landed except the
 pieces listed under [Outcome](#outcome-what-landed-and-what-did-not). Most of those were built later
 by [post-roadmap](post-roadmap.md), and the accounts pieces were retired on purpose by #188. The one
 item open is `paging.spec.mjs`, which fails alone on a loaded machine (CW-32).
@@ -26,7 +26,7 @@ Where a task prompt and this plan disagree, this plan wins. Where this plan and
 
 ## The one rule, again
 
-Agentry reaches Claude Code **only through its CLI**: flags, subcommands, stream-json events, files
+Claudio reaches Claude Code **only through its CLI**: flags, subcommands, stream-json events, files
 the CLI writes. No SDK, no HTTP call to Anthropic, no terminal scraping. If a piece of a feature
 below cannot be expressed that way, leave it out and say so in your result instead of inventing a
 surface.
@@ -52,7 +52,7 @@ rename and still says `GET /runs`, `runId`, "run": read it as chats. Keep new en
 5. **Every long command under `timeout`**, e.g. `timeout 300 pnpm test`. If a command hits its
    timeout twice, stop retrying it and report it in your result.
 6. **After touching `packages/shared/src/types.ts`**, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the regenerated schemas. CI fails on
+   `pnpm --filter @claudio/api openapi:schemas` and commit the regenerated schemas. CI fails on
    drift.
 7. **Every new route** needs a summary and a tag in `apps/api/src/openapi/routes.ts` (a test
    enforces it) and a row in the README REST API tables.
@@ -149,7 +149,7 @@ Core + API. Sections 1 of the observability plan.
 
 Core + API. Sections 3 and the per-task limits of section 4.
 
-- Compute `Health` for every running chat and orchestration task from what Agentry already receives:
+- Compute `Health` for every running chat and orchestration task from what Claudio already receives:
   `tool_progress` heartbeats (`elapsed_time_seconds`), tool calls and results, commits and worktree
   changes, cost and elapsed time. The seven signals and their rules are the table in the
   observability plan. Keep a history of command durations per kind of command (in SQLite) so "far
@@ -164,7 +164,7 @@ Core + API. Sections 3 and the per-task limits of section 4.
 - `POST /chats/:id/hint` (and `…/orchestrations/:id/tasks/:taskId/hint`, which already exists) with
   a suggested text per signal.
 - Per-task time and cost limits: `TaskLimits` on a task spec, the cost one through the CLI's
-  `--max-budget-usd`, the time one enforced by Agentry, with a soft warning before the hard stop.
+  `--max-budget-usd`, the time one enforced by Claudio, with a soft warning before the hard stop.
 - Notifications: emit health events on the global feed so the notification centre picks them up.
 - The optional Haiku supervisor of the plan is **out of scope** for this orchestration. Leave a note
   in the plan instead.
@@ -186,12 +186,12 @@ Core + API, depends on `stuck-signals` and `orchestration-v2` (it changes the sa
 
 - `VerificationSpec` on an orchestration: commands to run on the integration branch (for this repo
   `pnpm build`, then the e2e suite), a fixer agent for what fails, `maxAttempts`.
-- The fixer's rules come from Agentry, not from the objective: every command under `timeout`, one
+- The fixer's rules come from Claudio, not from the objective: every command under `timeout`, one
   spec at a time, browsers closed after a hang, existing assertions never loosened (a behaviour that
   changed on purpose is stated as such), at most N attempts per failure, then stop and report.
 - Outcome on the orchestration — `passed`, `fixed` (with its commits) or `failed` (with the report)
   — recorded and shown before the pull request is offered.
-- Worker prompts Agentry builds get the split of checks: typecheck and unit tests for workers, the
+- Worker prompts Claudio builds get the split of checks: typecheck and unit tests for workers, the
   suite for verification. That text belongs in the orchestrator, not in every objective.
 
 ### `pending-gaps` — what 0.11.0 and #60 left
@@ -228,7 +228,7 @@ Small, independent fixes. Each one is its own commit.
   subject), method, path, status, and a one-line summary. `GET /audit` paginated, newest first,
   filterable by path. Never log bodies: they contain prompts and secrets.
 - **TLS guidance** in the README: a reverse proxy in front, the headers it must pass, and why
-  Agentry does not terminate TLS itself.
+  Claudio does not terminate TLS itself.
 - The UI half is the `web-security` task's; here, make sure the web client sends the credential (a
   stored token, `Authorization` header) and that a `401` is a clean, actionable state, not a blank
   page.
@@ -270,7 +270,7 @@ Small, independent fixes. Each one is its own commit.
 - Say plainly in the UI what is out of reach and why: **web artifacts and claude.ai memory have no
   public API or CLI command**. A sentence in the page, not a silent gap.
 - Authorisation happens in an interactive CLI session (`claude mcp`, `/mcp`) or in claude.ai's
-  connector settings: link to the instructions instead of pretending Agentry can do it.
+  connector settings: link to the instructions instead of pretending Claudio can do it.
 
 ## 6. Multi-account, continued (task `accounts-config`)
 
@@ -280,7 +280,7 @@ Small, independent fixes. Each one is its own commit.
   never move a person's `~/.claude` without being asked.
 - **Rotation policies per project**: which accounts a project may use, in which order, and at what
   usage threshold to rotate. The existing global auto-switch stays the default.
-- **Usage history per account**: the usage Agentry already fetches, kept as rows in SQLite, with a
+- **Usage history per account**: the usage Claudio already fetches, kept as rows in SQLite, with a
   series per account and window for the UI to draw.
 
 ## 7. Scheduling (task `scheduling`)
@@ -297,7 +297,7 @@ Small, independent fixes. Each one is its own commit.
 
 ## 8. Usage and cost observability (task `usage-cost`)
 
-- Usage and cost over time, per project and per model, from the records Agentry already keeps
+- Usage and cost over time, per project and per model, from the records Claudio already keeps
   (`packages/core/src/usage.ts`, `usage-report.ts`, the chat records in SQLite). Buckets by day and
   by week, a range, and a breakdown by project and by model.
 - `GET /usage/series` and `GET /usage/breakdown`, both with a date range.
@@ -355,7 +355,7 @@ Depends on every web task.
 - `README.md`: the new features in the feature list, every new route in the REST API tables, the TLS
   and auth guidance of section 2, the Helm and compose profiles of section 9.
 - `ROADMAP.md`: move everything this orchestration delivered into **Done**, rewrite the Done entries
-  that #60 left stale (chats, projects and Agentry's own model), and leave in **Next** only what is
+  that #60 left stale (chats, projects and Claudio's own model), and leave in **Next** only what is
   genuinely still out: the Haiku supervisor, whatever a task reported as left out, and anything the
   CLI does not expose.
 - `docs/plans/agent-observability.md` and this file: mark what landed, keep what did not and say
@@ -375,7 +375,7 @@ section above says otherwise, the code and this section win.
 | 1 `git-changes` | Changes, diff and checklist routes for a task, the integration branch and a chat; `changes.updated` on the feed |
 | 1 `stuck-signals` | Seven signals, `health.changed`, cancel one command, hint, per-task time and cost limits, a notification |
 | 1 `e2e-harness` | A limit per spec and per run, and Chrome and the server closed by pid on every way out, proved by `e2e/harness.test.mjs` |
-| 1 `verification-phase` | The checks once on the integration branch, a fixer with Agentry's rules and a cap, the outcome on the graph, `POST /orchestrations/:id/verify`, and the split of checks in every worker prompt |
+| 1 `verification-phase` | The checks once on the integration branch, a fixer with Claudio's rules and a cap, the outcome on the graph, `POST /orchestrations/:id/verify`, and the split of checks in every worker prompt |
 | 1 `pending-gaps` | Six fixes, one commit each (below) |
 | 2 `security` | `none`, `token` and `oidc`; hashed token; read-only; redaction in `GET /config/mcp` and `GET /config/settings`; audit log; `?token=` on three GETs; the web client sends the credential and a `401` is a sign-in screen |
 | 3 `chat-mcp-tools` | `toolPreset` and `mcp` on start, resume and fork; three editable default presets in `tool-presets.json`; the chat shows what it runs with |
@@ -397,22 +397,22 @@ carries `agentId`; `sessionId` is on every subagent; `apps/web/test/detail.test.
 
 ### Left out, and why
 
-- **The Haiku supervisor.** Out of scope by the plan. Each signal already carries a hint text Agentry
+- **The Haiku supervisor.** Out of scope by the plan. Each signal already carries a hint text Claudio
   writes; a second model to pay for, watch and trust would add little. Still open.
 - **Health levels `slow`, `stuck`, `looping`.** The types kept `ok`, `warn`, `bad`: the plan's names mix a
   severity with three kinds of signal. The badge maps them for the person.
-- **Editor settings on the server.** They are per browser (`agentry-editor:v1`): they describe the
+- **Editor settings on the server.** They are per browser (`claudio-editor:v1`): they describe the
   machine the editor runs on, and a server copy needs a route and a schema for one person's
   preference. `code --diff` is a copied command, not a button that runs it: a browser cannot.
 - **Answering a permission from the notification.** The link opens the prompt, scrolled into view and
   focused; the toast still opens the chat.
-- **Plugin and connector servers in a chat's MCP selection.** They are in no file Agentry can read, and
+- **Plugin and connector servers in a chat's MCP selection.** They are in no file Claudio can read, and
   `--strict-mcp-config` drops them. Forks do not inherit the source chat's tools, a resume keeps the
   MCP config as picked, and there is no named default preset and no "restore the shipped presets".
 - **A sign-in through an identity provider.** `oidc` only validates a JWT. The audit log has no method or
   status filter and its path filter does not escape `%` and `_`; there is no banner on every page while
   read-only is on.
-- **Verification.** No cost limit for the fixer, no install step Agentry adds itself, and a failed
+- **Verification.** No cost limit for the fixer, no install step Claudio adds itself, and a failed
   verification does not fail the graph.
 - **Scheduling.** No overlap policy, no `schedule.*` event (the page refetches every 30 s), and no
   import of an existing orchestration into the form.
@@ -433,7 +433,7 @@ This section checks every row of [Landed](#landed), every bullet of
 [Left out, and why](#left-out-and-why) and [What "done" means](#what-done-means-for-this-orchestration)
 against `main` at 0.29.1, following [verify-roadmap-plans.md](verify-roadmap-plans.md) (CW-7). Since
 this plan was written, `main` has gained multiple providers (phases 1–2), code hosts (phase 1) and
-the split of the web UI into `@agentry/ui` and `@agentry/chat-ui`. Where a claim is now met by code
+the split of the web UI into `@claudio/ui` and `@claudio/chat-ui`. Where a claim is now met by code
 that moved, the evidence names the file where the code is today. The marks: **done** means present
 and working as described. **done later** means listed as left out here and built by
 [post-roadmap](post-roadmap.md#outcome). **fixed** means repaired by this verification. **dropped**
@@ -461,9 +461,9 @@ means absent on purpose, with the reason. **open** means a follow-up that is too
 | 6 `accounts-config` | done | `account-config.ts`, `PUT /accounts/:number/config`, `/accounts/policies`, `GET /accounts/usage`; `account-config.test.ts` ("every fresh reading of the usage is kept as a row…"); `accounts-config.spec.mjs` passes |
 | 7 `scheduling` | done | `cron.ts` (no `node-cron`), `schedules.ts`, `GET /schedules/preview`, `GET /schedules/:id/runs`; `schedules.test.ts` ("a window missed while the wrapper was down is skipped, once…"); `schedules.spec.mjs` passes |
 | 8 `usage-cost` | done | `GET /usage/series`, `GET /usage/breakdown` (`usage-series.ts`), `GET /chats/:id/export` (`chat-export.ts`); `usage-series.test.ts`; `usage.spec.mjs` passes |
-| 9 `packaging` | done | `docker/Dockerfile` pins `CLAUDE_CODE_VERSION=2.1.278` and exports `AGENTRY_CLAUDE_CODE_PINNED`. `GET /system/cli-version` and `POST /system/cli-version/check` (`cli-version.test.ts`). `deploy/helm/agentry` has a deployment with startup, liveness and readiness probes, a service, a PVC and a secret. `docker-compose.yml` has the `tls` profile with Caddy and `restart: unless-stopped`; `docker compose config -q` passes for both profiles. `docs/deploy.md`. `helm` is not installed on this machine, so the chart was not linted |
+| 9 `packaging` | done | `docker/Dockerfile` pins `CLAUDE_CODE_VERSION=2.1.278` and exports `CLAUDIO_CLAUDE_CODE_PINNED`. `GET /system/cli-version` and `POST /system/cli-version/check` (`cli-version.test.ts`). `deploy/helm/claudio` has a deployment with startup, liveness and readiness probes, a service, a PVC and a secret. `docker-compose.yml` has the `tls` profile with Caddy and `restart: unless-stopped`; `docker compose config -q` passes for both profiles. `docs/deploy.md`. `helm` is not installed on this machine, so the chart was not linted |
 | 10 `web-observability`: work panel, health actions, Changes and Doing now | done | `apps/web/src/components/observe/` (`Work.tsx`, `Health.tsx`), "Doing now" in `locales/en/observe.json`; `observability.spec.mjs` and `health-actions.spec.mjs` pass |
-| 10 `web-observability`: editor links and their settings tab | dropped | Removed by [changes-review](changes-review.md) decision 1 (#115). Changes are reviewed inside Agentry, and `/settings/editor` answers 404. See [status.md](../status.md#what-is-built) |
+| 10 `web-observability`: editor links and their settings tab | dropped | Removed by [changes-review](changes-review.md) decision 1 (#115). Changes are reviewed inside Claudio, and `/settings/editor` answers 404. See [status.md](../status.md#what-is-built) |
 | 10 `web-security` | done | `apps/web/src/pages/config/SecurityTab.tsx`, sign-in on a `401` (`apps/web/test/auth.test.tsx`); `security.spec.mjs` passes |
 | 10 `web-schedules-usage` | done | `pages/Schedules.tsx` with a cron builder (`cron-builder.test.ts`, `cron-words.test.ts`), `pages/Usage.tsx` with a chart and its table, export links in `pages/chat/Header.tsx`; `schedules.spec.mjs` and `usage.spec.mjs` pass |
 | 10 `web-orchestration-v2` | done | Re-run, relaunch, templates, limits and the verification card (`orchestration-v2.spec.mjs`); config directory, policies and usage history (`accounts-config.spec.mjs`); the Connectors page (`connectors.spec.mjs`) |
@@ -478,7 +478,7 @@ means absent on purpose, with the reason. **open** means a follow-up that is too
 | Editor settings on the server | dropped | Built later by post-roadmap `editor-settings-server`, then removed with the whole editor integration by [changes-review](changes-review.md) decision 1 (#115) |
 | `code --diff` as a copied command | dropped | Removed with the editor integration (#115). CLAUDE.md now says "never hand out a command to copy" |
 | Answering a permission from the notification | done later | [post-roadmap `web-security-2`](post-roadmap.md#stage-2--the-web): `PermissionAnswer` in `apps/web/src/components/NotificationPanel.tsx`; `notifications.spec.mjs` ("a tool permission has Allow and Deny in the list") passes |
-| Plugin and connector servers in a chat's MCP selection | dropped | ROADMAP *Out of reach of the CLI* and README Known limitations: "they are in no file Agentry can read, and `--strict-mcp-config` drops them" |
+| Plugin and connector servers in a chat's MCP selection | dropped | ROADMAP *Out of reach of the CLI* and README Known limitations: "they are in no file Claudio can read, and `--strict-mcp-config` drops them" |
 | Forks do not inherit the source chat's tools | done later | post-roadmap `tool-presets-2`; `chat-tools.test.ts` "a fork runs with the tools and servers of its source unless it picks others" |
 | A resume keeps the MCP config as picked | done later | post-roadmap `tool-presets-2`; `chat-tools.test.ts` "a resume that picks no servers starts them as they are defined now" |
 | No named default preset, no "restore the shipped presets" | done later | post-roadmap `tool-presets-2`: `PUT /config/tool-presets/default`, `POST /config/tool-presets/restore`; `apps/api/test/tool-presets.test.ts`; `tool-presets.spec.mjs` passes |
@@ -516,7 +516,7 @@ only a unit test.
   `e0efe0eb`: `# pass 35`, `# fail 0`. The web suite, run again after `ff8e0b3d` added a test:
   `# pass 969`, `# fail 0`.
 - `pnpm build`: passes (`✓ built in 13.93s`, `BUILD EXIT 0`).
-- `pnpm --filter @agentry/api openapi:schemas`: `wrote 502 schemas`, and `git status` shows no diff.
+- `pnpm --filter @claudio/api openapi:schemas`: `wrote 502 schemas`, and `git status` shows no diff.
 - `node --test e2e/harness.test.mjs`: **14 tests pass on their own; the run as a whole is flaky under
   load.** In one run at a load near 58, 10 passed and 4 failed. Two failed because a probe spec never
   started inside the 12 s run limit. Two failed with `API did not start`: the runner waits about 20 s
@@ -572,7 +572,7 @@ was looked up again; the rows that only repeat that check say "as on 2026-10-01"
 | 6 `accounts-config` | dropped | Retired with claude-swap by multiple providers phase 4 (#188): "Several accounts of one provider. Decision 6: one account per provider, the one signed in to its CLI" ([Out of scope](multi-provider.md#out-of-scope-2)). `account-config.ts`, its test, the `/accounts` routes and `accounts-config.spec.mjs` are gone; README *Coming from claude-swap* says so, and ROADMAP's Multi-account bullet now does too |
 | 7 `scheduling` | done | `cron.ts`, `schedules.ts`, `GET /schedules/preview`, `GET /schedules/:id/runs`; `schedules.test.ts`; `schedules.spec.mjs` |
 | 8 `usage-cost` | done | `GET /usage/series`, `GET /usage/breakdown` (`usage-series.ts`), `GET /chats/:id/export` (`chat-export.ts`); `usage-series.test.ts`; `usage.spec.mjs` |
-| 9 `packaging` | done | `docker/Dockerfile` (`CLAUDE_CODE_VERSION=2.1.278`, `AGENTRY_CLAUDE_CODE_PINNED`), the `cli-version` routes and test, `deploy/helm/agentry` (deployment, service, PVC, secret), Caddy's `tls` profile in `docker-compose.yml`, `docs/deploy.md`. `helm` is still not installed here |
+| 9 `packaging` | done | `docker/Dockerfile` (`CLAUDE_CODE_VERSION=2.1.278`, `CLAUDIO_CLAUDE_CODE_PINNED`), the `cli-version` routes and test, `deploy/helm/claudio` (deployment, service, PVC, secret), Caddy's `tls` profile in `docker-compose.yml`, `docs/deploy.md`. `helm` is still not installed here |
 | 10 `web-observability`: work panel, health actions, Changes and Doing now | done | `components/observe/Work.tsx`, `Health.tsx`; `observability.spec.mjs`, `health-actions.spec.mjs` |
 | 10 `web-observability`: editor links and their settings tab | dropped | As on 2026-10-01: removed by [changes-review](changes-review.md) decision 1 (#115); no `settings/editor` anywhere in the source |
 | 10 `web-security` | done | `pages/config/SecurityTab.tsx`, `apps/web/test/auth.test.tsx`; `security.spec.mjs` (after `392455dee`) |
@@ -600,7 +600,7 @@ was looked up again; the rows that only repeat that check say "as on 2026-10-01"
 | Verification: no fixer cost limit, no install step, a failed check does not fail the graph | done later | post-roadmap `verification-2`; `verification.test.ts` "a spec keeps its cost limit, install step and failGraph…" |
 | Scheduling: no overlap policy, no `schedule.*` event, no import of an orchestration | done later | post-roadmap `scheduling-2` and `web-chats-tools`; `schedules.test.ts`; "From an existing orchestration" in `locales/en/schedules.json` |
 | Usage: no project export, the custom range is typed | done later | post-roadmap `usage-2` (`project-export.ts`, `project-export.test.ts`) and `web-schedules-usage-2` (`packages/ui/src/components/controls/DatePicker.tsx`) |
-| Packaging: no Ingress, the chart is not under release-please, nothing run for real | dropped | ROADMAP *Decided against, for now*. `deploy/helm/agentry/templates` has no Ingress, and `release-please-config.json` does not name the chart |
+| Packaging: no Ingress, the chart is not under release-please, nothing run for real | dropped | ROADMAP *Decided against, for now*. `deploy/helm/claudio/templates` has no Ingress, and `release-please-config.json` does not name the chart |
 | Server-written strings shown in English; a template cannot be renamed in place | done later | post-roadmap `i18n-server-strings` (`server-strings.test.ts` in core and web) and `web-chats-tools` (`orchestration-v2.spec.mjs` "rename a template in place") |
 | Cancelling a command off Linux | dropped | README Known limitations: it reads `/proc` |
 | Browser coverage: no spec run, no spec for the health action buttons | done later | post-roadmap `e2e-health-actions` (`e2e/fake-cli/claude`, `health-actions.spec.mjs`), and the full suite ran on this date (below) |
@@ -637,7 +637,7 @@ of this verification before the checks touched `ROADMAP.md` alone.
   measure time, so they fail on a machine this loaded and are recorded as flaky under load, not as
   a fault.
 - `pnpm build`: passes (`BUILD EXIT 0`).
-- `pnpm --filter @agentry/api openapi:schemas`: `wrote 596 schemas`, and `git status` shows no diff.
+- `pnpm --filter @claudio/api openapi:schemas`: `wrote 596 schemas`, and `git status` shows no diff.
 - `node --test e2e/harness.test.mjs`, by hand at a load near 12: `# tests 14`, `# pass 14`,
   `# fail 0`, the whole file in one run. The 2026-10-01 flake (`API did not start`) is gone with the
   120 s server start limit.

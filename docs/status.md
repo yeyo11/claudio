@@ -5,11 +5,11 @@ tags:
     - status
     - project-state
     - docs
-    - agentry
+    - claudio
 ---
 # Where the project stands
 
-A snapshot of Agentry as it is today, for whoever — or whatever — picks it up next. The
+A snapshot of Claudio as it is today, for whoever — or whatever — picks it up next. The
 [README](../README.md) says what it does and how to run it, the [ROADMAP](../ROADMAP.md) lists what
 was built and what was refused; this page says where the work is, what is still open, and how a
 change gets in.
@@ -18,16 +18,16 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.37.0** on `main`, the same across all eight packages |
-| Released | 2026-10-09 (v0.37.0, #229), by release-please from the commit messages |
+| Version | **0.1.0** on `feat/claude-only`, the same across all nine packages; release-please restarts from the fresh changelog |
+| Released | Nothing yet: Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444). The repository `yeyo11/claudio` does not exist yet; see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 1,620 tracked `.ts`/`.tsx` files on `main` at 0.37.0; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
+| Source | 1,620 tracked `.ts`/`.tsx` files at Agentry 0.37.0, before the fork; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
 | REST | 31 route files, documented as OpenAPI 3.1 and served at `/docs` |
 | Tests | 378 unit and integration test files, plus 74 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build; four `e2e (k/4)` shards, skipped on docs-only pull requests; the `test` gate; the image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
-`packages/core` drives the agent CLIs and owns the store, `packages/mcp` is Agentry's own MCP
+`packages/core` drives the agent CLIs and owns the store, `packages/mcp` is Claudio's own MCP
 server, `apps/api` serves Fastify over the core, `packages/ui` and `packages/chat-ui` hold the web's
 primitives and the conversation, `apps/web` is the React UI, and `apps/desktop` wraps it in Electron
 for Linux. See
@@ -41,7 +41,7 @@ duration written anywhere else.
 ## What is built
 
 The ROADMAP's [Done](../ROADMAP.md#done) section lists 33 areas and is the accurate inventory. The
-spine of it: chats and projects modelled as Agentry's own objects over the CLI's stream-json;
+spine of it: chats and projects modelled as Claudio's own objects over the CLI's stream-json;
 orchestration with a task DAG, parallel workers and a verification phase on the integration branch;
 observability that reconstructs what an agent did from git and the transcript; several accounts
 rotated before they run out; schedules; configuration and MCP servers per scope; tool presets per
@@ -50,7 +50,7 @@ Linux desktop app; a Docker image with a Kubernetes manifest; and remote access 
 `tailscale serve` on the person's tailnet over settings that change at runtime ([tunnel.md](tunnel.md),
 [layered-settings.md](layered-settings.md)).
 
-Changes are reviewed inside Agentry: one screen for a chat, a task and the integration branch,
+Changes are reviewed inside Claudio: one screen for a chat, a task and the integration branch,
 drawn by a diff comparator of its own in Reading, Unified and Side by side, with a Step by step lens
 that replays every edit of the transcript with the sentence Claude wrote before it. The editor
 integration (links, the copied diff command, Settings → Editor and `/settings/editor`) is gone. See
@@ -72,7 +72,7 @@ palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir"
 ([assistant.md](assistant.md)).
 
 The **decision engine** was merged into `main` in #141 on 2026-09-30.
-It gives the small judgments Agentry makes (refine or not, retry or not, which journal entries an
+It gives the small judgments Claudio makes (refine or not, retry or not, which journal entries an
 agent reads, a hint for a stuck worker) one home: three typed questions, two providers (the Claude
 Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point (`off`, `shadow`,
 `active`) and a Decisions tab in Settings. All 22 points ship `off`; nothing is sent anywhere until
@@ -103,7 +103,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
 | Plan | Status |
 | --- | --- |
-| [`plans/agents-redesign.md`](plans/agents-redesign.md) | Landed — chats, projects and Agentry's own model (#60) |
+| [`plans/agents-redesign.md`](plans/agents-redesign.md) | Landed — chats, projects and Claudio's own model (#60) |
 | [`plans/agent-observability.md`](plans/agent-observability.md) | Landed, in full |
 | [`plans/ui-redesign.md`](plans/ui-redesign.md) | Done, every task delivered |
 | [`plans/mobile.md`](plans/mobile.md) | Shipped — all five tasks, see [Outcome](plans/mobile.md#outcome) |
@@ -119,13 +119,13 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Built (epic CW-11): where a graph's time goes is recorded and shown (CW-13, #210); the shorter verification (CW-14); cheaper worker checks and the `e2e-specs` task (CW-15, #213); shorter chains with planner guidance and the longest-chain hint (CW-16, #205). Workstream B (CW-4) was superseded by phase 4 of multiple providers, see [`plans/limit-resume.md`](plans/limit-resume.md#what-replaced-it) |
 | [`plans/agent-wire-format.md`](plans/agent-wire-format.md) | Landed (#221, CW-33, 2026-10-08): the MCP list tools answer only the fields a model needs, as compact JSON (`packages/mcp/src/fields.ts`). TOON was measured with a CLI bench (`scripts/wire-format-bench.mjs`), saved at most 4 % and cost more on three of four tools, and is not adopted; ZON rejected. The UI ↔ API side is built, see [api-wire.md](api-wire.md). See [Outcome](plans/agent-wire-format.md#outcome) and [agentry-mcp-server.md](agentry-mcp-server.md) |
 | [`plans/agentry-assistant.md`](plans/agentry-assistant.md) | Landed (#216, 2026-10-07, umbrella CW-30): the global entry and confined chat (CW-18) and nine write tools, each confirmed by the person (CW-17), on the MCP server (CW-6) and the chat token (CW-10). See [`agentry-assistant.md`](agentry-assistant.md) and [Outcome](plans/agentry-assistant.md#outcome) |
-| [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Built: part 1, starting the waiting cards when the flow is switched on (CW-9, `POST /projects/:id/flow/start-waiting`); part 2, a chat Agentry starts gets its own `AGENTRY_API_TOKEN` (CW-10) |
-| [`plans/multi-provider.md`](plans/multi-provider.md) | **Agentry history: Claudio drives Claude Code only, see [`plans/claude-only-fork.md`](plans/claude-only-fork.md).** Phase 1 landed (#150): five provider manifests (Claude Code, Codex, Gemini, Copilot, OpenCode), readiness detection, `/providers` routes, the first-run Providers step, Settings → Providers and the status bar dots; the one rule generalised. Phase 2 landed (#155): Claude Code behind the driver interface on its CLI (no Agent SDK, decision 2), `ToolPolicy`, the neutral `RunEvent`, the `provider` column and the conformance suite. Phase 3 landed (#167): the Codex driver on `codex app-server`, one ACP driver for Copilot, Gemini and OpenCode, OpenCode's SQLite transcripts and the provider on the chat page; recordings that need a signed-in account are the owner's. Phase 4 landed: a limit per provider shown in readiness, Settings and the status bar; handoff, restart or wait at a limit, each a new chat linked both ways; the `provider.on-limit`, `provider.pick` and `provider.model-map` decision points; automated work that picks its provider and carries its policy (with no policy it stays on Claude Code); claude-swap and the Accounts page retired. See [Outcome of phase 4](plans/multi-provider.md#outcome-of-phase-4), [Phase 4](plans/multi-provider.md#phase-4-rotation-between-providers), [Outcome of phase 3](plans/multi-provider.md#outcome-of-phase-3), [Outcome of phase 1](plans/multi-provider.md#outcome-of-phase-1) and [`providers.md`](providers.md) |
-| [`plans/code-hosts.md`](plans/code-hosts.md) | Phases 1–4 built (2026-10-01/02): hosts and readiness, `gh` and `glab` adapters at parity, Settings → Integrations, neutral PR/MR copy (#159); CI checks with logs, re-run, cancel, manual jobs, **Fix failing checks** and the `checks.fix` point; reviews: threads in the diff, a draft review sent as one, approvals, reviewers and **Address with an agent** with the `review.triage` point (see [Outcome of phase 3](plans/code-hosts.md#outcome-of-phase-3-2026-10-01)); merging: **Merge** with the methods the repository allows, a head guard, **Auto-merge**, the blocked states with their remedies, **Update from base**, the GitLab pipeline guard and an audit of every merge click (see [Outcome of phase 4](plans/code-hosts.md#outcome-of-phase-4-2026-10-02)); phase 5, first step (2026-10-02, see [Outcome of phase 5](plans/code-hosts.md#outcome-of-phase-5-step-1-2026-10-02)): GitHub Issues and GitLab Issues as trackers (import into work items, issue keys and closing words in change requests, status sync, the `issue.triage` point; reference in [`trackers.md`](trackers.md)); phase 5, second step (2026-10-07, see [Outcome](plans/code-hosts.md#outcome-of-phase-5-step-2-youtrack-2026-10-07)): YouTrack through `youtrack-app`, recorded on an instance of our own, with its address and token kept by Agentry ([`trackers.md`](trackers.md#youtrack)); phase 6, first step (2026-10-02, see [Outcome of phase 6](plans/code-hosts.md#outcome-of-phase-6-step-1-2026-10-02)): the pacer for both hosts, GitHub and GitLab webhook receivers (signature checked over the raw body, a delivery only brings a read forward) and hook registration, test, removal and re-pointing on a new tunnel address for GitHub and, with the signing token, GitLab (reference in [`code-hosts.md`](code-hosts.md#events-and-paced-polling)). GitHub (`gh` ≥ 2.92.0) and GitLab (`glab` ≥ 1.120.0) as code hosts, complete — PRs/MRs, CI checks and fixing them, reviews, merging from Agentry — and GitHub/GitLab issues and YouTrack (`youtrack-app`) as work items (Jira dropped on 2026-10-07); polling with optional webhooks. Six phases, each a task graph of orchestrations (prototypes, core, web); one execution layer for every CLI call; an action matrix of 138 GitHub/GitLab cells (110 recorded, 11 doc-only, 17 done outside the CLI) plus 12 YouTrack cells recorded before phase 5; the owner's four decisions settled |
-| [`plans/agentry-mcp-server.md`](plans/agentry-mcp-server.md) | Built (2026-10-01): Agentry's own MCP server, `@agentry/mcp`, with 15 read-only tools over the REST API, handed to a chat through `--mcp-config` with the confinement, and packaged as `apps/api/dist/mcp.mjs` and in the desktop app. The write tools (CW-17) and the global assistant chat (CW-18) were built later, see [`agentry-assistant.md`](agentry-assistant.md). See [`agentry-mcp-server.md`](agentry-mcp-server.md) |
-| [`plans/web-packages.md`](plans/web-packages.md) | Landed (#156): the web UI split into `@agentry/ui` (primitives, tokens, controls, renderers) and `@agentry/chat-ui` (the conversation, behind an injected client), with guard tests on the dependency direction and vendor names |
-| [`plans/in-app-setup.md`](plans/in-app-setup.md) | Landed (#228, released in v0.37.0, 2026-10-09). A fresh Agentry, the Docker image above all, is set up from the browser: the setup assistant, a key or a device code for every agent, gh and glab, YouTrack, and the image's own Tailscale; secrets sealed in one vault and handed only to the CLI that reads them. Copilot signs in through its environment and gh (decision 7). See [Outcome](plans/in-app-setup.md#outcome), [setup.md](setup.md) and [security-model.md](security-model.md) |
-| [`plans/chat-experience.md`](plans/chat-experience.md) | Proposed (2026-10-15): a chat that feels as good as ChatGPT's. Nineteen work items (CHAT-1 … CHAT-19) in four phases, from ChatGPT's web chat studied with REA and Agentry's chat read end to end; nothing built yet |
+| [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Built: part 1, starting the waiting cards when the flow is switched on (CW-9, `POST /projects/:id/flow/start-waiting`); part 2, a chat Claudio starts gets its own `CLAUDIO_API_TOKEN` (CW-10) |
+| [`plans/multi-provider.md`](plans/multi-provider.md) | **Claudio history: Claudio drives Claude Code only, see [`plans/claude-only-fork.md`](plans/claude-only-fork.md).** Phase 1 landed (#150): five provider manifests (Claude Code, Codex, Gemini, Copilot, OpenCode), readiness detection, `/providers` routes, the first-run Providers step, Settings → Providers and the status bar dots; the one rule generalised. Phase 2 landed (#155): Claude Code behind the driver interface on its CLI (no Agent SDK, decision 2), `ToolPolicy`, the neutral `RunEvent`, the `provider` column and the conformance suite. Phase 3 landed (#167): the Codex driver on `codex app-server`, one ACP driver for Copilot, Gemini and OpenCode, OpenCode's SQLite transcripts and the provider on the chat page; recordings that need a signed-in account are the owner's. Phase 4 landed: a limit per provider shown in readiness, Settings and the status bar; handoff, restart or wait at a limit, each a new chat linked both ways; the `provider.on-limit`, `provider.pick` and `provider.model-map` decision points; automated work that picks its provider and carries its policy (with no policy it stays on Claude Code); claude-swap and the Accounts page retired. See [Outcome of phase 4](plans/multi-provider.md#outcome-of-phase-4), [Phase 4](plans/multi-provider.md#phase-4-rotation-between-providers), [Outcome of phase 3](plans/multi-provider.md#outcome-of-phase-3), [Outcome of phase 1](plans/multi-provider.md#outcome-of-phase-1) and [`providers.md`](providers.md) |
+| [`plans/code-hosts.md`](plans/code-hosts.md) | Phases 1–4 built (2026-10-01/02): hosts and readiness, `gh` and `glab` adapters at parity, Settings → Integrations, neutral PR/MR copy (#159); CI checks with logs, re-run, cancel, manual jobs, **Fix failing checks** and the `checks.fix` point; reviews: threads in the diff, a draft review sent as one, approvals, reviewers and **Address with an agent** with the `review.triage` point (see [Outcome of phase 3](plans/code-hosts.md#outcome-of-phase-3-2026-10-01)); merging: **Merge** with the methods the repository allows, a head guard, **Auto-merge**, the blocked states with their remedies, **Update from base**, the GitLab pipeline guard and an audit of every merge click (see [Outcome of phase 4](plans/code-hosts.md#outcome-of-phase-4-2026-10-02)); phase 5, first step (2026-10-02, see [Outcome of phase 5](plans/code-hosts.md#outcome-of-phase-5-step-1-2026-10-02)): GitHub Issues and GitLab Issues as trackers (import into work items, issue keys and closing words in change requests, status sync, the `issue.triage` point; reference in [`trackers.md`](trackers.md)); phase 5, second step (2026-10-07, see [Outcome](plans/code-hosts.md#outcome-of-phase-5-step-2-youtrack-2026-10-07)): YouTrack through `youtrack-app`, recorded on an instance of our own, with its address and token kept by Claudio ([`trackers.md`](trackers.md#youtrack)); phase 6, first step (2026-10-02, see [Outcome of phase 6](plans/code-hosts.md#outcome-of-phase-6-step-1-2026-10-02)): the pacer for both hosts, GitHub and GitLab webhook receivers (signature checked over the raw body, a delivery only brings a read forward) and hook registration, test, removal and re-pointing on a new tunnel address for GitHub and, with the signing token, GitLab (reference in [`code-hosts.md`](code-hosts.md#events-and-paced-polling)). GitHub (`gh` ≥ 2.92.0) and GitLab (`glab` ≥ 1.120.0) as code hosts, complete — PRs/MRs, CI checks and fixing them, reviews, merging from Claudio — and GitHub/GitLab issues and YouTrack (`youtrack-app`) as work items (Jira dropped on 2026-10-07); polling with optional webhooks. Six phases, each a task graph of orchestrations (prototypes, core, web); one execution layer for every CLI call; an action matrix of 138 GitHub/GitLab cells (110 recorded, 11 doc-only, 17 done outside the CLI) plus 12 YouTrack cells recorded before phase 5; the owner's four decisions settled |
+| [`plans/agentry-mcp-server.md`](plans/agentry-mcp-server.md) | Built (2026-10-01): Claudio's own MCP server, `@claudio/mcp`, with 15 read-only tools over the REST API, handed to a chat through `--mcp-config` with the confinement, and packaged as `apps/api/dist/mcp.mjs` and in the desktop app. The write tools (CW-17) and the global assistant chat (CW-18) were built later, see [`agentry-assistant.md`](agentry-assistant.md). See [`agentry-mcp-server.md`](agentry-mcp-server.md) |
+| [`plans/web-packages.md`](plans/web-packages.md) | Landed (#156): the web UI split into `@claudio/ui` (primitives, tokens, controls, renderers) and `@claudio/chat-ui` (the conversation, behind an injected client), with guard tests on the dependency direction and vendor names |
+| [`plans/in-app-setup.md`](plans/in-app-setup.md) | Landed (#228, released in v0.37.0, 2026-10-09). A fresh Claudio, the Docker image above all, is set up from the browser: the setup assistant, a key or a device code for every agent, gh and glab, YouTrack, and the image's own Tailscale; secrets sealed in one vault and handed only to the CLI that reads them. Copilot signs in through its environment and gh (decision 7). See [Outcome](plans/in-app-setup.md#outcome), [setup.md](setup.md) and [security-model.md](security-model.md) |
+| [`plans/chat-experience.md`](plans/chat-experience.md) | Proposed (2026-10-15): a chat that feels as good as ChatGPT's. Nineteen work items (CHAT-1 … CHAT-19) in four phases, from ChatGPT's web chat studied with REA and Claudio's chat read end to end; nothing built yet |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -192,7 +192,7 @@ every pull request, the e2e suite as four parallel shards, which it skips when a
 only documentation ([plans/ci-e2e-shards.md](plans/ci-e2e-shards.md#what-was-built)), and additionally fails
 on a high-severity advisory in the dependency tree or on OpenAPI schemas that have drifted from the
 shared types — after changing `packages/shared/src/types.ts`, run
-`pnpm --filter @agentry/api openapi:schemas`.
+`pnpm --filter @claudio/api openapi:schemas`.
 
 ## How a change gets in
 

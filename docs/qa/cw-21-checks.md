@@ -28,11 +28,11 @@ both on the branch, for QA to check against the commit.
 
 | Package           | Tests | Pass | Fail |
 | ----------------- | ----: | ---: | ---: |
-| `@agentry/shared` |    31 |   31 |    0 |
-| `@agentry/desktop`|    42 |   42 |    0 |
-| `@agentry/core`   |   822 |  822 |    0 |
-| `@agentry/web`    |   849 |  849 |    0 |
-| `@agentry/api`    |   166 |  166 |    0 |
+| `@claudio/shared` |    31 |   31 |    0 |
+| `@claudio/desktop`|    42 |   42 |    0 |
+| `@claudio/core`   |   822 |  822 |    0 |
+| `@claudio/web`    |   849 |  849 |    0 |
+| `@claudio/api`    |   166 |  166 |    0 |
 
 No `not ok` line in the output. The core count includes the 9 tests in
 `packages/core/test/item-documents.test.ts` and the 3 CW-21 tests in
@@ -48,8 +48,8 @@ The first `pnpm test` there failed two `apps/web` tests, both on shiki's highlig
 - `parity.test.ts`, "every language keeps shiki's colours over the frozen corpus".
 
 The branch changes nothing under `apps/`, and both tests passed in the runs before and after:
-- `pnpm --filter @agentry/web test` alone: 849/849;
-- `pnpm --filter @agentry/api test`, which the failed run never reached: 166/166;
+- `pnpm --filter @claudio/web test` alone: 849/849;
+- `pnpm --filter @claudio/api test`, which the failed run never reached: 166/166;
 - the whole `pnpm test` again: exit 0, with the same counts as the table above and no `not ok`.
 
 They look sensitive to load, since shiki compiles a grammar on first use, and are worth their own

@@ -46,7 +46,7 @@ The root element is `[role=textbox][aria-multiline=true]` with the box's `aria-l
 ## What the box keeps
 
 - **Drafts** (`composer/drafts.ts`): the text, never the files (an upload id would point at
-  nothing days later), in `localStorage` under `agentry-composer-draft:<chat>:<kind>`, written 300 ms
+  nothing days later), in `localStorage` under `claudio-composer-draft:<chat>:<kind>`, written 300 ms
   after typing rests and when the box goes. A draft older than seven days is dropped. A send clears
   only what was sent, as before ([chat-delivery.md](chat-delivery.md)).
 - **History** (`composer/history.ts`): ArrowUp in an empty box, caret at its start, brings back the
@@ -71,7 +71,7 @@ The root element is `[role=textbox][aria-multiline=true]` with the box's `aria-l
 ## Switching servers on a live chat
 
 The CLI's stream-json control protocol has `mcp_status` and `mcp_toggle` (in the Agent SDK's
-`sdk.d.ts`). Agentry sent neither before. Both were confirmed on the CLI 2.1.300 on 2026-10-15,
+`sdk.d.ts`). Claudio sent neither before. Both were confirmed on the CLI 2.1.300 on 2026-10-15,
 without sending a message:
 
 - `mcp_status` answers `{ mcpServers: [{ name, status, scope, source, config, serverInfo?, tools? }] }`.
@@ -86,7 +86,7 @@ The path:
   the Claude Code session (`providers/claude-code/driver.ts`). The answer is read by `liveMcpServers`
   (`providers/claude-code/mcp.ts`), which drops each server's `config` (it can hold tokens and
   headers) and marks connectors `kind: 'connector'` with a `label` without the `claude.ai ` prefix,
-  so `@agentry/chat-ui` never names a vendor (its boundaries test guards that).
+  so `@claudio/chat-ui` never names a vendor (its boundaries test guards that).
 - `ChatManager.mcpServers` / `toggleMcpServer` (`packages/core/src/chats.ts`), through `ChatService`.
 - `GET /chats/:id/mcp` → `ChatMcpServers` (`live: false` without a process of ours) and
   `PUT /chats/:id/mcp/:name` with `ChatMcpToggle { enabled }` (`400` without a live process).
@@ -114,7 +114,7 @@ chat; the tool preset still is.
 - **Tiptap or Lexical.** Both wrap the same idea with more weight and their own conventions; the box
   needs plain paragraphs and a keymap, which ProseMirror's own modules give directly.
 - **`mcp_set_servers`** (replace the dynamically added servers) for a live chat. It does not touch
-  the servers from settings files, and how it meets `--strict-mcp-config` and Agentry's own config
+  the servers from settings files, and how it meets `--strict-mcp-config` and Claudio's own config
   file is untested. Switching what the process already has covers the person's request.
 
 ## Related

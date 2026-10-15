@@ -279,7 +279,7 @@ def mobile_board():
 # ---------------------------------------------------------------- the item page: chips, sync state, Sync again
 # sync state -> word, the dot of the chip and the badge of the row. "pending" waits for the merge or for the person,
 # so it is idle; "syncing" is one write in flight, the only live one; "outside" is an issue somebody closed on the
-# tracker: Agentry adds a note and moves nothing, so it has no status colour.
+# tracker: Claudio adds a note and moves nothing, so it has no status colour.
 SYNC = {
   'pending': ('pendiente', 'dot-idle', 'b-idle', 'wait'),
   'syncing': ('sincronizando', None, '', None),
@@ -334,14 +334,14 @@ def panel(host, rows, sub, mobile=False):
 def main_rows(mobile=False):
   return [
     issue_row('gitlab', 14, 'Plantillas de proyecto al crear uno nuevo', 'pending', 'abierto en GitLab',
-              'Se cierra al fusionar la MR !12. Agentry lo lee de nuevo después y solo lo cierra si sigue abierto.', mobile=mobile),
+              'Se cierra al fusionar la MR !12. Claudio lo lee de nuevo después y solo lo cierra si sigue abierto.', mobile=mobile),
     issue_row('gitlab', 9, 'Plantillas para bibliotecas y paquetes', 'outside', 'cerrado en GitLab',
-              'Lo cerró marta.gil hace 1 d. Agentry lo anota en la tarea y no la mueve: pasarla a Hecho es cosa tuya.', mobile=mobile),
+              'Lo cerró marta.gil hace 1 d. Claudio lo anota en la tarea y no la mueve: pasarla a Hecho es cosa tuya.', mobile=mobile),
   ]
 
 
 MAIN_SUB = ('La MR !12 lleva «Closes #14» en su descripción, así que GitLab cierra el issue al fusionarla. '
-            'La tarea se importó de estos issues; Agentry solo escribe en el tracker al fusionar.')
+            'La tarea se importó de estos issues; Claudio solo escribe en el tracker al fusionar.')
 
 
 def item_desktop():
@@ -350,7 +350,7 @@ def item_desktop():
   h = _swap(h, '</h1>\n<div class="t-body fg-2"', f'</h1>{chips}\n<div class="t-body fg-2"')
   crit = '<section class="col" style="gap: 8px"><div class="row" style="gap: 10px"><h2 class="t-h2">Criterios'
   h = _swap(h, crit, panel('gitlab', main_rows(), MAIN_SUB) + crit)
-  write('DesktopTareaIssues.html', h.replace('<title>Agentry · Tarea con MR (desktop)', '<title>Agentry · Tarea con issues (desktop)'))
+  write('DesktopTareaIssues.html', h.replace('<title>Claudio · Tarea con MR (desktop)', '<title>Claudio · Tarea con issues (desktop)'))
 
 
 def item_mobile():
@@ -360,7 +360,7 @@ def item_mobile():
   desc = '<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">'
   # After the MR callout, before the description: the same place as on the desktop
   h = _swap(h, desc, panel('gitlab', main_rows(True), MAIN_SUB, True) + desc)
-  write('MobileTareaIssues.html', h.replace('<title>Agentry · Tarea con MR (móvil)', '<title>Agentry · Tarea con issues (móvil)'))
+  write('MobileTareaIssues.html', h.replace('<title>Claudio · Tarea con MR (móvil)', '<title>Claudio · Tarea con issues (móvil)'))
 
 
 # ---------------------------------------------------------------- the sync states
@@ -368,29 +368,29 @@ def state_cells(mobile):
   return [
     ('Pendiente: la MR lleva la palabra de cierre', 'La base es la rama predeterminada: GitLab cierra el issue al fusionar. Idle, porque espera tu fusión.',
      panel('gitlab', [issue_row('gitlab', 14, 'Plantillas de proyecto al crear uno nuevo', 'pending', 'abierto en GitLab',
-                                'Se cierra al fusionar la MR !12. Agentry lo lee de nuevo después.', mobile=mobile)],
+                                'Se cierra al fusionar la MR !12. Claudio lo lee de nuevo después.', mobile=mobile)],
            'La MR !12 lleva «Closes #14» en su descripción.', mobile)),
-    ('Pendiente: la base no es la predeterminada', 'Sin palabra de cierre: GitHub no cierra nada al fusionar en otra rama, así que lo cierra Agentry, y lo vuelve a leer.',
+    ('Pendiente: la base no es la predeterminada', 'Sin palabra de cierre: GitHub no cierra nada al fusionar en otra rama, así que lo cierra Claudio, y lo vuelve a leer.',
      panel('github', [issue_row('github', 14, 'Plantillas de proyecto al crear uno nuevo', 'pending', 'abierto en GitHub',
-                                'La PR #12 va hacia release/0.20, no hacia main: al fusionarla Agentry cierra el issue como «completado».', mobile=mobile)],
+                                'La PR #12 va hacia release/0.20, no hacia main: al fusionarla Claudio cierra el issue como «completado».', mobile=mobile)],
            'La PR #12 cita «Refs #14», sin palabra de cierre.', mobile)),
     ('Sincronizando', 'Una escritura en vuelo, sin reintentos: el braille junto a la palabra es lo único vivo.',
      panel('gitlab', [issue_row('gitlab', 14, 'Plantillas de proyecto al crear uno nuevo', 'syncing', 'abierto en GitLab',
                                 'Cerrando el issue con glab…', mobile=mobile)],
            'La MR !12 se fusionó hace unos segundos.', mobile)),
-    ('Sincronizada', 'El issue está cerrado y Agentry lo ha comprobado leyéndolo de nuevo. El ok va con su palabra.',
+    ('Sincronizada', 'El issue está cerrado y Claudio lo ha comprobado leyéndolo de nuevo. El ok va con su palabra.',
      panel('gitlab', [issue_row('gitlab', 14, 'Plantillas de proyecto al crear uno nuevo', 'synced', 'cerrado en GitLab',
-                                'Lo cerró la fusión de la MR !12 hace 2 min. Agentry lo leyó de nuevo y no tuvo que hacer nada.', mobile=mobile)],
+                                'Lo cerró la fusión de la MR !12 hace 2 min. Claudio lo leyó de nuevo y no tuvo que hacer nada.', mobile=mobile)],
            'La tarea pasó a Hecho cuando se fusionó la MR !12.', mobile)),
     ('Falló', 'La escritura no se reintenta sola: el motivo va con su código en mono, y el remedio es «Sincronizar de nuevo» y, si falta la sesión, un enlace a la documentación.',
      panel('gitlab', [issue_row('gitlab', 14, 'Plantillas de proyecto al crear uno nuevo', 'failed', 'abierto en GitLab',
                                 'No se pudo cerrar el issue: glab no ha iniciado sesión en git.inmoseo.net.', 'tracker-signed-out · hace 1 min',
                                 acts=[('retry', 'Sincronizar de nuevo'), ('link', 'Cómo iniciar sesión')], mobile=mobile)],
            'La MR !12 se fusionó y la tarea ya está en Hecho; el issue no.', mobile)),
-    ('Cerrado fuera de Agentry', 'Alguien lo cerró en el tracker. Agentry lo anota en la tarea y no mueve nada; sin color de estado.',
+    ('Cerrado fuera de Claudio', 'Alguien lo cerró en el tracker. Claudio lo anota en la tarea y no mueve nada; sin color de estado.',
      panel('gitlab', [issue_row('gitlab', 9, 'Plantillas para bibliotecas y paquetes', 'outside', 'cerrado en GitLab',
                                 'Lo cerró marta.gil hace 1 d. La tarea sigue donde estaba.', mobile=mobile)],
-           'Agentry no escribe en este issue hasta que la tarea llegue a Hecho.', mobile)),
+           'Claudio no escribe en este issue hasta que la tarea llegue a Hecho.', mobile)),
   ]
 
 
@@ -399,7 +399,7 @@ def states_desktop():
   head_ = ('<header class="col" style="gap: 6px"><span class="t-label">Issues de un tracker</span>'
            '<h1 class="t-h1">Los estados de la sincronización</h1>'
            '<p class="t-sm fg-2" style="margin: 0; max-width: 820px; line-height: 1.5">Cómo dice la página de la tarea qué pasó con cada issue enlazado, en GitHub y en GitLab. '
-           'La sincronización va en un solo sentido, de Agentry al tracker; cada escritura es una sola, y una que falla se ve con su motivo y se repite con un clic. '
+           'La sincronización va en un solo sentido, de Claudio al tracker; cada escritura es una sola, y una que falla se ve con su motivo y se repite con un clic. '
            'El estado principal es <a href="DesktopTareaIssues.html" class="c-accent">la propia página de la tarea</a>.</p></header>')
   body = (f'<div class="app col" data-theme="dark" style="width: 1440px; height: 1050px; padding: 32px 40px; gap: 22px; overflow: hidden">{head_}'
           f'<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 28px; align-items: start">{grid}</div></div>')

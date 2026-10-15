@@ -36,7 +36,7 @@ Only the text that `workerChecks(verification: boolean)` returns, in
 `orchestrator.ts` (line ~740, the worker prompt) keeps calling it the same way. The signature does
 not change unless point 3 needs it (see below). No type, route, OpenAPI schema or UI changes.
 
-The wording has to hold for **any repository Agentry drives**. It must not name `pnpm`, `e2e/`,
+The wording has to hold for **any repository Claudio drives**. It must not name `pnpm`, `e2e/`,
 `E2E_PORT` or any other file or tool of this repo, except as an example after "for example". The
 existing rule "the project's own commands for them" stays.
 

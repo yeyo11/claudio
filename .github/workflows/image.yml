@@ -54,7 +54,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
           tags: ${{ inputs.tags }}
           labels: |
-            org.opencontainers.image.title=Agentry
+            org.opencontainers.image.title=Claudio
             org.opencontainers.image.description=Run Claude Code as a service: REST API, web UI and multi-agent orchestration in one container
             org.opencontainers.image.licenses=MIT
 

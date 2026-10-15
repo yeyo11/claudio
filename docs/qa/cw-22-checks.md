@@ -33,11 +33,11 @@ the commits.
 
 | Package            | Tests | Pass | Fail | Notes |
 | ------------------ | ----: | ---: | ---: | ----- |
-| `@agentry/shared`  |    31 |   31 |    0 | |
-| `@agentry/desktop` |    49 |   49 |    0 | |
-| `@agentry/core`    |   852 |  852 |    0 | see below |
-| `@agentry/api`     |   181 |  181 |    0 | 7 in `work-item-pull-requests.test.ts` |
-| `@agentry/web`     |   870 |  870 |    0 | see below |
+| `@claudio/shared`  |    31 |   31 |    0 | |
+| `@claudio/desktop` |    49 |   49 |    0 | |
+| `@claudio/core`    |   852 |  852 |    0 | see below |
+| `@claudio/api`     |   181 |  181 |    0 | 7 in `work-item-pull-requests.test.ts` |
+| `@claudio/web`     |   870 |  870 |    0 | see below |
 
 Under that load each full run had one timing test fail, never the same one, and none in a file this
 branch changes:

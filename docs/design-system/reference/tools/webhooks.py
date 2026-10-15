@@ -17,7 +17,7 @@ OLD_ORIGIN = 'https://quiet-fox-91c3.lhr.life'
 RID = 'a3f9c2e1'
 
 # state -> word, badge class, dot class. A status colour with its word. `off` waits for the person, but it is
-# not a state to colour: the project simply has no hook, so it is the plain badge. A host Agentry has not
+# not a state to colour: the project simply has no hook, so it is the plain badge. A host Claudio has not
 # recorded is the plain badge too, as the trackers' "Aún no disponible".
 STATE = {
   'active': ('Activo', 'b-ok', 'dot-ok'),
@@ -48,7 +48,7 @@ PROJECTS = {
   'pa': dict(name='pagos-api', host='gitlab', repo='equipo/pagos-api', where='gitlab.inmoseo.net'),
 }
 
-NOT_RECORDED = ('Agentry todavía no ha visto cómo registra <span class="mono">glab</span> un webhook, así que no puede registrarlo, '
+NOT_RECORDED = ('Claudio todavía no ha visto cómo registra <span class="mono">glab</span> un webhook, así que no puede registrarlo, '
                 'probarlo ni quitarlo. Las MR se siguen leyendo cada 2 min; un aviso que llegue con el token '
                 '<span class="mono">X-Gitlab-Token</span> se recibe igual.')
 
@@ -56,26 +56,26 @@ NOT_RECORDED = ('Agentry todavía no ha visto cómo registra <span class="mono">
 # `pace` is the pacer's cadence for that project's change requests (design note of phase 6: a healthy hook is
 # a 15 min safety net, otherwise an open request waiting for review is read every 2 min).
 ROWS = {
-  'active': dict(p='cw', state='active', reason='GitHub entrega los avisos y Agentry vuelve a leer la PR al momento.',
+  'active': dict(p='cw', state='active', reason='GitHub entrega los avisos y Claudio vuelve a leer la PR al momento.',
                  facts=[('último aviso', 'pull_request · hace 3 min'), ('última prueba', '204 · hace 2 h'), ('lectura de respaldo', 'cada 15 min')],
                  acts=['test', 'remove']),
-  'off': dict(p='gdm', state='off', reason='Sin webhook, Agentry lee las PR cada 2 min. Con uno se entera al momento.',
+  'off': dict(p='gdm', state='off', reason='Sin webhook, Claudio lee las PR cada 2 min. Con uno se entera al momento.',
               facts=[('lectura', 'cada 2 min')], acts=['register']),
   'unavailable': dict(p='pa', state='unavailable', reason=NOT_RECORDED, facts=[('lectura', 'cada 2 min'), ('motivo', 'unknown · not-recorded')], acts=[]),
-  'failing': dict(p='cw', state='failing', reason='GitHub no consigue entregar los avisos: la dirección de Agentry respondió con un error.',
+  'failing': dict(p='cw', state='failing', reason='GitHub no consigue entregar los avisos: la dirección de Claudio respondió con un error.',
                   facts=[('última respuesta', 'HTTP 502 · hace 12 min'), ('último intento', 'pull_request'), ('lectura', 'cada 2 min')],
                   acts=['test', 'remove']),
   'stale': dict(p='cw', state='stale',
-                reason='El webhook apunta a una dirección que ya no es la de Agentry. Agentry lo apunta solo a la nueva, pero esta vez no ha podido.',
+                reason='El webhook apunta a una dirección que ya no es la de Claudio. Claudio lo apunta solo a la nueva, pero esta vez no ha podido.',
                 facts=[('apunta a', OLD_ORIGIN), ('ahora', ORIGIN), ('lectura', 'cada 2 min')], acts=['repoint', 'remove']),
-  'repointed': dict(p='cw', state='active', reason='GitHub entrega los avisos y Agentry vuelve a leer la PR al momento.',
-                    facts=[('apuntado de nuevo', 'por Agentry · hace 4 min'), ('último aviso', 'pull_request · hace 1 min'), ('lectura de respaldo', 'cada 15 min')],
+  'repointed': dict(p='cw', state='active', reason='GitHub entrega los avisos y Claudio vuelve a leer la PR al momento.',
+                    facts=[('apuntado de nuevo', 'por Claudio · hace 4 min'), ('último aviso', 'pull_request · hace 1 min'), ('lectura de respaldo', 'cada 15 min')],
                     acts=['test', 'remove']),
-  'registering': dict(p='gdm', state='registering', reason='Agentry está registrando el webhook en GitHub con gh. Tarda unos segundos.',
+  'registering': dict(p='gdm', state='registering', reason='Claudio está registrando el webhook en GitHub con gh. Tarda unos segundos.',
                       facts=[('lectura', 'cada 2 min')], acts=[]),
-  'closed': dict(p='cw', state='stale', reason='El túnel está cerrado, así que GitHub ya no llega a Agentry. Cuando haya una dirección nueva, Agentry apuntará el webhook a ella.',
+  'closed': dict(p='cw', state='stale', reason='El túnel está cerrado, así que GitHub ya no llega a Claudio. Cuando haya una dirección nueva, Claudio apuntará el webhook a ella.',
                  facts=[('apunta a', OLD_ORIGIN), ('lectura', 'cada 2 min')], acts=['remove']),
-  'off-closed': dict(p='gdm', state='off', reason='Registrar un webhook necesita una dirección pública. Mientras tanto Agentry lee las PR cada 2 min.',
+  'off-closed': dict(p='gdm', state='off', reason='Registrar un webhook necesita una dirección pública. Mientras tanto Claudio lee las PR cada 2 min.',
                      facts=[('lectura', 'cada 2 min')], acts=[]),
 }
 
@@ -92,7 +92,7 @@ def hbadge(state):
 
 def hact(kind, big=False):
   """Every button is neutral: the page's gradient is the dialog's, not a row's. Probar, Apuntar and Quitar act on a hook
-  Agentry registered; Quitar is a ghost, and asks before it deletes."""
+  Claudio registered; Quitar is a ghost, and asks before it deletes."""
   size = ' btn-lg' if big else ''
   return {
     'register': f'<button type="button" class="btn{size}">{ico("plus", "ico ico-sm")}Registrar…</button>',
@@ -144,12 +144,12 @@ def origin(url, big=False):
             f'<span class="url grow">{url}</span><span class="badge b-ok"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Abierta</span></div>')
   link = f'<a href="#" class="btn{" btn-lg" if big else ""}" style="white-space: nowrap">Abrir Acceso remoto{ico("ext", "ico ico-sm")}</a>'
   return (f'<div class="hook-origin none" role="group" aria-label="Dirección pública">{ico("warn", "ico", "color: var(--warn)")}'
-          f'<span class="grow" style="flex-basis: 260px"><b style="font-weight: 500; color: var(--fg)">Agentry no tiene una dirección pública.</b> '
+          f'<span class="grow" style="flex-basis: 260px"><b style="font-weight: 500; color: var(--fg)">Claudio no tiene una dirección pública.</b> '
           f'Los hosts no pueden llegar hasta aquí: abre el túnel en Ajustes → Acceso remoto, o configura una dirección pública.</span>{link}</div>')
 
 
-INTRO = ('Un webhook hace que GitHub avise a Agentry en cuanto una PR cambia, en lugar de esperar a la siguiente lectura. Solo sirve de aviso: '
-         'Agentry vuelve a leer la PR y no cambia nada por lo que diga el aviso. Sin webhook, o si un aviso se pierde, las sigue leyendo cada pocos minutos.')
+INTRO = ('Un webhook hace que GitHub avise a Claudio en cuanto una PR cambia, en lugar de esperar a la siguiente lectura. Solo sirve de aviso: '
+         'Claudio vuelve a leer la PR y no cambia nada por lo que diga el aviso. Sin webhook, o si un aviso se pierde, las sigue leyendo cada pocos minutos.')
 
 
 def summary(rows):
@@ -183,10 +183,10 @@ def events_short():
   return '<ul class="hook-events" aria-label="Eventos">' + ''.join(f'<li><span class="mono">{n}</span></li>' for n, _ in EVENTS) + '</ul>'
 
 
-SECRET = ('Agentry genera un secreto de 32 bytes, lo guarda y se lo entrega a GitHub al registrar el webhook. No se vuelve a mostrar. '
-          'Si el repositorio ya tiene un webhook con esta dirección, Agentry lo adopta en lugar de crear otro.')
+SECRET = ('Claudio genera un secreto de 32 bytes, lo guarda y se lo entrega a GitHub al registrar el webhook. No se vuelve a mostrar. '
+          'Si el repositorio ya tiene un webhook con esta dirección, Claudio lo adopta en lugar de crear otro.')
 BEFORE = 'Registrarlo necesita permiso de administración sobre el repositorio.'
-BODY_HINT = 'GitHub firma cada aviso con el secreto; Agentry lo comprueba antes de leer nada.'
+BODY_HINT = 'GitHub firma cada aviso con el secreto; Claudio lo comprueba antes de leer nada.'
 
 
 def no_permission():
@@ -198,7 +198,7 @@ def no_permission():
 
 
 def confirm_text(p):
-  return (f'Agentry borrará el webhook de {p["repo"]} en GitHub y dejará de recibir sus avisos. Las PR se seguirán leyendo cada 2 min. '
+  return (f'Claudio borrará el webhook de {p["repo"]} en GitHub y dejará de recibir sus avisos. Las PR se seguirán leyendo cada 2 min. '
           f'Puedes registrarlo de nuevo cuando quieras.')
 
 
@@ -231,9 +231,9 @@ def register_dialog(project='gdm', error=False):
   body = (no_permission() if error else '') + (f'<div class="col" style="gap: 8px"><span class="t-label">Dirección</span>'
           f'<label class="field field-mono">{ico("link", "ico fg-3")}<input class="mono" value="{url}" readonly aria-label="Dirección del webhook">'
           f'<button type="button" class="btn btn-ghost btn-sm" style="margin-right: -8px; font-family: var(--sans)">{ico("copy", "ico ico-sm")}Copiar</button></label>'
-          f'<span class="form-hint">Es la dirección pública de Agentry ahora mismo. {BODY_HINT}</span></div>'
+          f'<span class="form-hint">Es la dirección pública de Claudio ahora mismo. {BODY_HINT}</span></div>'
           f'<div class="col" style="gap: 8px"><span class="t-label">Eventos</span>{events_list()}'
-          f'<span class="form-hint">Los elige Agentry y son los que hacen falta para seguir una PR; no se pueden cambiar aquí.</span></div>'
+          f'<span class="form-hint">Los elige Claudio y son los que hacen falta para seguir una PR; no se pueden cambiar aquí.</span></div>'
           f'<div class="callout" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}<span>{SECRET} {BEFORE}</span></div>')
   return (f'<div class="scrim" style="z-index: 30"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="hook-title" style="width: 660px">'
           f'<div class="dialog-head">{mono_ico(p["host"])}<div class="col grow" style="gap: 2px"><h2 id="hook-title" class="t-h2">Registrar un webhook en {p["name"]}</h2>'
@@ -255,7 +255,7 @@ def register_sheet(project='gdm', error=False):
 {err}
 <div class="col" style="gap: 8px"><span class="t-label">Dirección</span>
 <div class="row" style="gap: 4px; align-items: center; padding: 4px 4px 4px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg-1)" role="group" aria-label="Dirección del webhook"><span class="mono grow" style="font-size: 14px; line-height: 1.45; overflow-wrap: anywhere">{url}</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Copiar la dirección">{ico("copy", "ico")}</button></div>
-<span class="form-hint">La dirección pública de Agentry ahora mismo. {BODY_HINT}</span></div>
+<span class="form-hint">La dirección pública de Claudio ahora mismo. {BODY_HINT}</span></div>
 <div class="col" style="gap: 8px"><span class="t-label">Eventos</span>{events_short()}</div>
 <span class="t-xs fg-3" style="line-height: 1.45">{SECRET} {BEFORE}</span>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary" style="justify-content: center">{"Volver a intentarlo" if error else "Registrar webhook"}</button>
@@ -287,8 +287,8 @@ def desktop_all():
   desktop_webhooks('DesktopIntegracionesWebhooksQuitar.html', 'Ajustes, quitar un webhook', MAIN_ROWS,
                    overlay=remove_dialog('cw'), grad=False)
   scenes = [('Los avisos no llegan: GitHub recibió un error', ROWS['failing']),
-            ('La dirección cambió y Agentry no pudo apuntar el webhook', ROWS['stale']),
-            ('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed']),
+            ('La dirección cambió y Claudio no pudo apuntar el webhook', ROWS['stale']),
+            ('Claudio apuntó el webhook a la dirección nueva', ROWS['repointed']),
             ('Registrando el webhook', ROWS['registering'])]
   cards = ''.join(f'<div class="col" style="gap: 6px">{scenario_label(t)}{webhooks_card([r], grad=False, id_=f"sec-webhooks-{i}", heading=False)}</div>'
                   for i, (t, r) in enumerate(scenes))
@@ -319,9 +319,9 @@ def mobile_all():
   mobile_webhooks('MobileIntegracionesWebhooksQuitar.html', 'Ajustes, quitar un webhook', MAIN_ROWS, sheet=remove_sheet('cw'))
   mobile_states('MobileIntegracionesWebhooksEstados.html', 'Ajustes, webhooks con fallos y con dirección antigua',
                 [('Los avisos no llegan: GitHub recibió un error', ROWS['failing']),
-                 ('La dirección cambió y Agentry no pudo apuntar el webhook', ROWS['stale'])])
+                 ('La dirección cambió y Claudio no pudo apuntar el webhook', ROWS['stale'])])
   mobile_states('MobileIntegracionesWebhooksReapuntado.html', 'Ajustes, webhook apuntado de nuevo',
-                [('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed']),
+                [('Claudio apuntó el webhook a la dirección nueva', ROWS['repointed']),
                  ('Registrando el webhook', ROWS['registering'])])
   mobile_webhooks('MobileIntegracionesWebhooksSinDireccion.html', 'Ajustes, webhooks sin dirección pública',
                   [ROWS['closed'], ROWS['off-closed'], ROWS['unavailable']], url=None)

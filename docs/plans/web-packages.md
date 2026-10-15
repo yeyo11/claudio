@@ -20,10 +20,10 @@ of its own. The chat leans on about twenty app-wide building blocks (buttons, di
 controls, icons, the motion helpers, the formatters), so those go first, into a primitives package.
 The result is two internal packages that nothing outside this repository consumes:
 
-- **`@agentry/ui`** — the primitives: tokens and the shared stylesheets, the controls, dialogs,
+- **`@claudio/ui`** — the primitives: tokens and the shared stylesheets, the controls, dialogs,
   toasts, icons, motion, spinners and progress, the illustrations, the formatters, and the
   renderers every screen shares (Markdown, code blocks, syntax highlighting).
-- **`@agentry/chat-ui`** — the conversation: the transcript and its search, the composer, the
+- **`@claudio/chat-ui`** — the conversation: the transcript and its search, the composer, the
   permission prompts, attachments and media, the chat badges, the stream and transcript hooks, and
   the pure chat models. It reaches the server only through a client the app hands it.
 
@@ -53,12 +53,12 @@ specs select and every English string stays byte for byte what it is today.
 - **Shims make the move atomic.** The move leaves a one-line re-export at every old path, so no
   importer changes in the same commit. Later tasks rewrite importers area by area, in disjoint
   directories, and the last task deletes the shims.
-- **The dependency direction is a test.** `apps/web` → `@agentry/chat-ui` → `@agentry/ui` →
-  `@agentry/shared`. Never the other way, and never into `apps/`.
+- **The dependency direction is a test.** `apps/web` → `@claudio/chat-ui` → `@claudio/ui` →
+  `@claudio/shared`. Never the other way, and never into `apps/`.
 - **One module, one path.** A module is reachable under exactly one import path once the shims are
   gone. There is no root barrel: each package exports one subpath per public module, so a lazy
   chunk stays lazy and the bundle keeps its shape.
-- **Consumed from source, like `@agentry/shared`.** No build step, `workspace:*`, `exports` pointing
+- **Consumed from source, like `@claudio/shared`.** No build step, `workspace:*`, `exports` pointing
   at `.ts`/`.tsx`, compiled by Vite and `tsx` as today.
 - **Compatible with phase 2 of multiple providers**, which runs at the same time on
   `feat/multi-provider-2` (see "Living beside phase 2").
@@ -80,7 +80,7 @@ The survey this plan starts from was checked against the code at `41c7063b`:
   no-extra-keys check); `i18n/index.ts` declares `CustomTypeOptions` and initialises the global
   `i18next` instance. Unknown keys fail `pnpm typecheck`.
 - 105 of the web's test files import `../src/...` directly; 34 of them import a module that moves
-  to `@agentry/ui`.
+  to `@claudio/ui`.
 - Import graph (every relative import of `apps/web/src`, 418 modules): the primitives set is closed
   except for seven edges back into the app, and the chat set except for fifteen; both lists are in
   "The seams" below. 216 app files import a primitive (760 import edges); 24 of them are chat files.
@@ -95,7 +95,7 @@ Paths are relative to `apps/web/src`. **The layout inside each package mirrors t
 (`components/`, `lib/`, `styles/`), so relative imports between two files that move together do not
 change.
 
-### `@agentry/ui` (≈ 73 files, ≈ 10.5k lines with its CSS)
+### `@claudio/ui` (≈ 73 files, ≈ 10.5k lines with its CSS)
 
 | Group | Files |
 |---|---|
@@ -112,7 +112,7 @@ The renderers go here, not into the chat package, because the app uses them with
 `Markdown`; `DetailPanel`, `WorkflowCard`, `VerificationCard` and `OrchestrationDetail` use
 `CodeBlock` (decision 1 below).
 
-### `@agentry/chat-ui` (≈ 23 files, ≈ 7.4k lines with its CSS)
+### `@claudio/chat-ui` (≈ 23 files, ≈ 7.4k lines with its CSS)
 
 | Group | Files (from) | In the package |
 |---|---|---|
@@ -130,7 +130,7 @@ The renderers go here, not into the chat package, because the app uses them with
 
 - **Route pages, as wiring:** `pages/ChatView.tsx`, `pages/Chats.tsx`, `pages/NewChat.tsx`.
 - **The chat page's chrome:** `pages/chat/Header.tsx`, `Inspector.tsx`, `Side.tsx`, `ToolsCard.tsx`,
-  `PartOf.tsx`, `WorkItemLinks.tsx`, `FailedFlowRun.tsx`. They draw Agentry-wide things — the
+  `PartOf.tsx`, `WorkItemLinks.tsx`, `FailedFlowRun.tsx`. They draw Claudio-wide things — the
   observe cards (`components/observe/*`), `EnvironmentPanel`, `WorkflowCard`, work items,
   orchestration steps, the detail panel — and `ChatView` already composes them, so they need no
   slots (decision 2).
@@ -143,7 +143,7 @@ The renderers go here, not into the chat package, because the app uses them with
   `editChips`), `lib/notifications-model.ts`, `components/changes/*`, `DetailPanel`, every other
   page and component.
 - **The web's tests stay in `apps/web/test`**, importing from the packages. That keeps
-  `pnpm --filter @agentry/web test` the one drift net, and keeps phase 2's edits to web tests where
+  `pnpm --filter @claudio/web test` the one drift net, and keeps phase 2's edits to web tests where
   they are (see "Living beside phase 2"). The packages' own `test/` hold their guard tests.
 
 ## The seams
@@ -152,7 +152,7 @@ Every edge from a moving file back into the app, and how it is cut. Each is a ta
 
 | Seam | Edge today | Cut |
 |---|---|---|
-| S1 | `ui.tsx` → `api.ts` (`useOverview`), `@agentry/shared` `MODEL_ALIASES` | The generic primitives move to a new `components/primitives.tsx`; `ui.tsx` keeps the model block unchanged and re-exports `primitives.tsx` until the shims go |
+| S1 | `ui.tsx` → `api.ts` (`useOverview`), `@claudio/shared` `MODEL_ALIASES` | The generic primitives move to a new `components/primitives.tsx`; `ui.tsx` keeps the model block unchanged and re-exports `primitives.tsx` until the shims go |
 | S2 | `icons.tsx` → `lib/work-items.ts` | `WorkItemStatusIcon`, `WorkItemTypeIcon`, `PriorityMark`, `WorkItemKey`, `EpicLabel` move to `components/work-item-icons.tsx` (stays); their importers are updated |
 | S3 | `controls/index.ts` → `ModelPicker.tsx` → `ui.tsx` | `ModelPicker` moves to `components/ModelPicker.tsx`; `controls/index.ts` stops exporting it |
 | S4 | `calendar.ts` → `usage-view.ts` (`parseDay`, `toDay`) | The two functions move into `calendar.ts`; `usage-view.ts` imports them from there |
@@ -167,7 +167,7 @@ Every edge from a moving file back into the app, and how it is cut. Each is a ta
 
 ## The interfaces
 
-### `@agentry/chat-ui/lib/context`
+### `@claudio/chat-ui/lib/context`
 
 ```ts
 /** What the chat package asks of the server. `api` in apps/web satisfies it, plus two URL builders. */
@@ -226,7 +226,7 @@ export function useChatUi(): ChatUiConfig;
   `useLocation` and `useSearchParams` come from the app's router as today; only the *paths* are
   injected.
 - `useConfirm` and `useToast` need no injection: they are primitives, and their providers (from
-  `@agentry/ui`) are already mounted in `main.tsx`.
+  `@claudio/ui`) are already mounted in `main.tsx`.
 
 ### Query keys
 
@@ -255,8 +255,8 @@ reading `keys.*`, which are now the same function objects.
 
 ### i18n
 
-- **Namespaces keep their names; ownership moves.** `@agentry/ui` owns `common` and `primitives`;
-  `@agentry/chat-ui` owns `chat`. The app may read a package's namespace (it already reads
+- **Namespaces keep their names; ownership moves.** `@claudio/ui` owns `common` and `primitives`;
+  `@claudio/chat-ui` owns `chat`. The app may read a package's namespace (it already reads
   `common:` everywhere); a package never reads the app's.
 - **Subtrees the moved files read from app namespaces move with them, under the same sub-key:**
   - into `primitives`: `components.{ui, controls, dialog, toast, combobox, datePicker,
@@ -273,14 +273,14 @@ reading `keys.*`, which are now the same function objects.
   `chat:permissions.agentIsAsking`, same English and Spanish values, so the chat package names no
   vendor in its code. The seven `chat.json` values that say "Claude" or "Claude Code" keep their
   words (decision 3).
-- **Each package exports its locales** (`@agentry/ui/i18n/resources`: `uiEn`, `uiEs`;
-  `@agentry/chat-ui/locales`: `chatUiEn`, `chatUiEs`). `apps/web/src/i18n/resources.ts` spreads them
+- **Each package exports its locales** (`@claudio/ui/i18n/resources`: `uiEn`, `uiEs`;
+  `@claudio/chat-ui/locales`: `chatUiEn`, `chatUiEs`). `apps/web/src/i18n/resources.ts` spreads them
   into `en` and `es`; the `Shape` and no-extra-keys checks, the many-plural derivation and
   `test/i18n.test.ts` keep working over the whole tree. `GLOSSARY.md` stays in the app and governs
   the packages' Spanish too.
 - **Typing without two `CustomTypeOptions` in one program.** The app keeps the only declaration
   that its compile sees (`i18n/index.ts`, `resources: typeof en`, the full tree). Each package
-  declares its own in `types/i18next.d.ts` — `@agentry/ui` with `typeof uiEn`, the chat package
+  declares its own in `types/i18next.d.ts` — `@claudio/ui` with `typeof uiEn`, the chat package
   with `typeof uiEn & typeof chatUiEn` — listed in the package's `tsconfig.json` `include` and
   imported by no module, so the app's compile never sees it. Package code therefore typechecks
   twice: against its own namespaces alone (which proves it reads nothing of the app's) and inside
@@ -290,10 +290,10 @@ reading `keys.*`, which are now the same function objects.
 
 ### Styles
 
-- The CSS files move into the packages' `styles/` and are exported as `@agentry/ui/styles/*.css`
-  and `@agentry/chat-ui/styles/*.css`. **`apps/web/src/styles.css` stays the only manifest of the
+- The CSS files move into the packages' `styles/` and are exported as `@claudio/ui/styles/*.css`
+  and `@claudio/chat-ui/styles/*.css`. **`apps/web/src/styles.css` stays the only manifest of the
   cascade:** it keeps every `@import`, in the same order, with the moved ones now naming package
-  paths. `main.tsx` imports `@agentry/ui/controls.css` where it imported `./controls.css`, and
+  paths. `main.tsx` imports `@claudio/ui/controls.css` where it imported `./controls.css`, and
   `ChatBadges.tsx` keeps its side-effect import of `../chats.css`, which moves to the same relative place.
 - Still **tokens only**: `design-tokens.test.ts` walks `apps/web/src`, `packages/ui/src` and
   `packages/chat-ui/src`, and reads the tokens from `packages/ui/src/styles/tokens.css`. The
@@ -306,7 +306,7 @@ reading `keys.*`, which are now the same function objects.
 
 ```json
 {
-  "name": "@agentry/ui",
+  "name": "@claudio/ui",
   "version": "0.27.0",
   "private": true,
   "type": "module",
@@ -320,15 +320,15 @@ reading `keys.*`, which are now the same function objects.
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
     "test": "tsx --test test/*.test.ts"
   },
-  "dependencies": { "@agentry/shared": "workspace:*", "…": "libraries only it imports, same ranges as apps/web" },
+  "dependencies": { "@claudio/shared": "workspace:*", "…": "libraries only it imports, same ranges as apps/web" },
   "peerDependencies": { "react": "…", "react-dom": "…", "i18next": "…", "react-i18next": "…", "@tanstack/react-query": "…" },
   "devDependencies": { "…": "the same peers, same ranges; vite; @types/react" }
 }
 ```
 
-- **Subpaths mirror file paths** (`@agentry/ui/components/Toast`), so every rewrite from a
-  relative import is mechanical and the module graph keeps its shape. `@agentry/chat-ui` adds
-  `react-router-dom` to its peers and `@agentry/ui` to its dependencies.
+- **Subpaths mirror file paths** (`@claudio/ui/components/Toast`), so every rewrite from a
+  relative import is mechanical and the module graph keeps its shape. `@claudio/chat-ui` adds
+  `react-router-dom` to its peers and `@claudio/ui` to its dependencies.
 - **No `sideEffects` field.** The app's modules count as side-effectful today, and
   `lib/motion.ts` stamps the motion level on import (`main.tsx` imports it for that alone); a
   `sideEffects: false` would let the bundler drop it.
@@ -343,7 +343,7 @@ reading `keys.*`, which are now the same function objects.
 
 ### Build, Docker and release
 
-- Root `package.json` `test`: add `--filter @agentry/ui --filter @agentry/chat-ui`.
+- Root `package.json` `test`: add `--filter @claudio/ui --filter @claudio/chat-ui`.
   `typecheck` (`pnpm -r`) picks them up by itself.
 - `docker/Dockerfile`: `COPY packages/ui/package.json packages/ui/` and the same for
   `packages/chat-ui`, beside the other `package.json` copies before `pnpm install`. The later
@@ -363,12 +363,12 @@ except to extend a list the plan names.
   the TypeScript compiler API (`ts.createSourceFile`; `typescript` is a root devDependency) and
   fails on any import or re-export specifier, static or dynamic, that is:
   - relative and resolves outside `packages/ui/src`;
-  - `@agentry/web`, `@agentry/chat-ui`, `@agentry/core`, `@agentry/api`, `@agentry/desktop`, or
+  - `@claudio/web`, `@claudio/chat-ui`, `@claudio/core`, `@claudio/api`, `@claudio/desktop`, or
     any path containing `apps/`;
-  - a named import of `MODEL_ALIASES` or `PERMISSION_MODES` from `@agentry/shared` (phase 2 moves
+  - a named import of `MODEL_ALIASES` or `PERMISSION_MODES` from `@claudio/shared` (phase 2 moves
     the first; both are one provider's vocabulary).
   CSS `@import`s under `packages/ui/src` are checked the same way.
-- **`packages/chat-ui/test/boundaries.test.ts`.** The same, allowing `@agentry/ui/*`, and also
+- **`packages/chat-ui/test/boundaries.test.ts`.** The same, allowing `@claudio/ui/*`, and also
   failing when:
   - an import specifier matches `/claude|anthropic/i`;
   - an identifier, a string literal or a template literal in code (comments excluded) matches the
@@ -447,7 +447,7 @@ One delivery on **`feat/web-packages`**, squash-merged once. Four orchestrations
 that branch. Every code-writing worker runs on `claude-sonnet-5-5` (the exact id, never the
 `sonnet` alias), in its own git worktree, and is merged into the orchestration's integration
 branch. **No worker runs `pnpm e2e`.** Every task runs `pnpm typecheck` and
-`pnpm --filter @agentry/web --filter @agentry/ui --filter @agentry/chat-ui test`; the tasks that
+`pnpm --filter @claudio/web --filter @claudio/ui --filter @claudio/chat-ui test`; the tasks that
 move files also run `pnpm build` and the bundle-shape check. The full `pnpm test`, `pnpm build` and
 `pnpm e2e` run once, at the end, on the branch.
 
@@ -511,9 +511,9 @@ Rules every worker follows, stated in each prompt:
     (header comment).
   - Checks: typecheck (the typed `t` catches a missed caller); web tests, strings snapshot unchanged.
 - `u3` (the move, with shims), dependsOn u2.
-  - `git mv` every file of the `@agentry/ui` table into `packages/ui/src/` at the same relative path
+  - `git mv` every file of the `@claudio/ui` table into `packages/ui/src/` at the same relative path
     (`components/primitives.tsx` goes as `components/ui.tsx`: the app's `ui.tsx` keeps its path for
-    phase 2 and re-exports from `@agentry/ui/components/ui`); a shim at each old path; the `exports`
+    phase 2 and re-exports from `@claudio/ui/components/ui`); a shim at each old path; the `exports`
     map, generated from the moved files; `packages/ui/src/i18n/resources.ts` (`uiEn`, `uiEs`) and
     the locale files; `apps/web/src/i18n/resources.ts` spreading them; `i18n/index.ts` re-exporting
     from the moved `language.ts`; `styles.css` and `main.tsx` naming the package CSS in the same
@@ -596,7 +596,7 @@ Rules every worker follows, stated in each prompt:
 - `c4` (the move, with shims), dependsOn c3.
   - `git mv` the chat set into `packages/chat-ui/src/` (layout in "The boundaries";
     `lib/chat-context.tsx` as `lib/context.tsx`); relative imports of primitives become
-    `@agentry/ui/…` (the one non-rename edit allowed, mechanical); shims at old paths; `exports`;
+    `@claudio/ui/…` (the one non-rename edit allowed, mechanical); shims at old paths; `exports`;
     `packages/chat-ui/src/locales/index.ts` and `chat.json`; `resources.ts` spreading them;
     `styles.css` naming the package CSS in the same order; `types/i18next.d.ts`; the tokens and
     hard-coded strings tests' third root.
@@ -652,8 +652,8 @@ When W2 and W3 are merged into the branch: the full `pnpm typecheck`, `pnpm test
 
 All three as recommended:
 
-1. **`Markdown`, `CodeBlock` and the highlighter go into `@agentry/ui`**, as their own subpaths.
-   Rejected: `@agentry/chat-ui`, which the diff view would then import to colour code; a third
+1. **`Markdown`, `CodeBlock` and the highlighter go into `@claudio/ui`**, as their own subpaths.
+   Rejected: `@claudio/chat-ui`, which the diff view would then import to colour code; a third
    package for nine files.
 2. **Only the conversation moves**: transcript, composer, prompts, hooks and models. The header,
    inspector and side cards stay in the app. Rejected: the whole page with a dozen render props;

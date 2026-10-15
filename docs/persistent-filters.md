@@ -34,7 +34,7 @@ Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`
 `apps/web/src/lib/list-params.ts`, `useListParams(page, owned, scope)`:
 
 - **The address stays the source of truth.** A filtered view can still be linked to and survives
-  Back. Every change also goes to localStorage under `agentry:filters:<page>:<scope>`.
+  Back. Every change also goes to localStorage under `claudio:filters:<page>:<scope>`.
 - **A visit with none of the page's parameters** (the sidebar, a bare link) puts the stored ones
   back, already on the first render, so the list does not flash unfiltered.
 - **A link that carries some** applies them, and they become the stored ones.

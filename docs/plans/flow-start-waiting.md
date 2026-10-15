@@ -77,7 +77,7 @@ rank first" means in the decision; the queue (`seq`) then starts them in that or
 ## Shared types (`packages/shared/src/types.ts`)
 
 `FlowWaiting`, `FlowWaitingColumn`, `FlowStartWaitingResult`, and `FlowRun.queuedBy` /
-`FlowRunEvent.queuedBy`. Regenerate the schemas with `pnpm --filter @agentry/api openapi:schemas`.
+`FlowRunEvent.queuedBy`. Regenerate the schemas with `pnpm --filter @claudio/api openapi:schemas`.
 
 ## API (`apps/api/src/routes/flow.ts`)
 

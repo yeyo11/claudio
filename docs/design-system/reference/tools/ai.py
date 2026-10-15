@@ -411,7 +411,7 @@ RPROP = [
 EXIST = {
   'agent': [('i18n-parity', 'Compara las claves de en y es y lee cada frase contra GLOSSARY.md', 'hace 2 min'), ('code-reviewer', 'Revisa el diff con las reglas de CONTRIBUTING.md', 'hace 3 d'), ('e2e-fixer', 'Arregla un spec de e2e que falla, sin tocar el producto', 'hace 6 d'),
             ('kb-writer', 'Escribe el documento de una decisión en docs/', 'hace 2 sem'), ('ds-checker', 'Compara una pantalla con su referencia', 'hace 3 sem')],
-  'skill': [('night-shift', 'El sistema de diseño, sus tokens y sus reglas', 'hace 2 d'), ('cli-surfaces', 'Qué partes del CLI puede usar Agentry', 'hace 1 sem'),
+  'skill': [('night-shift', 'El sistema de diseño, sus tokens y sus reglas', 'hace 2 d'), ('cli-surfaces', 'Qué partes del CLI puede usar Claudio', 'hace 1 sem'),
             ('sqlite-migrations', 'Cómo añadir una migración', 'hace 2 sem'), ('pando', 'Buscar en la base de conocimiento', 'hace 1 mes')],
   'command': [('/checks', 'typecheck, test y build', 'hace 1 d'), ('/kb-sync', 'Reindexa docs/', 'hace 5 d'), ('/release', 'Prepara la release', 'hace 3 sem')],
 }

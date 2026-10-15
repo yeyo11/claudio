@@ -22,7 +22,7 @@ export function parse(line: string): Run | null {
 ```
 
 ```bash
-pnpm --filter @agentry/core test -- --grep "parse"
+pnpm --filter @claudio/core test -- --grep "parse"
 ```
 
 ```json

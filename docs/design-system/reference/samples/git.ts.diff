@@ -4,8 +4,8 @@ index 37244b5..d25d6ca 100644
 +++ b/packages/core/src/git.ts
 @@ -1,9 +1,12 @@
  import { execFileSync } from 'node:child_process';
--import type { ChangedFile, Commit } from '@agentry/shared';
-+import type { ChangedFile, Commit, DiffContext } from '@agentry/shared';
+-import type { ChangedFile, Commit } from '@claudio/shared';
++import type { ChangedFile, Commit, DiffContext } from '@claudio/shared';
 +
 +/** Lines of context that stand for "the whole file": git has no flag of its own for it. */
 +const WHOLE_FILE = 1_000_000;

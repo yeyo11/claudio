@@ -2,34 +2,34 @@
 
 <img src="apps/web/public/favicon.svg" width="76" alt="">
 
-# Agentry
+# Claudio
 
 **Run Claude Code as a service.**
 
 A REST API, a web UI and multi-agent orchestration around the Claude Code CLI, in one container.
 
-[![CI](https://github.com/yeyo11/agentry/actions/workflows/ci.yml/badge.svg)](https://github.com/yeyo11/agentry/actions/workflows/ci.yml)
+[![CI](https://github.com/yeyo11/claudio/actions/workflows/ci.yml/badge.svg)](https://github.com/yeyo11/claudio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/yeyo11/agentry?style=flat&logo=github&color=d97757)](https://github.com/yeyo11/agentry/stargazers)
+[![Stars](https://img.shields.io/github/stars/yeyo11/claudio?style=flat&logo=github&color=d97757)](https://github.com/yeyo11/claudio/stargazers)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-5fa04e?logo=node.js&logoColor=white)](package.json)
-[![Image](https://img.shields.io/badge/ghcr.io-agentry-2496ed?logo=docker&logoColor=white)](https://github.com/yeyo11/agentry/pkgs/container/agentry)
+[![Image](https://img.shields.io/badge/ghcr.io-claudio-2496ed?logo=docker&logoColor=white)](https://github.com/yeyo11/claudio/pkgs/container/claudio)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6ba539?logo=openapiinitiative&logoColor=white)](#rest-api)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
 
-<img src="docs/media/tour.gif" alt="A tour of Agentry: dashboard, command palette, session transcripts, orchestration and account rotation" width="100%">
+<img src="docs/media/tour.gif" alt="A tour of Claudio: dashboard, command palette, session transcripts, orchestration and account rotation" width="100%">
 
 </div>
 
 Claude Code lives in your terminal. One machine, one session at a time, and nothing to look at
 once you close the tab.
 
-Agentry puts it behind a REST API and a web UI: start and watch conversations from anywhere, run a
+Claudio puts it behind a REST API and a web UI: start and watch conversations from anywhere, run a
 graph of agents in parallel, browse every transcript the CLI has ever written, and rotate between
 accounts when one runs out of quota — without giving up a single thing the CLI can do, because
-Agentry drives it through the CLI and nothing else.
+Claudio drives it through the CLI and nothing else.
 
 ```bash
-docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
+docker run -p 127.0.0.1:8797:8797 -v claudio-data:/data ghcr.io/yeyo11/claudio
 ```
 
 ### What you get
