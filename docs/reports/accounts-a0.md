@@ -67,14 +67,43 @@ Confirms the plan: `token` (and `api-key`) accounts have no identity of their ow
 an alias and `identify()` leaves email/org empty for them. The token is long-lived (one year) and
 the CLI prints it once; Claudio stores it in the account's own `0600` file.
 
-## Still to capture (not blocking a2; record when available)
+## 6. `--resume` across account directories works
 
-- `auth status --json` for an `api-key` account — **not available** (the owner has no API key);
-  assume the same no-identity shape as a `setup-token` account.
-- A real `rate_limit_event` from `claude -p … --output-format stream-json` (window keys
-  `five_hour`/`seven_day`) — pending.
-- `--resume` of a session started on one account, from another account's dir with linked `projects/`
-  — pending (the first attempt mis-substituted the session id).
+A session started under `/tmp/cuenta-prueba` was resumed under `/tmp/cuenta-b` (a different
+`CLAUDE_CONFIG_DIR`, signed in to the same account, with `projects/` symlinked to the first dir),
+and it answered correctly from the earlier turn's context. This proves the core of decision 8: when
+Claudio switches a chat to another account, the chat continues because the transcript lives in the
+shared `projects/`. `resume` reads the transcript from the linked `projects/`, independent of which
+account dir drives it.
+
+## 7. A real `rate_limit_event` (and the result's usage)
+
+Captured from `claude -p … --output-format stream-json --verbose`, on a turn well under the limit:
+
+```json
+{"type":"rate_limit_event","rate_limit_info":{
+  "status":"allowed","resetsAt":1792073400,"rateLimitType":"five_hour",
+  "overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false,
+  "unifiedWindows":{"five_hour":{"utilization":0.68,"resetsAt":1792073400},
+                    "seven_day":{"utilization":0.32,"resetsAt":1792116000}}}}
+```
+
+Confirms: the event fires on **every turn** (here `status:"allowed"`), so it is a reliable
+per-account reading, not only a near-limit signal. Window keys are `five_hour` / `seven_day` (not
+the `"5h"` of today's fixtures), `utilization` is a 0–1 float, `resetsAt` is unix seconds, and
+`unifiedWindows` carries the per-window map Claudio already parses.
+
+The `result` message of the same turn carried a full `modelUsage` entry — `inputTokens`,
+`outputTokens`, `thinkingTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`,
+`webSearchRequests`, `costUSD`, `contextWindow`, `maxOutputTokens` — plus `ttft_ms`,
+`duration_api_ms`, `terminal_reason` and `api_error_status`. This is the real-data confirmation of
+[plans/sdk-driver-improvements.md](../plans/sdk-driver-improvements.md) points 1 and 10: the richer
+reads are already on the wire.
+
+## Not captured
+
+- `auth status --json` for an `api-key` account — the owner has no API key; assume the same
+  no-identity shape as a `setup-token` account (alias needed).
 
 ## Related
 
