@@ -209,7 +209,7 @@
       "intro": "The container cannot replace its own image. The command depends on how it was started:",
       "run": "With docker run: pull the image, then replace the container. The volumes keep every chat, setting and credential, but only the ones the command named: a container started without naming all three folders loses what is in the others when it is removed.",
       "replace": "Then replace the container, naming all three volumes (settings and chats, data, projects):",
-      "compose": "With a compose file that uses the published image (ghcr.io/yeyo11/agentry), from its folder:",
+      "compose": "With a compose file that uses the published image (ghcr.io/yeyo11/claudio), from its folder:",
       "checkout": "With the repository's own docker-compose.yml, which builds the image, from the checkout:",
       "helm": "With the Helm chart: raise image.tag and run helm upgrade."
     },

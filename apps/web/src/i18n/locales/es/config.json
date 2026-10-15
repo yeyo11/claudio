@@ -209,7 +209,7 @@
       "intro": "El contenedor no puede reemplazar su propia imagen. El comando depende de cómo se arrancó:",
       "run": "Con docker run: descarga la imagen y sustituye el contenedor. Los volúmenes conservan los chats, los ajustes y las credenciales, pero solo los que el comando nombró: un contenedor que se arrancó sin nombrar las tres carpetas pierde lo que hay en las demás al eliminarlo.",
       "replace": "Después sustituye el contenedor nombrando los tres volúmenes (ajustes y chats, datos, proyectos):",
-      "compose": "Con un archivo compose que usa la imagen publicada (ghcr.io/yeyo11/agentry), desde su carpeta:",
+      "compose": "Con un archivo compose que usa la imagen publicada (ghcr.io/yeyo11/claudio), desde su carpeta:",
       "checkout": "Con el docker-compose.yml del propio repositorio, que construye la imagen, desde tu copia del repositorio:",
       "helm": "Con el chart de Helm: sube image.tag y ejecuta helm upgrade."
     },

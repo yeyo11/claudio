@@ -1,4 +1,4 @@
-// A newer Agentry shows up where a person looks: the Updates card in Settings, with the way to take
+// A newer Claudio shows up where a person looks: the Updates card in Settings, with the way to take
 // it for this install, and a dot on the Settings entry that never goes in the bell. The release
 // comes from the fixture run.mjs serves for CLAUDIO_RELEASES_URL; the harness sets
 // CLAUDIO_DISTRIBUTION=docker, so the card offers the Docker commands.
@@ -23,7 +23,7 @@ export default async ({ page, api, check, releases }) => {
   await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.textContent.includes('999.0.0') && document.querySelector(${JSON.stringify(CARD)} + ' .badge-warn')?.textContent.includes('Update available')`, { label: 'the newer release in the card' });
   // A container cannot tell how it was started, so every documented way gets its own command
   const ways = {
-    run: 'docker pull ghcr.io/yeyo11/agentry',
+    run: 'docker pull ghcr.io/yeyo11/claudio',
     compose: 'docker compose pull && docker compose up -d',
     checkout: 'git pull && docker compose up -d --build',
   };
