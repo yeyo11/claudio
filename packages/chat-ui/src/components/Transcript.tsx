@@ -29,7 +29,10 @@ import { copyText } from '@agentry/ui/lib/clipboard';
 
 const RESULT_PREVIEW_CHARS = 6000;
 
-const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
+const loadMarkdown = () => import('@agentry/ui/components/Markdown');
+const Markdown = lazy(loadMarkdown);
+/** Starts loading the renderer, so the first answer on the page is never drawn as raw text first. */
+export const preloadMarkdown = (): void => void loadMarkdown();
 
 /**
  * Markdown the way chat apps show it: GFM tables and task lists, highlighted code, safe links. The

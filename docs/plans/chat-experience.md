@@ -805,7 +805,7 @@ and unit-test it. Manually: stream a 60-line code block and watch it colour as i
 
 ### CHAT-7 — Load the Markdown renderer before it is needed
 
-Status: proposed.
+Status: built 2026-10-15.
 
 `packages/chat-ui/src/components/Transcript.tsx:32`:
 
