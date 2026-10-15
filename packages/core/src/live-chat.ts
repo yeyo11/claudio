@@ -294,6 +294,8 @@ export class LiveChat {
   /** When `proc` was spawned: its stream reports every workflow started since, and none before */
   procStartedAt: string | null = null;
   seq = 0;
+  /** `seq` when the current execution began: a stream opened from here replays the whole execution */
+  executionSeq = 0;
   status: RunStatus = 'starting';
   model: string | null;
   name: string;
@@ -564,6 +566,7 @@ export class LiveChat {
 
   /** Opens the execution a process starts, on top of the settings the chat has now. */
   beginExecution(): Execution {
+    this.executionSeq = this.seq;
     const execution: Execution = {
       id: randomUUID(),
       startedAt: now(),

@@ -912,6 +912,9 @@ export interface ChatDetail {
   from: number;
   /** Entries the transcript holds in total, so a caller knows what is still above `from` */
   total: number;
+  /** The chat's stream position when this page was read: open the stream from `seq` to miss nothing
+   *  said after the read, or from `executionSeq` to see the whole live execution. Null without a live chat. */
+  stream: { seq: number; executionSeq: number } | null;
 }
 
 /**

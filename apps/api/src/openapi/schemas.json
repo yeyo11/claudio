@@ -10932,13 +10932,37 @@
       "total": {
         "type": "number",
         "description": "Entries the transcript holds in total, so a caller knows what is still above `from`"
+      },
+      "stream": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "number"
+              },
+              "executionSeq": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "seq",
+              "executionSeq"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat's stream position when this page was read: open the stream from `seq` to miss nothing said after the read, or from `executionSeq` to see the whole live execution. Null without a live chat."
       }
     },
     "required": [
       "chat",
       "entries",
       "from",
-      "total"
+      "total",
+      "stream"
     ],
     "description": "A page of a chat's transcript with the chat it belongs to."
   },

@@ -576,14 +576,16 @@ export class ChatService {
   async detail(id: string, opts: { includeSidechains?: boolean; limit?: number; before?: number } = {}): Promise<ChatDetail> {
     const chat = await this.get(id);
     if (!chat) throw new Error('chat not found');
+    // Read before the transcript, so what is pushed in between is covered by the stream's replay
+    const stream = this.deps.runtime.streamPosition(id);
     const page = await this.fromStores(id, (store, key) => store.page(key, opts));
-    if (page) return { chat, entries: page.entries, from: page.from, total: page.total };
+    if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream };
     const messages = this.deps.runtime.messages(id) ?? [];
     const visible = opts.includeSidechains ? messages : messages.filter((m) => !m.isSidechain);
     const limit = pageSize(opts.limit);
     const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), visible.length)) : visible.length;
     const from = Math.max(0, until - limit);
-    return { chat, entries: visible.slice(from, until), from, total: visible.length };
+    return { chat, entries: visible.slice(from, until), from, total: visible.length, stream };
   }
 
   /**

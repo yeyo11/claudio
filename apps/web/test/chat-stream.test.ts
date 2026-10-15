@@ -18,7 +18,7 @@ const entry = (uuid: string, extra: Partial<TranscriptEntry> = {}): TranscriptEn
 });
 
 const chat = {} as Chat;
-const page = (from: number, uuids: string[], total = from + uuids.length): ChatDetail => ({ chat, from, total, entries: uuids.map((u) => entry(u)) });
+const page = (from: number, uuids: string[], total = from + uuids.length): ChatDetail => ({ chat, from, total, entries: uuids.map((u) => entry(u)), stream: null });
 const uuids = (detail: ChatDetail | null) => detail?.entries.map((e) => e.uuid);
 
 test('a stored message goes on the end of the page once, and a subagent’s is left to the next read', () => {
@@ -102,7 +102,7 @@ test('a message a person sent stays on the page until the chat writes it down, h
   // The CLI reads its stdin when the turn ends: minutes of reads land without the message in them
   assert.deepEqual(uuids(spliceTail(held, page(0, ['a']), Number.POSITIVE_INFINITY, at + 120_000)), ['a', 'sent']);
   // Once the turn takes it, the transcript's own copy replaces the wrapper's
-  const written: ChatDetail = { chat, from: 0, total: 2, entries: [entry('a'), entry('written', { role: 'user', blocks: [{ type: 'text', text: 'and one more thing' }] })] };
+  const written: ChatDetail = { chat, from: 0, total: 2, stream: null, entries: [entry('a'), entry('written', { role: 'user', blocks: [{ type: 'text', text: 'and one more thing' }] })] };
   assert.deepEqual(uuids(spliceTail(held, written, Number.POSITIVE_INFINITY, at + 120_000)), ['a', 'written']);
 });
 
@@ -111,7 +111,7 @@ test('a user message sent while the read was on its way is not kept twice under 
   const since = streamMark();
   const said = (uuid: string) => entry(uuid, { role: 'user', blocks: [{ type: 'text', text: 'hi' }] });
   const later = appendStreamed(held, said('wrapper-copy')).page;
-  const fresh: ChatDetail = { chat, from: 0, total: 2, entries: [entry('a'), said('transcript-copy')] };
+  const fresh: ChatDetail = { chat, from: 0, total: 2, stream: null, entries: [entry('a'), said('transcript-copy')] };
   assert.deepEqual(uuids(spliceTail(later, fresh, since)), ['a', 'transcript-copy']);
 });
 
