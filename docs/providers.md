@@ -157,11 +157,11 @@ and a neutral request (`command`, `edit`, `read`, `fetch`, `delegate`, `other`) 
 
 ## At a usage limit
 
-When Claude Code reaches its limit, the work **waits** for the reset (`LimitWaits`, the wait half of
-`rotation.ts`); nothing moves to another agent. A wait is listed by `GET /limits/waits` and stopped
-with `POST /limits/waits/:id/cancel`, and a chat is put on hold with `POST /chats/:id/wait`. Switching
-to another Claude account before waiting arrives with `@claudio/accounts`
-([plans/claude-only-fork.md](plans/claude-only-fork.md), stage A).
+When Claude Code reaches its limit, the work first switches to another Claude account with headroom
+(`@claudio/accounts`, [accounts.md](accounts.md); a person's chat does it when `rotateOnLimit` is on),
+and **waits** for the reset (`LimitWaits`, the wait half of `rotation.ts`) when no account has any;
+nothing moves to another agent. A wait is listed by `GET /limits/waits` and stopped with
+`POST /limits/waits/:id/cancel`, and a chat is put on hold with `POST /chats/:id/wait`.
 
 ## Where transcripts live
 

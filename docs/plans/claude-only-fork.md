@@ -10,8 +10,7 @@ tags:
 ---
 # Claudio: the Claude-only fork
 
-Status: **planned** (2026-10-15). Nothing is built yet; the owner reviews this plan before the
-orchestrations start.
+Status: **built** (2026-10-15). Stages S, A and R are merged into `feat/claude-only`.
 
 Claudio is a fork of Agentry at `d1ee00514` (release 0.37.1). Agentry grew from a wrapper around
 Claude Code into an orchestrator that drives several vendors' agents

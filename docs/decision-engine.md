@@ -114,9 +114,7 @@ Twenty-eight points. **Suggest** points never change what happens by themselves.
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
 | | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person, or nobody |
 | | `issue.triage` | suggest | P | Whether an agent can start on each listed tracker issue as written |
-| Providers | `provider.on-limit` | act | P | What automated work does at a provider's usage limit: hand off, restart on the next provider, or wait |
-| | `provider.pick` | act | P | Which candidate provider starts a piece of automated work |
-| | `provider.model-map` | suggest | G | The closest model on another provider; nothing is in force until a person accepts it |
+| Accounts | `account.model-fallback` | suggest | G | The nearest model an account with headroom can run, when none can run the chat's own; nothing is in force until a person accepts it ([plans/models-per-account.md](plans/models-per-account.md)) |
 
 ### `checks.fix`
 
