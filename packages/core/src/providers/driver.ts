@@ -106,6 +106,13 @@ export interface SessionLaunch {
   uploadsDir?: string;
   worktree?: string;
   maxBudgetUsd?: number;
+  maxTurns?: number;
+  fallbackModel?: string;
+  thinking?: 'adaptive' | 'disabled';
+  maxThinkingTokens?: number;
+  thinkingDisplay?: string;
+  /** Resume at this message of the session instead of its end; only with `created` */
+  resumeSessionAt?: string;
   /** `host` only when something is listening for what the agent asks */
   permissionPrompts: 'host' | 'none';
   jsonSchema?: unknown;
@@ -151,9 +158,11 @@ export interface DriverSession {
   /** Sends a turn; returns the text the agent received as the user's, for the transcript */
   send(turn: UserTurn): string;
   interrupt(): Promise<void>;
-  setOption(option: { permissionMode: PermissionMode } | { model: string }): Promise<void>;
+  setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void>;
   /** The MCP servers the process has, as it reports them now; a driver that cannot say leaves it out */
   mcpStatus?(): Promise<LiveMcpServer[]>;
+  /** The context window's use as the process reports it now, between turns; a driver that cannot say leaves it out */
+  contextUsage?(): Promise<Record<string, unknown>>;
   /** Switches one MCP server of the process on or off; the agent may keep the choice beyond the process */
   mcpToggle?(name: string, enabled: boolean): Promise<void>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
@@ -214,6 +223,14 @@ export interface PermissionQuestion {
   description?: string;
   suggestions?: PermissionUpdate[];
   requiresUserInteraction?: boolean;
+  /** The path the agent was blocked on, when the request is about one */
+  blockedPath?: string;
+  /** Why the agent asks, as the CLI words it */
+  decisionReason?: string;
+  title?: string;
+  displayName?: string;
+  /** The subagent that asked, when it is not the main agent */
+  agentId?: string;
   /** The request in neutral terms, for a driver whose translation leaves a part to the judge */
   request?: NeutralRequest;
 }
@@ -223,6 +240,12 @@ export interface ModelUsage {
   model: string;
   costUsd?: number;
   contextWindow?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  webSearchRequests?: number;
+  maxOutputTokens?: number;
 }
 
 /**

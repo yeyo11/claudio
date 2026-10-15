@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderLimit, RateLimitInfo, RateLimitWindow } from '@agentry/shared';
+import type { ProviderId, ProviderLimit, ProviderLimitOverage, RateLimitInfo, RateLimitWindow } from '@agentry/shared';
 import type { DriverEvent } from './driver.ts';
 
 /** From this use of the binding window a provider is `near`, the same line the usage bars draw. */
@@ -35,16 +35,29 @@ function bindingWindow(info: RateLimitInfo): { name: string; window: RateLimitWi
   return info.rateLimitType ? { name: info.rateLimitType, window: null } : null;
 }
 
+/** The overage part of a report, absent when the event says nothing about it. */
+function overageOf(info: RateLimitInfo): ProviderLimitOverage | null {
+  if (info.overageStatus === undefined && info.isUsingOverage === undefined && info.overageResetsAt === undefined && info.overageDisabledReason === undefined) return null;
+  return {
+    ...(info.overageStatus !== undefined ? { status: info.overageStatus } : {}),
+    using: info.isUsingOverage === true,
+    resetsAt: info.overageResetsAt && info.overageResetsAt > 0 ? iso(info.overageResetsAt) : null,
+    ...(info.overageDisabledReason !== undefined ? { disabledReason: info.overageDisabledReason } : {}),
+  };
+}
+
 /** What a window report means as one `ProviderLimit`; pure, so a fixture event gives a fixed answer. */
 export function limitFromInfo(provider: ProviderId, info: RateLimitInfo, source: ProviderLimit['source'], observedAt: string): ProviderLimit {
   const bound = bindingWindow(info);
-  const utilization = bound?.window ? bound.window.utilization : null;
+  // The windows win; the event's own utilization stands in when it names none
+  const utilization = bound?.window ? bound.window.utilization : (info.utilization ?? null);
   const resetsAtSeconds = bound?.window?.resetsAt || info.resetsAt || 0;
   const known = info.status === 'allowed' || info.status === 'allowed_warning' || info.status === 'rejected';
   let state: ProviderLimit['state'];
   if (info.status === 'rejected' || (utilization !== null && utilization >= 1)) state = 'exhausted';
-  else if (info.status === 'allowed_warning' || (utilization !== null && utilization >= NEAR_UTILIZATION)) state = 'near';
+  else if (info.status === 'allowed_warning' || (utilization !== null && utilization >= NEAR_UTILIZATION) || (info.surpassedThreshold ?? 0) >= NEAR_UTILIZATION || info.isUsingOverage === true) state = 'near';
   else state = known || utilization !== null ? 'ok' : 'unknown';
+  const overage = overageOf(info);
   return {
     provider,
     state,
@@ -52,6 +65,7 @@ export function limitFromInfo(provider: ProviderId, info: RateLimitInfo, source:
     utilization,
     resetsAt: resetsAtSeconds > 0 ? iso(resetsAtSeconds) : null,
     windows: info.windows,
+    ...(overage ? { overage } : {}),
     observedAt,
     source,
   };
@@ -81,7 +95,8 @@ export function limitFromFailure(provider: ProviderId, last: ProviderLimit | nul
  */
 export function limitAt(limit: ProviderLimit, nowMs: number): ProviderLimit {
   if (limit.state === 'unknown' || !limit.resetsAt || Date.parse(limit.resetsAt) > nowMs) return limit;
-  return { ...limit, state: 'unknown', utilization: null, windows: {} };
+  const { overage: _spent, ...rest } = limit;
+  return { ...rest, state: 'unknown', utilization: null, windows: {} };
 }
 
 /**

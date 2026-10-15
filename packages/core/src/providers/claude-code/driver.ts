@@ -63,13 +63,19 @@ class ClaudeCodeSession implements DriverSession {
     await this.control.request({ subtype: 'interrupt' });
   }
 
-  async setOption(option: { permissionMode: PermissionMode } | { model: string }): Promise<void> {
+  async setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void> {
     if ('permissionMode' in option) await this.control.request({ subtype: 'set_permission_mode', mode: option.permissionMode });
+    // `null` lifts the ceiling, as the CLI reads it
+    else if ('maxThinkingTokens' in option) await this.control.request({ subtype: 'set_max_thinking_tokens', max_thinking_tokens: option.maxThinkingTokens });
     else await this.control.request({ subtype: 'set_model', model: option.model });
   }
 
   async mcpStatus(): Promise<LiveMcpServer[]> {
     return liveMcpServers(await this.control.request({ subtype: 'mcp_status' }));
+  }
+
+  async contextUsage(): Promise<Record<string, unknown>> {
+    return await this.control.request({ subtype: 'get_context_usage' });
   }
 
   async mcpToggle(name: string, enabled: boolean): Promise<void> {

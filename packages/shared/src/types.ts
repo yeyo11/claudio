@@ -151,6 +151,15 @@ export interface RateLimitInfo {
   rateLimitType?: string;
   resetsAt?: number;
   windows: Record<string, RateLimitWindow>;
+  /** Use of the binding limit, 0..1, where the CLI says it beside the windows */
+  utilization?: number;
+  /** The highest threshold (0..1) the use has passed, which the CLI warns at */
+  surpassedThreshold?: number;
+  overageStatus?: string;
+  isUsingOverage?: boolean;
+  /** Unix seconds */
+  overageResetsAt?: number;
+  overageDisabledReason?: string;
   observedAt: string;
 }
 
@@ -1075,6 +1084,18 @@ export interface ChatStartOptions {
   mcp?: McpSelection | null;
   /** Ceiling on what this execution may spend */
   maxBudgetUsd?: number;
+  /** Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1 */
+  maxTurns?: number;
+  /** The model the chat degrades to on a capacity error (`--fallback-model`) */
+  fallbackModel?: string;
+  /** Thinking mode (`--thinking`); beside `effort`, which stays the usual way to choose how hard the model thinks */
+  thinking?: 'adaptive' | 'disabled';
+  /** Ceiling on thinking tokens (`--max-thinking-tokens`); a live chat changes it with `set_max_thinking_tokens` */
+  maxThinkingTokens?: number;
+  /** How thinking is shown in the stream (`--thinking-display`) */
+  thinkingDisplay?: string;
+  /** On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end */
+  resumeSessionAt?: string;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
 }
@@ -6102,6 +6123,17 @@ export interface RotationSettings {
 /** `unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading. */
 export type ProviderLimitState = 'ok' | 'near' | 'exhausted' | 'unknown';
 
+/** The overage side of a limit reading: whether the account is spending past its window, and until when. */
+export interface ProviderLimitOverage {
+  status?: string;
+  /** The run is being served from overage now */
+  using: boolean;
+  /** ISO time the overage resets; null when unknown */
+  resetsAt: string | null;
+  /** Why overage is not available, as the provider words it */
+  disabledReason?: string;
+}
+
 /** One provider's usage limit, folded from what its driver reports. */
 export interface ProviderLimit {
   provider: ProviderId;
@@ -6113,6 +6145,8 @@ export interface ProviderLimit {
   /** ISO time the binding window resets; null when unknown */
   resetsAt: string | null;
   windows: Record<string, RateLimitWindow>;
+  /** Extra usage past the plan's window, when the reading says anything about it */
+  overage?: ProviderLimitOverage;
   /** When the reading was taken: the UI says how old it is */
   observedAt: string;
   /** `stream`: a live run reported it; `probe`: a read that spends nothing; `failure`: a turn died on it */

@@ -56,11 +56,29 @@ function denialsOf(raw: unknown): RunOutcome['permissionDenials'] {
 function modelUsageOf(raw: unknown): ModelUsage[] {
   if (!raw || typeof raw !== 'object') return [];
   return Object.entries(raw).map(([model, entry]) => {
-    const { costUSD, contextWindow } = (entry ?? {}) as { costUSD?: unknown; contextWindow?: unknown };
+    const fields = (entry ?? {}) as Record<string, unknown>;
+    const number = (key: string): number | undefined => {
+      const value = fields[key];
+      return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    };
+    const costUsd = number('costUSD');
+    const contextWindow = number('contextWindow');
+    const inputTokens = number('inputTokens');
+    const outputTokens = number('outputTokens');
+    const cacheReadInputTokens = number('cacheReadInputTokens');
+    const cacheCreationInputTokens = number('cacheCreationInputTokens');
+    const webSearchRequests = number('webSearchRequests');
+    const maxOutputTokens = number('maxOutputTokens');
     return {
       model,
-      ...(typeof costUSD === 'number' && Number.isFinite(costUSD) ? { costUsd: costUSD } : {}),
-      ...(typeof contextWindow === 'number' && Number.isFinite(contextWindow) ? { contextWindow } : {}),
+      ...(costUsd !== undefined ? { costUsd } : {}),
+      ...(contextWindow !== undefined ? { contextWindow } : {}),
+      ...(inputTokens !== undefined ? { inputTokens } : {}),
+      ...(outputTokens !== undefined ? { outputTokens } : {}),
+      ...(cacheReadInputTokens !== undefined ? { cacheReadInputTokens } : {}),
+      ...(cacheCreationInputTokens !== undefined ? { cacheCreationInputTokens } : {}),
+      ...(webSearchRequests !== undefined ? { webSearchRequests } : {}),
+      ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
     };
   });
 }
@@ -199,6 +217,12 @@ export class ClaudeStream {
             rateLimitType: typeof info.rateLimitType === 'string' ? info.rateLimitType : undefined,
             resetsAt: typeof info.resetsAt === 'number' ? info.resetsAt : undefined,
             windows: (info.unifiedWindows as RateLimitInfo['windows'] | undefined) ?? {},
+            ...(typeof info.utilization === 'number' ? { utilization: info.utilization } : {}),
+            ...(typeof info.surpassedThreshold === 'number' ? { surpassedThreshold: info.surpassedThreshold } : {}),
+            ...(typeof info.overageStatus === 'string' ? { overageStatus: info.overageStatus } : {}),
+            ...(typeof info.isUsingOverage === 'boolean' ? { isUsingOverage: info.isUsingOverage } : {}),
+            ...(typeof info.overageResetsAt === 'number' ? { overageResetsAt: info.overageResetsAt } : {}),
+            ...(typeof info.overageDisabledReason === 'string' ? { overageDisabledReason: info.overageDisabledReason } : {}),
             observedAt: now(),
           },
         });
@@ -275,6 +299,11 @@ export class ClaudeStream {
         input,
         ...(typeof request.description === 'string' ? { description: request.description } : {}),
         ...(Array.isArray(request.permission_suggestions) ? { suggestions: request.permission_suggestions as PermissionUpdate[] } : {}),
+        ...(typeof request.blocked_path === 'string' ? { blockedPath: request.blocked_path } : {}),
+        ...(typeof request.decision_reason === 'string' ? { decisionReason: request.decision_reason } : {}),
+        ...(typeof request.title === 'string' ? { title: request.title } : {}),
+        ...(typeof request.display_name === 'string' ? { displayName: request.display_name } : {}),
+        ...(typeof request.agent_id === 'string' ? { agentId: request.agent_id } : {}),
         ...(request.requires_user_interaction === true ? { requiresUserInteraction: true } : {}),
       },
     });
