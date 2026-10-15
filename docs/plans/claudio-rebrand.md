@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T12:23:01Z
-updated_at: 2026-10-15T12:23:01Z
+updated_at: 2026-10-15T12:40:00Z
 tags:
     - plan
     - design-system
@@ -146,7 +146,19 @@ plus the token change, which can land before the rename:
      `#0B1020` and `#F7F8FC`.
    - The Electron splash, error page and title bar (`apps/desktop/src/pages.ts`, `main.ts`,
      `title-bar.ts`), which hard-code their colours.
-4. **Reference.** Regenerate the screenshots in `docs/design-system/reference/` (dark and light),
+4. **Illustrations.** In the app they need no redrawing: `packages/ui/src/styles/illustrations.css`
+   colours every one of the 15 by class, from tokens (`--il-tone` is `--accent`, the gradient runs
+   `--accent` → `--accent-rose`, and the surfaces, lines and ink are `--bg-*`, `--line-*` and
+   `--fg-*`). The new tokens recolour them, and the only edit is `.stop-b` following the rename to
+   `--accent-2nd`. The warn, bad and ok tones do not change. What does need changing is the
+   reference: each of the 15 SVGs in `docs/design-system/illustrations/` carries its own `<style>`
+   with dark `var(--x, #hex)` fallbacks, so that it previews on its own. Ten fallback colours map one
+   to one onto the new dark tokens (`#ec8a66` → `#6E9BFF`, `#e0668f` → `#A78BFA`, `#22d3ee` →
+   `#00E5FF`, and the seven surfaces and inks). Their `.stop-b` also still falls back to
+   `--accent-2`, a stale name that should become `--accent-2nd`. A before and after of six of them
+   is in `design-system/claudio-brand-kit/previews/illustrations-before-after.png` (above, Agentry;
+   below, Claudio). Check them in the light theme in the app, where they read the light tokens.
+5. **Reference.** Regenerate the screenshots in `docs/design-system/reference/` (dark and light),
    and update the "Idea" section of `design-system.md`, which describes the terracotta gradient.
 
 ## Verification
