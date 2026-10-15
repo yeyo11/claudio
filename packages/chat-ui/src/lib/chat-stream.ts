@@ -25,6 +25,13 @@ export const streamMark = (): number => appended;
 /** Whether this entry is on the page because the stream said it, and no read has confirmed it yet. */
 export const isStreamed = (entry: TranscriptEntry): boolean => streamed.has(entry);
 
+/**
+ * How tall the streaming block was on screen when its stored message arrived, by that message. The
+ * list takes it as the row's first size, so the swap from the streamed copy to the stored one needs
+ * no correction.
+ */
+export const streamedHeight = new WeakMap<TranscriptEntry, number>();
+
 /** How long an entry counts as having just arrived: what an entrance animation is allowed to play for. */
 const FRESH_MS = 1200;
 
@@ -208,6 +215,8 @@ export class ChatStreamStore {
   private revealing = false;
   /** A settle was held back by the reveal, and runs when it is done */
   private settleHeld = false;
+  /** The height of the block being streamed, as last measured; null before one is shown */
+  lastBlockHeight: number | null = null;
   /** What the stream said became of each message since the page opened it, by the message's id */
   private readonly deliveries = new Map<string, MessageDelivery>();
   private readonly deliveryListeners = new Set<() => void>();

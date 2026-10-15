@@ -978,7 +978,11 @@ feature-detect and do nothing elsewhere).
 
 ### CHAT-10 — No jump when a block is stored
 
-Status: proposed. After CHAT-8 if both are done (they touch the same swap).
+Status: built 2026-10-15 (no PR yet). Deviations: the height is written through an `onHeight` prop of
+`StreamingEntry` (a `ResizeObserver` on its `<article>`, wired in `SmoothEntry`) into
+`ChatStreamStore.lastBlockHeight`; `chats.ts` moves it to `streamedHeight` only when the entry was
+appended (not `present`) and resets it. `EntryView` takes `streamedCopy` for the streaming markup.
+No e2e spec written; the frame-by-frame check is left to the verification phase.
 
 **Problem.** B4: the stored row starts at an *estimated* height, then is measured, and the list and
 scroll correct in front of the reader; the streamed element is replaced by a new tree in the same

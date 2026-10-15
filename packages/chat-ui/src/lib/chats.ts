@@ -4,7 +4,7 @@ import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
 import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
 import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
-import { appendStreamed, ChatStreamStore, spliceTail, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
+import { appendStreamed, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
 
 // ---------- reads ----------
@@ -300,6 +300,8 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         const outcome = show(event.entry);
         scheduleConfirm();
         if (event.entry.role !== 'assistant') return;
+        if (outcome === 'appended' && store.lastBlockHeight !== null) streamedHeight.set(event.entry, store.lastBlockHeight);
+        store.lastBlockHeight = null;
         // The block is final: whatever text of it is still waiting for a frame goes first
         flush();
         streaming = null;
