@@ -143,7 +143,10 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
 - off until the owner turns it on; with authentication off it opens only from loopback, and off this
   machine only through the tunnel with a token (or any device with a token, if the owner allows it);
 - a chat's token, the desktop secret and any process a chat started are refused, the last by looking
-  up the connection's owner in `/proc`; when that cannot be told, it fails closed under `none`;
+  up the connection's owner in `/proc`; when that cannot be told, it fails closed under `none`. Known
+  limit, accepted by the owner (2026-10-15): with authentication off, an agent that has a shell can
+  detach from its chat's process tree and reach the terminal; with token or OIDC authentication it
+  cannot. Settings warns about it beside the switch;
 - the socket opens with a one-use ticket (30 s, bound to the terminal and the `Origin`), and the
   `Origin` and `Host` are checked before the upgrade;
 - the shell gets the vault's tool credentials but no `CLAUDIO_*` variable and none of Claude's own;

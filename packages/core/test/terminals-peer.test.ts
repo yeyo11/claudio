@@ -72,6 +72,19 @@ test('a connection from a descendant of a chat\'s process is an agent even if it
   assert.equal(found, 'agent');
 });
 
+test('a connection from a process Claudio started for an agent (CLAUDIO_AGENT_RUN) is an agent, and so is its descendant', linux, async () => {
+  assert.equal(await verdict('127.0.0.1', (port) => client(port, '127.0.0.1', { CLAUDIO_AGENT_RUN: 'orch-1' })), 'agent');
+  const found = await verdict('127.0.0.1', (port) => {
+    const parent = spawn(
+      '/bin/sh',
+      ['-c', `env -u CLAUDIO_AGENT_RUN "${process.execPath}" -e "${CLIENT}" ${String(port)} 127.0.0.1 & wait`],
+      { env: { ...process.env, CLAUDIO_AGENT_RUN: 'orch-2' }, stdio: 'ignore' },
+    );
+    children.push(parent);
+  });
+  assert.equal(found, 'agent');
+});
+
 test("a connection from a process outside every chat's tree is not an agent", linux, async () => {
   // A chat of this test's own, and a client that is not below it. (Chats of other runs on this
   // machine may have descriptors this user cannot read, which would make the answer unknown.)

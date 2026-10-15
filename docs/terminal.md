@@ -26,6 +26,10 @@ never starts `claude` in it. The design, the threat model and the decisions are 
   card warns about). `remote: 'off'` keeps it to this machine.
 - **Never** a chat's token, the desktop secret, or a process an agent started (peer check). Read-only
   mode refuses it.
+- **Limit with authentication off.** A process that detaches from its chat's process tree (`setsid -f`,
+  a double fork) is no longer found by the peer check, so an agent that has a shell can reach the
+  terminal. With token or OIDC authentication it cannot: it holds no credential. The owner accepted
+  this on 2026-10-15 and the card warns about it beside the switch when the mode is `none`.
 
 The gate's reasons (`GET /terminal` → `reason`) are listed in the [REST API tables](../README.md).
 

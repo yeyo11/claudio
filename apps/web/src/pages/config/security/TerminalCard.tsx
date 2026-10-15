@@ -120,6 +120,8 @@ function Form({ status }: { status: TerminalStatus }) {
   const [screenReader, setScreenReader] = useScreenReaderMode();
   const toggle = useSaveTerminal(t('settings.saved'));
   const numbers = useSaveTerminal(t('settings.saved'));
+  // The warning depends on the auth mode; until it is read, say nothing rather than guess
+  const auth = useQuery({ queryKey: keys.securityAuth, queryFn: ({ signal }) => api.securityAuth({ signal }) });
   const merged = { ...draft, ...number };
   const change = changedNumbers(status, merged);
   const dirty = Object.keys(change).length > 0;
@@ -149,6 +151,12 @@ function Form({ status }: { status: TerminalStatus }) {
         <span>{t('settings.enabled')}</span>
       </Switch>
       {fromEnv('enabled') && <p className="small muted">{t('settings.fromEnv')}</p>}
+      {auth.data?.mode === 'none' && (
+        <p className="term-note">
+          <TriangleAlert {...ICON_SM} aria-hidden />
+          {t('settings.agentReach')}
+        </p>
+      )}
       {!status.available && status.reason && (
         <p className="term-note">
           <TriangleAlert {...ICON_SM} aria-hidden />

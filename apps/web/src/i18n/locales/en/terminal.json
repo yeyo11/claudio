@@ -125,6 +125,7 @@
     "shell": "Shell",
     "shellHint": "A login shell, with the tool credentials from the vault (GitHub, GitLab, YouTrack). Never Claude's own credentials or Claudio's variables.",
     "loginShell": "Your login shell",
+    "agentReach": "Warning: with authentication off, an agent that has a shell can reach the terminal, because a detached process leaves its chat's process tree. With token or OIDC authentication it cannot.",
     "peerOn": "The peer check runs: a process an agent started cannot open a terminal.",
     "peerUnknown": "The peer check cannot run here, so a terminal opens only from this machine without authentication.",
     "screenReader": "Screen reader mode",

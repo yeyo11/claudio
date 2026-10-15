@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, readlinkSync } from 'node:fs';
-import { agentryChildren, descendantsOf, processTable, type ProcessEntry } from '../processes.ts';
+import { agentRunProcesses, agentryChildren, descendantsOf, processTable, type ProcessEntry } from '../processes.ts';
 
 /** `agent`: the connection belongs to a chat's process or one of its descendants. `unknown` is not "not an agent". */
 export type PeerVerdict = 'agent' | 'not-agent' | 'unknown';
@@ -35,7 +35,8 @@ function inodeOf(table: string, local: number, remote: number): string | null {
 }
 
 /**
- * Which process opened a loopback connection, as far as it matters: whether it is a chat's. Under
+ * Which process opened a loopback connection, as far as it matters: whether it is a chat's, or one
+ * Claudio started on an agent's behalf (`CLAUDIO_AGENT_RUN`). Under
  * `mode: none` an agent that calls the API with no token looks exactly like the person's browser,
  * and this is the one thing that tells them apart (docs/plans/terminal.md, §3.5). Linux only.
  *
@@ -51,7 +52,8 @@ export class PeerCheck {
   constructor(
     private readonly sources: { table(): ProcessEntry[]; chatPids(): number[] } = {
       table: processTable,
-      chatPids: () => agentryChildren().map((chat) => chat.pid),
+      // A verification command is not a chat's child, but it runs what an agent wrote (T8-2)
+      chatPids: () => [...agentryChildren().map((chat) => chat.pid), ...agentRunProcesses()],
     },
   ) {}
 

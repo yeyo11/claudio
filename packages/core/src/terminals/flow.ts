@@ -9,6 +9,16 @@ export const EVICT_BYTES = 8 * 1024 * 1024;
 /** How often a pause is re-checked, so a stale count can never leave a shell paused */
 export const RECHECK_MS = 5000;
 
+/**
+ * How long one client may hold the shell paused, while every other client has caught up, before it is
+ * let go. Once the shell is paused nothing more is sent, so a client that stopped acknowledging never
+ * reaches `EVICT_BYTES` and would hold the others for as long as it stays connected. Five seconds is
+ * longer than a tab that is only rendering a burst takes to catch up (t7 measured under a second), and
+ * short enough that the others notice a freeze, not a hang. The check runs with the re-check, so the
+ * worst case is this plus `RECHECK_MS`.
+ */
+export const STALL_EVICT_MS = 5000;
+
 export const COALESCE_MS = 4;
 export const COALESCE_BYTES = 64 * 1024;
 /** A chunk this small, after a quiet spell, is a keystroke's echo and goes at once */
@@ -27,6 +37,8 @@ export interface FlowLimits {
   high: number;
   low: number;
   evict: number;
+  /** See {@link STALL_EVICT_MS} */
+  stall: number;
 }
 
 /**
@@ -34,15 +46,23 @@ export interface FlowLimits {
  * xterm has *parsed*, not what arrived: a browser that receives fast and renders slowly is the case
  * that matters. The terminal pauses when any client is more than `high` behind and resumes when all
  * are under `low`; a client more than `evict` behind is let go and reattaches from a snapshot, so it
- * never holds the others hostage. With no client attached output only feeds the screen and never pauses.
+ * never holds the others hostage. A client that has held the pause for `stall` milliseconds while
+ * every other client is under `low` is let go as well; a client that is the only one attached, or one of
+ * several that are all behind, is not (there is nobody it is holding hostage, or no telling which to
+ * blame), and the shell stays paused for it as on a real terminal. With no client attached output only feeds the screen and never pauses.
  */
 export class FlowControl {
   private readonly clients = new Map<string, { sent: number; acked: number }>();
   private paused = false;
+  private pausedAt = 0;
   private readonly limits: FlowLimits;
 
-  constructor(limits: Partial<FlowLimits> = {}) {
-    this.limits = { high: HIGH_WATERMARK, low: LOW_WATERMARK, evict: EVICT_BYTES, ...limits };
+  /** `now` is the clock for the stall limit: milliseconds from any monotonic origin; a test hands in its own */
+  constructor(
+    limits: Partial<FlowLimits> = {},
+    private readonly now: () => number = () => performance.now(),
+  ) {
+    this.limits = { high: HIGH_WATERMARK, low: LOW_WATERMARK, evict: EVICT_BYTES, stall: STALL_EVICT_MS, ...limits };
   }
 
   get isPaused(): boolean {
@@ -93,11 +113,18 @@ export class FlowControl {
     for (const [client, state] of this.clients) {
       if (state.sent - state.acked > this.limits.evict && !evict.includes(client)) evict.push(client);
     }
+    if (this.paused && this.now() - this.pausedAt >= this.limits.stall) {
+      // Only a client that is alone in being behind is the one holding the others
+      const staying = [...this.clients].filter(([client]) => !evict.includes(client));
+      const behindNow = staying.filter(([, s]) => s.sent - s.acked >= this.limits.low);
+      if (behindNow.length === 1 && staying.length > 1) evict.push((behindNow[0] as [string, unknown])[0]);
+    }
     for (const client of evict) this.clients.delete(client);
     const behind = [...this.clients.values()].map((s) => s.sent - s.acked);
     const decision: FlowDecision = { pause: false, resume: false, evict };
     if (!this.paused && behind.some((b) => b > this.limits.high)) {
       this.paused = true;
+      this.pausedAt = this.now();
       decision.pause = true;
     } else if (this.paused && behind.every((b) => b < this.limits.low)) {
       this.paused = false;

@@ -78,6 +78,38 @@ export function agentryChildren(): Array<{ pid: number; chatId: string; argv: st
   return found;
 }
 
+/**
+ * Marks a process Claudio starts on an agent's behalf outside a chat's own process tree (today: an
+ * orchestration's verification commands, which run code an agent just wrote). Its value is the id of
+ * the work it runs for. The terminal's peer check treats such a process like a chat's, and the shell
+ * environment drops it with every other `CLAUDIO_*` variable.
+ */
+export const AGENT_RUN_ENV = 'CLAUDIO_AGENT_RUN';
+
+/**
+ * Pids of the processes that carry {@link AGENT_RUN_ENV}. A process whose environment cannot be read
+ * (another user's) is not listed; neither is a chat's CLI, which {@link agentryChildren} finds.
+ */
+export function agentRunProcesses(): number[] {
+  let names: string[];
+  try {
+    names = readdirSync('/proc');
+  } catch {
+    return [];
+  }
+  const found: number[] = [];
+  for (const name of names) {
+    if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
+    try {
+      const environ = readFileSync(`/proc/${name}/environ`, 'utf8').split('\0');
+      if (environ.some((entry) => entry.startsWith(`${AGENT_RUN_ENV}=`))) found.push(Number(name));
+    } catch {
+      // gone, or not ours to read
+    }
+  }
+  return found;
+}
+
 /** How long a read of the process table serves the lists: it is a file per process, and one request assembles many chats. */
 const PROCESSES_TTL_MS = 1_000;
 let recent: { at: number; value: CliProcess[] } | null = null;
