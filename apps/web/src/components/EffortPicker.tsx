@@ -3,6 +3,7 @@ import { COSTLY_EFFORTS, EFFORT_LEVELS, effortRecommendation, type Effort, type 
 import type { ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Field } from '@agentry/ui/components/ui';
+import { effortLevelsOf, useModelCatalog } from './ui';
 import { Select, type SelectOption } from '@agentry/ui/components/controls/Select';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 
@@ -57,9 +58,13 @@ export function EffortPicker({
 }) {
   const { t } = useTranslation('components');
   const { unset: unsetLabel, tip } = effortWords(t, model, use, { inherited, unavailable, set: value !== '' });
+  const levels = effortLevelsOf(useModelCatalog(), model);
+  // A model that takes no effort has nothing to choose; one with a list offers only that list
+  const offered = levels ? EFFORT_LEVELS.filter((level) => levels.includes(level) || level === value) : EFFORT_LEVELS;
+  const noEffort = levels !== null && levels.length === 0;
   const options: SelectOption<Effort | ''>[] = [
     ...(allowUnset ? [{ value: '' as const, label: <span className="effort-level">{unsetLabel}</span> }] : []),
-    ...EFFORT_LEVELS.map((level): SelectOption<Effort | ''> => ({
+    ...offered.map((level): SelectOption<Effort | ''> => ({
       value: level,
       label: (
         <span className="effort-level">
@@ -71,9 +76,9 @@ export function EffortPicker({
     })),
   ];
   return (
-    <Tooltip content={tip}>
+    <Tooltip content={noEffort && !unavailable ? t('effort.unavailableModel') : tip}>
       <span className={`effort-pick ${className}`.trim()}>
-        <Select<Effort | ''> aria-label={ariaLabel ?? t('effort.label')} value={value} onChange={onChange} options={options} disabled={Boolean(unavailable)} />
+        <Select<Effort | ''> aria-label={ariaLabel ?? t('effort.label')} value={value} onChange={onChange} options={options} disabled={Boolean(unavailable) || noEffort} />
       </span>
     </Tooltip>
   );

@@ -8,6 +8,8 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import type { EffortUse } from '@agentry/shared';
+import type { ModelOption } from '@agentry/shared';
+import { dedupeModels, effortLevelsOf } from '../src/components/ui';
 import { effortWords, EffortField, EffortPicker, EffortTag, type EffortUnavailable } from '../src/components/EffortPicker';
 import { memberBody } from '../src/pages/team/model';
 import { draftOfVerification, verificationOf } from '../src/lib/orchestration-v2';
@@ -100,4 +102,28 @@ test("a graph's task carries its effort into the launch, and on the workflow eng
   const effortTrigger = (html: string) => html.match(/<button[^>]*aria-label="Effort"[^>]*>/)?.[0] ?? '';
   assert.doesNotMatch(effortTrigger(editor('graph')), /disabled/);
   assert.match(effortTrigger(editor('workflow')), /disabled/);
+});
+
+const catalog: ModelOption[] = [
+  { value: 'opus', resolvedModel: 'claude-opus-5-5', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'max'] },
+  { value: 'haiku', resolvedModel: 'claude-haiku-5-5', supportsEffort: false },
+  { value: 'fable', resolvedModel: 'claude-fable-5-1', label: 'Fable' },
+  { value: 'claude-fable-5-1', resolvedModel: 'claude-fable-5-1', label: 'Fable' },
+  { value: 'claude-fable-5-1[1m]', resolvedModel: 'claude-fable-5-1', label: 'Fable (1M)' },
+];
+
+test('a model is listed once, and its 1M variant stays its own row', () => {
+  assert.deepEqual(
+    dedupeModels(catalog).map((m) => m.value),
+    ['opus', 'haiku', 'fable', 'claude-fable-5-1[1m]'],
+  );
+});
+
+test('the effort levels offered come from the CLI list for the model, by alias or id', () => {
+  assert.deepEqual(effortLevelsOf(catalog, 'opus'), ['low', 'medium', 'high', 'max']);
+  assert.deepEqual(effortLevelsOf(catalog, 'claude-opus-5-5'), ['low', 'medium', 'high', 'max']);
+  assert.deepEqual(effortLevelsOf(catalog, 'haiku'), [], 'a model with no effort has nothing to choose');
+  assert.equal(effortLevelsOf(catalog, 'fable'), null, 'no list from the CLI: every level stays on offer');
+  assert.equal(effortLevelsOf(catalog, 'unknown'), null);
+  assert.equal(effortLevelsOf(catalog, ''), null);
 });
