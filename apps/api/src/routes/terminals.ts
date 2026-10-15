@@ -54,7 +54,11 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
       const body = req.body ?? {};
       const off = Object.keys(body).length === 1 && body.enabled === false;
       if (gated(req, reply, { feature: false, reducing: off })) return reply;
-      return core.terminals.updateSettings(body);
+      const remote = core.terminals.settings().remote;
+      const status = await core.terminals.updateSettings(body);
+      // A socket from another device was let in under the old `remote`: it reconnects through the gate as it is now
+      if (status.settings.remote !== remote) tickets.revoke();
+      return status;
     }),
   );
 
@@ -78,7 +82,11 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
     '/terminals',
     handle<{ Body: CreateTerminalRequest }>(async (req, reply) => {
       if (gated(req, reply, { feature: true })) return reply;
-      const terminal = await core.terminals.create(req.body ?? ({} as CreateTerminalRequest), { actor: req.actor ?? 'local', client: clientOf(core, req) });
+      // Fastify also parses `text/plain`, which a cross-site form can send without a preflight
+      if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+        return reply.status(400).send({ error: 'the body must be a JSON object', code: 'terminal.bad-request' });
+      }
+      const terminal = await core.terminals.create(req.body, { actor: req.actor ?? 'local', client: clientOf(core, req) });
       return reply.status(201).send(terminal);
     }),
   );
