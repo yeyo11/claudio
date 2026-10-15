@@ -231,6 +231,16 @@ describe('choose', () => {
     ...extra,
   });
 
+  it('skips an account that cannot run the chat\'s model, and waits for one that can', () => {
+    const canRun = (id: string): boolean => id === 'c';
+    const opts = { current: 'a', now: NOW, model: 'opus', canRun };
+    assert.equal(choose(accts, { a: lim(1), b: lim(0), c: lim(0.2) }, settings, opts).account, 'c', 'b is free but has no opus');
+    const waits = choose(accts, { a: lim(1), b: lim(1), c: lim(1, { resetsAt: new Date(NOW + 7200_000).toISOString() }) }, settings, opts);
+    assert.deepEqual(waits, { account: null, reason: null, waitUntil: NOW + 7200_000 }, 'b is back sooner but cannot run it');
+    assert.equal(choose(accts, { a: lim(1), b: lim(0) }, settings, { ...opts, model: 'default' }).account, 'b', 'the default model runs anywhere');
+    assert.equal(choose(accts, { a: lim(0), b: lim(0), c: lim(0) }, settings, { ...opts, current: null, pinned: 'b' }).account, 'c', 'a pinned account that cannot run it is not kept');
+  });
+
   it('keeps the current account while under the threshold, even when an earlier one is free', () => {
     const c = choose(accts, { a: lim(0), b: lim(0.5) }, settings, { current: 'b', now: NOW });
     assert.deepEqual(c, { account: 'b', reason: null, waitUntil: null });

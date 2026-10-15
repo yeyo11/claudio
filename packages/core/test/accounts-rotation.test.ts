@@ -28,7 +28,7 @@ interface Spawn {
   authToken: string | null;
 }
 
-async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[] } = {}) {
+async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[] } = {}) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const store = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: FAKE_CLAUDE });
@@ -50,6 +50,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
   set('ANTHROPIC_AUTH_TOKEN', 'wrapper-auth');
   set('FAKE_CLAUDE_ACCOUNTS', spawns);
   set('FAKE_CLAUDE_LIMITED_DIRS', (opts.limited?.(dirs) ?? []).join(','));
+  set('FAKE_CLAUDE_LITE_DIRS', (opts.lite?.(dirs) ?? []).join(','));
   const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
   chats.accounts = store;
   const settings = defaultProvidersSettings(['claude-code']);
@@ -90,6 +91,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
       }
       delete process.env.FAKE_CLAUDE_ACCOUNTS;
       delete process.env.FAKE_CLAUDE_LIMITED_DIRS;
+      delete process.env.FAKE_CLAUDE_LITE_DIRS;
     },
   };
 }
@@ -145,6 +147,28 @@ test('with no account left, automated work waits for the earliest reset', async 
     assert.deepEqual(r.db.rotationEvents().map((e) => e.event), ['switch', 'switch', 'switch', 'wait']);
   } finally {
     r.close();
+  }
+});
+
+test('a limit moves to an account that offers the chat\'s model, and waits when none does', async () => {
+  // Alpha and beta are Pro-like (no opus); the CLI's own login and gamma offer it
+  const r = await rig({ work, limited: (d) => [d[DEFAULT_ID] ?? ''], lite: (d) => Object.values(d).slice(1, 3) });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'opus', keepAlive: false, model: 'opus' });
+    await waitFor(() => r.chats.accountOf(chat.id) === r.ids.c && r.spawns().length === 2);
+    assert.deepEqual(r.spawns().map((s) => s.dir), [r.dirs[DEFAULT_ID], r.dirs[r.ids.c]], 'alpha and beta were passed over');
+  } finally {
+    r.close();
+  }
+
+  const w = await rig({ work, limited: (d) => [d[DEFAULT_ID] ?? ''], lite: (d) => Object.values(d).slice(1) });
+  try {
+    const chat = w.chats.start({ prompt: 'hello', name: 'opus waits', keepAlive: false, model: 'opus' });
+    await waitFor(() => w.db.providerMoves({ chatId: chat.id }).length > 0);
+    assert.equal(w.spawns().length, 1, 'no replay on an account without opus');
+    assert.deepEqual(w.db.rotationEvents().map((e) => e.event), ['wait']);
+  } finally {
+    w.close();
   }
 });
 

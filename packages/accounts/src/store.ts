@@ -9,7 +9,7 @@ import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { identify, type Identity } from './identify.ts';
-import { ModelCache } from './models.ts';
+import { ModelCache, offers } from './models.ts';
 import { readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
@@ -259,6 +259,32 @@ export class AccountStore {
     return this.modelCache.models(this.ref(id), { plan: this.get(id).plan, ...opts });
   }
 
+  /**
+   * Whether the account can run the model, from the stored list. An account whose list was never
+   * read is given the benefit of the doubt: the first turn would tell, and `warmModels` reads them.
+   */
+  canRun(id: string, model: string): boolean {
+    const listed = this.modelCache.cached(id);
+    if (!listed || offers(listed, model)) return true;
+    // A name no account lists (a model id a chat reported, a custom endpoint's model) is not one the
+    // lists can speak for: refusing it everywhere would only stop the chat
+    return !this.list().some((a) => {
+      const other = a.id === id ? null : this.modelCache.cached(a.id);
+      return !!other && offers(other, model);
+    });
+  }
+
+  /** The stored list of an account without reading it, for the paths that cannot wait. */
+  cachedModels(id: string): ModelOption[] | null {
+    return this.modelCache.cached(id);
+  }
+
+  /** Reads the lists of every signed-in, enabled account that has none yet; a failing one is skipped. */
+  async warmModels(): Promise<void> {
+    const missing = this.list().filter((a) => a.enabled && a.signedIn && !this.modelCache.cached(a.id));
+    await Promise.all(missing.map((a) => this.models(a.id).catch(() => undefined)));
+  }
+
   /** Records a reading from a run's stream or a failed turn. */
   observe(id: string, reading: Reading): Promise<boolean> {
     return this.readings.observe(id, reading);
@@ -363,6 +389,6 @@ export class AccountStore {
     const now = opts.now ?? Date.now();
     const accounts = this.list(now);
     const limits = Object.fromEntries(accounts.map((a) => [a.id, a.limits]));
-    return choose(accounts, limits, this.stored.settings, { ...opts, now });
+    return choose(accounts, limits, this.stored.settings, { canRun: (id, model) => this.canRun(id, model), ...opts, now });
   }
 }

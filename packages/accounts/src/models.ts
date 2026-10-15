@@ -174,6 +174,11 @@ export class ModelCache {
    * the ones it was read under; `plan` is the account's known `subscriptionType` (the accounts list
    * carries it), and a different one refreshes. `refresh` forces a read.
    */
+  /** What the account can run according to the stored list, or null before it was ever read. Synchronous: `choose` runs in the launch path. */
+  cached(id: string): ModelOption[] | null {
+    return this.read(id)?.models ?? null;
+  }
+
   async models(account: AccountRef, opts: { plan?: string | null; refresh?: boolean } = {}): Promise<ModelOption[]> {
     return (await this.entry(account, opts)).models;
   }
@@ -188,4 +193,12 @@ export class ModelCache {
     await writeAtomic(this.file(account.id), `${JSON.stringify(entry, null, 2)}\n`, 0o600);
     return entry;
   }
+}
+
+/** Whether a model name (an alias or an id) is one of the listed options; case does not matter. */
+export function offers(models: readonly ModelOption[], model: string): boolean {
+  // `claude-opus-5-5[1m]` is the 1M-context variant of `claude-opus-5-5`: either names the same model
+  const bare = (name: string): string => name.toLowerCase().replace(/\[[^\]]*\]$/, '');
+  const wanted = bare(model);
+  return models.some((m) => [m.value, m.resolvedModel, ...(m.ids ?? [])].some((name) => !!name && bare(name) === wanted));
 }

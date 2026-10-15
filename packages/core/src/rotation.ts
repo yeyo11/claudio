@@ -43,7 +43,7 @@ export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 
 export interface RotationDeps {
   db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent'>;
-  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'accountOf' | 'rotatesOnLimit'>;
+  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'warmModels' | 'accountOf' | 'rotatesOnLimit'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
@@ -193,10 +193,13 @@ export class ProviderRotation {
    */
   private async moveToAccount(run: ChatRuntime): Promise<{ moved: boolean; waitUntil: number | null }> {
     const from = this.deps.runtime.accountOf(run.id);
+    // The choice looks at which account can run the chat's model: read the lists it has not seen yet
+    await this.deps.runtime.warmModels();
     const choice = this.deps.runtime.chooseNext(run.id);
     if (!from || !choice) return { moved: false, waitUntil: null };
     const to = choice.account;
     if (!to || to === from) {
+      if (!to && run.model) this.deps.runtime.notice(run.id, `No other account can run ${run.model} now; the turn waits for one that can.`);
       this.record('wait', from, null, 'limit', run, { waitUntil: choice.waitUntil });
       return { moved: false, waitUntil: choice.waitUntil };
     }

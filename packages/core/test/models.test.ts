@@ -152,3 +152,16 @@ test('the aliases carry the tier of their line, and fable has none', () => {
   const tiers = Object.fromEntries(modelOptions(join(tmpdir(), 'agentry-models-missing', '.claude.json')).map((m) => [m.value, m.tier]));
   assert.deepEqual(tiers, { fable: undefined, opus: 'strong', sonnet: 'balanced', haiku: 'fast' });
 });
+
+test('the CLI initialize list, when there is one, is the whole answer', () => {
+  forgetModelOptions();
+  const missing = join(tmpdir(), 'agentry-models-missing', '.claude.json');
+  const listed = [
+    { value: 'opus', label: 'Opus', resolvedModel: 'claude-opus-5-5', supportedEffortLevels: ['low', 'max'] },
+    { value: 'haiku', label: 'Haiku', resolvedModel: 'claude-haiku-5-5' },
+  ];
+  const options = modelOptions(missing, { sonnet: 'claude-sonnet-5' }, listed);
+  assert.deepEqual(options.map((m) => m.value), ['opus', 'haiku'], 'no alias is added beside it');
+  assert.deepEqual(options[0]?.supportedEffortLevels, ['low', 'max']);
+  assert.equal(modelOptions(missing, {}, []).length, 4, 'an empty list falls back to the aliases');
+});
