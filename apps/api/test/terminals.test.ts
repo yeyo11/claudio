@@ -139,6 +139,69 @@ test('under mode none a request from this machine is allowed, and anything relay
   assert.deepEqual([status.json<TerminalStatus>().available, status.json<TerminalStatus>().reason], [false, 'needs-auth']);
 });
 
+/** What the dev server's `xfwd: true` adds (apps/web/vite.config.ts), with its `changeOrigin: true` Host */
+const proxied = (client: string, page: string, extra: Record<string, string> = {}) => ({
+  headers: { host: '127.0.0.1:8798', 'x-forwarded-for': client, 'x-forwarded-host': page, origin: `http://${page}`, ...extra },
+});
+
+test('behind the dev proxy, a LAN client is refused and a client on this machine is let in and gets a ticket', async (t) => {
+  const w = await wrapper(t);
+  const { app } = w;
+  const terminal = await openTerminal(t, w);
+  const refused = async (options: InjectOptions) => {
+    const res = await app.inject({ url: '/api/terminals', ...options });
+    assert.equal(res.statusCode, 403, JSON.stringify(options));
+    assert.equal(res.json<{ reason: string }>().reason, 'needs-auth');
+  };
+  // A phone on the LAN browsing the dev server: the proxy is on loopback, the client is not
+  await refused(proxied('192.168.1.50', '192.168.1.184:5180'));
+  // The same page with a client that claims to be local while the page's own name is the LAN's
+  await refused(proxied('127.0.0.1', '192.168.1.184:5180'));
+  // A hop in the middle that is not loopback
+  await refused(proxied('127.0.0.1, 192.168.1.50', 'localhost:5180'));
+  // A forged chain from a peer that is not loopback is not believed, whatever it says
+  await refused({ ...proxied('127.0.0.1', 'localhost:5180'), remoteAddress: '192.168.1.50' });
+  // The standard header is never parsed: its presence is enough to refuse
+  await refused({ ...proxied('127.0.0.1', 'localhost:5180', { forwarded: 'for=127.0.0.1' }) });
+  // Forwarded host with no forwarded client says nothing a loopback client would write
+  await refused({ headers: { host: '127.0.0.1:8798', 'x-forwarded-host': 'localhost:5180' } });
+
+  for (const [client, page] of [['127.0.0.1', 'localhost:5180'], ['::1', '127.0.0.1:5180'], ['::ffff:127.0.0.1', '[::1]:5180']] as const) {
+    assert.equal((await app.inject({ url: '/api/terminals', ...proxied(client, page) })).statusCode, 200, `${client} on ${page}`);
+  }
+  if (!terminal) return;
+  // The ticket compares the Origin with the page's authority the proxy forwarded, not with the Host it rewrote
+  const ticket = await app.inject({ method: 'POST', url: `/api/terminals/${terminal.id}/ticket`, ...proxied('127.0.0.1', 'localhost:5180') });
+  assert.equal(ticket.statusCode, 200, ticket.body);
+  const foreign = await app.inject({ method: 'POST', url: `/api/terminals/${terminal.id}/ticket`, ...proxied('127.0.0.1', 'localhost:5180', { origin: 'http://evil.test' }) });
+  assert.equal(foreign.statusCode, 403);
+  assert.equal(foreign.json<{ code: string }>().code, 'terminal.bad-origin');
+});
+
+test('without a proxy the ticket still compares the Origin with the Host, and a forwarded host is not believed from elsewhere', async (t) => {
+  const w = await wrapper(t);
+  const { app } = w;
+  const terminal = await openTerminal(t, w);
+  if (!terminal) return;
+  const url = `/api/terminals/${terminal.id}/ticket`;
+  assert.equal((await app.inject({ method: 'POST', url, headers: { host: 'localhost:8797', origin: 'http://localhost:8797' } })).statusCode, 200);
+  // Same-origin by the Host the API sees, with no proxy: the page is on another port
+  assert.equal((await app.inject({ method: 'POST', url, headers: { host: '127.0.0.1:8798', origin: 'http://localhost:5180' } })).statusCode, 403);
+  // A forwarded host written by a client that is not on loopback must not turn a foreign Origin into the page's own
+  const forged = await app.inject({ method: 'POST', url, remoteAddress: '192.168.1.50', headers: { host: '127.0.0.1:8798', 'x-forwarded-for': '127.0.0.1', 'x-forwarded-host': 'evil.test', origin: 'http://evil.test' } });
+  assert.equal(forged.statusCode, 403);
+  assert.equal(forged.json<{ reason: string }>().reason, 'needs-auth');
+});
+
+test('under a token a proxied request is judged by its credential as before', async (t) => {
+  const { app } = await wrapper(t);
+  const token = await withToken(app);
+  const res = await app.inject({ url: '/api/terminals', ...proxied('192.168.1.50', '192.168.1.184:5180'), headers: { ...proxied('192.168.1.50', '192.168.1.184:5180').headers, authorization: `Bearer ${token}` } });
+  // `remote` defaults to the tunnel: the owner's token from the LAN is told to use it
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.json<{ reason: string }>().reason, 'needs-tunnel');
+});
+
 test('under a token: no credential is 401, a chat token and the desktop secret are 403 on every route, reads too', async (t) => {
   const { app, core } = await wrapper(t, { env: { CLAUDIO_DESKTOP_TOKEN: 'a-per-launch-secret-of-32-random-bytes' } });
   const token = await withToken(app);

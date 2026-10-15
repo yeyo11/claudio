@@ -149,6 +149,16 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
   cannot. Settings warns about it beside the switch;
 - the socket opens with a one-use ticket (30 s, bound to the terminal and the `Origin`), and the
   `Origin` and `Host` are checked before the upgrade;
+- **Forwarded requests.** `X-Forwarded-*` is whatever its sender wrote, so it is believed from one
+  place only: the dev server on this machine. A request counts as forwarded-but-local when its
+  socket peer is loopback, the `Host` it carries is loopback, every hop of `X-Forwarded-For` is
+  loopback and `X-Forwarded-Host` is one loopback name (`forwardingOf` in `apps/api/src/security.ts`).
+  Anything else that carries a forwarding header, or the standard `Forwarded`, is relayed and needs a
+  token. The Vite proxy sets `xfwd: true` for this: without it every LAN device that browsed the dev
+  server reached the API as the dev server on loopback and passed for this machine. When the
+  forwarding is believed, the ticket and the socket compare the `Origin` with the forwarded
+  authority (the page's), not with the `Host` the proxy rewrote; otherwise with the `Host`, as in
+  production, where the API serves the page itself and nothing changes;
 - the shell gets the vault's tool credentials but no `CLAUDIO_*` variable and none of Claude's own;
 - sessions and attachments (including refusals) are audited, never their content.
 

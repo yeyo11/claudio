@@ -31,6 +31,15 @@ never starts `claude` in it. The design, the threat model and the decisions are 
   terminal. With token or OIDC authentication it cannot: it holds no credential. The owner accepted
   this on 2026-10-15 and the card warns about it beside the switch when the mode is `none`.
 
+**Dev server.** `pnpm dev` proxies `/api` through Vite with `xfwd: true`. Opened at
+`http://localhost:5181` or `http://127.0.0.1:5181` on this machine, the terminal works as it does in
+production; opened from another device the proxy passes the client's address on, the API sees a
+forwarded request from a client that is not loopback and refuses it (`needs-auth`, or the tunnel and
+token rules). A dev server reached from a LAN device with a token needs `CLAUDIO_ALLOWED_HOSTS` for
+its name and `remote: 'any'`; the ticket's `Origin` check is then against the proxy's rewritten `Host`
+and refuses, so use the built app (`pnpm build && pnpm start`) for that. The rule is in
+[security-model.md](security-model.md#the-terminal).
+
 The gate's reasons (`GET /terminal` → `reason`) are listed in the [REST API tables](../README.md).
 
 ## What a shell gets

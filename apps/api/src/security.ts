@@ -133,10 +133,40 @@ function fromLocalMachine(req: FastifyRequest): boolean {
   return LOOPBACK.test(req.ip) && host !== undefined && LOOPBACK.test(hostNameOf(host));
 }
 
+/** How a request reached this process: straight, through a proxy on this machine we can vouch for, or relayed by something we cannot */
+export type Forwarding = 'direct' | 'untrusted' | { host: string };
+
+/**
+ * Whether the forwarding headers on a request can be believed, and what they say. Nothing is
+ * trusted by default: a header like `X-Forwarded-For` is whatever its sender wrote. The one proxy
+ * we accept is the dev server's (`apps/web/vite.config.ts`, `xfwd: true`) and anything shaped like
+ * it: the socket's peer is loopback, the `Host` it passed on is loopback, every hop in
+ * `X-Forwarded-For` is loopback and `X-Forwarded-Host` (the page's own authority) is a loopback
+ * name. A LAN device browsing the dev server shows up as a hop that is not loopback, a forwarded
+ * host that is not loopback, or both, and so is `untrusted`. The standard `Forwarded` header is not
+ * parsed: its presence alone is `untrusted`. A peer that is not loopback is never believed.
+ */
+export function forwardingOf(req: FastifyRequest): Forwarding {
+  const { headers } = req;
+  const forwardedFor = headers['x-forwarded-for'];
+  const forwardedHost = headers['x-forwarded-host'];
+  if (headers.forwarded === undefined && forwardedFor === undefined && forwardedHost === undefined) return 'direct';
+  const peer = req.socket.remoteAddress;
+  const host = headers.host;
+  if (headers.forwarded !== undefined || forwardedFor === undefined || typeof forwardedHost !== 'string') return 'untrusted';
+  if (peer === undefined || !LOOPBACK.test(peer) || host === undefined || !LOOPBACK.test(hostNameOf(host))) return 'untrusted';
+  const hops = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor).split(',').map((hop) => hop.trim());
+  if (hops.some((hop) => !LOOPBACK.test(hop.toLowerCase()))) return 'untrusted';
+  // A list of hosts is a chain of proxies; one is all the dev server ever writes
+  if (forwardedHost.includes(',') || !LOOPBACK.test(hostNameOf(forwardedHost))) return 'untrusted';
+  return { host: forwardedHost };
+}
+
 /**
  * Whether a request came from this machine and nothing says it was relayed. A chat token may be
  * looked at only then, and the terminal opens under `mode: none` only then (`terminal-gate.ts`):
- * the socket peer is loopback, the name dialled is loopback, and no header says it was forwarded.
+ * the socket peer is loopback, the name dialled is loopback, and no header says it was forwarded,
+ * unless `forwardingOf` vouches for it (the dev server on this machine, reached from this machine).
  * The tunnel (`ssh -R` to 127.0.0.1) and any local reverse proxy arrive from loopback too, so the
  * peer alone would let a leaked chat token in from the internet; they are told apart by the public
  * name they carry and the headers they add. The socket is read rather than `req.ip`, so trusting a
@@ -149,7 +179,9 @@ export function fromLocalMachineStrict(req: FastifyRequest, runtime: RuntimeHost
   const name = hostNameOf(host);
   // `localhost` is loopback by definition; a runtime host is refused even if it were named so
   if (!LOOPBACK.test(name) || runtime.get(name) !== undefined) return false;
-  if (req.headers.forwarded !== undefined || req.headers['x-forwarded-for'] !== undefined) return false;
+  const forwarding = forwardingOf(req);
+  if (forwarding === 'untrusted') return false;
+  if (typeof forwarding === 'object' && runtime.get(hostNameOf(forwarding.host)) !== undefined) return false;
   return !runtime.list().some((each) => {
     const header = runtime.get(each)?.clientIpHeader;
     return header !== undefined && req.headers[header] !== undefined;

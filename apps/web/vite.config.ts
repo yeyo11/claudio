@@ -60,12 +60,16 @@ export default defineConfig({
       '/openapi.json': { target: API_TARGET, changeOrigin: true },
       // The terminal's WebSocket. Its own entry, before `/api`, because the API checks the Origin
       // against the Host: `changeOrigin: true` would hand it `localhost:8797` beside the page's
-      // `localhost:5181` and refuse every socket, and would make a LAN device look local. Without
-      // `ws: true` the upgrade hangs.
-      '^/api/terminals/[^/]+/socket': { target: API_TARGET, ws: true, changeOrigin: false },
+      // `localhost:5181` and refuse every socket. Without `ws: true` the upgrade hangs.
+      // `xfwd` tells the API who is really asking: without it every device on the LAN reached the
+      // API as the dev server on loopback and passed for this machine (apps/api/src/security.ts,
+      // `forwardingOf`, believes the headers only when the client is on loopback too).
+      '^/api/terminals/[^/]+/socket': { target: API_TARGET, ws: true, changeOrigin: false, xfwd: true },
       '/api': {
         target: API_TARGET,
         changeOrigin: true,
+        // X-Forwarded-For / -Host: the real client and the page's own authority, for the same reason
+        xfwd: true,
         // SSE: long-lived responses must never time out or be buffered/transformed.
         timeout: 0,
         proxyTimeout: 0,

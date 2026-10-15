@@ -5,7 +5,7 @@ import { TerminalError, type Core, type TerminalClient, type TerminalConnection 
 import type { TerminalClientFrame, TerminalTicket } from '@claudio/shared';
 import { allowedOrigin } from './origins.ts';
 import { clientOf, recordGateRefusal, terminalGate } from './terminal-gate.ts';
-import type { Guard } from './security.ts';
+import { forwardingOf, type Guard } from './security.ts';
 
 /** How long a ticket opens the socket for, and that it opens it once */
 export const TICKET_TTL_MS = 30_000;
@@ -120,7 +120,9 @@ export function originAllowed(req: FastifyRequest): boolean {
     return false;
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-  const host = req.headers.host?.toLowerCase();
+  // Behind the dev server the page's authority is the one it forwarded, and only when `forwardingOf` believes it
+  const forwarding = forwardingOf(req);
+  const host = (typeof forwarding === 'object' ? forwarding.host : req.headers.host)?.toLowerCase();
   if (host !== undefined && parsed.host.toLowerCase() === host) return true;
   return process.env.CLAUDIO_CORS_ORIGIN?.trim() !== '*' && allowedOrigin(origin) !== null;
 }
