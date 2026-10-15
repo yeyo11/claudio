@@ -59,6 +59,11 @@ export interface ProviderDetectorDeps {
    * its limit is `degraded` while it lasts, and a handshake that read the limits records them here.
    */
   limits?: ProviderLimits;
+  /**
+   * A signed-in account other than the CLI's own login, by its label. Claude runs on it, so it is
+   * ready though the CLI's own login is signed out.
+   */
+  otherAccount?: () => string | null;
   /** Extra command names tried before a manifest's own, per provider (Claude Code's `CLAUDE_BIN`) */
   commandAliases?: Record<ProviderId, string[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
@@ -511,8 +516,10 @@ export class ProviderDetector {
     switch (auth.kind) {
       case 'ok':
         return make('ready', null, { ...known, ...modes, account: reading?.handshake?.account ?? auth.account });
-      case 'signed-out':
-        return make('signed-out', 'missing-credentials', known);
+      case 'signed-out': {
+        const other = manifest.id === 'claude-code' ? this.deps.otherAccount?.() : null;
+        return other ? make('ready', null, { ...known, account: other }) : make('signed-out', 'missing-credentials', known);
+      }
       case 'none':
         // The vendor documents no probe that costs nothing. A variable holding credentials cannot
         // prove they are valid, so it does not change the answer, and neither does a handshake: an

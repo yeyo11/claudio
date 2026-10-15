@@ -12,6 +12,7 @@
     "test": "tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   },
   "dependencies": {
+    "@agentry/accounts": "workspace:*",
     "@agentry/mcp": "workspace:*",
     "@agentry/shared": "workspace:*",
     "@typesafe-ai/sdk": "0.6.0",

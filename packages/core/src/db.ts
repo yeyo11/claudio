@@ -33,6 +33,7 @@ import type {
   RateLimitWindow,
   SupervisorProposal,
   SupervisorProposalStatus,
+  UsageHistoryPoint,
 } from '@agentry/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
@@ -47,6 +48,22 @@ import { pruneWebhookDeliveries } from './webhook-store.ts';
  * image. WAL is the point of it as much as the persistence: several wrapper processes share one
  * data dir, and a JSON blob read, mutated and rewritten by two of them loses one side's writes.
  */
+
+/** One account switch, as `rotation_events` keeps it. */
+export interface RotationEvent {
+  seq: number;
+  ts: string;
+  /** `switch` when a chat moved to another account, `wait` when none was left */
+  event: string;
+  /** Account ids; null when there was no previous account */
+  from: string | null;
+  to: string | null;
+  reason: string | null;
+  detail: string | null;
+  data: Record<string, unknown> | null;
+}
+
+const KEEP_ROTATION_EVENTS = 2_000;
 
 /**
  * Applied in order; `user_version` records how many have run, so each one is written once. A
@@ -1083,6 +1100,91 @@ export class Db {
       this.db.exec('ROLLBACK');
       throw err;
     }
+  }
+
+  // ---------- rotation events ----------
+
+  /** Appends one account switch and returns it with the seq the store assigned. */
+  appendRotationEvent(event: Omit<RotationEvent, 'seq'>): RotationEvent {
+    const result = this.db
+      .prepare('INSERT INTO rotation_events (ts, event, from_acct, to_acct, reason, detail, raw) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(event.ts, event.event, event.from, event.to, event.reason, event.detail, event.data ? JSON.stringify(event.data) : null);
+    return { ...event, seq: Number(result.lastInsertRowid) };
+  }
+
+  /** Oldest first, so a panel can append them as they come; `limit` keeps the newest rows. */
+  rotationEvents(opts: { limit?: number; since?: string } = {}): RotationEvent[] {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 200), 1), 5_000);
+    const rows = this.db
+      .prepare(`SELECT * FROM rotation_events ${opts.since ? 'WHERE ts > ?' : ''} ORDER BY seq DESC LIMIT ?`)
+      .all(...(opts.since ? [opts.since] : []), limit) as unknown as Array<{ seq: number; ts: string; event: string; from_acct: string | null; to_acct: string | null; reason: string | null; detail: string | null; raw: string | null }>;
+    return rows
+      .map((r) => ({ seq: r.seq, ts: r.ts, event: r.event, from: r.from_acct, to: r.to_acct, reason: r.reason, detail: r.detail, data: r.raw ? (JSON.parse(r.raw) as Record<string, unknown>) : null }))
+      .reverse();
+  }
+
+  /** Drops everything but the newest `keep` rows. Returns how many went. */
+  pruneRotationEvents(keep = KEEP_ROTATION_EVENTS): number {
+    const result = this.db
+      .prepare('DELETE FROM rotation_events WHERE seq <= COALESCE((SELECT seq FROM rotation_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)')
+      .run(keep);
+    return Number(result.changes);
+  }
+
+  // ---------- usage history ----------
+
+  /** Appends readings; one already stored for the same account, window and instant is left as it was. */
+  appendUsagePoints(points: readonly UsageHistoryPoint[]): void {
+    if (!points.length) return;
+    const insert = this.db.prepare('INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
+    this.db.exec('BEGIN');
+    try {
+      for (const p of points) insert.run(p.account, p.window, p.at, p.pct);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /** The newest reading of one account's window, so a sampler can tell whether anything moved. */
+  latestUsagePoint(account: string, window: UsageHistoryPoint['window']): UsageHistoryPoint | null {
+    const row = this.db
+      .prepare('SELECT account, window, at, pct FROM usage_history WHERE account = ? AND window = ? ORDER BY at DESC LIMIT 1')
+      .get(account, window) as unknown as UsageHistoryPoint | undefined;
+    return row ? { at: row.at, pct: row.pct, window: row.window, account: String(row.account) } : null;
+  }
+
+  /** Oldest first, so a chart can draw it as it comes. `limit` keeps the newest rows of the range. */
+  usageHistory(opts: { account?: string; window?: UsageHistoryPoint['window']; since?: string; until?: string; limit?: number } = {}): UsageHistoryPoint[] {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 5_000), 1), 50_000);
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (opts.account !== undefined) {
+      where.push('account = ?');
+      params.push(opts.account);
+    }
+    if (opts.window) {
+      where.push('window = ?');
+      params.push(opts.window);
+    }
+    if (opts.since) {
+      where.push('at >= ?');
+      params.push(opts.since);
+    }
+    if (opts.until) {
+      where.push('at <= ?');
+      params.push(opts.until);
+    }
+    const rows = this.db
+      .prepare(`SELECT account, window, at, pct FROM usage_history ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY at DESC LIMIT ?`)
+      .all(...params, limit) as unknown as UsageHistoryPoint[];
+    return rows.map((r) => ({ at: r.at, pct: r.pct, window: r.window, account: String(r.account) })).reverse();
+  }
+
+  /** Drops readings older than `before`. Returns how many went. */
+  pruneUsageHistory(before: string): number {
+    return Number(this.db.prepare('DELETE FROM usage_history WHERE at < ?').run(before).changes);
   }
 
   // ---------- audit log ----------

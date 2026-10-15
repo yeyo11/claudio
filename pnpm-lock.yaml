@@ -275,6 +275,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@agentry/accounts':
+        specifier: workspace:*
+        version: link:../accounts
       '@agentry/mcp':
         specifier: workspace:*
         version: link:../mcp

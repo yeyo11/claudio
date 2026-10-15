@@ -193,6 +193,10 @@ export interface ChatRuntime {
   derivedFrom: ChatFork | null;
   model: string | null;
   permissionMode: PermissionMode;
+  /** Id of the account its last process ran on; null before a process, or without accounts */
+  account?: string | null;
+  /** The chat was started on an account on purpose and keeps it while it can run */
+  accountPinned?: boolean;
   /** The process's state, as the stream reports it: a chat's own state is derived from it */
   status: RunStatus;
   pid: number | null;
@@ -377,6 +381,10 @@ export class LiveChat {
   limitRequested = false;
   /** Replays of the last turn for this execution: a second failure on the limit is a real one */
   limitReplays = 0;
+  /** Id of the account the last process ran on */
+  account: string | null = null;
+  /** The account the rotation moved the chat to: the next process takes it instead of choosing, once */
+  forcedAccount: string | null = null;
 
   constructor(
     /** The session id */
@@ -424,6 +432,7 @@ export class LiveChat {
         ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
         ...(record.agentryAssistant ? { agentryAssistant: record.agentryAssistant } : {}),
         ...(record.keepAlive === false ? { keepAlive: false } : {}),
+        ...(record.accountPinned && record.account ? { account: record.account } : {}),
       },
       { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },
       record.origin,
@@ -451,6 +460,7 @@ export class LiveChat {
     chat.error = last?.error ?? null;
     chat.workingDir = record.workingDir;
     chat.nativeId = record.nativeSessionId ?? null;
+    chat.account = record.account ?? null;
     // Whatever the agent had not taken went with the processes of the wrapper that wrote this
     chat.undelivered = (record.pending ?? []).map((m) => (m.state === 'undelivered' ? m : { ...m, state: 'undelivered', reason: RESTARTED }));
     return chat;
@@ -556,6 +566,7 @@ export class LiveChat {
       error: null,
       permissionMode: this.permissionMode,
       model: this.model,
+      ...(this.account ? { account: this.account } : {}),
       // Left out when none was passed, as the executions written before it was kept
       ...(this.effort ? { effort: this.effort } : {}),
       maxBudgetUsd: typeof this.opts.maxBudgetUsd === 'number' && this.opts.maxBudgetUsd > 0 ? this.opts.maxBudgetUsd : null,
@@ -578,6 +589,8 @@ export class LiveChat {
       derivedFrom: this.derivedFrom,
       model: this.model,
       permissionMode: this.permissionMode,
+      ...(this.account ? { account: this.account } : {}),
+      ...(this.opts.account ? { accountPinned: true } : {}),
       status: this.status,
       pid: this.alive ? (this.proc?.pid ?? null) : null,
       processStartedAt: this.alive ? this.procStartedAt : null,
@@ -630,6 +643,8 @@ export class LiveChat {
       model: this.model,
       permissionMode: this.permissionMode,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
+      ...(this.account ? { account: this.account } : {}),
+      ...(this.opts.account ? { accountPinned: true as const } : {}),
       ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       tools: this.tools,
       ...(this.opts.agentryAssistant ? { agentryAssistant: this.opts.agentryAssistant } : {}),

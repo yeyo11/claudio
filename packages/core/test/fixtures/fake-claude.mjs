@@ -43,6 +43,10 @@
 //                                 every process spawned, tracked or not
 //   FAKE_CLAUDE_ENVS=<file>       appends one JSON line `{ url, token }` per spawn: the AGENTRY_API_URL and
 //                                 AGENTRY_API_TOKEN the process was given
+//   FAKE_CLAUDE_ACCOUNTS=<file>   appends one JSON line `{ dir, oauth, apiKey, authToken }` per spawn: the account variables
+//                                 the process was given, which are the account it runs on
+//   FAKE_CLAUDE_LIMITED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies against
+//                                 the rate limit (a 429): an account that is out
 //   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
 //                                 test can read what a run was told and where
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
@@ -58,6 +62,7 @@ import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
 if (process.env.FAKE_CLAUDE_ENVS) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.AGENTRY_API_URL ?? null, token: process.env.AGENTRY_API_TOKEN ?? null })}\n`);
+if (process.env.FAKE_CLAUDE_ACCOUNTS) appendFileSync(process.env.FAKE_CLAUDE_ACCOUNTS, `${JSON.stringify({ dir: process.env.CLAUDE_CONFIG_DIR ?? null, oauth: process.env.CLAUDE_CODE_OAUTH_TOKEN ?? null, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close, and a
 // chat started through the API waits a minute for it
@@ -161,6 +166,10 @@ lines.on('line', (line) => {
   if (/^FAKE-HANG$/m.test(prompt)) return;
   if (/^FAKE-BUDGET$/m.test(prompt)) {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
+    return;
+  }
+  if (process.env.CLAUDE_CONFIG_DIR && (process.env.FAKE_CLAUDE_LIMITED_DIRS ?? '').split(',').includes(process.env.CLAUDE_CONFIG_DIR)) {
+    out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
     return;
   }
   const limited = join(tmpdir(), `fake-claude-limit-${sessionId}`);
