@@ -70,7 +70,6 @@ import type {
   CreateWorkItemLinkRequest,
   CreateWorkItemRelationRequest,
   CreateWorkItemRequest,
-  CswapRetirementState,
   DecisionClearResult,
   DecisionConsentRequest,
   DecisionCredentialsResult,
@@ -102,7 +101,6 @@ import type {
   FlowStartWaitingResult,
   FlowWaiting,
   ForkChatRequest,
-  HandoffPreview,
   HintRequest,
   ImportProjectRequest,
   InstructionsDoc,
@@ -122,9 +120,7 @@ import type {
   MergeResult,
   MergeState,
   Milestone,
-  ModelMapSuggestion,
   ModelOption,
-  MoveChatRequest,
   MoveWorkItemRequest,
   MoveWorkItemResult,
   NewChatRequest,
@@ -151,7 +147,6 @@ import type {
   ProjectTemplate,
   ProjectTrackerSettings,
   ProjectWebhooks,
-  ProviderCandidates,
   ProviderMove,
   ProvidersSettings,
   ProviderStatus,
@@ -185,7 +180,6 @@ import type {
   SettingsDoc,
   StartAgentryAssistantChatRequest,
   StartAssistantRunRequest,
-  SuggestModelMapRequest,
   SupervisorConfig,
   SupervisorProposal,
   SystemInfo,
@@ -955,30 +949,13 @@ export const api = {
   refreshProviders: () => request<ProviderStatus[]>('/providers/refresh', { method: 'POST' }),
   providerSettings: (o: ReadOptions = {}) => request<ProvidersSettings>('/providers/settings', o),
   putProviderSettings: (settings: ProvidersSettings) => request<ProvidersSettings>('/providers/settings', { method: 'PUT', body: settings }),
-  /** Open waits for a reset, and the history of moves; `state` narrows them */
-  providerMoves: (query: { chatId?: string; projectId?: string; state?: ProviderMove['state']; limit?: number } = {}, o: ReadOptions = {}) =>
-    request<ProviderMove[]>(`/providers/moves${qs({ chatId: query.chatId, projectId: query.projectId, state: query.state, limit: query.limit === undefined ? undefined : String(query.limit) })}`, o),
-  /** Who could take a chat at a limit, and why each of the others cannot; sends nothing */
-  providerCandidates: (chatId: string, o: ReadOptions = {}) => request<ProviderCandidates>(`/providers/candidates${qs({ chatId })}`, o),
-  /** The text a handoff move would send, built here and sent nowhere */
-  chatHandoff: (id: string, provider: string, model?: string, o: ReadOptions = {}) =>
-    request<HandoffPreview>(`/chats/${enc(id)}/handoff${qs({ provider, model })}`, o),
-  /** A person's click: the work goes on in a new chat on `provider`; the answer is that chat */
-  moveChat: (id: string, body: MoveChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/move`, { method: 'POST', body }),
+  /** Open waits for a limit to reset, and the history of waits; `state` narrows them */
+  limitWaits: (query: { chatId?: string; projectId?: string; state?: ProviderMove['state']; limit?: number } = {}, o: ReadOptions = {}) =>
+    request<ProviderMove[]>(`/limits/waits${qs({ chatId: query.chatId, projectId: query.projectId, state: query.state, limit: query.limit === undefined ? undefined : String(query.limit) })}`, o),
   /** A person's click: the turn that hit the limit is sent again when the provider's limit resets */
   waitForLimit: (id: string) => request<ProviderMove>(`/chats/${enc(id)}/wait`, { method: 'POST' }),
   /** Closes an open wait as cancelled: a chat that waited stays as it is, a flow run or a task that waited ends stopped */
-  cancelProviderMove: (id: string) => request<ProviderMove>(`/providers/moves/${enc(id)}/cancel`, { method: 'POST' }),
-  /** Counterparts the model-map point proposed, which nothing uses until a person accepts them */
-  modelMapSuggestions: (o: ReadOptions = {}) => request<ModelMapSuggestion[]>('/providers/model-map/suggestions', o),
-  /** A person pressing Suggest: the counterpart the point proposes now, or null when it had none */
-  suggestModelMap: (body: SuggestModelMapRequest) => request<ModelMapSuggestion | null>('/providers/model-map/suggest', { method: 'POST', body }),
-  answerModelMapSuggestion: (id: string, accept: boolean) =>
-    request<{ ok: true }>(`/providers/model-map/suggestions/${enc(id)}`, { method: 'POST', body: { accept } }),
-  /** What claude-swap left behind; `notice` is null when there is nothing to say or it was dismissed */
-  cswapRetirement: (o: ReadOptions = {}) => request<CswapRetirementState>('/providers/cswap-retirement', o),
-  dismissCswapRetirement: () => request<{ ok: true }>('/providers/cswap-retirement/dismiss', { method: 'POST' }),
-  removeCswapManagedCopy: () => request<{ removed: boolean }>('/providers/cswap-retirement/managed-copy', { method: 'DELETE' }),
+  cancelLimitWait: (id: string) => request<ProviderMove>(`/limits/waits/${enc(id)}/cancel`, { method: 'POST' }),
   hosts: (o: ReadOptions = {}) => request<CodeHostStatus[]>('/hosts', o),
   host: (id: string, o: ReadOptions = {}) => request<CodeHostStatus>(`/hosts/${enc(id)}`, o),
   /** Skips the detector's cache; the answer is the fresh statuses */
@@ -1046,13 +1023,8 @@ export const keys = {
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
   providerModels: (id: string) => ['providers', id, 'models'] as const,
-  providerMoves: (state: string) => ['providers', 'moves', state] as const,
-  chatMoves: (chatId: string) => ['providers', 'moves', 'chat', chatId] as const,
-  providerCandidates: (chatId: string) => ['providers', 'candidates', chatId] as const,
-  chatHandoff: (chatId: string, provider: string, model: string) => ['providers', 'handoff', chatId, provider, model] as const,
-  modelMapSuggestions: ['providers', 'model-map', 'suggestions'] as const,
-  chatContinuation: (chatId: string) => ['chat', chatId, 'continuation'] as const,
-  cswapRetirement: ['providers', 'cswap-retirement'] as const,
+  limitWaits: (state: string) => ['providers', 'waits', state] as const,
+  chatWaits: (chatId: string) => ['providers', 'waits', 'chat', chatId] as const,
   hosts: ['hosts'] as const,
   hostSettings: ['hosts', 'settings'] as const,
   projectCodeHost: (id: string) => ['project-code-host', id] as const,
@@ -1441,19 +1413,6 @@ export const useWorkItemRuns = (itemId: string | null, enabled = true) =>
     queryKey: keys.workItemRuns(itemId ?? ''),
     queryFn: ({ signal }) => api.workItemRuns(itemId ?? '', { signal }),
     enabled: enabled && itemId !== null,
-    refetchInterval: useFallbackInterval(),
-  });
-
-/**
- * The moves to other providers of a project's work, newest first: what an item's activity reads to
- * say that a run went on elsewhere. `providers.changed`, `run.providerMoved` and `run.limitWaiting`
- * read it again (they share the `providers` prefix).
- */
-export const useProviderMoves = (projectId: string | null) =>
-  useQuery({
-    queryKey: keys.providerMoves(`project:${projectId ?? ''}`),
-    queryFn: ({ signal }) => api.providerMoves({ projectId: projectId ?? '', limit: 500 }, { signal }),
-    enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
   });
 

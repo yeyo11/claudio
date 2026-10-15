@@ -78,7 +78,7 @@
     "resets": "resets {{when}}",
     "allChats": "All chats",
     "noAgent": "No agent found",
-    "noAgentHint": "Agentry looks for Claude Code, Codex, Gemini CLI and Copilot on your terminal's PATH. Install one and it will pick it up by itself, without pressing Refresh.",
+    "noAgentHint": "Agentry looks for Claude Code on your terminal's PATH. Install it and it will pick it up by itself, without pressing Refresh.",
     "seeProviders": "See providers",
     "signedOut": "{{label}} is signed out",
     "needsAttention": "{{label}} · {{state}}",

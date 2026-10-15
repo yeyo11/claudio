@@ -27,7 +27,7 @@ export function limitDotFacts(status: Pick<ProviderStatus, 'state' | 'reason'>, 
 
 /**
  * "Claude Code 2.1.282 ▬▬ 45 %" when it works; "Claude Code · limit ▬▬ 72 %" near its limit;
- * "Codex · limit reached resets 14:05" at it; "Copilot · signed out" when it needs a person. The
+ * "Claude Code · limit reached resets 14:05" at it; "Claude Code · signed out" when it needs a person. The
  * limit is always said in a word beside its colour, and a provider that reports none shows no bar.
  */
 function ProviderDot({ status, limit }: { status: ProviderStatus; limit: ProviderLimit | null | undefined }) {

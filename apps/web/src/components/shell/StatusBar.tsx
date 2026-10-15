@@ -11,7 +11,7 @@ import { useLimitWindowName } from '../../lib/limit-words';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { resetWhen } from '../../lib/reset-when';
 import { useUsageNow } from '../../lib/usage-now';
-import { limitRows } from '../../pages/config/providers/rotation';
+import { limitRows } from '../../lib/limit-rows';
 import { StatusDot, usageTone, type DotTone } from '@agentry/ui/components/motion';
 import { ProviderMark } from '@agentry/ui/components/ProviderMark';
 import { Spinner } from '@agentry/ui/components/Spinner';

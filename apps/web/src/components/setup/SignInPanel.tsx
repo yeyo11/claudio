@@ -10,7 +10,6 @@ import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { CopyButton, ErrorBox, Segmented, Skeleton } from '@agentry/ui/components/ui';
 import {
-  CODEX_DEVICE_SETTINGS,
   failureOf,
   installLink,
   isPanelTool,
@@ -18,7 +17,6 @@ import {
   loginMethods,
   methodsOf,
   offersChoice,
-  refusedKey,
   timeLeft,
   VIA_LABEL,
   variableChoices,
@@ -32,7 +30,7 @@ export type PanelLayout = 'inline' | 'sheet' | 'card';
 
 export interface SignInPanelProps {
   tool: PanelTool;
-  /** The tool's name as the row shows it ("Codex", "GitLab") */
+  /** The tool's name as the row shows it ("Claude Code", "GitLab") */
   label: string;
   /** `gh` and `glab`: the host to start with; an empty string asks the person for one */
   host?: string | null;
@@ -84,7 +82,7 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
   const { session } = login;
   const failure = failureOf(session);
   const hostName = hostDraft.trim();
-  // Copilot's Code is gh's sign-in to the host Copilot uses: the panel names who is really asked for a code
+  // A sign-in that borrows another tool's CLI: the panel names who is really asked for a code
   const via = methods.deviceVia;
   const viaLabel = via ? (VIA_LABEL[via.tool] ?? via.tool) : null;
 
@@ -157,7 +155,6 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
     const askingHost = methods.needsHost && session === null && !login.starting;
     body = (
       <>
-        {tool === 'codex' && <CodexNote />}
         {via && viaLabel && <p className="signin-note">{t('panel.viaNote', { label, via: viaLabel, cli: via.tool, host: via.host ?? '' })}</p>}
         {session?.state === 'waiting-for-person' && session.url ? (
           <DeviceCode session={session} label={label} />
@@ -268,16 +265,6 @@ function ExternalText({ href, children, className = 'c-accent signin-link' }: { 
       <ExternalLink {...ICON_SM} />
       <span className="sr-only"> ({t('panel.opensNewTab')})</span>
     </a>
-  );
-}
-
-function CodexNote() {
-  const { t } = useTranslation('setup');
-  return (
-    <>
-      <p className="signin-note">{t('panel.codexNote')}</p>
-      <ExternalText href={CODEX_DEVICE_SETTINGS}>{t('panel.codexLink')}</ExternalText>
-    </>
   );
 }
 
@@ -472,17 +459,14 @@ function KeyForm({
   const [variable, setVariable] = useState<string>(variables[0] ?? methods.variables[0] ?? '');
   const [secret, setSecret] = useState('');
   const typed = secret.trim();
-  const refused = refusedKey(tool, typed);
-  const canSave = typed !== '' && refused === null && (!methods.needsHost || host.trim() !== '') && !busy;
+  const canSave = typed !== '' && (!methods.needsHost || host.trim() !== '') && !busy;
   const claudeApiKey = tool === 'claude-code' && variable === 'ANTHROPIC_API_KEY';
   const link = keyLink(tool, host);
 
   const fieldLabel =
     tool === 'claude-code'
       ? t(`panel.variables.${claudeApiKey ? 'apiKey' : 'oauthToken'}`)
-      : tool === 'opencode'
-        ? variable
-        : t(`panel.field.${tool}`);
+      : t(`panel.field.${tool}`);
   const placeholder =
     tool === 'claude-code'
       ? claudeApiKey
@@ -490,20 +474,11 @@ function KeyForm({
         : 'sk-ant-oat01-…'
       : tool === 'tailscale'
         ? 'tskey-auth-…'
-        : tool === 'copilot'
-          ? 'github_pat_…'
-          : methods.key === 'stdin'
+        : methods.key === 'stdin'
           ? t('panel.pasteToken')
           : t('panel.pasteKey');
   const kept = t(sealed ? 'panel.hint.envSealed' : 'panel.hint.envPlain', { label });
-  const hint =
-    tool === 'opencode'
-      ? t('panel.hint.opencode')
-      : tool === 'copilot'
-        ? `${t('panel.hint.copilot')} ${kept}`
-        : methods.key === 'env'
-          ? kept
-          : t(`panel.hint.${tool as 'codex' | 'gh' | 'glab' | 'tailscale'}`);
+  const hint = methods.key === 'env' ? kept : t(`panel.hint.${tool as 'gh' | 'glab' | 'tailscale'}`);
 
   const submit = () => {
     if (!canSave) return;
@@ -538,7 +513,7 @@ function KeyForm({
       )}
       {tool === 'claude-code' && link && <ExternalText href={link}>{t('panel.link.claude-code')}</ExternalText>}
       {methods.needsHost && <HostField label={label} value={host} example={methods.defaultHost} onChange={onHost} />}
-      <label className={`field field-mono${tool === 'opencode' ? ' field-variable' : ''}`}>
+      <label className={`field field-mono`}>
         <span className="field-label">{fieldLabel}</span>
         <input
           className="mono"
@@ -552,15 +527,9 @@ function KeyForm({
         />
       </label>
       {tool !== 'claude-code' && link && (
-        <ExternalText href={link}>{t(`panel.link.${tool as 'codex' | 'gemini' | 'copilot' | 'gh' | 'glab' | 'tailscale'}`, { host: host.trim() || methods.defaultHost || '' })}</ExternalText>
+        <ExternalText href={link}>{t(`panel.link.${tool as 'gh' | 'glab' | 'tailscale'}`, { host: host.trim() || methods.defaultHost || '' })}</ExternalText>
       )}
-      {refused ? (
-        <span className="field-error" role="alert">
-          {t(`panel.refused.${refused}`)}
-        </span>
-      ) : (
-        <span className="form-hint">{hint}</span>
-      )}
+      <span className="form-hint">{hint}</span>
       <ErrorBox error={error} title={t('panel.startFailed')} />
       <div className={layout === 'sheet' ? 'prov-sheet-actions' : 'signin-actions'}>
         <button type="submit" className={layout === 'sheet' ? 'btn btn-primary' : 'btn'} disabled={!canSave}>
