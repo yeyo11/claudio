@@ -86,6 +86,8 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'permission.resolved': true,
   'run.rateLimited': true,
   'run.limitWaiting': true,
+  'run.accountRotated': true,
+  'account.switched': true,
   'task.started': true,
   'task.ended': true,
   'subagent.started': true,
@@ -262,6 +264,10 @@ export function targetsFor(event: AgentryEvent): Target[] {
         [keys.providers, NOW], [['providers', 'waits'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
         [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
       ];
+    case 'run.accountRotated':
+    case 'account.switched':
+      // The accounts panel itself arrives with its screen; until then these refresh what shows the current account
+      return [[keys.overview, NOW], [keys.chats, LISTS]];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit
       return [[keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];

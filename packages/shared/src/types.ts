@@ -469,6 +469,8 @@ export interface Execution {
   error: string | null;
   permissionMode: PermissionMode;
   model: string | null;
+  /** Id of the {@link Account} its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login */
+  account?: string | null;
   /** The effort its process was started with; absent when none was passed (the CLI's default, or a provider without effort) and on an execution recorded before it was kept */
   effort?: Effort | null;
   /** Ceiling on what it could spend */
@@ -1042,6 +1044,12 @@ export interface ChatToolConfig {
 
 /** What can be chosen when a process starts on a chat, whether it is new, resumed or a fork. */
 export interface ChatStartOptions {
+  /**
+   * Id of the {@link Account} to run on. Absent keeps the last execution's on a resume or a fork and
+   * lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value
+   * applies from the next process.
+   */
+  account?: string;
   /** The provider to run on; the first one in the person's order that can run chats when absent */
   provider?: ProviderId;
   model?: string;
@@ -4361,12 +4369,119 @@ export interface UpdateScheduleRequest {
   overlap?: ScheduleOverlap;
 }
 
+// ---------- Accounts ----------
+
+/**
+ * How an account signs in: `login` is `claude auth login` in the account's own config dir (it has an
+ * email, an organization and a plan); `token` is a `claude setup-token` and `api-key` an API key,
+ * which have no identity of their own, so they need an alias.
+ */
+export type AccountKind = 'login' | 'token' | 'api-key';
+
+/** One account's usage, folded from its stream events and, when idle, the CLI's cache. */
+export interface AccountLimit {
+  state: ProviderLimitState;
+  /** The window that binds (`five_hour`, `seven_day`), when it is known */
+  window: string | null;
+  /** Use of that window, 0..1; null when nothing was read */
+  utilization: number | null;
+  /** ISO time the binding window resets; null when unknown */
+  resetsAt: string | null;
+  windows: Record<string, RateLimitWindow>;
+  /** When the reading was taken: the cache can be days old, so the UI says how old */
+  observedAt: string;
+  /** `stream`: a run reported it; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it */
+  source: 'stream' | 'cache' | 'failure';
+}
+
+/** One Claude account: a config directory of its own, chosen per process. */
+export interface Account {
+  id: string;
+  kind: AccountKind;
+  /** Shown instead of the email; required for `token` and `api-key`, which have no identity */
+  alias: string | null;
+  /** From `claude auth status`; null for `token` and `api-key` */
+  email: string | null;
+  organization: string | null;
+  /** Subscription type (`max`, `pro`, ...); null when the CLI reports none */
+  plan: string | null;
+  /** A disabled account is never chosen for new work */
+  enabled: boolean;
+  /** `claude auth status` says it is logged in */
+  signedIn: boolean;
+  /** Null until something was read */
+  limits: AccountLimit | null;
+}
+
+/** Which account new work takes among the eligible ones. */
+export type AccountStrategy = 'order' | 'least-used';
+
+/** `accounts.json`: when and how work moves to another account. */
+export interface AccountsSettings {
+  /** Switch account at a limit; off waits for the reset instead */
+  rotateOnLimit: boolean;
+  /** Utilization (0-100) of an account's binding window from which it counts as at its limit */
+  threshold: number;
+  /** Points (0-100) below the threshold an account must fall before it is chosen again */
+  hysteresis: number;
+  /** Seconds an account that hit a limit is left alone, when its reset is unknown */
+  cooldownSeconds: number;
+  strategy: AccountStrategy;
+}
+
+/** Why the chosen account changed. */
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out';
+
+/**
+ * Which accounts the chats of some projects may use, in what order, and when to move on. A project
+ * with no policy takes the global {@link AccountsSettings}.
+ */
+export interface RotationPolicy {
+  id: string;
+  /** Utilization (0-100) past which the next account in `order` is taken; the global one when absent */
+  threshold?: number;
+  /** Account ids a chat of these projects may use, in order of preference; every account when absent */
+  order?: string[];
+  /** Project ids this policy governs; at most one policy governs a project */
+  projects: string[];
+  /** It also governs the chats that belong to no project; at most one policy does */
+  looseChats?: boolean;
+}
+
+export interface RotationPolicyRequest {
+  threshold?: number;
+  order?: string[];
+  projects: string[];
+  looseChats?: boolean;
+}
+
+/** One reading of an account's usage, kept as a row so the panel can draw a line. */
+export interface UsageHistoryPoint {
+  at: string;
+  /** Share of the window consumed (0-100) */
+  pct: number;
+  window: 'five_hour' | 'seven_day';
+  /** Account id */
+  account: string;
+}
+
+/** What the dashboard needs about accounts, without the full list. */
+export interface AccountsSnapshot {
+  total: number;
+  /** Accounts that are enabled and signed in */
+  ready: number;
+  /** Id of the account new work would start on; null when none is ready */
+  current: string | null;
+}
+
 // ---------- Overview ----------
 
 export interface Overview {
   system: SystemInfo;
   /** One reading per provider that has one */
   limits: ProviderLimit[];
+  /** The accounts, without the full list: what the dashboard shows; absent until the server runs the accounts package */
+  accounts?: AccountsSnapshot;
   counts: {
     projects: number;
     chats: number;
@@ -4656,6 +4771,25 @@ export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
   provider?: ProviderId;
   /** ISO time the limit resets; null or absent when unknown */
   resetsAt?: string | null;
+}
+
+/** A run hit its account's limit and its process was started again on another account. */
+export interface RunAccountRotatedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.accountRotated';
+  /** Account ids; null when the run was on the CLI's own default login */
+  from: string | null;
+  to: string | null;
+  /** The interrupted turn was replayed on the new account */
+  resumed: boolean;
+}
+
+/** New work will start on another account: the rotation chose it, or a person did. */
+export interface AccountSwitchedEvent extends AgentryEventBase {
+  type: 'account.switched';
+  /** Account ids; null when there was no previous choice */
+  from: string | null;
+  to: string | null;
+  reason: AccountSwitchReason;
 }
 
 /** Work stopped to wait for its provider's limit to reset. */
@@ -6468,7 +6602,9 @@ export type AgentryEvent =
   | PermissionRequestedEvent
   | PermissionResolvedEvent
   | RunRateLimitedEvent
-    | RunLimitWaitingEvent
+  | RunLimitWaitingEvent
+  | RunAccountRotatedEvent
+  | AccountSwitchedEvent
   | TaskStartedEvent
   | TaskEndedEvent
   | SubagentStartedEvent
