@@ -6539,6 +6539,120 @@ export interface TunnelChangedEvent extends AgentryEventBase {
   tunnel: TunnelStatus;
 }
 
+// ---------- Terminal: the person's own shell ----------
+
+/** What a terminal is opened in: a project's directory or worktree, or a chat's working directory. */
+export type TerminalScope = { kind: 'project'; projectId: string; worktree: string | null } | { kind: 'chat'; chatId: string };
+export type TerminalState = 'running' | 'exited' | 'closed';
+export type TerminalEndReason = 'exit' | 'closed' | 'idle' | 'server-stopping' | 'server-crashed' | 'host-failed' | 'disabled' | 'read-only';
+/** Why the terminal cannot be opened from here and now; `null` in the status when it can. */
+export type TerminalUnavailableReason =
+  | 'off' | 'disabled-by-env' | 'pty-missing' | 'host-failed' | 'read-only'
+  | 'needs-auth' | 'remote-off' | 'needs-tunnel' | 'from-agent' | 'chat-token';
+/** Which devices may open a terminal beyond this machine: none, the tunnel with a token, or any. */
+export type TerminalRemote = 'off' | 'tunnel' | 'any';
+
+export interface TerminalSettings {
+  enabled: boolean;
+  remote: TerminalRemote;
+  maxTerminals: number;
+  idleMinutes: number;
+  scrollbackLines: number;
+  replayLines: number;
+  /** The shell's path; `null` is the person's login shell */
+  shell: string | null;
+  loginShell: boolean;
+}
+
+export interface TerminalStatus {
+  enabled: boolean;
+  available: boolean;
+  reason: TerminalUnavailableReason | null;
+  settings: TerminalSettings;
+  sources: Record<keyof TerminalSettings, AppSettingSource>;
+  /** `unknown` when the peer process could not be found, which is not the same as "not a chat" */
+  peerCheck: 'on' | 'unknown';
+  running: number;
+}
+
+export interface Terminal {
+  id: string;
+  scope: TerminalScope;
+  cwd: string;
+  shell: string;
+  state: TerminalState;
+  cols: number;
+  rows: number;
+  /** Sockets attached now */
+  clients: number;
+  startedAt: string;
+  endedAt: string | null;
+  endReason: TerminalEndReason | null;
+  exitCode: number | null;
+}
+
+export type CreateTerminalRequest = ({ projectId: string; worktree?: string } | { chatId: string }) & { cols?: number; rows?: number };
+export type UpdateTerminalSettingsRequest = Partial<TerminalSettings>;
+
+/** A ticket opens the terminal's socket once, within seconds. */
+export interface TerminalTicket {
+  ticket: string;
+  expiresAt: string;
+}
+
+/** Control frames from the view to the server. Input is a binary frame and carries no type. */
+export type TerminalClientFrame =
+  | { type: 'resize'; cols: number; rows: number }
+  | { type: 'ack'; bytes: number }
+  | { type: 'focus' };
+
+/** Control frames from the server to the view. Output is a binary frame and carries no type. */
+export type TerminalServerFrame =
+  | { type: 'hello'; terminal: Terminal; snapshot: string; cols: number; rows: number }
+  | { type: 'size'; cols: number; rows: number }
+  | { type: 'exit'; code: number | null; signal: string | null }
+  | { type: 'closed'; reason: TerminalEndReason | 'evicted-slow' };
+
+/** One attach to a terminal, or an attempt the gate refused. Counts only, never content. */
+export interface TerminalAttachmentEntry {
+  actor: string;
+  client: string;
+  origin: string | null;
+  attachedAt: string;
+  detachedAt: string | null;
+  bytesIn: number;
+  bytesOut: number;
+  /** The gate's reason when the attempt was refused */
+  refused: string | null;
+}
+
+/** One session row, with its attachments and refusals. */
+export interface TerminalHistoryEntry {
+  id: string;
+  scope: TerminalScope;
+  cwd: string;
+  shell: string;
+  actor: string;
+  client: string;
+  startedAt: string;
+  endedAt: string | null;
+  endReason: TerminalEndReason | null;
+  exitCode: number | null;
+  attachments: TerminalAttachmentEntry[];
+}
+
+export interface TerminalHistoryPage {
+  entries: TerminalHistoryEntry[];
+  total: number;
+}
+
+/** A terminal opened, ended or changed, or the settings changed. Carries the summary, never output. */
+export interface TerminalChangedEvent extends AgentryEventBase {
+  type: 'terminal.changed';
+  terminals: Terminal[];
+  status: TerminalStatus;
+}
+
 // ---------- Webhooks (code hosts, phase 6) ----------
 
 /**
@@ -6860,6 +6974,7 @@ export type AgentryEvent =
   | SettingsChangedEvent
   | DashboardLayoutChangedEvent
   | TunnelChangedEvent
+  | TerminalChangedEvent
   | WebhookChangedEvent
   | LoginUpdatedEvent;
 
