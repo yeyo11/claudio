@@ -731,7 +731,7 @@ icon, the title ("Claude Code ha llegado a su límite de 5 horas"; the window is
 se sabe cuándo se restablece · última lectura hace 12 min"), and the one action, **Esperar al
 reinicio**, which holds the chat until the reset (`POST /chats/:id/wait`). While it waits the banner
 says so and offers **Dejar de esperar**, neutral. Nothing moves to another agent. The page's one
-primary stays the composer's. Reference screens: `DesktopChatLimite`, `DesktopChatEspera` and their
+primary stays the composer's. Reference screens: `DesktopChatEspera` and its
 `MobileChat…` twins.
 
 ### Integrations: the code hosts' CLIs
@@ -1432,13 +1432,11 @@ builds it (step 5). It reads the API of [setup.md](setup.md): `GET /setup`, the 
 | Screen | What it shows |
 |---|---|
 | `DesktopConfiguracionAcceso`, `MobileConfiguracionAcceso` | Step 1: the auth mode (Ninguno / Token) and the token shown once, with Copiar; on a desktop the secrets line too |
-| `DesktopConfiguracionAgentes` | Step 2: the Agents step; it still draws a device-code panel from the multi-provider version, to be redrawn for Claude alone |
 | `DesktopConfiguracionAgentesClave`, `MobileConfiguracionAgentesClave` | Step 2: Claude Code's key panel (`claude setup-token`) |
 | `MobileConfiguracionAgentes` | Step 2 on a phone with no Sheet open: a Sign in button per cell |
 | `DesktopConfiguracionIntegraciones`, `MobileConfiguracionIntegraciones`, `MobileConfiguracionIntegracionesClave` | Step 3: GitHub ready, GitLab's key panel with its host, YouTrack's Conectar |
 | `DesktopConfiguracionListo`, `MobileConfiguracionListo` | Step 4: the summary, with step 3 skipped |
 | `DesktopAjustesSeguridad`, `MobileAjustesSeguridad` | Settings → Security with the new Secretos card |
-| `DSConfiguracion` | Every state of the panel: the step bar, a key in the environment, a key on stdin with both methods, several variables, starting, every failure code, and the three secrets states |
 
 **The assistant** replaces the first run (`DesktopPrimerArranque*`, which stays as the drawing of the Agents step's
 checking and nothing-found states) while `GET /setup` says `seen: false`. It is the first run's page (`.prov-first`, no
@@ -1488,7 +1486,7 @@ Integrations, so nothing is assistant-only.
   `bad` for `cli-refused`, `not-signed-in`, `no-code` (its action is "Usar una clave"), `cli-missing` ("Ver instalación"
   ↗), `spawn-failed` and `timeout`; the others retry. `expired` is `warn` with the clock icon: nothing broke, the code
   only ran out, and the action is "Pedir otro código". `cancelled` says nothing: the panel closes and the row keeps its
-  state. The copy of each is in `DSConfiguracion` and `FAIL` in `setup.py`.
+  state. The copy of each is `FAIL` in `setup.py`.
 
 **Tailscale** (added 2026-10-08, [setup.md](setup.md#tailscale)) reuses these pieces, with no new class but
 `.tunnel-node` (the node's name with Cerrar sesión beside it, in Settings → Acceso remoto):

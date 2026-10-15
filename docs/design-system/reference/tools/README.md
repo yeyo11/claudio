@@ -53,3 +53,10 @@ The generators of the other vendors' screens (`chatproviders`, `chatrotation`, `
 screens they wrote. `providers.py`, `setup.py` and `decisions.py` still draw the multi-provider
 versions of Settings → Providers, first run and the Decisions tab: they are redrawn for Claude alone
 with the web, and until then the HTML in `reference/` is the source of truth where the two part.
+
+Still to redraw for Claude alone: `DesktopProveedores`, `DesktopProyectoAjustes`, `DesktopChats`,
+`MobileChats`, `DesktopNuevoChat`, `Main`, `MobileInicio`, `DesktopOrquestacion`,
+`MobileOrquestacion` and `StatusBar` keep a few lines about the other vendors (a row, a chip, a
+status-bar dot). The chat-at-a-limit screens (`DesktopChatLimite`, `MobileChatLimite`), the
+provider-without-session Home screens, `DesktopConfiguracionAgentes` and `DSConfiguracion` were
+removed because every state they drew was another vendor's.
