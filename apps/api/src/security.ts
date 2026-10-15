@@ -235,6 +235,9 @@ const CHAT_FORBIDDEN_WEBHOOKS = new Set([
   `DELETE ${API_PREFIX}/projects/:id/webhooks/:registrationId`,
 ]);
 
+/** Authorising a connector signs the person's account in to a service: their click, never a chat's. */
+const CHAT_FORBIDDEN_CONNECTORS = new Set([`POST ${API_PREFIX}/connectors/:id/authorise`]);
+
 /**
  * Importing, linking and syncing issues writes the person's work items and their tracker, and an
  * issue's text is untrusted: an injection in one must not be able to import more issues, link or
@@ -568,6 +571,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_PROJECT_DOCS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot add, create, refresh, remove or ask about a project's Claude Docs: that is the person's click" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_CONNECTORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot authorise a connector: that is the person's click" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

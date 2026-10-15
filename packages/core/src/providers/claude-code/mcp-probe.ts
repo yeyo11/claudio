@@ -16,15 +16,20 @@ export interface McpProbeOptions {
   pollMs?: number;
 }
 
+/** What `mcp_authenticate` answers for a claude.ai connector: a claude.ai page that runs the whole sign-in */
+export interface McpAuthStart {
+  authUrl: string;
+  requiresUserAction: boolean;
+  callbackExpected: boolean;
+}
+
+type Request = (request: Record<string, unknown>) => Promise<Record<string, unknown>>;
+
 /**
- * The MCP servers a fresh CLI process reports, read from `mcp_status` and nothing else: no prompt is
- * sent, so no turn runs and nothing is billed. The process lives only as long as the answer takes,
- * polling while a server still reads `pending`; one still pending at the ceiling is returned as it is.
- * Rejects when the CLI cannot be started, exits early or does not answer.
+ * A short-lived `claude -p` stream-json process that only answers control requests: no prompt is
+ * sent, so no turn runs and nothing is billed. It is killed when `run` settles.
  */
-export async function probeMcpServers(opts: McpProbeOptions): Promise<LiveMcpServer[]> {
-  const ceilingMs = opts.ceilingMs ?? CEILING_MS;
-  const pollMs = opts.pollMs ?? POLL_MS;
+async function withProbeProcess<T>(opts: McpProbeOptions, run: (request: Request) => Promise<T>): Promise<T> {
   // The flags of a chat's process, minus everything that is about a conversation
   const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'];
   const proc = spawn(opts.bin, args, { cwd: tmpdir(), env: opts.env, stdio: 'pipe' });
@@ -35,7 +40,7 @@ export async function probeMcpServers(opts: McpProbeOptions): Promise<LiveMcpSer
     proc.once('error', reject);
     proc.once('exit', (code) => {
       exited = true;
-      reject(new Error(stderr.trim().slice(0, 300) || `the CLI exited (${String(code)}) before answering mcp_status`));
+      reject(new Error(stderr.trim().slice(0, 300) || `the CLI exited (${String(code)}) before answering`));
     });
   });
   // The race below is its only reader: a probe that finished first must not leave it unhandled
@@ -52,15 +57,43 @@ export async function probeMcpServers(opts: McpProbeOptions): Promise<LiveMcpSer
       // not JSON: nothing to answer
     }
   });
-  const deadline = Date.now() + ceilingMs;
   try {
-    for (;;) {
-      const servers = liveMcpServers(await Promise.race([control.request({ subtype: 'mcp_status' }), gone]));
-      if (!servers.some((s) => s.status === 'pending') || Date.now() + pollMs > deadline) return servers;
-      await new Promise((resolve) => setTimeout(resolve, pollMs));
-    }
+    return await run((request) => Promise.race([control.request(request), gone]));
   } finally {
     exited = true;
     proc.kill('SIGKILL');
   }
+}
+
+/** Polls `mcp_status` while a server reads `pending`; one still pending at the ceiling is returned as it is. */
+async function settledServers(opts: McpProbeOptions, request: Request): Promise<LiveMcpServer[]> {
+  const pollMs = opts.pollMs ?? POLL_MS;
+  const deadline = Date.now() + (opts.ceilingMs ?? CEILING_MS);
+  for (;;) {
+    const servers = liveMcpServers(await request({ subtype: 'mcp_status' }));
+    if (!servers.some((s) => s.status === 'pending') || Date.now() + pollMs > deadline) return servers;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
+
+/**
+ * The MCP servers a fresh CLI process reports, read from `mcp_status` and nothing else.
+ * Rejects when the CLI cannot be started, exits early or does not answer.
+ */
+export function probeMcpServers(opts: McpProbeOptions): Promise<LiveMcpServer[]> {
+  return withProbeProcess(opts, (request) => settledServers(opts, request));
+}
+
+/**
+ * Starts a connector's sign-in with the CLI's `mcp_authenticate`. Servers load after the process
+ * starts, so it waits for them to settle first. The link is for the person's browser: it is returned,
+ * never fetched. Rejects when the CLI refuses (an unknown server) or does not answer.
+ */
+export function startMcpAuth(opts: McpProbeOptions, serverName: string): Promise<McpAuthStart> {
+  return withProbeProcess(opts, async (request) => {
+    await settledServers(opts, request);
+    const answer = await request({ subtype: 'mcp_authenticate', serverName });
+    if (typeof answer.authUrl !== 'string' || !answer.authUrl) throw new Error('the CLI gave no sign-in link for this connector');
+    return { authUrl: answer.authUrl, requiresUserAction: answer.requiresUserAction !== false, callbackExpected: answer.callbackExpected === true };
+  });
 }
