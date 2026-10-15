@@ -1,11 +1,12 @@
 ---
 created_at: 2026-10-15T12:00:00Z
-updated_at: 2026-10-15T12:00:00Z
+updated_at: 2026-10-15T12:30:00Z
 tags:
     - plan
     - providers
     - claude-code
     - limits
+    - connectors
 ---
 # Driver improvements learned from the Agent SDK
 
@@ -116,11 +117,36 @@ can change mid-chat.
    blocked, why, and which subagent asked. Test: a `can_use_tool` fixture with the extra fields
    reaches the prompt; one without them is unchanged.
 
-9. **MCP lifecycle control.** The subtypes `mcp_status`, `mcp_reconnect` and `mcp_toggle` surface
-   server health and reconnect a dropped server without respawning the chat. Add `mcpStatus()` and
-   `mcpReconnect(server)` to `ClaudeCodeSession` (`driver.ts`), a read and an action on the chat, and
-   keep MCP configured by file (`--mcp-config`), never in-process. Test: the fake answers
-   `mcp_status`; a reconnect round-trips.
+9. **MCP lifecycle control, and sturdier connectors.** The subtypes `mcp_status`, `mcp_reconnect`
+   and `mcp_toggle` surface server health and reconnect a dropped server without respawning the
+   chat. Add `mcpStatus()`, `mcpReconnect(server)` and `mcpToggle(server, on)` to
+   `ClaudeCodeSession` (`driver.ts`), a read and an action on the chat, and keep MCP configured by
+   file (`--mcp-config`), never in-process. Test: the fake answers `mcp_status`; a reconnect
+   round-trips.
+
+   **Why this matters for connectors.** The connectors panel (`packages/core/src/connectors.ts`)
+   reads `claude mcp list` and scrapes its human-readable lines (`parseMcpHealth` in
+   `config/mcp.ts`), because `claude mcp list` has **no `--json`** (verified on CLI 2.1.295). It
+   depends on the `claude.ai ` name prefix and on the words "Connected / needs auth / pending", so a
+   change to the CLI's output format silently empties the panel, and the per-server health check
+   runs under a 90 s timeout (the slowness and the flaky `connectors.spec.mjs`). The structured
+   `mcp_status` is a sturdier source for the same information: read it from a short-lived session
+   (or a session Claudio already has open) and fold it into `ConnectorsOverview`, keeping the
+   `claude mcp list` scrape only as a fallback until the CLI ships `--json`.
+
+   **Authorising a connector in the app.** The control subtypes `mcp_authenticate` and
+   `mcp_oauth_callback_url` let a session start a connector's OAuth sign-in from inside Claudio,
+   instead of only telling the person to run `/mcp` in a terminal (today's `CONNECTOR_GUIDE` in
+   `connectors.ts`). Add an `authorise(connector)` path on the driver and a connectors route/action,
+   opening the returned URL the way the setup flow's device sign-ins do. This stays within the one
+   rule: the sign-in is the CLI's own OAuth, driven over the control protocol, not a login of
+   Claudio's.
+
+   **Out of reach either way, and left documented:** claude.ai web artifacts and claude.ai memory
+   have no public API and no CLI command, so they stay in `CONNECTOR_LIMITS`; the Claude Docs
+   connector (`api.anthropic.com/v1/pages/mcp`) already reaches docs through the CLI's MCP. Gmail and
+   Calendar appear only when the signed-in claude.ai account has enabled and authorised them, which
+   is the person's to do on claude.ai; the panel's job is to report the state, not to widen it.
 
 ## Order and checks
 
