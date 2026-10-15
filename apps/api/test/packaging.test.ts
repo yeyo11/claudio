@@ -51,22 +51,6 @@ test('the Agentry release is read without asking GitHub, and the image says it i
   await app.close();
 });
 
-test('the image installs the other agents pinned inside their manifests\' ranges, and keeps their homes in /data', async () => {
-  const { PROVIDER_MANIFESTS, satisfiesRange } = await import('@agentry/core');
-  const pins: Record<string, string> = { codex: 'CODEX_VERSION', gemini: 'GEMINI_CLI_VERSION', copilot: 'COPILOT_VERSION', opencode: 'OPENCODE_VERSION' };
-  for (const [id, arg] of Object.entries(pins)) {
-    const pinned = dockerfile.match(new RegExp(`^ARG ${arg}=(\\d+\\.\\d+\\.\\d+)$`, 'm'))?.[1];
-    assert.ok(pinned, `${arg} is pinned`);
-    const range = PROVIDER_MANIFESTS.find((m) => m.id === id)?.versions.range;
-    assert.ok(range, `${id} declares a version range`);
-    assert.equal(satisfiesRange(pinned, range), 'in', `${arg}=${pinned} is inside ${range}`);
-  }
-  // Their sign-ins and sessions must not sit in the container's own layer
-  for (const name of ['CODEX_HOME', 'GEMINI_CLI_HOME', 'COPILOT_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME']) {
-    assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);
-  }
-});
-
 test('the image carries gh, glab and youtrack-app pinned, the two downloads checked against the vendors\' digests, and their sign-ins in /data', async () => {
   const { PROVIDER_HOME_ENV } = await import('@agentry/core');
   for (const arg of ['GH_VERSION', 'GLAB_VERSION', 'YOUTRACK_APP_VERSION']) {
@@ -82,7 +66,7 @@ test('the image carries gh, glab and youtrack-app pinned, the two downloads chec
     assert.match(dockerfile, new RegExp(`^ARG ${arg}=[0-9a-f]{64}$`, 'm'), `${arg} is a pinned SHA-256`);
     assert.match(dockerfile, new RegExp(`echo "\\$\\{${arg}\\}  \\$\\{${tool}_tar\\}" \\| sha256sum -c -`), `${tool}'s tarball is checked`);
   }
-  assert.match(dockerfile, /^\s+@jetbrains\/youtrack-apps-tools@\$\{YOUTRACK_APP_VERSION\} \\$/m);
+  assert.match(dockerfile, /^RUN npm install -g @jetbrains\/youtrack-apps-tools@\$\{YOUTRACK_APP_VERSION\} \\$/m);
   assert.match(dockerfile, /gh --version && glab --version/);
   for (const name of ['GH_CONFIG_DIR', 'GLAB_CONFIG_DIR']) {
     assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);

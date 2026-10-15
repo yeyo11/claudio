@@ -166,7 +166,7 @@ function LiveRow({ item }: { item: LiveItem }) {
 }
 
 /**
- * The sidebar's Live section, OpenCode-like: what is running and what waits for a person, each a
+ * The sidebar's Live section: what is running and what waits for a person, each a
  * link. In the icon rail it folds into one button with the count that opens the same list.
  */
 export function LiveSection({ live, rail }: { live: LiveSummary & { any: boolean }; rail: boolean }) {

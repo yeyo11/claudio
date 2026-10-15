@@ -66,11 +66,10 @@ export interface NotificationText {
   rateLimited(name: string): string;
   rateLimitedBody(): string;
   /**
-   * Work that went on in a new chat on another provider, and work that waits for a reset. Optional
+   * Work that waits for a reset. Optional
    * so a client with its own translations keeps compiling until it has said them: the English
    * below stands in for what it lacks.
    */
-  movedBody?(action: 'handoff' | 'restart'): string;
   limitWaitingBody?(resetsAt: string | null): string;
   orchestrationFinished(name: string): string;
   orchestrationFailed(name: string): string;
@@ -86,9 +85,6 @@ export interface NotificationText {
    */
   serverText(code: string | undefined, params: LocalizedParams | undefined, fallback: string): string;
 }
-
-const movedBodyEnglish = (action: 'handoff' | 'restart'): string =>
-  action === 'handoff' ? 'It went on from a record of what was done.' : 'It started again from its original prompt.';
 
 const limitWaitingBodyEnglish = (resetsAt: string | null): string =>
   resetsAt ? `It goes on when the limit resets, at ${resetsAt.slice(0, 16).replace('T', ' ')} UTC.` : 'It goes on when the limit resets; no reset time is known.';
@@ -110,7 +106,6 @@ export const englishNotificationText: NotificationText = {
   turns: (count) => `${count} ${count === 1 ? 'turn' : 'turns'}`,
   rateLimited: (name) => `${name} hit a rate limit`,
   rateLimitedBody: () => 'The turn stopped because the account ran out of quota.',
-  movedBody: movedBodyEnglish,
   limitWaitingBody: limitWaitingBodyEnglish,
   orchestrationFinished: (name) => `Orchestration ${name} finished`,
   orchestrationFailed: (name) => `Orchestration ${name} failed`,
@@ -306,23 +301,6 @@ export function notificationsFor(event: AgentryEvent, text: NotificationText = e
           tone: 'warn',
           title: text.rateLimited(event.runName),
           body: text.rateLimitedBody(),
-          href: chatHref(event.runId),
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-
-    case 'run.providerMoved':
-      // A person's own click is not news to them; what the settings or a decision moved is
-      if (event.internal || event.decidedBy === 'person') return [];
-      return [
-        draft(event, {
-          key: `moved:${event.runId}:${event.to}`,
-          kind: 'limit',
-          priority: 'normal',
-          tone: 'info',
-          title: event.title,
-          body: (text.movedBody ?? movedBodyEnglish)(event.action),
           href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,

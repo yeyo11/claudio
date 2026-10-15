@@ -1,21 +1,18 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import type { LimitAction, ModelMapEntry, ProviderId, ProvidersSettings, RotationSettings } from '@agentry/shared';
+import type { LimitAction, ProviderId, ProvidersSettings, RotationSettings } from '@agentry/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { PROVIDER_MANIFESTS } from './registry.ts';
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const LIMIT_ACTIONS: readonly LimitAction[] = ['handoff', 'restart', 'wait'];
+const LIMIT_ACTIONS: readonly LimitAction[] = ['wait'];
 const MAX_WAIT_HOURS = 48;
-const MAX_MOVES = 5;
-const MAX_MODEL_MAP = 200;
-const MAX_MODEL_LENGTH = 200;
 
-/** A fresh install never sends work to a second vendor: it waits for the reset and spends only the replayed turn. */
+/** A fresh install waits for the reset at a usage limit and spends only the replayed turn. */
 export function defaultRotationSettings(): RotationSettings {
-  return { onLimit: { action: 'wait', allowed: ['wait'], maxWaitHours: 6, maxMoves: 2 }, modelMap: [] };
+  return { onLimit: { action: 'wait', allowed: ['wait'], maxWaitHours: 6 } };
 }
 
 const integerIn = (value: unknown, name: string, min: number, max: number): number => {
@@ -45,7 +42,6 @@ export function parseOnLimit(input: unknown, name: string): Partial<RotationSett
     result.allowed = allowed;
   }
   if (input.maxWaitHours !== undefined) result.maxWaitHours = integerIn(input.maxWaitHours, `${name}.maxWaitHours`, 1, MAX_WAIT_HOURS);
-  if (input.maxMoves !== undefined) result.maxMoves = integerIn(input.maxMoves, `${name}.maxMoves`, 0, MAX_MOVES);
   if (result.action !== undefined && result.allowed !== undefined && !result.allowed.includes(result.action)) {
     result.allowed = [...result.allowed, result.action];
   }
@@ -94,7 +90,7 @@ export class ProvidersSettingsStore {
   private read(): ProvidersSettings {
     if (!existsSync(this.file)) return defaultProvidersSettings(this.ids);
     try {
-      return this.parse(JSON.parse(readFileSync(this.file, 'utf8')));
+      return this.parse(JSON.parse(readFileSync(this.file, 'utf8')), true);
     } catch {
       // A hand edit that went bad reads as the defaults rather than keeping every provider off
       return defaultProvidersSettings(this.ids);
@@ -106,13 +102,15 @@ export class ProvidersSettingsStore {
     return id;
   }
 
-  private parse(input: unknown): ProvidersSettings {
+  /** `lenient` skips ids of providers this build does not know, so a file written by another build still loads */
+  private parse(input: unknown, lenient = false): ProvidersSettings {
     if (!isObject(input)) throw new Error('settings must be an object');
     const result = defaultProvidersSettings(this.ids);
 
     if (input.providers !== undefined) {
       if (!isObject(input.providers)) throw new Error('providers must be an object');
       for (const [id, entry] of Object.entries(input.providers)) {
+        if (lenient && !this.ids.includes(id)) continue;
         this.known(id, 'providers key');
         if (!isObject(entry)) throw new Error(`providers.${id} must be an object`);
         if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') throw new Error(`providers.${id}.enabled must be a boolean`);
@@ -126,13 +124,13 @@ export class ProvidersSettingsStore {
 
     if (input.order !== undefined) {
       if (!Array.isArray(input.order)) throw new Error('order must be an array');
-      const listed = input.order.map((id) => this.known(id, 'order entry'));
+      const listed = input.order.filter((id) => !lenient || this.ids.includes(id)).map((id) => this.known(id, 'order entry'));
       if (new Set(listed).size !== listed.length) throw new Error('order lists a provider twice');
       // One left out is appended, so a provider added later is still offered
       result.order = [...listed, ...this.ids.filter((id) => !listed.includes(id))];
     }
 
-    if (input.defaultProvider !== undefined && input.defaultProvider !== null) {
+    if (input.defaultProvider !== undefined && input.defaultProvider !== null && !(lenient && !this.ids.includes(input.defaultProvider as string))) {
       result.defaultProvider = this.known(input.defaultProvider, 'defaultProvider');
     }
 
@@ -149,41 +147,6 @@ export class ProvidersSettingsStore {
       if (!onLimit.allowed.includes(onLimit.action)) onLimit.allowed = [...onLimit.allowed, onLimit.action];
       result.onLimit = onLimit;
     }
-    if (input.modelMap !== undefined) {
-      if (!Array.isArray(input.modelMap)) throw new Error('rotation.modelMap must be an array');
-      if (input.modelMap.length > MAX_MODEL_MAP) throw new Error(`rotation.modelMap has more than ${MAX_MODEL_MAP} entries`);
-      const seen = new Set<string>();
-      result.modelMap = input.modelMap.map((entry, i) => {
-        const parsed = this.parseModelMapEntry(entry, `rotation.modelMap[${i}]`);
-        const key = `${parsed.from.provider}\0${parsed.from.model}`;
-        if (seen.has(key)) throw new Error(`rotation.modelMap[${i}] maps ${parsed.from.provider} ${parsed.from.model} a second time`);
-        seen.add(key);
-        return parsed;
-      });
-    }
     return result;
-  }
-
-  private parseModelMapEntry(entry: unknown, name: string): ModelMapEntry {
-    if (!isObject(entry)) throw new Error(`${name} must be an object`);
-    const side = (value: unknown, label: string) => {
-      if (!isObject(value)) throw new Error(`${name}.${label} must be an object`);
-      const provider = this.known(value.provider, `${name}.${label}.provider`);
-      // Not checked against a catalog: a catalog changes with a CLI update, and a model that left it shows as missing
-      if (typeof value.model !== 'string' || value.model.trim() === '' || value.model.length > MAX_MODEL_LENGTH) {
-        throw new Error(`${name}.${label}.model must be a non-empty string of at most ${MAX_MODEL_LENGTH} characters`);
-      }
-      return { provider, model: value.model.trim() };
-    };
-    const from = side(entry.from, 'from');
-    const to = side(entry.to, 'to');
-    if (from.provider === to.provider) throw new Error(`${name} must map between two different providers`);
-    if (entry.origin !== 'person' && entry.origin !== 'decision') throw new Error(`${name}.origin must be person or decision`);
-    let at = new Date().toISOString();
-    if (entry.at !== undefined) {
-      if (typeof entry.at !== 'string' || Number.isNaN(Date.parse(entry.at))) throw new Error(`${name}.at must be a date`);
-      at = entry.at;
-    }
-    return { from, to, origin: entry.origin, at };
   }
 }

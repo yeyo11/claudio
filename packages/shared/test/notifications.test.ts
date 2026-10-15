@@ -122,23 +122,7 @@ test('a rate limit and the account it moved to are one kind', () => {
   assert.equal(draft.body, 'The turn stopped because the account ran out of quota.');
 });
 
-test('a move to another provider and a wait for a reset are limit news, except a move the person made', () => {
-  const moved = (decidedBy: 'person' | 'setting' | 'decision', action: 'handoff' | 'restart' = 'handoff'): AgentryEvent => ({
-    type: 'run.providerMoved',
-    ...base('fix the build moved to Codex'),
-    ...run,
-    from: 'claude-code',
-    to: 'codex',
-    action,
-    decidedBy,
-  });
-  const draft = only(notificationsFor(moved('setting')));
-  assert.equal(draft.kind, 'limit');
-  assert.equal(draft.title, 'fix the build moved to Codex');
-  assert.equal(draft.body, 'It went on from a record of what was done.');
-  assert.equal(only(notificationsFor(moved('decision', 'restart'))).body, 'It started again from its original prompt.');
-  assert.deepEqual(notificationsFor(moved('person')), []);
-
+test('a wait for a reset is limit news', () => {
   const waiting = (resetsAt: string | null): AgentryEvent => ({ type: 'run.limitWaiting', ...base("fix the build waits for Claude Code's limit to reset"), ...run, provider: 'claude-code', resetsAt });
   assert.equal(only(notificationsFor(waiting('2026-01-01T17:30:00Z'))).body, 'It goes on when the limit resets, at 2026-01-01 17:30 UTC.');
   assert.equal(only(notificationsFor(waiting(null))).body, 'It goes on when the limit resets; no reset time is known.');

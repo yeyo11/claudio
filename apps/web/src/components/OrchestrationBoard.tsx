@@ -2,7 +2,6 @@ import type { LimitWait, Orchestration, OrchestrationTaskState } from '@agentry/
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Ban,
-  ArrowRight,
   ChevronDown,
   CircleAlert,
   CircleCheck,
@@ -29,7 +28,6 @@ import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
-import { EffortTag } from './EffortPicker';
 import { useDetailPanel } from '../lib/detail';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '@agentry/ui/lib/format';
@@ -42,7 +40,7 @@ import { withoutKey } from '../lib/work-item-links';
 import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
 import { Collapsible, Tooltip } from '@agentry/ui/components/controls';
 import { DecisionMark } from './DecisionMark';
-import { NoCounterpartWhy, ProviderChain, useMovedWords, useNoCounterpart, WaitLine } from './ProviderChain';
+import { WaitLine } from './WaitLine';
 import { useProviderLabel } from '../lib/provider-status';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
@@ -202,7 +200,7 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
   const name = task.name || task.id;
   const { t: tc } = useTranslation('components');
   const stopWait = useMutation({
-    mutationFn: () => api.cancelProviderMove(task.waiting?.moveId ?? ''),
+    mutationFn: () => api.cancelLimitWait(task.waiting?.moveId ?? ''),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) }),
     onError: (error) => toast.error(tc('limitWait.stopFailed'), error),
   });
@@ -213,16 +211,9 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
   const buttons = (
     <>
       {task.waiting && (
-        <>
-          <button type="button" className="btn btn-small btn-quiet" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
-            {tc('limitWait.stop')}
-          </button>
-          {task.sessionId && (
-            <Link to={`/chats/${encodeURIComponent(task.sessionId)}`} className="btn btn-small" title={tc('limitWait.moveNowTitle')}>
-              <ArrowRight {...ICON_SM} /> {tc('limitWait.moveNow')}
-            </Link>
-          )}
-        </>
+        <button type="button" className="btn btn-small btn-quiet" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
+          {tc('limitWait.stop')}
+        </button>
       )}
       {decisions.hint && !hinting && (
         <button type="button" className="btn btn-small btn-quiet" onClick={() => setHinting(true)}>
@@ -379,11 +370,10 @@ function TaskMark({ status, waiting = false }: { status: OrchestrationTaskState[
   );
 }
 
-/** The wait strip of a task: what holds it is the limit, or no counterpart for its model on the other provider (with the way to set one). */
-function TaskWaitLine({ task, wait }: { task: OrchestrationTaskState; wait: LimitWait }) {
+/** The wait strip of a task: what holds it is the limit. */
+function TaskWaitLine({ wait }: { wait: LimitWait }) {
   const { t } = useTranslation('components');
-  const noCounterpart = useNoCounterpart(wait);
-  return <WaitLine wait={wait} why={noCounterpart ? <NoCounterpartWhy provider={noCounterpart.provider} model={task.model} /> : t('limitWait.why')} />;
+  return <WaitLine wait={wait} why={t('limitWait.why')} />;
 }
 
 /**
@@ -397,7 +387,7 @@ function TaskStatusBox({ orch, task }: { orch: Orchestration; task: Orchestratio
   switch (task.status) {
     case 'running':
       // Waiting for a reset is not live work: no ticker, no spinner, the clock and the hour
-      if (task.waiting) return <TaskWaitLine task={task} wait={task.waiting} />;
+      if (task.waiting) return <TaskWaitLine wait={task.waiting} />;
       return task.activity ? (
         <div className="task-box is-live">
           <ActivityTicker activity={task.activity} className="task-ticker" />
@@ -460,25 +450,6 @@ function TaskStatusBox({ orch, task }: { orch: Orchestration; task: Orchestratio
   }
 }
 
-/**
- * The providers a task went through, as chips that open their chats, when it moved or waits. A task
- * that ran on one provider and never waited needs no chain.
- */
-function TaskChain({ task }: { task: OrchestrationTaskState }) {
-  const { t } = useTranslation('components');
-  const movedWords = useMovedWords();
-  const noCounterpart = useNoCounterpart(task.waiting);
-  const chain = task.chain?.length ? task.chain : task.provider && task.sessionId ? [{ chatId: task.sessionId, provider: task.provider, model: task.model ?? null, action: null }] : [];
-  if (chain.length < 2 && !task.waiting) return null;
-  const last = chain[chain.length - 1];
-  const how = noCounterpart
-    ? t('providerChain.noCounterpart', { model: task.model || t('limitWait.itsModel') })
-    : task.waiting
-      ? t('providerChain.keepsPlace')
-      : [movedWords(last?.action), last?.model].filter(Boolean).join(' · ');
-  return <ProviderChain chain={chain} how={how || undefined} />;
-}
-
 /** Everything a task says beyond its head line, the same in a stage's card and in a graph node. */
 function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; task: OrchestrationTaskState; inspected: boolean; onInspect?: () => void }) {
   const { t } = useTranslation('orchestration');
@@ -488,7 +459,6 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
   const actions = useTaskActions(orch, task);
   return (
     <>
-      <TaskChain task={task} />
       <TaskStatusBox orch={orch} task={task} />
       {task.status === 'running' && task.health && task.health.level !== 'ok' && (
         <div className="stack-tight">
@@ -528,8 +498,6 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
             </span>
           )}
           {task.model && <span className="mono">{task.model}</span>}
-          {/* What the task's last chat ran with, beside its model */}
-          <EffortTag effort={task.chain?.at(-1)?.effort} />
           {/* The branch is how the work is found afterwards, so it is worth the space */}
           {task.branch && (
             <span className="mono ellipsis" title={task.worktree ?? undefined}>

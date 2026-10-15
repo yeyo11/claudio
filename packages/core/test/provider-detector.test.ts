@@ -5,13 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { ModelOption, ProviderLimit, ProvidersSettings } from '@agentry/shared';
+import type { ProviderLimit, ProvidersSettings } from '@agentry/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
 import { ProviderLimits, type ProviderLimitStore } from '../src/providers/limits.ts';
 import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
 import { confirmClaudeInit } from '../src/providers/claude-code/handshake.ts';
-import { AcpDriver } from '../src/providers/acp/driver.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from '../src/providers/registry.ts';
 import type { SessionInit } from '../src/providers/driver.ts';
 
@@ -60,42 +59,6 @@ function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettin
 
 const CLAUDE = (version: string, loggedIn: boolean) =>
   `case "$1" in --version) echo "${version} (Claude Code)";; auth) echo '{"loggedIn": ${String(loggedIn)}, "email": "me@example.com"}';; esac`;
-const CODEX = (loginExit: number) =>
-  `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit ${String(loginExit)};; esac`;
-
-/** Copilot's state file as 1.0.91 writes it: comment lines, then JSON with the accounts that signed in */
-const COPILOT_CONFIG = `// User settings belong in settings.json.
-// This file is managed automatically.
-{
-  "firstLaunchAt": "2026-03-11T00:00:00.000Z",
-  "lastLoggedInUser": { "host": "https://github.com", "login": "octocat" },
-  "loggedInUsers": [
-    { "host": "https://github.com", "login": "monalisa" },
-    { "host": "https://github.com", "login": "octocat", "kind": "githubDotCom" },
-    { "host": "https://acme.ghe.com", "login": "hubot" }
-  ]
-}
-`;
-
-/** gh's hosts.yml with two hosts, and a token gh keeps in plain text where it has no keyring */
-const GH_HOSTS = `github.com:
-    git_protocol: https
-    users:
-        monalisa:
-        octocat:
-            oauth_token: gho_plainTextTokenNeverKept
-    user: octocat
-    oauth_token: gho_plainTextTokenNeverKept
-acme.ghe.com:
-    users:
-        hubot:
-    user: hubot
-`;
-
-async function copilotSignedIn(dir: string, text: string): Promise<void> {
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'config.json'), text);
-}
 
 async function statusOf(d: ProviderDetector, id: string) {
   const status = (await d.refresh()).find((s) => s.id === id);
@@ -118,24 +81,16 @@ describe('satisfiesRange', () => {
 });
 
 describe('ProviderDetector', () => {
-  it('lists every provider as not installed on an empty machine', async () => {
+  it('lists Claude Code as not installed on an empty machine', async () => {
     const all = await detector().refresh();
-    assert.deepEqual(all.map((s) => s.id), ['claude-code', 'codex', 'gemini', 'copilot', 'opencode']);
+    assert.deepEqual(all.map((s) => s.id), ['claude-code']);
     for (const s of all) assert.deepEqual([s.state, s.reason, s.binaryPath], ['not-installed', 'binary-not-found', null]);
   });
 
   it('says used-before when only the config home is there', async () => {
-    await mkdir(join(home, '.codex'));
-    const codex = await statusOf(detector(), 'codex');
-    assert.deepEqual([codex.state, codex.reason, codex.configHome], ['used-before', 'config-home-only', join(home, '.codex')]);
-  });
-
-  it('resolves the Gemini config home from its parent variable', async () => {
-    await mkdir(join(home, 'g', '.gemini'), { recursive: true });
-    const env = { PATH: bin, HOME: home, GEMINI_CLI_HOME: join(home, 'g') };
-    const d = new ProviderDetector({ config: loadConfig(env), env, home, resolvePath: async () => bin });
-    const gemini = (await d.refresh()).find((s) => s.id === 'gemini');
-    assert.equal(gemini?.configHome, join(home, 'g', '.gemini'));
+    await mkdir(join(home, '.claude'));
+    const claude = await statusOf(detector(), 'claude-code');
+    assert.deepEqual([claude.state, claude.reason, claude.configHome], ['used-before', 'config-home-only', join(home, '.claude')]);
   });
 
   it('is ready when installed, compatible and signed in, with the account', async () => {
@@ -148,16 +103,8 @@ describe('ProviderDetector', () => {
 
   it('is signed-out when the login probe says so', async () => {
     await fake('claude', CLAUDE('2.1.285', false));
-    await fake('codex', CODEX(1));
-    const all = await detector().refresh();
-    assert.equal(all.find((s) => s.id === 'claude-code')?.state, 'signed-out');
-    const codex = all.find((s) => s.id === 'codex');
-    assert.deepEqual([codex?.state, codex?.reason, codex?.version], ['signed-out', 'missing-credentials', '0.159.3']);
-  });
-
-  it('reads an exit-code login probe as ready', async () => {
-    await fake('codex', CODEX(0));
-    assert.equal((await statusOf(detector(), 'codex')).state, 'ready');
+    const claude = await statusOf(detector(), 'claude-code');
+    assert.deepEqual([claude.state, claude.reason, claude.version], ['signed-out', 'missing-credentials', '2.1.285']);
   });
 
   it('is incompatible outside the tested range, on either side', async () => {
@@ -170,195 +117,29 @@ describe('ProviderDetector', () => {
     assert.equal((await statusOf(detector(), 'claude-code')).reason, 'version-above-range');
   });
 
-  it('says unknown with no-probe when the vendor documents no login check', async () => {
-    await fake('gemini', 'echo "0.62.0"');
-    const gemini = await statusOf(detector(), 'gemini');
-    assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.62.0']);
-  });
-
-  it('reads Copilot\'s sign-in from the accounts its state file lists, wherever COPILOT_HOME puts it', async () => {
-    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.91."');
-    const signedOut = await statusOf(detector(), 'copilot');
-    assert.deepEqual([signedOut.state, signedOut.reason], ['signed-out', 'missing-credentials'], 'no state file, no login');
-
-    const own = join(home, '.copilot');
-    // Other state and no account: never signed in
-    await copilotSignedIn(own, '// This file is managed automatically.\n{ "firstLaunchAt": "2026-03-11T00:00:00.000Z", "loggedInUsers": [] }');
-    assert.equal((await statusOf(detector(), 'copilot')).state, 'signed-out');
-    // A token in the environment is the sign-in GitHub documents for programs and containers
-    for (const name of ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) {
-      const withToken = await statusOf(detector({ env: { [name]: 'github_pat_set' } }), 'copilot');
-      assert.deepEqual([withToken.state, withToken.reason, withToken.account], ['ready', null, null], name);
-    }
-
-    await copilotSignedIn(own, COPILOT_CONFIG);
-    const ready = await statusOf(detector(), 'copilot');
-    assert.deepEqual([ready.state, ready.account], ['ready', 'octocat'], 'the account in use, read past the comment lines');
-    await copilotSignedIn(own, COPILOT_CONFIG.replace('"lastLoggedInUser": { "host": "https://github.com", "login": "octocat" }', '"lastLoggedInUser": { "host": "https://acme.ghe.com", "login": "hubot" }'));
-    assert.equal((await statusOf(detector(), 'copilot')).account, 'hubot@acme.ghe.com', 'an account on another host says which');
-    await copilotSignedIn(own, '{ "loggedInUsers": [ { "host": "https://github.com", "login": "monalisa" } ] }');
-    assert.equal((await statusOf(detector(), 'copilot')).account, 'monalisa', 'with none marked in use, the first listed');
-
-    const moved = join(root, `copilot-home${n}`);
-    await copilotSignedIn(moved, COPILOT_CONFIG);
-    await rm(own, { recursive: true });
-    assert.equal((await statusOf(detector(), 'copilot')).state, 'signed-out');
-    assert.equal((await statusOf(detector({ env: { COPILOT_HOME: moved } }), 'copilot')).state, 'ready', 'COPILOT_HOME moves the file');
-  });
-
-  it('reads Copilot as signed in when the gh on its PATH holds a github.com token, and asks gh nothing else', async () => {
-    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.93."');
-    const calls = join(root, `gh-calls${n}`);
-    // The token goes to stdout as gh prints it; only the exit code and a non-empty answer may count
-    const gh = (exit: number) => fake('gh', `echo "$*" >> "${calls}"\n[ "${String(exit)}" = 0 ] && echo gho_secretTokenNeverKept\nexit ${String(exit)}`);
-
-    await gh(1);
-    const out = await statusOf(detector(), 'copilot');
-    assert.deepEqual([out.state, out.reason], ['signed-out', 'missing-credentials'], 'a signed-out gh is no fallback');
-
-    await gh(0);
-    const events: AgentryEventInput[] = [];
-    const ready = await statusOf(detector({ events }), 'copilot');
-    assert.deepEqual([ready.state, ready.reason], ['ready', null]);
-    assert.ok(!JSON.stringify(ready).includes('gho_secretTokenNeverKept'));
-    assert.ok(!JSON.stringify(events).includes('gho_secretTokenNeverKept'));
-    assert.deepEqual([...new Set(readFileSync(calls, 'utf8').trim().split('\n'))], ['auth token --hostname github.com']);
-
-    // A gh that hangs is stopped by the probe's clock and counts as no sign-in
-    await fake('gh', 'while :; do :; done');
-    const slow = await statusOf(detector({ probeTimeoutMs: 300 }), 'copilot');
-    assert.equal(slow.state, 'signed-out');
-  });
-
-  it('names the account Copilot uses through gh from the user gh wrote for the host, and never the token beside it', async () => {
-    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.93."');
-    await fake('gh', 'echo gho_secretTokenNeverKept');
-    const hosts = (dir: string) => mkdir(dir, { recursive: true }).then(() => writeFile(join(dir, 'hosts.yml'), GH_HOSTS));
-    await hosts(join(home, '.config', 'gh'));
-    const ready = await statusOf(detector(), 'copilot');
-    assert.deepEqual([ready.state, ready.account], ['ready', 'octocat']);
-    assert.ok(!JSON.stringify(ready).includes('plainTextTokenNeverKept'));
-
-    const moved = join(root, `gh-config${n}`);
-    await hosts(moved);
-    await rm(join(home, '.config', 'gh'), { recursive: true });
-    assert.equal((await statusOf(detector(), 'copilot')).account, null, 'no hosts.yml: signed in, with no name');
-    assert.equal((await statusOf(detector({ env: { GH_CONFIG_DIR: moved } }), 'copilot')).account, 'octocat', 'GH_CONFIG_DIR moves the file');
-    assert.equal((await statusOf(detector({ env: { XDG_CONFIG_HOME: root, GH_CONFIG_DIR: '' } }), 'copilot')).account, null, 'XDG_CONFIG_HOME/gh is read when GH_CONFIG_DIR is unset');
-  });
-
-  it('asks gh about the GitHub Enterprise Cloud host COPILOT_GH_HOST or GH_HOST names, and names the account with its host', async () => {
-    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.93."');
-    const calls = join(root, `gh-calls${n}`);
-    await fake('gh', `echo "$*" >> "${calls}"\necho gho_x`);
-    await mkdir(join(home, '.config', 'gh'), { recursive: true });
-    await writeFile(join(home, '.config', 'gh', 'hosts.yml'), GH_HOSTS);
-
-    const ghe = await statusOf(detector({ env: { GH_HOST: 'acme.ghe.com' } }), 'copilot');
-    assert.deepEqual([ghe.state, ghe.account], ['ready', 'hubot@acme.ghe.com']);
-    await statusOf(detector({ env: { GH_HOST: 'ghes.example.com', COPILOT_GH_HOST: 'https://acme.ghe.com' } }), 'copilot');
-    assert.deepEqual([...new Set(readFileSync(calls, 'utf8').trim().split('\n'))], ['auth token --hostname acme.ghe.com'], 'COPILOT_GH_HOST overrides GH_HOST');
-
-    const enterprise = await statusOf(detector({ env: { GH_HOST: 'acme.ghe.com', GH_ENTERPRISE_TOKEN: 'x' } }), 'copilot');
-    assert.equal(enterprise.account, null, 'gh answers with the enterprise token, whose account the file does not name');
-    const bad = await statusOf(detector({ env: { COPILOT_GH_HOST: '--hostname' } }), 'copilot');
-    assert.equal(bad.state, 'signed-out', 'a variable that names no host has no gh sign-in to stand in');
-  });
-
-  it('asks gh only for a provider whose vendor documents it as a credential source', async () => {
-    const calls = join(root, `gh-calls${n}`);
-    await fake('gh', `echo "$*" >> "${calls}"\necho gho_x`);
-    await fake('codex', CODEX(1));
-    const codex = await statusOf(detector(), 'codex');
-    assert.equal(codex.state, 'signed-out');
-    assert.equal(existsSync(calls), false, 'no Copilot installed, no other provider with the fallback: gh never ran');
-  });
-
-  it('keeps the models a Copilot chat was offered, and hands them back after a restart', async () => {
-    const copilotManifest = PROVIDER_MANIFESTS.find((m) => m.id === 'copilot');
-    assert.ok(copilotManifest);
-    // The chat's side is the driver's own test; here, what the detector does with what it hears
-    class Heard extends AcpDriver {
-      listener: ((models: ModelOption[]) => void) | null = null;
-      override watchCatalog(listener: (models: ModelOption[]) => void): void {
-        this.listener = listener;
-        super.watchCatalog(listener);
-      }
-    }
-    const first = new Heard(copilotManifest);
-    detector({ registry: new ProviderRegistry(PROVIDER_MANIFESTS, [first]) });
-    assert.ok(first.listener, 'the detector listens to the driver');
-    first.listener([{ value: 'auto', label: 'Auto' }, { value: 'gpt-5.2', label: 'GPT-5.2' }]);
-    const file = join(home, 'data', 'provider-catalogs.json');
-    await until(() => existsSync(file));
-    assert.deepEqual((JSON.parse(readFileSync(file, 'utf8')) as Record<string, { models: Array<{ value: string }> }>).copilot?.models.map((m) => m.value), ['auto', 'gpt-5.2']);
-
-    const after = new Heard(copilotManifest);
-    detector({ registry: new ProviderRegistry(PROVIDER_MANIFESTS, [after]) });
-    assert.deepEqual(after.models().map((m) => m.value), ['auto', 'gpt-5.2'], 'the picker has them before any chat of this run');
-  });
-
-  it('reads OpenCode sign-in from the credentials file its login writes', async () => {
-    await fake('opencode', 'echo "1.18.34"');
-    const signedOut = await statusOf(detector(), 'opencode');
-    assert.deepEqual([signedOut.state, signedOut.reason, signedOut.version], ['signed-out', 'missing-credentials', '1.18.34']);
-    const data = join(home, '.local', 'share', 'opencode');
-    await mkdir(data, { recursive: true });
-    await writeFile(join(data, 'auth.json'), '{}');
-    assert.equal((await statusOf(detector(), 'opencode')).state, 'signed-out', 'an empty object holds no login');
-    await writeFile(join(data, 'auth.json'), '{"anthropic": {"type": "api"}}');
-    assert.equal((await statusOf(detector(), 'opencode')).state, 'ready');
-    await writeFile(join(data, 'auth.json'), 'not json');
-    assert.equal((await statusOf(detector(), 'opencode')).state, 'unknown', 'a file it cannot read is not a missing login');
-  });
-
-  it('says OpenCode was used before from its config home alone', async () => {
-    await mkdir(join(home, '.config', 'opencode'), { recursive: true });
-    assert.equal((await statusOf(detector(), 'opencode')).state, 'used-before');
-  });
-
   it('keeps a probe that hangs from holding the rest', async () => {
-    await fake('gemini', 'exec /bin/sleep 30');
-    await fake('codex', CODEX(0));
+    await fake('claude', 'exec /bin/sleep 30');
     const started = Date.now();
-    const all = await detector({ probeTimeoutMs: 1_500 }).refresh();
-    assert.ok(Date.now() - started < 5_000);
-    const gemini = all.find((s) => s.id === 'gemini');
-    assert.deepEqual([gemini?.state, gemini?.reason], ['unknown', 'probe-timeout']);
-    assert.equal(all.find((s) => s.id === 'codex')?.state, 'ready');
+    const claude = await statusOf(detector({ probeTimeoutMs: 1_500 }), 'claude-code');
+    assert.ok(Date.now() - started < 8_000);
+    assert.deepEqual([claude.state, claude.reason], ['unknown', 'probe-timeout']);
   });
 
-  it('says unreadable for a version it cannot parse, and spawn-failed for a crash', async () => {
-    await fake('gemini', 'echo "no numbers here"');
-    await fake('codex', 'exit 3');
-    const all = await detector().refresh();
-    assert.equal(all.find((s) => s.id === 'gemini')?.reason, 'version-unreadable');
-    assert.equal(all.find((s) => s.id === 'codex')?.reason, 'spawn-failed');
+  it('says spawn-failed for a crash', async () => {
+    await fake('claude', 'exit 3');
+    assert.equal((await statusOf(detector(), 'claude-code')).reason, 'spawn-failed');
   });
 
   it('uses the binary the person points at before the PATH', async () => {
-    await fake('codex', 'echo "codex-cli 0.1.0"');
+    await fake('claude', CLAUDE('2.1.100', true));
     const elsewhere = join(root, `elsewhere${n}`);
-    await writeFile(elsewhere, '#!/bin/sh\ncase "$1" in --version) echo "codex-cli 0.9.0";; login) exit 0;; esac\n');
+    await writeFile(elsewhere, `#!/bin/sh\n${CLAUDE('2.1.285', true)}\n`);
     await chmod(elsewhere, 0o755);
-    const settings: ProvidersSettings = { providers: { codex: { enabled: true, binaryPath: elsewhere } }, order: [], defaultProvider: null };
-    const codex = await statusOf(detector({ settings }), 'codex');
-    assert.deepEqual([codex.binaryPath, codex.version], [elsewhere, '0.9.0']);
-    const missing: ProvidersSettings = { providers: { codex: { enabled: true, binaryPath: join(root, 'nope') } }, order: [], defaultProvider: null };
-    assert.equal((await statusOf(detector({ settings: missing }), 'codex')).reason, 'binary-not-found');
-  });
-
-  it('does not probe a disabled provider, and follows the order in settings', async () => {
-    await fake('codex', 'echo probed >> "$0.log"; echo "codex-cli 0.159.3"');
-    const settings: ProvidersSettings = {
-      providers: { codex: { enabled: false, binaryPath: null } },
-      order: ['copilot', 'codex'],
-      defaultProvider: null,
-    };
-    const all = await detector({ settings }).refresh();
-    assert.deepEqual(all.map((s) => s.id), ['copilot', 'codex', 'claude-code', 'gemini', 'opencode']);
-    assert.deepEqual([all[1]?.state, all[1]?.reason], ['unknown', 'disabled']);
-    assert.equal(existsSync(join(bin, 'codex.log')), false);
+    const settings: ProvidersSettings = { providers: { 'claude-code': { enabled: true, binaryPath: elsewhere } }, order: [], defaultProvider: null };
+    const claude = await statusOf(detector({ settings }), 'claude-code');
+    assert.deepEqual([claude.binaryPath, claude.version], [elsewhere, '2.1.285']);
+    const missing: ProvidersSettings = { providers: { 'claude-code': { enabled: true, binaryPath: join(root, 'nope') } }, order: [], defaultProvider: null };
+    assert.equal((await statusOf(detector({ settings: missing }), 'claude-code')).reason, 'binary-not-found');
   });
 
   it('emits providers.changed only when a status changes', async () => {
@@ -378,14 +159,15 @@ describe('ProviderDetector', () => {
 
   it('serves the cache inside the TTL and reads once for concurrent refreshes', async () => {
     const counter = join(root, `count${n}`);
-    await fake('codex', `echo x >> "${counter}"; case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; esac`);
+    await fake('claude', `echo x >> "${counter}"; ${CLAUDE('2.1.285', true)}`);
     const d = detector();
     await Promise.all([d.refresh(), d.refresh()]);
     const lines = () => readFileSync(counter, 'utf8').trim().split('\n').length;
-    // This codex does not speak app-server: its handshake fails, once, and is not repeated inside the TTL
-    assert.equal(lines(), 3, 'one version probe, one login probe and one handshake');
+    const once = lines();
     await d.statuses();
-    assert.equal(lines(), 3);
+    assert.equal(lines(), once, 'the cache answers inside the TTL');
+    await d.refresh();
+    assert.ok(lines() > once, 'a refresh reads again');
   });
 
   it('answers a refresh asked while another runs with a detection that starts after it', async () => {
@@ -393,18 +175,21 @@ describe('ProviderDetector', () => {
     const release = join(root, `release${n}`);
     // Each login probe reads the state as it starts, then the first one waits for the test to let it
     // go, so the first detection is still running when the state changes
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit "$s";; esac`);
-    await writeFile(state, '1');
+    await fake(
+      'claude',
+      `case "$1" in --version) echo "2.1.285 (Claude Code)";; auth) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; echo "{\\"loggedIn\\": $s}";; esac`,
+    );
+    await writeFile(state, 'false');
     const d = detector();
     const first = d.refresh();
     await new Promise((resolve) => setTimeout(resolve, 150));
     const second = d.refresh();
     const third = d.refresh();
     assert.equal(second, third, 'everyone asking meanwhile shares one follow-up');
-    await writeFile(state, '0');
+    await writeFile(state, 'true');
     await writeFile(release, '');
-    assert.equal((await first).find((s) => s.id === 'codex')?.state, 'signed-out');
-    assert.equal((await second).find((s) => s.id === 'codex')?.state, 'ready', 'the follow-up read the change');
+    assert.equal((await first).find((s) => s.id === 'claude-code')?.state, 'signed-out');
+    assert.equal((await second).find((s) => s.id === 'claude-code')?.state, 'ready', 'the follow-up read the change');
   });
 
   it('re-detects on its own when a binary lands on the PATH', async () => {
@@ -413,10 +198,10 @@ describe('ProviderDetector', () => {
     await d.refresh();
     await d.startWatching();
     try {
-      await fake('codex', CODEX(0));
+      await fake('claude', CLAUDE('2.1.285', true));
       await until(() => events.length > 0);
       assert.equal(events.length, 1);
-      assert.equal(d.knownOne('codex')?.state, 'ready');
+      assert.equal(d.knownOne('claude-code')?.state, 'ready');
     } finally {
       d.close();
     }
@@ -428,29 +213,12 @@ describe('ProviderDetector', () => {
     await d.refresh();
     await d.startWatching();
     try {
-      await mkdir(join(home, '.codex'));
+      await mkdir(join(home, '.claude'));
       await until(() => events.length > 0);
-      assert.equal(d.knownOne('codex')?.state, 'used-before');
+      assert.equal(d.knownOne('claude-code')?.state, 'used-before');
     } finally {
       d.close();
     }
-  });
-
-  it('lands a full detection that ends after a newer reading of Claude Code alone', async () => {
-    const release = join(root, `release${n}`);
-    await fake('claude', CLAUDE('2.1.285', false));
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit 0;; esac`);
-    const d = detector();
-    const full = d.refresh();
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    await d.refresh({
-      only: ['claude-code'],
-      claude: { cli: { installed: true, version: '2.1.285', path: join(bin, 'claude') }, auth: { loggedIn: true, tokenSource: 'none' } },
-    });
-    await writeFile(release, '');
-    await full;
-    assert.equal(d.knownOne('codex')?.state, 'ready', 'the older full detection still lands for the providers the newer one did not read');
-    assert.equal(d.knownOne('claude-code')?.state, 'ready', 'and the newer reading of Claude Code stays');
   });
 
   it('takes Claude Code from a reading already made, without spawning it again', async () => {
@@ -543,114 +311,27 @@ describe('capabilities confirmed by a session', () => {
   });
 });
 
-describe('driver handshakes', () => {
-  const codex = (): Promise<string> =>
-    fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exec "${process.execPath}" "${FIXTURES}fake-codex-app-server.mjs" "$@";; esac`);
-  const copilot = (): Promise<string> => fake('copilot', `exec "${process.execPath}" "${FIXTURES}fake-acp-agent.mjs" --profile copilot "$@"`);
-  const spawns = (file: string): number => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').length : 0);
-
-  it('fills the account, the modes, the confirmation and the catalog from the Codex handshake', async () => {
-    await codex();
-    const catalogs = join(home, 'data', 'provider-catalogs.json');
-    const d = detector({ env: { FAKE_CODEX_PLAN: 'pro' } });
-    const status = await statusOf(d, 'codex');
-    assert.deepEqual([status.state, status.account], ['ready', 'ChatGPT pro']);
-    assert.ok(status.permissionModes && status.permissionModes.length > 0);
-    assert.equal(status.confirmed?.version, '0.159.3');
-    assert.ok(status.confirmed.capabilities.every((c) => status.capabilities.includes(c)));
-    await until(() => existsSync(catalogs));
-    const saved = JSON.parse(readFileSync(catalogs, 'utf8')) as Record<string, { version: string; models: unknown[] }>;
-    assert.equal(saved.codex?.version, '0.159.3');
-    assert.ok((saved.codex?.models.length ?? 0) > 1);
-  });
-
-  it('runs a handshake once per binary and version, not once per detection', async () => {
-    await codex();
-    const log = join(root, `spawns${n}`);
-    const d = detector({ env: { FAKE_CODEX_SPAWNS: log } });
-    await d.refresh();
-    await d.refresh();
-    assert.equal(spawns(log), 1);
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.4";; login) exit 0;; *) exec "${process.execPath}" "${FIXTURES}fake-codex-app-server.mjs" "$@";; esac`);
-    await d.refresh();
-    assert.equal(spawns(log), 2, 'a new version is read again');
-  });
-
-  it('keeps the probes\' answer when the handshake fails', async () => {
-    await fake('codex', 'case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exit 3;; esac');
-    const d = detector();
-    const status = await statusOf(d, 'codex');
-    assert.deepEqual([status.state, status.account, status.confirmed ?? null], ['ready', null, null]);
-    assert.ok(status.permissionModes && status.permissionModes.length > 0, 'the modes come from the driver, not the handshake');
-  });
-
-  it('asks an ACP agent only to initialize, with Copilot\'s updates off, and confirms what it offers', async () => {
-    await copilot();
-    await copilotSignedIn(join(home, '.copilot'), COPILOT_CONFIG);
-    const log = join(root, `acp${n}.jsonl`);
-    const status = await statusOf(detector({ env: { FAKE_ACP_LOG: log, FAKE_ACP_VERSION: '1.0.90' } }), 'copilot');
-    // An agent answers initialize signed in or not: the account comes from the CLI's state file
-    assert.deepEqual([status.state, status.reason, status.account], ['ready', null, 'octocat']);
-    assert.equal(status.version, '1.0.90');
-    assert.equal(status.confirmed?.version, '1.0.90');
-    assert.ok(status.confirmed.capabilities.includes('resume'));
-    assert.ok(status.permissionModes && status.permissionModes.length > 0);
-    const rows = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { dir: string; argv?: string[]; env?: Record<string, string | null>; line?: { method?: string } });
-    const start = rows.find((r) => r.dir === 'start');
-    assert.ok(start?.argv?.includes('--no-auto-update'));
-    assert.equal(start?.env?.COPILOT_AUTO_UPDATE, 'false');
-    const asked = rows.filter((r) => r.dir === 'in').map((r) => r.line?.method);
-    assert.deepEqual(asked.filter((m) => m !== 'initialize' && m !== undefined && !m.startsWith('notifications')), [], 'no session is started');
-  });
-
-  it('does not run a handshake for a signed-out provider', async () => {
-    await fake('codex', CODEX(1));
-    const status = await statusOf(detector(), 'codex');
-    assert.equal(status.state, 'signed-out');
-    assert.equal(status.permissionModes, undefined);
-  });
-});
-
 describe('provider limits in the status', () => {
-  const codex = (): Promise<string> =>
-    fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exec "${process.execPath}" "${FIXTURES}fake-codex-app-server.mjs" "$@";; esac`);
   const memory = (): ProviderLimitStore => {
     const rows = new Map<string, ProviderLimit>();
     return { upsertProviderLimit: (l) => !!rows.set(l.provider, l), providerLimit: (p) => rows.get(p) ?? null, providerLimits: () => [...rows.values()] };
   };
 
-  it('reads the account limits in the Codex handshake and says ready while there is room', async () => {
-    await codex();
-    const limits = new ProviderLimits(memory());
-    const status = await statusOf(detector({ limits, env: { FAKE_CODEX_USED: '30' } }), 'codex');
-    assert.equal(status.state, 'ready');
-    assert.equal(status.reason, null);
-    assert.deepEqual([status.limit?.state, status.limit?.source], ['ok', 'probe']);
-  });
-
-  it('degrades a provider near its limit and one that reached it, with the reading on the status', async () => {
-    await codex();
-    const near = await statusOf(detector({ limits: new ProviderLimits(memory()), env: { FAKE_CODEX_USED: '70' } }), 'codex');
-    assert.deepEqual([near.state, near.reason, near.limit?.state], ['degraded', 'limit-near', 'near']);
-    const spent = await statusOf(detector({ limits: new ProviderLimits(memory()), env: { FAKE_CODEX_USED: '100' } }), 'codex');
-    assert.deepEqual([spent.state, spent.reason, spent.limit?.state], ['degraded', 'limit-reached', 'exhausted']);
-  });
-
   it('serves a limit a chat reported without a detection, and announces it', async () => {
-    await codex();
+    await fake('claude', CLAUDE('2.1.285', true));
     const limits = new ProviderLimits(memory());
     const events: AgentryEventInput[] = [];
     const d = detector({ limits, events });
     await d.refresh();
     events.length = 0;
-    limits.observeFailure('codex');
-    const status = d.knownOne('codex');
+    limits.observeFailure('claude-code');
+    const status = d.knownOne('claude-code');
     assert.deepEqual([status?.state, status?.reason], ['degraded', 'limit-reached']);
     assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1);
   });
 
   it('reads a provider whose limit was never reported as having none', async () => {
-    const status = await statusOf(detector({ limits: new ProviderLimits(memory()) }), 'copilot');
+    const status = await statusOf(detector({ limits: new ProviderLimits(memory()) }), 'claude-code');
     assert.equal(status.limit, null);
   });
 });

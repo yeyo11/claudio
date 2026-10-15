@@ -180,12 +180,12 @@ test('a limit that is not known says nothing: a stale reading is never "fine"', 
 test("the phone's More card speaks for the default provider, else the first that is ready", () => {
   const statuses = [
     { id: 'claude-code', state: 'degraded' },
-    { id: 'codex', state: 'ready' },
-    { id: 'copilot', state: 'ready' },
+    { id: 'spare-agent', state: 'ready' },
+    { id: 'other-agent', state: 'ready' },
   ] as const;
-  assert.equal(cardProvider(statuses, 'copilot')?.id, 'copilot');
-  assert.equal(cardProvider(statuses, null)?.id, 'codex');
-  assert.equal(cardProvider(statuses, 'gemini')?.id, 'codex');
+  assert.equal(cardProvider(statuses, 'other-agent')?.id, 'other-agent');
+  assert.equal(cardProvider(statuses, null)?.id, 'spare-agent');
+  assert.equal(cardProvider(statuses, 'third-agent')?.id, 'spare-agent');
   assert.equal(cardProvider([{ id: 'claude-code', state: 'degraded' }], null)?.id, 'claude-code');
   assert.equal(cardProvider([], null), null);
 });

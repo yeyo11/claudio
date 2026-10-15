@@ -26,8 +26,8 @@ test('the setup assistant stands in for the app until it is finished or skipped,
 });
 
 test('nothing is found only when every provider is missing', () => {
-  assert.equal(nothingFound([status('claude-code', 'Claude Code', 'not-installed'), status('codex', 'Codex', 'not-installed')]), true);
-  assert.equal(nothingFound([status('claude-code', 'Claude Code', 'not-installed'), status('codex', 'Codex', 'used-before')]), false);
+  assert.equal(nothingFound([status('claude-code', 'Claude Code', 'not-installed'), status('spare-agent', 'Spare Agent', 'not-installed')]), true);
+  assert.equal(nothingFound([status('claude-code', 'Claude Code', 'not-installed'), status('spare-agent', 'Spare Agent', 'used-before')]), false);
   assert.equal(nothingFound([]), false);
 });
 

@@ -19,7 +19,6 @@ import { Tag } from '@agentry/ui/components/ui';
 
 export interface ProviderRowProps {
   status: ProviderStatus;
-  isDefault?: boolean;
   /** Off in the settings: shown as such, and no remedy is offered for what is not being checked */
   enabled?: boolean;
   /** A detection is running for it: the state is replaced by a note until the answer comes */
@@ -80,7 +79,6 @@ function versionLine(status: ProviderStatus): string {
  */
 export function ProviderRow({
   status,
-  isDefault = false,
   enabled = true,
   checking = false,
   variant = 'row',
@@ -103,10 +101,7 @@ export function ProviderRow({
 
   const identity = (
     <div className="prov-id">
-      <span className="prov-name">
-        {status.label}
-        {isDefault && <span className="badge badge-project"><span className="badge-text">{t('row.default')}</span></span>}
-      </span>
+      <span className="prov-name">{status.label}</span>
       {variant === 'row' && <span className="prov-account">{account}</span>}
       {meta && <span className="prov-meta ellipsis" title={meta}>{meta}</span>}
     </div>

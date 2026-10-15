@@ -21,7 +21,6 @@ import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS,
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
 import { parseOnLimit } from './providers/settings.ts';
-import { PROVIDER_MANIFESTS } from './providers/registry.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
 import type { ProjectRecord } from './projects.ts';
@@ -313,23 +312,12 @@ function parseTracker(value: unknown): ProjectTrackerSettings {
 }
 
 /**
- * What a project overrides of the providers: the order its work picks them in and the `onLimit`
- * fields it sets. An absent field inherits, so nothing is filled in here. Provider ids are checked
- * against the registry, since the order is a list of them.
+ * What a project overrides of the providers: the `onLimit` fields it sets. An absent field inherits,
+ * so nothing is filled in here. The `order` an old file may hold is dropped: there is one provider.
  */
 function parseProviders(value: unknown): ProjectProvidersSettings {
   if (!isObject(value)) throw new Error('providers must be an object');
   const result: ProjectProvidersSettings = {};
-  if (value.order !== undefined) {
-    if (!Array.isArray(value.order)) throw new Error('providers.order must be an array');
-    const known = PROVIDER_MANIFESTS.map((m) => m.id);
-    const order = value.order.map((id) => {
-      if (typeof id !== 'string' || !known.includes(id)) throw new Error(`providers.order entry must be one of ${known.join(', ')}`);
-      return id;
-    });
-    if (new Set(order).size !== order.length) throw new Error('providers.order lists a provider twice');
-    if (order.length > 0) result.order = order;
-  }
   if (value.onLimit !== undefined && value.onLimit !== null) {
     const onLimit = parseOnLimit(value.onLimit, 'providers.onLimit');
     if (Object.keys(onLimit).length > 0) result.onLimit = onLimit;

@@ -97,18 +97,12 @@
     "pasteKey": "Pega la clave",
     "pasteToken": "Pega el token",
     "field": {
-      "codex": "Clave de API de OpenAI",
-      "gemini": "Clave de API de Gemini",
-      "copilot": "Token de GitHub",
       "gh": "Token de acceso personal",
       "glab": "Token de acceso personal",
       "tailscale": "Clave de autenticación de Tailscale"
     },
     "link": {
       "claude-code": "Cómo se crea el token",
-      "codex": "Crear una clave en platform.openai.com",
-      "gemini": "Crear una clave en aistudio.google.com",
-      "copilot": "Crear un token en github.com",
       "gh": "Crear un token en {{host}}",
       "glab": "Crear un token en {{host}}",
       "tailscale": "Crear una clave de autenticación en la consola de Tailscale"
@@ -116,9 +110,6 @@
     "hint": {
       "envSealed": "Se guarda cifrada y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
       "envPlain": "Se guarda en un archivo que solo puede leer el usuario del servidor, y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
-      "opencode": "OpenCode usa la clave del proveedor que elijas; Agentry la guarda y se la da en esa variable.",
-      "codex": "Codex la guarda en su propia configuración; Agentry no se queda con una copia.",
-      "copilot": "Un token de grano fino con el permiso Copilot Requests; un token clásico (ghp_…) no sirve.",
       "gh": "Con los permisos repo, read:org y workflow. gh lo guarda en su propia configuración; Agentry no se queda con una copia.",
       "glab": "Con los permisos api y write_repository. glab lo guarda en su propia configuración; Agentry no se queda con una copia.",
       "tailscale": "Basta con usarla una vez: Tailscale mantiene la sesión de esta máquina con una clave propia y Agentry no se queda con una copia. Llega a Tailscale por un archivo que solo él puede leer y que se borra justo después."
@@ -129,12 +120,7 @@
     "saving": "Comprobando…",
     "cancel": "Cancelar",
     "getCode": "Pedir un código",
-    "codexNote": "Si ChatGPT no deja entrar con un código, activa antes el inicio de sesión con código de dispositivo en los ajustes de seguridad de tu cuenta de ChatGPT.",
-    "codexLink": "Abrir los ajustes de ChatGPT",
     "viaNote": "{{label}} usa tu sesión de {{via}} ({{cli}}). Este código inicia la sesión de {{cli}} en {{host}}, y desde entonces {{label}} funciona con ella.",
-    "refused": {
-      "classicToken": "Copilot no admite un token clásico (ghp_…). Crea uno de grano fino con el permiso Copilot Requests."
-    },
     "starting": "Pidiendo un código a {{label}}…",
     "startingLink": "Pidiendo a {{label}} un enlace para iniciar sesión…",
     "open": "Abre esta página en cualquier dispositivo:",

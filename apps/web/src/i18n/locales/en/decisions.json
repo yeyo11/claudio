@@ -111,9 +111,6 @@
       "checksFix": "Decide whether to fix the failing checks of a branch",
       "reviewTriage": "Suggest who should take each review comment",
       "issueTriage": "Suggest which imported issues an agent can start on",
-      "providerOnLimit": "Decide what a run does when its provider hits a limit",
-      "providerPick": "Pick the provider for automated work",
-      "providerModelMap": "Suggest the closest model on another provider",
       "notificationUrgency": "Pick the urgency of each notification",
       "paletteIntent": "Interpret what you type in the palette"
     },
@@ -307,9 +304,6 @@
       "checksFix": "Decided on fixing the checks",
       "reviewTriage": "Suggested who takes each review comment",
       "issueTriage": "Suggested which issues an agent can start on",
-      "providerOnLimit": "Chose what to do at the limit",
-      "providerPick": "Picked the provider",
-      "providerModelMap": "Suggested a model",
       "notificationUrgency": "Set the urgency",
       "paletteIntent": "Picked the command"
     }

@@ -90,7 +90,6 @@ test('the URL and the code are read from each tool\'s recorded device-code outpu
   // Recorded on the pinned versions with no terminal (fixtures/logins/README.md)
   const expected = {
     gh: ['gh-web.stderr', 'https://github.com/login/device', '250D-975E'],
-    codex: ['codex-device-auth.stdout', 'https://auth.openai.com/codex/device', 'LK0N-5V0Q5'],
     glab: ['glab-device.stderr', 'https://gitlab.com/oauth/device', 'WZS9BFLC'],
   } as const;
   for (const [tool, [file, url, code]] of Object.entries(expected) as Array<[keyof typeof DEVICE_PATTERNS, readonly [string, string, string]]>) {
@@ -115,72 +114,27 @@ test('the methods table offers a device sign-in where the vendor documents one',
   const methods = Object.fromEntries(setupMethods().map((m) => [m.tool, m]));
   assert.deepEqual(
     Object.entries(methods).filter(([, m]) => m.device).map(([tool]) => tool).sort(),
-    ['codex', 'copilot', 'gh', 'glab', 'tailscale'],
+    ['gh', 'glab', 'tailscale'],
   );
   assert.deepEqual(methods['claude-code']?.variables, ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
-});
-
-test('Copilot\'s key is kept for its environment and its Code is gh\'s sign-in to github.com, since its own login cannot store a token without a keychain', () => {
-  const copilot = setupMethods({}).find((m) => m.tool === 'copilot');
-  assert.ok(copilot);
-  assert.deepEqual([copilot.key, copilot.variables, copilot.device, copilot.deviceVia], ['env', ['COPILOT_GITHUB_TOKEN'], true, { tool: 'gh', host: 'github.com' }]);
-  // Sign out forgets the kept key only: Copilot's own state and gh's are not Agentry's to undo
-  assert.deepEqual([copilot.signOut, copilot.signOutKeyOnly], [true, true]);
-  assert.equal(setupMethods({}).filter((m) => m.deviceVia !== null).length, 1, 'no other tool lends its sign-in');
-});
-
-test('Copilot\'s Code targets the GitHub Enterprise Cloud host COPILOT_GH_HOST or GH_HOST names, the one Copilot asks gh about', () => {
-  const via = (env: NodeJS.ProcessEnv) => setupMethods(env).find((m) => m.tool === 'copilot')?.deviceVia;
-  assert.deepEqual(via({ GH_HOST: 'acme.ghe.com' }), { tool: 'gh', host: 'acme.ghe.com' });
-  assert.deepEqual(via({ GH_HOST: 'ghes.example.com', COPILOT_GH_HOST: 'https://Acme.ghe.com/' }), { tool: 'gh', host: 'acme.ghe.com' }, 'COPILOT_GH_HOST wins, given as a URL like `copilot login --host`');
-  assert.deepEqual(via({ GH_HOST: '  ' }), { tool: 'gh', host: 'github.com' }, 'a blank variable names nothing');
-  assert.deepEqual(via({ COPILOT_GH_HOST: '--not a host' }), { tool: 'gh', host: null });
-  assert.equal(setupMethods({ GH_HOST: 'acme.ghe.com' }).find((m) => m.tool === 'gh')?.defaultHost, 'github.com', 'gh\'s own row keeps its default');
 });
 
 // ---------- device sign-in ----------
 
 test('a device sign-in shows the URL and the code, and succeeds when the readiness probe says signed in', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout'), FAKE_LOGIN_DELAY_MS: '300' } });
-  const started = await r.logins.start({ tool: 'codex', method: 'device' });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_DELAY_MS: '300' } });
+  const started = await r.logins.start({ tool: 'gh', method: 'device' });
   assert.equal(started.state, 'starting');
   const done = await until(() => ended(r, started.id), 'the sign-in to end');
   assert.equal(done.state, 'succeeded');
   assert.equal(done.ready, true);
-  assert.deepEqual(r.readinessCalls, [{ tool: 'codex', host: null }]);
+  assert.deepEqual(r.readinessCalls, [{ tool: 'gh', host: 'github.com' }]);
   const waiting = r.events.find((e) => e.type === 'login.updated' && e.login.state === 'waiting-for-person');
   assert.ok(waiting && waiting.type === 'login.updated');
-  assert.deepEqual([waiting.login.url, waiting.login.code], ['https://auth.openai.com/codex/device', 'LK0N-5V0Q5']);
+  assert.deepEqual([waiting.login.url, waiting.login.code], ['https://github.com/login/device', '250D-975E']);
   // Nothing else the CLI printed leaves the service
   assert.ok(!JSON.stringify(r.events).includes('phishing'));
-  assert.deepEqual(readRecord(r).argv, ['login', '--device-auth']);
-});
-
-test('Copilot\'s Code starts gh\'s device sign-in to github.com, the session gh\'s row shows', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1' } });
-  const started = await r.logins.start({ tool: 'copilot', method: 'device' });
-  assert.deepEqual([started.tool, started.host], ['gh', 'github.com']);
-  const done = await until(() => ended(r, started.id), 'gh');
-  assert.deepEqual([done.state, done.code], ['succeeded', '250D-975E']);
   assert.deepEqual(readRecord(r).argv, ['auth', 'login', '--web', '--hostname', 'github.com']);
-  assert.deepEqual(r.readinessCalls, [{ tool: 'gh', host: 'github.com' }]);
-  // One live gh sign-in to github.com at a time, whichever row asked for it
-  const hang = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: 'hang' } });
-  const fromGh = await hang.logins.start({ tool: 'gh', method: 'device' });
-  const fromCopilot = await hang.logins.start({ tool: 'copilot', method: 'device' });
-  assert.equal(hang.logins.get(fromGh.id)?.state, 'cancelled');
-  hang.logins.cancel(fromCopilot.id);
-});
-
-test('Copilot\'s Code signs gh in to the host GH_HOST names, and is refused when it names no host', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', GH_HOST: 'acme.ghe.com' } });
-  const started = await r.logins.start({ tool: 'copilot', method: 'device' });
-  assert.deepEqual([started.tool, started.host], ['gh', 'acme.ghe.com']);
-  await until(() => ended(r, started.id), 'gh');
-  assert.deepEqual(readRecord(r).argv, ['auth', 'login', '--web', '--hostname', 'acme.ghe.com']);
-  const bad = rig({ fake: { COPILOT_GH_HOST: '-x' } });
-  await assert.rejects(bad.logins.start({ tool: 'copilot', method: 'device' }), LoginInputError);
-  assert.equal(existsSync(bad.record), false, 'nothing ran');
 });
 
 test('a code printed on stderr counts too (glab), and gh and glab name their host', async () => {
@@ -198,21 +152,21 @@ test('a device sign-in fails with a code, never the CLI\'s text: refused, no cod
   assert.deepEqual(await until(() => ended(refused, a.id), 'refused').then((s) => [s.state, s.error]), ['failed', 'cli-refused']);
 
   const silent = rig({ fake: { FAKE_LOGIN_EXIT: '2' } });
-  const b = await silent.logins.start({ tool: 'codex', method: 'device' });
+  const b = await silent.logins.start({ tool: 'gh', method: 'device' });
   assert.deepEqual(await until(() => ended(silent, b.id), 'no code').then((s) => [s.state, s.error]), ['failed', 'no-code']);
 
-  const out = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout') }, ready: false });
-  const c = await out.logins.start({ tool: 'codex', method: 'device' });
+  const out = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1' }, ready: false });
+  const c = await out.logins.start({ tool: 'gh', method: 'device' });
   assert.deepEqual(await until(() => ended(out, c.id), 'not signed in').then((s) => [s.state, s.error, s.ready]), ['failed', 'not-signed-in', false]);
 
   const missing = rig({ binary: null });
-  const d = await missing.logins.start({ tool: 'codex', method: 'device' });
+  const d = await missing.logins.start({ tool: 'gh', method: 'device' });
   assert.deepEqual([d.state, d.error], ['failed', 'cli-missing']);
 });
 
 test('a device sign-in nobody approves expires, and its process is killed', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout'), FAKE_LOGIN_EXIT: 'hang' }, lifetimeMs: 600 });
-  const started = await r.logins.start({ tool: 'codex', method: 'device' });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: 'hang' }, lifetimeMs: 600 });
+  const started = await r.logins.start({ tool: 'gh', method: 'device' });
   await until(() => (existsSync(r.record) ? true : null), 'the fake to start');
   const { pid } = readRecord(r);
   const done = await until(() => ended(r, started.id), 'expiry');
@@ -234,9 +188,9 @@ test('cancelling a device sign-in kills its process group and ends it cancelled'
 });
 
 test('starting again for the same tool and host cancels the sign-in still waiting', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout'), FAKE_LOGIN_EXIT: 'hang' } });
-  const first = await r.logins.start({ tool: 'codex', method: 'device' });
-  const second = await r.logins.start({ tool: 'codex', method: 'device' });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: 'hang' } });
+  const first = await r.logins.start({ tool: 'gh', method: 'device' });
+  const second = await r.logins.start({ tool: 'gh', method: 'device' });
   assert.equal(r.logins.get(first.id)?.state, 'cancelled');
   r.logins.cancel(second.id);
 });
@@ -244,55 +198,34 @@ test('starting again for the same tool and host cancels the sign-in still waitin
 // ---------- keys ----------
 
 test('a key for a CLI with a login command goes on stdin, never in argv, and the CLI is what stores it', async () => {
-  const secret = 'sk-proj-never-in-argv-123';
+  const secret = 'ghp-never-in-argv-123';
   const r = rig();
-  const codex = await r.logins.start({ tool: 'codex', method: 'key', secret: ` ${secret} ` });
-  assert.deepEqual([codex.state, codex.ready], ['succeeded', true]);
+  const gh = await r.logins.start({ tool: 'gh', method: 'key', secret: ` ${secret} `, host: 'github.example.com' });
+  assert.deepEqual([gh.state, gh.ready], ['succeeded', true]);
   const seen = readRecord(r);
-  assert.deepEqual(seen.argv, ['login', '--with-api-key']);
+  assert.deepEqual(seen.argv, ['auth', 'login', '--with-token', '--hostname', 'github.example.com']);
   assert.ok(!seen.argv.join(' ').includes(secret));
   assert.equal(seen.stdin, `${secret}\n`);
-  assert.equal(r.vault.has('codex'), false);
+  assert.equal(r.vault.has('gh'), false);
   assert.ok(!JSON.stringify(r.events).includes(secret));
-  assert.ok(!JSON.stringify(codex).includes(secret));
-
-  // gh through the execution layer, with its host
-  const gh = await r.logins.start({ tool: 'gh', method: 'key', secret, host: 'github.example.com' });
-  assert.equal(gh.state, 'succeeded');
-  const ghSeen = readRecord(r);
-  assert.deepEqual(ghSeen.argv, ['auth', 'login', '--with-token', '--hostname', 'github.example.com']);
-  assert.equal(ghSeen.stdin, `${secret}\n`);
+  assert.ok(!JSON.stringify(gh).includes(secret));
 });
 
 test('a key the CLI takes but the readiness probe does not is a failure; one the CLI refuses is too', async () => {
   const out = rig({ ready: false });
-  assert.deepEqual(await out.logins.start({ tool: 'codex', method: 'key', secret: 'sk-x' }).then((s) => [s.state, s.error]), ['failed', 'not-signed-in']);
+  assert.deepEqual(await out.logins.start({ tool: 'gh', method: 'key', secret: 'ghp-x' }).then((s) => [s.state, s.error]), ['failed', 'not-signed-in']);
   const refused = rig({ fake: { FAKE_LOGIN_EXIT: '1' } });
   assert.deepEqual(await refused.logins.start({ tool: 'glab', method: 'key', secret: 'glpat-x' }).then((s) => [s.state, s.error]), ['failed', 'cli-refused']);
 });
 
 test('a key for a tool that reads its environment is sealed in the vault and handed to no process', async () => {
   const r = rig();
-  const gemini = await r.logins.start({ tool: 'gemini', method: 'key', secret: 'AIza-gemini' });
-  assert.equal(gemini.state, 'succeeded');
-  assert.deepEqual(r.vault.get('gemini'), { GEMINI_API_KEY: 'AIza-gemini' });
-  assert.equal(existsSync(r.record), false);
-
   await r.logins.start({ tool: 'claude-code', method: 'key', secret: 'sk-ant-api', variable: 'ANTHROPIC_API_KEY' });
   await r.logins.start({ tool: 'claude-code', method: 'key', secret: 'sk-ant-oat' });
   // One credential at a time: the token replaced the key
   assert.deepEqual(r.vault.get('claude-code'), { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat' });
 
-  await r.logins.start({ tool: 'opencode', method: 'key', secret: 'sk-oa', variable: 'OPENAI_API_KEY' });
-  await r.logins.start({ tool: 'opencode', method: 'key', secret: 'sk-or', variable: 'OPENROUTER_API_KEY' });
-  assert.deepEqual(r.vault.get('opencode'), { OPENAI_API_KEY: 'sk-oa', OPENROUTER_API_KEY: 'sk-or' });
-
-  const pat = 'github_pat_11AAAA_copilot_never_in_argv';
-  const copilot = await r.logins.start({ tool: 'copilot', method: 'key', secret: pat });
-  assert.equal(copilot.state, 'succeeded');
-  assert.deepEqual(r.vault.get('copilot'), { COPILOT_GITHUB_TOKEN: pat });
-  assert.equal(existsSync(r.record), false, 'no `copilot login` runs: it could not store the token without a keychain');
-  assert.ok(!JSON.stringify(r.events).includes(pat));
+  assert.equal(existsSync(r.record), false, 'nothing ran: the vault hands it to the tool\'s processes later');
 
   const yt = await r.logins.start({ tool: 'youtrack', method: 'key', secret: 'perm-yt', host: 'https://x.youtrack.cloud/' });
   assert.equal(yt.state, 'succeeded');
@@ -303,34 +236,24 @@ test('a bad request is refused before anything runs, and the message never echoe
   const r = rig();
   const refusals: unknown[] = [
     { tool: 'nope', method: 'key' },
-    { tool: 'codex', method: 'magic' },
-    { tool: 'gemini', method: 'device' },
-    { tool: 'codex', method: 'key', secret: 'two words' },
-    { tool: 'codex', method: 'key' },
-    { tool: 'opencode', method: 'key', secret: 'k', variable: 'PATH' },
+    { tool: 'gh', method: 'magic' },
+    { tool: 'claude-code', method: 'device' },
+    { tool: 'gh', method: 'key', secret: 'two words' },
+    { tool: 'gh', method: 'key' },
+    { tool: 'claude-code', method: 'key', secret: 'k', variable: 'PATH' },
     { tool: 'gh', method: 'key', secret: 'k', host: '--hostname=evil' },
     { tool: 'youtrack', method: 'key', secret: 'k' },
-    { tool: 'copilot', method: 'key', secret: 'ghp_classicTokenCopilotRefuses' },
   ];
   for (const body of refusals) {
-    await assert.rejects(r.logins.start(body), (err: Error) => err instanceof LoginInputError && !err.message.includes('two words') && !err.message.includes('classicToken'), JSON.stringify(body));
+    await assert.rejects(r.logins.start(body), (err: Error) => err instanceof LoginInputError && !err.message.includes('two words'), JSON.stringify(body));
   }
   assert.equal(existsSync(r.record), false);
-  assert.equal(r.vault.has('copilot'), false, 'a classic token is never kept');
 });
 
 // ---------- sign-out ----------
 
 test('signing out runs the documented command, forgets what the vault keeps, and says so where there is none', async () => {
   const r = rig();
-  await r.vault.set('copilot', { COPILOT_GITHUB_TOKEN: 'github_pat_x' });
-  assert.deepEqual(await r.logins.signOut('copilot'), { tool: 'copilot', host: null, signedOut: true, reason: null });
-  assert.equal(r.vault.has('copilot'), false, 'Copilot\'s sign-out forgets the key Agentry kept');
-  assert.equal(existsSync(r.record), false, 'and runs nothing: not copilot, not gh');
-
-  assert.deepEqual(await r.logins.signOut('codex'), { tool: 'codex', host: null, signedOut: true, reason: null });
-  assert.deepEqual(readRecord(r).argv, ['logout']);
-
   assert.equal((await r.logins.signOut('gh', 'github.com')).signedOut, true);
   assert.deepEqual(readRecord(r).argv, ['auth', 'logout', '--hostname', 'github.com']);
 
@@ -339,9 +262,9 @@ test('signing out runs the documented command, forgets what the vault keeps, and
   assert.deepEqual(readRecord(r).argv, ['auth', 'logout']);
   assert.equal(r.vault.has('claude-code'), false);
 
-  await r.vault.set('gemini', { GEMINI_API_KEY: 'g' });
-  assert.equal((await r.logins.signOut('gemini')).signedOut, true);
-  assert.equal(r.vault.has('gemini'), false);
+  await r.vault.set('youtrack', { YOUTRACK_TOKEN: 't' });
+  assert.equal((await r.logins.signOut('youtrack')).signedOut, true);
+  assert.equal(r.vault.has('youtrack'), false);
 });
 
 // ---------- Tailscale (the daemon the Docker image runs for Agentry) ----------

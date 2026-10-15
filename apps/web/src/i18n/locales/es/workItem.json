@@ -305,15 +305,6 @@
       "verify": "Verificación puesta en marcha"
     },
     "retriedChat": "{{role}} empezó el chat {{chat}}",
-    "moved": "La ejecución de {{role}} pasó de {{from}} a {{to}}",
-    "movedHow": {
-      "handoff": "traspaso",
-      "restart": "empezada de nuevo"
-    },
-    "movedBy": {
-      "setting": "los ajustes",
-      "decision": "un punto de decisión"
-    },
     "retriedQueued": "en cola para {{role}}",
     "retriedLead": "Reintentada:",
     "retriedWhen": "{{when}}, en el chat {{chat}}.",

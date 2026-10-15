@@ -196,19 +196,12 @@ const CHAT_FORBIDDEN_SETUP = new Set([
 const CHAT_FORBIDDEN_LAYOUT = new Set([`PUT ${API_PREFIX}/dashboard/layout`, `DELETE ${API_PREFIX}/dashboard/layout`]);
 
 /**
- * What a limit does with the person's work is theirs to choose: moving a chat spends on another
- * vendor, so a prompt injection in a transcript must not be able to start one, to stop a wait or to
- * write a model into the mapping. The handoff preview, the candidates and the moves stay readable.
- * The claude-swap notice is the person's own housekeeping.
+ * What a limit does with the person's work is theirs to choose: a prompt injection in a transcript
+ * must not be able to start a wait or stop one. The waits stay readable.
  */
 const CHAT_FORBIDDEN_ROTATION = new Set([
-  `POST ${API_PREFIX}/chats/:id/move`,
   `POST ${API_PREFIX}/chats/:id/wait`,
-  `POST ${API_PREFIX}/providers/moves/:id/cancel`,
-  `POST ${API_PREFIX}/providers/model-map/suggest`,
-  `POST ${API_PREFIX}/providers/model-map/suggestions/:id`,
-  `POST ${API_PREFIX}/providers/cswap-retirement/dismiss`,
-  `DELETE ${API_PREFIX}/providers/cswap-retirement/managed-copy`,
+  `POST ${API_PREFIX}/limits/waits/:id/cancel`,
 ]);
 
 /**
@@ -509,7 +502,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_ROTATION.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot move or stop waiting for work, or answer a model-mapping suggestion: what a limit does is the person's choice" });
+        void reply.status(403).send({ error: "a chat's token cannot start or stop a wait for work: what a limit does is the person's choice" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_CHECKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

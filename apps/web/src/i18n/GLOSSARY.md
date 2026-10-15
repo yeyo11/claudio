@@ -41,7 +41,7 @@ can search for it.
   (`/compact`), flags (`--model`), setting keys (including `matcher` and `outputStyle` in
   `settings.json`), permission mode values (`acceptEdits`, `plan`), model names, file and directory
   names (`CLAUDE.md`, `settings.json`, `.claude/workflows/`), environment variables, product names
-  (Claude Code, Agentry, claude-swap).
+  (Claude Code, Agentry).
 
 ## Kept as in the CLI
 
@@ -147,7 +147,7 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Are you sure you want to …? | ¿Seguro que quieres …? |
 | Dashboard | Panel |
 | Agents | Agentes |
-| `{{agent}}` (the agent a chat runs on) | The provider's label ("Codex", "Claude Code"); "el agente" when no chat is in context. Write the string so that both read well: "hechas por {{agent}}", never "de {{agent}}" or "a {{agent}}", which breaks as "de el agente". A string that opens a sentence is given `upperFirst(agent)` by its caller. Where no chat is ever in context, write "el agente" in the string itself ("Pídele algo al agente") |
+| `{{agent}}` (the agent a chat runs on) | The provider's label ("Claude Code"); "el agente" when no chat is in context. Write the string so that both read well: "hechas por {{agent}}", never "de {{agent}}" or "a {{agent}}", which breaks as "de el agente". A string that opens a sentence is given `upperFirst(agent)` by its caller. Where no chat is ever in context, write "el agente" in the string itself ("Pídele algo al agente") |
 | Background tasks | Tareas en segundo plano |
 | Projects / Project | Proyectos / Proyecto |
 | Orchestration | Orquestación |

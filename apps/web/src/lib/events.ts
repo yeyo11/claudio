@@ -85,7 +85,6 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'permission.requested': true,
   'permission.resolved': true,
   'run.rateLimited': true,
-  'run.providerMoved': true,
   'run.limitWaiting': true,
   'task.started': true,
   'task.ended': true,
@@ -256,12 +255,11 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'permission.requested':
     case 'permission.resolved':
       return [[keys.chatPermissions(event.runId), NOW], [keys.chats, LISTS], [keys.overview, NOW]];
-    case 'run.providerMoved':
     case 'run.limitWaiting':
-      // A flow run that moved or waits changes its card, its item's runs and the moves they read; the
+      // A flow run that waits changes its card, its item's runs and the waits they read; the
       // event names the chat, not the item, so those are read by prefix (only mounted ones refetch)
       return [
-        [keys.providers, NOW], [['providers', 'moves'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
+        [keys.providers, NOW], [['providers', 'waits'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
         [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
       ];
     case 'run.rateLimited':
