@@ -162,17 +162,23 @@ export class AccountStore {
 
   list(now: number = Date.now()): Account[] {
     const d = this.stored.default;
-    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity): Account => ({
-      id,
-      kind,
-      alias,
-      email: identity.email,
-      organization: identity.organization,
-      plan: identity.plan,
-      enabled,
-      signedIn: identity.signedIn,
-      limits: this.readings.limit(id, now),
-    });
+    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity): Account => {
+      // An identity never read from the CLI (the default account starts out assumed signed in) is
+      // completed from the account block of the last `initialize` the model cache stored: what the
+      // CLI said about this account, read from a file, with no process started for it
+      const cli = identity.email === null ? this.modelCache.read(id)?.account : undefined;
+      return {
+        id,
+        kind,
+        alias,
+        email: identity.email ?? cli?.email ?? null,
+        organization: identity.organization ?? cli?.organization ?? null,
+        plan: identity.plan ?? cli?.subscriptionType ?? null,
+        enabled,
+        signedIn: identity.signedIn,
+        limits: this.readings.limit(id, now),
+      };
+    };
     return [
       view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity),
       ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity)),
