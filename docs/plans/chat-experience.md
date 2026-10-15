@@ -642,7 +642,7 @@ stream, without waiting for a transcript read.
 
 ### CHAT-3 — Send without waiting for `claude agents`
 
-Status: proposed.
+Status: **built** on 2026-10-15 (`summaryForSend` and `requireForSend` in `chat-service.ts`; test `packages/core/test/chat-service-send.test.ts`).
 
 **Problem.** `ChatService.send` awaits `summaryOf(id)`, which waits for a fresh
 `claude agents --json` process when the cached list is older than 10 s (B1.3), though for a chat

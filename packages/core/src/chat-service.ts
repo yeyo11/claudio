@@ -516,6 +516,17 @@ export class ChatService {
     return this.summaryWith(id, await this.facts(fresh, false));
   }
 
+  /**
+   * The chat as a send needs it. A process of ours makes the chat interactive whatever the CLI's list
+   * says (`sessionHolder` → 'agentry'), so the send does not wait for that list, which can mean
+   * spawning `claude agents --json`. Anything else takes the full read.
+   */
+  private async summaryForSend(id: string): Promise<ChatSummary | null> {
+    const runtime = this.deps.runtime.get(id);
+    if (runtime?.pid == null) return this.summaryOf(id);
+    return this.summaryWith(id, { transcripts: new Map(), cli: new Map(), processes: [], orchestrations: this.chatOrchestrations() });
+  }
+
   private async summaryWith(id: string, facts: Facts): Promise<ChatSummary | null> {
     const transcript = await this.deps.sessions.summary(id).catch(() => null);
     if (transcript) facts.transcripts.set(id, transcript);
@@ -802,7 +813,7 @@ export class ChatService {
     if (request.id !== undefined && (typeof request.id !== 'string' || !UUID_RE.test(request.id))) throw new Error('id must be a UUID');
     const before = this.sending.get(id) ?? Promise.resolve();
     const turn = before.then(async () => {
-      const chat = await this.summaryOf(id);
+      const chat = await this.summaryForSend(id);
       if (!chat) throw new Error('chat not found');
       if (chat.control.mode !== 'interactive') {
         throw new ChatConflictError(chat.control.mode === 'readOnly' ? chat.control.reason : 'This chat has no live execution: resume it to continue.', chat.control.mode === 'readOnly' ? chat.control.action : null);
@@ -818,7 +829,7 @@ export class ChatService {
       if (this.sending.get(id) === settled) this.sending.delete(id);
     });
     const message = await turn;
-    return { ...(await this.require(id)), message };
+    return { ...(await this.requireForSend(id)), message };
   }
 
   /**
@@ -883,6 +894,12 @@ export class ChatService {
   /** Terminal output of a background session, which only the CLI itself keeps. */
   logs(id: string): Promise<string> {
     return backgroundLogs(this.deps.config, id);
+  }
+
+  private async requireForSend(id: string): Promise<ChatSummary> {
+    const chat = await this.summaryForSend(id);
+    if (!chat) throw new Error('chat not found');
+    return chat;
   }
 
   private async require(id: string): Promise<ChatSummary> {
