@@ -16,7 +16,7 @@ function toControlDecision(decision: PermissionDecision, input: Record<string, u
 
 /**
  * The control protocol of one process: requests Agentry sends down stdin and waits on
- * (`interrupt`, `set_permission_mode`, `set_model`), and the CLI's own (`can_use_tool`), which it
+ * (`interrupt`, `set_permission_mode`, `set_model`, `mcp_status`, `mcp_toggle`), and the CLI's own (`can_use_tool`), which it
  * holds until they are answered.
  */
 export class ControlChannel {

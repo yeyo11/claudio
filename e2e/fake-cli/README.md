@@ -124,6 +124,10 @@ with a `control_response`:
   `The user interrupted this command.` (`is_error: true`), and the turn ends with a `result` of
   `subtype: "error_during_execution"`, `is_error: true`. The process stays up for the next message.
 - `set_permission_mode` (also emits `system`/`status` with the mode) and `set_model` — success.
+- `mcp_status` — `{ mcpServers }`: a local server `docs` (connected, two tools) and a connector
+  `claude.ai Calendar` (scope `claudeai`, `needs-auth`), or the list in `AGENTRY_FAKE_CLI_MCP` (JSON).
+- `mcp_toggle` (`serverName`, `enabled`) — success, and the server reads `disabled` (or its old status
+  again) in the next `mcp_status`, for this process only; an unknown name is an error.
 - anything else — `subtype: "error"`, never silence.
 
 **stdin closing** ends a running turn (its command is killed, a `result` with `is_error: true` is

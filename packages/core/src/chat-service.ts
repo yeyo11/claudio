@@ -27,6 +27,7 @@ import {
   type ChatSettingsUpdate,
   type ChatState,
   type ChatSubagentEntry,
+  type ChatMcpServers,
   type ChatSummary,
   type ChatWorkflowEntry,
   type ChatWorktree,
@@ -860,6 +861,17 @@ export class ChatService {
     if (update.model !== undefined) this.gate(this.deps.runtime.get(id)?.provider, {}, { setModel: true });
     await this.deps.runtime.updateSettings(id, update);
     return this.require(id);
+  }
+
+  /** The MCP servers of the chat's live process; `live: false` when no process of ours runs it. */
+  mcpServers(id: string): Promise<ChatMcpServers> {
+    return this.deps.runtime.mcpServers(id);
+  }
+
+  /** Switches one MCP server of the live process; the CLI keeps the choice for the chat's folder. */
+  async toggleMcpServer(id: string, name: string, enabled: boolean): Promise<ChatMcpServers> {
+    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    return this.deps.runtime.toggleMcpServer(id, name, enabled);
   }
 
   /** Deletes the chat: its transcript and sidecar files, and Agentry's record of it. */

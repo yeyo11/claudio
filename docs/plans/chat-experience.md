@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T12:30:00Z
-updated_at: 2026-10-15T12:30:00Z
+updated_at: 2026-10-15T15:30:00Z
 tags:
     - plan
     - chat
@@ -683,7 +683,7 @@ spawned.
 
 ### CHAT-4 — IME guard on Enter
 
-Status: proposed.
+Status: **built** on 2026-10-15 in branch `feat/rich-composer`, by the ProseMirror editor that replaced the textarea (`RichEditor`'s `handleKeyDown` checks `isComposing`, `view.composing` and `keyCode` 229). See [chat-composer.md](../chat-composer.md).
 
 `packages/chat-ui/src/composer/Composer.tsx:295`, change
 
@@ -1205,7 +1205,7 @@ viewport. Unit-test the spacer formula as a pure function.
 
 ### CHAT-15 — Drafts survive
 
-Status: proposed.
+Status: **built** on 2026-10-15 in branch `feat/rich-composer`, as planned (`composer/drafts.ts`), written 300 ms after typing rests and when the box goes. See [chat-composer.md](../chat-composer.md).
 
 `packages/chat-ui/src/composer/Composer.tsx`:
 
@@ -1225,7 +1225,7 @@ Status: proposed.
 
 ### CHAT-16 — Prompt history with ArrowUp
 
-Status: proposed.
+Status: **built** on 2026-10-15 in branch `feat/rich-composer`, as planned (`composer/history.ts`); ArrowDown also works from the start of a recalled message, where ArrowUp leaves the caret. See [chat-composer.md](../chat-composer.md).
 
 - `ChatView.tsx`: `const history = useMemo(() => transcript.items.filter((e) => e.role === 'user' && !e.isSidechain).map((e) => entryText(e).trim()).filter(Boolean).slice(-20), [transcript.items]);`
   (skip entries that are only tool results: `entryText` of those is empty). Pass `history` to the
@@ -1378,4 +1378,4 @@ when each block ends, the question staying at the top, the composer keeping a dr
 
 ## Related
 
-[[chat-delivery.md]] · [[decisions/stray-scroll-back-to-end.md]] · [[design-system.md]] · [[phone-layout.md]] · [[plans/paging-long-tasks.md]] · [[reports/chat-audit/README.md]] · [[providers.md]] · [[knowledge-base.md]]
+[[chat-delivery.md]] · [[chat-composer.md]] · [[decisions/stray-scroll-back-to-end.md]] · [[design-system.md]] · [[phone-layout.md]] · [[plans/paging-long-tasks.md]] · [[reports/chat-audit/README.md]] · [[providers.md]] · [[knowledge-base.md]]

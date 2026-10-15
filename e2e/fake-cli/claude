@@ -504,6 +504,22 @@ function endTurn({ result = '', error = false, structured = undefined }) {
   if (next !== undefined) setImmediate(() => startTurn(next.text, next.uuid));
 }
 
+/**
+ * The MCP servers `mcp_status` reports: a local server and a claude.ai connector waiting for its
+ * authorisation, or the list in AGENTRY_FAKE_CLI_MCP (JSON). `mcp_toggle` switches one, for this process.
+ */
+const mcpServers = (() => {
+  try {
+    if (env.AGENTRY_FAKE_CLI_MCP) return JSON.parse(env.AGENTRY_FAKE_CLI_MCP);
+  } catch {
+    // an unreadable override leaves the fake's own list
+  }
+  return [
+    { name: 'docs', status: 'connected', scope: 'user', tools: [{ name: 'search', annotations: { readOnly: true } }, { name: 'write', annotations: {} }] },
+    { name: 'claude.ai Calendar', status: 'needs-auth', scope: 'claudeai' },
+  ];
+})();
+
 function control(message) {
   const request = message.request ?? {};
   const reply = (response) => emit({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response } });
@@ -532,6 +548,20 @@ function control(message) {
   }
   if (request.subtype === 'set_model' && typeof request.model === 'string') {
     model = modelName(request.model);
+    reply({});
+    return;
+  }
+  if (request.subtype === 'mcp_status') {
+    reply({ mcpServers });
+    return;
+  }
+  if (request.subtype === 'mcp_toggle' && typeof request.serverName === 'string') {
+    const server = mcpServers.find((s) => s.name === request.serverName);
+    if (!server) {
+      emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: `No MCP server named ${request.serverName}` } });
+      return;
+    }
+    server.status = request.enabled === false ? 'disabled' : server.scope === 'claudeai' ? 'needs-auth' : 'connected';
     reply({});
     return;
   }

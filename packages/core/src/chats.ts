@@ -8,6 +8,7 @@ import { createInterface } from 'node:readline';
 import {
   type AgentryAssistantMarker,
   type Attachment,
+  type ChatMcpServers,
   type ChatMessageReceipt,
   type ChatMessageTaken,
   type ChatToolConfig,
@@ -867,6 +868,27 @@ export class ChatManager extends EventEmitter {
     }
     this.persist();
     return chat.summary();
+  }
+
+  /** The MCP servers of the chat's live process, as it reports them now. */
+  async mcpServers(id: string): Promise<ChatMcpServers> {
+    const chat = this.chats.get(id);
+    const session = chat?.alive ? chat.session : null;
+    if (!session?.mcpStatus) return { live: false, servers: [] };
+    return { live: true, servers: await session.mcpStatus() };
+  }
+
+  /**
+   * Switches one MCP server of the live process on or off, and answers with the servers as they are
+   * after it. The CLI keeps the choice for the chat's folder, so later chats there start with it too.
+   */
+  async toggleMcpServer(id: string, name: string, enabled: boolean): Promise<ChatMcpServers> {
+    const chat = this.chats.get(id);
+    if (!chat) throw new Error('chat not found');
+    const session = chat.alive ? chat.session : null;
+    if (!session?.mcpToggle) throw new ChatRefusal('This chat has no live process: choose its servers when you resume it.');
+    await session.mcpToggle(name, enabled);
+    return this.mcpServers(id);
   }
 
   remove(id: string): boolean {

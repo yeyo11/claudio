@@ -141,7 +141,7 @@ export default async ({ page, api, check }) => {
   // What it has run is a tab of the inspector away
   await page.click('.chat-inspector [role=tab]', 'Activity');
   await page.waitFor(`return document.querySelector('main').textContent.includes('Executions (0)')`, { label: 'the executions in the inspector' });
-  check(await page.eval(`return !!document.querySelector('textarea[placeholder^="Send a message"]')`), 'a resumable chat can be written to');
+  check(await page.eval(`return !!document.querySelector('[data-composer-input][aria-placeholder^="Send a message"]')`), 'a resumable chat can be written to');
   await page.shot('chat-page');
   await page.goto('/chats', 800);
   await page.shot('chats-list');

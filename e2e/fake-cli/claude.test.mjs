@@ -164,7 +164,7 @@ test('closing stdin ends the turn with a result and leaves no command behind', {
 
 test('an unknown control request gets an error answer, never silence', async () => {
   const c = chat();
-  c.send({ type: 'control_request', request_id: 'r-2', request: { subtype: 'mcp_status' } });
+  c.send({ type: 'control_request', request_id: 'r-2', request: { subtype: 'reload_plugins' } });
   const answer = await c.next((e) => e.type === 'control_response');
   assert.equal(answer.response.subtype, 'error');
   await c.done();
@@ -318,5 +318,18 @@ test('with --replay-user-messages each message is read back under its id when a 
   assert.equal((await c.next((e) => e.type === 'user' && e.isReplay)).uuid, 'u-second');
   assert.ok(c.log().some((l) => l.event === 'stdin' && l.uuid === 'u-second'));
   await c.next((e) => e.type === 'result');
+  await c.done();
+});
+
+test('mcp_status lists the servers and mcp_toggle switches one, as the CLI does', async () => {
+  const c = chat();
+  c.send({ type: 'control_request', request_id: 'm-1', request: { subtype: 'mcp_status' } });
+  const listed = await c.next((e) => e.type === 'control_response' && e.response.request_id === 'm-1');
+  assert.deepEqual(listed.response.response.mcpServers.map((s) => [s.name, s.status]), [['docs', 'connected'], ['claude.ai Calendar', 'needs-auth']]);
+  c.send({ type: 'control_request', request_id: 'm-2', request: { subtype: 'mcp_toggle', serverName: 'docs', enabled: false } });
+  assert.equal((await c.next((e) => e.type === 'control_response' && e.response.request_id === 'm-2')).response.subtype, 'success');
+  c.send({ type: 'control_request', request_id: 'm-3', request: { subtype: 'mcp_status' } });
+  const after = await c.next((e) => e.type === 'control_response' && e.response.request_id === 'm-3');
+  assert.equal(after.response.response.mcpServers[0].status, 'disabled');
   await c.done();
 });

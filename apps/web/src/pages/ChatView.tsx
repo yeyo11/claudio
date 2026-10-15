@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import type { Chat, ChatPendingAttachment, EditStep } from '@agentry/shared';
+import { entryText, type Chat, type ChatPendingAttachment, type EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -36,6 +36,7 @@ import { BlockedComposer, LimitBanner, useLimitState } from './chat/LimitBanner'
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from '@agentry/chat-ui/composer/queued';
+import { HISTORY_LIMIT } from '@agentry/chat-ui/composer/history';
 import { useStickToBottom } from '@agentry/chat-ui/composer/stick-to-bottom';
 import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 
@@ -174,6 +175,16 @@ export function ChatView() {
   });
 
   const rows = useMemo(() => transcriptRows(items), [items]);
+  // What the person sent here, for the box's ArrowUp: their own words, the newest last
+  const sentHistory = useMemo(
+    () =>
+      transcript.items
+        .filter((entry) => entry.role === 'user' && !entry.isSidechain)
+        .map((entry) => entryText(entry).trim())
+        .filter(Boolean)
+        .slice(-HISTORY_LIMIT),
+    [transcript.items],
+  );
   const subagentList = chat?.children.subagents;
   const openDetail = detail.open;
   const subagents = useMemo<SubagentLink | undefined>(
@@ -448,6 +459,7 @@ export function ChatView() {
             chat={chat}
             kind={composer}
             restore={restore}
+            history={sentHistory}
             onSent={(sent) => {
               setFollow(true);
               // The server says whether it waits: a resume or a fork, or a message that starts a turn, does not

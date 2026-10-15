@@ -51,12 +51,12 @@ const VIEW = `
   const rows = [...document.querySelectorAll('.transcript .msg-user')].map((m) => m.innerText);
   const lostFoot = !!document.querySelector('.chat-queued.is-lost');
   const sendNow = !!document.querySelector('.chat-queued-foot .btn');
-  return { cards, rows, lostFoot, sendNow, box: document.querySelector('.composer textarea')?.value ?? null,
+  return { cards, rows, lostFoot, sendNow, box: (e=>e&&[...e.querySelectorAll('p')].map(p=>p.textContent).join('\\n'))(document.querySelector('.composer [data-composer-input]')) ?? null,
     chips: document.querySelectorAll('.attachments-pending .attachment-chip').length };`;
 
 /** A paste of one small text file into the composer's box, as a person's Ctrl+V of a file. */
 const PASTE_FILE = (name) => `
-  const box = document.querySelector('.composer textarea'); if (!box) return false;
+  const box = document.querySelector('.composer [data-composer-input]'); if (!box) return false;
   const dt = new DataTransfer(); dt.items.add(new File(['audit ${name}\\n'], '${name}', { type: 'text/plain' }));
   box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); return true;`;
 
@@ -90,13 +90,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const view = () => page.eval(VIEW);
   const open = async (id) => {
     await page.goto(`/chats/${id}`, 1200);
-    await page.waitFor(`return !!document.querySelector('.composer textarea')`, { label: 'the composer' });
+    await page.waitFor(`return !!document.querySelector('.composer [data-composer-input]')`, { label: 'the composer' });
   };
   // The page queues a message only when it shows the chat working (C-8): wait for that, as a person would see it
   const working = () => page.waitFor(`return !!document.querySelector('.composer.is-working')`, { label: 'the page to show the chat working' });
   const want = (key) => !process.env.E2E_CHAT_AUDIT_ONLY || process.env.E2E_CHAT_AUDIT_ONLY.split(',').includes(key);
   const send = async (text) => {
-    await page.fill('.composer textarea', text);
+    await page.fill('.composer [data-composer-input]', text);
     await page.click('.composer-send');
   };
   const state = async (id) => (await api.get(`/chats/${id}`)).body?.chat?.state;
@@ -279,7 +279,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       // A slow network (or a resume, which spawns a process): the POST takes two seconds
       await page.eval(`const f = window.fetch; window.fetch = async (input, init) => { const u = String(input?.url ?? input); if ((init?.method ?? input?.method) === 'POST' && u.includes('/messages')) await new Promise((r) => setTimeout(r, 2000)); return f(input, init); }; return true`);
       await send('first message');
-      await page.focus('.composer textarea');
+      await page.focus('.composer [data-composer-input]');
       await page.type('second thought');
       await page.waitFor(PASTE_FILE('later.txt'), { label: 'paste a file while sending' });
       const during = await view();

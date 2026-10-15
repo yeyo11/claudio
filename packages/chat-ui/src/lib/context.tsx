@@ -6,6 +6,7 @@ import type {
   Chat,
   ChatBackgroundTask,
   ChatDetail,
+  ChatMcpServers,
   ChatMessageRequest,
   ChatMessageResponse,
   ChatSummary,
@@ -42,6 +43,10 @@ export interface ChatClient {
   subagent(chatId: string, agentId: string, after?: number): Promise<AgentTranscript>;
   workflowAgent(chatId: string, workflowId: string, agentId: string, after?: number): Promise<AgentTranscript>;
   taskOutput(chatId: string, taskId: string, offset?: number): Promise<BackgroundTaskOutput>;
+  /** The MCP servers of a chat's live process, connectors included */
+  chatMcp(id: string): Promise<ChatMcpServers>;
+  /** Switches one of them on or off in the running process */
+  toggleChatMcp(id: string, name: string, enabled: boolean): Promise<ChatMcpServers>;
   /** The SSE URL of one chat's stream, with the token when the wrapper is guarded. */
   streamUrl(chatId: string, since: number): string;
   /** Where an upload's bytes are served (`/api/uploads/:id/content` today). */
@@ -59,6 +64,8 @@ export interface ChatUiConfig {
     chat(id: string): string;
     /** The review screen at one step */
     chatChangeStep(chatId: string, stepId: string): string;
+    /** The connectors page: where one waiting for its authorisation says how to give it */
+    connectors: string;
   };
   slots: {
     StartOptions: ComponentType<{ chat: Chat; value: StartChoices; onChange(next: StartChoices): void; forking: boolean }>;

@@ -79,7 +79,24 @@
     "forking": "Forking…",
     "couldNotResume": "Could not resume",
     "couldNotFork": "Could not fork",
-    "keys": "↵ send · ⇧↵ new line"
+    "keys": "↵ send · ⇧↵ new line",
+    "pastedFile": "pasted-text.txt"
+  },
+  "composerMenu": {
+    "title": "Add to the message",
+    "open": "Attach files, commands and servers",
+    "commands": "Commands and skills",
+    "servers": "Servers and connectors",
+    "serversAtStart": "The MCP servers and connectors are chosen when the chat starts: pick them for this resume or fork.",
+    "chooseServers": "Choose tools and servers",
+    "noServers": "This chat runs with no MCP servers or connectors.",
+    "connector": "connector",
+    "tools_one": "{{count}} tool",
+    "tools_other": "{{count}} tools",
+    "authorise": "How to authorise",
+    "turnOn": "Turn {{name}} on",
+    "turnOff": "Turn {{name}} off",
+    "serversPersist": "A switch applies at once, and the CLI keeps it for this folder: new chats here start with it too."
   },
   "controls": {
     "permissionModeNew": "Permission mode for the new execution",
@@ -266,7 +283,7 @@
     "liveTitle": "How this chat runs",
     "resumeTitle": "Resume with",
     "forkTitle": "Fork with",
-    "liveHint": "Permission mode and model switch at once. The tools and servers were fixed when the chat started; resuming it later can change them."
+    "liveHint": "Permission mode and model switch at once, and the MCP servers and connectors switch on and off from the + of the box. The tool preset was fixed when the chat started; resuming it later can change it."
   },
   "inspector": {
     "tabs": "Chat details",

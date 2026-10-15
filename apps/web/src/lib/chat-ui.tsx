@@ -20,6 +20,8 @@ export const chatClient: ChatClient = {
   subagent: api.subagent,
   workflowAgent: api.workflowAgent,
   taskOutput: api.taskOutput,
+  chatMcp: api.chatMcp,
+  toggleChatMcp: api.toggleChatMcp,
   streamUrl: (chatId, since) => withToken(`${BASE}/chats/${enc(chatId)}/stream?since=${since}`),
   contentUrl: (uploadId) => withToken(`${BASE}/uploads/${enc(uploadId)}/content`),
 };
@@ -33,6 +35,7 @@ const slots: ChatUiConfig['slots'] = {
 const paths: ChatUiConfig['paths'] = {
   chat: (id) => `/chats/${enc(id)}`,
   chatChangeStep: (chatId, stepId) => reviewLink(reviewPath.chat(chatId), { lens: 'steps', step: stepId }),
+  connectors: '/connectors',
 };
 
 /** Mounted around `<App />`: the detail panel, orchestrations, work items and Home use chat hooks too. */

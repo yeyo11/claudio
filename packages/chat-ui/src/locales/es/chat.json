@@ -79,7 +79,24 @@
     "forking": "Creando fork…",
     "couldNotResume": "No se ha podido reanudar",
     "couldNotFork": "No se ha podido crear el fork",
-    "keys": "↵ enviar · ⇧↵ salto"
+    "keys": "↵ enviar · ⇧↵ salto",
+    "pastedFile": "texto-pegado.txt"
+  },
+  "composerMenu": {
+    "title": "Añadir al mensaje",
+    "open": "Adjuntar archivos, comandos y servidores",
+    "commands": "Comandos y skills",
+    "servers": "Servidores y conectores",
+    "serversAtStart": "Los servidores MCP y los conectores se eligen al empezar el chat: elígelos para esta reanudación o este fork.",
+    "chooseServers": "Elegir herramientas y servidores",
+    "noServers": "Este chat no tiene servidores MCP ni conectores.",
+    "connector": "conector",
+    "tools_one": "{{count}} herramienta",
+    "tools_other": "{{count}} herramientas",
+    "authorise": "Cómo autorizarlo",
+    "turnOn": "Activar {{name}}",
+    "turnOff": "Desactivar {{name}}",
+    "serversPersist": "El cambio se aplica al momento y el CLI lo guarda para esta carpeta: los chats nuevos de aquí también lo tendrán."
   },
   "controls": {
     "permissionModeNew": "Modo de permisos de la nueva ejecución",
@@ -266,7 +283,7 @@
     "liveTitle": "Cómo se ejecuta este chat",
     "resumeTitle": "Reanudar con",
     "forkTitle": "Crear fork con",
-    "liveHint": "El modo de permisos y el modelo cambian al momento. Las herramientas y los servidores quedaron fijados al empezar el chat; reanudarlo más tarde puede cambiarlos."
+    "liveHint": "El modo de permisos y el modelo cambian al momento, y los servidores MCP y los conectores se activan y desactivan desde el + del cuadro. El preset de herramientas quedó fijado al empezar el chat; reanudarlo más tarde puede cambiarlo."
   },
   "inspector": {
     "tabs": "Detalles del chat",

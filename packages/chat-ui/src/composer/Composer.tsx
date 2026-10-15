@@ -1,13 +1,10 @@
 import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@agentry/shared';
-import * as RadixPopover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
-import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
-import { Sheet } from '@agentry/ui/components/controls/Sheet';
+import { AttachmentTray, useAttachments } from '../components/Attachments';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
@@ -16,6 +13,13 @@ import { AgentScope } from '../lib/agent';
 import { chatKeys, useChatUi, type StartChoices } from '../lib/context';
 import { modeLabel } from '../lib/wire-words';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ComposerMenu } from './ComposerMenu';
+import { draftKey, readDraft, writeDraft } from './drafts';
+import { RichEditor, type RichEditorHandle } from './editor/RichEditor';
+import { historyStep, type HistoryIndex } from './history';
+import { OptionsPanel } from './OptionsPanel';
+
+export { OptionsPanel };
 
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in: the
 // app hands them over as lazy components (`lib/chat-ui.tsx`)
@@ -69,42 +73,31 @@ function useStatusWords(chat: Chat, kind: ComposerKind, choices: StartChoices): 
   return [model, mode, preset, mcp];
 }
 
-/** A popover by the line on a wide screen, a sheet from the bottom on a phone. */
-export function OptionsPanel({ trigger, title, open, onOpenChange, children }: { trigger: ReactNode; title: string; open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
-  const narrow = useMediaQuery(NARROW);
-  if (narrow) {
-    return (
-      <>
-        {trigger}
-        <Sheet open={open} onOpenChange={onOpenChange} title={title}>
-          <div className="composer-options">{children}</div>
-        </Sheet>
-      </>
-    );
-  }
-  return (
-    <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
-      <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
-      <RadixPopover.Portal>
-        <RadixPopover.Content className="popover composer-options" side="top" align="start" sideOffset={6} collisionPadding={8} aria-label={title} {...LAYER_ATTR}>
-          {children}
-        </RadixPopover.Content>
-      </RadixPopover.Portal>
-    </RadixPopover.Root>
-  );
-}
-
 /**
  * The chips under the message box, `opus · bypassPermissions · no preset · MCP: CLI default`, as one
  * button that opens what used to be four labelled fields under it: the permission mode and model of
  * the live process, or everything a resume or a fork may start with. The permission mode is the
  * chip in the accent: it decides what the chat may do without asking.
  */
-function StatusLine({ chat, kind, choices, onChoices }: { chat: Chat; kind: ComposerKind; choices: StartChoices; onChoices: (next: StartChoices) => void }) {
+function StatusLine({
+  chat,
+  kind,
+  choices,
+  onChoices,
+  open,
+  setOpen,
+}: {
+  chat: Chat;
+  kind: ComposerKind;
+  choices: StartChoices;
+  onChoices: (next: StartChoices) => void;
+  /** Held by the composer: the "+" menu opens it to choose the servers of a resume or a fork */
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   const { t } = useTranslation('chat');
   const { slots } = useChatUi();
   const { StartOptions, LiveOptions } = slots;
-  const [open, setOpen] = useState(false);
   const words = useStatusWords(chat, kind, choices);
   const narrow = useMediaQuery(NARROW);
   const title = kind === 'send' ? t('status.liveTitle') : kind === 'resume' ? t('status.resumeTitle') : t('status.forkTitle');
@@ -152,9 +145,15 @@ export function KeysHint({ children }: { children: ReactNode }) {
   );
 }
 
+/** Past this many characters a paste is attached as a text file: a wall of logs is a file, not a message. */
+const BIG_PASTE_CHARS = 12_000;
+/** How long typing rests before the draft is written down. */
+const DRAFT_DEBOUNCE_MS = 300;
+
 /**
  * The message box, with its own text state: the transcript above it can be thousands of nodes, and
- * re-rendering the page on every character typed here is enough to lock the tab up.
+ * re-rendering the page on every character typed here is enough to lock the tab up. The box is a
+ * ProseMirror editor (`editor/RichEditor.tsx`); this component holds what it says as a string.
  */
 export function Composer({
   chat,
@@ -162,6 +161,7 @@ export function Composer({
   onSent,
   interrupt,
   restore,
+  history = [],
 }: {
   chat: Chat;
   kind: ComposerKind;
@@ -171,18 +171,38 @@ export function Composer({
   interrupt?: { run: () => void; pending: boolean };
   /** Words and files handed back to the box: a message the agent never read (see `composer/queued.ts`) */
   restore?: { text: string; attachments: ChatPendingAttachment[]; at: number } | null;
+  /** What the person already sent in this chat, oldest first: ArrowUp brings it back */
+  history?: readonly string[];
 }) {
   const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
   const { client, paths } = useChatUi();
   const navigate = useNavigate();
-  const [text, setText] = useState('');
+  // Keyed by the chat and what the box does: a resume's draft is not the live chat's
+  const draft = draftKey(chat.id, kind);
+  const [initial] = useState(() => readDraft(draft));
+  const [text, setText] = useState(initial);
+  const [caret, setCaret] = useState(initial.length);
+  const [recalled, setRecalled] = useState<HistoryIndex>(null);
   const [choices, setChoices] = useState<StartChoices>({});
+  const [options, setOptions] = useState(false);
   const files = useAttachments();
-  const box = useRef<HTMLTextAreaElement>(null);
+  const editor = useRef<RichEditorHandle>(null);
   const working = chat.state === 'working';
   const narrow = useMediaQuery(NARROW);
-  const slash = useSlashMenu({ text, setText, commands: chat.environment?.slashCommands ?? [], skills: chat.environment?.skills, box });
+  // A touch keyboard has no comfortable Shift+Enter: there Enter breaks the line and the button sends
+  const touch = useMediaQuery('(pointer: coarse)');
+  const slash = useSlashMenu({ text, caret, commands: chat.environment?.slashCommands ?? [], skills: chat.environment?.skills, target: editor });
+  const live = kind === 'send' && Boolean(chat.execution);
+
+  // The draft follows the text a moment after typing rests, and is written at once when the box goes
+  const latestText = useRef(text);
+  latestText.current = text;
+  useEffect(() => {
+    const timer = setTimeout(() => writeDraft(draft, text), DRAFT_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft, text]);
+  useEffect(() => () => writeDraft(draft, latestText.current), [draft]);
 
   // The message last sent that did not get through: sent again unchanged, it keeps its id, so a send
   // that timed out after the server took it still reaches the agent once
@@ -199,7 +219,13 @@ export function Composer({
     onSuccess: ({ receipt, chatId }, sent) => {
       attempt.current = null;
       // Only what went: whatever was typed or attached while the request was out stays in the box
-      setText((held) => (held.startsWith(sent.typed) ? held.slice(sent.typed.length).replace(/^\s+/, '') : held));
+      const held = editor.current?.getText() ?? '';
+      if (held.startsWith(sent.typed)) {
+        const rest = held.slice(sent.typed.length).replace(/^\s+/, '');
+        editor.current?.setText(rest);
+        writeDraft(draft, rest);
+      }
+      setRecalled(null);
       files.removeSent(sent.attachments.map((a) => a.id));
       onSent({ text: sent.message, attachments: sent.attachments, receipt });
       void queryClient.invalidateQueries({ queryKey: chatKeys.chats });
@@ -214,26 +240,22 @@ export function Composer({
   useEffect(() => {
     if (!restore || restore.at === restoredAt.current) return;
     restoredAt.current = restore.at;
-    if (restore.text) setText((held) => (held.trim() ? `${held.replace(/\s+$/, '')}\n\n${restore.text}` : restore.text));
+    if (restore.text) {
+      const held = editor.current?.getText() ?? '';
+      editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${restore.text}` : restore.text);
+    }
     if (restore.attachments.length) restoreFiles(restore.attachments);
-    box.current?.focus();
+    editor.current?.focus();
   }, [restore, restoreFiles]);
 
-  // Auto-growing composer
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-  }, [text]);
-
   const send = () => {
-    const message = text.trim();
+    const typed = editor.current?.getText() ?? text;
+    const message = typed.trim();
     // A file on its own is a message too; one still uploading is not sent without it
     if (!(message || files.ids.length) || files.uploading || submit.isPending) return;
     // On a phone the keyboard covers half the screen, and what happens next is worth watching: the
     // box lets go once the message is away, and a tap on it brings the keyboard back
-    if (window.matchMedia('(pointer: coarse)').matches) box.current?.blur();
+    if (touch) (editor.current?.element as HTMLElement | null)?.blur();
     const attachments = files.items.flatMap((p) => (p.status === 'ready' && p.attachment ? [p.attachment] : []));
     const fileKey = attachments.map((a) => a.id).join(',');
     let id: string | undefined;
@@ -242,8 +264,42 @@ export function Composer({
       id = last && last.text === message && last.files === fileKey ? last.id : messageId();
       attempt.current = { id, text: message, files: fileKey };
     }
-    submit.mutate({ message, typed: text, attachments, ...(id ? { id } : {}) });
+    submit.mutate({ message, typed, attachments, ...(id ? { id } : {}) });
   };
+
+  const stoppable = Boolean(interrupt) && kind === 'send' && working;
+  const onKeyDown = (event: KeyboardEvent): boolean => {
+    if (slash.onKeyDown(event)) return true;
+    const plain = !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (plain && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      const step = historyStep(event.key, { history, index: recalled, text, caret });
+      if (!step) return false;
+      editor.current?.setText(step.text, event.key === 'ArrowUp' ? 0 : step.text.length);
+      setRecalled(step.index);
+      return true;
+    }
+    // Escape on an empty box stops the turn, as the button beside it does
+    if (event.key === 'Escape' && plain && stoppable && interrupt && !text.trim() && !interrupt.pending) {
+      interrupt.run();
+      return true;
+    }
+    return false;
+  };
+  const onChange = (next: string) => {
+    setText(next);
+    // Typing over what the arrows brought back makes it the person's own again
+    if (recalled !== null && next !== history[history.length - 1 - recalled]) setRecalled(null);
+  };
+  const startCommand = () => {
+    const held = editor.current?.getText() ?? '';
+    editor.current?.setText(held.startsWith('/') ? held : `/${held}`, 1);
+    editor.current?.focus();
+  };
+  const onBigPaste = (pasted: string): boolean => {
+    files.add([new File([pasted], t('composer.pastedFile'), { type: 'text/plain' })]);
+    return true;
+  };
+
   const label = {
     send: { idle: t('runView.send'), pending: t('runView.sending') },
     resume: { idle: t('composer.resume'), pending: t('composer.resuming') },
@@ -259,8 +315,6 @@ export function Composer({
           : t('runView.placeholderFollowUp');
   const Icon = kind === 'fork' ? GitFork : kind === 'resume' ? Play : ArrowUp;
   const empty = !text.trim() && files.ids.length === 0;
-  // While the chat works its turn can be ended from here; a message written meanwhile is queued
-  const stoppable = Boolean(interrupt) && kind === 'send' && working;
   // A phone has room for one round button: on an empty box it is the one that stops
   const sendable = !(narrow && stoppable && empty);
   const sendName = submit.isPending ? label.pending : files.uploading ? t('shared.uploading') : label.idle;
@@ -279,24 +333,30 @@ export function Composer({
               send();
             }}
           >
-            <AttachButton state={files} compact disabled={submit.isPending} />
-            <textarea
-              aria-label={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
-              autoFocus={kind === 'fork'}
-              onPaste={files.onPaste}
-              ref={box}
-              rows={1}
+            <ComposerMenu
+              chat={chat}
+              live={live}
+              files={files}
+              disabled={submit.isPending}
+              hasCommands={(chat.environment?.slashCommands?.length ?? 0) > 0}
+              onCommands={startCommand}
+              onChooseTools={() => setOptions(true)}
+            />
+            <RichEditor
+              ref={editor}
+              initialText={initial}
               placeholder={placeholder}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              {...slash.inputProps}
-              onKeyDown={(e) => {
-                if (slash.onKeyDown(e)) return;
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
+              ariaLabel={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
+              ariaProps={slash.ariaProps}
+              submitKey={touch ? 'mod-enter' : 'enter'}
+              autoFocus={kind === 'fork'}
+              onChange={onChange}
+              onCaret={setCaret}
+              onSubmit={send}
+              onKeyDown={onKeyDown}
+              onPasteFiles={files.add}
+              onBigPaste={onBigPaste}
+              bigPasteChars={BIG_PASTE_CHARS}
             />
             {stoppable && interrupt && (
               <Tooltip content={t('view.interruptHint')}>
@@ -317,7 +377,7 @@ export function Composer({
         </SlashMenu>
       </div>
       <div className="composer-foot">
-        <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} />
+        <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} open={options} setOpen={setOptions} />
         <KeysHint>{t('composer.keys')}</KeysHint>
       </div>
       <ErrorBox error={submit.error} title={kind === 'send' ? t('runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />
