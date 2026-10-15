@@ -229,7 +229,7 @@
   "Toggle [Checkbox, Switch]",
   "ToolPresetsTab [ToolPresetsTab]",
   "ToolsCard [ToolsCard]",
-  "Tooltip [Tooltip, TooltipProvider]",
+  "Tooltip [Tooltip, TooltipProvider, nextTooltipOpen]",
   "TopBar [TopBar]",
   "Transcript [EntryView, MessageActions, RichText, StreamingEntry, SubagentLink, Transcript, TranscriptEdits, WorkflowLaunches, WorkingLine, endsWithAssistant, preloadMarkdown]",
   "TranscriptSearch [FindBar, FindButton, FindTarget, TranscriptFind, useFindFocus, useFindHighlight, useTranscriptFind]",
