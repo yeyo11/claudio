@@ -69,10 +69,13 @@ describe('store, dirs and env', () => {
     const d = envFor(s.ref('default'), env());
     assert.equal(d.CLAUDE_CODE_OAUTH_TOKEN, undefined);
     assert.equal(d.ANTHROPIC_API_KEY, undefined);
-    assert.equal(d.CLAUDE_CONFIG_DIR, env().CLAUDE_CONFIG_DIR, 'the default account keeps the base CLAUDE_CONFIG_DIR');
-    const bare = { ...env() };
-    delete bare.CLAUDE_CONFIG_DIR;
-    assert.equal(envFor(s.ref('default'), bare).CLAUDE_CONFIG_DIR, undefined, 'and sets none when the base had none, so the CLI reads ~/.claude.json');
+    // A default dir that is not the CLI's own (~/.claude) is passed, as tests and custom setups need
+    assert.equal(d.CLAUDE_CONFIG_DIR, defaultDir);
+    // The CLI's own dir is left unset, so the CLI reads ~/.claude.json and not ~/.claude/.claude.json
+    const home = { ...env(), HOME: root };
+    assert.equal(envFor({ id: 'default', kind: 'login', dir: join(root, '.claude') }, home).CLAUDE_CONFIG_DIR, undefined);
+    // And a CLAUDE_CONFIG_DIR the process already had is kept as it is
+    assert.equal(envFor(s.ref('default'), { ...env(), CLAUDE_CONFIG_DIR: '/elsewhere' }).CLAUDE_CONFIG_DIR, '/elsewhere');
     const key = await s.add({ kind: 'api-key', alias: 'billing', secret: 'sk-ant-api' });
     const k = envFor(s.ref(key.id), env());
     assert.equal(k.ANTHROPIC_API_KEY, 'sk-ant-api');
@@ -356,6 +359,10 @@ describe('models from initialize', () => {
     const max = (await s.models('default')).map((m) => m.value);
     assert.ok(!pro.includes('opus'));
     assert.ok(max.includes('opus'));
+    // The default account was never identified: what initialize said about it fills the blanks
+    const def = s.get('default');
+    assert.equal(def.email, 'a@example.com');
+    assert.equal(def.plan, 'Claude Max');
   });
 
   it('serves the cache until the CLI version or the plan moves', async () => {
