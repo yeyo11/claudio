@@ -1067,7 +1067,7 @@ export class Core {
       // otherwise waits for seconds on a machine with hundreds of megabytes of them
       void this.sessions.listSessions().catch(() => undefined);
     });
-    this.connectors = new Connectors(config);
+    this.connectors = new Connectors(config, { account: () => this.accounts.ref(DEFAULT_ID) });
     this.projectDocs = new ProjectDocsService({ config, runtime: this.runtime, connectors: this.connectors });
     // A project's agent file is also a team member's: the team announces it, however it was written
     this.resources = new ConfigResources((change) => {
