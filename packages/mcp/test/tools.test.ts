@@ -56,6 +56,7 @@ test('every tool is called once and answers with the seeded data', async () => {
     ['list_chats', {}, '['],
     ['get_usage', { from: '2026-09-01', to: '2026-09-30' }, 'breakdown'],
     ['list_providers', {}, 'claude-code'],
+    ['list_accounts', {}, 'default'],
   ];
   for (const [name, args, expected] of calls) {
     const result = await s.call(name, args);

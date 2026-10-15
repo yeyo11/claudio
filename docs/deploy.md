@@ -265,9 +265,12 @@ digest is a build arg (`CLAUDE_CODE_INSTALLER_SHA256`), overridable with `--buil
 `docker/Dockerfile` carries the command that recomputes it. The URL always serves the newest script,
 so rotating that digest is a commit of its own that records what moved.
 
-The image carries no claude-swap or uv: Claudio never calls claude-swap. Accounts, when they arrive
-(stage A of [plans/claude-only-fork.md](plans/claude-only-fork.md)), live in an `accounts/` directory
-inside the data volume, and there is nothing else to mount.
+The image carries no claude-swap or uv: Claudio never calls claude-swap. The accounts
+([accounts.md](accounts.md)) live in an `accounts/` directory inside the data volume, with
+`accounts.json` beside it, and there is nothing else to mount. The directory holds each account's
+config dir, with its `0600` secret for a token or API-key account, so back it up and protect it
+like the rest of the volume. A `login` account is signed in from the Accounts page, which runs
+`claude auth login` in the container.
 
 ## Notifications on a phone
 

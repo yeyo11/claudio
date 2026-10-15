@@ -1586,7 +1586,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `no-results` | search or filters without matches, an empty usage range | accent |
 | `not-found` | 404, a chat or orchestration that no longer exists | accent |
 | `install` | Settings → Install, turning push on | accent |
-| `cli-missing` | the CLI is not detected, or claude-swap is not installed | warn |
+| `cli-missing` | the CLI is not detected | warn |
 | `signed-out` | the CLI is not logged in, or the wrapper asks for a credential (sign-in screen) | warn |
 | `connector` | a connector needs authorisation, push is blocked | warn |
 | `offline` | the API is unreachable | bad |
@@ -1822,8 +1822,9 @@ the file being edited is its only moving part.
 
 - Desktop groups the nav as **Work** and **Space**, with **Live** under them. Under 900 px the
   palette trigger moves into the top bar as an icon.
-- The status bar and Home read the 5 h and 7 d windows the same way: claude-swap's reading of the
-  active account first, then the CLI's last rate-limit event (`swapUsageWindows`). Both come from
+- The status bar and Home read the 5 h and 7 d windows the same way: the accounts' readings first
+  (the stream's `rate_limit_event`, else the CLI's cache, see [accounts.md](accounts.md)), then the
+  CLI's last rate-limit event. Both come from
   one shared hook (`useUsageNow`), so nothing is fetched twice.
 - The FAB shows on Home, Chats and Projects (New chat), Orchestrations (New orchestration) and
   Tasks (New task), always the icon alone, and nowhere else (`fabFor`); it hides while the page
