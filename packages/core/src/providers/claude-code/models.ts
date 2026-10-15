@@ -8,6 +8,10 @@
  * knew what a given account could actually run. The aliases the CLI always takes come first, and
  * whatever the account adds follows.
  *
+ * The full, account-filtered list is read from the CLI's `initialize` handshake by
+ * `@agentry/accounts` and cached per account; when it is there it replaces everything below, which
+ * stays for a CLI that has not answered yet and for data written before it.
+ *
  * The aliases carry no label in that file, so the name of the model an alias stands for ("Sonnet 5"
  * for `sonnet`) is learned from the CLI too: each chat's `system/init` event reports the model id
  * its process runs (`claude-sonnet-5`), and the id a chat started with an alias reported is kept
@@ -65,7 +69,10 @@ let cache: { file: string; at: number; size: number; options: ModelOption[] } | 
  * The options, the aliases named after the model each last ran as (`seen`, alias to model id), when
  * a chat has run on it and its id reads as a name.
  */
-export function modelOptions(file: string, seen: Readonly<Record<string, string>> = {}): ModelOption[] {
+export function modelOptions(file: string, seen: Readonly<Record<string, string>> = {}, listed: readonly ModelOption[] | null = null): ModelOption[] {
+  // The CLI's `initialize` list is the whole answer: filtered by the account, carrying the concrete
+  // ids, so there is nothing to learn from chats and no alias to add beside it
+  if (listed?.length) return [...listed];
   const options = cliModelOptions(file);
   if (!Object.keys(seen).length) return options;
   return options.map((option) => {

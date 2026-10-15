@@ -18,6 +18,13 @@ export interface ChooseOptions {
   pinned?: string | null;
   /** Epoch ms of the last switch, for the cooldown */
   lastSwitchAt?: number | null;
+  /** The model the chat runs on (an alias or an id); absent or `default` means whatever the account offers */
+  model?: string | null;
+  /**
+   * Whether an account can run the model. An account that cannot is no candidate, so the work waits
+   * for one that can instead of replaying a turn that would fail. Absent allows every account.
+   */
+  canRun?: (account: string, model: string) => boolean;
 }
 
 export interface Choice {
@@ -67,7 +74,9 @@ export function choose(
     return l && l.state !== 'unknown' ? l.utilization : null;
   };
   const out = (id: string): boolean => exhaustedUntil(limits[id] ?? null, now) !== null;
-  const usable = (id: string): boolean => ready(id) && !out(id);
+  const model = opts.model && opts.model !== 'default' ? opts.model : null;
+  const runs = (id: string): boolean => !model || !opts.canRun || opts.canRun(id, model);
+  const usable = (id: string): boolean => ready(id) && !out(id) && runs(id);
 
   const pinned = opts.pinned ?? null;
   if (pinned && usable(pinned)) return { account: pinned, reason: pinned === current ? null : 'person', waitUntil: null };
@@ -99,6 +108,7 @@ export function choose(
   // Nobody better: an account over the threshold but not out still beats stopping
   if (current !== null && usable(current)) return { account: current, reason: null, waitUntil: null };
 
-  const resets = order.map((id) => exhaustedUntil(limits[id] ?? null, now)).filter((t): t is number => t !== null);
+  // Only an account that can run the model is worth waiting for: another one coming back changes nothing
+  const resets = order.filter((id) => ready(id) && runs(id)).map((id) => exhaustedUntil(limits[id] ?? null, now)).filter((t): t is number => t !== null);
   return { account: null, reason: null, waitUntil: resets.length ? Math.min(...resets) : null };
 }

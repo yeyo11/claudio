@@ -61,9 +61,12 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
-if (process.env.FAKE_CLAUDE_ENVS) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.AGENTRY_API_URL ?? null, token: process.env.AGENTRY_API_TOKEN ?? null })}\n`);
-if (process.env.FAKE_CLAUDE_ACCOUNTS) appendFileSync(process.env.FAKE_CLAUDE_ACCOUNTS, `${JSON.stringify({ dir: process.env.CLAUDE_CONFIG_DIR ?? null, oauth: process.env.CLAUDE_CODE_OAUTH_TOKEN ?? null, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? null })}\n`);
-if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
+// Reading an account's model list (the `initialize` handshake and the version before it) is not a
+// chat's process: the logs below count what chats spawn
+const probe = args[0] === '--version' || args.join(' ') === '-p --input-format stream-json --output-format stream-json --verbose';
+if (process.env.FAKE_CLAUDE_ENVS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.AGENTRY_API_URL ?? null, token: process.env.AGENTRY_API_TOKEN ?? null })}\n`);
+if (process.env.FAKE_CLAUDE_ACCOUNTS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ACCOUNTS, `${JSON.stringify({ dir: process.env.CLAUDE_CONFIG_DIR ?? null, oauth: process.env.CLAUDE_CODE_OAUTH_TOKEN ?? null, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? null })}\n`);
+if (process.env.FAKE_CLAUDE_SPAWNS && !probe) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close, and a
 // chat started through the API waits a minute for it
 if (args[0] === 'agents') {
@@ -142,12 +145,26 @@ async function mcpCall(server, tool, input, sessionId) {
 const lines = createInterface({ input: process.stdin });
 let handled = false;
 lines.on('line', (line) => {
-  if (handled || !line.trim()) return;
+  if (!line.trim()) return;
+  // The handshake, no turn: the models the account offers. FAKE_CLAUDE_LITE_DIRS lists the config dirs
+  // of accounts without opus, as a Pro plan is
+  const hello = line.includes('"initialize"') ? JSON.parse(line) : null;
+  if (hello?.type === 'control_request' && hello.request?.subtype === 'initialize') {
+    const lite = (process.env.FAKE_CLAUDE_LITE_DIRS ?? '').split(',').includes(process.env.CLAUDE_CONFIG_DIR ?? '');
+    const models = [
+      { value: 'sonnet', resolvedModel: 'claude-sonnet-5-5', displayName: 'Sonnet', description: 'Sonnet 5.5', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] },
+      ...(lite ? [] : [{ value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'max'] }]),
+      { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5', supportsEffort: false },
+    ];
+    out({ type: 'control_response', response: { subtype: 'success', request_id: hello.request_id, response: { commands: [], models, account: { apiProvider: 'firstParty' } } } });
+    return;
+  }
+  if (handled) return;
   handled = true;
   const content = JSON.parse(line).message?.content;
   const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
   const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
-  out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: dir, model: 'fake', tools: [] });
+  out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: dir, model: flag('--model') ?? 'fake', tools: [] });
   if (process.env.FAKE_CLAUDE_PROMPTS) appendFileSync(process.env.FAKE_CLAUDE_PROMPTS, `${JSON.stringify({ cwd: dir, resume: flag('--resume') ?? null, prompt })}\n`);
 
   for (const [, file, text] of prompt.matchAll(/^FAKE-WRITE (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
