@@ -235,9 +235,11 @@ Must change, because the two apps would collide at runtime:
 | Linux package (`appId`, `executableName`, `.desktop`, metainfo, `StartupWMClass`, `.deb` name) | `io.github.yeyo11.agentry`, `agentry` | `io.github.yeyo11.claudio`, `claudio` |
 | `scripts/install.sh` | `agentry` | `claudio` |
 | Tailscale Serve port | 8443 | 8444 |
-| API dev port, web dev port | 8787, 5173 | 8788, 5174 (`strictPort`) |
+| API dev port, web dev port | 8787, 5173 | 8797, 5181 (`strictPort`) |
 | e2e port | 8799 | 8809 |
-| Docker image, compose host port, Helm chart, Caddy upstream | `agentry`, 8787 | `claudio`, 8788 |
+
+Ports chosen on 2026-10-15 (owner) to collide with neither Agentry (8787, 5173, 8799, 8443) nor the AVG stack on the same machine (8788 for its Agentry container, 8443 for its Caddy).
+| Docker image, compose host port, Helm chart, Caddy upstream | `agentry`, 8787 | `claudio`, 8797 |
 | Worktrees and branches | `task/<key>`, `agentry/<name>-<id>` | `claudio-task/<key>`, `claudio/<name>-<id>` |
 
 And, by decision 6, everything else: `@agentry/*` → `@claudio/*`, `AGENTRY_*` → `CLAUDIO_*`
