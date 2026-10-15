@@ -38,7 +38,18 @@ The proxy must:
   `X-Forwarded-Host` (Caddy does all of it);
 - not buffer `/api/events` and the chat streams, which are long-lived event streams
   (`flush_interval -1` in Caddy, `proxy_buffering off` in nginx);
-- not cut idle connections faster than the 15 s heartbeat the streams send.
+- not cut idle connections faster than the 15 s heartbeat the streams send;
+- carry the WebSocket upgrade of the [terminal](#the-terminal), which every shell uses
+  (`/api/terminals/<id>/socket`).
+
+Caddy does that by default. nginx needs these lines in the `location` that proxies Claudio:
+
+```nginx
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_read_timeout 1h;
+```
 
 ### The host allowlist, and why a proxy has to be told about it
 
@@ -125,9 +136,33 @@ starts. Do not scale it.
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
 
-`tunnel.enabled` (default `true`, as in the image) decides whether the pod runs its own
+`terminal.enabled` (default `false`) writes `CLAUDIO_TERMINAL` as `off` or `on`; see
+[the terminal](#the-terminal). `tunnel.enabled` (default `true`, as in the image) decides whether the pod runs its own
 `tailscaled` and Settings → Remote access may serve it on a tailnet; see the next section. The deployment always writes `CLAUDIO_TUNNEL` as `on` or `off`,
 and `NOTES.txt` warns when it is on.
+
+## The terminal
+
+Settings → Terminal opens the person's own shell in the browser. It is off until someone turns it on,
+and in a container it has two conditions:
+
+- **Authentication.** The image listens on `0.0.0.0`, so with `CLAUDIO_AUTH_MODE=none` every request
+  reaches the server from the Docker bridge, not from loopback, and the terminal reports
+  `needs-auth`. With a token (or `oidc`) it works, as user `node`, in `/workspace/...`.
+- **Where from.** A device other than the container itself gets a terminal only through the
+  [tunnel](tunnel.md), with a token. A reverse proxy such as Caddy counts as the plain address, not as
+  the tunnel, because Claudio does not trust the headers it sends: reach the terminal through the
+  tunnel, or from a shell on the host.
+
+The shell is the login shell of `node` plus the credentials the app keeps for `gh`, `glab` and the
+tracker CLIs; never a `CLAUDIO_*` variable and never Claude's credentials. Shells outlive a closed
+tab but end when the server stops.
+
+`CLAUDIO_TERMINAL=off` vetoes the feature for the whole deployment: the environment wins and the UI
+shows the setting read-only. `CLAUDIO_TERMINAL=on` switches it on. Unset leaves it to the UI. The
+chart's `terminal.enabled` writes it, `false` by default. The image carries `/app/terminal-host.mjs`,
+the process the server forks for the shells, and `/app/node_modules/node-pty` beside it, a prebuilt
+binary: nothing is compiled in either build stage.
 
 ## The tunnel in Docker
 
@@ -213,9 +248,9 @@ reach, so a hook needs a public one:
 ## What the image contains
 
 The image is built in two stages. The stage that runs holds one compiled JavaScript file
-(`/app/api.mjs`, started by `CMD`), the built UI (`/app/web`, which is why the image sets
+(`/app/api.mjs`, started by `CMD`, with `/app/terminal-host.mjs` and the `node-pty` module beside it), the built UI (`/app/web`, which is why the image sets
 `CLAUDIO_WEB_DIST=/app/web`), the Claude Code CLI and the tools a chat needs. There is no source
-tree, no `node_modules` and no transpiler: `docker build -f docker/Dockerfile .` is unchanged for
+tree, no transpiler and no `node_modules` but `node-pty`'s: `docker build -f docker/Dockerfile .` is unchanged for
 you, the image is smaller and it starts faster. pnpm is still installed, for the projects Claude
 works on under `/workspace`, not to start anything.
 

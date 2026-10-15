@@ -128,6 +128,11 @@ WORKDIR /app
 # The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
 COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
 COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
+# The person's terminals: the host process the server forks, and node-pty beside it, the one native
+# module (a prebuilt binary: nothing is compiled in either stage). The folder is the only
+# node_modules in the image
+COPY --from=build --chown=node:node /app/apps/api/dist/terminal-host.mjs /app/terminal-host.mjs
+COPY --from=build --chown=node:node /app/apps/api/dist/node_modules/node-pty /app/node_modules/node-pty
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
