@@ -4,7 +4,6 @@ updated_at: 2026-10-15T09:00:00Z
 tags:
     - plan
     - fork
-    - claude-swap
     - accounts
     - rotation
     - branding
@@ -18,7 +17,9 @@ Claudio is a fork of Agentry at `d1ee00514` (release 0.37.1). Agentry grew from 
 Claude Code into an orchestrator that drives several vendors' agents
 ([plans/multi-provider.md](multi-provider.md)), and in its phase 4 (#188) it retired claude-swap in
 favour of moving work between vendors. Claudio goes back to the original idea: **it drives Claude
-Code only, and it rotates between several Claude accounts with claude-swap (`cswap`)**. Everything
+Code only, and it rotates between several Claude accounts**, with a package of its own,
+`@claudio/accounts`, that does what claude-swap (`cswap`) did for Agentry before #188 without
+claude-swap and without its undocumented endpoints. Everything
 else Agentry built after the fork point that is not about other vendors stays: the assistant and its
 MCP server, code hosts and trackers, the decision engine, effort, the setup flow, Home widgets, the
 message tracking of CW-37, and so on.
@@ -33,7 +34,7 @@ message tracking of CW-37, and so on.
    core for no behavioural gain. The conformance suite keeps testing the one driver.
 3. **A separate product with its own data.** New repository, product name **Claudio**, its own data
    directory, ports, desktop identity and update channel, so it runs beside an installed Agentry.
-4. **At a usage limit: switch account first, then wait.** claude-swap moves to another account with
+4. **At a usage limit: switch account first, then wait.** Claudio moves to another account with
    quota and the turn is replayed in the same chat. When no account has quota, the work waits for
    the reset. The wait half of `rotation.ts` stays; handoff and restart go. Rejected: only switching
    (a limit with every account exhausted fails the run); waiting only for automated work.
@@ -46,10 +47,31 @@ message tracking of CW-37, and so on.
    browser storage keys, the docs and the copy. The changelog starts fresh. Rejected: renaming only
    what collides at runtime to keep cherry-picks from Agentry cheap; a `BRAND` constant. Claudio does
    not plan to take changes from Agentry.
+7. **No claude-swap: an accounts package of Claudio's own** (owner, 2026-10-15). Claudio does not
+   install, pin or call claude-swap. Rejected: restoring the claude-swap integration of
+   `8c52aef25`; porting claude-swap faithfully. A faithful port would break the one rule: claude-swap
+   refreshes OAuth tokens at `platform.claude.com/v1/oauth/token` with Claude Code's own client id,
+   and reads `api.anthropic.com/api/oauth/profile` and `api.anthropic.com/api/oauth/usage`, none of
+   them documented for programs. Going through claude-swap's CLI kept Agentry within the rule only
+   because the calls were a third-party tool's.
+8. **One config directory per account; the account is chosen per process.** Each account is a
+   `CLAUDE_CONFIG_DIR` of its own, signed in once with `claude auth login` and refreshed by the CLI
+   itself; an account may instead be a `claude setup-token` token or an API key, passed in the
+   environment. Claudio never copies or rewrites a credential, so there is no global "active
+   account", no swap of `~/.claude/.credentials.json`, and no need for Claude Code's lock
+   directories. Usage per account comes from the `rate_limit_event` Claude already emits. Rejected:
+   setup tokens only (no email, a renewal by hand every year).
+9. **A library with a CLI of its own.** `packages/accounts` (`@claudio/accounts`), used by core,
+   with a `claudio-accounts` binary for the terminal. Rejected: a module inside core with no CLI; a
+   separate repository.
 
 **The one rule stays**, narrowed back to its first form: Claudio reaches Claude Code only through its
-CLI (flags, subcommands, stream-json, the control protocol, the files it writes), and claude-swap
-only through its CLI. No SDK, no HTTP call to Anthropic, no terminal scraping.
+CLI (flags, subcommands, stream-json, the control protocol, the files it writes, the documented
+environment variables). No SDK, no HTTP call to Anthropic, no OAuth flow of its own, no terminal
+scraping.
+
+Rotating between several subscriptions to go past a usage limit is a question for Anthropic's terms
+of use, which the owner checks before Claudio is published.
 
 A note on the name: Anthropic's brand guidelines, cited in decision 2 of
 [plans/multi-provider.md](multi-provider.md), restrict how third-party products use "Claude".
@@ -99,39 +121,95 @@ A note on the name: Anthropic's brand guidelines, cited in decision 2 of
 entry is removed. `chats.provider`, `chat_entries`, `provider_limits`, `provider_moves` (now the wait
 queue) and `flow_runs.provider` stay. `chat_entries` goes unused.
 
-### 2. claude-swap back
+### 2. Several Claude accounts, with `@claudio/accounts`
 
-- **Restored as they were at `8c52aef25`:** `accounts.ts`, `account-config.ts`, `cswap-install.ts`,
-  `cswap-pin.ts`, `apps/api/src/routes/accounts.ts` (18 routes), the Accounts page and
-  `pages/accounts/**`, `lib/cswap.ts`, `lib/usage-history.ts`, `usage-history.css`, the
-  `accountsConfig` locales, their tests, `e2e/specs/accounts-config.spec.mjs`, and the
-  `DesktopCuentas` and `MobileCuentas` references.
-- **Re-applied by hand** onto files that changed after #188: the account types in `types.ts`;
-  `AccountManager` wiring in `index.ts`; `account` on chats and executions (`chats.ts`,
-  `chat-service.ts`, `live-chat.ts`, `chat-records.ts`); `AccountSupport` in `driver.ts` and
-  `cswap run <account> --share-history -- claude …` in the Claude driver's args; `cswapBin` and
-  `cswapManaged` in `paths.ts`; the `rotation_events` and `usage_history` methods in `db.ts` (the
-  tables were never dropped, no migration is needed); `App.tsx`, `api.ts`, `StatusBar`'s
-  `AccountCard`, `shell-live.ts`, `usage-now.ts`, `CommandPalette`, `events.ts`, the notification
-  texts, `AccountTab`, the account picker in New chat (beside effort), `Side.tsx`, Home's
-  `limitSummary` and pulse widget, the MCP `list_accounts` tool (through CW-33's compact fields), the
-  Docker uv and claude-swap install, Compose, Helm, `.env.example`.
-- **The limit path** (`rotation.ts`, reduced and renamed `LimitWaits`): at `limit-hit` on Claude,
-  `accounts.rotateWithinPolicy` (or the pinned rotation) switches account and
-  `runtime.replayLastTurn` replays it in the same chat, reusing CW-37's `limitRequested` and
-  `limitReplays` counters. After a switch a fresh reading is written to `provider_limits` with a newer
-  `observedAt`, so Claude is not left "exhausted". When no account has quota, the existing wait takes
-  over. `holds()` covers a switch under way so flow runs and tasks wait instead of failing. A switch
-  is logged to `rotation_events`; `provider_moves` only records waits.
-- **Credentials** (the riskiest part): since #228 `childEnv('claude-code')` puts the vault's
-  `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` into every `claude` process, which would override
-  the account claude-swap switched to. While cswap manages accounts, `child-env.ts` drops both, and
-  `tokenSource` reads `'cswap'` again so Settings → Account says so.
-- **Security:** the account routes that install or run a binary or move credentials
-  (`POST /accounts/cswap/install`, `DELETE /accounts/cswap`, `POST /accounts/token`,
-  `POST /accounts/switch`, `PUT /accounts/autoswitch`, `PUT /accounts/:number/config`, the policy
-  writes) are forbidden to a chat's own token.
-- **Phone:** `/accounts` gets a phone header (`phone-header.ts`) as CW-8 asks.
+What claude-swap did for Agentry, rebuilt on what Claude Code ships for programs. Its study is in
+`~/Escritorio/claude-swap` (MIT, © 2026 Onur Cetinkol); Claudio re-implements the ideas, it copies
+no code, and credits claude-swap in the package's README.
+
+**An account** is one of three kinds:
+
+| Kind | How it is added | What a `claude` process gets | Identity |
+|---|---|---|---|
+| `login` | `claude auth login [--email]` run with `CLAUDE_CONFIG_DIR=<account dir>` | `CLAUDE_CONFIG_DIR=<account dir>`; the CLI refreshes its own tokens there | `claude auth status --json` in that dir: email, organisation, plan |
+| `token` | a `claude setup-token` token pasted once | `CLAUDE_CODE_OAUTH_TOKEN` | the alias the person gives it |
+| `api-key` | an API key pasted once | `ANTHROPIC_API_KEY` | the alias; no usage limits to read |
+
+- **The default account** is the CLI's own config dir (`CLAUDE_CONFIG_DIR` or `~/.claude`), so a
+  fresh install works with nothing to set up. A token saved through setup (#228) becomes a `token`
+  account.
+- **Account dirs** live under `<data>/accounts/<id>/`, made the way Agentry's `account-config.ts`
+  made them at `8c52aef25`: `settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`, `commands`
+  and `skills` symlinked from the default dir, and **`projects/` always linked**, so every account
+  writes its transcripts where Claudio reads them and a session started on one account resumes on
+  another with `--resume`.
+- **Secrets** of `token` and `api-key` accounts are a `0600` file inside the account's own dir, the
+  same protection Claude Code gives its own `.credentials.json`. Claudio never reads, copies or
+  writes a `login` account's credentials: only the CLI does.
+- **Nothing is global.** Each process is started with its account's environment, and the variables
+  of the other kinds are removed from it (`child-env.ts`). Two chats can run on two accounts at the
+  same time. A live chat stays on its account until it is launched again.
+
+**Usage per account** comes from the `rate_limit_event` Claude emits on stream-json
+(`rate_limit_info`: `status`, `resetsAt`, `rateLimitType`, `utilization`) and from a result with a
+429. The latest reading per account and window is current state in `<data>/accounts/limits.json`,
+written atomically, an older reading never replacing a newer one; the history is rows in the
+existing `usage_history` table, and switches in the existing `rotation_events` table (neither was
+ever dropped; no migration is needed). An account that has not run a turn has no reading
+(`unknown`), and a reading whose reset has passed reads `unknown` again.
+
+**Choosing an account**, at every launch of a chat that is not pinned:
+
+- keep the current account while its binding window (the higher of 5 h and 7 d) is under the
+  threshold (default 90 %);
+- otherwise take the enabled account with the most headroom; a candidate must be at least 10 points
+  under the threshold (hysteresis), and there are at least 300 s between two switches unless the
+  current account is exhausted;
+- an exhausted account (a `rejected` event or a 429) is skipped until its `resetsAt`; an `unknown`
+  one is allowed;
+- strategies `best` (the default), `next-available` and `consume-first` (the one whose weekly window
+  resets soonest);
+- per-project rotation policies (an ordered list of accounts and a threshold), as Agentry's
+  `account-config.ts` had them, override the global order;
+- a chat pinned to an account keeps it, and at a limit rotates only within its policy.
+
+**At a limit** (`limit-hit`): the account is marked exhausted until its reset, the next account is
+chosen, and `replayLastTurn` replays the turn in the same chat, resumed on the new account, with
+CW-37's `limitRequested` and `limitReplays` counters. A person's chat does it when `rotateOnLimit`
+is on (the default); automated work always does. When no account is left, the wait half of
+`rotation.ts` (renamed `LimitWaits`) takes over until the earliest reset.
+
+**The package** `packages/accounts` (`@claudio/accounts`) depends on `@claudio/shared` only. It is
+built as `@agentry/accounts` in stage A and renamed with every other package in stage R:
+
+- the account store (`accounts.json`, settings-shaped), the account dirs and their links;
+- `envFor(account)`, the environment a process needs;
+- `identify(account)`, through `claude auth status --json`;
+- `login(account)`, which runs `claude auth login` in the account's dir and hands back what the
+  person has to open or paste, the way the setup flow's device sign-ins do;
+- `observe(account, reading)` and the readings store;
+- `choose(accounts, readings, settings, policy)`, pure;
+- a `claudio-accounts` binary: `list [--json]`, `add [--token -|--api-key -] [--alias]`, `login`,
+  `remove`, `enable`, `disable`, `alias`, `status [--json]`, `pick [--json]`, and
+  `run <account> -- <claude args>`, which starts `claude` with that account's environment.
+
+The binary and Claudio share the data directory, so an account added in the terminal shows in the
+app.
+
+**What is lost against claude-swap**, by decision 8: no usage reading for an idle account, no spend
+amounts of `extra_usage`, no per-model windows beyond Opus and Sonnet, and no switch of an account
+under a running `claude`. Every one of them needs an undocumented endpoint or a credential swap.
+
+**Agentry's code from `8c52aef25` that is reused:** `account-config.ts` (dirs, links, policies,
+`pickAccount`), the Accounts page and `pages/accounts/**` without the claude-swap setup card, the
+usage chart, `lib/usage-history.ts`, `usage-history.css`, the `accountsConfig` locales, the
+`rotation_events` and `usage_history` methods of `db.ts`, and the `DesktopCuentas` and
+`MobileCuentas` references. `accounts.ts`, `cswap-install.ts`, `cswap-pin.ts`, `lib/cswap.ts`, the
+claude-swap install in Docker and `CSWAP_BIN` do not come back.
+
+**Security:** every account write route (add, sign in, remove, enable, alias, settings, policies) is
+forbidden to a chat's own token, and a token or key never leaves the server in a response, a log or
+an event.
 
 ### 3. Claudio as a product of its own
 
@@ -164,7 +242,8 @@ with an empty data directory.
 
 ## Orchestrations
 
-One feature branch, **`feat/claude-only`**, in the clone at `~/Escritorio/claudio`. Every
+One feature branch, **`feat/claude-only`**, in the clone at `~/Escritorio/claudio`. Nothing is
+pushed to GitHub: the owner creates Claudio's repository later. Every
 orchestration starts from the head of that branch and merges back into it. Code-writing workers run
 on `claude-sonnet-5-5` (the exact id); the audit between stages runs on `claude-opus-5-5`. Every task
 runs `pnpm typecheck` and the tests of the packages it touches; no worker runs `pnpm e2e`. The full
@@ -191,25 +270,45 @@ the other stages would make every merge conflict.
   `setup.spec.mjs` rewritten around Claude, the Dockerfile and Compose; `docs/providers.md` reduced to
   Claude, `plans/multi-provider.md` marked as Agentry history, the design references. Depends on s4.
 
-### A · `claudio-accounts` (claude-swap back), depends on S
+### A · `claudio-accounts` (several accounts), depends on S
 
-- `a1` shared: the account types, events and fields back in `types.ts`; schemas.
-- `a2` core restore: the four restored files, `db.ts` methods, `paths.ts`, `driver.ts`, the Claude
-  driver's args and its golden fixture, `credentials.ts` and `child-env.ts`. Depends on a1.
-- `a3` core wiring: `index.ts` (`AccountManager`, `Overview.accounts`), `chats.ts`,
-  `chat-service.ts`, `live-chat.ts`, `chat-records.ts`, and the limit path in `rotation.ts` (switch,
-  replay, fresh reading, then wait). Depends on a2. Tests: a limit with a second account switches and
-  replays in the same chat; with none, it waits; a pinned chat rotates within its policy; a person's
-  chat follows `rotateOnLimit`; two cores on one data directory switch once.
-- `a4` API: `routes/accounts.ts`, `app.ts`, the Accounts tag and its 18 rows, the chat-token
-  denials, README's Accounts table, API tests. Depends on a3.
-- `a5` web: the Accounts page and its parts, `App.tsx`, `api.ts`, the status bar, the shell, New
-  chat's account picker, Settings → Account, Home's limit widgets, the phone header, the locales and
-  fixtures. Depends on a4.
-- `a6` packaging, MCP and e2e: Docker (uv and claude-swap on Node 26), Compose, Helm,
-  `.env.example`, `packaging.test.ts`, `list_accounts`, `accounts-config.spec.mjs`, `CSWAP_BIN` in
-  `e2e/run.mjs`, the Cuentas references, `docs/desktop.md`, `docs/deploy.md`, and the two plans that
-  were marked superseded. Depends on a4.
+- `a0` facts, the owner with real accounts, before `a2` builds on them. Recorded as fixtures with
+  the scrubbing of [plans/multi-provider.md](multi-provider.md) phase 3:
+  - what `claude auth login` prints and asks for with `CLAUDE_CONFIG_DIR` set (a URL, a code to
+    paste back), and how it ends;
+  - `claude auth status --json` for a `login` dir, a `setup-token` and an API key;
+  - a real `rate_limit_event` near and at a limit (its window keys: `five_hour` and `seven_day`, not
+    the `"5h"` of today's fixtures);
+  - `--resume` of a session started on one account, from another account's dir with the linked
+    `projects/`.
+  A fact that contradicts this plan becomes a correction here before `a2` starts.
+- `a1` shared types: `Account` (`id`, `kind`, `alias`, `email`, `organization`, `plan`, `enabled`,
+  `signedIn`, `limits`), `AccountsSettings` (`rotateOnLimit`, `threshold`, `hysteresis`,
+  `cooldownSeconds`, `strategy`), `RotationPolicy` and its request, `UsageHistoryPoint`,
+  `AccountSwitchedEvent`, `RunAccountRotatedEvent`, `ChatStartOptions.account`,
+  `Execution.account`, `Overview.accounts`; schemas regenerated.
+- `a2` `packages/accounts`: the store, the dirs and links (from `account-config.ts`), `envFor`,
+  `identify`, `login`, the readings, `choose`, the binary, and their tests against a fake `claude`
+  that honours `CLAUDE_CONFIG_DIR`. Depends on a0, a1.
+- `a3` core: `child-env.ts` and the Claude driver launch with the chat's account; `account` on
+  chats, executions and records; choosing at launch; the limit path in `rotation.ts` (mark, choose,
+  replay, then wait); readiness of Claude from the accounts; `usage_history` and `rotation_events`
+  written again; `Overview.accounts`. Depends on a2. Tests: a limit with a second account replays in
+  the same chat on it; with none, it waits; a pinned chat rotates within its policy; a person's chat
+  follows `rotateOnLimit`; two chats run on two accounts at once; no process ever carries two
+  accounts' variables.
+- `a4` API: `GET /accounts`, `POST /accounts` (a `login` account, answering a sign-in session),
+  `POST /accounts/token`, `PATCH /accounts/:id`, `DELETE /accounts/:id`, `GET`/`PUT
+  /accounts/settings`, the policies, `GET /accounts/usage-history`, `GET /accounts/events`; the
+  Accounts tag, a summary per route, README rows, the chat-token denials, API tests. Depends on a3.
+- `a5` web: the Accounts page from `8c52aef25` on the new API, with the sign-in panel of the setup
+  flow for `login` accounts; the status bar's `AccountCard`; New chat's account picker beside
+  effort; Settings → Account; Home's limit widgets per account; the phone header; locales en/es
+  and fixtures. Depends on a4.
+- `a6` the rest: the MCP `list_accounts` tool (CW-33's compact fields), `e2e/specs/accounts.spec.mjs`
+  with the fake CLI (`FAKE-LIMIT` on one account, the replay on another), `docs/accounts.md`, the
+  Cuentas references, `docs/desktop.md` and `docs/deploy.md` (an `accounts/` dir inside the data
+  volume, nothing else to mount). Depends on a4.
 
 ### R · `claudio-rename`, depends on A
 
@@ -231,8 +330,10 @@ image built once, then the owner creates `yeyo11/claudio` and the branch is push
 
 | Risk | What holds it |
 |---|---|
-| A token saved in the vault overrides the account claude-swap switched to | `child-env.ts` drops the vault token while cswap manages; a test per launch path (driver, decision `cli`, detector) |
-| A switch leaves Claude marked exhausted | A fresh `provider_limits` reading with a newer `observedAt` after every switch |
+| A process gets the wrong account, or two accounts' variables | `envFor` builds the whole account environment and `child-env.ts` strips the other kinds; a test per launch path (driver, decision `cli`, detector, flow, assistant) |
+| A resumed session does not find its transcript on another account | `projects/` is always linked; `a0` records `--resume` across account dirs before anything builds on it |
+| `claude auth login` needs a terminal Claudio cannot drive | `a0` records it; if it does, a `login` account is added from the `claudio-accounts` binary and `token` accounts stay available in the app |
+| Usage readings are per account but `provider_limits` is per provider | Claude's provider limit is derived from the chosen account's reading; `provider_limits` keeps the last one for the status bar |
 | Automated work that used to wait now fails | Waiting stays the floor when no account has quota; `holds()` covers a switch in progress |
 | A Claudio build updates itself into Agentry, or the tunnels remove each other's rule | Stage R's runtime table, checked by running both desktop apps side by side before release |
 | Both apps work on one repository and fight over worktrees and agent files | Different branch and worktree prefixes; agent files under `.claude/agents/` are still shared, said in the README |
@@ -241,4 +342,4 @@ image built once, then the owner creates `yeyo11/claudio` and the branch is push
 
 ## Related
 
-[[plans/multi-provider.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[plans/limit-resume.md]] · [[providers.md]] · [[desktop.md]] · [[deploy.md]] · [[status.md]]
+[[plans/multi-provider.md]] · [[accounts.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[plans/limit-resume.md]] · [[providers.md]] · [[desktop.md]] · [[deploy.md]] · [[status.md]]
