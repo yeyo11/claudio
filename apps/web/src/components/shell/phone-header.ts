@@ -46,6 +46,9 @@ export const PHONE_HEADER_ROUTES: readonly PhoneHeaderRoute[] = [
   { path: /^\/chats\/[^/]+\/changes\/?$/, phoneHeader: 'page' },
   { path: /^\/tasks\/[^/]+\/changes\/?$/, phoneHeader: 'page' },
   { path: /^\/orchestration\/[^/]+\/(?:tasks\/[^/]+\/)?changes\/?$/, phoneHeader: 'page' },
+  // A project's terminals and one terminal's own screen (MobileTerminal)
+  { path: /^\/terminals\/?$/, phoneHeader: 'page' },
+  { path: /^\/terminals\/[^/]+\/?$/, phoneHeader: 'page' },
   // An orchestration (MobileOrquestacion)
   { path: /^\/orchestration\/[^/]+\/?$/, phoneHeader: 'page' },
   // The screens reached from Más (MobileCuentas, MobileProyectos, MobileProgramaciones, MobileUso,

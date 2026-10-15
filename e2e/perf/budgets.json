@@ -1,0 +1,14 @@
+{
+  "throughputMbPerSecond": 7,
+  "rssGrowthMb": 132,
+  "driftP95Ms": 150,
+  "driftWorstMs": 150,
+  "helloP50Ms": 300,
+  "backPressureRssGrowthMb": 99,
+  "secondClientEchoP95Ms": 50,
+  "endToEndSeconds": 4,
+  "longestTaskMs": 200,
+  "echoP50Ms": 25,
+  "echoWorstMs": 300,
+  "coldLoadMs": 1914
+}

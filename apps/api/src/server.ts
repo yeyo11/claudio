@@ -53,6 +53,9 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   // `process.env`, and the desktop app's secret is not theirs to hold, nor to write to a transcript
   delete process.env.CLAUDIO_DESKTOP_TOKEN;
   delete process.env.CLAUDIO_SECRET_KEY;
+  // The owner's token too: a deployment that seeds it here (Docker, Compose, Helm) would otherwise
+  // hand it to every chat, which could then do anything the owner can. `config.authEnv` has it now
+  delete process.env.CLAUDIO_AUTH_TOKEN;
   const app = await buildApp(core, { webDist: opts.webDist });
   for (const stray of core.runtime.strays()) {
     app.log.warn(

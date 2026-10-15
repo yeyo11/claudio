@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-09T16:00:00Z
+updated_at: 2026-10-15T20:00:00Z
 tags:
     - security
     - secrets
@@ -135,6 +135,22 @@ later run of the project. `POST /memory-proposals/:proposalId/approve` and `/rej
 403 to a chat's token, with the same error shape as the other routes closed to it; proposing stays
 open, and the person's token decides.
 
+## The terminal
+
+The terminal is a shell on the machine that runs Claudio, so it is the most privileged thing the
+server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-security); the rules:
+
+- off until the owner turns it on; with authentication off it opens only from loopback, and off this
+  machine only through the tunnel with a token (or any device with a token, if the owner allows it);
+- a chat's token, the desktop secret and any process a chat started are refused, the last by looking
+  up the connection's owner in `/proc`; when that cannot be told, it fails closed under `none`;
+- the socket opens with a one-use ticket (30 s, bound to the terminal and the `Origin`), and the
+  `Origin` and `Host` are checked before the upgrade;
+- the shell gets the vault's tool credentials but no `CLAUDIO_*` variable and none of Claude's own;
+- sessions and attachments (including refusals) are audited, never their content.
+
+See [terminal.md](terminal.md).
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
@@ -143,4 +159,4 @@ open, and the person's token decides.
 ## Related
 
 [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]

@@ -221,6 +221,12 @@ import type {
   TriageWorkItemRequest,
   TriageWorkItemResult,
   TunnelStatus,
+  Terminal,
+  TerminalHistoryPage,
+  TerminalStatus,
+  TerminalTicket,
+  CreateTerminalRequest,
+  UpdateTerminalSettingsRequest,
   UpdateAppSettingsRequest,
   UpdateAuthConfigRequest,
   UpdateBranchResult,
@@ -732,6 +738,16 @@ export const api = {
   deleteFile: (root: string, path: string) =>
     request<{ ok: true }>(`/config/files/content${qs({ root, path })}`, { method: 'DELETE' }),
   securityAuth: (o: ReadOptions = {}) => request<AuthConfig>('/security/auth', o),
+  terminalStatus: (o: ReadOptions = {}) => request<TerminalStatus>('/terminal', o),
+  updateTerminalSettings: (body: UpdateTerminalSettingsRequest) => request<TerminalStatus>('/terminal/settings', { method: 'PUT', body }),
+  terminalHistory: (offset = 0, limit = 25, o: ReadOptions = {}) =>
+    request<TerminalHistoryPage>(`/terminal/history${qs({ offset: String(offset), limit: String(limit) })}`, o),
+  terminals: (scope: { project?: string; chat?: string } = {}, o: ReadOptions = {}) => request<Terminal[]>(`/terminals${qs(scope)}`, o),
+  createTerminal: (body: CreateTerminalRequest) => request<Terminal>('/terminals', { method: 'POST', body }),
+  terminal: (id: string, o: ReadOptions = {}) => request<Terminal>(`/terminals/${enc(id)}`, o),
+  /** Good for one socket within seconds: ask again for every connection, a reconnect included */
+  terminalTicket: (id: string) => request<TerminalTicket>(`/terminals/${enc(id)}/ticket`, { method: 'POST' }),
+  closeTerminal: (id: string) => request<Terminal>(`/terminals/${enc(id)}`, { method: 'DELETE' }),
   updateSecurityAuth: (body: UpdateAuthConfigRequest) => request<AuthConfig>('/security/auth', { method: 'PUT', body }),
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
   setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
@@ -1181,6 +1197,10 @@ export const keys = {
   connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
   securityAuth: ['security', 'auth'] as const,
+  terminalStatus: ['terminal', 'status'] as const,
+  terminalOne: (id: string) => ['terminal', 'one', id] as const,
+  terminalList: (scope: string) => ['terminal', 'list', scope] as const,
+  terminalHistory: (from: number) => ['terminal', 'history', from] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
   // ---- the project ecosystem. Every work item read sits under `workItems` or `workItemDetails`, and

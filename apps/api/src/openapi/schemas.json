@@ -5721,6 +5721,9 @@
         "$ref": "#/components/schemas/TunnelChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/TerminalChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/WebhookChangedEvent"
       },
       {
@@ -9998,6 +10001,329 @@
       "startWithAgentry"
     ],
     "description": "What the tunnel may be told to do beside starting and stopping it."
+  },
+  "TerminalChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "terminal.changed"
+      },
+      "terminals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Terminal"
+        }
+      },
+      "status": {
+        "$ref": "#/components/schemas/TerminalStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "status",
+      "terminals",
+      "title",
+      "type"
+    ],
+    "description": "A terminal opened, ended or changed, or the settings changed. Carries the summary, never output."
+  },
+  "Terminal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/TerminalScope"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "shell": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TerminalState"
+      },
+      "cols": {
+        "type": "number"
+      },
+      "rows": {
+        "type": "number"
+      },
+      "clients": {
+        "type": "number",
+        "description": "Sockets attached now"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TerminalEndReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "exitCode": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "scope",
+      "cwd",
+      "shell",
+      "state",
+      "cols",
+      "rows",
+      "clients",
+      "startedAt",
+      "endedAt",
+      "endReason",
+      "exitCode"
+    ]
+  },
+  "TerminalScope": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "project"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "worktree": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "projectId",
+          "worktree"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "chat"
+          },
+          "chatId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "chatId"
+        ]
+      }
+    ],
+    "description": "What a terminal is opened in: a project's directory or worktree, or a chat's working directory."
+  },
+  "TerminalState": {
+    "type": "string",
+    "enum": [
+      "running",
+      "exited",
+      "closed"
+    ]
+  },
+  "TerminalEndReason": {
+    "type": "string",
+    "enum": [
+      "exit",
+      "closed",
+      "idle",
+      "server-stopping",
+      "server-crashed",
+      "host-failed",
+      "disabled",
+      "read-only"
+    ]
+  },
+  "TerminalStatus": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "available": {
+        "type": "boolean"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TerminalUnavailableReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "settings": {
+        "$ref": "#/components/schemas/TerminalSettings"
+      },
+      "sources": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "remote": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "maxTerminals": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "idleMinutes": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "scrollbackLines": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "replayLines": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "shell": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "loginShell": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          }
+        },
+        "required": [
+          "enabled",
+          "remote",
+          "maxTerminals",
+          "idleMinutes",
+          "scrollbackLines",
+          "replayLines",
+          "shell",
+          "loginShell"
+        ]
+      },
+      "peerCheck": {
+        "type": "string",
+        "enum": [
+          "on",
+          "unknown"
+        ],
+        "description": "`unknown` when the peer process could not be found, which is not the same as \"not a chat\""
+      },
+      "running": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "enabled",
+      "available",
+      "reason",
+      "settings",
+      "sources",
+      "peerCheck",
+      "running"
+    ]
+  },
+  "TerminalUnavailableReason": {
+    "type": "string",
+    "enum": [
+      "off",
+      "disabled-by-env",
+      "pty-missing",
+      "host-failed",
+      "read-only",
+      "needs-auth",
+      "remote-off",
+      "needs-tunnel",
+      "from-agent",
+      "chat-token"
+    ],
+    "description": "Why the terminal cannot be opened from here and now; `null` in the status when it can."
+  },
+  "TerminalSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "remote": {
+        "$ref": "#/components/schemas/TerminalRemote"
+      },
+      "maxTerminals": {
+        "type": "number"
+      },
+      "idleMinutes": {
+        "type": "number"
+      },
+      "scrollbackLines": {
+        "type": "number"
+      },
+      "replayLines": {
+        "type": "number"
+      },
+      "shell": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The shell's path; `null` is the person's login shell"
+      },
+      "loginShell": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "enabled",
+      "remote",
+      "maxTerminals",
+      "idleMinutes",
+      "scrollbackLines",
+      "replayLines",
+      "shell",
+      "loginShell"
+    ]
+  },
+  "TerminalRemote": {
+    "type": "string",
+    "enum": [
+      "off",
+      "tunnel",
+      "any"
+    ],
+    "description": "Which devices may open a terminal beyond this machine: none, the tunnel with a token, or any."
   },
   "WebhookChangedEvent": {
     "type": "object",
@@ -20076,6 +20402,388 @@
     },
     "additionalProperties": false,
     "description": "`PUT /tunnel/settings`: the settings to change, and only those."
+  },
+  "CreateTerminalRequest": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "worktree": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          },
+          "chatId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chatId"
+        ]
+      }
+    ]
+  },
+  "UpdateTerminalSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "remote": {
+        "$ref": "#/components/schemas/TerminalRemote"
+      },
+      "maxTerminals": {
+        "type": "number"
+      },
+      "idleMinutes": {
+        "type": "number"
+      },
+      "scrollbackLines": {
+        "type": "number"
+      },
+      "replayLines": {
+        "type": "number"
+      },
+      "shell": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The shell's path; `null` is the person's login shell"
+      },
+      "loginShell": {
+        "type": "boolean"
+      }
+    }
+  },
+  "TerminalTicket": {
+    "type": "object",
+    "properties": {
+      "ticket": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ticket",
+      "expiresAt"
+    ],
+    "description": "A ticket opens the terminal's socket once, within seconds."
+  },
+  "TerminalClientFrame": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "resize"
+          },
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "cols",
+          "rows"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "ack"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "bytes"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "focus"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      }
+    ],
+    "description": "Control frames from the view to the server. Input is a binary frame and carries no type."
+  },
+  "TerminalServerFrame": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "hello"
+          },
+          "terminal": {
+            "$ref": "#/components/schemas/Terminal"
+          },
+          "snapshot": {
+            "type": "string"
+          },
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "terminal",
+          "snapshot",
+          "cols",
+          "rows"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "size"
+          },
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "cols",
+          "rows"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "exit"
+          },
+          "code": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "signal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "code",
+          "signal"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "closed"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalEndReason"
+              },
+              {
+                "type": "string",
+                "const": "evicted-slow"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "reason"
+        ]
+      }
+    ],
+    "description": "Control frames from the server to the view. Output is a binary frame and carries no type."
+  },
+  "TerminalHistoryPage": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TerminalHistoryEntry"
+        }
+      },
+      "total": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "entries",
+      "total"
+    ]
+  },
+  "TerminalHistoryEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/TerminalScope"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "shell": {
+        "type": "string"
+      },
+      "actor": {
+        "type": "string"
+      },
+      "client": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TerminalEndReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "exitCode": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "attachments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TerminalAttachmentEntry"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "scope",
+      "cwd",
+      "shell",
+      "actor",
+      "client",
+      "startedAt",
+      "endedAt",
+      "endReason",
+      "exitCode",
+      "attachments"
+    ],
+    "description": "One session row, with its attachments and refusals."
+  },
+  "TerminalAttachmentEntry": {
+    "type": "object",
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "client": {
+        "type": "string"
+      },
+      "origin": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "attachedAt": {
+        "type": "string"
+      },
+      "detachedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "bytesIn": {
+        "type": "number"
+      },
+      "bytesOut": {
+        "type": "number"
+      },
+      "refused": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The gate's reason when the attempt was refused"
+      }
+    },
+    "required": [
+      "actor",
+      "client",
+      "origin",
+      "attachedAt",
+      "detachedAt",
+      "bytesIn",
+      "bytesOut",
+      "refused"
+    ],
+    "description": "One attach to a terminal, or an attempt the gate refused. Counts only, never content."
   },
   "ProvidersSettings": {
     "type": "object",

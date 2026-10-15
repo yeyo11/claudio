@@ -47,10 +47,10 @@ const QUERY_TOKEN = [
  * name resolves to on the second lookup. `::ffff:127.x.x.x` is the same address seen through a
  * dual-stack socket.
  */
-const LOOPBACK = /^(?:localhost|::1|(?:::ffff:)?127(?:\.\d{1,3}){3})$/;
+export const LOOPBACK = /^(?:localhost|::1|(?:::ffff:)?127(?:\.\d{1,3}){3})$/;
 
 /** The authority without its port, with IPv6 brackets removed, lowercased so a name compares. */
-function hostNameOf(authority: string): string {
+export function hostNameOf(authority: string): string {
   const value = authority.trim().toLowerCase();
   if (value.startsWith('[')) {
     const close = value.indexOf(']');
@@ -134,13 +134,15 @@ function fromLocalMachine(req: FastifyRequest): boolean {
 }
 
 /**
- * Whether a chat token may be looked at: the socket peer is loopback, the name dialled is loopback,
- * and nothing says the request was relayed. The tunnel (`ssh -R` to 127.0.0.1) and any local
- * reverse proxy arrive from loopback too, so the peer alone would let a leaked chat token in from
- * the internet; they are told apart by the public name they carry and the headers they add. The
- * socket is read rather than `req.ip`, so trusting a proxy one day cannot widen this.
+ * Whether a request came from this machine and nothing says it was relayed. A chat token may be
+ * looked at only then, and the terminal opens under `mode: none` only then (`terminal-gate.ts`):
+ * the socket peer is loopback, the name dialled is loopback, and no header says it was forwarded.
+ * The tunnel (`ssh -R` to 127.0.0.1) and any local reverse proxy arrive from loopback too, so the
+ * peer alone would let a leaked chat token in from the internet; they are told apart by the public
+ * name they carry and the headers they add. The socket is read rather than `req.ip`, so trusting a
+ * proxy one day cannot widen this.
  */
-function fromLocalChat(req: FastifyRequest, runtime: RuntimeHosts): boolean {
+export function fromLocalMachineStrict(req: FastifyRequest, runtime: RuntimeHosts): boolean {
   const peer = req.socket.remoteAddress;
   const host = req.headers.host;
   if (peer === undefined || !LOOPBACK.test(peer) || host === undefined) return false;
@@ -339,6 +341,32 @@ const CHAT_FORBIDDEN_DECISIONS = new Set([
 ]);
 
 /**
+ * The terminal is the person's own shell: a chat's token cannot open, read or type into one, and
+ * reads are included because the list says which shells are open and where. Under `mode: none` a
+ * chat's token only labels the request, and the label is what refuses it here (`terminal-gate.ts`
+ * adds the peer-process check for a chat that sends no token at all).
+ */
+const CHAT_FORBIDDEN_TERMINAL = new Set([
+  `GET ${API_PREFIX}/terminal`,
+  `PUT ${API_PREFIX}/terminal/settings`,
+  `GET ${API_PREFIX}/terminal/history`,
+  `GET ${API_PREFIX}/terminals`,
+  `POST ${API_PREFIX}/terminals`,
+  `GET ${API_PREFIX}/terminals/:id`,
+  `POST ${API_PREFIX}/terminals/:id/ticket`,
+  `GET ${API_PREFIX}/terminals/:id/socket`,
+  `DELETE ${API_PREFIX}/terminals/:id`,
+]);
+
+/**
+ * The browser's `WebSocket` cannot send `Authorization`, so the terminal's socket carries its own
+ * proof: a one-time ticket that the bearer-authenticated `POST /terminals/:id/ticket` handed out.
+ * The route checks it, after the host allowlist, read-only and the gate, and a wrong one counts in
+ * the back-off like a wrong token.
+ */
+const TERMINAL_SOCKET = /^\/api\/terminals\/[^/]+\/socket$/;
+
+/**
  * The desktop app's secret exists to let its tray read what is live, so it reads and nothing
  * else: a secret that has to sit in a second process's memory is kept to the least it needs.
  */
@@ -462,7 +490,13 @@ export function auditSummary(method: string, routeUrl: string | undefined, path:
   return doc?.summary ?? `${method} ${path}`;
 }
 
-export function registerSecurity(app: FastifyInstance, core: Core): void {
+/** What the terminal's routes share with the guard: the back-off a wrong ticket counts in, and the key it counts under */
+export interface Guard {
+  backoff: FailureBackoff;
+  backoffKey(req: FastifyRequest): string;
+}
+
+export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   // `null` and not a string: Fastify v5 refuses a shared reference, and the value is per request
   app.decorateRequest('actor', null);
 
@@ -498,7 +532,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       req.actor = 'webhook';
       return;
     }
-    if (guarded && mode !== 'none') {
+    // A socket's ticket is its credential; the route checks it once the gate has had its say
+    const ticketed = req.method === 'GET' && TERMINAL_SOCKET.test(path);
+    if (ticketed && mode !== 'none') req.actor = 'anonymous';
+    if (guarded && mode !== 'none' && !ticketed) {
       // Still audited when it is a write, and as what it was: nobody we could name
       const refuse = () => {
         req.actor = 'anonymous';
@@ -527,7 +564,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       const owner = await core.security.actorFor(credential, fromLocalMachine(req));
       // The owner's credential first; a chat token is only ever the fallback, and fails the same
       // way. Told apart by where it came from, not by its prefix: an OIDC subject could be anything
-      const chat = owner === null ? core.security.chatActorFor(credential, fromLocalChat(req, runtimeHosts)) : null;
+      const chat = owner === null ? core.security.chatActorFor(credential, fromLocalMachineStrict(req, runtimeHosts)) : null;
       const actor = owner ?? chat;
       if (!actor) {
         backoff.fail(client);
@@ -606,6 +643,23 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
     }
     req.actor ??= 'local';
 
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_TERMINAL.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+      const id = (req.params as { id?: unknown } | undefined)?.id;
+      core.terminals.recordRefusal({
+        terminalId: typeof id === 'string' && core.terminals.get(id) ? id : null,
+        actor: req.actor,
+        client: fromLocalMachineStrict(req, runtimeHosts) ? 'local' : (req.socket.remoteAddress ?? 'unknown'),
+        origin: req.headers.origin ?? null,
+        reason: 'chat-token',
+      });
+      void reply.status(403).send({
+        error: "a chat's token cannot open, read or type into a terminal: the terminal is the person's",
+        code: 'terminal.chat-token',
+        reason: 'chat-token',
+      });
+      return reply;
+    }
+
     if (core.security.readOnly && MUTATING.has(req.method) && isGuarded(path)) {
       const routeUrl = req.routeOptions.url;
       if (!routeUrl || !READ_ONLY_ALLOWED.has(`${req.method} ${routeUrl}`)) {
@@ -633,6 +687,8 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       summary: auditSummary(req.method, req.routeOptions.url, path),
     });
   });
+
+  return { backoff, backoffKey: (req) => backoffKey(req, runtimeHosts) };
 }
 
 declare module 'fastify' {

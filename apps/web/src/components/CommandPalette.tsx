@@ -31,6 +31,7 @@ import {
   Sparkle,
   SquareCheck,
   SquarePlus,
+  SquareTerminal,
   Sun,
   Waypoints,
   Workflow,
@@ -49,6 +50,8 @@ import { assistantPath } from '../pages/assistant/model';
 import { setMotionPreference } from '@claudio/ui/lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
+import { projectTerminalsPath } from './terminal/use-dock';
+import { useTerminalAccess } from './terminal/use-terminals';
 import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
 import { statusText } from '@claudio/ui/components/ui';
@@ -83,7 +86,7 @@ export function CommandPaletteTrigger({ className = '' }: { className?: string }
 
 export function CommandPalette() {
   const navigate = useNavigate();
-  const { t } = useTranslation(['components', 'connectors', 'shell', 'decisions']);
+  const { t } = useTranslation(['components', 'connectors', 'shell', 'decisions', 'terminal']);
   const agent = useAgentName();
   const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
@@ -102,6 +105,8 @@ export function CommandPalette() {
   const waiting = useQuery({ queryKey: keys.chatList({ state: 'waiting' }), queryFn: ({ signal }) => api.chats({ state: 'waiting' }, { signal }), enabled: open });
   const orchestrations = useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, enabled: open });
   const overview = useQuery({ queryKey: keys.overview, queryFn: api.overview, enabled: open });
+  // Offered only where a shell can be opened from here
+  const terminals = useTerminalAccess();
 
   // `palette.intent` asks in shadow and active, on Jev only: the local ranking answers first either way, and
   // in shadow the answer is never shown, the row only waits for what the person does
@@ -218,6 +223,9 @@ export function CommandPalette() {
       page('worktrees', GitBranch, 'branches');
       list.push({ id: `project:assistant:${project.id}`, group: 'projects', title: t('palette.projectAssistant', { name: project.name }), hint, keywords: 'assistant ai suggest propose asistente', icon: Sparkle, run: go(assistantPath(project.id)) });
       list.push({ id: `project:chats:${project.id}`, group: 'projects', title: t('palette.projectChats', { name: project.name }), hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
+      if (project.exists && terminals) {
+        list.push({ id: `project:terminal:${project.id}`, group: 'projects', title: t('terminal:palette.openIn', { name: project.name }), hint, keywords: 'terminal shell console bash zsh command line consola', icon: SquareTerminal, run: go(projectTerminalsPath(project.id)) });
+      }
       if (project.exists) {
         list.push({ id: `project:new-chat:${project.id}`, group: 'projects', title: t('palette.projectNewChat', { name: project.name }), hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });
       }
@@ -226,7 +234,7 @@ export function CommandPalette() {
       list.push({ id: `recent:${chat.id}`, group: 'recentChats', title: displayTitle(chat), hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     return list;
-  }, [navigate, t, selected, projects.data, working.data, waiting.data, orchestrations.data, overview.data]);
+  }, [navigate, t, selected, projects.data, working.data, waiting.data, orchestrations.data, overview.data, terminals]);
 
   const ranked = useMemo(() => {
     const q = query.trim();

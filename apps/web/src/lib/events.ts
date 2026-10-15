@@ -131,6 +131,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'assistant.proposal': true,
   'settings.changed': true,
   'tunnel.changed': true,
+  'terminal.changed': true,
   'dashboard.layout': true,
   'webhook.changed': true,
   'login.updated': true,
@@ -416,6 +417,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.overview, NOW]];
     case 'tunnel.changed':
       // The event carries the whole status, which `patchSettings` writes
+      return [];
+    case 'terminal.changed':
+      // The terminal's own view reads this feed; no cached query depends on it yet
       return [];
     case 'dashboard.layout':
       // The event carries the whole layout, which `patchLayout` writes

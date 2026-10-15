@@ -71,6 +71,8 @@ const ROOT_TYPES = [
   'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartAgentryAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
   // Settings that change at runtime, and the tunnel
   'AppSettings', 'UpdateAppSettingsRequest', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
+  // The person's own terminal
+  'TerminalStatus', 'Terminal', 'CreateTerminalRequest', 'UpdateTerminalSettingsRequest', 'TerminalSettings', 'TerminalTicket', 'TerminalClientFrame', 'TerminalServerFrame', 'TerminalHistoryPage', 'TerminalChangedEvent',
   // Providers
   'ProviderStatus', 'ProvidersSettings', 'ProviderMove',
   // Several Claude accounts

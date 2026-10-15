@@ -804,6 +804,39 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    ALTER TABLE assistant_runs ADD COLUMN effort TEXT;`,
   // Overage state of a limit reading, as JSON (null: the event said nothing about it)
   `ALTER TABLE provider_limits ADD COLUMN overage TEXT;`,
+  // The person's own terminal (docs/plans/terminal.md, 3.9): who opened which shell and when, and
+  // every attempt the gate refused. Counts only, never what was typed or printed.
+  `CREATE TABLE terminal_sessions (
+     id             TEXT PRIMARY KEY,
+     scope          TEXT NOT NULL,
+     project_id     TEXT,
+     chat_id        TEXT,
+     cwd            TEXT NOT NULL,
+     shell          TEXT NOT NULL,
+     actor          TEXT NOT NULL,
+     client         TEXT NOT NULL,
+     pid            INTEGER,
+     pid_started    INTEGER,
+     server_pid     INTEGER NOT NULL,
+     started_at     TEXT NOT NULL,
+     ended_at       TEXT,
+     ended_reason   TEXT,
+     exit_code      INTEGER
+   );
+   CREATE INDEX terminal_sessions_started ON terminal_sessions (started_at);
+   CREATE TABLE terminal_attachments (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     session_id   TEXT NOT NULL,
+     actor        TEXT NOT NULL,
+     client       TEXT NOT NULL,
+     origin       TEXT,
+     attached_at  TEXT NOT NULL,
+     detached_at  TEXT,
+     bytes_in     INTEGER NOT NULL DEFAULT 0,
+     bytes_out    INTEGER NOT NULL DEFAULT 0,
+     refused      TEXT
+   );
+   CREATE INDEX terminal_attachments_session ON terminal_attachments (session_id);`,
 ];
 
 /**

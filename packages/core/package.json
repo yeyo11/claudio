@@ -16,6 +16,10 @@
     "@claudio/mcp": "workspace:*",
     "@claudio/shared": "workspace:*",
     "@typesafe-ai/sdk": "0.6.0",
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/addon-unicode11": "0.9.0",
+    "@xterm/headless": "6.0.0",
+    "node-pty": "1.2.0-beta.15",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

@@ -58,6 +58,11 @@ export default defineConfig({
       // API reference (Scalar) and its OpenAPI document are served by the API
       '/docs': { target: API_TARGET, changeOrigin: true },
       '/openapi.json': { target: API_TARGET, changeOrigin: true },
+      // The terminal's WebSocket. Its own entry, before `/api`, because the API checks the Origin
+      // against the Host: `changeOrigin: true` would hand it `localhost:8797` beside the page's
+      // `localhost:5181` and refuse every socket, and would make a LAN device look local. Without
+      // `ws: true` the upgrade hangs.
+      '^/api/terminals/[^/]+/socket': { target: API_TARGET, ws: true, changeOrigin: false },
       '/api': {
         target: API_TARGET,
         changeOrigin: true,

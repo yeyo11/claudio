@@ -967,6 +967,22 @@ Web Push over VAPID, signed and sent by this server: a chat that stops for a per
 | DELETE | `/push/subscriptions` | Unregister by `endpoint` (what a browser turning the switch off knows) or by `id` (what the list shows) |
 | POST | `/push/test` | Send one test notification to an install by `endpoint` or `id`, or to every registered one. An endpoint the push service reports as gone (404/410) is deleted |
 
+### Terminal
+
+The person's own shell, in a project's directory or a chat's worktree. Off until it is turned on, and never for an agent: a chat's token is refused on every route below, reads included, and so is a request from a chat's process. With authentication off it opens only from this machine; from another device it needs the owner's token and, by default, the tunnel. Read-only mode refuses all of it. What is typed and printed is never recorded.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/terminal` | `{ enabled, available, reason, settings, sources, peerCheck, running }`; `reason` is one of `off`, `disabled-by-env`, `pty-missing`, `host-failed`, `needs-auth`, `remote-off`, `needs-tunnel`, `from-agent`. Answers while the feature is off. `405` in read-only mode, `403` to a chat's token |
+| PUT | `/terminal/settings` | `{ enabled?, remote?, maxTerminals?, idleMinutes?, scrollbackLines?, replayLines?, shell?, loginShell? }`; turning it off closes every terminal. Emits `terminal.changed` |
+| GET | `/terminal/history?limit=&offset=` | Sessions and the attempts that were refused, newest first: who, from where, when and how many bytes, never content |
+| GET | `/terminals?project=&chat=` | The open terminals and those that ended in the last hour |
+| POST | `/terminals` | `{ projectId, worktree? }` or `{ chatId }`, optional `cols` and `rows`: ids in, directory out. `409 terminal.limit`, `400 terminal.no-project`. Emits `terminal.changed` |
+| GET | `/terminals/:id` | One terminal |
+| POST | `/terminals/:id/ticket` | `{ ticket, expiresAt }`: valid 30 seconds, one use, bound to the terminal and the `Origin` that asked |
+| GET | `/terminals/:id/socket?ticket=` | The stream, as a WebSocket: binary frames carry the bytes, text frames the JSON control messages (`TerminalClientFrame`, `TerminalServerFrame`). The `Origin` must be the page's own |
+| DELETE | `/terminals/:id` | Closes it: SIGHUP, SIGTERM, then SIGKILL after 3 seconds. Emits `terminal.changed` |
+
 ### Chats
 
 A chat is one Claude Code conversation, and its id is the session id: however many times it is
