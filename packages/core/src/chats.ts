@@ -30,7 +30,7 @@ import {
 } from '@agentry/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
-import { foldEvent, recordEntry } from './chat-fold.ts';
+import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
 import type { AssistantChatOptions } from './agentry-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
@@ -542,7 +542,14 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     if (!chat) return () => {};
     chat.emitter.on('event', listener);
-    return () => chat.emitter.off('event', listener);
+    // The stream route is the only caller, and it stands for a person reading the chat
+    chat.viewers++;
+    let open = true;
+    return () => {
+      chat.emitter.off('event', listener);
+      if (open) chat.viewers--;
+      open = false;
+    };
   }
 
   /**
@@ -630,6 +637,28 @@ export class ChatManager extends EventEmitter {
     return this.begin(chat, request.prompt, attachments);
   }
 
+  /**
+   * Ends the input of chats held warm for a reader, oldest first, until a start fits. They exit within
+   * moments, as after the idle timeout, so they count as free. Returns how many are on their way out.
+   */
+  private releaseWarm(limit: number): number {
+    const gone = [...this.chats.values()].filter((c) => c.alive && c.released).length;
+    let excess = this.activeCount() - gone - limit + 1;
+    if (excess <= 0) return gone;
+    const warm = [...this.chats.values()]
+      .filter((c) => c.alive && !c.released && c.status === 'idle' && c.written().length === 0 && c.idleSince !== null && Date.now() - c.idleSince >= idleTimeoutMs())
+      .sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0));
+    let freed = gone;
+    for (const chat of warm) {
+      if (excess <= 0) break;
+      chat.released = true;
+      chat.session?.endInput();
+      freed++;
+      excess--;
+    }
+    return freed;
+  }
+
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions, driver: ProviderDriver): void {
     if (opts.account !== undefined) {
@@ -641,7 +670,7 @@ export class ChatManager extends EventEmitter {
       }
     }
     const limit = this.defaults.maxConcurrentRuns;
-    if (this.activeCount() >= limit) {
+    if (this.activeCount() - this.releaseWarm(limit) >= limit) {
       throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
     }
   }
@@ -1222,6 +1251,7 @@ export class ChatManager extends EventEmitter {
     };
     if (token) this.chatTokens.attach(token, proc.pid);
     chat.proc = proc;
+    chat.released = false;
     chat.procClosed = false;
     chat.procStartedAt = now();
     // The chat's status follows the process it tracks and no other: an earlier process ending late
@@ -1286,6 +1316,7 @@ export class ChatManager extends EventEmitter {
     }
     chat.turnMessages.push(message);
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.idleSince = null;
     // Before the write: a driver that starts the turn at once reports it taken from inside `send`
     if (chat.reportsDelivery !== false) chat.pending.set(message.id, { ...message, state: 'written' });
     const uploads = this.uploads;
@@ -1307,6 +1338,7 @@ export class ChatManager extends EventEmitter {
   private finalize(chat: LiveChat, status: RunStatus): void {
     if (chat.endedAt) return;
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.idleSince = null;
     chat.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.
     this.permissions?.denyAllFor(chat.id);
