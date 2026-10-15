@@ -249,7 +249,7 @@ export const WORK_ITEMS_PAGE_MAX = 500;
 /** Items of the Done column a board holds when the request does not say, and each "and N more" adds */
 export const BOARD_DONE_PAGE = 20;
 
-export const AGENTRY_LANGUAGES = valuesOf<AgentryLanguage>()(['en', 'es']);
+export const CLAUDIO_LANGUAGES = valuesOf<AgentryLanguage>()(['en', 'es']);
 
 /**
  * The language of an `Accept-Language` header, or of a stored choice: the first of Agentry's
@@ -260,7 +260,7 @@ export function agentryLanguage(value: unknown): AgentryLanguage {
   if (typeof value !== 'string') return 'en';
   for (const tag of value.split(',')) {
     const code = tag.trim().toLowerCase().split(/[-_;.@]/)[0];
-    const known = AGENTRY_LANGUAGES.find((language) => language === code);
+    const known = CLAUDIO_LANGUAGES.find((language) => language === code);
     if (known) return known;
   }
   return 'en';

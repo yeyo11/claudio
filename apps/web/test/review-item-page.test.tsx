@@ -2,13 +2,13 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test, { afterEach, beforeEach } from 'node:test';
-import type { ChangeRequestReviewPosts, ChangeRequestReviewers, ChangeRequestThreads, ReviewPost, ReviewThread, WorkItemPullRequest } from '@agentry/shared';
+import type { ChangeRequestReviewPosts, ChangeRequestReviewers, ChangeRequestThreads, ReviewPost, ReviewThread, WorkItemPullRequest } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import { setLanguage } from '../src/i18n';
 import { AddressReview } from '../src/pages/tasks/item/AddressReview';

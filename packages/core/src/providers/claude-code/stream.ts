@@ -1,4 +1,4 @@
-import { normalizeMessage, type PermissionMode, type PermissionUpdate, type RateLimitInfo, type RunOutcome, type RunTaskChange } from '@agentry/shared';
+import { normalizeMessage, type PermissionMode, type PermissionUpdate, type RateLimitInfo, type RunOutcome, type RunTaskChange } from '@claudio/shared';
 import { now } from '../../live-chat.ts';
 import type { BranchTracker, DriverEvent, EnvironmentDetails, ModelUsage } from '../driver.ts';
 import type { ControlChannel } from './control.ts';

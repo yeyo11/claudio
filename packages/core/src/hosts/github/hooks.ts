@@ -1,4 +1,4 @@
-import type { WebhookLastResponse } from '@agentry/shared';
+import type { WebhookLastResponse } from '@claudio/shared';
 import { HostParseError, type HostCall, type HostRepo } from '../code-host.ts';
 import type { HookDriver, RemoteHook } from '../hook-driver.ts';
 import { parseJson } from '../json.ts';

@@ -1,4 +1,4 @@
-import type { Check, CheckState } from '@agentry/shared';
+import type { Check, CheckState } from '@claudio/shared';
 import {
   HostParseError,
   HostRequestError,

@@ -26,7 +26,7 @@ function readKeyFile(file: string): string {
 }
 
 /**
- * The key, in the order decision 3 of docs/plans/in-app-setup.md sets: `AGENTRY_SECRET_KEY` (the
+ * The key, in the order decision 3 of docs/plans/in-app-setup.md sets: `CLAUDIO_SECRET_KEY` (the
  * desktop app's, or one an operator passes), else a key file already beside the data, else, in the
  * Docker image only, a key file made on first use. A desktop or source install without a key keeps
  * what it always did: plain values in a 0600 file, so nothing changes under it.

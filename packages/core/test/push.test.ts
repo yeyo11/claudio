@@ -3,7 +3,7 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import webpush from 'web-push';
-import type { AgentryEvent, PushPayload, TunnelState } from '@agentry/shared';
+import type { AgentryEvent, PushPayload, TunnelState } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { EventBus, type AgentryEventInput } from '../src/events.ts';
 import { PushService, absoluteOn, idOfEndpoint, truncateEndpoint, type PushTransport } from '../src/push.ts';

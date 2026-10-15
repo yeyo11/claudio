@@ -18,8 +18,8 @@ import type {
   PermissionMode,
   RunEvent,
   RunStatus,
-} from '@agentry/shared';
-import { isEffort } from '@agentry/shared';
+} from '@claudio/shared';
+import { isEffort } from '@claudio/shared';
 import { ChatActivityTracker } from './chat-activity.ts';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
@@ -106,7 +106,7 @@ export interface NewChat extends NewChatRequest {
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
   /**
-   * `false` leaves `AGENTRY_API_URL` out of the environment and mints no `AGENTRY_API_TOKEN`: a run
+   * `false` leaves `CLAUDIO_API_URL` out of the environment and mints no `CLAUDIO_API_TOKEN`: a run
    * that never calls the API back (a decision chat) holds no credential to it.
    */
   api?: false;

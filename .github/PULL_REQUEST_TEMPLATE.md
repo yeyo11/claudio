@@ -10,7 +10,7 @@
 - [ ] `pnpm test`
 - [ ] `pnpm build`
 - [ ] `pnpm e2e` (if it touches the UI or a route)
-- [ ] `pnpm --filter @agentry/api openapi:schemas` (if it touches a shared type)
+- [ ] `pnpm --filter @claudio/api openapi:schemas` (if it touches a shared type)
 
 ## Notes for the reviewer
 

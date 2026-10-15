@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, ChangeRequestChecks, Check, Orchestration, WorkItem } from '@agentry/shared';
+import type { AgentryEvent, ChangeRequestChecks, Check, Orchestration, WorkItem } from '@claudio/shared';
 import { checksFixPrompt, flowPrompt, flowResultSchema, parseResult } from '../src/flow.ts';
 import type { ChecksService } from '../src/hosts/checks-service.ts';
 import type { ChangeRequestRead } from '../src/hosts/code-host.ts';

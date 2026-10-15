@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BrandMark, ProgramMark, brandOf } from '@agentry/ui/components/BrandMark';
-import { ProviderMark } from '@agentry/ui/components/ProviderMark';
+import { BrandMark, ProgramMark, brandOf } from '@claudio/ui/components/BrandMark';
+import { ProviderMark } from '@claudio/ui/components/ProviderMark';
 import { BRAND_ART } from '../../../packages/ui/src/components/brand-art';
 
 // The official marks of the programs Agentry names (design system, "Brand marks"): every program

@@ -1,10 +1,10 @@
-import type { FlowRun, FlowRunRef } from '@agentry/shared';
+import type { FlowRun, FlowRunRef } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import { useRoleName } from '../../team/RoleAvatar';
 import { failureReason, rawError, RUN_STATUS_BADGE, runStatus, runStep } from './runs';
 

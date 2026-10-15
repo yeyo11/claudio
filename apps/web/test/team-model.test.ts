@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import type { FlowRun, TeamMember } from '@agentry/shared';
+import type { FlowRun, TeamMember } from '@claudio/shared';
 import {
   agentNameFor,
   backlogRunsFor,

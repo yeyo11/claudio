@@ -1,19 +1,19 @@
-import type { CreateScheduleRequest, Effort, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@agentry/shared';
+import type { CreateScheduleRequest, Effort, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useOrchestrations } from '../../api';
 import { EffortField } from '../../components/EffortPicker';
-import { isEffort } from '@agentry/shared';
-import { Combobox, NumberInput, Select, Switch } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Field, Segmented } from '@agentry/ui/components/ui';
+import { isEffort } from '@claudio/shared';
+import { Combobox, NumberInput, Select, Switch } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Field, Segmented } from '@claudio/ui/components/ui';
 import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
 import { buildCron, CRON_MODES, parseCron, timeZones, type CronMode, type CronParts } from '../../lib/cron-builder';
 import { describeCron } from '../../lib/cron-words';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { specOfOrchestration } from '../../lib/orchestration-v2';
 
 interface TaskDraft {

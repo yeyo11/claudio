@@ -1,15 +1,15 @@
-import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, Orchestration, OrchestrationPullRequest } from '@agentry/shared';
+import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, Orchestration, OrchestrationPullRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, ExternalLink, GitMerge, Pencil } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys, useMergeState, type ChangeRequestFixResult } from '../api';
-import { Checkbox } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Segmented } from '@agentry/ui/components/ui';
-import { formatDateTime } from '@agentry/ui/lib/format';
+import { Checkbox } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Segmented } from '@claudio/ui/components/ui';
+import { formatDateTime } from '@claudio/ui/lib/format';
 import { checksActions } from '../lib/change-requests';
 import {
   actionLabelKey,

@@ -1,12 +1,12 @@
-import type { Chat, LiveMcpServer } from '@agentry/shared';
+import type { Chat, LiveMcpServer } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cloud, Paperclip, Plug, Plus, Slash, SlidersHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Switch } from '@agentry/ui/components/controls/Toggle';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Switch } from '@claudio/ui/components/controls/Toggle';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { AttachmentsState } from '../components/Attachments';
 import { useAgentName } from '../lib/agent';
 import { chatKeys, useChatUi } from '../lib/context';

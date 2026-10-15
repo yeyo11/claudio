@@ -1,12 +1,12 @@
-import type { ChatPendingAttachment } from '@agentry/shared';
+import type { ChatPendingAttachment } from '@claudio/shared';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, TriangleAlert, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { useChatUi } from '../lib/context';
 import { useAgentName } from '../lib/agent';
-import { errorMessage, formatBytes } from '@agentry/ui/lib/format';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { errorMessage, formatBytes } from '@claudio/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { isViewable, MediaViewer, type MediaItem } from './MediaViewer';
 
 // ---------- in the transcript ----------

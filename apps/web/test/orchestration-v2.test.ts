@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Orchestration, OrchestrationTaskState, VerificationState } from '@agentry/shared';
-import * as shared from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState, VerificationState } from '@claudio/shared';
+import * as shared from '@claudio/shared';
 import {
   canRelaunch,
   canRerun,

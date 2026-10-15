@@ -1,8 +1,8 @@
 import * as RadixPopover from '@radix-ui/react-popover';
 import type { ReactNode } from 'react';
-import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
-import { Sheet } from '@agentry/ui/components/controls/Sheet';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { Sheet } from '@claudio/ui/components/controls/Sheet';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 
 /** A popover by the line on a wide screen, a sheet from the bottom on a phone. */
 export function OptionsPanel({ trigger, title, open, onOpenChange, children }: { trigger: ReactNode; title: string; open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {

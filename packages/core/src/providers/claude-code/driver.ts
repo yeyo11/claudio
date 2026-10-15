@@ -1,4 +1,4 @@
-import { PERMISSION_MODES, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
+import { PERMISSION_MODES, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
 import { modelOptions } from './models.ts';

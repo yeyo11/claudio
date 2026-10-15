@@ -1,13 +1,13 @@
-import type { AuthConfig } from '@agentry/shared';
+import type { AuthConfig } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { CopyButton, Field } from '@agentry/ui/components/ui';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { CopyButton, Field } from '@claudio/ui/components/ui';
 import { setChallenge, setToken } from '../../../lib/auth';
 import { reveal, useRevealedToken } from '../../../lib/revealed-token';
 

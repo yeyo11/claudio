@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@agentry/shared';
+import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@claudio/shared';
 import { TTL_SECONDS } from '../push.ts';
 
 /*

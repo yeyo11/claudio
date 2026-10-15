@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Check, ReviewThread } from '@agentry/shared';
+import type { Check, ReviewThread } from '@claudio/shared';
 import {
   HostActionNotOffered,
   HostParseError,

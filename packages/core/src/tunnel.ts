@@ -1,7 +1,7 @@
 import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@agentry/shared';
+import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import type { RuntimeHostOptions } from './app-settings.ts';
@@ -17,7 +17,7 @@ import type { RuntimeHostOptions } from './app-settings.ts';
  * nothing in the node's Serve config that Agentry did not add is ever changed.
  */
 
-/** The HTTPS port of Agentry's Serve rule unless `AGENTRY_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
+/** The HTTPS port of Agentry's Serve rule unless `CLAUDIO_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
 export const DEFAULT_TUNNEL_PORT = 8444;
 
 /** `tailscale serve` took its current arguments (`--bg`, `--https=<port>`, `off`) in 1.52 */
@@ -89,7 +89,7 @@ export class TunnelRefusedError extends Error {
 const reason = (code: string, text: string, params?: LocalizedParams): Localized => (params ? { code, params, text } : { code, text });
 
 const REASONS = {
-  disabled: () => reason('tunnel.disabled', 'This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.'),
+  disabled: () => reason('tunnel.disabled', 'This Agentry does not offer the tunnel. Whoever runs it can turn it on with CLAUDIO_TUNNEL=on.'),
   authRequired: () => reason('tunnel.authRequired', 'The tunnel needs authentication: turn on a token or OIDC in Security first.'),
   noPort: () => reason('tunnel.noPort', 'Agentry is not listening yet, so there is nothing to open a tunnel to.'),
   missing: () => reason('tunnel.tailscaleMissing', 'The Tailscale CLI (tailscale) was not found. Install Tailscale on this machine and sign in, then try again.'),
@@ -105,7 +105,7 @@ const REASONS = {
     reason('tunnel.servePermission', "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again."),
   // A string, so the page does not group its digits as it would a count
   portTaken: (port: number) =>
-    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name is already served by something else, and Agentry leaves it alone. Free it, or set AGENTRY_TUNNEL_PORT to another port.`, { port: String(port) }),
+    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name is already served by something else, and Agentry leaves it alone. Free it, or set CLAUDIO_TUNNEL_PORT to another port.`, { port: String(port) }),
   serveFailed: (detail: string) => reason('tunnel.serveFailed', `tailscale serve did not accept the rule: ${detail}`, { detail }),
   unverified: () => reason('tunnel.unverified', "The Serve rule was sent, but this machine's Serve config does not show it pointing at Agentry."),
   ruleRemoved: () => reason('tunnel.ruleRemoved', "Agentry's Serve rule was removed or changed outside Agentry, so the tunnel is closed."),
@@ -348,7 +348,7 @@ export class TunnelManager {
     if (existsSync(this.recordFile)) this.cleaning = this.removeRule().catch(() => undefined);
     // A setting saved before the operator turned the tunnel off is not a reason to open it
     if (!this.settings.startWithAgentry || !this.enabled) return;
-    this.start('agentry').catch((error: unknown) => {
+    this.start('claudio').catch((error: unknown) => {
       // Not thrown at startup: a tunnel that cannot open must not keep Agentry from starting
       if (error instanceof TunnelRefusedError) this.fail(error.reason);
     });
@@ -359,7 +359,7 @@ export class TunnelManager {
    * owns the machine" into "whoever on the tailnet has the URL does". Refused as well where the
    * deploy does not offer it. A Tailscale that is not ready is a state, not an error.
    */
-  async start(actor: 'request' | 'agentry' = 'request'): Promise<TunnelStatus> {
+  async start(actor: 'request' | 'claudio' = 'request'): Promise<TunnelStatus> {
     if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());

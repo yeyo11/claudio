@@ -1,21 +1,21 @@
-import type { MemoryProposal, MemoryProposalTarget } from '@agentry/shared';
+import type { MemoryProposal, MemoryProposalTarget } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, Pencil, X } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../../api';
-import { MoreActions } from '@agentry/ui/components/controls';
+import { MoreActions } from '@claudio/ui/components/controls';
 import { DecisionMark } from '../../../components/DecisionMark';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { useDirty } from '../../../lib/dirty';
-import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { taskPath } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 
-const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
+const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
 
 /** Where an approved proposal is written, as its card says it: `CLAUDE.md · Conventions`, `memory · tests.md`, `journal`. */
 export function TargetLine({ target }: { target: MemoryProposalTarget }) {

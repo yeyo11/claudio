@@ -1,13 +1,13 @@
-import type { Effort, WorkflowDefinition } from '@agentry/shared';
+import type { Effort, WorkflowDefinition } from '@claudio/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Empty, ErrorBox, Field, Loading, Tag } from '@agentry/ui/components/ui';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Empty, ErrorBox, Field, Loading, Tag } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 

@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ModelOption, ModelTier } from '@agentry/shared';
+import type { ModelOption, ModelTier } from '@claudio/shared';
 import { envFor, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 

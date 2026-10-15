@@ -1,7 +1,7 @@
 // A verbatim copy of the tool rules Agentry built before `ToolPolicy`, taken at commit 2313937d from
 // flow.ts, assistant.ts, chat-tools.ts and orchestrator.ts. It is frozen on purpose: the policy
 // golden test compares the translation against it, so it is never edited to follow the code.
-import { isTeamCommandPattern } from '@agentry/shared';
+import { isTeamCommandPattern } from '@claudio/shared';
 
 export type LegacyStage = 'refine' | 'work' | 'verify';
 

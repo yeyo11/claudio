@@ -1,4 +1,4 @@
-import type { LiveMcpServer } from '@agentry/shared';
+import type { LiveMcpServer } from '@claudio/shared';
 
 const STATUSES: ReadonlySet<LiveMcpServer['status']> = new Set(['connected', 'failed', 'needs-auth', 'pending', 'disabled']);
 

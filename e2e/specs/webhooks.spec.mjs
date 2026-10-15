@@ -146,7 +146,7 @@ export default async ({ page, api, check, dirs }) => {
     git(root, 'commit', '-q', '-m', 'first commit');
     git(root, 'remote', 'add', 'origin', origin);
   };
-  const setTheme = (name) => page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(name)}); return true`);
+  const setTheme = (name) => page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(name)}); return true`);
   const config = (value) => page.eval(`sessionStorage.setItem('${STORE}', ${JSON.stringify(JSON.stringify(value))}); return true`);
   const text = (selector) => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.textContent ?? ''`);
   // Every gradient surface of the screen, whatever draws it. The split New chat button is one surface drawn as two buttons.
@@ -603,7 +603,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---- The fake gh answers the create call as the host does: the secret is on stdin, and masked in the answer ----
     const probe = spawnSync(join(fakes, 'gh'), ['api', '--hostname', 'github.com', '-X', 'POST', 'repos/acme/shop/hooks', '--input', '-'], {
       input: JSON.stringify({ name: 'web', active: true, events: EVENTS, config: { url: `${ADDRESS}/api/webhooks/github/probe`, content_type: 'json', secret: SECRET, insecure_ssl: '0' } }),
-      env: { ...process.env, AGENTRY_DATA_DIR: dirs.dataDir },
+      env: { ...process.env, CLAUDIO_DATA_DIR: dirs.dataDir },
       encoding: 'utf8',
     });
     const created = JSON.parse(probe.stdout);
@@ -613,7 +613,7 @@ export default async ({ page, api, check, dirs }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); sessionStorage.removeItem('${STORE}'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); sessionStorage.removeItem('${STORE}'); return true`).catch(() => {});
     if (removeOverlay) await removeOverlay().catch(() => {});
     for (const id of projects) {
       await api.del(`/projects/${id}`).catch(() => {});

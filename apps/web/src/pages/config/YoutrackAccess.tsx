@@ -1,11 +1,11 @@
-import type { TrackerStatus } from '@agentry/shared';
+import type { TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 
 /** What the row says about a YouTrack that is not ready, for the toast after a save. */
 export type TrackerReasonText = (status: TrackerStatus, host: string) => string;

@@ -1,8 +1,8 @@
-import type { Milestone, Project, WorkItem } from '@agentry/shared';
-import { WORK_ITEM_PRIORITIES, WORK_ITEM_TYPES } from '@agentry/shared';
+import type { Milestone, Project, WorkItem } from '@claudio/shared';
+import { WORK_ITEM_PRIORITIES, WORK_ITEM_TYPES } from '@claudio/shared';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Monogram } from '@agentry/ui/components/icons';
+import { Monogram } from '@claudio/ui/components/icons';
 import { PriorityMark, WorkItemTypeIcon } from '../../../components/work-item-icons';
 import { labelsInUse, NO_MILESTONE } from '../board/model';
 import { ProjectFacetIcon, type Facet } from './Filters';

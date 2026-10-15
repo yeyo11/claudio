@@ -2,7 +2,7 @@
  * How chats and orchestration nodes name the work items they are linked to. Pure, so what a chat's
  * header and a node's name say is unit tested.
  */
-import type { WorkItemDetail, WorkItemLinkRole } from '@agentry/shared';
+import type { WorkItemDetail, WorkItemLinkRole } from '@claudio/shared';
 
 /** The part a chat played in an item, as its header says it: it acted on the item, or the item was made from it. */
 export type ChatItemRole = 'work' | 'origin';

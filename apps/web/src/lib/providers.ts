@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ProviderStatus } from '@agentry/shared';
+import type { ProviderStatus } from '@claudio/shared';
 import { api, keys } from '../api';
 
 /**

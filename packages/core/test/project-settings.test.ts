@@ -3,8 +3,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { AgentryEvent, ProjectSettings } from '@agentry/shared';
-import { MAX_FLOW_PARALLEL, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@agentry/shared';
+import type { AgentryEvent, ProjectSettings } from '@claudio/shared';
+import { MAX_FLOW_PARALLEL, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { defaultProjectSettings, deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
 import { PROJECT_TEMPLATES, projectTemplate } from '../src/project-templates.ts';

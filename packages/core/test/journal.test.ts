@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, FlowMemoryProposal, WorkItemActor } from '@agentry/shared';
+import type { AgentryEvent, FlowMemoryProposal, WorkItemActor } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { EventBus, type AgentryEventInput } from '../src/events.ts';
 import { JOURNAL_HANDOFF_BYTES, JournalService } from '../src/journal.ts';

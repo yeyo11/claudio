@@ -2,11 +2,11 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, ProviderLimit, ProviderStatus } from '@agentry/shared';
+import type { AgentryEvent, ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
 import { WaitLine } from '../src/components/WaitLine';
 import { limitDotFacts, ProviderDots } from '../src/components/shell/ProviderDots';

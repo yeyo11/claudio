@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AssistantProposal, AssistantRun, AssistantRunDetail, AssistantSource } from '@agentry/shared';
+import type { AssistantProposal, AssistantRun, AssistantRunDetail, AssistantSource } from '@claudio/shared';
 import {
   assistantPath,
   followingRun,

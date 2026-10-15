@@ -10,7 +10,7 @@ test('the arguments that change between runs do not change the kind of a command
   assert.equal(commandKind('pnpm e2e'), 'pnpm e2e');
   assert.equal(commandKind('pnpm e2e --slow specs/pages.spec.mjs'), 'pnpm e2e');
   assert.equal(commandKind('pnpm run test'), 'pnpm test');
-  assert.equal(commandKind('pnpm --filter @agentry/core test -- chats.test.ts'), 'pnpm test');
+  assert.equal(commandKind('pnpm --filter @claudio/core test -- chats.test.ts'), 'pnpm test');
   assert.equal(commandKind('cargo test --release'), 'cargo test');
   assert.equal(commandKind('git log --oneline -5'), 'git log');
 });

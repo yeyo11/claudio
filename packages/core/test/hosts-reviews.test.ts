@@ -20,7 +20,7 @@ const gh = (file: string): string => readFileSync(join(here, 'fixtures/recording
 const gl = (file: string): string => readFileSync(join(here, 'fixtures/recordings/glab/1.120.0', `${file}.out`), 'utf8');
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
 const result = (stdout: string, exitCode = 0): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1 });
 const argv = (call: HostCall | null | undefined): string => (call ? call.args.join(' ') : 'none');

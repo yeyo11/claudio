@@ -1,4 +1,4 @@
-import type { ApprovalState, ChangeRequestReviewer, ChangeRequestReviewers, ReviewComment, ReviewerState, ReviewSide, ReviewSuggestion, ReviewThread } from '@agentry/shared';
+import type { ApprovalState, ChangeRequestReviewer, ChangeRequestReviewers, ReviewComment, ReviewerState, ReviewSide, ReviewSuggestion, ReviewThread } from '@claudio/shared';
 import {
   HostParseError,
   HostActionNotOffered,

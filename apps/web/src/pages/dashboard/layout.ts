@@ -1,10 +1,10 @@
 /**
  * A dashboard's layout is data, not markup: a list of widgets by type, size and config. The rules
- * for what a stored layout may contain live in `@agentry/shared`, so the API that stores it and the
+ * for what a stored layout may contain live in `@claudio/shared`, so the API that stores it and the
  * page that draws it read the same ones; this file adds what only the page needs (the grid spans)
  * and re-exports the rest where the dashboard's code already imports it from.
  */
-import type { WidgetSize } from '@agentry/shared';
+import type { WidgetSize } from '@claudio/shared';
 
 export {
   fitsScope,
@@ -17,7 +17,7 @@ export {
   type WidgetRule,
   type WidgetScope,
   type WidgetSize,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /** Columns each size takes on a 12-column grid (desktop) and a 6-column one (tablet); phones stack. */
 export const SIZE_SPANS: Record<WidgetSize, { wide: number; medium: number }> = {

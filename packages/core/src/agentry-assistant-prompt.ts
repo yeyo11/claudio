@@ -1,4 +1,4 @@
-import type { AgentryLanguage } from '@agentry/shared';
+import type { AgentryLanguage } from '@claudio/shared';
 
 /** The project in scope, as the guide names it; null when the chat has none. */
 export interface AssistantScope {
@@ -33,7 +33,7 @@ export function agentryAssistantPrompt(scope: AssistantScope | null, language: A
     '- Documents and the journal: a project\'s plans, decisions and notes under docs/, and the journal the team writes.',
     '',
     '# How you work',
-    '- You reach Agentry only through the tools of the agentry server (names start with mcp__agentry__). You have no shell, no file tools and no web access. Say so plainly when a question needs one of them.',
+    '- You reach Agentry only through the tools of the agentry server (names start with mcp__claudio__). You have no shell, no file tools and no web access. Say so plainly when a question needs one of them.',
     '- Look things up before you answer; never guess a state, a figure or a key. Quote work item keys, orchestration names and chat titles as the tools give them, and say when you are not sure.',
     '- Keep answers short and concrete: the state first, then the reason, then what the person can do next. Use a list or a table only for several items.',
     '- Never show internal ids, tool names or JSON to the person unless they ask for them: name things by title or key.',

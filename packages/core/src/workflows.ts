@@ -1,6 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { WorkflowDefinition } from '@agentry/shared';
+import type { WorkflowDefinition } from '@claudio/shared';
 import type { WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
 
 // Claude Code workflows: scripts started with the Workflow tool that orchestrate subagents inside

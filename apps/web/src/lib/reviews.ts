@@ -6,7 +6,7 @@
  *
  * Label keys are in the `reviews` namespace: `t(label)` with `useTranslation('reviews')`.
  */
-import type { ApprovalState, ChangeRequest, ChangeRequestReviewers, CodeHostId, ReviewDraft, ReviewEvent, ReviewPost, ReviewSide, ReviewThread, ReviewerState, WorkItemPullRequest } from '@agentry/shared';
+import type { ApprovalState, ChangeRequest, ChangeRequestReviewers, CodeHostId, ReviewDraft, ReviewEvent, ReviewPost, ReviewSide, ReviewThread, ReviewerState, WorkItemPullRequest } from '@claudio/shared';
 
 /** The status colour of a mark: ok, warn, bad or idle. Reviews have nothing running, so never `live`. */
 export type ReviewTone = 'ok' | 'warn' | 'bad' | 'idle';

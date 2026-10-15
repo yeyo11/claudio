@@ -12,7 +12,7 @@ import type {
   DecisionTestResult,
   DecisionUnavailableReason,
   ProjectDecisionSettings,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { Db } from '../db.ts';
 import { decisionPoint, DECISION_POINTS, type DecisionPointDefinition, type DecisionSubject } from './points.ts';
 import { redactState, stateBytes } from './redact.ts';

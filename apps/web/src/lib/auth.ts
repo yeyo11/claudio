@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AuthMode } from '@agentry/shared';
+import type { AuthMode } from '@claudio/shared';
 
 /*
  * The credential this browser sends, and what happens when the API refuses it.
@@ -10,7 +10,7 @@ import type { AuthMode } from '@agentry/shared';
  * to ask first.
  */
 
-const TOKEN_KEY = 'agentry.token';
+const TOKEN_KEY = 'claudio.token';
 
 let token: string | null = read();
 

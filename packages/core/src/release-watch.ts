@@ -1,4 +1,4 @@
-import type { AgentryDistribution, AgentryReleaseInfo } from '@agentry/shared';
+import type { AgentryDistribution, AgentryReleaseInfo } from '@claudio/shared';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import { VERSION, VersionCheck, compareVersions, type VersionCheckOptions } from './version-check.ts';
@@ -39,7 +39,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
       config,
       {
         file: 'release.json',
-        offSwitch: 'AGENTRY_UPDATE_CHECK',
+        offSwitch: 'CLAUDIO_UPDATE_CHECK',
         empty: { latest: null, publishedAt: null, url: null, checkedAt: null },
         parse: (saved) => ({
           latest: text(saved.latest),
@@ -56,7 +56,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
   }
 
   get distribution(): AgentryDistribution {
-    const value = this.env.AGENTRY_DISTRIBUTION?.trim().toLowerCase();
+    const value = this.env.CLAUDIO_DISTRIBUTION?.trim().toLowerCase();
     return DISTRIBUTIONS.find((d) => d === value) ?? 'source';
   }
 
@@ -76,7 +76,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
   }
 
   protected async fetchLatest(): Promise<Stored> {
-    const url = this.env.AGENTRY_RELEASES_URL || RELEASES_URL;
+    const url = this.env.CLAUDIO_RELEASES_URL || RELEASES_URL;
     const res = await this.fetchFn(url, {
       // GitHub refuses a request without a user-agent
       headers: { accept: 'application/vnd.github+json', 'user-agent': `claudio/${this.current}` },

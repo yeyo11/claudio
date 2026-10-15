@@ -15,7 +15,7 @@ import type {
   ReviewSubmitRequest,
   ReviewThread,
   ReviewersRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import { reviewDraftOf, reviewPostOf, type ReviewDraftRow, type ReviewPostRow } from '../work-item-rows.ts';
 import { hostErrorFields, reasonOf } from './classify.ts';
@@ -102,8 +102,8 @@ interface Cached {
 const isLimited = (reason: HostReason): boolean => reason === 'rate-limited' || reason === 'slowed-down';
 const failed = (result: HostResult): boolean => result.exitCode !== 0 || Boolean(result.reason);
 
-const MARKER = /\n*<!-- agentry:[0-9a-f-]+ -->/g;
-const markerOf = (uuid: string): string => `<!-- agentry:${uuid} -->`;
+const MARKER = /\n*<!-- claudio:[0-9a-f-]+ -->/g;
+const markerOf = (uuid: string): string => `<!-- claudio:${uuid} -->`;
 
 /**
  * The drafts whose text is among `bodies`, the notes that are on the host: a general draft travels in

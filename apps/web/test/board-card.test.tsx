@@ -2,15 +2,15 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { BoardColumn, FlowRun, WorkItem, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import type { BoardColumn, FlowRun, WorkItem, WorkItemLink, WorkItemStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
-import { Illustration } from '@agentry/ui/components/illustrations/Illustration';
+import { Illustration } from '@claudio/ui/components/illustrations/Illustration';
 import { lastEndedRuns, stripActor, stripInList, stripNamesAssignee, stripTone, workItemStrip, type StripRuns } from '../src/lib/work-items';
 import { EmptyBoard } from '../src/pages/tasks/board/EmptyBoards';
 import { BoardColumns } from '../src/pages/tasks/board/BoardColumns';

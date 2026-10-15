@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { ChatStartOptions, ChatToolConfig, CommandRule, McpSelection, ToolPolicy, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@agentry/shared';
+import type { ChatStartOptions, ChatToolConfig, CommandRule, McpSelection, ToolPolicy, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { McpConfig } from './config/mcp.ts';
 import { projectScope } from './config/scope.ts';

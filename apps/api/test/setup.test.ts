@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { AgentryEvent, AppSettings, LoginSession, SetupState, SignOutResult } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { AgentryEvent, AppSettings, LoginSession, SetupState, SignOutResult } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The setup routes over HTTP, on a real core with scratch dirs. No agent CLI is found (the test
@@ -27,8 +27,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
       TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
   );
@@ -54,7 +54,7 @@ test('the setup state says what is done: access, agents, hosts, YouTrack, the me
   assert.deepEqual(state.methods.map((m) => m.tool), ['claude-code', 'gh', 'glab', 'youtrack', 'tailscale']);
   // A source install's Tailscale is the machine's: its state shows, and it is not Agentry's to sign in
   assert.deepEqual(state.tailscale, { enabled: true, managed: false, state: 'ready', host: 'agentry-test.tail0000.ts.net' });
-  // A source install without AGENTRY_SECRET_KEY keeps plain values, as before
+  // A source install without CLAUDIO_SECRET_KEY keeps plain values, as before
   assert.deepEqual(state.secrets, { sealed: false, keyBeside: false });
 });
 
@@ -152,10 +152,10 @@ test('the Tailscale the image runs signs in with an auth key that no answer or e
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(dir, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(dir, 'workspace'),
-      AGENTRY_DATA_DIR: join(dir, 'data'),
-      AGENTRY_DISTRIBUTION: 'docker',
-      AGENTRY_TAILSCALE_MANAGED: '1',
+      CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'),
+      CLAUDIO_DATA_DIR: join(dir, 'data'),
+      CLAUDIO_DISTRIBUTION: 'docker',
+      CLAUDIO_TAILSCALE_MANAGED: '1',
       TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
   );

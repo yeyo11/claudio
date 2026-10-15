@@ -1,4 +1,4 @@
-import type { DecisionRecord } from '@agentry/shared';
+import type { DecisionRecord } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, keys } from '../../api';
 import { UNEXPLAINED_POINT } from './review-model';

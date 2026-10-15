@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseMcpScope, parseVariant, redactSecrets, RESOURCE_KINDS, type Core } from '@agentry/core';
-import type { ResourceKind, WriteConfigFileRequest } from '@agentry/shared';
+import { parseMcpScope, parseVariant, redactSecrets, RESOURCE_KINDS, type Core } from '@claudio/core';
+import type { ResourceKind, WriteConfigFileRequest } from '@claudio/shared';
 
 function parseKind(kind: string): ResourceKind {
   if (!RESOURCE_KINDS.includes(kind as ResourceKind)) throw new Error(`unknown resource kind '${kind}' (use ${RESOURCE_KINDS.join(', ')})`);

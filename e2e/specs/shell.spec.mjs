@@ -142,7 +142,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('[role=tabpanel] [role=radio]', 'Light');
     await page.waitFor(`return document.documentElement.dataset.theme === 'light'`, { label: 'Light applies the light theme' });
     await page.click('[role=tabpanel] [role=radio]', 'Subtle');
-    await page.waitFor(`return document.documentElement.dataset.motion === 'subtle' && localStorage.getItem('agentry-motion') === 'subtle'`, { label: 'Subtle is applied and stored' });
+    await page.waitFor(`return document.documentElement.dataset.motion === 'subtle' && localStorage.getItem('claudio-motion') === 'subtle'`, { label: 'Subtle is applied and stored' });
     check((await page.text('[role=tabpanel]')).includes('spinners hold still'), 'the chosen level says what it does');
 
     // The operating system's reduced motion wins, and the page says so instead of silently ignoring the choice
@@ -350,7 +350,7 @@ export default async ({ page, api, check, dirs }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('claudio-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     // schedules.spec starts from none. By name as well as by id: a create that failed after it was
     // saved left one behind whose id this spec never learned
     if (scheduleId) await api.del(`/schedules/${scheduleId}`).catch(() => {});

@@ -1,4 +1,4 @@
-import type { ChatSummary, Orchestration, OrchestrationSummary } from '@agentry/shared';
+import type { ChatSummary, Orchestration, OrchestrationSummary } from '@claudio/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import {
   CalendarClock,
@@ -19,19 +19,19 @@ import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useChats, useOrchestrations, useOverview, useProjects, useSchedules } from '../../../api';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { FabStandIn } from '../../../components/shell/Fab';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ProgressRing, StatusDot, usageTone } from '@agentry/ui/components/motion';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Empty, Skeleton, StatusBadge } from '@agentry/ui/components/ui';
-import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ProgressRing, StatusDot, usageTone } from '@claudio/ui/components/motion';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Empty, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
+import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { detailHref } from '../../../lib/detail';
-import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '@agentry/ui/lib/format';
-import { formatElapsed } from '@agentry/ui/lib/live';
+import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '@claudio/ui/lib/format';
+import { formatElapsed } from '@claudio/ui/lib/live';
 import { CLAUDE_CODE_ID, SIGN_IN_SETTINGS_PATH, stateLabelKey } from '../../../lib/provider-state';
 import { PROVIDERS_SETTINGS_PATH, providerSetup, reasonText, useEnabledProviders } from '../../../lib/provider-status';
-import { useClockTick } from '@agentry/ui/lib/motion';
+import { useClockTick } from '@claudio/ui/lib/motion';
 import { inProject } from '../../../lib/project-scope';
 import { configCount } from '../layout';
 import {

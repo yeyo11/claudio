@@ -27,7 +27,7 @@ test('the unit tests run unbuilt, so the build version is empty rather than a th
 test('the build reads its version from the root package.json', () => {
   const config = readFileSync(path.join(import.meta.dirname, '..', 'vite.config.ts'), 'utf8');
   assert.match(config, /new URL\('\.\.\/\.\.\/package\.json', import\.meta\.url\)/);
-  assert.match(config, /__AGENTRY_VERSION__: JSON\.stringify\(VERSION\)/);
+  assert.match(config, /__CLAUDIO_VERSION__: JSON\.stringify\(VERSION\)/);
 });
 
 test('a missing lazy chunk is recognised in the words of every engine', () => {

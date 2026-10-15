@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test, { beforeEach } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { ChangeRequestChecks, Check, MergeState, Orchestration, OrchestrationPullRequest } from '@agentry/shared';
+import type { ChangeRequestChecks, Check, MergeState, Orchestration, OrchestrationPullRequest } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import { headGradients, OrchestrationMerge, useOrchestrationLead } from '../src/components/OrchestrationMerge';
 import { OrchestrationChecks } from '../src/components/OrchestrationChecks';
@@ -176,7 +176,7 @@ test('the notices of the item page show on the orchestration block too', () => {
     state({
       canMerge: false,
       blocker: { code: 'behind', detail: null, action: 'update-from-base' },
-      autoMergeOff: { why: 'push', by: 'agentry', at: new Date().toISOString(), pushing: true },
+      autoMergeOff: { why: 'push', by: 'claudio', at: new Date().toISOString(), pushing: true },
       rebaseOnHostWhy: 'unpushed-commits',
       limitedUntil: '2026-10-01T10:30:00Z',
     }),

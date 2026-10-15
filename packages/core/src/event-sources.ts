@@ -8,8 +8,8 @@ import type {
   RunEventRef,
   RunWaitingReason,
   VerificationStatus,
-} from '@agentry/shared';
-import { displayTitle } from '@agentry/shared';
+} from '@claudio/shared';
+import { displayTitle } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import type { ChatRuntime } from './chats.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';

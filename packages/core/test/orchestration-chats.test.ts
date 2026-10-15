@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { Orchestration } from '@agentry/shared';
+import type { Orchestration } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 

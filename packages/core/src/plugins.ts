@@ -1,4 +1,4 @@
-import type { AvailablePlugin, CliTextResult, InstalledPlugin, PluginMarketplace, PluginScope, PluginsOverview } from '@agentry/shared';
+import type { AvailablePlugin, CliTextResult, InstalledPlugin, PluginMarketplace, PluginScope, PluginsOverview } from '@claudio/shared';
 import { execCli } from './cli.ts';
 import type { CoreConfig } from './paths.ts';
 

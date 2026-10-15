@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Execution, ExecutionOutcome, Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Execution, ExecutionOutcome, Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { orchestrationTimings, type TimingsChat } from '../src/orchestration-timings.ts';
 import { emptyTokenUsage } from '../src/usage.ts';
 

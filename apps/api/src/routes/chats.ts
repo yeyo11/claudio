@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import { chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } from '@agentry/core';
+import type { Core } from '@claudio/core';
+import { chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } from '@claudio/core';
 import type {
   CancelCommandRequest,
   ChatInterruptRequest,
@@ -19,12 +19,12 @@ import type {
   RunEvent,
   RunWorkflowRequest,
   UsageBucket,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { openStream } from '../sse.ts';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
-const ORIGINS: readonly ChatOrigin[] = ['agentry', 'external', 'orchestration', 'internal'];
+const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal'];
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 
 /** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */

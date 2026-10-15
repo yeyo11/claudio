@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import type { PermissionDecision, ProviderCapability, RunEvent, RunEventKind, ToolPolicy } from '@agentry/shared';
+import type { PermissionDecision, ProviderCapability, RunEvent, RunEventKind, ToolPolicy } from '@claudio/shared';
 import { ChatManager } from '../../src/chats.ts';
 import { CapabilityRefusal, ChatService, type ChatServiceDeps } from '../../src/chat-service.ts';
 import { Db } from '../../src/db.ts';

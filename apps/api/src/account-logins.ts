@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { login, type AccountStore, type LoginSession as CliLogin } from '@agentry/accounts';
-import type { AccountLoginSession, AccountLoginState } from '@agentry/shared';
+import { login, type AccountStore, type LoginSession as CliLogin } from '@claudio/accounts';
+import type { AccountLoginSession, AccountLoginState } from '@claudio/shared';
 
 /** The CLI waits for a code the person never pastes; past this it is stopped like a setup sign-in. */
 const EXPIRES_MS = 15 * 60_000;

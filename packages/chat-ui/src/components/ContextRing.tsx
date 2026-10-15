@@ -1,7 +1,7 @@
-import type { ChatSummary } from '@agentry/shared';
+import type { ChatSummary } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { contextLevel, contextShare, formatPercent, formatTokens } from '../lib/chat-model';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { formatNumber } from '@claudio/ui/lib/format';
 
 const R = 6;
 const C = 2 * Math.PI * R;

@@ -1,4 +1,4 @@
-import type { Connector, ConnectorAction, ConnectorGuide, ConnectorKind, ConnectorLimit, ConnectorsOverview } from '@agentry/shared';
+import type { Connector, ConnectorAction, ConnectorGuide, ConnectorKind, ConnectorLimit, ConnectorsOverview } from '@claudio/shared';
 import { parseMcpHealth } from './config/mcp.ts';
 import { execCli } from './cli.ts';
 import type { CoreConfig } from './paths.ts';

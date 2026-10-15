@@ -2,14 +2,14 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { BoardCheckout, FlowRun, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemHistoryEntry, WorkItemPullRequest, WorkItemStatus } from '@agentry/shared';
+import type { BoardCheckout, FlowRun, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemHistoryEntry, WorkItemPullRequest, WorkItemStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ToastProvider } from '@agentry/ui/components/Toast';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ToastProvider } from '@claudio/ui/components/Toast';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n, { setLanguage } from '../src/i18n';
 import enTasks from '../src/i18n/locales/en/tasks.json' with { type: 'json' };
 import esTasks from '../src/i18n/locales/es/tasks.json' with { type: 'json' };

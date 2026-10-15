@@ -29,8 +29,8 @@ import type {
   VerificationState,
   VerifyOrchestrationRequest,
   WorkflowDefinition,
-} from '@agentry/shared';
-import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort } from '@agentry/shared';
+} from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -84,7 +84,7 @@ import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
-import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@agentry/shared';
+import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 
@@ -121,7 +121,7 @@ interface SettleVerdict {
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
 /** How often running tasks are checked against their time limit; the limits are in minutes */
-const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000);
+const LIMITS_CHECK_MS = Number(process.env.CLAUDIO_LIMITS_INTERVAL_MS ?? 10_000);
 const now = () => new Date().toISOString();
 
 const pendingCommand = (command: string, group?: number): VerificationCommand => ({

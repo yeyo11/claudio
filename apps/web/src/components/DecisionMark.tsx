@@ -1,4 +1,4 @@
-import type { DecisionFeedback, DecisionRecord, DecisionSubjectKind } from '@agentry/shared';
+import type { DecisionFeedback, DecisionRecord, DecisionSubjectKind } from '@claudio/shared';
 import * as RadixPopover from '@radix-ui/react-popover';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ThumbsDown, ThumbsUp, X } from 'lucide-react';
@@ -6,13 +6,13 @@ import { useMemo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
-import { formatCost, formatNumber, timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { formatCost, formatNumber, timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { answerLines, type AnswerLine } from '../pages/config/decisions/model';
-import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
-import { Sheet } from '@agentry/ui/components/controls/Sheet';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox } from '@agentry/ui/components/ui';
+import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { Sheet } from '@claudio/ui/components/controls/Sheet';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox } from '@claudio/ui/components/ui';
 
 /** Enough to cover the subjects on a board or a list: the newest visible decisions of one kind. */
 const RECENT = 200;

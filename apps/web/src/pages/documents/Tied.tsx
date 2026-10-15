@@ -1,15 +1,15 @@
-import type { DocumentKind, Project, WorkItem } from '@agentry/shared';
+import type { DocumentKind, Project, WorkItem } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Plus, Search, Sparkles } from 'lucide-react';
 import { useDeferredValue, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useWorkItemList } from '../../api';
-import { Select } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Select } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemKey, WorkItemStatusIcon } from '../../components/work-item-icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { useToast } from '@claudio/ui/components/Toast';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { DOCUMENT_KINDS, newDocumentContent, newDocumentPath, normalizeNewPath, type TiedDocument } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
 

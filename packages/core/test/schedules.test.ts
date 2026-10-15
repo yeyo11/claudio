@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@agentry/shared';
+import type { AgentryEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { previewCron, Scheduler, type ScheduleLauncher } from '../src/schedules.ts';
 import { tempConfig } from './helpers.ts';

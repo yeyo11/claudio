@@ -3,8 +3,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import type { Orchestration, Project, WorkItem } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { Orchestration, Project, WorkItem } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../../../apps/api/src/app.ts';
 import { createClient, type FetchLike } from '../src/client.ts';
 import { createServer } from '../src/server.ts';
@@ -39,8 +39,8 @@ export async function seed(): Promise<Seeded> {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });

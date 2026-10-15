@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { PermissionRequest } from '@agentry/shared';
+import type { PermissionRequest } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { PermissionBroker } from '../src/permissions.ts';
 import { ChatManager, type ChatRuntime } from '../src/chats.ts';
@@ -264,7 +264,7 @@ test('a run resumed right after a stop keeps its new process', async () => {
 
 // ---------- Agentry's own write tools: each one confirmed on its own, every time ----------
 
-const WRITE_TOOL = 'mcp__agentry__create_work_item';
+const WRITE_TOOL = 'mcp__claudio__create_work_item';
 const decisionOf = (runs: ChatManager, id: string) => JSON.parse(resultText(runs, id).replace('decision=', '')) as Record<string, unknown>;
 
 test('a write tool of Agentry reaches the broker without suggestions, and an allow carries no rules', async () => {

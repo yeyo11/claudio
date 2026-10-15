@@ -1,4 +1,4 @@
-import { REDACTED } from '@agentry/shared';
+import { REDACTED } from '@claudio/shared';
 
 /**
  * The maps whose values are secrets: an MCP server's `env` (API keys) and `headers` (bearer

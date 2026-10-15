@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import type { HostReason } from '@agentry/shared';
+import type { HostReason } from '@claudio/shared';
 import { classifyCall, reasonOf } from './classify.ts';
 import { buildHostEnv } from './env.ts';
 import { HostBusyError, hostLimiter, type HostLimiter } from './limits.ts';

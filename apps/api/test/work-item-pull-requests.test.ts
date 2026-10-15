@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import type { Board, Project, WorkItem, WorkItemDetail, WorkItemPullRequestResult } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { Board, Project, WorkItem, WorkItemDetail, WorkItemPullRequestResult } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
 // The pull request routes over a real core, a real git project with a bare repository as its
@@ -78,8 +78,8 @@ before(async () => {
   chmodSync(join(bin, 'gh'), 0o755);
   // The bare origin has no host, and a project with none is not ready: the shim has `origin` say github.com
   symlinkSync(GIT_SHIM, join(bin, 'git'));
-  process.env.AGENTRY_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-  process.env.AGENTRY_ORIGIN_URL = 'https://github.com/acme/shop.git';
+  process.env.CLAUDIO_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  process.env.CLAUDIO_ORIGIN_URL = 'https://github.com/acme/shop.git';
   // Read by core whenever it runs gh: this test file runs in its own process
   process.env.PATH = `${bin}:${process.env.PATH ?? ''}`;
   process.env.FAKE_GH_STATE = state;
@@ -87,8 +87,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });

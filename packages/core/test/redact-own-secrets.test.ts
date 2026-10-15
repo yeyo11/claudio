@@ -31,7 +31,7 @@ test("the owner's token is masked wherever a command holds it, recognised by its
 test("a chat's token is masked by its prefix, and by the store that minted it", async () => {
   const store = new AuthStore(tempConfig(), {});
   const chat = store.chatTokens.mint('chat-1');
-  assert.equal(maskSecrets(`AGENTRY_API_TOKEN=x; echo ${chat}`).includes(chat), false);
+  assert.equal(maskSecrets(`CLAUDIO_API_TOKEN=x; echo ${chat}`).includes(chat), false);
   assert.equal(store.isOwnSecret(chat), true);
   assert.equal(store.isOwnSecret(`agc_${'a'.repeat(43)}`), false);
 });

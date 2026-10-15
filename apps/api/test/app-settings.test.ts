@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, AppSettings } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { AgentryEvent, AppSettings } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
 // Each test gets its own wrapper: the guard's failure counts and the runtime hosts are per wrapper,
@@ -23,8 +23,8 @@ async function wrapper(env: NodeJS.ProcessEnv = {}): Promise<Wrapper> {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
       ...env,
     }),
   );
@@ -109,7 +109,7 @@ test('a change to the settings goes out on the event feed with the whole documen
 });
 
 test('a setting the environment holds is shown, and a PUT for it is refused', async (t) => {
-  const { app, core } = await wrapper({ AGENTRY_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
+  const { app, core } = await wrapper({ CLAUDIO_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
   t.after(async () => {
     await app.close();
     core.shutdown();
@@ -121,14 +121,14 @@ test('a setting the environment holds is shown, and a PUT for it is refused', as
 
   const refused = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ defaultPermissionMode: 'plan' }) });
   assert.equal(refused.statusCode, 400);
-  assert.match(refused.json().error, /set by the environment \(AGENTRY_DEFAULT_PERMISSION_MODE\)/);
+  assert.match(refused.json().error, /set by the environment \(CLAUDIO_DEFAULT_PERMISSION_MODE\)/);
 
   const bad = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ maxConcurrentRuns: 0 }) });
   assert.equal(bad.statusCode, 400);
 });
 
 test("a host added in the UI is answered beside the environment's, which cannot be removed", async (t) => {
-  const { app, core } = await wrapper({ AGENTRY_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
+  const { app, core } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
   t.after(async () => {
     await app.close();
     core.shutdown();

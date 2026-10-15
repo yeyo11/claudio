@@ -39,25 +39,25 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAgentName } from '@agentry/chat-ui/lib/agent';
+import { useAgentName } from '@claudio/chat-ui/lib/agent';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
-import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
-import { AGENTRY_ASSISTANT_PATH } from '../pages/agentry-assistant/model';
+import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import { CLAUDIO_ASSISTANT_PATH } from '../pages/agentry-assistant/model';
 import { assistantPath } from '../pages/assistant/model';
-import { setMotionPreference } from '@agentry/ui/lib/motion';
+import { setMotionPreference } from '@claudio/ui/lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
-import { statusText } from '@agentry/ui/components/ui';
+import { statusText } from '@claudio/ui/components/ui';
 import '../palette.css';
 import { createPaletteReporter, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
 
 const OPEN_EVENT = 'cw:open-command-palette';
 /** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
-export const RUN_WORKFLOW_EVENT = 'agentry:run-workflow';
+export const RUN_WORKFLOW_EVENT = 'claudio:run-workflow';
 /** Opens the Orchestrations page with its "New orchestration" form already open. */
 export const NEW_ORCHESTRATION_PATH = '/orchestration?new=1';
 /** A query whose best local rank is under this matched no title, group, keyword or hint as a substring. */
@@ -151,7 +151,7 @@ export function CommandPalette() {
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
       { id: 'act:new-task', group: 'actions', title: t('shell:tasks.newTask'), hint: selected ? t('shell:tasks.newTaskIn', { name: selected.name }) : t('shell:tasks.newTaskHint'), keywords: 'work item board backlog issue ticket bug story epic', icon: SquarePlus, run: go(NEW_TASK_PATH) },
       // Always there, with or without a project: the project one below is another assistant, told apart by its title
-      { id: 'act:agentry-assistant', group: 'actions', title: t('palette.agentryAssistant'), hint: selected ? t('palette.agentryAssistantOf', { name: selected.name }) : t('palette.agentryAssistantHint'), keywords: 'assistant agentry ask help mcp asistente', icon: Sparkle, run: go(AGENTRY_ASSISTANT_PATH) },
+      { id: 'act:agentry-assistant', group: 'actions', title: t('palette.agentryAssistant'), hint: selected ? t('palette.agentryAssistantOf', { name: selected.name }) : t('palette.agentryAssistantHint'), keywords: 'assistant agentry ask help mcp asistente', icon: Sparkle, run: go(CLAUDIO_ASSISTANT_PATH) },
       ...(selected
         ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: Sparkle, run: go(assistantPath(selected.id)) }]
         : []),

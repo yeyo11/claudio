@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, ChangeRequestFreshness, WebhookRegistration } from '@agentry/shared';
+import type { AgentryEvent, ChangeRequestFreshness, WebhookRegistration } from '@claudio/shared';
 import { api, keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
 import { freshnessLine, isHealthy, lastHeardAt, liveRegistration, publicOrigin, responseWord, rowKind, spanWords, webhookActions, webhookTone } from '../src/lib/webhooks';

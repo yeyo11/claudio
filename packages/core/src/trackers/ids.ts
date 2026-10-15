@@ -1,4 +1,4 @@
-import type { TrackerId } from '@agentry/shared';
+import type { TrackerId } from '@claudio/shared';
 
 const IDS: Record<TrackerId, true> = { 'github-issues': true, 'gitlab-issues': true, youtrack: true };
 

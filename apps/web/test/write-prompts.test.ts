@@ -5,9 +5,9 @@ Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }
 // The helper reads the global i18next, which the app's instance sets up
 const { default: i18n } = await import('i18next');
 await import('../src/i18n/index.ts');
-const { describeWrite } = await import('@agentry/chat-ui/lib/write-prompts');
+const { describeWrite } = await import('@claudio/chat-ui/lib/write-prompts');
 
-const P = 'mcp__agentry__';
+const P = 'mcp__claudio__';
 // packages/mcp/src/write-tools.ts
 const WRITE_TOOLS = [
   'create_work_item',

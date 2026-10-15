@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 import { ChatConflictError } from '../src/chat-service.ts';
 import { HealthMonitor } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';

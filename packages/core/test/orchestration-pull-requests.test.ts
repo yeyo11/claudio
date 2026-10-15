@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration } from '@agentry/shared';
+import type { AgentryEvent, Orchestration } from '@claudio/shared';
 import { runHostCall } from '../src/hosts/exec.ts';
 import { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';
 import { HostRateLimiter } from '../src/hosts/rate-limit.ts';

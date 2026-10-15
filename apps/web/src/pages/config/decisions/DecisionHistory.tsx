@@ -1,14 +1,14 @@
-import type { DecisionFeedback, DecisionFilter, DecisionPointId, DecisionPointInfo, DecisionRecord } from '@agentry/shared';
+import type { DecisionFeedback, DecisionFilter, DecisionPointId, DecisionPointInfo, DecisionRecord } from '@claudio/shared';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ThumbsDown, ThumbsUp, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Select } from '@agentry/ui/components/controls';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
-import { formatCost, formatDateTime, formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { Select } from '@claudio/ui/components/controls';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { formatCost, formatDateTime, formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { answerLines, outcomeOf, type AnswerLine, type HistoryOutcome } from './model';
 
 const PAGE = 20;

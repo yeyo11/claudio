@@ -1,16 +1,16 @@
-import type { ChangeRequestThreads, DecisionRecord, ReviewThread, WorkItemPullRequest } from '@agentry/shared';
+import type { ChangeRequestThreads, DecisionRecord, ReviewThread, WorkItemPullRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, MessageSquareReply, Send, Sparkles } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../../../api';
-import { Checkbox, Sheet } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Checkbox, Sheet } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { fixStage } from '../../../lib/change-requests';
 import {
   ADDRESS_THREADS_MAX,

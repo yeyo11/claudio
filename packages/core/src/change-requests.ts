@@ -24,7 +24,7 @@ import type {
   UpdateBranchResult,
   WorkItem,
   WorkItemPullRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { Db } from './db.ts';
 import type { ReviewTriage } from './decisions/review-triage.ts';
 import { HostActionNotOffered } from './hosts/code-host.ts';

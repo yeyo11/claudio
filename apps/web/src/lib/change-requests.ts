@@ -6,7 +6,7 @@
  *
  * Label keys are in the `checks` namespace: `t(label)` with `useTranslation('checks')`.
  */
-import type { ChangeRequest, ChangeRequestChecks, Check, CheckState, WorkItemPullRequestCi } from '@agentry/shared';
+import type { ChangeRequest, ChangeRequestChecks, Check, CheckState, WorkItemPullRequestCi } from '@claudio/shared';
 
 /** The groups of the list, in the order the prototype draws them. */
 export type CheckGroupId = 'failed' | 'running' | 'passed' | 'skipped';

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import test, { after } from 'node:test';
-import type { ChangeRequestThreads, ReviewThread, WorkItem } from '@agentry/shared';
+import type { ChangeRequestThreads, ReviewThread, WorkItem } from '@claudio/shared';
 import { ChangeRequestService } from '../src/change-requests.ts';
 import { Db } from '../src/db.ts';
 import { threadsToAddress } from '../src/pull-requests.ts';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { entryText, normalizeMessage } from '@agentry/shared';
+import { entryText, normalizeMessage } from '@claudio/shared';
 
 test('normalizes a stream-json assistant event', () => {
   const entry = normalizeMessage({

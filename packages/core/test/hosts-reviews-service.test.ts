@@ -9,7 +9,7 @@ import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts
 import type { HostResult } from '../src/hosts/exec.ts';
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
 import { gitlabAdapter } from '../src/hosts/gitlab/adapter.ts';
-import type { ReviewDraft } from '@agentry/shared';
+import type { ReviewDraft } from '@claudio/shared';
 import { diffLines, ReviewInputError, ReviewsError, ReviewsService, THREADS_TTL, wentOut, type ReviewsTarget } from '../src/hosts/reviews-service.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -21,13 +21,13 @@ const gl = (file: string): string => readFileSync(join(here, 'fixtures/recording
 const gh = (file: string): string => readFileSync(join(here, 'fixtures/recordings/gh/2.102.0', `${file}.out`), 'utf8');
 const GOLDEN = join(here, 'fixtures/golden/phase3');
 
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
 
 const GL_HEAD = '6e0dab83d5074227e4d2827ebb745edf1aa2c943';
 const GH_HEAD = '1edb6cba70c6420d6e75a44963ca93fed97ec760';
 const UUID = '11111111-2222-3333-4444-555555555555';
-const MARKER = `<!-- agentry:${UUID} -->`;
+const MARKER = `<!-- claudio:${UUID} -->`;
 
 const ok = (stdout: string): HostResult => ({ exitCode: 0, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1 });
 const failed = (exitCode: number, stderr = 'boom', extra: Partial<HostResult> = {}): HostResult => ({ exitCode, stdout: '', stderrFirstLine: stderr, http: null, truncated: false, durationMs: 1, ...extra });
@@ -325,8 +325,8 @@ test('GitLab: publish that reports fewer discussions than saved is partly posted
 test('GitLab: wentOut drops only the drafts whose text reached the host', () => {
   const draft = (id: string, body: string, line: number | null): ReviewDraft => ({ id, changeRequestId: 'cr-1', path: line === null ? null : 'a.ts', line, startLine: null, side: null, body, suggestion: false, createdAt: '', updatedAt: '' });
   const drafts = [draft('1', 'on a line', 3), draft('2', 'dropped one', 4), draft('3', 'general', null)];
-  assert.deepEqual(wentOut(drafts, ['review text <!-- agentry:m -->', 'on a line'], '<!-- agentry:m -->').map((d) => d.id), ['1', '3']);
-  assert.deepEqual(wentOut(drafts, ['unrelated'], '<!-- agentry:m -->'), []);
+  assert.deepEqual(wentOut(drafts, ['review text <!-- claudio:m -->', 'on a line'], '<!-- claudio:m -->').map((d) => d.id), ['1', '3']);
+  assert.deepEqual(wentOut(drafts, ['unrelated'], '<!-- claudio:m -->'), []);
 });
 
 test('GitLab: wentOut counts a note on the host once, and an empty suggestion only by its fence', () => {
@@ -426,7 +426,7 @@ test('GitHub reply: the root comment id, a marker in the body, and the thread re
   assert.equal(out.id, thread.id);
   const write = h.calls.find((c) => c.includes('/replies')) ?? '';
   assert.ok(write.includes(`"body":"thanks\\n\\n${MARKER}"`));
-  assert.ok(!out.comments.some((c) => c.body.includes('agentry:')), 'the marker is not shown');
+  assert.ok(!out.comments.some((c) => c.body.includes('claudio:')), 'the marker is not shown');
 });
 
 test('reply: a timeout that landed is a success, and one that did not is unconfirmed', async () => {

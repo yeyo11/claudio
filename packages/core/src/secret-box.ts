@@ -7,7 +7,7 @@ const KEY_BYTES = 32;
  * Decision 3: a secret is kept in a 0600 file, encrypted when the desktop app can encrypt and plain
  * on a server. Electron's `safeStorage` exists only in the app's main process and the server runs
  * beside it, so the app keeps a master key under `safeStorage` and hands it to the server at launch
- * (`AGENTRY_SECRET_KEY`, 32 bytes as hex). This box seals each value with that key (AES-256-GCM);
+ * (`CLAUDIO_SECRET_KEY`, 32 bytes as hex). This box seals each value with that key (AES-256-GCM);
  * with no key it leaves values as they are.
  */
 export class SecretBox {
@@ -15,7 +15,7 @@ export class SecretBox {
 
   constructor(keyHex?: string | null) {
     const key = keyHex ? Buffer.from(keyHex.trim(), 'hex') : null;
-    if (key && key.length !== KEY_BYTES) throw new Error('AGENTRY_SECRET_KEY must be 32 bytes as hex');
+    if (key && key.length !== KEY_BYTES) throw new Error('CLAUDIO_SECRET_KEY must be 32 bytes as hex');
     this.key = key;
   }
 

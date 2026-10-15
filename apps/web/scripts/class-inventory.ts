@@ -102,9 +102,9 @@ function importsOf(css: string): string[] {
   return [...css.matchAll(/@import\s+(?:url\()?['"]([^'"]+)['"]/g)].map((match) => match[1] as string);
 }
 
-/** A relative path, or a workspace package's subpath (`@agentry/ui/styles/tokens.css`, by its `exports`) */
+/** A relative path, or a workspace package's subpath (`@claudio/ui/styles/tokens.css`, by its `exports`) */
 function resolveSheet(from: string, specifier: string): string {
-  const match = /^@agentry\/([^/]+)\/(.+)$/.exec(specifier);
+  const match = /^@claudio\/([^/]+)\/(.+)$/.exec(specifier);
   if (!match) return path.resolve(path.dirname(from), specifier);
   const dir = path.join(REPO, 'packages', match[1] as string);
   const pkg = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')) as { exports: Record<string, string> };
@@ -127,7 +127,7 @@ export function classInventory(): ClassInventory {
   }
   const main = readFileSync(path.join(WEB, 'src/main.tsx'), 'utf8');
   const stylesheets: string[] = [];
-  for (const match of main.matchAll(/^import\s+['"]((?:\.|@agentry\/)[^'"]+\.css)['"]/gm)) sheetOrder(resolveSheet(path.join(WEB, 'src', 'main.tsx'), match[1] as string), stylesheets);
+  for (const match of main.matchAll(/^import\s+['"]((?:\.|@claudio\/)[^'"]+\.css)['"]/gm)) sheetOrder(resolveSheet(path.join(WEB, 'src', 'main.tsx'), match[1] as string), stylesheets);
   const sort = (set: Set<string>): string[] => [...set].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   return { selectors: sort(selectors), classNames: sort(classNames), stylesheets };
 }

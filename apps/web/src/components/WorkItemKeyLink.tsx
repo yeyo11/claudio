@@ -1,4 +1,4 @@
-import type { WorkItem } from '@agentry/shared';
+import type { WorkItem } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useWorkItem } from '../api';

@@ -4,7 +4,7 @@
  * A webhook only makes Agentry read sooner; nothing here describes it as changing anything, and a
  * secret is never part of the data it reads.
  */
-import type { ChangeRequestFreshness, ProjectWebhooks, WebhookRegistration, WebhookState, WebhookUnavailableReason } from '@agentry/shared';
+import type { ChangeRequestFreshness, ProjectWebhooks, WebhookRegistration, WebhookState, WebhookUnavailableReason } from '@claudio/shared';
 
 /** The pacer's rhythm, in minutes, for the words a row says about the periodic read. The server decides; these only name it. */
 export const POLL_MINUTES = 2;

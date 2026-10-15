@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Project, Schedule } from '@agentry/shared';
+import type { Project, Schedule } from '@claudio/shared';
 import { matchesText, PROJECT_SORTERS, scheduleFields, scheduleView } from '../src/lib/lists.ts';
 
 const schedule = (over: Partial<Schedule> = {}): Schedule => ({

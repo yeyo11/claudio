@@ -1,14 +1,14 @@
-import type { AgentryReleaseInfo, StorageKind, StorageLocation } from '@agentry/shared';
+import type { AgentryReleaseInfo, StorageKind, StorageLocation } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ExternalLink, Info, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
-import { formatDate, timeAgo } from '@agentry/ui/lib/format';
+import { formatDate, timeAgo } from '@claudio/ui/lib/format';
 import {
   DOCKER_REPLACE_COMMAND,
   DOCKER_RUN_COMMAND,

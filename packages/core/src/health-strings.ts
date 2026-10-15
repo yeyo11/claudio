@@ -1,4 +1,4 @@
-import type { HealthSignal } from '@agentry/shared';
+import type { HealthSignal } from '@claudio/shared';
 
 // Every sentence a health signal says, keyed by a stable code and written from the figures in its
 // params. The English is built from the same params a client receives, so a client that

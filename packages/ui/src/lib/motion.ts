@@ -17,7 +17,7 @@ import { useSyncExternalStore } from 'react';
 
 export type MotionLevel = 'full' | 'subtle' | 'off';
 
-const STORAGE_KEY = 'agentry-motion';
+const STORAGE_KEY = 'claudio-motion';
 const LEVELS: readonly MotionLevel[] = ['full', 'subtle', 'off'];
 
 const listeners = new Set<() => void>();

@@ -1,4 +1,4 @@
-import type { HostReason } from '@agentry/shared';
+import type { HostReason } from '@claudio/shared';
 import type { HostCall, HostResult } from './exec.ts';
 import { tryParseJson } from './json.ts';
 

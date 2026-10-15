@@ -14,7 +14,7 @@ const rowState = (id) => `(document.querySelector('.prov-row[data-provider="${id
 const onStep = (step) => `return !!document.querySelector('.setup-page[data-setup-step="${step}"]')`;
 
 export default async ({ page, api, check }) => {
-  const theme = (name) => page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(name)}); return true`);
+  const theme = (name) => page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(name)}); return true`);
 
   try {
     await api.post('/providers/refresh');

@@ -1,10 +1,10 @@
-import type { AssistantRunDetail, AssistantWorkItemProposal } from '@agentry/shared';
+import type { AssistantRunDetail, AssistantWorkItemProposal } from '@claudio/shared';
 import { AlertTriangle, Check, Plus, Undo2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ProposedWorkItemMeta, RunFacts } from '../../../components/assistant/run';
-import { Checkbox } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Checkbox } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../../components/work-item-icons';
 import { localized } from '../../../lib/server-strings';
 import { taskPath } from '../../../lib/work-items';

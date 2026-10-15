@@ -1,15 +1,15 @@
 // What the review screen remembers per browser (docs/plans/changes-review.md, decisions 4 and 5):
 // the comparator's mode, and which files a person has seen. Neither ever reaches the server, and a
 // storage that throws (private mode, a full quota) only means nothing is remembered.
-import type { ChangedFile } from '@agentry/shared';
+import type { ChangedFile } from '@claudio/shared';
 
 export type ReviewMode = 'reading' | 'unified' | 'split';
 
 export const MODE_KEY = 'agentry-diff-mode';
-const SEEN_PREFIX = 'agentry-review-seen:v1:';
+const SEEN_PREFIX = 'claudio-review-seen:v1:';
 /** Sources whose seen files are kept; the oldest are forgotten past this */
 const SEEN_SOURCES = 60;
-const SEEN_INDEX = 'agentry-review-seen:v1';
+const SEEN_INDEX = 'claudio-review-seen:v1';
 
 /** The part of `localStorage` this uses, so a test can hand it a map */
 export interface KeyValueStore {

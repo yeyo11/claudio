@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderLimit, ProviderLimitOverage, RateLimitInfo, RateLimitWindow } from '@agentry/shared';
+import type { ProviderId, ProviderLimit, ProviderLimitOverage, RateLimitInfo, RateLimitWindow } from '@claudio/shared';
 import type { DriverEvent } from './driver.ts';
 
 /** From this use of the binding window a provider is `near`, the same line the usage bars draw. */

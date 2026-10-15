@@ -11,8 +11,8 @@ import type {
   WorkItemLink,
   WorkItemLinkRole,
   WriteDocumentRequest,
-} from '@agentry/shared';
-import { DOCUMENT_KINDS } from '@agentry/shared';
+} from '@claudio/shared';
+import { DOCUMENT_KINDS } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { DocumentPathError, documentPath, isMarkdown, rootSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';

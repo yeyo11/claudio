@@ -1,4 +1,4 @@
-import type { CodeHostId, TrackerId, TrackerMappedStatus } from '@agentry/shared';
+import type { CodeHostId, TrackerId, TrackerMappedStatus } from '@claudio/shared';
 import type { HostCall, HostRepo } from '../hosts/code-host.ts';
 
 // What a tracker adapter is, in the same shape as a code host's: a stateless translator from an

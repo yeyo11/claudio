@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Board, WorkItem, WorkItemLink } from '@agentry/shared';
+import type { Board, WorkItem, WorkItemLink } from '@claudio/shared';
 import {
   filterChanges,
   searchBoxText,

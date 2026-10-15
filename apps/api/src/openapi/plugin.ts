@@ -14,7 +14,7 @@ const API_PREFIX = '/api';
  *   /openapi.json  the raw document
  */
 export async function registerOpenApi(app: FastifyInstance, version: string): Promise<void> {
-  // Route schemas are documentation only. Input validation lives in @agentry/core (single source of
+  // Route schemas are documentation only. Input validation lives in @claudio/core (single source of
   // truth for error messages) and responses must never be stripped down to the documented fields.
   app.setValidatorCompiler(() => () => true);
   app.setSerializerCompiler(() => (data) => JSON.stringify(data));

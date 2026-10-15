@@ -1,5 +1,5 @@
-import type { BoardSettings, ProjectModule, ProjectTemplateId, WorkItemStatus } from '@agentry/shared';
-import { PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES } from '@agentry/shared';
+import type { BoardSettings, ProjectModule, ProjectTemplateId, WorkItemStatus } from '@claudio/shared';
+import { PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { BookText, Box, Code, FileText, FlaskConical, SquareKanban, SlidersHorizontal, Square, Users, type LucideIcon } from 'lucide-react';
 
 export { PROJECT_MODULES, PROJECT_TEMPLATE_IDS };

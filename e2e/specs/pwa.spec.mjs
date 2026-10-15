@@ -37,7 +37,7 @@ export default async ({ page, api, check }) => {
   await page.waitFor(`return !!navigator.serviceWorker.controller`, { label: 'the worker to take control of the page' });
 
   const cached = await page.eval(
-    `const name = (await caches.keys()).find((key) => key.startsWith('agentry-shell-'));` +
+    `const name = (await caches.keys()).find((key) => key.startsWith('claudio-shell-'));` +
       `if (!name) return null;` +
       `const cache = await caches.open(name);` +
       `return (await cache.keys()).map((request) => new URL(request.url).pathname);`,

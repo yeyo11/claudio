@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseFlowRunQuery, type Core } from '@agentry/core';
+import { parseFlowRunQuery, type Core } from '@claudio/core';
 
 /**
  * What a project's flow by column is doing and has done: its runs going and queued, the team's

@@ -1,6 +1,6 @@
 import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
-import type { WorkItem, WorkItemLink } from '@agentry/shared';
+import type { WorkItem, WorkItemLink } from '@claudio/shared';
 import { DocumentPathError, documentPath } from './document-paths.ts';
 import { DocumentError, existingDocument } from './documents.ts';
 import { commitPaths, git, headCommit, mergeBase } from './git.ts';

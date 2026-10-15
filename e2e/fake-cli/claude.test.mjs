@@ -42,7 +42,7 @@ function chat(env = {}, { args = [], setup } = {}) {
   setup?.(dir);
   const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...args], {
     cwd: dir,
-    env: { ...process.env, AGENTRY_FAKE_CLI_LOG: logFile, ...env },
+    env: { ...process.env, CLAUDIO_FAKE_CLI_LOG: logFile, ...env },
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   const events = [];
@@ -117,7 +117,7 @@ test('a turn runs its commands for real and ends with a result', async () => {
 });
 
 test('a running command beats with the elapsed time offset, and hears messages at its next step', { skip: !linux && 'needs /proc' }, async () => {
-  const c = chat({ AGENTRY_FAKE_CLI_HEARTBEAT_MS: '100' });
+  const c = chat({ CLAUDIO_FAKE_CLI_HEARTBEAT_MS: '100' });
   c.say('elapsed: 200\nrun: sleep 30\nrun: sleep 31');
   const call = await c.next(toolUse);
   const id = call.message.content[0].id;
@@ -199,7 +199,7 @@ test('an issue.triage question is answered without a script: the marks go round 
 });
 
 test('read: holds a Read call open, and json: is the structured output of the result', async () => {
-  const c = chat({ AGENTRY_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'README.md'), '# hello\n') });
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'README.md'), '# hello\n') });
   c.say('read: README.md\nread: missing.md\njson: {"summary":"ok","workItems":[]}');
   const first = await c.next((e) => toolUse(e) && e.message.content[0].name === 'Read');
   assert.match(first.message.content[0].input.file_path, /README\.md$/);
@@ -239,7 +239,7 @@ test('stream: hands the structured output over as StructuredOutput deltas, and h
 });
 
 test('an interrupt during a read ends the turn at once', async () => {
-  const c = chat({ AGENTRY_FAKE_CLI_READ_MS: '60000' });
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '60000' });
   c.say('read: README.md');
   await c.next((e) => toolUse(e) && e.message.content[0].name === 'Read');
   c.send({ type: 'control_request', request_id: 'r1', request: { subtype: 'interrupt' } });
@@ -252,7 +252,7 @@ test('a message holding a key of the scripts file is played as its script', asyn
   const dir = mkdtempSync(join(tmpdir(), 'agentry-fake-cli-scripts-'));
   const scripts = join(dir, 'scripts.json');
   writeFileSync(scripts, JSON.stringify({ 'Tidy the imports': 'say: Sorted them.\nrun: echo sorted' }));
-  const c = chat({ AGENTRY_FAKE_CLI_SCRIPTS: scripts });
+  const c = chat({ CLAUDIO_FAKE_CLI_SCRIPTS: scripts });
   c.say('You are a worker.\n\nYour task (tidy):\nTidy the imports\n\nFinish with a report.');
   assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Sorted them.');
   await c.next((e) => toolUse(e) && e.message.content[0].input.command === 'echo sorted');

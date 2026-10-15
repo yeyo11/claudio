@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@agentry/shared';
+import type { HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
 import { writeAtomic } from './config/files.ts';

@@ -182,12 +182,12 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---------- accessibility in both themes ----------
     await noViolations(page, '/usage (dark)', check);
-    await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
     await page.goto('/usage', 900);
     await page.waitFor(`return !!document.querySelector('main svg[role=img]')`, { label: 'the chart in the light theme' });
     await noViolations(page, '/usage (light)', check);
     await page.shot('usage-light');
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`);
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`);
     await page.viewport(420, 900);
     await page.goto('/usage', 900);
     await page.waitFor(`return !!document.querySelector('main svg[role=img]')`, { label: 'the chart on a phone' });
@@ -227,7 +227,7 @@ export default async ({ page, api, check, dirs }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     rmSync(projectDir, { recursive: true, force: true });
   }
 };

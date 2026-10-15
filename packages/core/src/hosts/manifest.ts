@@ -1,4 +1,4 @@
-import type { CodeHostId } from '@agentry/shared';
+import type { CodeHostId } from '@claudio/shared';
 import type { ProviderConfigHome } from '../providers/manifest.ts';
 
 /**

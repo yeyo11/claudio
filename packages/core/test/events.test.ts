@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration } from '@agentry/shared';
+import type { AgentryEvent, Orchestration } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
 import { OrchestrationEventTracker, RunEventPublisher, SessionsWatcher } from '../src/event-sources.ts';
@@ -160,7 +160,7 @@ function summary(over: Partial<ChatRuntime> = {}): ChatRuntime {
     name: 'demo',
     cwd: '/tmp',
     workingDir: '/tmp',
-    origin: 'agentry',
+    origin: 'claudio',
     derivedFrom: null,
     model: null,
     permissionMode: 'manual',

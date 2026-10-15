@@ -199,7 +199,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return !!document.querySelector('.team-activity .text-err')`), 'a failed run says so in the bad colour, beside its word');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     for (const id of made) await api.del(`/projects/${id}`).catch(() => {});
   }
 };

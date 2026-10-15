@@ -33,7 +33,7 @@ export interface CliVersionInfo {
 }
 
 /**
- * How this Agentry was installed, from `AGENTRY_DISTRIBUTION`: what decides which way to update it
+ * How this Agentry was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it
  * a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name.
  */
 export type AgentryDistribution = 'docker' | 'appimage' | 'deb' | 'source';
@@ -504,7 +504,7 @@ export type ChatControl =
   | { mode: 'readOnly'; reason: string; action: 'fork' | 'hint' };
 
 /** Where a chat was born. Never changes, even when resuming adopts the chat. */
-export type ChatOrigin = 'agentry' | 'external' | 'orchestration' | 'internal';
+export type ChatOrigin = 'claudio' | 'external' | 'orchestration' | 'internal';
 
 /** How an execution ended. `interrupted`: its process was lost (the wrapper restarted or crashed) rather than stopped or finished. */
 export type ExecutionOutcome = 'completed' | 'failed' | 'stopped' | 'interrupted';
@@ -4038,7 +4038,7 @@ export interface AuditEntry {
   at: string;
   /**
    * `token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own
-   * token (`AGENTRY_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no
+   * token (`CLAUDIO_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no
    * authentication is configured
    */
   actor: string;
@@ -4073,7 +4073,7 @@ export interface AuditPage {
 // Some settings used to be read from the environment once, at startup. They can now also be
 // changed at runtime from a JSON file the UI edits, with a fixed order of precedence: the
 // environment, then the file, then the default. A value the environment set is still shown, but
-// read-only, the same way `AGENTRY_AUTH_TOKEN` already works for the guard: whoever deployed the
+// read-only, the same way `CLAUDIO_AUTH_TOKEN` already works for the guard: whoever deployed the
 // install decided it, and the UI must not quietly override a deploy.
 
 /**
@@ -4100,7 +4100,7 @@ export interface AppSettingValues {
   /**
    * The setup assistant was finished or skipped. Kept here rather than in the browser so a second
    * browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that
-   * stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count.
+   * stored value and its variable, `CLAUDIO_PROVIDERS_STEP_SEEN`, still count.
    */
   setupSeen: boolean;
 }
@@ -4110,7 +4110,7 @@ export interface AppSettingValues {
  * settings, the layers add up: what the guard answers is all three together.
  */
 export interface AllowedHostLayers {
-  /** From `AGENTRY_ALLOWED_HOSTS`: fixed by whoever deployed the install, read-only in the UI */
+  /** From `CLAUDIO_ALLOWED_HOSTS`: fixed by whoever deployed the install, read-only in the UI */
   env: string[];
   /** From `app-settings.json`: added in the UI, and what a `PUT` of `allowedHosts` replaces */
   file: string[];
@@ -4206,20 +4206,20 @@ export interface TunnelStatus {
   /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
   reason: Localized | null;
   /**
-   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`, on by default). While false,
+   * Whether this deploy offers the tunnel at all (`CLAUDIO_TUNNEL`, on by default). While false,
    * `start` is refused and the UI says who can turn it on instead of offering a button
    */
   enabled: boolean;
   /**
    * Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in
-   * userspace networking, with its state on the data volume (`AGENTRY_TAILSCALE_MANAGED`). Only
+   * userspace networking, with its state on the data volume (`CLAUDIO_TAILSCALE_MANAGED`). Only
    * then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a
    * machine's own Tailscale is the person's, and the UI says what to run instead
    */
   managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
-  /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8444 by default) */
+  /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default) */
   port: number;
   settings: TunnelSettings;
 }
@@ -6742,7 +6742,7 @@ export interface SecretStorageStatus {
   sealed: boolean;
   /**
    * The key sits in the data directory beside what it seals (the Docker image without
-   * `AGENTRY_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through
+   * `CLAUDIO_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through
    * the environment is the recommended setup.
    */
   keyBeside: boolean;
@@ -6773,7 +6773,7 @@ export interface SetupHostSummary {
  * `managed`: elsewhere it shows the state and what to run.
  */
 export interface SetupTailscaleSummary {
-  /** This deploy offers the tunnel (`AGENTRY_TUNNEL`) */
+  /** This deploy offers the tunnel (`CLAUDIO_TUNNEL`) */
   enabled: boolean;
   /** Agentry runs this `tailscaled` (the Docker image), so it signs it in and out */
   managed: boolean;

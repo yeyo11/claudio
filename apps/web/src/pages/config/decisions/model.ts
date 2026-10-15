@@ -1,4 +1,4 @@
-import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionProviderId, DecisionRecord } from '@agentry/shared';
+import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionProviderId, DecisionRecord } from '@claudio/shared';
 
 /** Rough size of a request in tokens: the consent dialog says "about", so four bytes a token is enough. */
 export const approxTokens = (bytes: number) => Math.ceil(bytes / 4);

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { OrchestrationSpec, OrchestrationTemplate, UpdateOrchestrationTemplateRequest } from '@agentry/shared';
+import type { OrchestrationSpec, OrchestrationTemplate, UpdateOrchestrationTemplateRequest } from '@claudio/shared';
 
 const now = () => new Date().toISOString();
 

@@ -16,7 +16,7 @@ import type {
   PermissionDecision,
   PermissionRequest,
   ResumeChatRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { RUN_TAG } from './chat-pages';
 
 /** What a resume or a fork may start with; a key left out keeps what the chat had. */

@@ -62,7 +62,7 @@ export default async ({ page, api, check, dirs }) => {
     // Storage belongs to the app's origin: a blank page before the first visit has none
     await page.goto(`/tasks?project=${project.id}`, 1500);
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       await page.goto(`/tasks?project=${project.id}`, 1500);
       await page.waitFor(`return !!document.querySelector('${card(passing.id)}')`, { label: `[${theme}] the open PR's strip` });
       const strip = (item) => page.eval(`const s = document.querySelector('${card(item.id)}'); return s ? { text: s.textContent, cls: s.className, ci: s.querySelector('.pr-ci')?.dataset.ci ?? null, ciCls: s.querySelector('.pr-ci')?.className ?? '', link: s.querySelector('a[href^="https://github.com"]')?.getAttribute('href') ?? null, target: s.querySelector('a[href^="https://github.com"]')?.getAttribute('target') ?? null, num: s.querySelector('.workitem-strip-num') ? getComputedStyle(s.querySelector('.workitem-strip-num')).fontVariantNumeric : null } : null`);
@@ -109,7 +109,7 @@ export default async ({ page, api, check, dirs }) => {
     }
 
     // ---- a phone ----
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.viewport(390, 844);
     await page.goto(`/tasks/${passing.key}`, 1500);
     // The PR panel leads the detail, as the waiting panel does

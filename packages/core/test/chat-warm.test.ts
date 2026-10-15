@@ -24,9 +24,9 @@ async function until<T>(read: () => T | undefined | null | false, what: string, 
 }
 
 function rig(limit?: number) {
-  const saved = { idle: process.env.AGENTRY_IDLE_TIMEOUT_MS, max: process.env.AGENTRY_VIEWED_IDLE_MAX_MS };
-  process.env.AGENTRY_IDLE_TIMEOUT_MS = '200';
-  process.env.AGENTRY_VIEWED_IDLE_MAX_MS = '700';
+  const saved = { idle: process.env.CLAUDIO_IDLE_TIMEOUT_MS, max: process.env.CLAUDIO_VIEWED_IDLE_MAX_MS };
+  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '200';
+  process.env.CLAUDIO_VIEWED_IDLE_MAX_MS = '700';
   const config = tempConfig();
   if (limit) Object.assign(config, { maxConcurrentRuns: limit });
   const db = new Db(config);
@@ -35,7 +35,7 @@ function rig(limit?: number) {
     chats.stopAll();
     await pause(150);
     db.close();
-    for (const [key, value] of [['AGENTRY_IDLE_TIMEOUT_MS', saved.idle], ['AGENTRY_VIEWED_IDLE_MAX_MS', saved.max]] as const) {
+    for (const [key, value] of [['CLAUDIO_IDLE_TIMEOUT_MS', saved.idle], ['CLAUDIO_VIEWED_IDLE_MAX_MS', saved.max]] as const) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }

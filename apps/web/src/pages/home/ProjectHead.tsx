@@ -1,14 +1,14 @@
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import { ChevronRight, MessageCircle, Pencil, Plus, Sparkle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { useAssistantRuns, useDocuments, useProjectSettings } from '../../api';
-import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
-import { ICON, ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../components/work-item-icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { NEW_TASK_PATH } from '../../lib/work-items';
 import { assistantPath, pendingProposalCount, projectPath } from '../assistant/model';
 import type { ProjectViewId } from '../dashboard/views';

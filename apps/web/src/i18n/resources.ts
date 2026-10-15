@@ -1,7 +1,7 @@
 // Every namespace of both languages, bundled: the UI never waits on a request to show its text.
-// `common` and `primitives` belong to @agentry/ui and `chat` to @agentry/chat-ui; all three are spread in from them.
-import { chatUiEn, chatUiEs } from '@agentry/chat-ui/locales';
-import { uiEn, uiEs } from '@agentry/ui/i18n/resources';
+// `common` and `primitives` belong to @claudio/ui and `chat` to @claudio/chat-ui; all three are spread in from them.
+import { chatUiEn, chatUiEs } from '@claudio/chat-ui/locales';
+import { uiEn, uiEs } from '@claudio/ui/i18n/resources';
 import enAssistant from './locales/en/assistant.json';
 import enChanges from './locales/en/changes.json';
 import enChecks from './locales/en/checks.json';

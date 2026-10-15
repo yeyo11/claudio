@@ -1,4 +1,4 @@
-import type { WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkItemRelationType, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import type { WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkItemRelationType, WorkItemStatus, WorkItemType } from '@claudio/shared';
 
 export interface Draft {
   type: WorkItemType;

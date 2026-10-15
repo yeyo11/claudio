@@ -1,8 +1,8 @@
-import type { DecisionStats } from '@agentry/shared';
+import type { DecisionStats } from '@claudio/shared';
 import { Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { formatCost } from '@agentry/ui/lib/format';
+import { formatCost } from '@claudio/ui/lib/format';
 
 /** Nothing when no decision was recorded in the window. */
 export function DecisionsLineView({ stats: data }: { stats: DecisionStats }) {

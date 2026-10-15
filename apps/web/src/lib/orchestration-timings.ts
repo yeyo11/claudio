@@ -1,5 +1,5 @@
-import type { Orchestration, OrchestrationPhaseTiming, TaskWaitKind } from '@agentry/shared';
-import type { ProgressStatus } from '@agentry/ui/lib/progress';
+import type { Orchestration, OrchestrationPhaseTiming, TaskWaitKind } from '@claudio/shared';
+import type { ProgressStatus } from '@claudio/ui/lib/progress';
 
 /** Cells the phase bar is cut into: enough for a one-minute integration to show next to a two-hour task phase. */
 export const PHASE_CELLS = 32;

@@ -66,7 +66,7 @@ export default async ({ page, api, check, dirs }) => {
     }
   } finally {
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
 };

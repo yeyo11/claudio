@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { ChangedFile, ChangedFileStatus, Commit } from '@agentry/shared';
+import type { ChangedFile, ChangedFileStatus, Commit } from '@claudio/shared';
 
 /**
  * The few git operations orchestrations need to hand back one branch instead of a pile of

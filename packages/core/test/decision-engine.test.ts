@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionAnswer, DecisionPointId, DecisionProviderId, ProjectDecisionSettings } from '@agentry/shared';
+import type { DecisionAnswer, DecisionPointId, DecisionProviderId, ProjectDecisionSettings } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine, lowestConfidence, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { DECISION_POINTS, decisionPoint, type DecisionSubject } from '../src/decisions/points.ts';

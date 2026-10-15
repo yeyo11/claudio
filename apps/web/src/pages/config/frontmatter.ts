@@ -1,4 +1,4 @@
-import type { ResourceKind } from '@agentry/shared';
+import type { ResourceKind } from '@claudio/shared';
 
 /**
  * What would keep the CLI from reading a resource's frontmatter, checked before it is saved. The CLI

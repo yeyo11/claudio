@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { searchPattern, TranscriptSearch } from '@agentry/shared';
+import { searchPattern, TranscriptSearch } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';

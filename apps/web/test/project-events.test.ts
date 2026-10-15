@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueryKey } from '@tanstack/react-query';
-import type { ProjectCreatedEvent, ProjectRemovedEvent } from '@agentry/shared';
+import type { ProjectCreatedEvent, ProjectRemovedEvent } from '@claudio/shared';
 import { keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
 

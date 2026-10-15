@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import type { WebhookLastResponse } from '@agentry/shared';
+import type { WebhookLastResponse } from '@claudio/shared';
 import { HostParseError, type HostCall, type HostRepo } from '../code-host.ts';
 import type { HookDriver, RemoteHook } from '../hook-driver.ts';
 import { parseJson } from '../json.ts';
@@ -50,7 +50,7 @@ export const gitlabHooks: HookDriver = {
       repo,
       ['-X', 'POST', hooksPath(repo), '-H', 'Content-Type: application/json', '--input', '-'],
       'write',
-      JSON.stringify({ ...body(hook), name: 'agentry', merge_requests_events: true, pipeline_events: true, note_events: true, issues_events: true, push_events: false, job_events: false }),
+      JSON.stringify({ ...body(hook), name: 'claudio', merge_requests_events: true, pipeline_events: true, note_events: true, issues_events: true, push_events: false, job_events: false }),
     ),
 
   // A project holds at most 100 hooks, so one page is all of them

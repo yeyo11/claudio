@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat, ChatExport, ChatSummary, Project, ProjectExport, TranscriptEntry } from '@agentry/shared';
+import type { Chat, ChatExport, ChatSummary, Project, ProjectExport, TranscriptEntry } from '@claudio/shared';
 import { byStart, projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from '../src/project-export.ts';
 
 const project: Project = { id: '9f1c2d3e-0000-4000-8000-000000000000', name: 'Billing API', path: '/work/billing', key: 'BA', modules: [], worktrees: [], exists: true, chatCount: 3, lastActivity: null };

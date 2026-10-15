@@ -1,23 +1,23 @@
-import type { ChatState, ChatSummary } from '@agentry/shared';
+import type { ChatState, ChatSummary } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Download, GitBranch, GitFork, Lock, Plus, Trash2, Zap, type LucideIcon } from 'lucide-react';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useChats, useProjects } from '../api';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
-import { ContextBar } from '@agentry/chat-ui/components/ChatBadges';
-import { ProviderMark } from '@agentry/ui/components/ProviderMark';
+import { ContextBar } from '@claudio/chat-ui/components/ChatBadges';
+import { ProviderMark } from '@claudio/ui/components/ProviderMark';
 import { useProviderLabel } from '../lib/provider-status';
-import { Checkbox, hasOpenLayer } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ListToolbar, type ListFilterChip } from '@agentry/ui/components/ListToolbar';
-import { usageTone } from '@agentry/ui/components/motion';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '@agentry/ui/components/ui';
+import { Checkbox, hasOpenLayer } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ListToolbar, type ListFilterChip } from '@claudio/ui/components/ListToolbar';
+import { usageTone } from '@claudio/ui/components/motion';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '@claudio/ui/components/ui';
 import {
   ALL_ORIGINS,
   contextShare,
@@ -44,10 +44,10 @@ import {
   type DayGroup,
   type FacetOption,
   type RowTag,
-} from '@agentry/chat-ui/lib/chat-model';
-import { formatDateTime, formatNumber, timeAgo } from '@agentry/ui/lib/format';
+} from '@claudio/chat-ui/lib/chat-model';
+import { formatDateTime, formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { useListKeys } from '../lib/list-keys';
-import { COARSE, COMPACT, NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { COARSE, COMPACT, NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useMinute } from '../lib/minute';
 import { useListParams } from '../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
@@ -253,7 +253,7 @@ const ChatRow = memo(function ChatRow({
             </span>
             {/* The card's line, where there are no columns: where it runs, the context and the cost */}
             <span className="crow-sub-narrow">
-              {chat.origin !== 'agentry' && <span className="badge crow-origin-badge">{ORIGIN_LABEL[chat.origin]}</span>}
+              {chat.origin !== 'claudio' && <span className="badge crow-origin-badge">{ORIGIN_LABEL[chat.origin]}</span>}
               <span className="crow-meta-place">{place}</span>
               {share !== null && (
                 <span className={`crow-meta-context is-${contextTone}`}>
@@ -271,7 +271,7 @@ const ChatRow = memo(function ChatRow({
           {place}
         </span>
         <span className="crow-cell crow-origin">
-          <span className={`badge ${chat.origin === 'agentry' ? 'is-agentry' : ''}`.trim()}>{ORIGIN_LABEL[chat.origin]}</span>
+          <span className={`badge ${chat.origin === 'claudio' ? 'is-agentry' : ''}`.trim()}>{ORIGIN_LABEL[chat.origin]}</span>
         </span>
         <span className="crow-cell crow-context">
           <ContextBar chat={chat} />

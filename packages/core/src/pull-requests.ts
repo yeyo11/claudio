@@ -27,7 +27,7 @@ import {
   type WorkItemPullRequest,
   type WorkItemPullRequestCi,
   type WorkItemPullRequestPhase,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { Db } from './db.ts';
 import {
   aheadCount,

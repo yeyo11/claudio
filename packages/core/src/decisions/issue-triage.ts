@@ -1,4 +1,4 @@
-import type { IssueTriageMark, TrackerId, TrackerIssue } from '@agentry/shared';
+import type { IssueTriageMark, TrackerId, TrackerIssue } from '@claudio/shared';
 import type { Db } from '../db.ts';
 import { stanceOf, type DecisionAsker } from './stance.ts';
 

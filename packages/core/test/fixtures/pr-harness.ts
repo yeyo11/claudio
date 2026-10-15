@@ -4,7 +4,7 @@ import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFi
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, ProjectTrackerSettings, WorkItem } from '@agentry/shared';
+import type { AgentryEvent, FlowCriterionResult, ProjectTrackerSettings, WorkItem } from '@claudio/shared';
 import { Db } from '../../src/db.ts';
 import { runHostCall } from '../../src/hosts/exec.ts';
 import type { MergeService } from '../../src/hosts/merge-service.ts';
@@ -24,7 +24,7 @@ export const GOLDEN_DIR = join(dirname(fileURLToPath(import.meta.url)), 'golden'
 
 const REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 const BASE_PATH = process.env.PATH ?? '';
-process.env.AGENTRY_REAL_GIT = REAL_GIT;
+process.env.CLAUDIO_REAL_GIT = REAL_GIT;
 // A developer's own settings would change what the service sets or removes, and so the logs
 for (const name of ['GH_HOST', 'GH_REPO', 'NO_PROMPT', 'GIT_TERMINAL_PROMPT', 'GH_PROMPT_DISABLED', 'GH_NO_UPDATE_NOTIFIER']) delete process.env[name];
 
@@ -121,7 +121,7 @@ export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: bool
   const busy = opts.busy ?? new Set<string>();
   // The service's synchronous git calls read the process's PATH, its asynchronous calls the one it is given
   process.env.PATH = `${r.bin}:${BASE_PATH}`;
-  process.env.AGENTRY_ORIGIN_URL = ORIGIN_URL[opts.host ?? 'github'];
+  process.env.CLAUDIO_ORIGIN_URL = ORIGIN_URL[opts.host ?? 'github'];
   const service = new PullRequestService({
     db,
     items,
@@ -193,8 +193,8 @@ export async function opened(s: Setup, item: WorkItem): Promise<void> {
 }
 
 export const cleanup = (s: Setup): void => {
-  delete process.env.AGENTRY_CALL_LOG;
-  delete process.env.AGENTRY_ORIGIN_URL;
+  delete process.env.CLAUDIO_CALL_LOG;
+  delete process.env.CLAUDIO_ORIGIN_URL;
   process.env.PATH = BASE_PATH;
   rmSync(s.r.root, { recursive: true, force: true });
 };
@@ -204,7 +204,7 @@ export const cleanup = (s: Setup): void => {
 /** From here on, every call of the service to git and gh is written down. */
 export function record(r: Repo): void {
   writeFileSync(r.log, '');
-  process.env.AGENTRY_CALL_LOG = r.log;
+  process.env.CLAUDIO_CALL_LOG = r.log;
 }
 
 /** A line of the log that says what happened between calls, so a reader can follow a scenario. */

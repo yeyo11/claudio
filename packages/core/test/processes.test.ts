@@ -115,8 +115,8 @@ test('a process that ignores SIGTERM is killed after the grace period', async ()
 
 test('agentryChildren finds a process by the chat id in its environment, and no other', { skip: process.platform !== 'linux' }, () => {
   const idle = ['-e', 'setInterval(() => {}, 1000)'];
-  const mine = spawn(process.execPath, idle, { env: { ...process.env, AGENTRY_CHAT_ID: 'chat-under-test' }, stdio: 'ignore' });
-  const stranger = spawn(process.execPath, idle, { env: { ...process.env, AGENTRY_CHAT_ID: '' }, stdio: 'ignore' });
+  const mine = spawn(process.execPath, idle, { env: { ...process.env, CLAUDIO_CHAT_ID: 'chat-under-test' }, stdio: 'ignore' });
+  const stranger = spawn(process.execPath, idle, { env: { ...process.env, CLAUDIO_CHAT_ID: '' }, stdio: 'ignore' });
   try {
     const found = agentryChildren();
     const own = found.find((p) => p.pid === mine.pid);

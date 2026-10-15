@@ -1,14 +1,14 @@
-import type { DecisionMode, DecisionPointInfo, DecisionPreview, DecisionPointSettings, DecisionProviderId } from '@agentry/shared';
+import type { DecisionMode, DecisionPointInfo, DecisionPreview, DecisionPointSettings, DecisionProviderId } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON } from '@agentry/ui/components/icons';
-import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
-import { formatBytes, formatNumber } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Sheet } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON } from '@claudio/ui/components/icons';
+import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { formatBytes, formatNumber } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { approxTokens, consentProviders } from './model';
 
 /** Where Jev runs; the dialog names it so nobody has to guess where the state goes. */

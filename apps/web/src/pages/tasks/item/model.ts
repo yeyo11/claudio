@@ -23,8 +23,8 @@ import type {
   WorkItemLink,
   WorkItemRelation,
   WorkItemStatus,
-} from '@agentry/shared';
-import { WORK_ITEM_PR_CAUSE } from '@agentry/shared';
+} from '@claudio/shared';
+import { WORK_ITEM_PR_CAUSE } from '@claudio/shared';
 import { changeRequestRef, changeRequestWords } from '../../../lib/code-hosts';
 import type en from '../../../i18n/locales/en/workItem.json';
 

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { YoutrackCredentialsStatus } from '@agentry/shared';
+import type { YoutrackCredentialsStatus } from '@claudio/shared';
 import type { CoreConfig } from '../../paths.ts';
 import { SecretBox } from '../../secret-box.ts';
 import { SecretVault } from '../../secret-vault.ts';

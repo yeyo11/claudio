@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { decisionPoint, DECISION_POINTS, type Core } from '@agentry/core';
+import { decisionPoint, DECISION_POINTS, type Core } from '@claudio/core';
 import type {
   DecisionCredentialsResult,
   DecisionFeedback,
@@ -10,7 +10,7 @@ import type {
   DecisionPreview,
   DecisionProviderId,
   DecisionSubjectKind,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /**
  * The decision engine over HTTP: its settings and its Jev key, what each point would send and the

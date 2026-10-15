@@ -23,8 +23,8 @@ test('a changed number is one mark on each side', () => {
 });
 
 test('changed tokens separated only by whitespace are one phrase', () => {
-  const a = "import type { ChangedFile, Commit } from '@agentry/shared';";
-  const b = "import type { ChangedFile, Commit, DiffContext } from '@agentry/shared';";
+  const a = "import type { ChangedFile, Commit } from '@claudio/shared';";
+  const b = "import type { ChangedFile, Commit, DiffContext } from '@claudio/shared';";
   const d = wordDiff(a, b);
   assert.deepEqual(d.old, []);
   assert.deepEqual(marked(b, d.new), [', DiffContext']);

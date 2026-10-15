@@ -19,7 +19,7 @@ import {
   type WorkItemOrchestrationDraft,
   type WorkItemRef,
   type WorkItemStatus,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { isFromIssue } from './trackers/links.ts';
 import { pasted,PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION } from './prompt-rules.ts';
 import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees } from './git.ts';

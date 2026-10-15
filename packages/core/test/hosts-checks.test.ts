@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { Check } from '@agentry/shared';
+import type { Check } from '@claudio/shared';
 import { classifyCall } from '../src/hosts/classify.ts';
 import { HostParseError, HostRequestError, type HostCall, type HostRepo, type HostResult } from '../src/hosts/code-host.ts';
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
@@ -18,7 +18,7 @@ const gh = (file: string, version = '2.92.0'): string => readFileSync(join(here,
 const gl = (file: string): string => readFileSync(join(here, 'fixtures/recordings/glab/1.120.0', file), 'utf8');
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'acme/shop', owner: 'acme', name: 'shop' };
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
 const result = (stdout: string, exitCode = 0): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1 });
 

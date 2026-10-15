@@ -1,4 +1,4 @@
-import type { Milestone, Project } from '@agentry/shared';
+import type { Milestone, Project } from '@claudio/shared';
 import { useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api, keys } from '../../../api';

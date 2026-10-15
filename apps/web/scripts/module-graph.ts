@@ -52,7 +52,7 @@ function resolveImport(from: string, specifier: string): string | undefined {
     if (isFile(base) && /\.tsx?$/.test(base)) return base;
     return EXTENSIONS.map((ext) => base + ext).find(isFile);
   }
-  const match = /^@agentry\/([^/]+)(\/.*)?$/.exec(specifier);
+  const match = /^@claudio\/([^/]+)(\/.*)?$/.exec(specifier);
   if (!match) return undefined;
   const dir = path.join(REPO, 'packages', match[1] as string);
   if (!existsSync(path.join(dir, 'package.json'))) return undefined;

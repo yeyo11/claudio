@@ -1,4 +1,4 @@
-import type { AssistantProposal, AssistantResourceProposal, AssistantTeamMemberProposal, AssistantWorkItemProposal } from '@agentry/shared';
+import type { AssistantProposal, AssistantResourceProposal, AssistantTeamMemberProposal, AssistantWorkItemProposal } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Package, SquareCheck, Undo2, Users, X, Zap, Terminal, SquareSlash, Pencil } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -8,9 +8,9 @@ import { api, keys } from '../../api';
 import { EffortTag } from '../../components/EffortPicker';
 import { ProposedWorkItemMeta } from '../../components/assistant/run';
 import { DecisionMark } from '../../components/DecisionMark';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../components/work-item-icons';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import { ModelTag, RoleAvatar, useRoleName } from '../team/RoleAvatar';
 import { resourceReviewHref } from './model';
 

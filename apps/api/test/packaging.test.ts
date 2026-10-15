@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import Fastify from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 import { listenOn } from '../src/server.ts';
 
@@ -23,8 +23,8 @@ async function wrapper() {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -47,12 +47,12 @@ test('the Agentry release is read without asking GitHub, and the image says it i
   assert.equal(before.latest, null);
   assert.equal(before.checkedAt, null);
   assert.equal(before.updateAvailable, false);
-  assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker( \\)?$/m);
+  assert.match(dockerfile, /^\s+CLAUDIO_DISTRIBUTION=docker( \\)?$/m);
   await app.close();
 });
 
 test('the image carries gh, glab and youtrack-app pinned, the two downloads checked against the vendors\' digests, and their sign-ins in /data', async () => {
-  const { PROVIDER_HOME_ENV } = await import('@agentry/core');
+  const { PROVIDER_HOME_ENV } = await import('@claudio/core');
   for (const arg of ['GH_VERSION', 'GLAB_VERSION', 'YOUTRACK_APP_VERSION']) {
     assert.match(dockerfile, new RegExp(`^ARG ${arg}=\\d+\\.\\d+\\.\\d+$`, 'm'), `${arg} is pinned`);
   }
@@ -123,7 +123,7 @@ test('the healthcheck ends the server only after the configured run of failed pr
     new Promise<number | null>((resolve) => {
       // A port nothing listens on: every probe fails
       const child = spawn(join(here, '../../../docker/healthcheck.sh'), [], {
-        env: { ...process.env, PORT: '1', AGENTRY_PID_FILE: pidfile, AGENTRY_HEALTH_RESTART_AFTER: '2' },
+        env: { ...process.env, PORT: '1', CLAUDIO_PID_FILE: pidfile, CLAUDIO_HEALTH_RESTART_AFTER: '2' },
         stdio: 'ignore',
       });
       child.once('exit', (code) => resolve(code));
@@ -171,11 +171,11 @@ test('the compiled API serves and stops on its own, with no source tree, node_mo
       HOST: '127.0.0.1',
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(dir, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(dir, 'workspace'),
-      AGENTRY_DATA_DIR: join(dir, 'data'),
-      AGENTRY_PID_FILE: pidFile,
+      CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'),
+      CLAUDIO_DATA_DIR: join(dir, 'data'),
+      CLAUDIO_PID_FILE: pidFile,
       // No check means no call to the registry from a test
-      AGENTRY_CLI_UPDATE_CHECK: 'off',
+      CLAUDIO_CLI_UPDATE_CHECK: 'off',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -246,7 +246,7 @@ test('a listen that failed for any other reason is not retried away', async (t) 
 
 // In the image the container sees neither the host's tailscale CLI nor its daemon, so the tunnel is
 // offered only once the entrypoint started a tailscaled of the image's own and said so.
-test('the image offers the tunnel only with a tailscaled of its own, and AGENTRY_TUNNEL=off still wins', async (t) => {
+test('the image offers the tunnel only with a tailscaled of its own, and CLAUDIO_TUNNEL=off still wins', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-tunnel-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const build = (extra: Record<string, string>) =>
@@ -254,12 +254,12 @@ test('the image offers the tunnel only with a tailscaled of its own, and AGENTRY
       loadConfig({
         CLAUDE_BIN: '/nonexistent/claude',
           CLAUDE_CONFIG_DIR: join(root, 'claude'),
-        AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-        AGENTRY_DATA_DIR: join(root, 'data'),
+        CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+        CLAUDIO_DATA_DIR: join(root, 'data'),
         // A guard that allows the tunnel, so the only thing refusing it is the switch
-        AGENTRY_AUTH_MODE: 'token',
-        AGENTRY_AUTH_TOKEN: 'packaging-test-token',
-        AGENTRY_DISTRIBUTION: 'docker',
+        CLAUDIO_AUTH_MODE: 'token',
+        CLAUDIO_AUTH_TOKEN: 'packaging-test-token',
+        CLAUDIO_DISTRIBUTION: 'docker',
         ...extra,
       }),
     );
@@ -274,16 +274,16 @@ test('the image offers the tunnel only with a tailscaled of its own, and AGENTRY
   assert.equal((await app.inject({ url: '/api/tunnel', headers })).json().enabled, false);
   const refused = await app.inject({ method: 'POST', url: '/api/tunnel/start', headers });
   assert.equal(refused.statusCode, 409);
-  assert.match(refused.body, /AGENTRY_TUNNEL/);
+  assert.match(refused.body, /CLAUDIO_TUNNEL/);
 
-  const opened = build({ AGENTRY_TUNNEL: 'on' });
+  const opened = build({ CLAUDIO_TUNNEL: 'on' });
   t.after(() => opened.shutdown());
   assert.equal(opened.tunnel.status().enabled, true);
 
-  const managed = build({ AGENTRY_TAILSCALE_MANAGED: '1' });
+  const managed = build({ CLAUDIO_TAILSCALE_MANAGED: '1' });
   t.after(() => managed.shutdown());
   assert.deepEqual([managed.tunnel.status().enabled, managed.tunnel.status().managed], [true, true]);
-  const off = build({ AGENTRY_TAILSCALE_MANAGED: '1', AGENTRY_TUNNEL: 'off' });
+  const off = build({ CLAUDIO_TAILSCALE_MANAGED: '1', CLAUDIO_TUNNEL: 'off' });
   t.after(() => off.shutdown());
   assert.equal(off.tunnel.status().enabled, false);
 });
@@ -292,12 +292,12 @@ test('the compose file, the .env example and the chart all say how to turn the t
   const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
   // Compose hands .env to the container whole: documenting the variable there is what makes it reachable
   assert.match(read('docker-compose.yml'), /^\s+env_file: \.env$/m);
-  assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=off$/m);
+  assert.match(read('.env.example'), /^# CLAUDIO_TUNNEL=off$/m);
 
   const values = read('deploy/helm/claudio/values.yaml');
   assert.match(values, /^tunnel:\n {2}enabled: true$/m, 'the chart offers the tunnel as the image does');
   // Written whatever the value, so a release that says "off" is off even on an image that changed its default
-  assert.match(read('deploy/helm/claudio/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
+  assert.match(read('deploy/helm/claudio/templates/deployment.yaml'), /- name: CLAUDIO_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
 });
 
 test('the chart\'s default image is the release this checkout is, so a plain helm install is not an old one', () => {

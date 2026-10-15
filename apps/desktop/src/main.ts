@@ -14,7 +14,7 @@ import { missingResources, resolveResources } from './resources.ts';
 import { secretKeyFor } from './secret-key.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
-import { resolveUserPath } from '@agentry/core/providers/path';
+import { resolveUserPath } from '@claudio/core/providers/path';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
 import {
@@ -45,7 +45,7 @@ app.setPath('userData', join(app.getPath('appData'), isDev ? 'Claudio-dev' : 'Cl
 const userData = app.getPath('userData');
 const dataDir = join(userData, 'data');
 // Projects the agent works on live where the user can see them, not hidden under ~/.config
-const workspaceDir = process.env.AGENTRY_WORKSPACE_DIR ?? join(homedir(), 'Claudio', 'workspace');
+const workspaceDir = process.env.CLAUDIO_WORKSPACE_DIR ?? join(homedir(), 'Claudio', 'workspace');
 const logsDir = join(userData, 'logs');
 const RELEASES_URL = 'https://github.com/yeyo11/claudio/releases/latest';
 
@@ -376,7 +376,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: [`--agentry-version=${app.getVersion()}`],
+      additionalArguments: [`--claudio-version=${app.getVersion()}`],
     },
   });
   if (state.maximized) win.maximize();

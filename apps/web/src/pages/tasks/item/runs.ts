@@ -5,7 +5,7 @@
  *
  * Every key returned here is in the `workItem` namespace.
  */
-import { flowStepOf, type FlowRun, type FlowRunCause, type FlowRunRef, type FlowStep, type WorkItemComment, type WorkItemStatus } from '@agentry/shared';
+import { flowStepOf, type FlowRun, type FlowRunCause, type FlowRunRef, type FlowStep, type WorkItemComment, type WorkItemStatus } from '@claudio/shared';
 
 /**
  * The stage as the person reads it, by the column it ran in; a run from before `step` was kept reads

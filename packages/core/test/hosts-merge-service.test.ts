@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { Check, MergeMethod } from '@agentry/shared';
+import type { Check, MergeMethod } from '@claudio/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { Db } from '../src/db.ts';
 import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts/code-host.ts';
@@ -20,7 +20,7 @@ import { tempConfig } from './helpers.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 const GOLDEN = join(here, 'fixtures/golden/phase4');
 
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
 
 const GH_HEAD = '1edb6cba70c6420d6e75a44963ca93fed97ec760';
@@ -650,7 +650,7 @@ test('disarmBeforePush: an armed auto-merge is turned off and confirmed before t
   const hold = await h.service.holdForPush('cr-1');
   assert.equal(hold.disarmed, true);
   assert.deepEqual(h.writes(), ['gh pr merge 12 -R github.com/yeyo11/agentry-probe --disable-auto']);
-  assert.deepEqual(h.rows(), [{ action: 'disarm', outcome: 'disarmed', by: 'agentry', reason: null, method: null }]);
+  assert.deepEqual(h.rows(), [{ action: 'disarm', outcome: 'disarmed', by: 'claudio', reason: null, method: null }]);
   assert.match(h.service.history('cr-1')[0]?.detail ?? '', /arm it again/);
   assert.deepEqual(h.events.map((e) => [e.type, e.type === 'change-request.auto-merge-off' ? e.why : null]), [['change-request.auto-merge-off', 'push']]);
   hold.release();
@@ -778,7 +778,7 @@ test('a push holds the change request: arming is busy until it ends, and the sta
   await rejectsWith(h.service.arm('cr-1', { method: 'squash', expectedHead: GH_HEAD }, PERSON), 'busy');
   await rejectsWith(h.service.disarm('cr-1', PERSON), 'busy');
   const during = await h.service.state('cr-1');
-  assert.deepEqual(during.autoMergeOff, { by: 'agentry', at: '2026-10-01T12:00:00.000Z', why: 'push', pushing: true });
+  assert.deepEqual(during.autoMergeOff, { by: 'claudio', at: '2026-10-01T12:00:00.000Z', why: 'push', pushing: true });
   hold.release();
   hold.release();
   const after = await h.service.state('cr-1');

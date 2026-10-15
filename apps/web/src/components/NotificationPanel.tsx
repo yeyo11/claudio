@@ -1,4 +1,4 @@
-import type { PermissionDecision } from '@agentry/shared';
+import type { PermissionDecision } from '@claudio/shared';
 import * as Popover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, Trash2, X, type LucideIcon } from 'lucide-react';
@@ -6,14 +6,14 @@ import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from '
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { clearNotifications, markAllRead, markRead, removeNotification, unreadCount, useNotifications, type AppNotification } from '../lib/notifications';
-import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
-import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
+import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { NotificationPreferences } from './NotificationPreferences';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 
 function iconFor(n: AppNotification): LucideIcon {
   switch (n.kind) {

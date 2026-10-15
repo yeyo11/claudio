@@ -1,13 +1,13 @@
-import type { DecisionMode, DecisionPointInfo, DecisionPointSettings, DecisionPreview, DecisionProviderId, DecisionSettings } from '@agentry/shared';
+import type { DecisionMode, DecisionPointInfo, DecisionPointSettings, DecisionPreview, DecisionProviderId, DecisionSettings } from '@claudio/shared';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Collapsible, Sheet } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
-import { formatBytes } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Collapsible, Sheet } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { formatBytes } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ConsentNotice, JEV_HOST } from './ConsentDialog';
 import { consentProviders } from './model';
 

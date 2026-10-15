@@ -1,5 +1,5 @@
 {
-  "name": "@agentry/web",
+  "name": "@claudio/web",
   "version": "0.37.1",
   "private": true,
   "type": "module",
@@ -13,9 +13,9 @@
     "icons": "tsx scripts/icons.ts"
   },
   "dependencies": {
-    "@agentry/chat-ui": "workspace:*",
-    "@agentry/shared": "workspace:*",
-    "@agentry/ui": "workspace:*",
+    "@claudio/chat-ui": "workspace:*",
+    "@claudio/shared": "workspace:*",
+    "@claudio/ui": "workspace:*",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.5.2",

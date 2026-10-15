@@ -1,13 +1,13 @@
-import type { FlowRun, TeamMember } from '@agentry/shared';
-import { FLOW_RUNS_PAGE_MAX } from '@agentry/shared';
+import type { FlowRun, TeamMember } from '@claudio/shared';
+import { FLOW_RUNS_PAGE_MAX } from '@claudio/shared';
 import { MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useFlowRuns } from '../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../components/work-item-icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { taskPath } from '../../lib/work-items';
 import { memberRuns, runNote, runTimeOf } from './model';
 import { RunBadge, RunClock, RunNow, useRunReason } from './runs';

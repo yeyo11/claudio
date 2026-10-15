@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /** The claude.ai connectors the CLI reports. Read-only: authorising one is up to a person. */
 export const connectorRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

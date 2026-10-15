@@ -1,10 +1,10 @@
-import type { ChatToolConfig } from '@agentry/shared';
+import type { ChatToolConfig } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../api';
-import type { StartChoices } from '@agentry/chat-ui/lib/context';
-import { Checkbox, Select } from '@agentry/ui/components/controls';
-import { Tag } from '@agentry/ui/components/ui';
+import type { StartChoices } from '@claudio/chat-ui/lib/context';
+import { Checkbox, Select } from '@claudio/ui/components/controls';
+import { Tag } from '@claudio/ui/components/ui';
 
 /** What a start or a resume chooses about tools: the tool half of `StartChoices`. */
 export type ToolChoices = Pick<StartChoices, 'toolPreset' | 'mcp'>;

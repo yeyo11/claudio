@@ -138,7 +138,7 @@ export const SETTINGS_TABS = ['account', 'instructions', 'settings', 'mcp', 'age
 /** Every desktop page is scanned in both themes; Home is the selected project's page, so each theme starts from All projects */
 export async function scanBothThemes(page, pages, scan, each) {
   for (const theme of ['dark', 'light']) {
-    await page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(theme)}); localStorage.removeItem('agentry:project'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); localStorage.removeItem('claudio:project'); return true`);
     if (each) await each(theme);
     for (const path of pages) {
       await settle(page, path);
@@ -149,7 +149,7 @@ export async function scanBothThemes(page, pages, scan, each) {
 
 /** At phone width, in the dark theme unless told otherwise: axe, and no page scrolls sideways */
 export async function scanNarrow(page, pages, scan, problems, theme = 'dark') {
-  await page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(theme)}); return true`);
+  await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
   await page.viewport(420, 900);
   const where = theme === 'dark' ? '420px' : `420px ${theme}`;
   for (const path of pages) {
@@ -158,7 +158,7 @@ export async function scanNarrow(page, pages, scan, problems, theme = 'dark') {
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
     if (overflow > 1) problems.push(`[${where} ${path}] the page scrolls sideways by ${overflow}px`);
   }
-  if (theme !== 'dark') await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+  if (theme !== 'dark') await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
 }
 
 /** At tablet width, no page scrolls sideways */
@@ -340,7 +340,7 @@ export function a11ySpec(checks) {
     } finally {
       await page.reduceMotion(false).catch(() => {});
       await page.viewport(1440, 900).catch(() => {});
-      await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+      await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('claudio:project'); return true`).catch(() => {});
       if (orchestrationId) await api.del(`/orchestrations/${orchestrationId}`).catch(() => {});
       for (const id of orchestrationChats) await api.del(`/chats/${id}`).catch(() => {});
       for (const id of workItems.reverse()) await api.del(`/work-items/${id}`).catch(() => {});

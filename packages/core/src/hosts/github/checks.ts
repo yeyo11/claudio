@@ -1,4 +1,4 @@
-import type { Check, CheckAnnotation, CheckState, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, CheckAnnotation, CheckState, WorkItemPullRequestCi } from '@claudio/shared';
 import {
   HostParseError,
   HostRequestError,

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ALL_PROJECTS_LAYOUT, WIDGET_RULES, layoutProblem, validateLayout, type DashboardLayout, type DashboardScope, type StoredDashboardLayout } from '@agentry/shared';
+import { ALL_PROJECTS_LAYOUT, WIDGET_RULES, layoutProblem, validateLayout, type DashboardLayout, type DashboardScope, type StoredDashboardLayout } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import type { CoreConfig } from './paths.ts';

@@ -1,16 +1,16 @@
-import type { AuditEntry, AuthConfig, AuthMode, OidcConfig } from '@agentry/shared';
+import type { AuditEntry, AuthConfig, AuthMode, OidcConfig } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Combobox, Select, Switch, type SelectOption } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Combobox, Select, Switch, type SelectOption } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { getToken } from '../../lib/auth';
-import { formatDateTime, formatNumber } from '@agentry/ui/lib/format';
+import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
 import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 import { SecretsCard } from '../../components/setup/SecretsCard';
 import { AppSettingsCards } from './AppSettingsCards';
@@ -158,7 +158,7 @@ function AccessCard({ auth }: { auth: AuthConfig }) {
                 />
               </Field>
               <Field label={t('security.access.audience')} hint={t('security.access.audienceHint')}>
-                <input type="text" autoComplete="off" placeholder="agentry" value={oidc.audience} onChange={(e) => setOidc({ ...oidc, audience: e.target.value })} />
+                <input type="text" autoComplete="off" placeholder="claudio" value={oidc.audience} onChange={(e) => setOidc({ ...oidc, audience: e.target.value })} />
               </Field>
               <Field label={t('security.access.clientId')} hint={t('security.access.clientIdHint')}>
                 <input type="text" autoComplete="off" value={oidc.clientId} onChange={(e) => setOidc({ ...oidc, clientId: e.target.value })} />
@@ -206,7 +206,7 @@ function TokenCard({ auth }: { auth: AuthConfig }) {
       actions={auth.tokenSet ? <Tag tone="ok">{t('config:security.token.set')}</Tag> : <Tag>{t('config:security.token.notSet')}</Tag>}
     >
       <p className="small muted">{t('config:security.token.intro')}</p>
-      <p className="small muted">{t('config:security.token.recovery', { token: 'AGENTRY_AUTH_TOKEN', reset: 'AGENTRY_AUTH_TOKEN_RESET' })}</p>
+      <p className="small muted">{t('config:security.token.recovery', { token: 'CLAUDIO_AUTH_TOKEN', reset: 'CLAUDIO_AUTH_TOKEN_RESET' })}</p>
 
       <RevealedToken />
 

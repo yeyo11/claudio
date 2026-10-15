@@ -8,8 +8,8 @@
 {{- if and .Values.secretKey.value (not (regexMatch "^[0-9a-fA-F]{64}$" .Values.secretKey.value)) -}}
 {{- fail "secretKey.value must be 32 bytes as hex (openssl rand -hex 32)" -}}
 {{- end -}}
-{{- if and (hasKey .Values.env "AGENTRY_SECRET_KEY") (include "claudio.secretKeySecret" .) -}}
-{{- fail "AGENTRY_SECRET_KEY is set in both env and secretKey: keep it in secretKey only" -}}
+{{- if and (hasKey .Values.env "CLAUDIO_SECRET_KEY") (include "claudio.secretKeySecret" .) -}}
+{{- fail "CLAUDIO_SECRET_KEY is set in both env and secretKey: keep it in secretKey only" -}}
 {{- end -}}
 {{- if and (eq $mode "oidc") (or (not .Values.auth.oidc.issuer) (not .Values.auth.oidc.audience)) -}}
 {{- fail "auth.mode is oidc: auth.oidc.issuer and auth.oidc.audience are required" -}}
@@ -54,15 +54,15 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.port | quote }}
-            - name: AGENTRY_AUTH_MODE
+            - name: CLAUDIO_AUTH_MODE
               value: {{ $mode | quote }}
-            - name: AGENTRY_READ_ONLY
+            - name: CLAUDIO_READ_ONLY
               value: {{ ternary "1" "0" .Values.auth.readOnly | quote }}
             # Always written, so the pod says what the release decided whatever the image defaults to
-            - name: AGENTRY_TUNNEL
+            - name: CLAUDIO_TUNNEL
               value: {{ ternary "on" "off" .Values.tunnel.enabled | quote }}
             {{- if eq $mode "token" }}
-            - name: AGENTRY_AUTH_TOKEN
+            - name: CLAUDIO_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "claudio.tokenSecret" . }}
@@ -71,18 +71,18 @@ spec:
             {{- with include "claudio.secretKeySecret" . }}
             # From a Secret, so the key is not in the release; the server drops it from its
             # environment once read, so no agent it starts inherits it
-            - name: AGENTRY_SECRET_KEY
+            - name: CLAUDIO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ . }}
                   key: {{ $.Values.secretKey.key }}
             {{- end }}
             {{- if eq $mode "oidc" }}
-            - name: AGENTRY_OIDC_ISSUER
+            - name: CLAUDIO_OIDC_ISSUER
               value: {{ .Values.auth.oidc.issuer | quote }}
-            - name: AGENTRY_OIDC_AUDIENCE
+            - name: CLAUDIO_OIDC_AUDIENCE
               value: {{ .Values.auth.oidc.audience | quote }}
-            - name: AGENTRY_OIDC_CLIENT_ID
+            - name: CLAUDIO_OIDC_CLIENT_ID
               value: {{ .Values.auth.oidc.clientId | quote }}
             {{- end }}
             {{- range $name, $value := .Values.env }}

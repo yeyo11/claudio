@@ -1,14 +1,14 @@
-import type { CliTextResult, InstalledPlugin, PluginScope } from '@agentry/shared';
+import type { CliTextResult, InstalledPlugin, PluginScope } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Collapsible, Select } from '@agentry/ui/components/controls';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { Collapsible, Select } from '@claudio/ui/components/controls';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 
 const SCOPES: PluginScope[] = ['user', 'project', 'local'];

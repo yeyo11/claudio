@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /**
  * Web Push: the key a browser subscribes with, the installs registered to be woken, and one test

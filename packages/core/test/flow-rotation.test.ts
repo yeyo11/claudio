@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, FlowRun, FlowRunEvent, ProjectSettings } from '@agentry/shared';
+import type { AgentryEvent, FlowRun, FlowRunEvent, ProjectSettings } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 

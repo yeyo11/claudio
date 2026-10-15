@@ -1,4 +1,4 @@
-import type { WorkItemPullRequestCi } from '@agentry/shared';
+import type { WorkItemPullRequestCi } from '@claudio/shared';
 
 /**
  * The CI state `statusCheckRollup` comes to: none without checks; failing when one failed, was

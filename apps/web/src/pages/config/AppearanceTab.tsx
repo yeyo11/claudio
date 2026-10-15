@@ -1,12 +1,12 @@
 import { Info } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { LanguageMenu } from '../../components/LanguageMenu';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { Segmented } from '@agentry/ui/components/ui';
-import { setMotionPreference, useMotionPreference, useReducedMotionForced, type MotionLevel } from '@agentry/ui/lib/motion';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { Segmented } from '@claudio/ui/components/ui';
+import { setMotionPreference, useMotionPreference, useReducedMotionForced, type MotionLevel } from '@claudio/ui/lib/motion';
 import { setThemePreference, useThemePreference, type ThemePreference } from '../../lib/theme';
 
 const THEMES: ThemePreference[] = ['system', 'light', 'dark'];

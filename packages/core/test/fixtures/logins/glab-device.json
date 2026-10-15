@@ -7,5 +7,5 @@
   "secondsRunning": 3.8,
   "version": "glab 1.120.0 (78790114c)",
   "recordedAt": "2026-10-08",
-  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+  "image": "claudio:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
 }

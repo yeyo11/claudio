@@ -15,7 +15,7 @@ import {
   type ProposedTeamMember,
   type WorkItemPriority,
   type WorkItemType,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
 import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, RECORDS_IN_ENGLISH, roleTitle } from './team.ts';
 

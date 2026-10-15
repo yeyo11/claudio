@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { ChatSummary, DecisionAnswer, DecisionPointId, DecisionProviderId, NotificationKind } from '@agentry/shared';
+import type { ChatSummary, DecisionAnswer, DecisionPointId, DecisionProviderId, NotificationKind } from '@claudio/shared';
 import { Changes } from '../src/changes.ts';
 import { Db } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';

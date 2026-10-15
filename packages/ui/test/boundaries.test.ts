@@ -6,13 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { parseSync } from 'vite';
 
 /**
- * @agentry/ui is the bottom of the web stack: it may import the shared types, the libraries it
+ * @claudio/ui is the bottom of the web stack: it may import the shared types, the libraries it
  * declares and itself, and nothing that sits above it. The provider vocabulary stays out too, so
  * the primitives never learn what a model alias or a permission mode is.
  */
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '../src');
 
-const FORBIDDEN_PACKAGES = ['@agentry/web', '@agentry/chat-ui', '@agentry/core', '@agentry/api', '@agentry/desktop'];
+const FORBIDDEN_PACKAGES = ['@claudio/web', '@claudio/chat-ui', '@claudio/core', '@claudio/api', '@claudio/desktop'];
 const FORBIDDEN_SHARED_NAMES = ['MODEL_ALIASES', 'PERMISSION_MODES'];
 
 function walk(dir: string): string[] {
@@ -94,7 +94,7 @@ export function violations(file: string, references: Reference[], root: string):
       bad.push(`${specifier} is above this package`);
     } else if (/(^|\/)apps\//.test(specifier)) {
       bad.push(`${specifier} reaches into apps/`);
-    } else if (specifier === '@agentry/shared') {
+    } else if (specifier === '@claudio/shared') {
       for (const name of names) if (FORBIDDEN_SHARED_NAMES.includes(name)) bad.push(`${name} is one provider's vocabulary`);
     }
   }
@@ -112,11 +112,11 @@ test('the checker catches what it exists to catch', () => {
     file,
     [
       { specifier: '../../outside', names: [] },
-      { specifier: '@agentry/web/src/x', names: [] },
-      { specifier: '@agentry/chat-ui/components/x', names: [] },
+      { specifier: '@claudio/web/src/x', names: [] },
+      { specifier: '@claudio/chat-ui/components/x', names: [] },
       { specifier: '../../../apps/web/src/x', names: [] },
-      { specifier: '@agentry/shared', names: ['MODEL_ALIASES'] },
-      { specifier: '@agentry/shared', names: ['RunEvent'] },
+      { specifier: '@claudio/shared', names: ['MODEL_ALIASES'] },
+      { specifier: '@claudio/shared', names: ['RunEvent'] },
       { specifier: '../c', names: [] },
     ],
     SRC,

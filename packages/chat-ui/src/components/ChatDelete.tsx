@@ -1,10 +1,10 @@
-import type { ChatSummary } from '@agentry/shared';
+import type { ChatSummary } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { chatKeys, useChatUi } from '../lib/context';
 import { displayTitle } from '../lib/chat-model';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { useToast } from '@claudio/ui/components/Toast';
 
 /** Confirms and deletes a chat with its transcript; the server refuses while a process is working on it. */
 export function useDeleteChat(onDeleted?: () => void) {

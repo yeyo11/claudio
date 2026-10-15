@@ -1,5 +1,5 @@
-import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@agentry/shared';
-import { isAgentryMcpWriteTool } from '@agentry/mcp';
+import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@claudio/shared';
+import { isAgentryMcpWriteTool } from '@claudio/mcp';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
@@ -25,8 +25,8 @@ export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<Drive
 }
 
 /** Read when used, so a test can shorten them */
-export const idleTimeoutMs = (): number => Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
-const viewedIdleMaxMs = (): number => Number(process.env.AGENTRY_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
+export const idleTimeoutMs = (): number => Number(process.env.CLAUDIO_IDLE_TIMEOUT_MS ?? 10 * 60_000);
+const viewedIdleMaxMs = (): number => Number(process.env.CLAUDIO_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
 
 /**
  * Folds what a driver reports into the chat it belongs to: the settings, the ticker, the history of

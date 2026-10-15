@@ -14,9 +14,9 @@ import type {
   SchedulePreview,
   ScheduleTarget,
   UpdateScheduleRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import { withoutWorkItems } from '@agentry/shared';
+import { withoutWorkItems } from '@claudio/shared';
 import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } from './cron.ts';
 import type { EventBus } from './events.ts';
 import { validateEffort, validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';

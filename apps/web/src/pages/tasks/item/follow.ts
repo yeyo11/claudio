@@ -1,4 +1,4 @@
-import type { ReviewThread, WorkItemPullRequest } from '@agentry/shared';
+import type { ReviewThread, WorkItemPullRequest } from '@claudio/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';

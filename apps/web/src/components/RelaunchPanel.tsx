@@ -1,4 +1,4 @@
-import type { Effort, Orchestration, OrchestrationTaskSpec } from '@agentry/shared';
+import type { Effort, Orchestration, OrchestrationTaskSpec } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Rocket } from 'lucide-react';
 import { useState } from 'react';
@@ -6,11 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { cleanTask, specOfTask } from '../lib/orchestration-v2';
-import { NumberInput } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { NumberInput } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { GraphShape } from './GraphExtras';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from './TaskEditor';
-import { Card, ErrorBox, Field } from '@agentry/ui/components/ui';
+import { Card, ErrorBox, Field } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 

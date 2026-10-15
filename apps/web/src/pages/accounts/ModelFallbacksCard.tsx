@@ -1,14 +1,14 @@
-import type { ModelFallback } from '@agentry/shared';
+import type { ModelFallback } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Plus, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { ModelPicker } from '../../components/ModelPicker';
-import { Tooltip } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox } from '@agentry/ui/components/ui';
+import { Tooltip } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox } from '@claudio/ui/components/ui';
 
 type Pair = Pick<ModelFallback, 'from' | 'to' | 'origin'>;
 

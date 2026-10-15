@@ -1,4 +1,4 @@
-import type { CodeHostId, HostReason, ProjectTrackerSettings, TrackerImportResult, TrackerIssue, TrackerIssuesPage, TrackerId, WorkItem, WorkItemType } from '@agentry/shared';
+import type { CodeHostId, HostReason, ProjectTrackerSettings, TrackerImportResult, TrackerIssue, TrackerIssuesPage, TrackerId, WorkItem, WorkItemType } from '@claudio/shared';
 import { HostParseError, type HostCall, type HostRepo } from '../hosts/code-host.ts';
 import { reasonOf } from '../hosts/classify.ts';
 import { tryParseJson } from '../hosts/json.ts';

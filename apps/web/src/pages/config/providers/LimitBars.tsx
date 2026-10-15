@@ -1,8 +1,8 @@
-import type { ProviderStatus } from '@agentry/shared';
+import type { ProviderStatus } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { usageTone } from '@agentry/ui/components/motion';
-import { Tag } from '@agentry/ui/components/ui';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { usageTone } from '@claudio/ui/components/motion';
+import { Tag } from '@claudio/ui/components/ui';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { useLimitWindowName } from '../../../lib/limit-words';
 import { limitRows } from '../../../lib/limit-rows';
 

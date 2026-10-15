@@ -30,7 +30,7 @@ async function scan(page, check, label) {
 }
 
 async function theme(page, name) {
-  await page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(name)}); return true`);
+  await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(name)}); return true`);
 }
 
 export default async ({ page, api, check, dirs }) => {
@@ -181,7 +181,7 @@ export default async ({ page, api, check, dirs }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     await api.put('/hosts/settings', savedSettings).catch(() => {});
     rmSync(join(stateDir, 'gh.json'), { force: true });
     rmSync(join(stateDir, 'glab.json'), { force: true });

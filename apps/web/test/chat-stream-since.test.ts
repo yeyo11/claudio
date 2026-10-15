@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat, ChatDetail } from '@agentry/shared';
-import { streamSince } from '@agentry/chat-ui/lib/chats';
+import type { Chat, ChatDetail } from '@claudio/shared';
+import { streamSince } from '@claudio/chat-ui/lib/chats';
 
 // Where a chat's stream opens decides whether the person's own message and the first blocks of a
 // fresh execution are replayed, and whether a long chat is replayed at all.

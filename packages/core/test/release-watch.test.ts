@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mock, test } from 'node:test';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { ReleaseWatch } from '../src/release-watch.ts';
 import { tempConfig } from './helpers.ts';
@@ -78,7 +78,7 @@ test('GitHub is asked for its JSON with a user-agent, and the URL can be pointed
   assert.match(gh.state.headers[0]?.get('user-agent') ?? '', /^claudio\/0\.17\.1$/);
 
   const fixture = github(release('v0.18.0'));
-  await new ReleaseWatch(tempConfig(), { current: '0.17.1', env: { AGENTRY_RELEASES_URL: 'http://127.0.0.1:9/latest' }, fetch: fixture.fetch }).check();
+  await new ReleaseWatch(tempConfig(), { current: '0.17.1', env: { CLAUDIO_RELEASES_URL: 'http://127.0.0.1:9/latest' }, fetch: fixture.fetch }).check();
   assert.deepEqual(fixture.state.urls, ['http://127.0.0.1:9/latest']);
 });
 
@@ -147,9 +147,9 @@ test('a check that finds this very version announces nothing', async () => {
   assert.equal(seen.length, 0);
 });
 
-test('the kind of install comes from AGENTRY_DISTRIBUTION, and anything else is a source checkout', () => {
+test('the kind of install comes from CLAUDIO_DISTRIBUTION, and anything else is a source checkout', () => {
   const kind = (value: string | undefined) =>
-    new ReleaseWatch(tempConfig(), { current: '0.17.1', env: value === undefined ? {} : { AGENTRY_DISTRIBUTION: value } }).info().distribution;
+    new ReleaseWatch(tempConfig(), { current: '0.17.1', env: value === undefined ? {} : { CLAUDIO_DISTRIBUTION: value } }).info().distribution;
   assert.equal(kind('docker'), 'docker');
   assert.equal(kind('appimage'), 'appimage');
   assert.equal(kind('deb'), 'deb');
@@ -193,11 +193,11 @@ test('the daily check runs a minute after start, then only once the answer is a 
   }
 });
 
-test('AGENTRY_UPDATE_CHECK=off leaves no timer, and the button still works', async () => {
+test('CLAUDIO_UPDATE_CHECK=off leaves no timer, and the button still works', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   try {
     const gh = github(release('v0.18.0'));
-    const watch = new ReleaseWatch(tempConfig(), { current: '0.17.1', env: { AGENTRY_UPDATE_CHECK: 'off' }, fetch: gh.fetch });
+    const watch = new ReleaseWatch(tempConfig(), { current: '0.17.1', env: { CLAUDIO_UPDATE_CHECK: 'off' }, fetch: gh.fetch });
     watch.startDaily();
     mock.timers.tick(2 * 24 * 60 * 60 * 1000);
     await new Promise((resolve) => setImmediate(resolve));

@@ -177,7 +177,7 @@ test('importing adopts the chats already there, worktrees included; removing let
   write(stray, 'stray', '2026-01-04T10:00:00Z');
 
   const core = new Core(config);
-  const chatsIn = (project: string | null) => core.chats.list({ project, origins: ['agentry', 'external'] });
+  const chatsIn = (project: string | null) => core.chats.list({ project, origins: ['claudio', 'external'] });
   try {
     assert.deepEqual(await core.projects(), [], 'nothing is a project until it is imported');
     assert.equal((await chatsIn(null)).length, 4);

@@ -1,17 +1,17 @@
-import type { CodeHostId, CodeHostStatus, Project, ProjectWebhooks, WebhookRegistration } from '@agentry/shared';
+import type { CodeHostId, CodeHostStatus, Project, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Link2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys } from '../../api';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { changeRequestWords } from '../../lib/code-hosts';
 import {
   BACKUP_POLL_MINUTES,

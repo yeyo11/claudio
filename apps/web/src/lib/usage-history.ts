@@ -1,4 +1,4 @@
-import type { UsageHistoryPoint } from '@agentry/shared';
+import type { UsageHistoryPoint } from '@claudio/shared';
 
 export type UsageRange = '24h' | '7d' | '30d';
 

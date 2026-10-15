@@ -260,10 +260,10 @@ import type {
   StartLoginRequest,
   SaveDashboardLayoutRequest,
   StoredDashboardLayout,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
-import { chatKeys, type ChatClient } from '@agentry/chat-ui/lib/context';
+import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
 import { mergeRefetchMs } from './lib/merge';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';

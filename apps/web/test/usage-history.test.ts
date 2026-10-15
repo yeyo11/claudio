@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { UsageHistoryPoint } from '@agentry/shared';
+import type { UsageHistoryPoint } from '@claudio/shared';
 import { GAP_MS, pathOf, seriesOf, sinceOf, summarise, xOf, yOf, type Frame } from '../src/lib/usage-history.ts';
 
 const point = (account: string, at: string, pct: number): UsageHistoryPoint => ({ account, at, pct, window: 'five_hour' });

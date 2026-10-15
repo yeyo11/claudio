@@ -6,7 +6,7 @@
  *
  * Label keys are in the `merge` namespace: `t(key, params)` with `useTranslation('merge')`.
  */
-import type { ChangeRequest, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod, MergeRequestBody, MergeState } from '@agentry/shared';
+import type { ChangeRequest, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod, MergeRequestBody, MergeState } from '@claudio/shared';
 import { changeRequestWords } from './code-hosts';
 
 /** `live` is the host working it out now: the only blockers that move, and only while it does. */
@@ -129,7 +129,7 @@ export function blockerSentence(blocker: Pick<MergeBlocker, 'code' | 'detail'>, 
 /** Who turned auto-merge off for an update: a person by name, Agentry, or the one person there is when authentication is off (`local`). */
 export function autoMergeOffKey(why: 'push' | 'update', by: string): `autoMergeOff.${'push' | 'update' | 'updateYou' | 'updateAgentry'}` {
   if (why === 'update' && by === 'local') return 'autoMergeOff.updateYou';
-  if (why === 'update' && by === 'agentry') return 'autoMergeOff.updateAgentry';
+  if (why === 'update' && by === 'claudio') return 'autoMergeOff.updateAgentry';
   return `autoMergeOff.${why}`;
 }
 

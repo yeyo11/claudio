@@ -1,9 +1,9 @@
-import type { FlowRun, WorkItemDetail } from '@agentry/shared';
+import type { FlowRun, WorkItemDetail } from '@claudio/shared';
 import { Check, RotateCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { taskPath } from '../../lib/work-items';
 import { shortId } from '../tasks/item/model';
 import { RawError, useFailureReason, useRetryRun } from '../tasks/item/RunParts';

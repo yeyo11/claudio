@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import { agentryLanguage, type AddProjectDocRequest, type ChatSummary, type ProjectDoc, type ProjectDocsOverview } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import { agentryLanguage, type AddProjectDocRequest, type ChatSummary, type ProjectDoc, type ProjectDocsOverview } from '@claudio/shared';
 
 /**
  * A project's Claude Docs: a registry of ids and links, read, created and refreshed through a

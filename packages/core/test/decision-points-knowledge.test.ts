@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { DecisionAnswer, FlowMemoryProposal } from '@agentry/shared';
+import type { DecisionAnswer, FlowMemoryProposal } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { JOURNAL_HANDOFF_BYTES, JournalService } from '../src/journal.ts';
 import { MemoryProposalService } from '../src/memory-proposals.ts';

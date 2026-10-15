@@ -6,7 +6,7 @@
 // never downloads shiki.
 // What still differs from shiki, once the painters have done their work (the share of visible
 // characters that match is in test/parity.test.ts, the differences themselves in
-// `pnpm --filter @agentry/web parity <language> --context`):
+// `pnpm --filter @claudio/web parity <language> --context`):
 //
 //   TypeScript, TSX, JSX  a name's kind where only a type-checker knows it: an enum's members, a
 //                         type alias used as a value, a module-level constant assigned once, the
@@ -271,7 +271,7 @@ const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 
  *
  * `@tanstack/highlight` is pinned to the exact version its tokens were read against: a new one
  * moves classes around, and the painters are written to what each class means. On an upgrade, run
- * `pnpm --filter @agentry/web parity`, hold the numbers against the floors in test/parity.test.ts,
+ * `pnpm --filter @claudio/web parity`, hold the numbers against the floors in test/parity.test.ts,
  * and re-read three things the painters lean on: which lexemes come out unclassed (each painter
  * cuts that text itself), whether `misread` still describes a real misreading, and whether the
  * tokenizer still recurses per nested `${` or JSX element, which `runaway` and the catch around

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { DOCUMENT_CONTENT_MAX, type Core } from '@agentry/core';
-import type { TieDocumentRequest, WriteDocumentRequest } from '@agentry/shared';
+import { DOCUMENT_CONTENT_MAX, type Core } from '@claudio/core';
+import type { TieDocumentRequest, WriteDocumentRequest } from '@claudio/shared';
 
 /**
  * What a document's largest content weighs once written as a JSON string: an escaped control

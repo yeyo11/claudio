@@ -2,9 +2,9 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionPointId, DecisionPointInfo, DecisionMode } from '@agentry/shared';
+import type { DecisionPointId, DecisionPointInfo, DecisionMode } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import i18n from '../src/i18n';
 import { BulkConsentBody } from '../src/pages/config/decisions/BulkConsentDialog';
 import { planBulk } from '../src/pages/config/decisions/model';

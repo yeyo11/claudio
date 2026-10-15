@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import type { TrackerId, TrackersSettings } from '@agentry/shared';
+import type { TrackerId, TrackersSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { TRACKER_IDS } from './ids.ts';

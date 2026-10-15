@@ -1,7 +1,7 @@
 import { useMemo, type ComponentProps } from 'react';
-import type { ModelOption } from '@agentry/shared';
+import type { ModelOption } from '@claudio/shared';
 import { useOverview } from '../api';
-import { Combobox, type ComboboxOption } from '@agentry/ui/components/controls/Combobox';
+import { Combobox, type ComboboxOption } from '@claudio/ui/components/controls/Combobox';
 
 export const PERMISSION_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'] as const;
 

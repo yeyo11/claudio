@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, TunnelStatus } from '@agentry/shared';
+import type { AgentryEvent, TunnelStatus } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { migrate } from '../src/db.ts';
 import type { HostCall } from '../src/hosts/code-host.ts';
@@ -542,7 +542,7 @@ const glIs = {
   remove: (c: HostCall): boolean => glArgv(c) === `${GL} -X DELETE ${GL_HOOKS}/${GL_HOOK}`,
   put: (c: HostCall): boolean => glArgv(c) === `${GL} -X PUT ${GL_HOOKS}/${GL_HOOK} -H Content-Type: application/json --input -`,
 };
-const glHook = (url: string, alert = 'executable'): string => JSON.stringify({ id: Number(GL_HOOK), url, name: 'agentry', alert_status: alert, token_present: true });
+const glHook = (url: string, alert = 'executable'): string => JSON.stringify({ id: Number(GL_HOOK), url, name: 'claudio', alert_status: alert, token_present: true });
 const glEvents = (...codes: Array<number | string>): string => JSON.stringify(codes.map((c, i) => ({ id: 27604479645 + codes.length - i, trigger: 'push_hooks', response_status: c })));
 const glMine = (id: string, alert?: string): string => glHook(receiverUrl(ORIGIN, 'gitlab', id), alert);
 
@@ -556,7 +556,7 @@ test('the GitLab hook calls are the recorded ones, with the token and signing to
     token: 's3cret',
     signing_token: signingTokenOf('s3cret'),
     enable_ssl_verification: true,
-    name: 'agentry',
+    name: 'claudio',
     merge_requests_events: true,
     pipeline_events: true,
     note_events: true,

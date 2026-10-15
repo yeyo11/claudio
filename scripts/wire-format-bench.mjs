@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Wire-format bench: compact JSON against TOON for what the list tools of @agentry/mcp answer.
+// Wire-format bench: compact JSON against TOON for what the list tools of @claudio/mcp answer.
 // Plan: docs/plans/agent-wire-format.md ("The bench").
 //
 // For each list tool it reads the real data from a running Agentry, narrows it with the tool's own
@@ -8,7 +8,7 @@
 // come from the CLI's `result` event, which counts with Claude's own tokenizer. Nothing else is
 // called: no SDK and no tokenizer endpoint (the one rule). Answers are checked against the data.
 //
-//   AGENTRY_API_URL=http://127.0.0.1:PORT/api AGENTRY_API_TOKEN=... \
+//   CLAUDIO_API_URL=http://127.0.0.1:PORT/api CLAUDIO_API_TOKEN=... \
 //     node scripts/wire-format-bench.mjs [--model sonnet] [--max-usd 3] [--json]
 //
 // It needs `@toon-format/toon` to encode; it resolves it from packages/mcp.
@@ -26,10 +26,10 @@ const flag = (name, fallback) => {
 };
 const MODEL = flag('model', 'sonnet');
 const MAX_USD = Number(flag('max-usd', '3'));
-const base = process.env.AGENTRY_API_URL?.replace(/\/+$/, '');
-const token = process.env.AGENTRY_API_TOKEN;
+const base = process.env.CLAUDIO_API_URL?.replace(/\/+$/, '');
+const token = process.env.CLAUDIO_API_TOKEN;
 if (!base) {
-  console.error('AGENTRY_API_URL is not set');
+  console.error('CLAUDIO_API_URL is not set');
   process.exit(2);
 }
 
@@ -116,7 +116,7 @@ function ask(prompt) {
     const child = spawn(
       'claude',
       ['-p', '--output-format', 'stream-json', '--verbose', '--model', MODEL, '--system-prompt', SYSTEM, '--tools', '', '--strict-mcp-config', '--disable-slash-commands', '--setting-sources', '', '--no-session-persistence'],
-      { cwd: scratch, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AGENTRY_API_TOKEN: '' } },
+      { cwd: scratch, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CLAUDIO_API_TOKEN: '' } },
     );
     let out = '';
     let err = '';

@@ -208,7 +208,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     await page.goto('/', 300);
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       scenario('gh');
       await visit(ready, `[${theme}] the merge block of a clean pull request`);
       const block = await page.eval(
@@ -273,7 +273,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       { name: 'changes-requested', fields: { reviewDecision: 'CHANGES_REQUESTED' }, code: 'changes-requested', word: 'changes asked', sentence: 'asked for changes', remedy: 'Address with an agent' },
       { name: 'blocked-by-policy', fields: { mergeStatus: 'BLOCKED' }, code: 'blocked-by-policy', word: 'blocked', sentence: 'rules for main', remedy: 'Open on GitHub' },
     ];
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     for (const c of CASES) {
       scenario('gh', c.fields);
       await visit(ready, `the blocked state ${c.name}`, `.mg .mb-note[data-reason="${c.code}"]`);
@@ -371,7 +371,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ================= 2. Auto-merge =================
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       scenario('gh', { mergeStatus: 'BLOCKED', requiredChecks: 'e2e', checks: 'running' });
       await visit(armMe, `[${theme}] required checks still running`, '.mg .mb-note[data-reason="checks-running"]');
       const pending = await page.eval(`return { acts: [...document.querySelectorAll('.mg .mb-acts button')].map((b) => ({ text: b.textContent.trim(), primary: b.classList.contains('btn-primary') })), merge: !![...document.querySelectorAll('.mg button')].find((b) => b.textContent.trim() === 'Merge'), text: document.querySelector('.mg .mb-note')?.textContent ?? '' }`);
@@ -403,7 +403,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await scan(page, check, 'the armed block, dark');
       await page.shot('merge-item-armed-dark');
       // The light theme reads the armed state the host holds, then turns it off
-      await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
       await visit(armMe, '[light] the armed block', '.mg .badge-idle');
       await page.shot('merge-item-armed-light');
       await scan(page, check, 'the armed block, light');
@@ -414,7 +414,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     }
 
     // ================= 3. The head guard =================
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     scenario('gh');
     await visit(moves, 'the block before the head moves');
     check((await text('.mg .mg-head')).includes(HEAD.slice(0, 7)), 'the person is looking at the first head');
@@ -501,7 +501,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     open(glProject.id, waiting, 7, 'gitlab');
 
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       scenario('glab', { ci: 'none' });
       await visit(waiting, `[${theme}] waiting for the pipeline`, '.mg .mg-live');
       const wait = await page.eval(
@@ -539,7 +539,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await scan(page, check, `the GitLab wait, ${theme}`);
     }
 
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     const running = await item(glProject.id, 'Pipeline running');
     open(glProject.id, running, 8, 'gitlab');
     scenario('glab', { ci: 'pending' });
@@ -614,7 +614,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return !!document.querySelector('.omrg .omrg-foot .btn-primary')`, { timeout: 90_000, label: 'the orchestration merge block' });
 
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       await page.goto(`/orchestration/${orchestrationId}`, 1500);
       await page.waitFor(`return !!document.querySelector('.omrg .omrg-foot .btn-primary')`, { timeout: 60_000, label: `[${theme}] the orchestration merge block` });
       const omrg = await page.eval(
@@ -627,7 +627,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await page.shot(`merge-orchestration-ready-${theme}`);
       await scan(page, check, `the orchestration merge block, ${theme}`);
     }
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     scenario('gh', { mergeStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' });
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
     await page.waitFor(`return !!document.querySelector('.omrg .omrg-blocked')`, { timeout: 60_000, label: 'the orchestration blocked state' });
@@ -652,7 +652,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     if (orchCr) {
       const writer = db();
       writer
-        .prepare("INSERT INTO change_request_merges (id, cr_id, action, delete_branch, requested_at, requested_by, outcome, detail) VALUES (?, ?, 'disarm', 0, ?, 'agentry', 'disarmed', 'turned off before Agentry pushed: arm it again afterwards')")
+        .prepare("INSERT INTO change_request_merges (id, cr_id, action, delete_branch, requested_at, requested_by, outcome, detail) VALUES (?, ?, 'disarm', 0, ?, 'claudio', 'disarmed', 'turned off before Agentry pushed: arm it again afterwards')")
         .run(randomUUID(), orchCr, new Date().toISOString());
       writer.close();
       scenario('gh');
@@ -690,7 +690,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ================= 7. A phone =================
     await page.viewport(390, 844);
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     scenario('gh');
     await visit(ready, 'the block on a phone');
     {
@@ -713,7 +713,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await page.shot('merge-item-phone-blocked');
       await scan(page, check, 'a blocked state on a phone');
     }
-    await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
     scenario('gh');
     await visit(ready, '[light] the block on a phone');
     await page.shot('merge-item-phone-light');
@@ -724,7 +724,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     writeFileSync(fake.scripts, '{}');
     for (const file of ['gh.json', 'glab.json', 'gh.merged', 'glab.merged', 'gh.armed', 'glab.armed', 'gh.checks', 'glab.rebased', 'gh.created', 'gh.next', 'gh.merge-body']) rmSync(join(stateDir, file), { force: true });
     await api.post('/hosts/refresh').catch(() => {});

@@ -1,6 +1,6 @@
-import type { Chat } from '@agentry/shared';
+import type { Chat } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { Tag } from '@agentry/ui/components/ui';
+import { Tag } from '@claudio/ui/components/ui';
 import { Section } from './Side';
 
 function RuleList({ rules }: { rules: string[] }) {

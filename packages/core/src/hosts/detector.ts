@@ -1,7 +1,7 @@
 import { statSync, watch, type FSWatcher } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname } from 'node:path';
-import type { CodeHostHostEntry, CodeHostId, CodeHostReason, CodeHostState, CodeHostStatus, CodeHostsSettings } from '@agentry/shared';
+import type { CodeHostHostEntry, CodeHostId, CodeHostReason, CodeHostState, CodeHostStatus, CodeHostsSettings } from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import { installDirs, resolveCommand } from '../providers/path.ts';
 import { compareVersions } from '../version-check.ts';

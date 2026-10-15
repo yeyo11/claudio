@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Execution } from '@agentry/shared';
+import type { Execution } from '@claudio/shared';
 import {
   chatControl,
   chatHealth,
@@ -59,14 +59,14 @@ test('an execution ends with the outcome of its run, or is interrupted when the 
 });
 
 test('one of our processes holds a session before a foreign one', () => {
-  assert.equal(sessionHolder({ ownProcess: true, foreignProcess: true }), 'agentry');
+  assert.equal(sessionHolder({ ownProcess: true, foreignProcess: true }), 'claudio');
   assert.equal(sessionHolder({ ownProcess: false, foreignProcess: true }), 'terminal');
   assert.equal(sessionHolder({ ownProcess: false, foreignProcess: false }), 'nobody');
 });
 
 test('control follows who is driving', () => {
-  assert.deepEqual(chatControl({ holder: 'agentry', origin: 'agentry' }), { mode: 'interactive' });
-  assert.deepEqual(chatControl({ holder: 'nobody', origin: 'agentry' }), { mode: 'resumable' });
+  assert.deepEqual(chatControl({ holder: 'claudio', origin: 'claudio' }), { mode: 'interactive' });
+  assert.deepEqual(chatControl({ holder: 'nobody', origin: 'claudio' }), { mode: 'resumable' });
   const terminal = chatControl({ holder: 'terminal', origin: 'external' });
   assert.equal(terminal.mode, 'readOnly');
   assert.equal(terminal.mode === 'readOnly' && terminal.action, 'fork');
@@ -76,18 +76,18 @@ test('control follows who is driving', () => {
 test('where a chat was born does not decide what can be done with it', () => {
   // Nothing holds an external chat, so resuming adopts it in place
   assert.deepEqual(chatControl({ holder: 'nobody', origin: 'external' }), { mode: 'resumable' });
-  assert.deepEqual(chatControl({ holder: 'agentry', origin: 'external' }), { mode: 'interactive' });
+  assert.deepEqual(chatControl({ holder: 'claudio', origin: 'external' }), { mode: 'interactive' });
 });
 
 test('the synthesis of an orchestration is answered in place, whatever else is closed', () => {
   assert.deepEqual(chatControl({ holder: 'nobody', origin: 'orchestration', deliverable: true }), { mode: 'resumable' });
-  assert.deepEqual(chatControl({ holder: 'agentry', origin: 'orchestration', deliverable: true }), { mode: 'interactive' });
+  assert.deepEqual(chatControl({ holder: 'claudio', origin: 'orchestration', deliverable: true }), { mode: 'interactive' });
   // A terminal that holds it still closes it: the guard is about the session, not about the origin
   assert.equal(chatControl({ holder: 'terminal', origin: 'orchestration', deliverable: true }).mode, 'readOnly');
 });
 
 test('an orchestration chat takes a hint while its task runs and a fork afterwards', () => {
-  const running = chatControl({ holder: 'agentry', origin: 'orchestration', taskRunning: true });
+  const running = chatControl({ holder: 'claudio', origin: 'orchestration', taskRunning: true });
   assert.equal(running.mode === 'readOnly' && running.action, 'hint');
   // A finished task is closed even though nothing holds it: it would overwrite the result others used
   const finished = chatControl({ holder: 'nobody', origin: 'orchestration' });

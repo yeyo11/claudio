@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 
 // The wording follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });

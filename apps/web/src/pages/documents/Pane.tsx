@@ -1,4 +1,4 @@
-import type { DocumentFile, DocumentTie, Project } from '@agentry/shared';
+import type { DocumentFile, DocumentTie, Project } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronRight, Copy, FileText, Pencil, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
@@ -6,23 +6,23 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocumentFile } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { MoreActions } from '@agentry/ui/components/controls';
-import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { MoreActions } from '@claudio/ui/components/controls';
+import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { queryView } from '../../lib/query-view';
 import { shortcut } from '../../lib/shortcut';
 import { taskPath } from '../../lib/work-items';
 import { mainTie } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
-import { copyText } from '@agentry/ui/lib/clipboard';
+import { copyText } from '@claudio/ui/lib/clipboard';
 
-const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
+const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
 
 export type PaneMode = 'view' | 'edit';
 

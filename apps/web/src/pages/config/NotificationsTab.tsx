@@ -1,14 +1,14 @@
-import type { PushSubscriptionSummary } from '@agentry/shared';
+import type { PushSubscriptionSummary } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Send, Smartphone, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { NotificationPreferences } from '../../components/NotificationPreferences';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { disablePush, usePushState } from '../../lib/push';
 
 /**

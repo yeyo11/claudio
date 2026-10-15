@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyCommand, commandNames, matchCommands, slashQuery } from '@agentry/chat-ui/lib/slash-commands';
+import { applyCommand, commandNames, matchCommands, slashQuery } from '@claudio/chat-ui/lib/slash-commands';
 
 test('a command is being typed only while the caret is in a first word that starts with /', () => {
   assert.equal(slashQuery('/', 1), '');

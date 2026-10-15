@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { MAX_CONTINUATIONS } from '@agentry/shared';
+import { MAX_CONTINUATIONS } from '@claudio/shared';
 import { continuationPrompt, openItems, stoppedOnMaxTokens } from '../src/open-items.ts';
 import {
   designSources,

@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import type { AssistantSource, AssistantSourceUnit } from '@agentry/shared';
+import type { AssistantSource, AssistantSourceUnit } from '@claudio/shared';
 import type { AssistantGit } from './assistant-answer.ts';
 import { git, isGitRepo } from './git.ts';
 

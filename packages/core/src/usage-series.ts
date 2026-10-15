@@ -1,4 +1,4 @@
-import type { UsageBreakdown, UsageBucket, UsagePoint, UsageSeries, UsageSlice } from '@agentry/shared';
+import type { UsageBreakdown, UsageBucket, UsagePoint, UsageSeries, UsageSlice } from '@claudio/shared';
 import type { ChatSpend, DayRange } from './usage-report.ts';
 
 /** The most points a series may have: a chart of more is unreadable and the server has to build them all. */

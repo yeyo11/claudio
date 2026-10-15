@@ -176,11 +176,11 @@
     "bodyPlain": "The agents' keys, YouTrack's token and what you paste when you sign in are kept in <mono>secrets.json</mono>, which only the server's user can read, and each one reaches only its own tool's processes. They are never shown, in a log or in an answer of the API.",
     "besideTitle": "The key is next to the data",
     "besideBody": "Agentry made it in its data folder (<mono>secret.key</mono>) because it was given none. It protects a copy of the files, such as a backup, but not the volume: whoever reads the volume has both.",
-    "recommend": "Recommended: pass the key in the <mono>AGENTRY_SECRET_KEY</mono> environment variable and keep it outside the volume.",
+    "recommend": "Recommended: pass the key in the <mono>CLAUDIO_SECRET_KEY</mono> environment variable and keep it outside the volume.",
     "plainTitle": "Secrets are kept unencrypted",
-    "plainBody": "There is no key (a desktop app without a keyring, or an install from source), so values are kept as they are, in a file with 0600 permissions. Pass a key in <mono>AGENTRY_SECRET_KEY</mono> to encrypt them.",
+    "plainBody": "There is no key (a desktop app without a keyring, or an install from source), so values are kept as they are, in a file with 0600 permissions. Pass a key in <mono>CLAUDIO_SECRET_KEY</mono> to encrypt them.",
     "how": "How to pass the key",
     "setupTitle": "The keys you save are encrypted, but the key is next to the data",
-    "setupBody": "It protects a copy of the files, not the volume. Pass the key in <mono>AGENTRY_SECRET_KEY</mono> so it lives outside it."
+    "setupBody": "It protects a copy of the files, not the volume. Pass the key in <mono>CLAUDIO_SECRET_KEY</mono> so it lives outside it."
   }
 }

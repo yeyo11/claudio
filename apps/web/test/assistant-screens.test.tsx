@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AssistantProposalCount, AssistantRunDetail } from '@agentry/shared';
+import type { AssistantProposalCount, AssistantRunDetail } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

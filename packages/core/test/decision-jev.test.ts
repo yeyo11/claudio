@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { APIConnectionError, APIError, APITimeoutError, type Questions, type SystemOneRequest, type SystemOneResult } from '@typesafe-ai/sdk';
-import type { DecisionQuestion } from '@agentry/shared';
+import type { DecisionQuestion } from '@claudio/shared';
 import type { DecisionRequest } from '../src/decisions/engine.ts';
 import { JevProvider, type JevClient } from '../src/decisions/providers/jev.ts';
 

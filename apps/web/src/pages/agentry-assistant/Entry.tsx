@@ -3,7 +3,7 @@ import { ArrowUp, FolderGit2, X } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { Effort } from '@agentry/shared';
+import type { Effort } from '@claudio/shared';
 import { api, useOverview } from '../../api';
 import { AssistantMark } from '../../components/assistant/run';
 import { EffortPicker } from '../../components/EffortPicker';
@@ -11,10 +11,10 @@ import { ModelPicker } from '../../components/ModelPicker';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { useUsageNow } from '../../lib/usage-now';
 import { useProjectScope } from '../../lib/project-scope';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox, usePageTitle } from '@agentry/ui/components/ui';
-import { formatCost } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox, usePageTitle } from '@claudio/ui/components/ui';
+import { formatCost } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { STARTERS } from './model';
 
 /** The model a chat of the assistant starts with unless the person picks another (the core's default too) */

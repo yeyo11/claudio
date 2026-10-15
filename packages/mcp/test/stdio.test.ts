@@ -7,7 +7,7 @@ import { after, before, test } from 'node:test';
 import { seed, type Seeded } from './fixture.ts';
 
 const MAIN = fileURLToPath(new URL('../src/main.ts', import.meta.url));
-const NO_URL = 'agentry-mcp: AGENTRY_API_URL is not set; this server only talks to the Agentry that started the chat\n';
+const NO_URL = 'agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Agentry that started the chat\n';
 
 let s: Seeded;
 let url: string;
@@ -40,7 +40,7 @@ function lines(child: ChildProcessWithoutNullStreams, count: number): Promise<st
 }
 
 test('over stdio: initialize, tools/list and a call, a bad line, and an exit when stdin closes', async () => {
-  const child = start({ AGENTRY_API_URL: url, AGENTRY_CHAT_ID: 'chat-1' });
+  const child = start({ CLAUDIO_API_URL: url, CLAUDIO_CHAT_ID: 'chat-1' });
   const got = lines(child, 4);
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })}\n`);
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
@@ -48,7 +48,7 @@ test('over stdio: initialize, tools/list and a call, a bad line, and an exit whe
   child.stdin.write('this is not json\n');
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'get_work_item', arguments: { item: s.item.key } } })}\n`);
   const [init, list, bad, call] = (await got).map((l) => JSON.parse(l) as Record<string, any>);
-  assert.equal(init?.result.serverInfo.name, 'agentry');
+  assert.equal(init?.result.serverInfo.name, 'claudio');
   assert.equal(list?.result.tools.length, 25, 'sixteen read tools and nine write tools');
   assert.equal(bad?.error.code, -32700);
   assert.equal(call?.result.isError, false, JSON.stringify(call));
@@ -58,8 +58,8 @@ test('over stdio: initialize, tools/list and a call, a bad line, and an exit whe
   assert.deepEqual(await once(child, 'exit'), [0, null]);
 });
 
-test('without a usable AGENTRY_API_URL it exits with 1, says why on stderr and writes nothing to stdout', async () => {
-  const envs: Array<Record<string, string>> = [{}, { AGENTRY_API_URL: '' }, { AGENTRY_API_URL: 'not-a-url' }, { AGENTRY_API_URL: 'ftp://x/api' }];
+test('without a usable CLAUDIO_API_URL it exits with 1, says why on stderr and writes nothing to stdout', async () => {
+  const envs: Array<Record<string, string>> = [{}, { CLAUDIO_API_URL: '' }, { CLAUDIO_API_URL: 'not-a-url' }, { CLAUDIO_API_URL: 'ftp://x/api' }];
   for (const env of envs) {
     const child = start(env);
     let out = '';

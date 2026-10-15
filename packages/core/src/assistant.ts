@@ -45,7 +45,7 @@ import {
   type WorkItemType,
   type ProviderId,
   type ProviderMove,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import { openWaitOf } from './rotation.ts';
 import {

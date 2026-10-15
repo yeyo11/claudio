@@ -2,12 +2,12 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test, { beforeEach } from 'node:test';
-import type { ChangeRequestChecks, Check, WorkItemPullRequest } from '@agentry/shared';
+import type { ChangeRequestChecks, Check, WorkItemPullRequest } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import { setLanguage } from '../src/i18n';
 import enChecks from '../src/i18n/locales/en/checks.json' with { type: 'json' };

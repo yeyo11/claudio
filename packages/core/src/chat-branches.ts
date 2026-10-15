@@ -8,7 +8,7 @@ import type {
   ChatWorkflowAgent,
   EffectiveEnvironment,
   McpHealthStatus,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
 
 // What a chat delegated, in Agentry's words. The CLI reports the same work three ways (its stream,

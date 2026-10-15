@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
-import type { AppSettingValues, PermissionMode } from '@agentry/shared';
+import type { AppSettingValues, PermissionMode } from '@claudio/shared';
 
 /**
  * What the environment may say about the guard. Read here with everything else the environment
@@ -9,15 +9,15 @@ import type { AppSettingValues, PermissionMode } from '@agentry/shared';
  * wrapper built for a test is then as closed, or as open, as the test asked for.
  */
 const AUTH_ENV_KEYS = [
-  'AGENTRY_AUTH_MODE',
-  'AGENTRY_AUTH_TOKEN',
-  'AGENTRY_AUTH_TOKEN_RESET',
-  'AGENTRY_READ_ONLY',
-  'AGENTRY_OIDC_ISSUER',
-  'AGENTRY_OIDC_AUDIENCE',
-  'AGENTRY_OIDC_CLIENT_ID',
+  'CLAUDIO_AUTH_MODE',
+  'CLAUDIO_AUTH_TOKEN',
+  'CLAUDIO_AUTH_TOKEN_RESET',
+  'CLAUDIO_READ_ONLY',
+  'CLAUDIO_OIDC_ISSUER',
+  'CLAUDIO_OIDC_AUDIENCE',
+  'CLAUDIO_OIDC_CLIENT_ID',
   // The desktop app's per-launch secret for its own tray; held in memory, never seeded to disk
-  'AGENTRY_DESKTOP_TOKEN',
+  'CLAUDIO_DESKTOP_TOKEN',
 ] as const;
 
 export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
@@ -27,21 +27,21 @@ export interface CoreConfig {
   /** The `tailscale` CLI the tunnel runs, from `TAILSCALE_BIN`: the one on the `PATH` unless someone points at another */
   tailscaleBin: string;
   /**
-   * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default. In the Docker image
-   * (`AGENTRY_DISTRIBUTION=docker`) the default follows `tailscaleManaged`: a container sees neither
+   * Whether this deploy offers the tunnel, from `CLAUDIO_TUNNEL`. On by default. In the Docker image
+   * (`CLAUDIO_DISTRIBUTION=docker`) the default follows `tailscaleManaged`: a container sees neither
    * the host's `tailscale` CLI nor its daemon, so the tunnel is offered there only when the image's
    * entrypoint started a `tailscaled` of Agentry's own (docs/deploy.md, "The tunnel in Docker").
    */
   tunnelEnabled: boolean;
   /**
-   * Whether the `tailscaled` the CLI talks to is Agentry's own, from `AGENTRY_TAILSCALE_MANAGED`,
+   * Whether the `tailscaled` the CLI talks to is Agentry's own, from `CLAUDIO_TAILSCALE_MANAGED`,
    * which the image's entrypoint sets once it started one. Only then may the app sign it in and out:
    * a machine's own Tailscale belongs to the person, and Agentry never runs `up` or `logout` on it.
    */
   tailscaleManaged: boolean;
-  /** The node name a managed `tailscaled` signs in with, from `AGENTRY_TAILSCALE_HOSTNAME`; `agentry` by default */
+  /** The node name a managed `tailscaled` signs in with, from `CLAUDIO_TAILSCALE_HOSTNAME`; `agentry` by default */
   tailscaleHostname: string;
-  /** The HTTPS port of Agentry's `tailscale serve` rule, from `AGENTRY_TUNNEL_PORT`; 8444 by default */
+  /** The HTTPS port of Agentry's `tailscale serve` rule, from `CLAUDIO_TUNNEL_PORT`; 8444 by default */
   tunnelPort: number;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
@@ -64,18 +64,18 @@ export interface CoreConfig {
    */
   authEnv: AuthEnv;
   /**
-   * The key the desktop app hands the server to encrypt its secret files with (`AGENTRY_SECRET_KEY`,
+   * The key the desktop app hands the server to encrypt its secret files with (`CLAUDIO_SECRET_KEY`,
    * see `secret-box.ts`); absent on a server, where they stay plain at 0600. The server drops it
    * from `process.env` once read so no chat inherits it.
    */
   secretKey?: string;
   /**
-   * How this Agentry was installed, from `AGENTRY_DISTRIBUTION` (lower case): `docker` makes the
+   * How this Agentry was installed, from `CLAUDIO_DISTRIBUTION` (lower case): `docker` makes the
    * secret vault keep a key of its own beside the data when the environment brings none.
    */
   distribution?: string;
   /**
-   * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`, each either
+   * Host names this wrapper answers to besides loopback, from `CLAUDIO_ALLOWED_HOSTS`, each either
    * a name or a `*.domain` pattern standing for its subdomains. Read here for the same reason as
    * `authEnv`: the guard takes its allowlist from a value, so a test can build a wrapper that
    * answers to a name of its own.
@@ -102,7 +102,7 @@ export function hostPatternProblem(host: string): string | null {
 }
 
 /**
- * `AGENTRY_ALLOWED_HOSTS` as the names and `*.domain` patterns the guard matches against.
+ * `CLAUDIO_ALLOWED_HOSTS` as the names and `*.domain` patterns the guard matches against.
  *
  * A pattern has to name at least two labels below the wildcard. `*.com` is not an allowlist, it is
  * the absence of one, and a wrapper that looks guarded and is not is worse than one that refuses to
@@ -115,13 +115,13 @@ function parseAllowedHosts(value: string | undefined): string[] {
     .filter((host) => host !== '');
   for (const host of hosts) {
     const problem = hostPatternProblem(host);
-    if (problem) throw new Error(`AGENTRY_ALLOWED_HOSTS: ${problem}`);
+    if (problem) throw new Error(`CLAUDIO_ALLOWED_HOSTS: ${problem}`);
   }
   return hosts;
 }
 
 /**
- * `AGENTRY_TUNNEL` as a yes or a no, or the default when it says nothing. Anything else stops the
+ * `CLAUDIO_TUNNEL` as a yes or a no, or the default when it says nothing. Anything else stops the
  * wrapper: a typo in the variable that opens a public address is not something to guess about.
  */
 function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolean {
@@ -129,7 +129,7 @@ function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolea
   const word = value.trim().toLowerCase();
   if (['on', '1', 'true'].includes(word)) return true;
   if (['off', '0', 'false'].includes(word)) return false;
-  throw new Error(`AGENTRY_TUNNEL: '${value}' is neither on nor off`);
+  throw new Error(`CLAUDIO_TUNNEL: '${value}' is neither on nor off`);
 }
 
 /** A flag the image's entrypoint sets: only an explicit yes counts */
@@ -144,7 +144,7 @@ function parseYes(value: string | undefined): boolean {
 function parseTailscaleHostname(value: string | undefined): string {
   if (!isSet(value)) return 'claudio';
   const name = value.trim().toLowerCase();
-  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error(`AGENTRY_TAILSCALE_HOSTNAME: '${value}' is not a host name (letters, digits and dashes, at most 63)`);
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error(`CLAUDIO_TAILSCALE_HOSTNAME: '${value}' is not a host name (letters, digits and dashes, at most 63)`);
   return name;
 }
 
@@ -152,7 +152,7 @@ function parseTailscaleHostname(value: string | undefined): string {
 function parseTunnelPort(value: string | undefined): number {
   if (!isSet(value)) return 8444;
   const port = Number(value.trim());
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`AGENTRY_TUNNEL_PORT: '${value}' is not a port between 1 and 65535`);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`CLAUDIO_TUNNEL_PORT: '${value}' is not a port between 1 and 65535`);
   return port;
 }
 
@@ -167,11 +167,11 @@ function parseSeenSwitch(name: string, value: string): boolean {
  * The variable an install set before the setup assistant replaced the first-run Providers step. It
  * still counts, so an install that saw the old step is not walked through the assistant again.
  */
-export const OLD_SETUP_SEEN_ENV = 'AGENTRY_PROVIDERS_STEP_SEEN';
+export const OLD_SETUP_SEEN_ENV = 'CLAUDIO_PROVIDERS_STEP_SEEN';
 
-/** `AGENTRY_SETUP_SEEN`, else the old variable, else nothing */
+/** `CLAUDIO_SETUP_SEEN`, else the old variable, else nothing */
 function setupSeenFromEnv(env: NodeJS.ProcessEnv): boolean | null {
-  if (isSet(env.AGENTRY_SETUP_SEEN)) return parseSeenSwitch('AGENTRY_SETUP_SEEN', env.AGENTRY_SETUP_SEEN);
+  if (isSet(env.CLAUDIO_SETUP_SEEN)) return parseSeenSwitch('CLAUDIO_SETUP_SEEN', env.CLAUDIO_SETUP_SEEN);
   if (isSet(env[OLD_SETUP_SEEN_ENV])) return parseSeenSwitch(OLD_SETUP_SEEN_ENV, env[OLD_SETUP_SEEN_ENV]);
   return null;
 }
@@ -201,10 +201,10 @@ const isSet = (value: string | undefined): value is string => value !== undefine
 
 /** The variable behind each layered setting, which the UI names when it shows one as read-only. */
 export const APP_SETTING_ENV = {
-  allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
-  maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
-  defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
-  setupSeen: 'AGENTRY_SETUP_SEEN',
+  allowedHosts: 'CLAUDIO_ALLOWED_HOSTS',
+  maxConcurrentRuns: 'CLAUDIO_MAX_CONCURRENT_RUNS',
+  defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
+  setupSeen: 'CLAUDIO_SETUP_SEEN',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 /**
@@ -242,8 +242,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   const globalConfigFile = env.CLAUDE_CONFIG_DIR
     ? join(configDir, '.claude.json')
     : join(homedir(), '.claude.json');
-  const workspaceDir = resolve(env.AGENTRY_WORKSPACE_DIR ?? join(baseDir(), 'workspace'));
-  const dataDir = resolve(env.AGENTRY_DATA_DIR ?? join(baseDir(), 'data'));
+  const workspaceDir = resolve(env.CLAUDIO_WORKSPACE_DIR ?? join(baseDir(), 'workspace'));
+  const dataDir = resolve(env.CLAUDIO_DATA_DIR ?? join(baseDir(), 'data'));
   for (const dir of [workspaceDir, dataDir]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
@@ -251,23 +251,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
     tailscaleBin: env.TAILSCALE_BIN?.trim() || 'tailscale',
-    tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker' || parseYes(env.AGENTRY_TAILSCALE_MANAGED)),
-    tailscaleManaged: parseYes(env.AGENTRY_TAILSCALE_MANAGED),
-    tailscaleHostname: parseTailscaleHostname(env.AGENTRY_TAILSCALE_HOSTNAME),
-    tunnelPort: parseTunnelPort(env.AGENTRY_TUNNEL_PORT),
+    tunnelEnabled: parseTunnelSwitch(env.CLAUDIO_TUNNEL, env.CLAUDIO_DISTRIBUTION?.trim().toLowerCase() !== 'docker' || parseYes(env.CLAUDIO_TAILSCALE_MANAGED)),
+    tailscaleManaged: parseYes(env.CLAUDIO_TAILSCALE_MANAGED),
+    tailscaleHostname: parseTailscaleHostname(env.CLAUDIO_TAILSCALE_HOSTNAME),
+    tunnelPort: parseTunnelPort(env.CLAUDIO_TUNNEL_PORT),
     configDir,
     globalConfigFile,
     projectsDir: join(configDir, 'projects'),
     workspaceDir,
     dataDir,
-    defaultPermissionMode: isSet(env.AGENTRY_DEFAULT_PERMISSION_MODE) ? (env.AGENTRY_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
+    defaultPermissionMode: isSet(env.CLAUDIO_DEFAULT_PERMISSION_MODE) ? (env.CLAUDIO_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
     setupSeen: setupSeenFromEnv(env) ?? DEFAULT_APP_SETTINGS.setupSeen,
-    maxConcurrentRuns: isSet(env.AGENTRY_MAX_CONCURRENT_RUNS) ? Number(env.AGENTRY_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
-    pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/claudio',
-    allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
+    maxConcurrentRuns: isSet(env.CLAUDIO_MAX_CONCURRENT_RUNS) ? Number(env.CLAUDIO_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
+    pushSubject: env.CLAUDIO_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/claudio',
+    allowedHosts: parseAllowedHosts(env.CLAUDIO_ALLOWED_HOSTS),
     settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]) || (key === 'setupSeen' && isSet(env[OLD_SETUP_SEEN_ENV])))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
-    ...(isSet(env.AGENTRY_SECRET_KEY) ? { secretKey: env.AGENTRY_SECRET_KEY.trim() } : {}),
-    ...(isSet(env.AGENTRY_DISTRIBUTION) ? { distribution: env.AGENTRY_DISTRIBUTION.trim().toLowerCase() } : {}),
+    ...(isSet(env.CLAUDIO_SECRET_KEY) ? { secretKey: env.CLAUDIO_SECRET_KEY.trim() } : {}),
+    ...(isSet(env.CLAUDIO_DISTRIBUTION) ? { distribution: env.CLAUDIO_DISTRIBUTION.trim().toLowerCase() } : {}),
   };
 }

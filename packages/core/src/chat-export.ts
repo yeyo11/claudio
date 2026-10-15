@@ -1,4 +1,4 @@
-import type { Chat, ContentBlock, ExportFormat, TranscriptEntry } from '@agentry/shared';
+import type { Chat, ContentBlock, ExportFormat, TranscriptEntry } from '@claudio/shared';
 
 /** A tool result longer than this is cut in the Markdown, which is for reading; the JSON export keeps it whole. */
 const RESULT_LIMIT = 4_000;

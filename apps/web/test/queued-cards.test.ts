@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ChatPendingMessage, MessageDelivery } from '@agentry/shared';
-import { reconcileCards, type DeliveryFacts, type QueuedCard } from '@agentry/chat-ui/composer/queued';
+import type { ChatPendingMessage, MessageDelivery } from '@claudio/shared';
+import { reconcileCards, type DeliveryFacts, type QueuedCard } from '@claudio/chat-ui/composer/queued';
 
 // The queued cards over the composer, matched by the id each message was sent with
 // (docs/chat-delivery.md): never by its words, never by a clock on the page.

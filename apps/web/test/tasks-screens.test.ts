@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AcceptanceCriterion, FlowRun, WorkItemLink } from '@agentry/shared';
+import type { AcceptanceCriterion, FlowRun, WorkItemLink } from '@claudio/shared';
 import { queryView } from '../src/lib/query-view';
 import { isApple, shortcut } from '../src/lib/shortcut';
 import { followedItem, listRowStep, newTaskProject, renamedKey, returnPath, returnState, staleFilters, TASKS_PATH } from '../src/lib/work-items';

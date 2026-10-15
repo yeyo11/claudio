@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, MergeError, loadConfig } from '@agentry/core';
-import type { ChangeRequest } from '@agentry/shared';
+import { Core, MergeError, loadConfig } from '@claudio/core';
+import type { ChangeRequest } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The change request routes over HTTP: how an id is resolved, what is refused and with which
@@ -23,8 +23,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -200,8 +200,8 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(secured, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(secured, 'workspace'),
-      AGENTRY_DATA_DIR: join(secured, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(secured, 'workspace'),
+      CLAUDIO_DATA_DIR: join(secured, 'data'),
     }),
   );
   const guarded = await buildApp(guardedCore, { logLevel: 'silent', webDist: join(secured, 'no-ui') });
@@ -273,8 +273,8 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
 test('GET /change-requests/:id/review-posts answers the recorded posts of a row, newest first, and survives a new process', async () => {
   const sql = core.db.connection;
   const insert = sql.prepare("INSERT INTO review_posts (id, cr_id, marker, event, state, detail, created_at, updated_at) VALUES (?, ?, ?, 'comment', ?, ?, ?, ?)");
-  insert.run('p-old', ORCH_ROW, '<!-- agentry:1 -->', 'failed', JSON.stringify({ code: 'line-not-in-diff', detail: 'a.ts:7' }), '2026-10-01T10:00:00.000Z', '2026-10-01T10:00:00.000Z');
-  insert.run('p-new', ORCH_ROW, '<!-- agentry:2 -->', 'posted', null, '2026-10-01T11:00:00.000Z', '2026-10-01T11:00:00.000Z');
+  insert.run('p-old', ORCH_ROW, '<!-- claudio:1 -->', 'failed', JSON.stringify({ code: 'line-not-in-diff', detail: 'a.ts:7' }), '2026-10-01T10:00:00.000Z', '2026-10-01T10:00:00.000Z');
+  insert.run('p-new', ORCH_ROW, '<!-- claudio:2 -->', 'posted', null, '2026-10-01T11:00:00.000Z', '2026-10-01T11:00:00.000Z');
   const res = await app.inject(`/api/change-requests/${ORCH_ROW}/review-posts`);
   assert.equal(res.statusCode, 200, res.body);
   const body = res.json<{ posts: Array<{ id: string; state: string; detail: { code: string } | null }>; savedOnHost: Record<string, number> | null }>();

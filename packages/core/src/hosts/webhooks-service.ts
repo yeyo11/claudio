@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentryEvent, CodeHostId, HostReason, ProjectWebhooks, WebhookRegistration, WebhookUnavailableReason } from '@agentry/shared';
+import type { AgentryEvent, CodeHostId, HostReason, ProjectWebhooks, WebhookRegistration, WebhookUnavailableReason } from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
 import { reasonOf } from './classify.ts';

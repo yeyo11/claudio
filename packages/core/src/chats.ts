@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { DEFAULT_ID, readingFromEvent, readingFromFailure, type AccountRef, type AccountStore, type Choice, type Reading } from '@agentry/accounts';
+import { DEFAULT_ID, readingFromEvent, readingFromFailure, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -27,7 +27,7 @@ import {
   type RunStatus,
   type TranscriptEntry,
   type UsageHistoryPoint,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
@@ -96,7 +96,7 @@ const MAX_LIMIT_REPLAYS = 1;
 /** The windows `usage_history` keeps a line for */
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
-/** What the chat manager needs of the accounts: the store, as `@agentry/accounts` builds it */
+/** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
 export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels'>;
 const MAX_ATTACHMENTS = 20;
 
@@ -152,12 +152,12 @@ export class ChatManager extends EventEmitter {
   providerSettings: (() => Pick<ProvidersSettings, 'order' | 'defaultProvider'>) | null = null;
   /**
    * Where this wrapper's REST API answers, once it listens. Handed to every chat as
-   * `AGENTRY_API_URL`: with a desktop app and a dev server on one machine, an agent that guessed a
+   * `CLAUDIO_API_URL`: with a desktop app and a dev server on one machine, an agent that guessed a
    * port drove the other wrapper and its orchestrations never showed up in the one it ran in.
    */
   apiUrl: string | null = null;
   /**
-   * The per-process credentials handed over as `AGENTRY_API_TOKEN` beside `AGENTRY_API_URL`, so a
+   * The per-process credentials handed over as `CLAUDIO_API_TOKEN` beside `CLAUDIO_API_URL`, so a
    * chat can call a guarded API. Core replaces it with the one its guard reads.
    */
   chatTokens = new ChatTokenStore();
@@ -574,7 +574,7 @@ export class ChatManager extends EventEmitter {
     const driver = this.driverFor(opts.provider);
     this.admit(opts, driver);
     const attachments = this.resolveAttachments(opts.attachments);
-    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults(), driver), opts.prompt, attachments);
+    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'claudio', null, this.chatDefaults(), driver), opts.prompt, attachments);
   }
 
   /**
@@ -635,7 +635,7 @@ export class ChatManager extends EventEmitter {
         ...(known?.effort ? { effort: known.effort } : {}),
       },
       {},
-      'agentry',
+      'claudio',
       { chatId: sourceId, at: now() },
       this.chatDefaults(),
       driver,
@@ -1253,18 +1253,18 @@ export class ChatManager extends EventEmitter {
     chat.activity.clear();
     chat.setStatus('starting');
 
-    const env: NodeJS.ProcessEnv = { ...plan.env, AGENTRY_CHAT_ID: chat.id };
+    const env: NodeJS.ProcessEnv = { ...plan.env, CLAUDIO_CHAT_ID: chat.id };
     for (const name of plan.unsetEnv) delete env[name];
     // One inherited from the wrapper that started this one points at the wrong wrapper, and its
     // token is another wrapper's credential: neither is ever passed through
-    delete env.AGENTRY_API_TOKEN;
+    delete env.CLAUDIO_API_TOKEN;
     let token: string | null = null;
     if (this.apiUrl && chat.opts.api !== false) {
-      env.AGENTRY_API_URL = this.apiUrl;
+      env.CLAUDIO_API_URL = this.apiUrl;
       // Minted whatever the mode: a guard switched on mid-turn still finds the turn holding a credential
       token = this.chatTokens.mint(chat.id);
-      env.AGENTRY_API_TOKEN = token;
-    } else delete env.AGENTRY_API_URL;
+      env.CLAUDIO_API_TOKEN = token;
+    } else delete env.CLAUDIO_API_URL;
     let proc: ChildProcessWithoutNullStreams;
     try {
       proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });

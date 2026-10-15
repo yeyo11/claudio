@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
+import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@claudio/shared';
 import { execCli } from '../cli.ts';
 import type { CoreConfig } from '../paths.ts';
 import { restoreSecrets } from '../security/redact.ts';

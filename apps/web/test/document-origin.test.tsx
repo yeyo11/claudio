@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DocumentTie } from '@agentry/shared';
+import type { DocumentTie } from '@claudio/shared';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';

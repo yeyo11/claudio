@@ -1,4 +1,4 @@
-import type { DecisionPointId } from '@agentry/shared';
+import type { DecisionPointId } from '@claudio/shared';
 import type { DecisionEngine } from './engine.ts';
 
 /** What a call site needs of the engine: the settings in force, and the question */

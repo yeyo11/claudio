@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Board, WorkItem, WorkItemStatus } from '@agentry/shared';
+import type { Board, WorkItem, WorkItemStatus } from '@claudio/shared';
 import {
   afterIdFor,
   blocksWithin,

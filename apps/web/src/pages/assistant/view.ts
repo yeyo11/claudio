@@ -1,8 +1,8 @@
-import type { AssistantRun, AssistantRunDetail, Project, ProjectModule } from '@agentry/shared';
+import type { AssistantRun, AssistantRunDetail, Project, ProjectModule } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 
 export type Section = 'tasks' | 'team' | 'resources';
 

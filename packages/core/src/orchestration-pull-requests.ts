@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, ReviewThread, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, ReviewThread, WorkItemPullRequestCi } from '@claudio/shared';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';

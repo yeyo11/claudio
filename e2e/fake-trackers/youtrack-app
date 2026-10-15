@@ -5,7 +5,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const dir = join(process.env.AGENTRY_DATA_DIR ?? '.', 'fake-trackers');
+const dir = join(process.env.CLAUDIO_DATA_DIR ?? '.', 'fake-trackers');
 const file = join(dir, 'youtrack.json');
 mkdirSync(dir, { recursive: true });
 const args = process.argv.slice(2);

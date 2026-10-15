@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import type { LogFile } from './log.ts';
 
-const READY_PREFIX = 'AGENTRY_READY ';
+const READY_PREFIX = 'CLAUDIO_READY ';
 const READY_TIMEOUT_MS = 30_000;
 const STOP_GRACE_MS = 5_000;
 
@@ -47,16 +47,16 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
     // and 0 on a first start lets the operating system choose one to remember
     PORT: opts.base.PORT || String(opts.rememberedPort ?? 0),
     HOST: '127.0.0.1',
-    AGENTRY_WEB_DIST: opts.webDist,
-    AGENTRY_DATA_DIR: opts.dataDir,
-    AGENTRY_WORKSPACE_DIR: opts.workspaceDir,
-    AGENTRY_VERSION: opts.version,
+    CLAUDIO_WEB_DIST: opts.webDist,
+    CLAUDIO_DATA_DIR: opts.dataDir,
+    CLAUDIO_WORKSPACE_DIR: opts.workspaceDir,
+    CLAUDIO_VERSION: opts.version,
     // The UI offers the install that fits: this app's own updater, or instructions
-    ...(opts.distribution ? { AGENTRY_DISTRIBUTION: opts.distribution } : {}),
-    AGENTRY_DESKTOP_TOKEN: opts.desktopSecret,
+    ...(opts.distribution ? { CLAUDIO_DISTRIBUTION: opts.distribution } : {}),
+    CLAUDIO_DESKTOP_TOKEN: opts.desktopSecret,
     // Never inherited from the person's environment: only the keyring's key, or none at all
-    AGENTRY_SECRET_KEY: opts.secretKey ?? undefined,
-    // The desktop is not a sandbox: AGENTRY_DEFAULT_PERMISSION_MODE stays unset (core default: acceptEdits)
+    CLAUDIO_SECRET_KEY: opts.secretKey ?? undefined,
+    // The desktop is not a sandbox: CLAUDIO_DEFAULT_PERMISSION_MODE stays unset (core default: acceptEdits)
   };
 }
 

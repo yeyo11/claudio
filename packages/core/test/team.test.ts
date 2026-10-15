@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@agentry/shared';
+import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { agentFileContent, RECORDS_IN_ENGLISH, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
 import { SCOPE_AND_COMPLETION } from '../src/prompt-rules.ts';

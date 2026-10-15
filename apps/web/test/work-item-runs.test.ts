@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { FlowRun, WorkItemComment, WorkItemHistoryEntry } from '@agentry/shared';
+import type { FlowRun, WorkItemComment, WorkItemHistoryEntry } from '@claudio/shared';
 import en from '../src/i18n/locales/en/workItem.json' with { type: 'json' };
 import es from '../src/i18n/locales/es/workItem.json' with { type: 'json' };
 import { activityOf } from '../src/pages/tasks/item/model.ts';

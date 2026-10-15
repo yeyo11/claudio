@@ -18,8 +18,8 @@ import type {
   TeamFromTemplateRequest,
   TeamMember,
   WorkItemStatus,
-} from '@agentry/shared';
-import { EFFORT_LEVELS, isEffort, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@agentry/shared';
+} from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';

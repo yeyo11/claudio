@@ -22,7 +22,7 @@ const gh = (label: string): string => file('gh/2.102.0', label, 'out');
 const gl = (label: string): string => file('glab/1.120.0', label, 'out');
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
 const result = (stdout: string, extra: Partial<HostResult> = {}): HostResult => ({ exitCode: 0, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1, ...extra });
 const argv = (call: HostCall | null): string => (call ? call.args.join(' ') : 'none');

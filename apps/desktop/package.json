@@ -1,5 +1,5 @@
 {
-  "name": "@agentry/desktop",
+  "name": "@claudio/desktop",
   "version": "0.37.1",
   "private": true,
   "description": "Electron desktop shell for Agentry",
@@ -13,11 +13,11 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "dev": "pnpm --filter @agentry/web build && pnpm --filter @agentry/api bundle && pnpm run build && electron . --dev --no-sandbox",
+    "dev": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && electron . --dev --no-sandbox",
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts",
-    "dist:linux": "pnpm --filter @agentry/web build && pnpm --filter @agentry/api bundle && pnpm run build && electron-builder --linux --config electron-builder.yml --publish never"
+    "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && electron-builder --linux --config electron-builder.yml --publish never"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -25,7 +25,7 @@
     "esbuild": "^0.28.2"
   },
   "dependencies": {
-    "@agentry/core": "workspace:*",
+    "@claudio/core": "workspace:*",
     "electron-updater": "^6.8.9"
   }
 }

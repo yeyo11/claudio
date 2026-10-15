@@ -1,6 +1,6 @@
 // Rasterises the home-screen icons from `public/favicon.svg`, the one place the brand mark lives.
 //
-//   pnpm --filter @agentry/web icons        (needs Chrome on the PATH, or CHROME_BIN)
+//   pnpm --filter @claudio/web icons        (needs Chrome on the PATH, or CHROME_BIN)
 //
 // Run by hand, not by the build: the PNGs are committed, so a clone, CI and the Docker image never
 // need a browser to produce them. Re-run it only when the mark changes.

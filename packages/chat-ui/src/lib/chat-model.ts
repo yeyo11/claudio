@@ -1,6 +1,6 @@
-import { CONTEXT_FULL, CONTEXT_WARN, isModelName, type ChatOrchestration, type ChatOrigin, type ChatState, type ChatSummary, type Execution, type OrchestrationChatRole } from '@agentry/shared';
+import { CONTEXT_FULL, CONTEXT_WARN, isModelName, type ChatOrchestration, type ChatOrigin, type ChatState, type ChatSummary, type Execution, type OrchestrationChatRole } from '@claudio/shared';
 import i18n from 'i18next';
-import { formatCost } from '@agentry/ui/lib/format';
+import { formatCost } from '@claudio/ui/lib/format';
 
 /** The share of the window in use, or null when there is nothing honest to divide by. */
 export function contextShare(chat: Pick<ChatSummary, 'context'>): number | null {
@@ -46,8 +46,8 @@ export const STATE_LABEL: Record<ChatState, string> = {
 };
 
 export const ORIGIN_LABEL: Record<ChatOrigin, string> = {
-  get agentry() {
-    return i18n.t('chat:model.origin.agentry');
+  get claudio() {
+    return i18n.t('chat:model.origin.claudio');
   },
   get external() {
     return i18n.t('chat:model.origin.external');
@@ -90,7 +90,7 @@ function isSynthesis(link: Pick<ChatOrchestration, 'role' | 'taskId'> | null | u
   return link.role ? link.role === 'synthesis' : link.taskId === null;
 }
 
-export type ChatOriginFilter = 'agentry' | 'external' | 'orchestration';
+export type ChatOriginFilter = 'claudio' | 'external' | 'orchestration';
 
 export interface ChatFilters {
   origins: ReadonlySet<ChatOriginFilter>;
@@ -106,7 +106,7 @@ export interface ChatFilters {
   models?: ReadonlySet<string>;
 }
 
-export const ALL_ORIGINS: readonly ChatOriginFilter[] = ['agentry', 'external', 'orchestration'];
+export const ALL_ORIGINS: readonly ChatOriginFilter[] = ['claudio', 'external', 'orchestration'];
 
 /** Which origins the server has to send for these filters: workers and housekeeping are opt-in. */
 export function originsToFetch(filters: Pick<ChatFilters, 'internal'>): ChatOrigin[] {
@@ -122,7 +122,7 @@ export function listRequest(filters: Pick<ChatFilters, 'internal' | 'workers'>):
 }
 
 // Shared with the server, which names chats in the notifications it builds
-export { displayTitle } from '@agentry/shared';
+export { displayTitle } from '@claudio/shared';
 
 // A row object is replaced whenever the chat changes (react-query keeps the ones that did not), so
 // its text is lowered once per version instead of on every keystroke of a search

@@ -678,7 +678,7 @@
   "ChatOrigin": {
     "type": "string",
     "enum": [
-      "agentry",
+      "claudio",
       "external",
       "orchestration",
       "internal"
@@ -7558,7 +7558,7 @@
       "deb",
       "source"
     ],
-    "description": "How this Agentry was installed, from `AGENTRY_DISTRIBUTION`: what decides which way to update it a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name."
+    "description": "How this Agentry was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name."
   },
   "ProvidersChangedEvent": {
     "type": "object",
@@ -9629,7 +9629,7 @@
       },
       "setupSeen": {
         "type": "boolean",
-        "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count."
+        "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `CLAUDIO_PROVIDERS_STEP_SEEN`, still count."
       },
       "sources": {
         "type": "object",
@@ -9686,7 +9686,7 @@
         "items": {
           "type": "string"
         },
-        "description": "From `AGENTRY_ALLOWED_HOSTS`: fixed by whoever deployed the install, read-only in the UI"
+        "description": "From `CLAUDIO_ALLOWED_HOSTS`: fixed by whoever deployed the install, read-only in the UI"
       },
       "file": {
         "type": "array",
@@ -9870,11 +9870,11 @@
       },
       "enabled": {
         "type": "boolean",
-        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`, on by default). While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+        "description": "Whether this deploy offers the tunnel at all (`CLAUDIO_TUNNEL`, on by default). While false, `start` is refused and the UI says who can turn it on instead of offering a button"
       },
       "managed": {
         "type": "boolean",
-        "description": "Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in userspace networking, with its state on the data volume (`AGENTRY_TAILSCALE_MANAGED`). Only then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a machine's own Tailscale is the person's, and the UI says what to run instead"
+        "description": "Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in userspace networking, with its state on the data volume (`CLAUDIO_TAILSCALE_MANAGED`). Only then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a machine's own Tailscale is the person's, and the UI says what to run instead"
       },
       "tailscale": {
         "$ref": "#/components/schemas/TailscaleReadiness",
@@ -9882,7 +9882,7 @@
       },
       "port": {
         "type": "number",
-        "description": "The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8444 by default)"
+        "description": "The HTTPS port on the tailnet name that Agentry's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default)"
       },
       "settings": {
         "$ref": "#/components/schemas/TunnelSettings"
@@ -13202,7 +13202,7 @@
       },
       "actor": {
         "type": "string",
-        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`AGENTRY_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no authentication is configured"
+        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no authentication is configured"
       },
       "method": {
         "type": "string"
@@ -20008,7 +20008,7 @@
       },
       "setupSeen": {
         "type": "boolean",
-        "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count."
+        "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `CLAUDIO_PROVIDERS_STEP_SEEN`, still count."
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
@@ -21186,7 +21186,7 @@
     "properties": {
       "enabled": {
         "type": "boolean",
-        "description": "This deploy offers the tunnel (`AGENTRY_TUNNEL`)"
+        "description": "This deploy offers the tunnel (`CLAUDIO_TUNNEL`)"
       },
       "managed": {
         "type": "boolean",
@@ -21310,7 +21310,7 @@
       },
       "keyBeside": {
         "type": "boolean",
-        "description": "The key sits in the data directory beside what it seals (the Docker image without `AGENTRY_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through the environment is the recommended setup."
+        "description": "The key sits in the data directory beside what it seals (the Docker image without `CLAUDIO_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through the environment is the recommended setup."
       }
     },
     "required": [

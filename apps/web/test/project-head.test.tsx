@@ -2,12 +2,12 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { monogramLetters } from '@agentry/ui/components/icons';
+import { monogramLetters } from '@claudio/ui/components/icons';
 import i18n from '../src/i18n';
 import { PhoneAssistantRow, PhoneHead, PhoneViewHead, phoneViewMore, ProjectHead } from '../src/pages/home/ProjectHead';
 import { projectViews } from '../src/pages/dashboard/views';

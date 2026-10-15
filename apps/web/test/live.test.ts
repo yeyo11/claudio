@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { activityTarget, activityVerb, elapsedSince, formatElapsed, spinnerGlyph, SPINNER_FRAMES, SPINNER_STILL, type TickerActivity } from '@agentry/ui/lib/live';
+import { activityTarget, activityVerb, elapsedSince, formatElapsed, spinnerGlyph, SPINNER_FRAMES, SPINNER_STILL, type TickerActivity } from '@claudio/ui/lib/live';
 
 // The ticker is the one line that says what an agent is doing. It has to name the doing in a word a
 // person would use, and it must not claim to know what a tool it has never heard of does.

@@ -1,10 +1,10 @@
-import type { FlowRun, Project, WorkItem, WorkItemStatus } from '@agentry/shared';
+import type { FlowRun, Project, WorkItem, WorkItemStatus } from '@claudio/shared';
 import { CornerDownLeft, Workflow } from 'lucide-react';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useFlow, useFlowRuns, useProjectSettings, useTeam } from '../../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { lastEndedRuns, type StripRuns } from '../../../lib/work-items';
 import { flowOf } from '../../team/model';
 import { PersonMark } from '../../team/parts';

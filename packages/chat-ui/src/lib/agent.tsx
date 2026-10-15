@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
-import type { ChatSummary } from '@agentry/shared';
+import type { ChatSummary } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { useChatUi } from './context';
 

@@ -34,7 +34,7 @@ export default async ({ page, api, check, dirs }) => {
 
   for (const theme of ['dark', 'light']) {
     await page.goto('/');
-    await page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(theme)}); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
     for (const path of [...PAGES, ...projectPages]) {
       await page.goto(path, 900);
       const main = await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 20`, { label: `${path} content` });
@@ -60,6 +60,6 @@ export default async ({ page, api, check, dirs }) => {
     check(overflow <= 2, `${path} overflows horizontally by ${overflow}px at 420px`);
   }
   await page.viewport(1440, 900);
-  await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry:project'); return true`);
+  await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('claudio:project'); return true`);
   await api.del(`/projects/${imported.body.id}`);
 };

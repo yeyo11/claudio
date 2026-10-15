@@ -91,7 +91,7 @@ export default async ({ page, api, check, dirs }) => {
     git(root, 'commit', '-q', '-m', 'first commit');
     git(root, 'remote', 'add', 'origin', origin);
   };
-  const setTheme = (theme) => page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(theme)}); return true`);
+  const setTheme = (theme) => page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
   // The items of a project that came from the given issue keys, with the issue each one is linked to
   const itemsOf = async (projectId, keys) => {
     const cards = (await api.get(`/projects/${projectId}/work-items`)).body;
@@ -450,7 +450,7 @@ export default async ({ page, api, check, dirs }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     if (triageInfo) {
       await api.put(`/decisions/points/${POINT}/consent`, { granted: false, stateVersion: triageInfo.stateVersion, providers: [] }).catch(() => {});
       await triageSettings('off').catch(() => {});

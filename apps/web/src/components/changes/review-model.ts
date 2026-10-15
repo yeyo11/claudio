@@ -1,6 +1,6 @@
 // The review screen's decisions that do not need React: which files a scope lists, how the map
 // groups them, which one the agent is editing now, and what the transcript says about each.
-import type { ChangedFile, ChangeSummary, DecisionPointId, DecisionRecord, EditStep } from '@agentry/shared';
+import type { ChangedFile, ChangeSummary, DecisionPointId, DecisionRecord, EditStep } from '@claudio/shared';
 
 /** What part of the branch is reviewed: all the work, one commit, or what is not committed yet */
 export type ReviewScope = { kind: 'all' } | { kind: 'commit'; sha: string } | { kind: 'uncommitted' };

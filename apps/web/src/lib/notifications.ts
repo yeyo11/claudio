@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 import {
   addNotifications,
   notificationsFor,

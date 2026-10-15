@@ -77,26 +77,26 @@ const env = {
   LOG_LEVEL: 'error',
   PATH: [join(root, 'e2e/fake-cli'), process.env.PATH].filter(Boolean).join(delimiter),
   CLAUDE_CONFIG_DIR: dirs.config,
-  AGENTRY_WORKSPACE_DIR: dirs.workspace,
-  AGENTRY_DATA_DIR: dirs.data,
+  CLAUDIO_WORKSPACE_DIR: dirs.workspace,
+  CLAUDIO_DATA_DIR: dirs.data,
   // The UI just built: a terminal of the desktop app inherits the installed app's own
-  AGENTRY_WEB_DIST: join(root, 'apps/web/dist'),
+  CLAUDIO_WEB_DIST: join(root, 'apps/web/dist'),
   CSWAP_BIN: cswap,
-  AGENTRY_HEALTH_INTERVAL_MS: '1000',
-  AGENTRY_FAKE_CLI_HEARTBEAT_MS: '1000',
-  AGENTRY_FAKE_CLI_SCRIPTS: scriptsFile,
+  CLAUDIO_HEALTH_INTERVAL_MS: '1000',
+  CLAUDIO_FAKE_CLI_HEARTBEAT_MS: '1000',
+  CLAUDIO_FAKE_CLI_SCRIPTS: scriptsFile,
   // What the fake workers heard and ran: the first place to look when a scene does not come out
-  AGENTRY_FAKE_CLI_LOG: join(sandbox, 'fake-cli.jsonl'),
-  AGENTRY_FAKE_CLI_TURN_COST_USD: '0.18',
-  AGENTRY_FAKE_CLI_VERSION: '2.1.0',
-  AGENTRY_FAKE_CLI_AUTH: JSON.stringify({ authMethod: 'claude.ai', email: 'maya@northwind.dev', orgName: 'Northwind Labs', subscriptionType: 'team' }),
+  CLAUDIO_FAKE_CLI_LOG: join(sandbox, 'fake-cli.jsonl'),
+  CLAUDIO_FAKE_CLI_TURN_COST_USD: '0.18',
+  CLAUDIO_FAKE_CLI_VERSION: '2.1.0',
+  CLAUDIO_FAKE_CLI_AUTH: JSON.stringify({ authMethod: 'claude.ai', email: 'maya@northwind.dev', orgName: 'Northwind Labs', subscriptionType: 'team' }),
   GIT_CONFIG_GLOBAL: gitConfig,
   GIT_CONFIG_NOSYSTEM: '1',
   TZ: 'UTC',
 };
 // Named by PATH alone, so the variable must not point anywhere else
 delete env.CLAUDE_BIN;
-delete env.AGENTRY_AUTH_TOKEN;
+delete env.CLAUDIO_AUTH_TOKEN;
 // Chrome takes this process's environment: the times it prints are in the zone the server reads cron in
 process.env.TZ = 'UTC';
 
@@ -656,7 +656,7 @@ async function main() {
   seedChats(harbor, lumen, atlas);
   writeScripts();
 
-  server = spawn('pnpm', ['--filter', '@agentry/api', 'start'], { cwd: root, env, stdio: ['ignore', 'ignore', 'inherit'], detached: true });
+  server = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env, stdio: ['ignore', 'ignore', 'inherit'], detached: true });
   server.on('error', () => {});
   await until(async () => (await fetch(`${baseUrl}/api/system`)).ok, 'the wrapper to start', 30_000);
   seedUsageHistory();
@@ -676,7 +676,7 @@ async function main() {
   page = browser.page;
   await page.viewport(WIDTH, HEIGHT);
   await page.goto('/', 800);
-  await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true;`);
+  await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true;`);
   console.log(`recording into ${OUT}`);
 
   const record = want('tour');

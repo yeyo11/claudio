@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@claudio/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';

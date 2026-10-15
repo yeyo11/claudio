@@ -81,7 +81,7 @@ mistake even though their own rows already gave them a Spanish word.
 | workflow | el workflow, los workflows — Claude Code's own feature name, tied to the literal
   `.claude/workflows/` directory a user can open in Files; "flujo" was the alternative and was
   rejected because it reads as generic process flow, not this specific saved-script feature |
-| host | el host, los hosts: "Hosts permitidos". The literal names of `AGENTRY_ALLOWED_HOSTS` and the `Host` header; "anfitrión" reads as a person |
+| host | el host, los hosts: "Hosts permitidos". The literal names of `CLAUDIO_ALLOWED_HOSTS` and the `Host` header; "anfitrión" reads as a person |
 
 ## The `run` decision
 

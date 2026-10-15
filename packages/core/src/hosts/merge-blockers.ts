@@ -1,4 +1,4 @@
-import type { Check, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod } from '@agentry/shared';
+import type { Check, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod } from '@claudio/shared';
 import type { ChangeRequestState, MergeRules, MergeSettings } from './code-host.ts';
 
 // "What blocks a merge" (docs/plans/code-hosts.md): the table as two pure functions, one per host,

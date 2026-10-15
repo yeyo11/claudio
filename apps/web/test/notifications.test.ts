@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 
 // The wording of a notification follows navigator.languages; pin it so these texts are the English
 // ones whatever the machine's locale is.

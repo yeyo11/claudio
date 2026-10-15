@@ -148,7 +148,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return document.documentElement.scrollWidth <= innerWidth`), 'and the limits do not scroll the phone sideways');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     for (const id of made) await api.del(`/projects/${id}`).catch(() => {});
   }
 };

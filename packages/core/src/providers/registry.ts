@@ -1,4 +1,4 @@
-import type { PolicyTranslation, ProviderCapability, ProviderId, ProvidersSettings, ToolPolicy } from '@agentry/shared';
+import type { PolicyTranslation, ProviderCapability, ProviderId, ProvidersSettings, ToolPolicy } from '@claudio/shared';
 import { claudeCodeManifest } from './claude-code/manifest.ts';
 import { translateClaudePolicy } from './claude-code/policy.ts';
 import type { BinarySource, CapabilityConfirmation, ProviderDriver } from './driver.ts';

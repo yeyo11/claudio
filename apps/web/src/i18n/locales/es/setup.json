@@ -176,11 +176,11 @@
     "bodyPlain": "Las claves de los agentes, el token de YouTrack y lo que pegas al iniciar sesión se guardan en <mono>secrets.json</mono>, que solo puede leer el usuario del servidor, y cada uno solo llega a los procesos de su herramienta. Nunca se muestran, ni en un registro ni en una respuesta de la API.",
     "besideTitle": "La clave está junto a los datos",
     "besideBody": "Agentry la creó en su carpeta de datos (<mono>secret.key</mono>) porque no recibió ninguna. Protege una copia de los archivos, como una copia de seguridad, pero no el volumen: quien lea el volumen tiene las dos cosas.",
-    "recommend": "Recomendado: pasa la clave en la variable de entorno <mono>AGENTRY_SECRET_KEY</mono> y guárdala fuera del volumen.",
+    "recommend": "Recomendado: pasa la clave en la variable de entorno <mono>CLAUDIO_SECRET_KEY</mono> y guárdala fuera del volumen.",
     "plainTitle": "Los secretos se guardan sin cifrar",
-    "plainBody": "No hay clave (una app de escritorio sin llavero, o una instalación desde el código), así que los valores se guardan tal cual, en un archivo con permisos 0600. Pasa una clave en <mono>AGENTRY_SECRET_KEY</mono> para cifrarlos.",
+    "plainBody": "No hay clave (una app de escritorio sin llavero, o una instalación desde el código), así que los valores se guardan tal cual, en un archivo con permisos 0600. Pasa una clave en <mono>CLAUDIO_SECRET_KEY</mono> para cifrarlos.",
     "how": "Cómo pasar la clave",
     "setupTitle": "Las claves que guardes se cifran, pero la clave está junto a los datos",
-    "setupBody": "Protege una copia de los archivos, no el volumen. Pasa la clave en <mono>AGENTRY_SECRET_KEY</mono> para que viva fuera de él."
+    "setupBody": "Protege una copia de los archivos, no el volumen. Pasa la clave en <mono>CLAUDIO_SECRET_KEY</mono> para que viva fuera de él."
   }
 }

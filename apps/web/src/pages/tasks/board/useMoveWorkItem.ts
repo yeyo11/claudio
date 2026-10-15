@@ -1,8 +1,8 @@
-import type { Board, MoveWorkItemResult, WorkItem } from '@agentry/shared';
+import type { Board, MoveWorkItemResult, WorkItem } from '@claudio/shared';
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import { columnMeta } from '../../../lib/work-items';
 import { afterIdFor, moveOnBoard, type Drop } from './model';
 

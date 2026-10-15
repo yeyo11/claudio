@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
-import type { AgentryEvent, AssistantProposalEvent, AssistantRun, AssistantRunDetail, AssistantRunEvent } from '@agentry/shared';
+import type { AgentryEvent, AssistantProposalEvent, AssistantRun, AssistantRunDetail, AssistantRunEvent } from '@claudio/shared';
 import { keys } from '../src/api';
 import { patchActivity, targetsFor } from '../src/lib/events';
 

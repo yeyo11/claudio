@@ -1,4 +1,4 @@
-import type { AssistantResourceKind, ConfigScopeKind } from '@agentry/shared';
+import type { AssistantResourceKind, ConfigScopeKind } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api, keys } from '../../../api';

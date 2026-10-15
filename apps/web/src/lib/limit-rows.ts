@@ -1,4 +1,4 @@
-import type { ProviderLimit } from '@agentry/shared';
+import type { ProviderLimit } from '@claudio/shared';
 
 /** One bar of a provider's limit: the window, how much of it is used and when it resets. */
 export interface LimitRow {

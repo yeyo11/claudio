@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';

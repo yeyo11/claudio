@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
-import type { ChatDetail, TranscriptEntry } from '@agentry/shared';
+import type { ChatDetail, TranscriptEntry } from '@claudio/shared';
 import { keys } from '../src/api';
 import { patchActivity } from '../src/lib/events';
-import { callHint, rowOf, stepDuration, stepTools, subagentFor, transcriptRows } from '@agentry/chat-ui/lib/chat-steps';
-import { chatPill, checklistCounts, checklistStepState, tickerActivity } from '@agentry/chat-ui/lib/chat-live';
+import { callHint, rowOf, stepDuration, stepTools, subagentFor, transcriptRows } from '@claudio/chat-ui/lib/chat-steps';
+import { chatPill, checklistCounts, checklistStepState, tickerActivity } from '@claudio/chat-ui/lib/chat-live';
 
 // The chat page folds a turn's tool calls into one step and says who wrote a row only when that
 // changes. These rules decide what a person sees of a conversation, so they are pinned here.

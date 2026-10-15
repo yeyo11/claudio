@@ -1,6 +1,6 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
-import type { ChangeSummary, EditStep } from '@agentry/shared';
+import type { ChangeSummary, EditStep } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ChangesSummary } from '../src/components/observe/Changes';
 import i18n from '../src/i18n';
 import { editChips, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../src/lib/changes-summary';
-import type { StepPart } from '@agentry/chat-ui/lib/chat-steps';
+import type { StepPart } from '@claudio/chat-ui/lib/chat-steps';
 
 // The compact summary (the reference's `DesktopChatCambios`): the files the whole work touched, the
 // one being edited now, the latest step, and the chips a tool group of the transcript shows.

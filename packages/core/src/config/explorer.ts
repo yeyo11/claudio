@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import type { ConfigFileContent, ConfigFileNode } from '@agentry/shared';
+import type { ConfigFileContent, ConfigFileNode } from '@claudio/shared';
 import { writeAtomic } from './files.ts';
 import type { ConfigScope } from './scope.ts';
 

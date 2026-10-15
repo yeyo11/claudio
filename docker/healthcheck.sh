@@ -9,8 +9,8 @@
 set -u
 
 port="${PORT:-8797}"
-limit="${AGENTRY_HEALTH_RESTART_AFTER:-3}"
-pidfile="${AGENTRY_PID_FILE:-/tmp/claudio.pid}"
+limit="${CLAUDIO_HEALTH_RESTART_AFTER:-3}"
+pidfile="${CLAUDIO_PID_FILE:-/tmp/claudio.pid}"
 counter="${pidfile}.failures"
 
 if curl -fsS --max-time 4 "http://localhost:${port}/api/health" >/dev/null 2>&1; then

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import type { FlowRun, ProjectSettings } from '@agentry/shared';
+import type { FlowRun, ProjectSettings } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { tempConfig } from './helpers.ts';

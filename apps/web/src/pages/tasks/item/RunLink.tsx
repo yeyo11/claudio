@@ -1,9 +1,9 @@
-import type { ChatSummary, FlowRun, WorkItemDetail, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import type { ChatSummary, FlowRun, WorkItemDetail, WorkItemLink, WorkItemStatus } from '@claudio/shared';
 import { RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { formatCost, formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { formatCost, formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { columnMeta } from '../../../lib/work-items';
 import { RoleAvatar } from '../../team/RoleAvatar';
 import { linkEffect, shortId } from './model';

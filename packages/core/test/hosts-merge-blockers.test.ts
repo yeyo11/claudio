@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { Check, MergeBlockerCode } from '@agentry/shared';
+import type { Check, MergeBlockerCode } from '@claudio/shared';
 import type { HostResult } from '../src/hosts/code-host.ts';
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
 import { gitlabAdapter } from '../src/hosts/gitlab/adapter.ts';

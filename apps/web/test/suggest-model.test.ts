@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AssistantProposal, AssistantResourceProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal } from '@agentry/shared';
+import type { AssistantProposal, AssistantResourceProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal } from '@claudio/shared';
 import { byDecision, proposalRuns, resourceProposals, savePath, sectionFrom, sectionKinds, shownName } from '../src/pages/home/resources/model';
 import { initialSelection, isRunning, latestFocus, readPhrases, selectedPending, suggestRequest, workItemProposals } from '../src/pages/tasks/suggest/model';
 

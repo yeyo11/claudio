@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
-import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResult, StartLoginRequest } from '@agentry/shared';
+import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResult, StartLoginRequest } from '@claudio/shared';
 import { childEnv } from '../child-env.ts';
 import type { AgentryEventInput } from '../events.ts';
 import { buildHostEnv } from '../hosts/env.ts';

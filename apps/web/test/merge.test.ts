@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, MergeBlockerCode, MergeState } from '@agentry/shared';
+import type { AgentryEvent, MergeBlockerCode, MergeState } from '@claudio/shared';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {
@@ -112,7 +112,7 @@ test('Update from base tells conflicts from the other 409 refusals', () => {
 
 test('who turned auto-merge off for an update: a person, Agentry, or you when authentication is off', () => {
   assert.equal(autoMergeOffKey('update', 'local'), 'autoMergeOff.updateYou');
-  assert.equal(autoMergeOffKey('update', 'agentry'), 'autoMergeOff.updateAgentry');
+  assert.equal(autoMergeOffKey('update', 'claudio'), 'autoMergeOff.updateAgentry');
   assert.equal(autoMergeOffKey('update', 'marta'), 'autoMergeOff.update');
   assert.equal(autoMergeOffKey('push', 'local'), 'autoMergeOff.push');
 });

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, chatActor, type Core, type RuntimeHosts } from '@agentry/core';
+import { DESKTOP_ACTOR, chatActor, type Core, type RuntimeHosts } from '@claudio/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -88,7 +88,7 @@ function allowlist(patterns: readonly string[]): { names: ReadonlySet<string>; s
  * A browser sends the name it was pointed at, so a page served from a name with a one-second TTL
  * that rebinds to 127.0.0.1 arrives here carrying that name, and same-origin policy has stopped
  * protecting the install. Refusing an authority nobody configured is what closes it: a local
- * install is reached through loopback, and `AGENTRY_ALLOWED_HOSTS` names whatever else a
+ * install is reached through loopback, and `CLAUDIO_ALLOWED_HOSTS` names whatever else a
  * deployment answers to.
  *
  * A request with no `Host` at all passes: HTTP/1.1 requires one and every browser sends one, so it
@@ -476,7 +476,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
     if (guarded && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts)) {
       req.actor = 'anonymous';
       void reply.status(421).send({
-        error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in AGENTRY_ALLOWED_HOSTS.',
+        error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in CLAUDIO_ALLOWED_HOSTS.',
       });
       return reply;
     }

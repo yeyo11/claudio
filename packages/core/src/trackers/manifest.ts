@@ -1,4 +1,4 @@
-import type { CodeHostId, TrackerId } from '@agentry/shared';
+import type { CodeHostId, TrackerId } from '@claudio/shared';
 
 /**
  * The data half of an issue tracker: what detection needs and nothing that runs. One per folder in

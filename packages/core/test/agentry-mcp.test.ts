@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AGENTRY_MCP_READ_TOOLS } from '@agentry/mcp';
+import { CLAUDIO_MCP_READ_TOOLS } from '@claudio/mcp';
 import { agentryMcp, MCP_ENTRY_ENV, mcpCommand } from '../src/agentry-mcp.ts';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
@@ -34,18 +34,18 @@ test('the config holds only the agentry server, with its URL and the chat variab
   const mcpEntry = entry(dataDir);
   const launch = await agentryMcp({ dataDir, apiUrl: 'http://127.0.0.1:4321/api', version: '9.9.9', env: { [MCP_ENTRY_ENV]: mcpEntry }, execPath: '/usr/bin/node' });
   const file = JSON.parse(readFileSync(launch.mcp.config, 'utf8')) as { mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }> };
-  assert.deepEqual(Object.keys(file.mcpServers), ['agentry']);
-  const server = file.mcpServers.agentry;
+  assert.deepEqual(Object.keys(file.mcpServers), ['claudio']);
+  const server = file.mcpServers.claudio;
   assert.equal(server?.command, '/usr/bin/node');
   assert.deepEqual(server?.args, [mcpEntry]);
-  assert.equal(server?.env.AGENTRY_API_URL, 'http://127.0.0.1:4321/api');
-  assert.equal(server?.env.AGENTRY_VERSION, '9.9.9');
+  assert.equal(server?.env.CLAUDIO_API_URL, 'http://127.0.0.1:4321/api');
+  assert.equal(server?.env.CLAUDIO_VERSION, '9.9.9');
   // The token is minted per process: the file never holds it, it points at the one the CLI has
-  assert.equal(server?.env.AGENTRY_CHAT_ID, '${AGENTRY_CHAT_ID}');
-  assert.equal(server?.env.AGENTRY_API_TOKEN, '${AGENTRY_API_TOKEN}');
+  assert.equal(server?.env.CLAUDIO_CHAT_ID, '${CLAUDIO_CHAT_ID}');
+  assert.equal(server?.env.CLAUDIO_API_TOKEN, '${CLAUDIO_API_TOKEN}');
   assert.equal(statSync(launch.mcp.config).mode & 0o777, 0o600);
   assert.equal(statSync(join(dataDir, 'mcp')).mode & 0o777, 0o700);
-  assert.deepEqual(launch.allowedTools, [...AGENTRY_MCP_READ_TOOLS]);
+  assert.deepEqual(launch.allowedTools, [...CLAUDIO_MCP_READ_TOOLS]);
   assert.deepEqual(launch.confine, { tools: [], settingSources: [] });
   assert.equal(launch.permissionMode, 'dontAsk');
 });
@@ -84,7 +84,7 @@ test('a chat started with the helper gets the strict config, no built-in tool, n
     assert.ok(argv.includes('--strict-mcp-config'));
     assert.ok(argv.includes('--tools='), 'an empty --tools');
     assert.ok(argv.includes('--setting-sources='));
-    assert.equal(flagged('--allowedTools='), `--allowedTools=${AGENTRY_MCP_READ_TOOLS.join(',')}`);
+    assert.equal(flagged('--allowedTools='), `--allowedTools=${CLAUDIO_MCP_READ_TOOLS.join(',')}`);
     assert.equal(argv[argv.indexOf('--permission-mode') + 1], 'dontAsk');
     assert.equal(argv.includes('--add-dir'), false);
   } finally {

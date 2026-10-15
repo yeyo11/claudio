@@ -105,7 +105,7 @@ export default async ({ page, api, check }) => {
 
   await page.click('.list-toolbar-chips .link-btn', 'Reset', 800);
   await page.waitFor(`return document.querySelectorAll('.crow').length === 3`, { label: 'reset brings every chat back' });
-  check((await page.eval(`return Object.keys(localStorage).filter((k) => k.startsWith('agentry:filters:chats:')).length`)) === 0, 'reset forgets what was stored');
+  check((await page.eval(`return Object.keys(localStorage).filter((k) => k.startsWith('claudio:filters:chats:')).length`)) === 0, 'reset forgets what was stored');
 
   // The sort Select is a themed listbox: picking an option updates the URL and the order
   await page.select('[aria-label="Sort by"]', 'Recently started');
