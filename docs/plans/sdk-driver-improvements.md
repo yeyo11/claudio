@@ -117,7 +117,7 @@ can change mid-chat.
    blocked, why, and which subagent asked. Test: a `can_use_tool` fixture with the extra fields
    reaches the prompt; one without them is unchanged.
 
-9. **MCP lifecycle control, and sturdier connectors.** The subtypes `mcp_status`, `mcp_reconnect`
+9. **MCP lifecycle control, and sturdier connectors.** _(mcp_status/mcp_toggle BUILT in the rich composer, feat/rich-composer; connectors-from-mcp_status and in-app authorise still pending.)_ The subtypes `mcp_status`, `mcp_reconnect`
    and `mcp_toggle` surface server health and reconnect a dropped server without respawning the
    chat. Add `mcpStatus()`, `mcpReconnect(server)` and `mcpToggle(server, on)` to
    `ClaudeCodeSession` (`driver.ts`), a read and an action on the chat, and keep MCP configured by
