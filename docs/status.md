@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-09T14:00:00Z
+updated_at: 2026-10-15T12:30:00Z
 tags:
     - status
     - project-state
@@ -125,6 +125,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/agentry-mcp-server.md`](plans/agentry-mcp-server.md) | Built (2026-10-01): Agentry's own MCP server, `@agentry/mcp`, with 15 read-only tools over the REST API, handed to a chat through `--mcp-config` with the confinement, and packaged as `apps/api/dist/mcp.mjs` and in the desktop app. The write tools (CW-17) and the global assistant chat (CW-18) were built later, see [`agentry-assistant.md`](agentry-assistant.md). See [`agentry-mcp-server.md`](agentry-mcp-server.md) |
 | [`plans/web-packages.md`](plans/web-packages.md) | Landed (#156): the web UI split into `@agentry/ui` (primitives, tokens, controls, renderers) and `@agentry/chat-ui` (the conversation, behind an injected client), with guard tests on the dependency direction and vendor names |
 | [`plans/in-app-setup.md`](plans/in-app-setup.md) | Landed (#228, released in v0.37.0, 2026-10-09). A fresh Agentry, the Docker image above all, is set up from the browser: the setup assistant, a key or a device code for every agent, gh and glab, YouTrack, and the image's own Tailscale; secrets sealed in one vault and handed only to the CLI that reads them. Copilot signs in through its environment and gh (decision 7). See [Outcome](plans/in-app-setup.md#outcome), [setup.md](setup.md) and [security-model.md](security-model.md) |
+| [`plans/chat-experience.md`](plans/chat-experience.md) | Proposed (2026-10-15): a chat that feels as good as ChatGPT's. Nineteen work items (CHAT-1 … CHAT-19) in four phases, from ChatGPT's web chat studied with REA and Agentry's chat read end to end; nothing built yet |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.

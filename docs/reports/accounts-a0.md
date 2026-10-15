@@ -54,12 +54,27 @@ The account had **no connectors enabled**, which is why Gmail and Calendar showe
 and only `claude.ai Claude Docs` appeared. Confirmed: the panel reflects the account's enabled set;
 enabling Gmail/Calendar is done on claude.ai, not in Claudio.
 
+## 5. `claude auth status --json` (a `setup-token` account)
+
+```json
+{ "loggedIn": true, "authMethod": "oauth_token", "apiProvider": "firstParty",
+  "projectsDirectory": "<dir>/projects", "configDirectory": "<dir>" }
+```
+
+A `setup-token` account (the 1-year `sk-ant-oat…` from `claude setup-token`, passed as
+`CLAUDE_CODE_OAUTH_TOKEN`) reports **no email, org or plan** — only `authMethod: "oauth_token"`.
+Confirms the plan: `token` (and `api-key`) accounts have no identity of their own, so `add` requires
+an alias and `identify()` leaves email/org empty for them. The token is long-lived (one year) and
+the CLI prints it once; Claudio stores it in the account's own `0600` file.
+
 ## Still to capture (not blocking a2; record when available)
 
-- `auth status --json` for a `setup-token` account and an `api-key` account (to confirm no email →
-  alias needed).
-- A real `rate_limit_event` near and at a limit (window keys `five_hour`/`seven_day`).
-- `--resume` of a session started on one account, from another account's dir with linked `projects/`.
+- `auth status --json` for an `api-key` account — **not available** (the owner has no API key);
+  assume the same no-identity shape as a `setup-token` account.
+- A real `rate_limit_event` from `claude -p … --output-format stream-json` (window keys
+  `five_hour`/`seven_day`) — pending.
+- `--resume` of a session started on one account, from another account's dir with linked `projects/`
+  — pending (the first attempt mis-substituted the session id).
 
 ## Related
 
