@@ -76,7 +76,9 @@
   font-variant-ligatures: none;
 }
 
-.term-screen .xterm-viewport {
+/* One class stronger than xterm.css's own `.xterm .xterm-viewport` (#000), which the lazily loaded
+   terminal chunk inserts after this sheet and would otherwise win, painting black in the light theme */
+.term-screen .xterm .xterm-viewport {
   background-color: var(--term-bg);
 }
 
