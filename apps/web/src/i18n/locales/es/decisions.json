@@ -111,6 +111,7 @@
       "checksFix": "Decidir si arreglar los checks fallidos de una rama",
       "reviewTriage": "Sugerir quién atiende cada comentario de revisión",
       "issueTriage": "Sugerir en qué issues importados puede empezar un agente",
+      "accountModelFallback": "Sugerir el modelo más cercano que ofrece otra cuenta",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
       "paletteIntent": "Interpretar lo que escribes en la paleta"
     },
@@ -304,6 +305,7 @@
       "checksFix": "Decidió si arreglar los checks",
       "reviewTriage": "Sugirió quién atiende cada comentario",
       "issueTriage": "Sugirió en qué issues puede empezar un agente",
+      "accountModelFallback": "Sugirió el modelo más cercano que ofrece otra cuenta",
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }

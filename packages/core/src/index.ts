@@ -167,7 +167,7 @@ import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
-import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 export {
   DecisionEngine,
@@ -186,6 +186,7 @@ export { cutToBytes, maskSecrets, recognizeSecrets, redactState, SECRET_MASK, st
 export {
   DecisionCredentialStore,
   DecisionSettingsStore,
+  ModelFallbackStore,
   DEFAULT_DECISION_SETTINGS,
   parseDecisionSettings,
   parseProjectDecisions,
@@ -389,6 +390,7 @@ export class Core {
   readonly supervisor: Supervisor;
   /** The decision engine's settings (`decisions.json`) and its Jev key (`decision-credentials.json`, never returned) */
   readonly decisionSettings: DecisionSettingsStore;
+  readonly modelFallbacks: ModelFallbackStore;
   readonly decisionCredentials: DecisionCredentialStore;
   /** The one door every decision point asks through; providers register themselves on it */
   readonly decisions: DecisionEngine;
@@ -657,6 +659,7 @@ export class Core {
     });
     this.decisionCredentials = new DecisionCredentialStore(config);
     this.decisionSettings = new DecisionSettingsStore(config, this.decisionCredentials);
+    this.modelFallbacks = new ModelFallbackStore(config);
     this.decisions = new DecisionEngine({
       settings: this.decisionSettings,
       db: this.db,
@@ -678,6 +681,7 @@ export class Core {
       db: this.db,
       engine: this.decisions,
       historyDays: () => this.decisionSettings.get().historyDays,
+      modelFallbacks: () => this.modelFallbacks.list(),
     });
     this.orchestrator.limitHeld = (chatId) => this.rotation.holds(chatId);
     this.orchestrator.waitOf = (chatId) => this.openWait(chatId);
