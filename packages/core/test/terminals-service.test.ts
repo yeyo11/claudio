@@ -412,7 +412,9 @@ test('turning the terminal off closes every terminal with the reason disabled', 
   const client = new FakeClient();
   await ctx.service.attach(terminal.id, client);
   const turning = ctx.service.updateSettings({ enabled: false });
-  await settle();
+  // The settings write is asynchronous: the shell may only exit once the service has started closing it,
+  // and a fixed delay is too short on a loaded machine
+  for (let waited = 0; client.of('closed').length === 0 && waited < 200; waited++) await settle();
   ctx.backend.last.exit(null);
   const status = await turning;
   assert.equal(status.enabled, false);
