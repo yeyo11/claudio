@@ -125,3 +125,11 @@ export const providerRows = (value: unknown): unknown =>
         ...(isObj(p.limit) ? { limit: pick(p.limit, ['state', 'window', 'utilization', 'resetsAt']) } : {}),
       }))
     : value;
+
+export const accountRows = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? objs(value).map((a) => ({
+        ...pick(a, ['id', 'kind', 'alias', 'email', 'plan', 'enabled', 'signedIn']),
+        ...(isObj(a.limits) ? { limit: pick(a.limits, ['state', 'window', 'utilization', 'resetsAt', 'observedAt', 'source']) } : {}),
+      }))
+    : value;

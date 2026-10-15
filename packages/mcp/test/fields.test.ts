@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { AGENTRY_MCP_READ_TOOL_NAMES } from '../src/names.ts';
-import { chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, providerRows, teamRows } from '../src/fields.ts';
+import { chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, providerRows, accountRows, teamRows } from '../src/fields.ts';
 import { seed, type Seeded } from './fixture.ts';
 
 let s: Seeded;
@@ -94,4 +94,12 @@ test('list_flow_runs takes the nextCursor it hands out, so a model can read the 
   // A cursor the route cannot read is refused by the route, which proves the tool passed it on
   const bad = await s.call('list_flow_runs', { projectId: s.project.id, cursor: 'not-a-cursor' });
   assert.equal(bad.isError, true, bad.text);
+});
+
+test('list_accounts keeps the fields that choose between accounts', () => {
+  const account = {
+    id: 'a1', kind: 'login', alias: null, email: 'a@b', organization: 'Org', plan: 'max', enabled: true, signedIn: true,
+    limits: { state: 'ok', window: 'five_hour', utilization: 0.4, resetsAt: 'r', windows: { five_hour: {} }, observedAt: 'o', source: 'cache' },
+  };
+  assert.deepEqual(accountRows([account]), [{ id: 'a1', kind: 'login', email: 'a@b', plan: 'max', enabled: true, signedIn: true, limit: { state: 'ok', window: 'five_hour', utilization: 0.4, resetsAt: 'r', observedAt: 'o', source: 'cache' } }]);
 });

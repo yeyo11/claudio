@@ -13,7 +13,7 @@ tags:
 Agentry ships a small MCP server, named **`agentry`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Agentry hands over with `--mcp-config`, and it calls the REST API at
-`AGENTRY_API_URL`. Its tools reach the CLI as `mcp__agentry__<tool>`: 15 read tools (CW-6) and nine
+`AGENTRY_API_URL`. Its tools reach the CLI as `mcp__agentry__<tool>`: 16 read tools (CW-6) and nine
 write tools (CW-17, [below](#write-tools)). The spec is [plans/agentry-mcp-server.md](plans/agentry-mcp-server.md) (CW-6, epic
 [plans/agentry-assistant.md](plans/agentry-assistant.md)).
 
@@ -49,6 +49,7 @@ other method; the write tools below go through `send`, the only way to write.
 | `get_chat` | a chat's metadata, its last 20 transcript entries and what it waits on; never the export or the stream |
 | `get_usage` | usage and its breakdown for a date range (today by default) |
 | `list_providers` | the agent providers with their readiness, account and usage limit per window, as last detected (claude-swap's accounts are gone since providers phase 4) |
+| `list_accounts` | the Claude accounts with their kind, plan, state and usage limit per account, from `GET /accounts` |
 
 The names live in `packages/mcp/src/names.ts` (`AGENTRY_MCP_SERVER`, `AGENTRY_MCP_READ_TOOLS`); a test
 keeps the catalogue in `tools.ts` equal to that list, and the allow list is built from it.
@@ -71,6 +72,7 @@ field that is null or absent is left out. The detail tools (`get_work_item`, `ge
 | `list_documents` | `root`, `exists`, `fileCount`; per node `path`, `type`, `title`, `fileCount`, `children` |
 | `list_chats` | `id`, `title`, `state`, `origin`, `model`, `messageCount`, `updatedAt`, `atLimit`, `project` (name), `projectId`, `orchestration` (id), `costUsd` |
 | `list_providers` | `id`, `label`, `state`, `reason`, `account`, `version`, `limit` (`state`, `window`, `utilization`, `resetsAt`) |
+| `list_accounts` | `id`, `kind`, `alias`, `email`, `plan`, `enabled`, `signedIn`, `limit` (`state`, `window`, `utilization`, `resetsAt`, `observedAt`, `source`) |
 
 Rules for every tool:
 
