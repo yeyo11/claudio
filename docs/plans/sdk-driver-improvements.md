@@ -151,6 +151,22 @@ can change mid-chat.
    rule: the sign-in is the CLI's own OAuth, driven over the control protocol, not a login of
    Claudio's.
 
+   **Facts (CLI 2.1.300, 2026-10-15).** `mcp_status` needs no prompt: sent on a `claude -p` stream-json
+   process it answers `{ mcpServers: [{ name, status, serverInfo?, scope, source, tools? }] }`
+   (`config` dropped by `liveMcpServers`, as the composer already does). Servers load after start:
+   asked at once a server reads `pending`, about ten seconds later `connected` with its tools, so the
+   probe polls until nothing is `pending` or a ceiling passes. claude.ai connectors come with
+   `source: 'claudeai'` and only for an account that has them enabled (the CLI login at the time of
+   writing has none; `claude mcp list` shows the same). `mcp_authenticate` (`{ serverName,
+   redirectUri? }`) is accepted on stdin in this mode (an unknown server answers `Server not found`);
+   its answer for a real connector pending authorisation is still to record (part B).
+
+   **Built in two parts.** A: the connectors overview from a short-lived probe session reading
+   `mcp_status` (default account's environment, polled until settled, cached a minute as today), with
+   the `claude mcp list` scrape as the fallback, so connectors pending authorisation appear with their
+   state and tool count. B: authorising from the app with `mcp_authenticate`, once its answer is
+   recorded with an account that has a connector pending authorisation.
+
    **Out of reach either way, and left documented:** claude.ai web artifacts and claude.ai memory
    have no public API and no CLI command, so they stay in `CONNECTOR_LIMITS`; the Claude Docs
    connector (`api.anthropic.com/v1/pages/mcp`) already reaches docs through the CLI's MCP. Gmail and
