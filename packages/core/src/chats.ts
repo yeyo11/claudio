@@ -687,7 +687,10 @@ export class ChatManager extends EventEmitter {
       else opts.confine = options.confine;
     }
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
-    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts'] as const) {
+    // A rewind point belongs to the one process the resume starts, not to the ones after it
+    if ('resumeSessionAt' in options || options.handBack) delete opts.resumeSessionAt;
+    if (options.resumeSessionAt) opts.resumeSessionAt = options.resumeSessionAt;
+    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'maxTurns', 'fallbackModel', 'thinking', 'maxThinkingTokens', 'thinkingDisplay', 'permissionPrompts'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
     }
     // `null` takes the chat back to the servers the CLI loads on its own
@@ -1046,6 +1049,12 @@ export class ChatManager extends EventEmitter {
       ...(this.uploads && opts.uploads !== false ? { uploadsDir: this.uploads.dir } : {}),
       ...(opts.worktree ? { worktree: opts.worktree } : {}),
       ...(typeof opts.maxBudgetUsd === 'number' ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+      ...(opts.maxTurns ? { maxTurns: opts.maxTurns } : {}),
+      ...(opts.fallbackModel ? { fallbackModel: opts.fallbackModel } : {}),
+      ...(opts.thinking ? { thinking: opts.thinking } : {}),
+      ...(opts.maxThinkingTokens ? { maxThinkingTokens: opts.maxThinkingTokens } : {}),
+      ...(opts.thinkingDisplay ? { thinkingDisplay: opts.thinkingDisplay } : {}),
+      ...(opts.resumeSessionAt ? { resumeSessionAt: opts.resumeSessionAt } : {}),
       // Prompts go to a host only when something is listening: a chat waiting on an answer that never
       // comes is worse than one told plainly that it was denied
       permissionPrompts: opts.permissionPrompts === 'host' && this.permissions ? 'host' : 'none',

@@ -22,13 +22,18 @@ export function buildArgs(spec: SessionLaunch): string[] {
     args.push('--resume', spec.forkFrom, '--fork-session', '--session-id', spec.id, '--name', spec.name);
   } else if (spec.created) {
     args.push('--resume', spec.id);
+    if (spec.resumeSessionAt) args.push('--resume-session-at', spec.resumeSessionAt);
   } else {
     args.push('--session-id', spec.id, '--name', spec.name);
   }
   if (spec.agentsFile) args.push('--agents', spec.agentsFile);
   if (spec.agent) args.push('--agent', spec.agent);
   if (spec.model) args.push('--model', spec.model);
+  if (spec.fallbackModel) args.push('--fallback-model', spec.fallbackModel);
   if (spec.effort) args.push('--effort', spec.effort);
+  if (spec.thinking) args.push('--thinking', spec.thinking);
+  if (spec.maxThinkingTokens) args.push('--max-thinking-tokens', String(spec.maxThinkingTokens));
+  if (spec.thinkingDisplay) args.push('--thinking-display', spec.thinkingDisplay);
   if (spec.appendSystemPrompt) args.push('--append-system-prompt', spec.appendSystemPrompt);
   if (spec.allowedTools?.length) args.push(`--allowedTools=${spec.allowedTools.join(',')}`);
   if (spec.disallowedTools?.length) args.push(`--disallowedTools=${spec.disallowedTools.join(',')}`);
@@ -49,6 +54,7 @@ export function buildArgs(spec: SessionLaunch): string[] {
   if (typeof spec.maxBudgetUsd === 'number' && spec.maxBudgetUsd > 0) {
     args.push('--max-budget-usd', String(spec.maxBudgetUsd));
   }
+  if (spec.maxTurns) args.push('--max-turns', String(spec.maxTurns));
   // Prompts go to a host only when something is listening: a chat waiting on an answer that never
   // comes is worse than one told plainly that it was denied. `stdio` makes the CLI ask on its own
   // stdout as control requests, the same channel the Agent SDK uses, and read the answer on stdin.

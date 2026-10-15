@@ -11296,6 +11296,30 @@
         "type": "number",
         "description": "Ceiling on what this execution may spend"
       },
+      "maxTurns": {
+        "type": "number",
+        "description": "Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1"
+      },
+      "fallbackModel": {
+        "type": "string",
+        "description": "The model the chat degrades to on a capacity error (`--fallback-model`)"
+      },
+      "thinking": {
+        "type": "string",
+        "enum": [
+          "adaptive",
+          "disabled"
+        ],
+        "description": "Thinking mode (`--thinking`); beside `effort`, which stays the usual way to choose how hard the model thinks"
+      },
+      "maxThinkingTokens": {
+        "type": "number",
+        "description": "Ceiling on thinking tokens (`--max-thinking-tokens`); a live chat changes it with `set_max_thinking_tokens`"
+      },
+      "thinkingDisplay": {
+        "type": "string",
+        "description": "How thinking is shown in the stream (`--thinking-display`)"
+      },
       "permissionPrompts": {
         "type": "string",
         "enum": [
@@ -11389,6 +11413,30 @@
         "type": "number",
         "description": "Ceiling on what this execution may spend"
       },
+      "maxTurns": {
+        "type": "number",
+        "description": "Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1"
+      },
+      "fallbackModel": {
+        "type": "string",
+        "description": "The model the chat degrades to on a capacity error (`--fallback-model`)"
+      },
+      "thinking": {
+        "type": "string",
+        "enum": [
+          "adaptive",
+          "disabled"
+        ],
+        "description": "Thinking mode (`--thinking`); beside `effort`, which stays the usual way to choose how hard the model thinks"
+      },
+      "maxThinkingTokens": {
+        "type": "number",
+        "description": "Ceiling on thinking tokens (`--max-thinking-tokens`); a live chat changes it with `set_max_thinking_tokens`"
+      },
+      "thinkingDisplay": {
+        "type": "string",
+        "description": "How thinking is shown in the stream (`--thinking-display`)"
+      },
       "permissionPrompts": {
         "type": "string",
         "enum": [
@@ -11405,6 +11453,10 @@
         "items": {
           "type": "string"
         }
+      },
+      "resumeSessionAt": {
+        "type": "string",
+        "description": "Resume at this message of the session, a rewind (`--resume-session-at`), instead of at its end"
       }
     },
     "required": [
@@ -11469,6 +11521,30 @@
       "maxBudgetUsd": {
         "type": "number",
         "description": "Ceiling on what this execution may spend"
+      },
+      "maxTurns": {
+        "type": "number",
+        "description": "Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1"
+      },
+      "fallbackModel": {
+        "type": "string",
+        "description": "The model the chat degrades to on a capacity error (`--fallback-model`)"
+      },
+      "thinking": {
+        "type": "string",
+        "enum": [
+          "adaptive",
+          "disabled"
+        ],
+        "description": "Thinking mode (`--thinking`); beside `effort`, which stays the usual way to choose how hard the model thinks"
+      },
+      "maxThinkingTokens": {
+        "type": "number",
+        "description": "Ceiling on thinking tokens (`--max-thinking-tokens`); a live chat changes it with `set_max_thinking_tokens`"
+      },
+      "thinkingDisplay": {
+        "type": "string",
+        "description": "How thinking is shown in the stream (`--thinking-display`)"
       },
       "permissionPrompts": {
         "type": "string",
@@ -16872,6 +16948,30 @@
       "maxBudgetUsd": {
         "type": "number",
         "description": "Ceiling on what this execution may spend"
+      },
+      "maxTurns": {
+        "type": "number",
+        "description": "Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1"
+      },
+      "fallbackModel": {
+        "type": "string",
+        "description": "The model the chat degrades to on a capacity error (`--fallback-model`)"
+      },
+      "thinking": {
+        "type": "string",
+        "enum": [
+          "adaptive",
+          "disabled"
+        ],
+        "description": "Thinking mode (`--thinking`); beside `effort`, which stays the usual way to choose how hard the model thinks"
+      },
+      "maxThinkingTokens": {
+        "type": "number",
+        "description": "Ceiling on thinking tokens (`--max-thinking-tokens`); a live chat changes it with `set_max_thinking_tokens`"
+      },
+      "thinkingDisplay": {
+        "type": "string",
+        "description": "How thinking is shown in the stream (`--thinking-display`)"
       },
       "permissionPrompts": {
         "type": "string",

@@ -156,6 +156,11 @@ export class EffortRefusal extends Error {
   }
 }
 
+/** A start option the CLI would refuse, answered with a 400 before a process is spawned */
+export class StartOptionRefusal extends Error {
+  readonly statusCode = 400;
+}
+
 /** What a chat does for its graph, from the task id its record carries. */
 export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
   switch (orchestrationTaskId) {
@@ -617,10 +622,15 @@ export class ChatService {
    */
   private gate(
     requested: ProviderId | undefined,
-    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort'>,
+    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort' | 'maxTurns' | 'maxThinkingTokens' | 'thinking'> & { resumeSessionAt?: string },
     asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
   ): ProviderId {
     if (options.effort !== undefined && options.effort !== null && !isEffort(options.effort)) throw new EffortRefusal();
+    const whole = (n: unknown): boolean => typeof n === 'number' && Number.isInteger(n) && n >= 1;
+    if (options.maxTurns !== undefined && !whole(options.maxTurns)) throw new StartOptionRefusal('maxTurns must be a whole number of at least 1');
+    if (options.maxThinkingTokens !== undefined && !whole(options.maxThinkingTokens)) throw new StartOptionRefusal('maxThinkingTokens must be a whole number of at least 1');
+    if (options.thinking !== undefined && options.thinking !== 'adaptive' && options.thinking !== 'disabled') throw new StartOptionRefusal('thinking must be adaptive or disabled');
+    if (options.resumeSessionAt !== undefined && (typeof options.resumeSessionAt !== 'string' || !options.resumeSessionAt)) throw new StartOptionRefusal('resumeSessionAt must be a message id');
     const provider = this.deps.runtime.driverFor(requested).manifest.id;
     const has = new Set(this.deps.runtime.providers.capabilities(provider));
     const need = (capability: ProviderCapability, asked: boolean, what: string): void => {

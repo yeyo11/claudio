@@ -91,3 +91,12 @@ test('contextUsage sends get_context_usage and returns the answer; an error reje
   reply({ subtype: 'success', response: {} });
   assert.deepEqual(await again, {});
 });
+
+test('setOption maxThinkingTokens sends set_max_thinking_tokens and resolves on the answer', async () => {
+  const { session, written } = attach();
+  const sent = session.setOption({ maxThinkingTokens: 4000 });
+  const last = written.at(-1) as { request_id: string; request: unknown };
+  assert.deepEqual(last.request, { subtype: 'set_max_thinking_tokens', max_thinking_tokens: 4000 });
+  session.readLine(JSON.stringify({ type: 'control_response', response: { request_id: last.request_id, subtype: 'success' } }));
+  await sent;
+});
