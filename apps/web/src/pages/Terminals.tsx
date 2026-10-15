@@ -59,7 +59,8 @@ export function Terminals() {
   );
 
   return (
-    <>
+    // Bounded by the page (terminal.css, `.term-page`): the screen inside takes the room left, it does not grow the page
+    <div className="term-page">
       {header}
       <ErrorBox error={status.error} />
       {status.isLoading || (!ready && !project) ? (
@@ -83,7 +84,7 @@ export function Terminals() {
           />
         </>
       )}
-    </>
+    </div>
   );
 }
 

@@ -18,9 +18,6 @@ import { currentTerminalTheme, watchTheme } from './terminal-theme';
 /** The page's own preference for the renderer: `dom` forces it, `webgl` allows it on Linux */
 export const RENDERER_KEY = 'claudio-terminal-renderer';
 const ACK_EVERY_BYTES = 64 * 1024;
-/** Frames the fit loop waits for the proposed size to hold still, so a dragged panel sends one resize */
-const FIT_STABLE_FRAMES = 8;
-const FIT_DEBOUNCE_MS = 150;
 
 export interface FindOptions {
   caseSensitive: boolean;
@@ -269,37 +266,34 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       };
 
       // ---------- fitting ----------
+      // The host's size is the only input: it is bounded by the CSS chain around it and the xterm
+      // element is laid out out of its flow (terminal.css), so fitting can never make the host grow
+      // and be fitted again. The observer also ignores a notification that carries the size it
+      // already acted on, and fits are coalesced to one per frame.
       let frame = 0;
-      let debounce: number | undefined;
+      let lastBox = '';
+      const fitNow = () => {
+        frame = 0;
+        const proposed = fit.proposeDimensions();
+        if (!proposed) return;
+        if (term.cols !== proposed.cols || term.rows !== proposed.rows) term.resize(proposed.cols, proposed.rows);
+        sendSize();
+      };
       const settle = () => {
-        cancelAnimationFrame(frame);
-        let last = '';
-        let stable = 0;
-        let waited = 0;
-        const step = () => {
-          const proposed = fit.proposeDimensions();
-          const key = proposed ? `${proposed.cols}x${proposed.rows}` : '';
-          stable = key && key === last ? stable + 1 : 0;
-          last = key;
-          waited += 1;
-          if (proposed && (stable >= 1 || waited >= FIT_STABLE_FRAMES)) {
-            if (term.cols !== proposed.cols || term.rows !== proposed.rows) term.resize(proposed.cols, proposed.rows);
-            sendSize();
-            return;
-          }
-          frame = requestAnimationFrame(step);
-        };
-        frame = requestAnimationFrame(step);
+        if (frame === 0) frame = requestAnimationFrame(fitNow);
       };
       refit.current = settle;
-      const observer = new ResizeObserver(() => {
-        window.clearTimeout(debounce);
-        debounce = window.setTimeout(settle, FIT_DEBOUNCE_MS);
+      const observer = new ResizeObserver((entries) => {
+        const box = entries.at(-1)?.contentRect;
+        if (!box) return;
+        const key = `${String(Math.round(box.width))}x${String(Math.round(box.height))}`;
+        if (key === lastBox) return;
+        lastBox = key;
+        settle();
       });
       observer.observe(element);
       cleanups.push(() => {
         observer.disconnect();
-        window.clearTimeout(debounce);
         cancelAnimationFrame(frame);
       });
 

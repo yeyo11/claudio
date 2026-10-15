@@ -8,7 +8,10 @@
 .term {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  /* Basis 0: the frame takes the room it is given and never asks for more. The chain from the
+     page down to .term-screen is bounded (flex 1 1 0, min-height 0, overflow hidden), which is what
+     lets the fit addon read a height that does not depend on the terminal's own rows. */
+  flex: 1 1 0;
   min-height: 0;
   background: var(--term-bg);
   border: 1px solid var(--line);
@@ -64,16 +67,27 @@
 }
 
 .term-screen {
-  flex: 1 1 auto;
+  --term-pad-x: 14px;
+  --term-pad-y: 10px;
+  position: relative;
+  flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
-  padding: 10px 14px;
+  padding: var(--term-pad-y) var(--term-pad-x);
   background: var(--term-bg);
   color: var(--term-fg);
   font-family: var(--mono);
   font-size: 13px;
   line-height: 1.2;
   font-variant-ligatures: none;
+}
+
+/* Out of the flow: the screen's rows can never size their own host. Before this, a host with an
+   auto height grew by the padding on every fit (the addon reads the parent's height, the rows made it
+   taller, the observer fired again) and the page scrolled for ever. */
+.term-screen > .xterm {
+  position: absolute;
+  inset: var(--term-pad-y) var(--term-pad-x);
 }
 
 /* One class stronger than xterm.css's own `.xterm .xterm-viewport` (#000), which the lazily loaded
@@ -111,8 +125,9 @@
 .term-space {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
+  overflow: hidden;
   gap: 10px;
 }
 
@@ -313,7 +328,8 @@
 /* ---- phones: the hidden input is 16 px so iOS does not zoom on focus; the cells keep the terminal's size ---- */
 @media (max-width: 900px) {
   .term-screen {
-    padding: 8px 10px;
+    --term-pad-x: 10px;
+    --term-pad-y: 8px;
   }
 
   .term-screen .xterm-helper-textarea {
