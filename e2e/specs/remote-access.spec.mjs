@@ -8,7 +8,7 @@
 
 const TAB = '[role=tabpanel]';
 const NODE = 'agentry-test.tail0000.ts.net';
-const FAKE_URL = `https://${NODE}:8443`;
+const FAKE_URL = `https://${NODE}:8444`;
 const READY = { state: 'ready', version: '1.102.4', host: NODE, reason: null };
 
 /** Answers the tunnel's routes from `window.__tunnel`, starting at `initial`; everything else is the server's. */
@@ -42,7 +42,7 @@ const status = (state, extra = {}) => ({
   enabled: true,
   managed: false,
   tailscale: READY,
-  port: 8443,
+  port: 8444,
   settings: { startWithAgentry: false },
   ...extra,
 });
@@ -85,7 +85,7 @@ export default async ({ page, api, check }) => {
     const url = await page.eval(`return document.querySelector('[data-testid=tunnel-url]')?.textContent ?? ''`);
     check(url === FAKE_URL, `the address is shown (got ${url})`);
     check(await page.eval(`return getComputedStyle(document.querySelector('[data-testid=tunnel-url]')).fontFamily.includes('Mono')`), 'the address is in mono');
-    check(await page.eval(`return !!document.querySelector('${TAB} svg.qr[role=img][aria-label*="ts.net:8443"]')`), 'a QR code of the address is drawn, and named');
+    check(await page.eval(`return !!document.querySelector('${TAB} svg.qr[role=img][aria-label*="ts.net:8444"]')`), 'a QR code of the address is drawn, and named');
     check(await page.eval(`return !!document.querySelector('${TAB} button[aria-label="Copy address"]')`), 'the address can be copied');
     check(/open/i.test(await page.text(`${TAB} .card-head .badge`)), 'the state reads open');
     await page.click('[data-testid=tunnel-stop]', undefined, 800);

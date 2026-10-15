@@ -159,10 +159,10 @@ test('parseFind drops what it cannot read and maps every state', () => {
 });
 
 test('the calls are the recorded arguments, pinned by URL', () => {
-  const create = gitlabAdapter.create(repo, { head: 'task/ab12', base: 'main', title: 'T', body: 'B' });
-  assert.deepEqual(create.args, ['mr', 'create', '-R', URL_FORM, '--source-branch', 'task/ab12', '--target-branch', 'main', '--title', 'T', '--description-file', '-', '--yes']);
+  const create = gitlabAdapter.create(repo, { head: 'claudio-task/ab12', base: 'main', title: 'T', body: 'B' });
+  assert.deepEqual(create.args, ['mr', 'create', '-R', URL_FORM, '--source-branch', 'claudio-task/ab12', '--target-branch', 'main', '--title', 'T', '--description-file', '-', '--yes']);
   assert.ok(!create.args.includes('--recover'));
-  assert.deepEqual(gitlabAdapter.find(repo, { head: 'task/ab12', base: 'main' }).args, ['mr', 'list', '-R', URL_FORM, '-s', 'task/ab12', '-t', 'main', '-A', '-P', '2', '-F', 'json']);
+  assert.deepEqual(gitlabAdapter.find(repo, { head: 'claudio-task/ab12', base: 'main' }).args, ['mr', 'list', '-R', URL_FORM, '-s', 'claudio-task/ab12', '-t', 'main', '-A', '-P', '2', '-F', 'json']);
   assert.deepEqual(gitlabAdapter.view(repo, 4).args, ['mr', 'view', '4', '-R', URL_FORM, '-F', 'json']);
   assert.deepEqual(gitlabAdapter.defaultBranch(repo).args, ['repo', 'view', '-R', URL_FORM, '-F', 'json']);
   assert.deepEqual(gitlabAdapter.authStatus('git.example.com').args, ['auth', 'status', '--hostname', 'git.example.com']);
@@ -202,14 +202,14 @@ test('fake-glab answers version, auth, repo view, create, find and view as recor
   assert.equal(parseProjectId(repoView.stdout), 87089091);
 
   const body = 'Objective: ship it\n\n- "quoted" and `ticks` and $(subshell)\n';
-  const created = await run(gitlabAdapter.create(repo, { head: 'task/ab12', base: 'main', title: 'T', body }));
+  const created = await run(gitlabAdapter.create(repo, { head: 'claudio-task/ab12', base: 'main', title: 'T', body }));
   assert.equal(created.exitCode, 0);
   assert.equal(created.stdout, `${URL_FORM}/-/merge_requests/4\n`);
   assert.equal(readFileSync(join(state, 'body-4'), 'utf8'), body);
 
-  const found = gitlabAdapter.parseFind((await run(gitlabAdapter.find(repo, { head: 'task/ab12', base: 'main' }))).stdout);
+  const found = gitlabAdapter.parseFind((await run(gitlabAdapter.find(repo, { head: 'claudio-task/ab12', base: 'main' }))).stdout);
   assert.deepEqual(found, [{ number: 4, url: `${URL_FORM}/-/merge_requests/4`, state: 'open' }]);
-  assert.deepEqual(gitlabAdapter.parseFind((await run(gitlabAdapter.find(repo, { head: 'task/other', base: 'main' }))).stdout), []);
+  assert.deepEqual(gitlabAdapter.parseFind((await run(gitlabAdapter.find(repo, { head: 'claudio-task/other', base: 'main' }))).stdout), []);
 
   const mr = gitlabAdapter.parseView((await run(gitlabAdapter.view(repo, 4))).stdout);
   assert.deepEqual(mr, view('open', 'none', 4));
@@ -227,11 +227,11 @@ test('fake-glab: signed out, a duplicate create, a missing merge request and an 
 
   // a failed create has no stdout: the lookup by head and base is what finds the merge request
   const dup = scenario({ dup: '' });
-  const failed = await dup.run(gitlabAdapter.create(repo, { head: 'task/ab12', base: 'main', title: 'T', body: 'B' }));
+  const failed = await dup.run(gitlabAdapter.create(repo, { head: 'claudio-task/ab12', base: 'main', title: 'T', body: 'B' }));
   assert.equal(failed.exitCode, 1);
   assert.equal(failed.stdout, '');
   assert.deepEqual(
-    gitlabAdapter.parseFind((await dup.run(gitlabAdapter.find(repo, { head: 'task/ab12', base: 'main' }))).stdout).map((mr) => mr.number),
+    gitlabAdapter.parseFind((await dup.run(gitlabAdapter.find(repo, { head: 'claudio-task/ab12', base: 'main' }))).stdout).map((mr) => mr.number),
     [7],
   );
 

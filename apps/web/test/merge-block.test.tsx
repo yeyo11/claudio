@@ -26,7 +26,7 @@ import { PullRequestState } from '../src/pages/tasks/item/PullRequest';
 beforeEach(() => setLanguage('en'));
 
 const pr = (over: Partial<WorkItemPullRequest> = {}): WorkItemPullRequest => ({
-  id: 'cr1', phase: 'open', host: 'github', number: 12, ref: '#12', url: 'https://github.com/acme/shop/pull/12', branch: 'task/agn-26', base: 'main', ci: 'passing',
+  id: 'cr1', phase: 'open', host: 'github', number: 12, ref: '#12', url: 'https://github.com/acme/shop/pull/12', branch: 'claudio-task/agn-26', base: 'main', ci: 'passing',
   conflicts: [], error: null, openedAt: '2026-10-01T09:00:00Z', closedAt: null, checkedAt: '2026-10-01T10:00:00Z', ...over,
 });
 
@@ -64,11 +64,11 @@ test('a ready block offers the methods, the message, the branch box and one grad
   const html = render(state());
   const plain = text(html);
   assert.match(plain, /Merge/);
-  assert.match(plain, /PR #12 · task\/agn-26 → main · a81d3f0/);
+  assert.match(plain, /PR #12 · claudio-task\/agn-26 → main · a81d3f0/);
   assert.match(plain, /ready to merge/);
   assert.equal(count(html, 'role="radio"'), 3);
   assert.match(html, /aria-label="Commit subject"/);
-  assert.match(plain, /Delete the branch task\/agn-26 on GitHub after merging/);
+  assert.match(plain, /Delete the branch claudio-task\/agn-26 on GitHub after merging/);
   assert.match(plain, /The local branch stays/);
   assert.equal(count(html, 'btn-primary'), 1);
   assert.match(html, /<button[^>]*btn-primary[^>]*>.*?Merge<\/button>/);

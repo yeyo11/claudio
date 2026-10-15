@@ -175,7 +175,7 @@ export interface ItemPlace {
 
 /** Whether a recorded place is the item's own, rather than the worktree of a node that worked on it. */
 export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
-  return !!item.branch?.startsWith('task/');
+  return !!item.branch?.startsWith('claudio-task/');
 }
 
 const LOCK_REASON = 'agentry work item ';
@@ -191,7 +191,7 @@ export function existingItemWorktree(projectPath: string, item: Pick<WorkItem, '
 }
 
 /**
- * The item's own worktree, on `task/<key>`, made the first time and found again after. It sits where
+ * The item's own worktree, on `claudio-task/<key>`, made the first time and found again after. It sits where
  * the CLI keeps the worktrees it makes, under the main checkout, so the chat that runs there is
  * attached to the project. Null when the project is not a git repository, or has no commit yet to
  * branch from: the work then happens in the project's directory.

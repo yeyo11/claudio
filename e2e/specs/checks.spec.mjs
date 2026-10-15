@@ -111,7 +111,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
             `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, approved_at, opened_at, checked_at, created_at, updated_at)
              VALUES (?, ?, ?, 'open', ?, ?, ?, 'main', 'failing', '[]', ?, ?, ?, ?, ?)`,
           )
-          .run(randomUUID(), it.id, projectId, number, `https://github.com/acme/shop/pull/${number}`, `task/${it.key.toLowerCase()}`, now, now, now, now, now);
+          .run(randomUUID(), it.id, projectId, number, `https://github.com/acme/shop/pull/${number}`, `claudio-task/${it.key.toLowerCase()}`, now, now, now, now, now);
         writer.prepare("UPDATE work_items SET waiting = 'merge' WHERE id = ?").run(it.id);
       };
       open(item, 7);

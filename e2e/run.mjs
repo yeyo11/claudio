@@ -98,7 +98,7 @@ const mine = shard ? new Set(splitSpecs(entries, timings, shard.count)[shard.ind
 const specs = mine ? allSpecs.filter((f) => mine.has(f)) : allSpecs;
 const loaded = mine ? allLoaded.filter((e) => mine.has(e.file)) : allLoaded;
 
-const PORT = Number(process.env.E2E_PORT || 8799);
+const PORT = Number(process.env.E2E_PORT || 8809);
 const baseUrl = `http://127.0.0.1:${PORT}`;
 
 // GitHub's latest-release shape, reduced to the fields the check reads

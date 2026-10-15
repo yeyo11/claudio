@@ -258,7 +258,7 @@ test('dependent tasks build on their dependencies and the graph ends on one bran
 
   const integration = orch.integration;
   assert.equal(integration?.status, 'merged');
-  assert.equal(integration?.branch, `agentry/linux-app-${orch.id.slice(0, 8)}`);
+  assert.equal(integration?.branch, `claudio/linux-app-${orch.id.slice(0, 8)}`);
   assert.deepEqual(integration?.merged.sort(), ['api', 'assets', 'shell']);
   assert.equal(show(repo, `${integration?.branch}:api.txt`), 'server');
   assert.equal(show(repo, `${integration?.branch}:icon.txt`), 'png');
@@ -1000,7 +1000,7 @@ test('re-running a task is refused while the graph runs, for a workflow, and onc
       id: 'graph-pushed',
       worktree: true,
       status: 'completed',
-      integration: { branch: 'agentry/x-1', worktree: null, status: 'merged', merged: [], conflicts: [], commit: null, error: null, integratorRunId: null, pullRequestUrl: 'https://example.test/pr/1' },
+      integration: { branch: 'claudio/x-1', worktree: null, status: 'merged', merged: [], conflicts: [], commit: null, error: null, integratorRunId: null, pullRequestUrl: 'https://example.test/pr/1' },
     }),
   ]);
   const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);

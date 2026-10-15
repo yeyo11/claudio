@@ -172,7 +172,7 @@ test('only the tailscaled the image started is Agentry\'s to sign in, and its no
   assert.equal(loadConfig({ ...managed, AGENTRY_TUNNEL: 'off' }).tunnelEnabled, false);
   assert.equal(loadConfig({ ...docker, AGENTRY_TAILSCALE_MANAGED: '0' }).tailscaleManaged, false);
 
-  assert.equal(loadConfig(base).tailscaleHostname, 'agentry');
+  assert.equal(loadConfig(base).tailscaleHostname, 'claudio');
   assert.equal(loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: ' Agentry-Lab ' }).tailscaleHostname, 'agentry-lab');
   // It goes to the CLI's argv: nothing that could read as a flag or leave the label
   for (const value of ['-x', 'a b', 'a.b', 'x-', 'a'.repeat(64)]) {
@@ -180,10 +180,10 @@ test('only the tailscaled the image started is Agentry\'s to sign in, and its no
   }
 });
 
-test("the tunnel's Serve port is 8443 unless set, and a value that is not a port stops the start", () => {
+test("the tunnel's Serve port is 8444 unless set, and a value that is not a port stops the start", () => {
   const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
-  assert.equal(loadConfig(base).tunnelPort, 8443);
-  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '' }).tunnelPort, 8443);
+  assert.equal(loadConfig(base).tunnelPort, 8444);
+  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '' }).tunnelPort, 8444);
   assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
   for (const value of ['0', '65536', '84.43', 'https']) {
     assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL_PORT: value }), /AGENTRY_TUNNEL_PORT/, value);

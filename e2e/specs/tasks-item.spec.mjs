@@ -140,7 +140,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- "Work on it": a chat through the API, which moves the item as its turn goes ----
     await page.click('main .workitem-head .workitem-work', 'Work on it', 600);
-    await page.waitFor(`return !!document.querySelector('[role=dialog]')?.textContent.includes('task/${main.key.toLowerCase()}')`, { label: 'the start options name the branch' });
+    await page.waitFor(`return !!document.querySelector('[role=dialog]')?.textContent.includes('claudio-task/${main.key.toLowerCase()}')`, { label: 'the start options name the branch' });
     await page.click('[role=dialog] .dialog-foot .btn-primary', 'Start the chat', 1200);
     chatId = await page.waitFor(`const m = location.pathname.match(/^\\/chats\\/([^/]+)$/); return m ? m[1] : null`, { label: 'the chat opens', timeout: 20_000 });
     await until(async () => (await item(main.id)).links.some((l) => l.chatId === chatId && l.role === 'work'), 'the chat is linked to the item');

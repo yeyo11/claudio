@@ -36,7 +36,7 @@ export class LoginRefusedError extends Error {
 }
 
 /** The node name a managed tailscaled signs in with when the deps name none */
-const DEFAULT_TAILSCALE_NAME = 'agentry';
+const DEFAULT_TAILSCALE_NAME = 'claudio';
 
 export interface LoginServiceDeps {
   vault: Pick<SecretVault, 'set' | 'clear'>;

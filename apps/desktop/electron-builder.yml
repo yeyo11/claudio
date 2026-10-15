@@ -1,16 +1,16 @@
 # Linux packaging for the Electron shell. Run through `pnpm dist:linux`, which builds the web UI, the API
 # bundle and the shell first: this file only assembles what those steps left in dist/ folders.
-appId: io.github.yeyo11.agentry
-productName: Agentry
+appId: io.github.yeyo11.claudio
+productName: Claudio
 copyright: Copyright © 2026 Jose Antonio Garrido
-artifactName: Agentry-${version}-${arch}.${ext}
+artifactName: Claudio-${version}-${arch}.${ext}
 
 # The launcher finds a running window by its X11 WM_CLASS, which Electron derives from the packaged
-# package.json name, not from app.setName(). Left as "@agentry/desktop" it became "agentry-desktop",
+# package.json name, not from app.setName(). Left as "@claudio/desktop" it became "claudio-desktop",
 # matched nothing, and the dock showed a generic icon. desktopName does the same for Wayland (app id).
 extraMetadata:
-  name: agentry
-  desktopName: agentry.desktop
+  name: claudio
+  desktopName: claudio.desktop
 
 # Where electron-updater looks for releases. With it, the build also writes latest-linux.yml (versions,
 # file names and SHA-512s of the AppImage and the .deb), app-update.yml in the resources and
@@ -20,7 +20,7 @@ extraMetadata:
 publish:
   provider: github
   owner: yeyo11
-  repo: agentry
+  repo: claudio
 
 directories:
   output: release
@@ -62,22 +62,22 @@ linux:
       arch: x64
     - target: deb
       arch: x64
-  executableName: agentry
+  executableName: claudio
   category: Development
   icon: build/icons
   synopsis: Desktop UI for Claude Code agents
   description: >-
-    Agentry is a control panel for the Claude Code CLI: a web UI and multi-agent orchestration
+    Claudio is a control panel for the Claude Code CLI: a web UI and multi-agent orchestration
     around Claude Code, without giving up anything the CLI can do.
   maintainer: Jose Antonio Garrido <yeyochico@gmail.com>
-  # Keep in step with build/linux/agentry.desktop, the template for the launcher entry
+  # Keep in step with build/linux/claudio.desktop, the template for the launcher entry
   desktop:
     entry:
       GenericName: Claude Code Control Panel
       Keywords: Claude;Claude Code;AI;agents;orchestration;
       # Must equal the window's WM_CLASS, which comes from extraMetadata.name above, or the launcher will
       # not group the running window under this entry
-      StartupWMClass: agentry
+      StartupWMClass: claudio
 
 deb:
   # Electron's own runtime libraries only: the server runs on Electron's bundled Node, so no nodejs package.
@@ -97,4 +97,4 @@ deb:
   # Not covered by electron-builder: AppStream metadata goes where software centres look for it.
   # Extra fpm arguments in `source=destination` form.
   fpm:
-    - build/linux/io.github.yeyo11.agentry.metainfo.xml=/usr/share/metainfo/io.github.yeyo11.agentry.metainfo.xml
+    - build/linux/io.github.yeyo11.claudio.metainfo.xml=/usr/share/metainfo/io.github.yeyo11.claudio.metainfo.xml

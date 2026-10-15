@@ -107,7 +107,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       db.prepare(
         `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, error_code, error_detail, approved_at, opened_at, closed_at, checked_at, created_at, updated_at, host, hostname)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'main', ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, 'gitlab', 'gitlab.com')`,
-      ).run(randomUUID(), item.id, projectId, r.phase, r.number, r.url, `task/${item.key.toLowerCase()}`, r.ci, r.error_code, r.error_detail, now, r.opened_at, r.closed_at, r.checked_at, now, now);
+      ).run(randomUUID(), item.id, projectId, r.phase, r.number, r.url, `claudio-task/${item.key.toLowerCase()}`, r.ci, r.error_code, r.error_detail, now, r.opened_at, r.closed_at, r.checked_at, now, now);
     };
     row(open, { number: 7, url: MR_URL(7), ci: 'passing', opened_at: now, checked_at: now });
     row(pending, { number: 8, url: MR_URL(8), ci: 'pending', opened_at: now, checked_at: now });

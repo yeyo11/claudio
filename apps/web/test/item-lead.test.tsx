@@ -49,7 +49,7 @@ test('the oldest thing that waits leads, and nothing leads when nothing is offer
 });
 
 const pr = (over: Partial<WorkItemPullRequest> = {}): WorkItemPullRequest => ({
-  id: 'cr1', phase: 'open', host: 'github', number: 12, ref: '#12', url: 'https://github.com/acme/shop/pull/12', branch: 'task/agn-26', base: 'main', ci: 'passing',
+  id: 'cr1', phase: 'open', host: 'github', number: 12, ref: '#12', url: 'https://github.com/acme/shop/pull/12', branch: 'claudio-task/agn-26', base: 'main', ci: 'passing',
   conflicts: [], error: null, openedAt: '2026-10-01T09:00:00Z', closedAt: null, checkedAt: '2026-10-01T10:00:00Z', ...over,
 });
 

@@ -331,7 +331,7 @@ test('looking for an item\'s worktree makes none: no branch, no checkout, until 
   const repo = repoWithCommit();
   const item = { key: 'AGN-2', worktree: null, branch: null };
   assert.equal(existingItemWorktree(repo, item), null);
-  assert.equal(gitIn(repo, 'branch', '--list', 'task/*'), '', 'reading made no branch');
+  assert.equal(gitIn(repo, 'branch', '--list', 'claudio-task/*'), '', 'reading made no branch');
   assert.ok(!existsSync(join(repo, '.claude', 'worktrees', 'task-agn-2')), 'and no checkout');
   const made = itemWorktree(repo, item);
   assert.ok(made);
@@ -396,7 +396,7 @@ test('"Work on it" after a node never works in the node\'s worktree, so retrying
 
   const place = itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: nodeTree, branch: 'worktree-o1-agn-1' });
   assert.ok(place);
-  assert.deepEqual([place.worktree, place.branch], [join(repo, '.claude', 'worktrees', 'task-agn-1'), 'task/agn-1']);
+  assert.deepEqual([place.worktree, place.branch], [join(repo, '.claude', 'worktrees', 'task-agn-1'), 'claudio-task/agn-1']);
   assert.ok(existsSync(join(place.worktree, 'node.txt')), "the item's branch starts from the node's work");
   writeFileSync(join(place.worktree, 'mine.txt'), "a person's work\n");
 
@@ -410,18 +410,18 @@ test('"Work on it" after a node never works in the node\'s worktree, so retrying
 test("a node that works on an item with a worktree of its own does not take the item's place over", () => {
   const s = setup();
   const a = s.items.create('p1', { title: 'API' });
-  s.items.setWorktree(a.id, { worktree: '/repo/.claude/worktrees/task-agn-1', branch: 'task/agn-1' });
+  s.items.setWorktree(a.id, { worktree: '/repo/.claude/worktrees/task-agn-1', branch: 'claudio-task/agn-1' });
   s.orchestrations.set('o1', graph('o1', [{ id: 'agn-1', workItemId: a.id, worktree: '/repo/.claude/worktrees/o1-agn-1', branch: 'worktree-o1-agn-1' }]));
   s.automation.observe(created('o1'));
   s.automation.observe(taskEvent('o1', 'agn-1', 'running', 'worker-1'));
   const item = s.items.get(a.id);
-  assert.deepEqual([item.worktree, item.branch], ['/repo/.claude/worktrees/task-agn-1', 'task/agn-1']);
+  assert.deepEqual([item.worktree, item.branch], ['/repo/.claude/worktrees/task-agn-1', 'claudio-task/agn-1']);
 });
 
 test("an item's branch checked out in another checkout is a 409 that says where, not git's error", () => {
   const repo = repoWithCommit();
   const other = join(mkdtempSync(join(tmpdir(), 'agentry-other-')), 'elsewhere');
-  gitIn(repo, 'worktree', 'add', '-q', '-b', 'task/agn-3', other);
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'claudio-task/agn-3', other);
   assert.throws(
     () => itemWorktree(repo, { key: 'AGN-3', worktree: null, branch: null }),
     (err: Error & { statusCode?: number }) => err.statusCode === 409 && err.message.includes(other),

@@ -335,7 +335,7 @@ function branchRepo(): { repo: string; place: { worktree: null; branch: string }
   writeFileSync(join(repo, 'README.md'), 'project\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'initial');
-  git('checkout', '-q', '-b', 'task/ag-1');
+  git('checkout', '-q', '-b', 'claudio-task/ag-1');
   writeFileSync(join(repo, 'button.ts'), 'export const button = 1;\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'add the button');
@@ -343,7 +343,7 @@ function branchRepo(): { repo: string; place: { worktree: null; branch: string }
   git('add', '-A');
   git('commit', '-q', '-m', 'rewrite billing');
   git('checkout', '-q', 'main');
-  return { repo, place: { worktree: null, branch: 'task/ag-1' } };
+  return { repo, place: { worktree: null, branch: 'claudio-task/ag-1' } };
 }
 
 const item = { id: 'item-1', projectId: 'project-1', title: 'Add a button', criteria: ['a button exists'] };

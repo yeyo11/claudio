@@ -7,7 +7,7 @@ import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { Card, Tag } from '@agentry/ui/components/ui';
 
 /** Where passing the key in the environment is explained: the README's table of variables. */
-export const SECRET_KEY_DOCS = 'https://github.com/yeyo11/agentry#environment-variables';
+export const SECRET_KEY_DOCS = 'https://github.com/yeyo11/claudio#environment-variables';
 
 const mono = { mono: <span className="mono" /> };
 

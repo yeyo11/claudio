@@ -73,7 +73,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
   try {
-    await listenOn(app, opts.port ?? 8787, host, opts.portFallback ?? true);
+    await listenOn(app, opts.port ?? 8797, host, opts.portFallback ?? true);
   } catch (err) {
     core.shutdown();
     await app.close();

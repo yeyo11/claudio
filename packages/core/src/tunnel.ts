@@ -18,7 +18,7 @@ import type { RuntimeHostOptions } from './app-settings.ts';
  */
 
 /** The HTTPS port of Agentry's Serve rule unless `AGENTRY_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
-export const DEFAULT_TUNNEL_PORT = 8443;
+export const DEFAULT_TUNNEL_PORT = 8444;
 
 /** `tailscale serve` took its current arguments (`--bg`, `--https=<port>`, `off`) in 1.52 */
 export const MIN_TAILSCALE_VERSION: readonly [number, number] = [1, 52];

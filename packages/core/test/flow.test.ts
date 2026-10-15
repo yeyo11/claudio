@@ -1772,7 +1772,7 @@ test("a work run that leaves changes uncommitted in the item's worktree is sent 
   const asked: string[] = [];
   const s = setup({ uncommitted: (dir) => (asked.push(dir), dirty.paths) });
   const it = await item(s, 'in_progress');
-  s.items.setWorktree(it.id, { worktree: '/tmp/agentry-wt-agn-1', branch: 'task/agn-1' });
+  s.items.setWorktree(it.id, { worktree: '/tmp/agentry-wt-agn-1', branch: 'claudio-task/agn-1' });
   await s.answer(it.id, ok('Implemented'));
   assert.deepEqual(asked, ['/tmp/agentry-wt-agn-1']);
   s.flow.chatEnded(s.chatOf(it.id), null);

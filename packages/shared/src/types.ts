@@ -1749,7 +1749,7 @@ export interface WorkItemPullRequest {
   /** How the host writes the number: `#12` or `!12`; null without a number */
   ref?: string | null;
   url: string | null;
-  /** The item's branch, `task/<key>` */
+  /** The item's branch, `claudio-task/<key>` */
   branch: string;
   /** The default branch it is proposed to */
   base: string;
@@ -1871,7 +1871,7 @@ export interface WorkItem {
    * naming its neighbour ({@link MoveWorkItemRequest}), so the order a person drags survives.
    */
   rank: string;
-  /** The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case */
+  /** The item's own git worktree, once something worked on it, on branch `claudio-task/<key>` in lower case */
   worktree: string | null;
   branch: string | null;
   /**
@@ -4219,7 +4219,7 @@ export interface TunnelStatus {
   managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
-  /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8443 by default) */
+  /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8444 by default) */
   port: number;
   settings: TunnelSettings;
 }

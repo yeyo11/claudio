@@ -30,7 +30,7 @@ export interface InstallState {
   install?: () => void;
   /**
    * A service worker — and so an immediate cold start, and later any Web Push — exists only on a
-   * secure origin. `http://192.168.1.10:8787`, which is how most people run Agentry, is not one.
+   * secure origin. `http://192.168.1.10:8797`, which is how most people run Agentry, is not one.
    */
   secure: boolean;
   /** The origin as the browser sees it, so the message can name it instead of being abstract */

@@ -62,7 +62,7 @@ const input = (overrides: Partial<CompileInput> = {}): CompileInput => ({
 
 test('the script runs each task after its dependencies, within the concurrency, and synthesizes', async () => {
   const script = compileWorkflow(input());
-  assert.deepEqual(scriptMeta(script), { name: 'agentry-audit-the-api', description: 'Find what the API docs miss' });
+  assert.deepEqual(scriptMeta(script), { name: 'claudio-audit-the-api', description: 'Find what the API docs miss' });
 
   // `docs` is slow: `report` must not wait for it, only for what it depends on
   const { calls, peak, returned } = await execute(script, (label) => `result of ${label}`, (label) => (label === 'docs' ? 60 : 5));
@@ -101,7 +101,7 @@ test('a failed task skips what depends on it and leaves the rest running', async
 });
 
 test('names and prompts that are not plain survive the trip into the script', async () => {
-  assert.equal(workflowName('Revisión de la API — v2!'), 'agentry-revision-de-la-api-v2');
+  assert.equal(workflowName('Revisión de la API — v2!'), 'claudio-revision-de-la-api-v2');
   const tricky = 'Quote " backslash \\ backtick ` dollar ${x} newline\nand </task>';
   const script = compileWorkflow(input({ name: tricky, tasks: [{ id: 'a', name: tricky, dependsOn: [], before: '', after: tricky }], synthesis: null }));
   const { calls } = await execute(script, () => 'ok');

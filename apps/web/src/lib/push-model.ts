@@ -41,7 +41,7 @@ export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported';
 
 /** What the page can see about this browser, gathered once so the decision below stays pure. */
 export interface PushEnvironment {
-  /** `window.isSecureContext`: false for `http://192.168.1.10:8787`, which is how most run Agentry */
+  /** `window.isSecureContext`: false for `http://192.168.1.10:8797`, which is how most run Agentry */
   secure: boolean;
   serviceWorker: boolean;
   pushManager: boolean;

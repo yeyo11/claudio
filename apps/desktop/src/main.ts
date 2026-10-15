@@ -39,15 +39,15 @@ const isDev = !app.isPackaged || process.argv.includes('--dev');
 // Name before anything reads it: it decides the userData dir. (The X11 WM class the launcher matches on
 // comes from the packaged package.json name instead; see extraMetadata in electron-builder.yml.)
 // Dev gets its own userData so experiments never touch the installed app's data.
-app.setName('Agentry');
-app.setPath('userData', join(app.getPath('appData'), isDev ? 'Agentry-dev' : 'Agentry'));
+app.setName('Claudio');
+app.setPath('userData', join(app.getPath('appData'), isDev ? 'Claudio-dev' : 'Claudio'));
 
 const userData = app.getPath('userData');
 const dataDir = join(userData, 'data');
 // Projects the agent works on live where the user can see them, not hidden under ~/.config
-const workspaceDir = process.env.AGENTRY_WORKSPACE_DIR ?? join(homedir(), 'Agentry', 'workspace');
+const workspaceDir = process.env.AGENTRY_WORKSPACE_DIR ?? join(homedir(), 'Claudio', 'workspace');
 const logsDir = join(userData, 'logs');
-const RELEASES_URL = 'https://github.com/yeyo11/agentry/releases/latest';
+const RELEASES_URL = 'https://github.com/yeyo11/claudio/releases/latest';
 
 // Which package this is, the way electron-updater tells: the AppImage runtime sets APPIMAGE, and
 // electron-builder writes resources/package-type into the .deb

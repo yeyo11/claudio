@@ -9,7 +9,7 @@ import { tempConfig } from './helpers.ts';
 
 const release = (tag: string) => ({
   tag_name: tag,
-  html_url: `https://github.com/yeyo11/agentry/releases/tag/${tag}`,
+  html_url: `https://github.com/yeyo11/claudio/releases/tag/${tag}`,
   published_at: '2026-09-24T08:00:00Z',
 });
 
@@ -58,13 +58,13 @@ test('the tag v0.18.0 is the version 0.18.0, stored with its page and date in re
   const info = watch.info();
   assert.equal(info.latest, '0.18.0');
   assert.equal(info.updateAvailable, true);
-  assert.equal(info.url, 'https://github.com/yeyo11/agentry/releases/tag/v0.18.0');
+  assert.equal(info.url, 'https://github.com/yeyo11/claudio/releases/tag/v0.18.0');
   assert.equal(info.publishedAt, '2026-09-24T08:00:00Z');
   assert.equal(info.checkedAt, '2026-09-25T10:00:00.000Z');
   assert.deepEqual(JSON.parse(readFileSync(join(config.dataDir, 'release.json'), 'utf8')), {
     latest: '0.18.0',
     publishedAt: '2026-09-24T08:00:00Z',
-    url: 'https://github.com/yeyo11/agentry/releases/tag/v0.18.0',
+    url: 'https://github.com/yeyo11/claudio/releases/tag/v0.18.0',
     checkedAt: '2026-09-25T10:00:00.000Z',
   });
   assert.equal(new ReleaseWatch(config, { current: '0.17.1', env: {} }).info().latest, '0.18.0', 'survives a restart');
@@ -73,9 +73,9 @@ test('the tag v0.18.0 is the version 0.18.0, stored with its page and date in re
 test('GitHub is asked for its JSON with a user-agent, and the URL can be pointed at a fixture', async () => {
   const gh = github(release('v0.18.0'));
   await new ReleaseWatch(tempConfig(), { current: '0.17.1', env: {}, fetch: gh.fetch }).check();
-  assert.deepEqual(gh.state.urls, ['https://api.github.com/repos/yeyo11/agentry/releases/latest']);
+  assert.deepEqual(gh.state.urls, ['https://api.github.com/repos/yeyo11/claudio/releases/latest']);
   assert.equal(gh.state.headers[0]?.get('accept'), 'application/vnd.github+json');
-  assert.match(gh.state.headers[0]?.get('user-agent') ?? '', /^agentry\/0\.17\.1$/);
+  assert.match(gh.state.headers[0]?.get('user-agent') ?? '', /^claudio\/0\.17\.1$/);
 
   const fixture = github(release('v0.18.0'));
   await new ReleaseWatch(tempConfig(), { current: '0.17.1', env: { AGENTRY_RELEASES_URL: 'http://127.0.0.1:9/latest' }, fetch: fixture.fetch }).check();

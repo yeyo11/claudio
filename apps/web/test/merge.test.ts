@@ -42,8 +42,8 @@ test('a remedy is an Agentry call, a link to the host or a move in the page, nev
 });
 
 test('the sentence is written with the host, the branches and the host-sent name as plain text', () => {
-  const params = blockerParams({ detail: '<b>unit</b>' }, { host: 'gitlab', branch: 'task/agn-26', base: 'main', phase: 'open' }, 'MR');
-  assert.deepEqual(params, { noun: 'MR', host: 'GitLab', head: 'task/agn-26', base: 'main', name: '<b>unit</b>', state: '<b>unit</b>' });
+  const params = blockerParams({ detail: '<b>unit</b>' }, { host: 'gitlab', branch: 'claudio-task/agn-26', base: 'main', phase: 'open' }, 'MR');
+  assert.deepEqual(params, { noun: 'MR', host: 'GitLab', head: 'claudio-task/agn-26', base: 'main', name: '<b>unit</b>', state: '<b>unit</b>' });
   assert.equal(blockerParams({ detail: null }, { host: 'github', branch: 'b', base: 'main', phase: 'open' }, 'PR').name, '');
 });
 
@@ -79,7 +79,7 @@ test('the message is sent exactly as typed, and only a blank field is left to th
 });
 
 test('a request that is not open says merged or closed by the host\'s own state, never Agentry\'s phase', () => {
-  const cr = { host: 'github', branch: 'task/agn-26', base: 'main', phase: 'open' } as const;
+  const cr = { host: 'github', branch: 'claudio-task/agn-26', base: 'main', phase: 'open' } as const;
   const merged = blockerSentence({ code: 'not-open', detail: 'merged' }, cr, 'PR');
   assert.deepEqual([merged.tone, merged.word, merged.text], ['ok', 'blocker.not-open.merged.word', 'blocker.not-open.merged.text']);
   assert.equal(blockerSentence({ code: 'not-open', detail: 'MERGED' }, cr, 'PR').text, 'blocker.not-open.merged.text');

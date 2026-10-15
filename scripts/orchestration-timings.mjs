@@ -3,7 +3,7 @@
 //
 //   node scripts/orchestration-timings.mjs [id…] [--min-tasks N] [--json]
 //
-// Reads a running Agentry at AGENTRY_API_URL (the API root, e.g. http://127.0.0.1:8787/api), sending
+// Reads a running Agentry at AGENTRY_API_URL (the API root, e.g. http://127.0.0.1:8797/api), sending
 // AGENTRY_API_TOKEN as a Bearer token when it is set. Everything comes from the API: the graphs'
 // timings (GET /orchestrations/:id/timings) and, for the breakdown inside the workers, the
 // transcripts the CLI wrote, read through GET /chats/:id/export?format=json. No dependencies.
@@ -47,7 +47,7 @@ const base = process.env.AGENTRY_API_URL?.replace(/\/+$/, '');
 if (!base) {
   fail(
     'AGENTRY_API_URL is not set. Point it at the API of the Agentry to measure, e.g.\n' +
-      '  AGENTRY_API_URL=http://127.0.0.1:8787/api node scripts/orchestration-timings.mjs\n' +
+      '  AGENTRY_API_URL=http://127.0.0.1:8797/api node scripts/orchestration-timings.mjs\n' +
       'A chat started by Agentry has it already. No port is guessed: a desktop app and a dev server often run side by side.',
   );
 }

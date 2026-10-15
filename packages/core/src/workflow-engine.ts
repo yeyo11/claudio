@@ -44,7 +44,7 @@ export function workflowName(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
-  return `agentry-${slug || 'orchestration'}`;
+  return `claudio-${slug || 'orchestration'}`;
 }
 
 // The runtime part is plain JavaScript for the CLI's workflow sandbox: no TypeScript, no
