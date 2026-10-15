@@ -223,6 +223,14 @@ export interface PermissionQuestion {
   description?: string;
   suggestions?: PermissionUpdate[];
   requiresUserInteraction?: boolean;
+  /** The path the agent was blocked on, when the request is about one */
+  blockedPath?: string;
+  /** Why the agent asks, as the CLI words it */
+  decisionReason?: string;
+  title?: string;
+  displayName?: string;
+  /** The subagent that asked, when it is not the main agent */
+  agentId?: string;
   /** The request in neutral terms, for a driver whose translation leaves a part to the judge */
   request?: NeutralRequest;
 }

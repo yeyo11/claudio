@@ -100,3 +100,18 @@ test('setOption maxThinkingTokens sends set_max_thinking_tokens and resolves on 
   session.readLine(JSON.stringify({ type: 'control_response', response: { request_id: last.request_id, subtype: 'success' } }));
   await sent;
 });
+
+test('a can_use_tool request carries the blocked path, reason, title, display name and agent; without them it is unchanged', () => {
+  const { session, events } = attach();
+  const request = { subtype: 'can_use_tool', tool_name: 'Edit', tool_use_id: 't1', input: {} };
+  const extra = { blocked_path: '/etc/hosts', decision_reason: 'outside the project', title: 'Edit hosts', display_name: 'Edit', agent_id: 'sub-1' };
+  session.readLine(JSON.stringify({ type: 'control_request', request_id: 'r1', request: { ...request, ...extra } }));
+  session.readLine(JSON.stringify({ type: 'control_request', request_id: 'r2', request }));
+  const questions = events.flatMap((e) => (e.kind === 'permission-request' ? [e.question] : []));
+  assert.equal(questions.length, 2);
+  assert.deepEqual(
+    [questions[0]?.blockedPath, questions[0]?.decisionReason, questions[0]?.title, questions[0]?.displayName, questions[0]?.agentId],
+    ['/etc/hosts', 'outside the project', 'Edit hosts', 'Edit', 'sub-1'],
+  );
+  assert.deepEqual(questions[1], { id: 'r2', toolName: 'Edit', toolUseId: 't1', input: {} });
+});
