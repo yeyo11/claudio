@@ -294,6 +294,10 @@
           "$ref": "#/components/schemas/RateLimitWindow"
         }
       },
+      "overage": {
+        "$ref": "#/components/schemas/ProviderLimitOverage",
+        "description": "Extra usage past the plan's window, when the reading says anything about it"
+      },
       "observedAt": {
         "type": "string",
         "description": "When the reading was taken: the UI says how old it is"
@@ -348,6 +352,34 @@
       "utilization",
       "resetsAt"
     ]
+  },
+  "ProviderLimitOverage": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string"
+      },
+      "using": {
+        "type": "boolean",
+        "description": "The run is being served from overage now"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the overage resets; null when unknown"
+      },
+      "disabledReason": {
+        "type": "string",
+        "description": "Why overage is not available, as the provider words it"
+      }
+    },
+    "required": [
+      "using",
+      "resetsAt"
+    ],
+    "description": "The overage side of a limit reading: whether the account is spending past its window, and until when."
   },
   "AccountsSnapshot": {
     "type": "object",
