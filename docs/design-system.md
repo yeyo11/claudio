@@ -723,6 +723,29 @@ energy border stays with the working composer under it.
   **Devolverlo al cuadro** (an `.icon-btn`), which puts the words and the files back in the box. The
   foot says why in one sentence. When every row is lost the card itself turns warn (`.chat-queued.is-lost`).
 
+### The box and its "+" menu
+
+The message box is an editor (`.composer-editor` holding `.composer-input`, a ProseMirror
+contenteditable; [chat-composer.md](chat-composer.md)), drawn exactly where the textarea was: no
+border of its own, the composer's card is the field. It grows with the text up to
+`min(25dvh, 320px)` and then scrolls; the placeholder is `--text-faint` on the empty first line.
+16 px on touch screens, as every input.
+
+- **The "+"** (`.composer-plus`, an `.icon-btn`, 36 px; 44 px on touch) takes the paperclip's place
+  at the start of the row. It opens the composer's popover (a `Sheet` on a phone), titled
+  "Añadir al mensaje".
+- **Menu items** (`.composer-menu-item`): an icon and a word, 36 px rows, `--bg-hover` on hover.
+  "Adjuntar archivos", and "Comandos y skills" when the CLI reported any.
+- **Servers and connectors** (`.composer-menu-section`, a `.section-label` heading over a hairline):
+  one row per server (`.composer-server`, at least 44 px): a plug icon for a server and a cloud for a
+  connector, the name in 13 px semibold, then a meta line with the status as a `.tag` (`ok` connected,
+  `warn` needs-auth, `bad` failed, `muted` pending and disabled; the CLI's own word, untranslated),
+  "conector" for a connector and the tool count in mono. A connector waiting for its authorisation
+  adds the link "Cómo autorizarlo" in `--accent`. The row ends with a `Switch`. A server switched off
+  dims its name and icon to `--text-faint` (`.composer-server.is-off`). One sentence in `.small.muted`
+  under the list says the switch also applies to new chats in the folder.
+- Nothing in the menu moves: it is configuration, not something running.
+
 ### The chat at a limit
 
 The banner (`.lim`) sits above the composer of a chat whose limit was reached. A warn panel: the warn

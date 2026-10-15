@@ -1013,6 +1013,8 @@ dismiss.
 | POST | `/chats/:id/supervisor/:proposalId/send` | Send the supervisor's proposal through the hint route and mark it `sent` (`409` once sent or dismissed, or with no live process) |
 | POST | `/chats/:id/supervisor/:proposalId/dismiss` | Mark the proposal `dismissed`; nothing reaches the worker |
 | PATCH | `/chats/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next execution |
+| GET | `/chats/:id/mcp` | The live process's MCP servers, claude.ai connectors included (scope `claudeai`): `{ live, servers: [{ name, status, scope, tools, error }] }`, from the CLI's `mcp_status`. `live: false` without a process of ours |
+| PUT | `/chats/:id/mcp/:name` | `{ enabled }` — switch one server on or off in the running process (the CLI's `mcp_toggle`); the CLI keeps the choice for the chat's folder. `400` without a live process |
 | DELETE | `/chats/:id` | Delete the transcript, its sidecar files and Agentry's record (`409` while something is running on it) |
 | GET | `/chats/:id/logs` | A background session's recent terminal output (`claude logs`) |
 | GET | `/chats/:id/permissions` | What the chat is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for chats started with `permissionPrompts: "host"` |

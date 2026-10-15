@@ -11748,6 +11748,115 @@
     },
     "description": "What can be changed on a live execution without restarting it."
   },
+  "ChatMcpServers": {
+    "type": "object",
+    "properties": {
+      "live": {
+        "type": "boolean"
+      },
+      "servers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveMcpServer"
+        }
+      }
+    },
+    "required": [
+      "live",
+      "servers"
+    ],
+    "description": "The servers of a chat's live process. Without one (`live: false`) there is nothing to read or switch."
+  },
+  "LiveMcpServer": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The name the agent knows it by: what switching it on or off takes"
+      },
+      "label": {
+        "type": "string",
+        "description": "How a person reads it: a connector without the prefix its vendor gives the name"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "server",
+          "connector"
+        ],
+        "description": "A connector is a server the agent's account brings (a claude.ai connector for Claude Code); the rest are configured ones"
+      },
+      "status": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpHealthStatus"
+          },
+          {
+            "type": "string",
+            "const": "disabled"
+          }
+        ]
+      },
+      "scope": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Where the CLI read it from: `user`, `project`, `local`, `claudeai`, `dynamic`…; null when it did not say"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "readOnly": {
+              "type": "boolean"
+            },
+            "destructive": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "name",
+            "readOnly",
+            "destructive"
+          ]
+        },
+        "description": "The tools it offers once connected; empty before that"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "name",
+      "label",
+      "kind",
+      "status",
+      "scope",
+      "tools",
+      "error"
+    ],
+    "description": "One MCP server as a chat's live process reports it (the CLI's `mcp_status`), the account's connectors included. `disabled` is a server switched off for the chat's folder."
+  },
+  "ChatMcpToggle": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "enabled"
+    ],
+    "description": "Switches one server of a live chat on or off. The CLI keeps the choice for the chat's folder."
+  },
   "UsageReport": {
     "type": "object",
     "properties": {

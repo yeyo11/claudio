@@ -130,8 +130,8 @@ export default async ({ page, api, check }) => {
 
     // ---- New chat: the chat's own shape, settings behind the line under the box ----
     await page.goto('/chats/new', 1200);
-    await page.waitFor(`return !!document.querySelector('.run-layout .composer textarea')`, { label: 'the new chat box' });
-    check(await page.eval(`return document.querySelector('main textarea') === document.querySelector('.composer textarea')`), 'the box is the first field');
+    await page.waitFor(`return !!document.querySelector('.run-layout .composer [data-composer-input]')`, { label: 'the new chat box' });
+    check(await page.eval(`return document.querySelector('main textarea, main [data-composer-input]') === document.querySelector('.composer [data-composer-input]')`), 'the box is the first field');
     check(await page.eval(`return !!document.querySelector('.new-welcome-example')`), 'the page says what it is for before anything is typed');
     check(!(await page.eval(`return !!document.querySelector('input[aria-label="Model"]')`)), 'the settings are out of the way until asked for');
     check((await page.text('.composer-status')).includes('default model'), 'the line under the box says where the chat will run');

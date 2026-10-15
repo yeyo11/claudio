@@ -1,8 +1,14 @@
 import * as RadixPopover from '@radix-ui/react-popover';
-import { useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactElement, type RefObject, type SyntheticEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactElement, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { applyCommand, commandNames, matchCommands, slashQuery } from '../lib/slash-commands';
 import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
+
+/** What the menu needs of the box it completes: to put the chosen command in, and the focus back. */
+export interface SlashTarget {
+  setText(text: string, caret: number): void;
+  focus(): void;
+}
 
 export interface SlashMenuState {
   open: boolean;
@@ -13,16 +19,14 @@ export interface SlashMenuState {
   setActive: (index: number) => void;
   pick: (name: string) => void;
   dismiss: () => void;
-  /** Spread on the textarea: what it tells assistive tech, and the caret the menu follows */
-  inputProps: {
+  /** Set on the box: what it tells assistive tech about the list it drives */
+  ariaProps: {
     'aria-autocomplete': 'list';
     'aria-controls': string | undefined;
     'aria-activedescendant': string | undefined;
-    onSelect: (event: SyntheticEvent<HTMLTextAreaElement>) => void;
-    onInput: (event: SyntheticEvent<HTMLTextAreaElement>) => void;
   };
-  /** Runs first in the textarea's `onKeyDown`; true when the key was the menu's */
-  onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean;
+  /** Runs first among the box's keys; true when the key was the menu's */
+  onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
 /**
@@ -32,19 +36,19 @@ export interface SlashMenuState {
  */
 export function useSlashMenu({
   text,
-  setText,
+  caret,
   commands,
   skills = [],
-  box,
+  target,
 }: {
   text: string;
-  setText: (text: string) => void;
+  /** Where the caret is in `text`: the menu is open only while it is inside the first word */
+  caret: number;
   commands: readonly string[];
   skills?: readonly string[];
-  box: RefObject<HTMLTextAreaElement | null>;
+  target: RefObject<SlashTarget | null>;
 }): SlashMenuState {
   const listId = useId();
-  const [caret, setCaret] = useState(0);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const names = useMemo(() => commandNames(commands), [commands]);
@@ -62,21 +66,15 @@ export function useSlashMenu({
 
   const pick = (name: string) => {
     const next = applyCommand(text, name);
-    setText(next.text);
-    setCaret(next.caret);
-    // After React has put the new text in the box, or the caret lands at the end of the old one
-    requestAnimationFrame(() => {
-      box.current?.focus();
-      box.current?.setSelectionRange(next.caret, next.caret);
-    });
+    target.current?.setText(next.text, next.caret);
+    target.current?.focus();
   };
   const dismiss = () => setDismissed(text);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (!open || event.nativeEvent.isComposing) return false;
+  const onKeyDown = (event: KeyboardEvent): boolean => {
+    if (!open || event.isComposing) return false;
     const current = matches[index];
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
       const step = event.key === 'ArrowDown' ? 1 : -1;
       setActive((index + step + matches.length) % matches.length);
       return true;
@@ -87,12 +85,10 @@ export function useSlashMenu({
         dismiss();
         return false;
       }
-      event.preventDefault();
       pick(current);
       return true;
     }
     if (event.key === 'Escape') {
-      event.preventDefault();
       dismiss();
       return true;
     }
@@ -108,13 +104,10 @@ export function useSlashMenu({
     setActive,
     pick,
     dismiss,
-    inputProps: {
+    ariaProps: {
       'aria-autocomplete': 'list',
       'aria-controls': open ? listId : undefined,
       'aria-activedescendant': open && index >= 0 ? `${listId}-${index}` : undefined,
-      onSelect: (event) => setCaret(event.currentTarget.selectionStart),
-      // Typing moves the caret too, and not every browser reports that as a selection
-      onInput: (event) => setCaret(event.currentTarget.selectionStart),
     },
     onKeyDown,
   };

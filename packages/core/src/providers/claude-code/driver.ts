@@ -1,4 +1,4 @@
-import { PERMISSION_MODES, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
+import { PERMISSION_MODES, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
 import { modelOptions } from './models.ts';
@@ -19,6 +19,7 @@ import type {
 import { buildArgs } from './args.ts';
 import { ClaudeBranches } from './branches.ts';
 import { ControlChannel } from './control.ts';
+import { liveMcpServers } from './mcp.ts';
 import { confirmClaudeInit } from './handshake.ts';
 import { claudeCodeManifest } from './manifest.ts';
 import { translateClaudePolicy } from './policy.ts';
@@ -65,6 +66,15 @@ class ClaudeCodeSession implements DriverSession {
   async setOption(option: { permissionMode: PermissionMode } | { model: string }): Promise<void> {
     if ('permissionMode' in option) await this.control.request({ subtype: 'set_permission_mode', mode: option.permissionMode });
     else await this.control.request({ subtype: 'set_model', model: option.model });
+  }
+
+  async mcpStatus(): Promise<LiveMcpServer[]> {
+    return liveMcpServers(await this.control.request({ subtype: 'mcp_status' }));
+  }
+
+  async mcpToggle(name: string, enabled: boolean): Promise<void> {
+    // The CLI writes the choice to the folder's `disabledMcpServers`, as `/mcp` does in a terminal
+    await this.control.request({ subtype: 'mcp_toggle', serverName: name, enabled });
   }
 
   answerPermission(requestId: string, decision: PermissionDecision): void {

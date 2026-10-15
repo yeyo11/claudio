@@ -1,7 +1,7 @@
 import type { Effort, NewChatRequest, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
-import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccounts, useOverview, useProjects } from '../api';
@@ -25,6 +25,7 @@ import { useProviders } from '../lib/providers';
 import { upperFirst } from '@agentry/chat-ui/lib/agent';
 import { modeLabel } from '@agentry/chat-ui/lib/wire-words';
 import { KeysHint, OptionsPanel, StatusChips } from '@agentry/chat-ui/composer/Composer';
+import { RichEditor, type RichEditorHandle } from '@agentry/chat-ui/composer/editor/RichEditor';
 
 type Kind = 'chat' | 'orchestration';
 
@@ -52,9 +53,11 @@ export function NewChat() {
   const narrow = useMediaQuery(NARROW);
   // A prompt another page prepared (the fix of failing checks, with the project's flow off) arrives in the route's state
   const handed = (useLocation().state as { prompt?: unknown } | null)?.prompt;
-  const [prompt, setPrompt] = useState(typeof handed === 'string' ? handed : '');
+  const [initialPrompt] = useState(typeof handed === 'string' ? handed : '');
+  const [prompt, setPrompt] = useState(initialPrompt);
+  const [caret, setCaret] = useState(initialPrompt.length);
   const files = useAttachments();
-  const box = useRef<HTMLTextAreaElement>(null);
+  const box = useRef<RichEditorHandle>(null);
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
   const [cwd, setCwd] = useState(params.get('cwd') ?? scope.project?.path ?? '');
   const [model, setModel] = useState('');
@@ -95,14 +98,6 @@ export function NewChat() {
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
   });
 
-  // The box grows with what is typed, as the chat's does
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-  }, [prompt]);
-
   const system = overview.data?.system;
   const systemMode = system?.defaultPermissionMode;
   const defaultMode = systemMode && modes.includes(systemMode) ? systemMode : modes[0];
@@ -111,7 +106,7 @@ export function NewChat() {
   // What the CLI reported the last time a chat started in that directory: a new chat gets the same
   const where = cwd.trim() || system?.workspaceDir || '';
   const environment = useQuery({ queryKey: keys.environments(where), queryFn: () => api.environments(where), enabled: Boolean(where) });
-  const slash = useSlashMenu({ text: prompt, setText: setPrompt, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, box });
+  const slash = useSlashMenu({ text: prompt, caret, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, target: box });
   // The chips: where it runs, with what — the same words the chat's own chips show
   const place = known?.name ?? directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
   const words = [place, model.trim() || tc('newChat.defaultModel'), permissionMode ? modeLabel(permissionMode) : tc('newChat.defaultMode', { mode: defaultModeWord })];
@@ -120,7 +115,7 @@ export function NewChat() {
     if (ready && !start.isPending) start.mutate();
   };
   const pick = (example: string) => {
-    setPrompt(example);
+    box.current?.setText(example);
     box.current?.focus();
   };
   const submit = (e: FormEvent) => {
@@ -200,24 +195,21 @@ export function NewChat() {
     </OptionsPanel>
   );
 
-  const textarea = (
-    <textarea
+  // The first message is usually long: Enter breaks the line and Ctrl/⌘+Enter starts the chat
+  const editor = (
+    <RichEditor
       ref={box}
+      initialText={initialPrompt}
       autoFocus={!narrow}
-      rows={narrow ? 1 : 4}
-      aria-label={t('new.prompt')}
+      ariaLabel={t('new.prompt')}
       placeholder={narrow ? t('new.promptPlaceholder', { agent }) : tc('newChat.placeholder')}
-      value={prompt}
-      onChange={(e) => setPrompt(e.target.value)}
-      onPaste={files.onPaste}
-      {...slash.inputProps}
-      onKeyDown={(e) => {
-        if (slash.onKeyDown(e)) return;
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          send();
-        }
-      }}
+      ariaProps={slash.ariaProps}
+      submitKey="mod-enter"
+      onChange={setPrompt}
+      onCaret={setCaret}
+      onSubmit={send}
+      onKeyDown={slash.onKeyDown}
+      onPasteFiles={files.add}
     />
   );
 
@@ -278,7 +270,7 @@ export function NewChat() {
               <SlashMenu state={slash}>
                 <form className="composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
                   <AttachButton state={files} compact disabled={start.isPending} />
-                  {textarea}
+                  {editor}
                   <button type="submit" className="composer-send" aria-label={startName} disabled={!ready || start.isPending}>
                     <ArrowUp {...ICON_SM} />
                   </button>
@@ -303,7 +295,7 @@ export function NewChat() {
                 <AttachmentTray state={files} />
                 <SlashMenu state={slash}>
                   <form className="composer new-composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
-                    {textarea}
+                    {editor}
                     <div className="new-composer-foot">
                       <AttachButton state={files} compact disabled={start.isPending} />
                       {chips}

@@ -3810,6 +3810,36 @@ export interface McpServerHealth {
   detail: string;
 }
 
+/**
+ * One MCP server as a chat's live process reports it (the CLI's `mcp_status`), the account's
+ * connectors included. `disabled` is a server switched off for the chat's folder.
+ */
+export interface LiveMcpServer {
+  /** The name the agent knows it by: what switching it on or off takes */
+  name: string;
+  /** How a person reads it: a connector without the prefix its vendor gives the name */
+  label: string;
+  /** A connector is a server the agent's account brings (a claude.ai connector for Claude Code); the rest are configured ones */
+  kind: 'server' | 'connector';
+  status: McpHealthStatus | 'disabled';
+  /** Where the CLI read it from: `user`, `project`, `local`, `claudeai`, `dynamic`…; null when it did not say */
+  scope: string | null;
+  /** The tools it offers once connected; empty before that */
+  tools: Array<{ name: string; readOnly: boolean; destructive: boolean }>;
+  error: string | null;
+}
+
+/** The servers of a chat's live process. Without one (`live: false`) there is nothing to read or switch. */
+export interface ChatMcpServers {
+  live: boolean;
+  servers: LiveMcpServer[];
+}
+
+/** Switches one server of a live chat on or off. The CLI keeps the choice for the chat's folder. */
+export interface ChatMcpToggle {
+  enabled: boolean;
+}
+
 export type ResourceKind = 'agents' | 'skills' | 'commands' | 'output-styles' | 'rules' | 'workflows';
 
 /** What a resource's file is, which is what an editor highlights it as. */

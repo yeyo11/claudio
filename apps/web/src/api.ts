@@ -53,6 +53,8 @@ import type {
   ChatMessageRequest,
   ChatMessageResponse,
   ChatOrigin,
+  ChatMcpServers,
+  ChatMcpToggle,
   ChatSettingsUpdate,
   ChatState,
   ChatSubagentEntry,
@@ -520,6 +522,9 @@ export const api = {
   stopChat: (id: string) => request<ChatSummary>(`/chats/${enc(id)}/stop`, { method: 'POST' }),
   interruptChat: (id: string, req?: ChatInterruptRequest) => request<ChatSummary>(`/chats/${enc(id)}/interrupt`, { method: 'POST', ...(req ? { body: req } : {}) }),
   updateChat: (id: string, update: ChatSettingsUpdate) => request<ChatSummary>(`/chats/${enc(id)}`, { method: 'PATCH', body: update }),
+  chatMcp: (id: string) => request<ChatMcpServers>(`/chats/${enc(id)}/mcp`),
+  toggleChatMcp: (id: string, name: string, enabled: boolean) =>
+    request<ChatMcpServers>(`/chats/${enc(id)}/mcp/${enc(name)}`, { method: 'PUT', body: { enabled } satisfies ChatMcpToggle }),
   deleteChat: (id: string) => request<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),
   uploadFile: (file: File) => uploadFile(file),
   chatPermissions: (id: string) => request<PermissionRequest[]>(`/chats/${enc(id)}/permissions`),

@@ -147,7 +147,7 @@ export default async ({ page, api, check, dirs }) => {
     // Nothing holds the seeded chat, so it is resumable and the box is there from the start
     await page.eval(`const main=document.querySelector('.run-scroll');main.scrollTop=main.scrollHeight;return true`);
     await settle(page);
-    await page.focus('textarea[placeholder^="Send a message"]');
+    await page.focus('[data-composer-input][aria-placeholder^="Send a message"]');
     // On a loaded machine late work (layout, image and font loads) lands after the first settle; let it drain so
     // the observer measures typing and not the tail of the scroll
     await page.sleep(1500);
@@ -173,8 +173,8 @@ export default async ({ page, api, check, dirs }) => {
       idleWindows.push([idleStart, await page.eval(twoFrames)]);
     }
     await settle(page);
-    const typed = await page.eval(`return document.querySelector('textarea[placeholder^="Send a message"]').value`);
-    check(typed === TYPED, `the textarea took every keystroke (${JSON.stringify(typed)})`);
+    const typed = await page.eval(`return (e=>e&&[...e.querySelectorAll('p')].map(p=>p.textContent).join('\\n'))(document.querySelector('[data-composer-input][aria-placeholder^="Send a message"]'))`);
+    check(typed === TYPED, `the box took every keystroke (${JSON.stringify(typed)})`);
     const longTasks = await page.eval('return window.__longTasks.filter(t=>t.duration>50)');
     const withLongTask = (windows) => windows.filter(([from, to]) => longTasks.some((t) => t.start >= from && t.start < to)).length;
     const keys = withLongTask(keyWindows);

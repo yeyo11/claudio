@@ -2,6 +2,7 @@ import type { AccountRef } from '@agentry/accounts';
 import type {
   Attachment,
   EffectiveEnvironment,
+  LiveMcpServer,
   ModelOption,
   PermissionDecision,
   PermissionMode,
@@ -151,6 +152,10 @@ export interface DriverSession {
   send(turn: UserTurn): string;
   interrupt(): Promise<void>;
   setOption(option: { permissionMode: PermissionMode } | { model: string }): Promise<void>;
+  /** The MCP servers the process has, as it reports them now; a driver that cannot say leaves it out */
+  mcpStatus?(): Promise<LiveMcpServer[]>;
+  /** Switches one MCP server of the process on or off; the agent may keep the choice beyond the process */
+  mcpToggle?(name: string, enabled: boolean): Promise<void>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
   /** One line of stdout */
   readLine(line: string): void;

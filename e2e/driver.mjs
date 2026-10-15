@@ -239,10 +239,16 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       await this.click(triggerSelector, undefined, 300);
       await this.click('[role=listbox] [role=option]', optionText, 400);
     },
-    /** Sets an input/textarea value the way React expects; waits for the element. */
+    /**
+     * Sets an input/textarea value the way React expects, or replaces the text of a contenteditable
+     * box (the composer's ProseMirror editor) through the browser's own editing command, which the
+     * editor reads as typing. Waits for the element.
+     */
     async fill(selector, value) {
       await this.waitFor(
         `const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;` +
+          `if(el.isContentEditable){el.focus();const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);` +
+          `document.execCommand(${JSON.stringify(value)}===''?'delete':'insertText',false,${JSON.stringify(value)});return true;}` +
           `const proto=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;` +
           `Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});` +
           `el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true;`,

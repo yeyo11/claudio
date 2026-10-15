@@ -4,6 +4,7 @@ import { chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } fro
 import type {
   CancelCommandRequest,
   ChatInterruptRequest,
+  ChatMcpToggle,
   ChatMessageRequest,
   ChatOrigin,
   ChatSettingsUpdate,
@@ -174,6 +175,16 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   app.post<{ Params: { id: string; toolUseId: string }; Body: CancelCommandRequest }>('/chats/:id/commands/:toolUseId/cancel', (req) =>
     chats.cancelCommand(req.params.id, req.params.toolUseId, req.body ?? {}),
   );
+
+  // The MCP servers of a live chat, connectors included, as its process reports them now
+  app.get<{ Params: { id: string } }>('/chats/:id/mcp', (req) => chats.mcpServers(req.params.id));
+
+  // Switches one of them on or off in the running process; the CLI keeps the choice for the folder
+  app.put<{ Params: { id: string; name: string }; Body: ChatMcpToggle }>('/chats/:id/mcp/:name', (req) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
+    return chats.toggleMcpServer(req.params.id, req.params.name, enabled);
+  });
 
   app.patch<{ Params: { id: string }; Body: ChatSettingsUpdate }>('/chats/:id', (req) => {
     const { permissionMode, model } = req.body ?? {};

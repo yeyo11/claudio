@@ -16,7 +16,7 @@ export default async ({ page, api, dirs, check }) => {
       await new Promise((r) => setTimeout(r, 250));
     }
     await page.goto(`/chats/${id}`, 1200);
-    await page.focus('main textarea');
+    await page.focus('main [data-composer-input]');
     await page.type('/co');
     await page.waitFor(`return document.querySelectorAll(${JSON.stringify(MENU)}).length > 0`, { label: 'the command list' });
     check(JSON.stringify(await page.eval(options)) === JSON.stringify(['/compact', '/context', '/cost']), `the list holds what matches /co (${await page.eval(options)})`);
@@ -24,19 +24,19 @@ export default async ({ page, api, dirs, check }) => {
     await page.key('ArrowDown');
     check((await page.eval(highlighted)) === '/context', 'ArrowDown moves the highlight');
     await page.key('Tab');
-    check((await page.eval(`return document.querySelector('main textarea').value`)) === '/context ', 'Tab puts the command in the box');
+    check((await page.eval(`return (e=>e&&[...e.querySelectorAll('p')].map(p=>p.textContent).join('\\n'))(document.querySelector('main [data-composer-input]'))`)) === '/context ', 'Tab puts the command in the box');
     check((await page.eval(`return document.querySelectorAll(${JSON.stringify(MENU)}).length`)) === 0, 'the list closes once a command is picked');
 
-    await page.fill('main textarea', '');
+    await page.fill('main [data-composer-input]', '');
     await page.type('/re');
     await page.waitFor(`return document.querySelectorAll(${JSON.stringify(MENU)}).length === 1`, { label: 'the one match for /re' });
     await page.key('Escape');
     check((await page.eval(`return document.querySelectorAll(${JSON.stringify(MENU)}).length`)) === 0, 'Escape closes the list');
-    check((await page.eval(`return document.querySelector('main textarea').value`)) === '/re', 'Escape leaves the text as it was');
+    check((await page.eval(`return (e=>e&&[...e.querySelectorAll('p')].map(p=>p.textContent).join('\\n'))(document.querySelector('main [data-composer-input]'))`)) === '/re', 'Escape leaves the text as it was');
 
     // A new chat offers what the last chat in its directory was given
     await page.goto(`/chats/new?cwd=${encodeURIComponent(dirs.workspaceDir)}`, 1200);
-    await page.focus('main textarea');
+    await page.focus('main [data-composer-input]');
     await page.type('/');
     await page.waitFor(`return document.querySelectorAll(${JSON.stringify(MENU)}).length === 4`, { label: 'every command on New chat' });
     await page.shot('slash-menu');
