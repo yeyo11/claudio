@@ -199,6 +199,10 @@
         },
         "description": "One reading per provider that has one"
       },
+      "accounts": {
+        "$ref": "#/components/schemas/AccountsSnapshot",
+        "description": "The accounts, without the full list: what the dashboard shows; absent until the server runs the accounts package"
+      },
       "counts": {
         "type": "object",
         "properties": {
@@ -344,6 +348,31 @@
       "utilization",
       "resetsAt"
     ]
+  },
+  "AccountsSnapshot": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number"
+      },
+      "ready": {
+        "type": "number",
+        "description": "Accounts that are enabled and signed in"
+      },
+      "current": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the account new work would start on; null when none is ready"
+      }
+    },
+    "required": [
+      "total",
+      "ready",
+      "current"
+    ],
+    "description": "What the dashboard needs about accounts, without the full list."
   },
   "ChatSummary": {
     "type": "object",
@@ -776,6 +805,13 @@
           "string",
           "null"
         ]
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the  {@link  Account }  its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login"
       },
       "effort": {
         "anyOf": [
@@ -5496,6 +5532,12 @@
         "$ref": "#/components/schemas/RunLimitWaitingEvent"
       },
       {
+        "$ref": "#/components/schemas/RunAccountRotatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AccountSwitchedEvent"
+      },
+      {
         "$ref": "#/components/schemas/TaskStartedEvent"
       },
       {
@@ -6245,6 +6287,139 @@
       "type"
     ],
     "description": "Work stopped to wait for its provider's limit to reset."
+  },
+  "RunAccountRotatedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.accountRotated"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Account ids; null when the run was on the CLI's own default login"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "resumed": {
+        "type": "boolean",
+        "description": "The interrupted turn was replayed on the new account"
+      }
+    },
+    "required": [
+      "at",
+      "from",
+      "id",
+      "internal",
+      "orchestrationId",
+      "resumed",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "to",
+      "type"
+    ],
+    "description": "A run hit its account's limit and its process was started again on another account."
+  },
+  "AccountSwitchedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "account.switched"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Account ids; null when there was no previous choice"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "reason": {
+        "$ref": "#/components/schemas/AccountSwitchReason"
+      }
+    },
+    "required": [
+      "at",
+      "from",
+      "id",
+      "reason",
+      "title",
+      "to",
+      "type"
+    ],
+    "description": "New work will start on another account: the rotation chose it, or a person did."
+  },
+  "AccountSwitchReason": {
+    "type": "string",
+    "enum": [
+      "limit",
+      "threshold",
+      "person",
+      "disabled",
+      "signed-out"
+    ],
+    "description": "Why the chosen account changed."
   },
   "TaskStartedEvent": {
     "type": "object",
@@ -11034,6 +11209,10 @@
   "NewChatRequest": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -11123,6 +11302,10 @@
   "ResumeChatRequest": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -11200,6 +11383,10 @@
   "ForkChatRequest": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -16490,6 +16677,10 @@
   "ChatStartOptions": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
