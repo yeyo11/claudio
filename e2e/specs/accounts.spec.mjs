@@ -37,7 +37,7 @@ export default async ({ api, check }) => {
 
     let chat = null;
     for (let i = 0; i < 80; i++) {
-      chat = (await api.get(`/chats/${chatId}`)).body;
+      chat = (await api.get(`/chats/${chatId}`)).body?.chat ?? null;
       if ((chat.executions ?? []).some((e) => e.account && e.account !== limited.body.id)) break;
       await sleep(250);
     }
