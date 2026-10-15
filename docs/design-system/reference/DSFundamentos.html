@@ -1,41 +1,41 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Design system · Fundamentos</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Design system · Fundamentos</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#0b1020}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#f7f8fc":"#0b1020"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
 
 <div class="app glow-top col" data-theme="dark" style="width: 1440px; height: 1700px; padding: 56px 64px; gap: 44px; background-size: 100% 420px; overflow: hidden">
 
 <header class="col" style="gap: 10px">
 <span class="t-label">Agentry design system · v2 · fundamentos</span>
 <h1 class="t-display" style="margin: 0; font-size: 48px">Night Shift</h1>
-<p class="fg-2" style="margin: 0; max-width: 760px; font-size: 16px; line-height: 1.55">Neutros casi negros y densidad de IDE. Encima, lo que hace reconocible a Agentry: el degradado terracota→rosa para lo que importa, el borde de energía que gira en lo que está vivo y el spinner braille de terminal.</p>
+<p class="fg-2" style="margin: 0; max-width: 760px; font-size: 16px; line-height: 1.55">Neutros azul noche y densidad de IDE. Encima, lo que hace reconocible a Claudio: el degradado azul→violeta de la marca para lo que importa, el borde de energía que gira en lo que está vivo y el spinner braille de terminal.</p>
 </header>
 
 <section class="col" style="gap: 16px">
 <h2 class="t-h2">Superficies y texto</h2>
 <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px">
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg)"></div><span class="t-sm" style="font-weight: 500">--bg</span><span class="mono t-xs fg-3">#09090b</span><span class="t-xs fg-2">Fondo de página</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg)"></div><span class="t-sm" style="font-weight: 500">--bg</span><span class="mono t-xs fg-3">#0b1020</span><span class="t-xs fg-2">Fondo de página</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-1)"></div><span class="t-sm" style="font-weight: 500">--bg-1</span><span class="mono t-xs fg-3">#0f0f12</span><span class="t-xs fg-2">Sidebar, paneles</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-1)"></div><span class="t-sm" style="font-weight: 500">--bg-1</span><span class="mono t-xs fg-3">#0e1427</span><span class="t-xs fg-2">Sidebar, paneles</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2)"></div><span class="t-sm" style="font-weight: 500">--bg-2</span><span class="mono t-xs fg-3">#151518</span><span class="t-xs fg-2">Tarjetas</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2)"></div><span class="t-sm" style="font-weight: 500">--bg-2</span><span class="mono t-xs fg-3">#121a30</span><span class="t-xs fg-2">Tarjetas</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-3)"></div><span class="t-sm" style="font-weight: 500">--bg-3</span><span class="mono t-xs fg-3">#1c1c21</span><span class="t-xs fg-2">Hover, controles</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-3)"></div><span class="t-sm" style="font-weight: 500">--bg-3</span><span class="mono t-xs fg-3">#17233d</span><span class="t-xs fg-2">Hover, controles</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-4)"></div><span class="t-sm" style="font-weight: 500">--bg-4</span><span class="mono t-xs fg-3">#26262c</span><span class="t-xs fg-2">Seleccionado, pistas</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-4)"></div><span class="t-sm" style="font-weight: 500">--bg-4</span><span class="mono t-xs fg-3">#1f2d4d</span><span class="t-xs fg-2">Seleccionado, pistas</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg)"></div><span class="t-sm" style="font-weight: 500">--fg</span><span class="mono t-xs fg-3">#f4f4f5</span><span class="t-xs fg-2">Texto principal</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg)"></div><span class="t-sm" style="font-weight: 500">--fg</span><span class="mono t-xs fg-3">#f4f7ff</span><span class="t-xs fg-2">Texto principal</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg-2)"></div><span class="t-sm" style="font-weight: 500">--fg-2</span><span class="mono t-xs fg-3">#a1a1aa</span><span class="t-xs fg-2">Secundario</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg-2)"></div><span class="t-sm" style="font-weight: 500">--fg-2</span><span class="mono t-xs fg-3">#a7b1c9</span><span class="t-xs fg-2">Secundario</span></div>
 
-<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg-3)"></div><span class="t-sm" style="font-weight: 500">--fg-3</span><span class="mono t-xs fg-3">#8b8b95</span><span class="t-xs fg-2">Terciario (≥4.5:1)</span></div>
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg-3)"></div><span class="t-sm" style="font-weight: 500">--fg-3</span><span class="mono t-xs fg-3">#8b96b1</span><span class="t-xs fg-2">Terciario (≥4.5:1)</span></div>
 
 </div>
 </section>
 
 <section class="col" style="gap: 16px">
-<h2 class="t-h2">Marca: degradado Agentry</h2>
+<h2 class="t-h2">Marca: degradado Claudio</h2>
 <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px">
-<div class="col" style="gap: 8px"><div style="height: 96px; border-radius: 14px; background: var(--grad); box-shadow: 0 20px 50px -20px rgba(176,74,94,0.8)"></div><span class="t-sm" style="font-weight: 500">--grad</span><span class="mono t-xs fg-3">135° #b35a36 → #b04a5e → #9c3f77</span><span class="t-xs fg-2">Acción principal, FAB, avatar, logo. Texto blanco (≥4.5:1).</span></div>
+<div class="col" style="gap: 8px"><div style="height: 96px; border-radius: 14px; background: var(--grad); box-shadow: 0 20px 50px -20px rgba(61,87,224,0.8)"></div><span class="t-sm" style="font-weight: 500">--grad</span><span class="mono t-xs fg-3">135° #1f5fe8 → #3d57e0 → #6a4bd6</span><span class="t-xs fg-2">Acción principal, FAB, avatar, logo. Texto blanco (≥4.5:1).</span></div>
 <div class="col" style="gap: 8px"><div class="card grad-border" style="height: 96px"></div><span class="t-sm" style="font-weight: 500">.grad-border</span><span class="t-xs fg-2">Lo destacado: cuenta en uso, KPI principal, compositor nuevo. Máx. 2 por pantalla.</span></div>
 <div class="col" style="gap: 8px"><div style="height: 96px; border-radius: 14px; background: var(--bg-2); display: grid; place-items: center; border: 1px solid var(--line)"><span class="grad-text" style="font-size: 36px; font-weight: 600; letter-spacing: -0.04em">45%</span></div><span class="t-sm" style="font-weight: 500">.grad-text</span><span class="t-xs fg-2">Cifras protagonistas y una palabra del titular. Nunca párrafos.</span></div>
 <div class="col" style="gap: 8px"><div class="glow-top" style="height: 96px; border-radius: 14px; background-color: var(--bg-1); border: 1px solid var(--line)"></div><span class="t-sm" style="font-weight: 500">.glow-top</span><span class="t-xs fg-2">Halo cálido en la cabecera de páginas «hero» y tarjetas destacadas.</span></div>
@@ -46,7 +46,7 @@
 <h2 class="t-h2">Estado (reservados, siempre con icono o texto)</h2>
 <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
 
-<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--live)"></span><span style="font-weight: 500">live</span></span><span class="badge b-live">en curso</span><span class="mono t-xs fg-3">#22d3ee</span><span class="t-xs fg-2">Un agente trabaja ahora. Nunca una acción.</span></div>
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--live)"></span><span style="font-weight: 500">live</span></span><span class="badge b-live">en curso</span><span class="mono t-xs fg-3">#00e5ff</span><span class="t-xs fg-2">Un agente trabaja ahora. Nunca una acción.</span></div>
 
 <div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--ok)"></span><span style="font-weight: 500">ok</span></span><span class="badge b-ok">completada</span><span class="mono t-xs fg-3">#4ade9a</span><span class="t-xs fg-2">Hecho, conectado, sano.</span></div>
 
@@ -56,7 +56,7 @@
 
 <div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--idle)"></span><span style="font-weight: 500">idle</span></span><span class="badge b-idle">en espera</span><span class="mono t-xs fg-3">#a78bfa</span><span class="t-xs fg-2">Espera tu respuesta o permiso.</span></div>
 
-<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--info)"></span><span style="font-weight: 500">info</span></span><span class="badge">info</span><span class="mono t-xs fg-3">#6cb6ff</span><span class="t-xs fg-2">Avisos neutros, enlaces a docs.</span></div>
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--info)"></span><span style="font-weight: 500">info</span></span><span class="badge">info</span><span class="mono t-xs fg-3">#6e9bff</span><span class="t-xs fg-2">Avisos neutros, enlaces a docs.</span></div>
 
 </div>
 </section>

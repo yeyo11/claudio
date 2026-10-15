@@ -696,6 +696,19 @@ input.is-invalid {
   letter-spacing: 0.02em;
 }
 
+/* Claudio's own mark (BrandMark in components/icons.tsx): no tile, so it reads on any surface */
+.logo-mark .logo-stop-a {
+  stop-color: var(--logo-blue);
+}
+
+.logo-mark .logo-stop-b {
+  stop-color: var(--logo-violet);
+}
+
+.logo-mark .logo-spark {
+  fill: var(--logo-spark);
+}
+
 /* The agent a chat runs on: its monogram tinted from --hue like .monogram, never a status hue */
 /* The official mark of a program: the brand's own art on a tile that is light in both themes */
 .brand-mark {
@@ -818,7 +831,7 @@ input.is-invalid {
     from var(--energy-angle, 0deg),
     transparent 0deg,
     var(--live) 50deg,
-    var(--accent-rose) 110deg,
+    var(--accent-2nd) 110deg,
     transparent 170deg,
     transparent 360deg
   );

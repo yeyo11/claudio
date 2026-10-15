@@ -251,10 +251,11 @@
 .checkbox:hover:not(:disabled) {
   border-color: var(--text-faint);
 }
-/* Checked controls take the gradient's second stop, as in the reference */
+/* Checked controls take the accent: the gradient's violet stop is never a solid fill, since solid
+   violet means idle */
 .checkbox[data-state='checked'] {
-  background: var(--accent-rose);
-  border-color: var(--accent-rose);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .checkbox:focus-visible,
 .switch:focus-visible {
@@ -290,8 +291,8 @@
 }
 .switch[data-state='checked'],
 .switch.switch-on {
-  background: var(--accent-rose);
-  border-color: var(--accent-rose);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .switch-thumb {
   display: block;
@@ -330,7 +331,7 @@
 .slider-range {
   position: absolute;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-rose));
+  background: linear-gradient(90deg, var(--accent), var(--accent-2nd));
 }
 .slider-thumb {
   display: block;
@@ -338,7 +339,7 @@
   height: 16px;
   border: 2px solid var(--bg-elev);
   border-radius: var(--radius-pill);
-  background: var(--accent-rose);
+  background: var(--accent);
   box-shadow: var(--shadow-sm);
   cursor: grab;
   transition: box-shadow var(--dur-base), transform var(--dur-fast);

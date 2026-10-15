@@ -33,6 +33,10 @@ from the board, without going back to design:
   reads 1.3:1 on white), `claudio-micro.svg` (the 16–48 px icon: no margin and a larger mark, so the
   spark survives), and `claudio-1024.png`.
 - `favicon.ico` holds 16, 32 and 48 px, from the micro icon.
+- `claudio-app-icon-bleed.svg` and `claudio-app-icon-maskable.svg` are full-bleed tiles for the
+  platforms that cut their own shape: the apple-touch icon (180 px; iOS allows no transparency) and
+  the PWA's maskable icon, whose mark stays inside the central 80 % circle. Their PNGs are
+  `claudio-apple-touch-180.png` and `claudio-maskable-512.png`.
 
 To rebuild, from this folder (Inter's variable TTF is not committed):
 

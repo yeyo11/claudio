@@ -186,6 +186,20 @@ def main() -> None:
     for name, body in icons.items():
         (out / f"icons/svg/{name}.svg").write_text(svg(tile, tile, body))
 
+    # Full-bleed tiles, for platforms that cut their own shape: iOS (apple-touch, no transparency)
+    # and the PWA's maskable icon, whose mark has to stay inside the central 80 % circle.
+    def bleed(fraction: float) -> str:
+        s = fraction * tile / sh
+        bx, by = tile / 2 - cx * s, tile / 2 - cy * s
+        return (
+            f"<defs>{gradient(grad)}{bg_grad}</defs>"
+            f'<rect width="{tile}" height="{tile}" fill="url(#claudio-tile)"/>'
+            f'<g transform="translate({fmt(bx)} {fmt(by)}) scale({fmt(s)})">{mark(f"url(#{grad})", CYAN)}</g>'
+        )
+
+    (out / "icons/svg/claudio-app-icon-bleed.svg").write_text(svg(tile, tile, bleed(0.6)))
+    (out / "icons/svg/claudio-app-icon-maskable.svg").write_text(svg(tile, tile, bleed(0.5)))
+
     # Micro icon for 16-32 px: no margin, a tighter corner, a bigger mark, so the spark survives.
     m_scale = 0.78 * tile / sh
     m_tx, m_ty = tile / 2 - cx * m_scale, tile / 2 - cy * m_scale

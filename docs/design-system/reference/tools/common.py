@@ -130,9 +130,16 @@ def label(t):
   return f'<span class="wi-label">{t}</span>'
 
 
-BRAND = ('<span style="width: 26px; height: 26px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; '
-         'box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent-2) 70%, transparent)">'
-         '<svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="' + P['orch'] + '"></path></svg></span>')
+# Claudio's mark (the app's BrandMark, .logo-mark in agentry-ds.css): no tile, colours from classes.
+# A page that draws it twice repeats the same gradient id, which is harmless since the defs are identical.
+BRAND = ('<svg class="logo-mark" width="26" height="26" viewBox="9.5 10 100 100" aria-hidden="true" style="flex-shrink: 0">'
+         '<defs><linearGradient id="logo-g1" x1="0.35" y1="0" x2="0.6" y2="1"><stop class="logo-stop-a" offset="0"/>'
+         '<stop class="logo-stop-a" offset="0.5"/><stop class="logo-stop-b" offset="1"/></linearGradient></defs>'
+         '<path fill="url(#logo-g1)" d="M41.76 14.24Q46 10 52 10L71 10Q74 10 76.12 12.12L93.88 29.88Q96 32 93 32L57 32Q54 32 51.88 34.12'
+         'L34.83 51.17Q32 54 32 58L32 62Q32 66 34.83 68.83L51.88 85.88Q54 88 57 88L93 88Q96 88 93.88 90.12L76.12 107.88Q74 110 71 110'
+         'L52 110Q46 110 41.76 105.76L14.24 78.24Q10 74 10 68L10 52Q10 46 14.24 41.76Z"/>'
+         '<path class="logo-spark" d="M62 41Q68 54 81 60Q68 66 62 79Q56 66 43 60Q56 54 62 41Z"/>'
+         '<rect class="logo-spark" x="98" y="51.5" width="11" height="17" rx="3"/></svg>')
 
 
 def page(title, body, mobile=False, css=''):

@@ -84,7 +84,7 @@
 
 /* The brand gradient's two stops */
 .il .stop-a { stop-color: var(--accent); }
-.il .stop-b { stop-color: var(--accent-rose); }
+.il .stop-b { stop-color: var(--accent-2nd); }
 
 /*
  * The dotted backdrop fades out from the centre. The mask reads alpha rather than luminance, so it

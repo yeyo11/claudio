@@ -1,17 +1,18 @@
 ---
 created_at: 2026-10-15T12:23:01Z
-updated_at: 2026-10-15T12:40:00Z
+updated_at: 2026-10-15T14:30:00Z
 tags:
     - plan
     - design-system
     - branding
     - fork
-    - proposed
+    - built
 ---
 # Plan: Night Shift in Claudio's colours
 
-Status: **proposed** (2026-10-15). The owner reviews the three decisions below before anything in
-`packages/ui` or `apps/web` changes.
+Status: **built** (2026-10-15), in the `design/claudio-brand-kit` branch. The owner approved the
+three decisions on 2026-10-15. Where the build settled something this plan did not say, or said
+differently, [As built](#as-built) says so, and it wins.
 
 Claudio is a fork of Agentry ([plans/claude-only-fork.md](claude-only-fork.md)), so it still wears
 Agentry's identity: the terracotta → rose gradient, warm neutrals, and the node-graph logo. The
@@ -169,6 +170,37 @@ plus the token change, which can land before the rename:
 - Every screen of `docs/design-system/reference/` compared side by side, dark and light, with
   `night-shift-ui-check`.
 - Icons checked at 16, 32 and 48 px in the desktop launcher and the browser tab.
+
+## As built
+
+- **Checked controls take `--accent`, not the violet.** The plan missed that the checkbox, the
+  switch, the slider's thumb, the template radio and a selected chat row (`.crow.is-selected`) drew
+  the gradient's second stop as a **solid** fill. Kept as it was, that would be a solid violet,
+  which decision 2 reserves for `--idle`. They are `--accent` now, in the app
+  (`packages/ui/src/controls.css`, `apps/web/src/styles/lists.css`, `projects.css`) and in the
+  reference (`agentry-ds.css`, `.switch.on`, `.checkbox.on`, `.radio.on`, `.prov-radio.on`). Every
+  remaining `--accent-2nd` is inside a gradient: the energy border, the rings, the slider's range,
+  the illustrations' and insights' gradient stops.
+- **The logo is `.logo-mark`, not `.brand-mark`.** `.brand-mark` is the light tile behind a
+  program's official logo (`BrandMark.tsx`, `primitives.css`), and the old Agentry mark only
+  escaped it because it painted its own gradient tile. Claudio's mark has no tile, so it gets a
+  class of its own. Its colours come from three tokens, `--logo-blue`, `--logo-violet` and
+  `--logo-spark` (blue in light), through classes in `primitives.css`. The class inventory fixture
+  (`apps/web/test/fixtures/class-names.json`) gains the four `logo-*` classes and nothing else.
+- **The name stays "Agentry" in the UI** next to the new mark. Renaming the copy is stage R's `r3`
+  ([plans/claude-only-fork.md](claude-only-fork.md)), with the i18n and the desktop entry.
+- **`--info` and `--info-soft` are aliases** of `--accent` and `--accent-soft` on `:root`. The light
+  blocks drop their own values, since the alias reads the light accent there.
+- **`--sx-type`** (syntax types in code) moves from neutral grey `#e4e4e7` to `#e4e7f0`, so it sits
+  on the navy without a warm cast.
+- **Icons.** The kit gains a full-bleed tile for the apple-touch icon and a maskable one with its
+  mark inside the safe circle (`source/build.py`). `apps/desktop/build/README.md` now points at the
+  kit as the source of the icons.
+- **The reference.** `agentry-ds.css`, the 253 prototypes and the 15 illustrations were rewritten
+  with one old → new map (every old value belonged to one token), the 115 inlined Agentry marks
+  became Claudio's, and the generator's `BRAND` (`reference/tools/common.py`) draws the same mark,
+  so regenerating a screen keeps it. The 508 screenshots were re-captured at the size each one
+  already had: `manifest.json` lists 194 of the 254 screens, and some of its sizes are out of date.
 
 ## Open
 
