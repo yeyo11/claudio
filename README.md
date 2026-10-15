@@ -207,7 +207,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock |
-| claude.ai connectors | `claude mcp list`: the servers it names `claude.ai …` |
+| claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
 
@@ -1310,7 +1310,7 @@ The claude.ai connectors of the signed-in account, as the CLI reports them. Clau
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/connectors?refresh=` | The claude.ai connectors (Docs, Gmail, Calendar) as `claude mcp list` reports them, with prepared prompts, what a person must do to authorise one and what has no CLI surface (web artifacts, claude.ai memory). The authorisation steps, the link labels and the out-of-reach reasons carry a stable code and their params beside the English, so a client can translate them. Cached for a minute |
+| GET | `/connectors?refresh=` | The claude.ai connectors (Docs, Gmail, Calendar) as the CLI's `mcp_status` reports them (with their tool count; `claude mcp list` is the fallback), with prepared prompts, what a person must do to authorise one and what has no CLI surface (web artifacts, claude.ai memory). The authorisation steps, the link labels and the out-of-reach reasons carry a stable code and their params beside the English, so a client can translate them. Cached for a minute |
 
 ## UI
 

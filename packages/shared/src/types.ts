@@ -4341,6 +4341,8 @@ export interface Connector {
   scopes?: string[];
   /** The CLI's own words for the state (`Connected`, `Needs authentication`, a failure…) */
   detail?: string;
+  /** How many tools it offers; only when the CLI reported its tools (connected) */
+  toolCount?: number;
   /** Prepared prompts for this connector; none while it needs authorisation */
   actions?: ConnectorAction[];
 }
