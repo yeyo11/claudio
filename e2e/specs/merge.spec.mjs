@@ -325,6 +325,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         const read = (await api.get(`/change-requests/${found.pullRequest.id}/merge?refresh=1`)).body;
         check(read.blocker?.code === 'not-open' && read.blocker.detail === state && read.canMerge === false, `the core reads a ${state} request as not open, with the host's word (${JSON.stringify(read.blocker)})`);
         await page.goto(`/tasks/${gone.key}`, 1800);
+        // On a loaded machine the item can still be loading after the pause: read and scan the page, not its skeleton
+        await page.waitFor(`return document.querySelector('main h1')?.textContent === 'Merged on the host'`, { label: `the item page with a ${state} request` });
         const note = await page.eval(
           `const n = document.querySelector('.mg .mb-note'); return { shown: !!n, text: n?.querySelector('.mb-text')?.textContent ?? '', block: document.querySelector('.mg')?.textContent ?? '', merge: [...document.querySelectorAll('.mg button')].some((b) => /^Merge\\b/.test(b.textContent.trim())) }`,
         );
@@ -366,7 +368,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // The host is still working it out: the block waits, then says so
     scenario('gh', { mergeStatus: 'UNKNOWN' });
     await visit(ready, 'the computing state', '.mg .mb-note[data-reason="computing"]');
-    check((await text('.mg .mb-note')).includes('still working out'), 'a host that is still working it out says so, after Agentry read again');
+    check((await text('.mg .mb-note')).includes('still working out'), 'a host that is still working it out says so, after Claudio read again');
     await scan(page, check, 'the computing state');
 
     // ================= 2. Auto-merge =================
@@ -562,7 +564,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     const behind = await item(glProject.id, 'Behind the base');
     open(glProject.id, behind, 9, 'gitlab');
     // The checkout has pushed what it has: the branch's remote-tracking ref is where its head is, so a rebase on GitLab
-    // loses nothing here (without it Agentry cannot say, and offers its own update instead)
+    // loses nothing here (without it Claudio cannot say, and offers its own update instead)
     git(glRoot, 'update-ref', `refs/remotes/origin/claudio-task/${behind.key.toLowerCase()}`, 'HEAD');
     scenario('glab', { ci: 'passing', mergeDetail: 'need_rebase' });
     await visit(behind, 'a branch behind its base', '.mg .mb-note[data-reason="behind"]');
@@ -648,11 +650,11 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       );
       check(remedy.word === c.word && remedy.acts.some((a) => a.includes(c.remedy)) && remedy.merge === 0, `[orchestration ${c.name}] the word, and a button or a link for ${c.remedy} (${JSON.stringify(remedy)})`);
     }
-    // The notices of the item page are on the orchestration: what Agentry did to auto-merge, and a repository that does not allow it
+    // The notices of the item page are on the orchestration: what Claudio did to auto-merge, and a repository that does not allow it
     if (orchCr) {
       const writer = db();
       writer
-        .prepare("INSERT INTO change_request_merges (id, cr_id, action, delete_branch, requested_at, requested_by, outcome, detail) VALUES (?, ?, 'disarm', 0, ?, 'claudio', 'disarmed', 'turned off before Agentry pushed: arm it again afterwards')")
+        .prepare("INSERT INTO change_request_merges (id, cr_id, action, delete_branch, requested_at, requested_by, outcome, detail) VALUES (?, ?, 'disarm', 0, ?, 'claudio', 'disarmed', 'turned off before Claudio pushed: arm it again afterwards')")
         .run(randomUUID(), orchCr, new Date().toISOString());
       writer.close();
       scenario('gh');
@@ -660,7 +662,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await page.goto(`/orchestration/${orchestrationId}`, 1500);
       await page.waitFor(`return !!document.querySelector('.omrg .omrg-foot .btn-primary')`, { timeout: 60_000, label: 'the orchestration block with a disarm on record' });
       const notice = await text('.omrg [role=note]');
-      check(notice.includes('turned auto-merge off') && notice.includes('pushed to the branch'), `the orchestration says what Agentry did to auto-merge, as the item page does (${notice})`);
+      check(notice.includes('turned auto-merge off') && notice.includes('pushed to the branch'), `the orchestration says what Claudio did to auto-merge, as the item page does (${notice})`);
       const cleaner = db();
       cleaner.prepare('DELETE FROM change_request_merges WHERE cr_id = ?').run(orchCr);
       cleaner.close();

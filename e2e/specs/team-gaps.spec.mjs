@@ -112,7 +112,10 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return document.querySelector('.team-switch [role=radio][aria-checked=true]')?.textContent === 'Activity'`), 'the Activity view is the one selected');
     const order = await page.eval(`return [...document.querySelectorAll('.flow-run')].map((row) => row.dataset.status)`);
     check(JSON.stringify(order) === '["rejected","failed","passed"]', `newest first (${order})`);
-    check((await page.text('.flow-run-day')).startsWith('TODAY') || (await page.text('.flow-run-day')).startsWith('Today'), 'the runs are grouped under their day');
+    // The newest run started 10 minutes ago: a run just after midnight puts it under Yesterday, not Today
+    const newestDay = new Date(Date.now() - 10 * 60_000).toDateString() === new Date().toDateString() ? 'today' : 'yesterday';
+    const dayHead = await page.text('.flow-run-day');
+    check(dayHead.toLowerCase().startsWith(newestDay), `the runs are grouped under their day (${newestDay}: ${dayHead})`);
     const why = await page.text('.flow-run[data-status="failed"] .flow-run-why');
     check(why.includes('No account had quota left.') && why.includes('The item stays in In progress, unchanged.'), `a failed run says why in words, from its cause (${why})`);
     check((await page.text('.flow-run[data-status="failed"] .flow-run-raw')).includes('the account hit its rate limit'), 'with the raw error under it');
