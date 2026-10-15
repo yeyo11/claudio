@@ -289,12 +289,21 @@
   gap: 8px;
 }
 
-/* ---- the chat's dock ---- */
+/* ---- the panel above the status bar ---- */
+/* The shell's content column is a flex column: the page above it gives up the height this takes,
+   and the screen inside is bounded by the explicit height (chain of flex 1 1 0 / min-height 0). */
 .term-dock {
   display: flex;
   flex-direction: column;
   flex: none;
   min-height: 0;
+  overflow: hidden;
+}
+
+.term-bar-panel {
+  padding: 0 var(--main-pad-x, 28px) 10px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-1);
 }
 
 .term-dock-handle {
@@ -318,6 +327,35 @@
 .term-dock-handle:hover::before,
 .term-dock-handle:focus-visible::before {
   background: var(--accent);
+}
+
+/* The panel's "+" and its hide button sit in the tab row, quiet beside the tabs */
+.term-bar-panel .term-bar {
+  align-items: center;
+}
+
+.term-bar-panel .term-new {
+  gap: 2px;
+}
+
+/* ---- the status bar's Terminal item ---- */
+.statusbar-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.statusbar-btn:hover,
+.statusbar-btn.is-open {
+  color: var(--fg);
+}
+
+.statusbar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
 }
 
 /* ---- settings ---- */

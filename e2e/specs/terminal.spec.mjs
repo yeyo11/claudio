@@ -1,5 +1,6 @@
 // The person's own terminal: a real shell in the project's directory, on the project page, in the
-// chat's dock and on a phone's screen. The wrapper runs with authentication off on loopback, which is
+// panel above the status bar (which the chat header's button and the status bar's Terminal item both
+// open) and on a phone's screen. The wrapper runs with authentication off on loopback, which is
 // the one case the terminal allows without a token. The renderer is forced to the DOM, so the text of
 // the screen can be read from `.xterm-rows`. Nothing here starts Claude Code in a terminal.
 //
@@ -98,6 +99,43 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.chat-head button[aria-label="Terminal"]', undefined, 600);
     check(!(await page.eval(`return !!document.querySelector('.term-dock')`)), 'the header button closes the dock');
     await api.del(`/terminals/${mine.id}`).catch(() => {});
+
+    // ---- 5b. the status bar's Terminal item: the same panel on any page, a shell in the chosen project ----
+    for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`);
+    await page.goto(`/?project=${encodeURIComponent(projectId)}`, 1500);
+    await page.waitFor(`return !!document.querySelector('.statusbar-btn')`, { label: 'the status bar Terminal item' });
+    const item = () => page.eval(`const b=document.querySelector('.statusbar-btn'); return { count: b?.querySelector('.mono')?.textContent, expanded: b?.getAttribute('aria-expanded'), name: b?.getAttribute('aria-label') }`);
+    const idle = await item();
+    check(idle.expanded === 'false' && idle.count === '0' && /Terminal/.test(idle.name ?? ''), `the item is a closed button named for the terminal, counting none (${JSON.stringify(idle)})`);
+    await page.click('.statusbar-btn', undefined, 800);
+    await ready();
+    check((await item()).expanded === 'true', 'the item says the panel is expanded');
+    check((await page.eval(`return !!document.querySelector('section.term-dock[aria-label]')`)), 'the panel is a labelled region');
+    const shell = (await terminalsOf())[0];
+    check((await terminalsOf()).length === 1 && Boolean(shell?.cwd.endsWith('e2e-terminal')), `opening the panel with a project chosen opened a shell in that project (${shell?.cwd})`);
+    await page.click('.term-plus', undefined, 800);
+    await page.waitFor(`return document.querySelectorAll('.term-tab').length === 2`, { label: 'two tabs' });
+    check((await terminalsOf()).length === 2 && (await item()).count === '2', 'the "+" opened a second shell in the chosen project and the item counts two');
+    // The screen is bounded by the panel: it neither grows nor shrinks on its own (a loop between the fit and the layout did)
+    const sized = () => page.eval(`const s=document.querySelector('.term-screen').getBoundingClientRect(); const d=document.querySelector('.term-dock').getBoundingClientRect(); return { screen: Math.round(s.height), dock: Math.round(d.height) }`);
+    const first = await sized();
+    await page.sleep(900);
+    const later = await sized();
+    check(first.screen === later.screen && later.screen < later.dock, `the terminal screen keeps a bounded height (${JSON.stringify(first)} then ${JSON.stringify(later)})`);
+    // X closes the tab and the terminal is gone from the list, not left behind as "closed"
+    await page.click('.term-tab.on .x', undefined, 800);
+    await page.waitFor(`return document.querySelectorAll('.term-tab').length === 1`, { label: 'one tab after X' });
+    check((await terminalsOf()).length === 1, 'X removed the terminal from the API list');
+    // Esc hides the panel when the focus is not in a terminal, and is the shell's when it is
+    await page.focus('.term .xterm-helper-textarea');
+    await page.key('Escape');
+    await page.sleep(300);
+    check(await page.eval(`return !!document.querySelector('.term-dock')`), 'Esc inside the terminal does not hide the panel');
+    await page.eval(`document.activeElement?.blur(); return true`);
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.term-dock')`, { label: 'the panel hidden by Esc' });
+    check(await page.eval(`return localStorage.getItem('claudio-terminal-bar') === '0'`), 'the panel remembers it is closed');
+    for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`).catch(() => {});
 
     // ---- 6. a phone: the route is a screen, the key bar sends Esc and Ctrl+C ----
     await page.viewport(420, 900);

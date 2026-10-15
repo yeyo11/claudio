@@ -6,10 +6,13 @@ import { api, keys } from '../../api';
 import { useAgentryEvents, useFallbackInterval } from '../../lib/feed';
 import { orderTerminals } from './terminal-model';
 
-/** Which terminals a list is of: a project's (any of its directories) or one chat's. */
-export type TerminalScopeKey = { project: string } | { chat: string };
+/** Which terminals a list is of: a project's (any of its directories), one chat's, or all of them. */
+export type TerminalScopeKey = { project: string } | { chat: string } | { all: true };
 
-export const scopeKey = (scope: TerminalScopeKey): string => ('project' in scope ? `project:${scope.project}` : `chat:${scope.chat}`);
+export const scopeKey = (scope: TerminalScopeKey): string => ('all' in scope ? 'all' : 'project' in scope ? `project:${scope.project}` : `chat:${scope.chat}`);
+
+/** The query string's filter for a scope: nothing for all of them */
+const filterOf = (scope: TerminalScopeKey): { project?: string; chat?: string } => ('all' in scope ? {} : scope);
 
 /**
  * The feature's state and the list of terminals, kept fresh by `terminal.changed`: the event carries
@@ -41,7 +44,7 @@ export function useTerminalAccess(): boolean {
 export function useTerminalList(scope: TerminalScopeKey, enabled = true) {
   const query = useQuery({
     queryKey: keys.terminalList(scopeKey(scope)),
-    queryFn: ({ signal }) => api.terminals(scope, { signal }),
+    queryFn: ({ signal }) => api.terminals(filterOf(scope), { signal }),
     enabled,
     refetchInterval: useFallbackInterval(),
   });
@@ -70,6 +73,7 @@ export function useCloseTerminal(onClosed?: () => void) {
     mutationFn: (id: string) => api.closeTerminal(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['terminal', 'list'] });
+      void queryClient.invalidateQueries({ queryKey: ['terminal', 'one'] });
       onClosed?.();
     },
     onError: (error) => toast.error(t('notices.closeFailed'), error),

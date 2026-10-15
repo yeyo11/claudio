@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@claudio/ui/components/Toast';
 import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
 import { api } from '../../api';
-import { useTerminalAccess } from './use-terminals';
+import { useTerminalBar } from './terminal-bar';
+import { useTerminalList } from './use-terminals';
 
 /** The terminal's address on a phone: a screen of its own, like a chat. */
 export const terminalPath = (id: string) => `/terminals/${encodeURIComponent(id)}`;
@@ -13,24 +14,25 @@ export const terminalPath = (id: string) => `/terminals/${encodeURIComponent(id)
 export const projectTerminalsPath = (projectId: string) => `/terminals?project=${encodeURIComponent(projectId)}`;
 
 /**
- * The chat page's terminal button and shortcut. Where a terminal cannot be opened there is no button
- * (`available` is false). On a desktop it toggles the dock; on a phone it goes to the terminal's own
- * screen, opening a shell in the chat's directory when none is running.
+ * The chat page's terminal button. Where a terminal cannot be opened there is no button
+ * (`available` is false). On a desktop it shows the app's terminal panel on a terminal in the chat's
+ * directory, opening one when the chat has none, and hides the panel when that terminal is in front;
+ * on a phone it goes to the terminal's own screen.
  */
 export function useTerminalDock(chatId: string) {
   const { t } = useTranslation('terminal');
-  const available = useTerminalAccess();
+  const bar = useTerminalBar();
   const compact = useMediaQuery(COMPACT);
   const navigate = useNavigate();
   const toast = useToast();
-  const [open, setOpen] = useState(false);
+  const { terminals } = useTerminalList({ chat: chatId }, bar.available && bar.open);
+  const showing = bar.open && terminals.some((terminal) => terminal.id === bar.selectedId);
 
-  // Another chat starts with the dock shut
-  useEffect(() => setOpen(false), [chatId]);
-
+  const { hide, openChat } = bar;
   const toggle = useCallback(() => {
     if (!compact) {
-      setOpen((now) => !now);
+      if (showing) hide();
+      else void openChat(chatId);
       return;
     }
     void (async () => {
@@ -42,21 +44,7 @@ export function useTerminalDock(chatId: string) {
         toast.error(t('notices.openFailed'), error);
       }
     })();
-  }, [compact, chatId, navigate, toast, t]);
+  }, [compact, showing, hide, openChat, chatId, navigate, toast, t]);
 
-  useEffect(() => {
-    if (!available) return;
-    const onKey = (event: KeyboardEvent) => {
-      // The terminal's own key handler already took it, and toggled
-      if (event.defaultPrevented) return;
-      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
-      if (event.key !== '`' && event.code !== 'Backquote') return;
-      event.preventDefault();
-      toggle();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [available, toggle]);
-
-  return { available, open: open && !compact, toggle, close: () => setOpen(false) };
+  return { available: bar.available, open: showing, toggle };
 }

@@ -1,4 +1,4 @@
-import type { Terminal, TerminalEndReason, TerminalUnavailableReason } from '@claudio/shared';
+import type { CreateTerminalRequest, Terminal, TerminalEndReason, TerminalUnavailableReason } from '@claudio/shared';
 
 /** The tone a status word is drawn in (`.term-status.<tone>`); each is also an icon and a word, never a colour alone. */
 export type TerminalTone = 'ok' | 'warn' | 'bad' | 'neutral';
@@ -54,6 +54,45 @@ export function unavailableKey(reason: TerminalUnavailableReason): `unavailable.
 /** The last part of a path: what a tab can hold of a directory. */
 export function baseName(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path;
+}
+
+/** The request that opens a terminal like this one: what "Open again" sends. */
+export function requestFor(terminal: Pick<Terminal, 'scope'>): CreateTerminalRequest {
+  const { scope } = terminal;
+  return scope.kind === 'chat' ? { chatId: scope.chatId } : { projectId: scope.projectId, ...(scope.worktree ? { worktree: scope.worktree } : {}) };
+}
+
+/**
+ * What a tab of the status bar's panel is called: the project's name for a terminal in its checkout,
+ * the project and the folder for one in a worktree, the folder alone for a chat's or a project that
+ * is no longer in the list. Two with the same label are numbered, so a tab is never ambiguous.
+ */
+export function tabLabels(terminals: readonly Terminal[], projectName: (id: string) => string | undefined): Map<string, string> {
+  const seen = new Map<string, number>();
+  const labels = new Map<string, string>();
+  for (const terminal of terminals) {
+    const folder = baseName(terminal.cwd);
+    const project = terminal.scope.kind === 'project' ? projectName(terminal.scope.projectId) : undefined;
+    const base = !project ? folder : terminal.scope.kind === 'project' && terminal.scope.worktree ? `${project} · ${folder}` : project;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    labels.set(terminal.id, n === 1 ? base : `${base} ${String(n)}`);
+  }
+  return labels;
+}
+
+/** How many terminals are running: the number the status bar shows. */
+export const runningCount = (terminals: readonly Pick<Terminal, 'state'>[]): number => terminals.filter((terminal) => terminal.state === 'running').length;
+
+/**
+ * Whether Esc may close the panel: not when the key was meant for the shell (focus is inside xterm,
+ * where Esc is a byte vim and the readline need) and not when something already took it (a menu, a
+ * dialog, the search field).
+ */
+export function escapeClosesPanel(event: { key: string; defaultPrevented: boolean; target: unknown }): boolean {
+  if (event.key !== 'Escape' || event.defaultPrevented) return false;
+  const target = event.target as { closest?: (selector: string) => unknown } | null;
+  return !(typeof target?.closest === 'function' && target.closest('.xterm, .term-find, [role="menu"], [role="dialog"]'));
 }
 
 /** The running ones before the ones that ended, newest first, so the tab that matters comes first. */

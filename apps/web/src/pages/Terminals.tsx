@@ -9,8 +9,9 @@ import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
 import { api, keys } from '../api';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { TerminalPanel } from '../components/terminal/TerminalPanel';
+import { NewTerminal } from '../components/terminal/NewTerminal';
 import { TerminalWorkspace } from '../components/terminal/TerminalWorkspace';
-import { baseName, unavailableKey } from '../components/terminal/terminal-model';
+import { baseName, requestFor, tabLabels, unavailableKey } from '../components/terminal/terminal-model';
 import { terminalPath } from '../components/terminal/use-dock';
 import { useCloseTerminal, useOpenTerminal, useTerminalStatus } from '../components/terminal/use-terminals';
 import { useProjectScope } from '../lib/project-scope';
@@ -49,7 +50,7 @@ export function Terminals() {
   const { t } = useTranslation('terminal');
   const compact = useMediaQuery(COMPACT);
   const ownHeader = useOwnPhoneHeader();
-  const { project, ready } = useProjectScope();
+  const { project, projects, ready } = useProjectScope();
   const status = useTerminalStatus();
   const title = t('page.title');
   const header = ownHeader ? (
@@ -67,20 +68,15 @@ export function Terminals() {
         <Skeleton rows={4} height={14} />
       ) : !status.data?.available ? (
         <Unavailable status={status.data} />
-      ) : !project ? (
-        <Empty icon={SquareTerminal} title={t('page.noProject')}>
-          <Link to="/projects" className="btn btn-small">
-            {t('page.projects')}
-          </Link>
-        </Empty>
       ) : (
         <>
           <Limits status={status.data} />
           <TerminalWorkspace
-            scope={{ project: project.id }}
-            request={(worktree) => ({ projectId: project.id, ...(worktree ? { worktree } : {}) })}
-            worktrees={project.worktrees}
+            // A project chosen shows its terminals; All projects shows them all, as the panel does
+            scope={project ? { project: project.id } : { all: true }}
             compact={compact}
+            labels={project ? undefined : (terminals) => tabLabels(terminals, (id) => projects.find((each) => each.id === id)?.name)}
+            renderNew={({ open, pending }) => <NewTerminal project={project} projects={projects} pending={pending} onOpen={open} />}
           />
         </>
       )}
@@ -128,7 +124,7 @@ export function TerminalScreen() {
           terminal={terminal}
           compact={compact}
           onEnded={() => void one.refetch()}
-          onReopen={() => open.mutate(terminal.scope.kind === 'chat' ? { chatId: terminal.scope.chatId } : { projectId: terminal.scope.projectId, ...(terminal.scope.worktree ? { worktree: terminal.scope.worktree } : {}) })}
+          onReopen={() => open.mutate(requestFor(terminal))}
           onClose={() => close.mutate(terminal.id, { onSuccess: () => leave(terminal) })}
         />
       )}

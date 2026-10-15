@@ -92,8 +92,6 @@
   },
   "page": {
     "title": "Terminales",
-    "noProject": "Elige un proyecto para abrir una terminal en él.",
-    "projects": "Ir a proyectos",
     "notFound": "Esta terminal ya no existe."
   },
   "project": {
@@ -154,5 +152,13 @@
     "newer": "Más recientes",
     "older": "Más antiguos",
     "range": "{{first}}–{{last}} de {{total}}"
+  },
+  "bar": {
+    "item": "Terminal ({{count}} en marcha)",
+    "hide": "Ocultar el panel de la terminal",
+    "newIn": "Abrir una terminal en…",
+    "noProjects": "No hay ningún proyecto en el que abrir una terminal.",
+    "empty": "No hay ninguna terminal abierta. Usa + para abrir una en un proyecto.",
+    "running": "en marcha"
   }
 }

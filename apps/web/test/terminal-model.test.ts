@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   chooseRenderer,
+  escapeClosesPanel,
+  requestFor,
+  runningCount,
+  tabLabels,
   cleanPaste,
   ctrlByte,
   KEY_BAR,
@@ -118,4 +122,49 @@ test('terminals are ordered running first, newest first', () => {
   const t = (id: string, state: Terminal['state'], startedAt: string) => ({ id, state, startedAt }) as Terminal;
   const ordered = orderTerminals([t('old', 'running', '2026-01-01'), t('gone', 'exited', '2026-03-01'), t('new', 'running', '2026-02-01')]);
   assert.deepEqual(ordered.map((x) => x.id), ['new', 'old', 'gone']);
+});
+
+
+// ---------- the panel above the status bar ----------
+
+const term = (id: string, cwd: string, scope: Terminal['scope'], state: Terminal['state'] = 'running'): Terminal => ({
+  id, scope, cwd, shell: '/bin/zsh', state, cols: 80, rows: 24, clients: 0, startedAt: '2026-10-15T10:00:00Z', endedAt: null, endReason: null, exitCode: null,
+});
+
+test('a tab is named after its project, the folder when it is a worktree or a chat, and a repeat is numbered', () => {
+  const names: Record<string, string> = { p1: 'Shop', p2: 'Docs' };
+  const labels = tabLabels(
+    [
+      term('a', '/work/shop', { kind: 'project', projectId: 'p1', worktree: null }),
+      term('b', '/work/shop', { kind: 'project', projectId: 'p1', worktree: null }),
+      term('c', '/work/shop-wt/fix-cart', { kind: 'project', projectId: 'p1', worktree: '/work/shop-wt/fix-cart' }),
+      term('d', '/work/docs', { kind: 'project', projectId: 'p2', worktree: null }),
+      term('e', '/work/chat-9', { kind: 'chat', chatId: 'chat-9' }),
+      term('f', '/work/gone', { kind: 'project', projectId: 'removed', worktree: null }),
+    ],
+    (id) => names[id],
+  );
+  assert.deepEqual([...labels.values()], ['Shop', 'Shop 2', 'Shop · fix-cart', 'Docs', 'chat-9', 'gone']);
+});
+
+test('the status bar counts only the terminals that are running', () => {
+  const scope = { kind: 'chat', chatId: 'c' } as const;
+  assert.equal(runningCount([term('a', '/x', scope), term('b', '/y', scope, 'exited'), term('c', '/z', scope, 'closed')]), 1);
+  assert.equal(runningCount([]), 0);
+});
+
+test('opening again repeats where the terminal was: the chat, or the project and its worktree', () => {
+  assert.deepEqual(requestFor({ scope: { kind: 'chat', chatId: 'c1' } }), { chatId: 'c1' });
+  assert.deepEqual(requestFor({ scope: { kind: 'project', projectId: 'p1', worktree: null } }), { projectId: 'p1' });
+  assert.deepEqual(requestFor({ scope: { kind: 'project', projectId: 'p1', worktree: '/wt' } }), { projectId: 'p1', worktree: '/wt' });
+});
+
+test('Esc hides the panel only when nobody else wanted it: not in xterm, a field of the panel, a menu or a dialog', () => {
+  const at = (selectors: string[]) => ({ closest: (selector: string) => (selectors.some((s) => selector.includes(s)) ? {} : null) });
+  assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: false, target: at([]) }), true);
+  assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: false, target: null }), true);
+  assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: false, target: at(['.xterm']) }), false);
+  assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: false, target: at(['[role="menu"]']) }), false);
+  assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: true, target: at([]) }), false);
+  assert.equal(escapeClosesPanel({ key: 'a', defaultPrevented: false, target: at([]) }), false);
 });

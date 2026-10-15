@@ -1,6 +1,6 @@
 import type { ProviderLimit } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, SquareTerminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { api, keys, useAccounts } from '../../api';
@@ -17,6 +17,9 @@ import { StatusDot, usageTone, type DotTone } from '@claudio/ui/components/motio
 import { ProviderMark } from '@claudio/ui/components/ProviderMark';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { useTerminalBar } from '../terminal/terminal-bar';
+import { runningCount } from '../terminal/terminal-model';
+import { useTerminalList } from '../terminal/use-terminals';
 import { ProviderDots } from './ProviderDots';
 
 type Now = ReturnType<typeof useUsageNow>;
@@ -209,6 +212,28 @@ function AccountChip({ now }: { now: Now }) {
 }
 
 /**
+ * The Terminal item: an icon and how many shells are running, a button that shows or hides the panel
+ * above the bar. Absent where a terminal cannot be opened. A shell is the person's, not an agent
+ * working, so the count never moves or lights up.
+ */
+function TerminalItem() {
+  const { t } = useTranslation('terminal');
+  const bar = useTerminalBar();
+  const { terminals } = useTerminalList({ all: true }, bar.available);
+  if (!bar.available) return null;
+  const count = runningCount(terminals);
+  const mac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
+  return (
+    <Tooltip content={t('dock.hint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}\`` })} side="top">
+      <button type="button" className={`statusbar-item statusbar-btn${bar.open ? ' is-open' : ''}`} aria-expanded={bar.open} aria-controls={bar.open ? 'terminal-bar' : undefined} aria-label={t('bar.item', { count })} onClick={bar.toggle}>
+        <SquareTerminal size={13} strokeWidth={1.75} aria-hidden />
+        <span className="mono">{count}</span>
+      </button>
+    </Tooltip>
+  );
+}
+
+/**
  * The desktop's bottom strip, as in an IDE: the connection on the left, and on the right what is
  * running, what today cost and one dot per provider with its limit. Text and dots only: it sits
  * beside every page.
@@ -235,6 +260,7 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
           {now.todayCost === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(now.todayCost) })}
         </NavLink>
       )}
+      <TerminalItem />
       <AccountChip now={now} />
       <ProviderDots limits={now.limits} />
     </footer>

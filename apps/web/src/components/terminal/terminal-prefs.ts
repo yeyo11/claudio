@@ -2,13 +2,15 @@ import { useSyncExternalStore } from 'react';
 
 /*
  * What this browser remembers about its terminals (`claudio-terminal-*` in localStorage): the cell
- * font, the dock's height and whether a screen reader gets xterm's own accessible tree. Per browser,
+ * font, the panel's height and whether it is open, and whether a screen reader gets xterm's own accessible tree. Per browser,
  * never sent to the server.
  */
 
 const FONT_KEY = 'claudio-terminal-font';
 const READER_KEY = 'claudio-terminal-screen-reader';
 export const DOCK_KEY = 'claudio-terminal-dock';
+/** Whether the panel above the status bar is open: '1' or '0' */
+export const BAR_OPEN_KEY = 'claudio-terminal-bar';
 
 export const FONT_MIN = 10;
 export const FONT_MAX = 22;

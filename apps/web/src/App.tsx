@@ -13,6 +13,7 @@ import {
   Settings2,
   Sparkle,
   SquareCheck,
+  SquareTerminal,
   Workflow,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -45,6 +46,9 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
+import { TerminalBarProvider, useTerminalBar } from './components/terminal/terminal-bar';
+import { useTerminalAccess, useTerminalList } from './components/terminal/use-terminals';
+import { runningCount } from './components/terminal/terminal-model';
 import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Accounts } from './pages/Accounts';
@@ -66,6 +70,7 @@ const NewChat = lazyPage(() => import('./pages/NewChat').then((m) => m.NewChat))
 const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) => m.Orchestration));
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Terminals = lazyPage(() => import('./pages/Terminals').then((m) => m.Terminals));
+const TerminalDock = lazyPage(() => import('./components/terminal/TerminalDock').then((m) => m.TerminalDock));
 const TerminalScreen = lazyPage(() => import('./pages/Terminals').then((m) => m.TerminalScreen));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
@@ -115,8 +120,21 @@ function FirstRunGate() {
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>
-      <Shell />
+      <TerminalBarProvider>
+        <Shell />
+      </TerminalBarProvider>
     </ProjectScopeProvider>
+  );
+}
+
+/** The terminal panel, docked above the status bar on every page; its code loads when it is first shown */
+function TerminalSlot() {
+  const bar = useTerminalBar();
+  if (!bar.open) return null;
+  return (
+    <Suspense fallback={null}>
+      <TerminalDock />
+    </Suspense>
   );
 }
 
@@ -129,7 +147,7 @@ function Shell() {
   // the shell hiding its top bar and a page drawing its own cannot drift apart.
   const phoneHeader = usePhoneHeaderMark();
   const bare = useOwnPhoneHeader();
-  const { t } = useTranslation(['components', 'connectors', 'shell', 'home']);
+  const { t } = useTranslation(['components', 'connectors', 'shell', 'home', 'terminal']);
   // The same queries the Home usage widgets read, so the status bar never fetches its own
   const now = useUsageNow();
   const overview = now.overview;
@@ -201,6 +219,10 @@ function Shell() {
     icon: Workflow,
     count: { value: counts?.orchestrationsRunning, what: t('nav.badge.running'), live: true },
   };
+  // The phone has no status bar: the More sheet is where its terminals are reached from
+  const terminalAccess = useTerminalAccess();
+  const runningTerminals = runningCount(useTerminalList({ all: true }, terminalAccess).terminals);
+  const terminals: NavItem = { to: '/terminals', label: t('terminal:page.title'), icon: SquareTerminal, count: { value: runningTerminals, what: t('terminal:bar.running') } };
   const schedules: NavItem = { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock };
   const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
   const connectors: NavItem = { to: '/connectors', label: t('connectors:nav'), icon: Plug };
@@ -394,6 +416,8 @@ function Shell() {
           </PageTransition>
         </main>
 
+        <TerminalSlot />
+
         <StatusBar now={now} connection={connection} agents={live.working || live.running} />
       </div>
 
@@ -404,7 +428,7 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[assistant, tasks, projects, schedules, usage, connectors, settings]}
+            more={[assistant, tasks, projects, ...(terminalAccess ? [terminals] : []), schedules, usage, connectors, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}

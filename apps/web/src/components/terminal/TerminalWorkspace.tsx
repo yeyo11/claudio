@@ -1,18 +1,17 @@
-import { ChevronDown, Plus, SquareTerminal, X } from 'lucide-react';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { SquareTerminal, X } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import type { CreateTerminalRequest, ProjectWorktree, Terminal } from '@claudio/shared';
-import { Menu, type MenuEntry } from '@claudio/ui/components/controls/Menu';
+import type { CreateTerminalRequest, Terminal } from '@claudio/shared';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Skeleton } from '@claudio/ui/components/ui';
 import { keys } from '../../api';
 import { TerminalPanel } from './TerminalPanel';
 import { TerminalStatus } from './TerminalStatus';
-import { baseName, type LinkState } from './terminal-model';
+import { baseName, requestFor, type LinkState } from './terminal-model';
 import { scopeKey, useCloseTerminal, useOpenTerminal, useTerminalList, type TerminalScopeKey } from './use-terminals';
 
-/** What a tab is called: the directory's name, numbered when two share it. */
+/** What a tab is called when the caller does not say: the directory's name, numbered when two share it. */
 function tabNames(terminals: readonly Terminal[]): Map<string, string> {
   const seen = new Map<string, number>();
   const names = new Map<string, string>();
@@ -33,20 +32,31 @@ function tabNames(terminals: readonly Terminal[]): Map<string, string> {
 export function TerminalWorkspace({
   scope,
   request,
-  worktrees,
+  renderNew,
+  labels,
+  trailing,
+  emptyText,
   compact,
   autoOpen = false,
+  onAutoOpened,
   onToggle,
   selectedId,
   onSelect,
 }: {
   scope: TerminalScopeKey;
-  /** The body that opens a terminal here; `worktree` is a path of the project's list, when it offers some */
-  request: (worktree?: string) => CreateTerminalRequest;
-  worktrees?: readonly ProjectWorktree[];
+  /** The body that opens a terminal on its own (`autoOpen`) */
+  request?: () => CreateTerminalRequest;
+  /** The control that opens one: the page's button, the panel's "+" */
+  renderNew: (control: { open: (request: CreateTerminalRequest) => void; pending: boolean }) => ReactNode;
+  /** Names the tabs; the directory's name when absent */
+  labels?: (terminals: readonly Terminal[]) => Map<string, string>;
+  /** After the new control, at the end of the bar */
+  trailing?: ReactNode;
+  emptyText?: string;
   compact: boolean;
-  /** Opens one when the scope has none running: the dock does, the project page lets the person choose */
+  /** Opens one when the scope has none running: the panel does after the person opened it, the project page lets the person choose */
   autoOpen?: boolean;
+  onAutoOpened?: () => void;
   onToggle?: () => void;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
@@ -61,14 +71,15 @@ export function TerminalWorkspace({
   const select = (id: string) => (onSelect ? onSelect(id) : setPicked(id));
   const open = useOpenTerminal((terminal) => select(terminal.id));
   const close = useCloseTerminal();
-  const names = tabNames(terminals);
+  const names = (labels ?? tabNames)(terminals);
 
   // The dock opens a shell on first use; once, so a slow answer does not open two
   const asked = useRef(false);
   const idle = !isLoading && !error && !terminals.some((terminal) => terminal.state === 'running');
   useEffect(() => {
-    if (!autoOpen || !idle || asked.current || open.isPending) return;
+    if (!autoOpen || !idle || asked.current || open.isPending || !request) return;
     asked.current = true;
+    onAutoOpened?.();
     open.mutate(request());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpen, idle]);
@@ -77,8 +88,7 @@ export function TerminalWorkspace({
     void queryClient.invalidateQueries({ queryKey: keys.terminalList(scopeKey(scope)) });
   };
   const reopen = (from: Terminal) => {
-    const worktree = from.scope.kind === 'project' ? (from.scope.worktree ?? undefined) : undefined;
-    open.mutate(request(worktree));
+    open.mutate(requestFor(from));
   };
   const closeCurrent = (terminal: Terminal) => close.mutate(terminal.id);
 
@@ -91,36 +101,6 @@ export function TerminalWorkspace({
     select(next.id);
     requestAnimationFrame(() => document.getElementById(`term-tab-${next.id}`)?.focus());
   };
-
-  const entries: MenuEntry[] = worktrees?.length
-    ? [
-        { id: 'checkout', label: t('new.checkout'), onSelect: () => open.mutate(request()) },
-        ...worktrees.map((worktree) => ({
-          id: worktree.path,
-          label: <span className="mono">{worktree.name ?? worktree.branch ?? baseName(worktree.path)}</span>,
-          onSelect: () => open.mutate(request(worktree.path)),
-        })),
-      ]
-    : [];
-
-  const newButton = (
-    <div className="term-new">
-      <button type="button" className="btn btn-primary" disabled={open.isPending} onClick={() => open.mutate(request())}>
-        <Plus {...ICON_SM} /> {t('new.button')}
-      </button>
-      {entries.length > 0 && (
-        <Menu
-          entries={entries}
-          label={t('new.choose')}
-          trigger={
-            <button type="button" className="btn btn-primary term-new-more" aria-label={t('new.choose')}>
-              <ChevronDown {...ICON_SM} />
-            </button>
-          }
-        />
-      )}
-    </div>
-  );
 
   if (isLoading) return <Skeleton rows={4} height={14} />;
 
@@ -154,7 +134,8 @@ export function TerminalWorkspace({
             );
           })}
         </div>
-        {newButton}
+        {renderNew({ open: (body) => open.mutate(body), pending: open.isPending })}
+        {trailing}
       </div>
       {current ? (
         <TerminalPanel
@@ -170,7 +151,7 @@ export function TerminalWorkspace({
         />
       ) : (
         <div className="term term-empty">
-          <p className="muted small">{error ? t('list.failed') : t('list.none')}</p>
+          <p className="muted small">{error ? t('list.failed') : (emptyText ?? t('list.none'))}</p>
         </div>
       )}
     </div>

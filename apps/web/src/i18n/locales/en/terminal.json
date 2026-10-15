@@ -92,8 +92,6 @@
   },
   "page": {
     "title": "Terminals",
-    "noProject": "Choose a project to open a terminal in.",
-    "projects": "Go to projects",
     "notFound": "This terminal is not there any more."
   },
   "project": {
@@ -154,5 +152,13 @@
     "newer": "Newer",
     "older": "Older",
     "range": "{{first}}–{{last}} of {{total}}"
+  },
+  "bar": {
+    "item": "Terminal ({{count}} running)",
+    "hide": "Hide the terminal panel",
+    "newIn": "Open a terminal in…",
+    "noProjects": "There is no project to open a terminal in.",
+    "empty": "No terminal is open. Use + to open one in a project.",
+    "running": "running"
   }
 }

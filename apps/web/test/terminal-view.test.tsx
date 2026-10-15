@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { TerminalStatus as Status } from '@claudio/shared';
+import type { Project, TerminalStatus as Status } from '@claudio/shared';
+import { NewTerminal } from '../src/components/terminal/NewTerminal';
 import { KeyBar } from '../src/components/terminal/KeyBar';
 import { TerminalStatus } from '../src/components/terminal/TerminalStatus';
 import { changedNumbers } from '../src/pages/config/security/TerminalCard';
@@ -47,4 +48,15 @@ test('the settings card sends the numbers that moved, and never one the environm
   assert.deepEqual(changedNumbers(status(), { maxTerminals: 8, idleMinutes: 30, scrollbackLines: 2000 }), {});
   assert.deepEqual(changedNumbers(status(), { maxTerminals: 12, idleMinutes: 30 }), { maxTerminals: 12 });
   assert.deepEqual(changedNumbers(status({}, ['idleMinutes']), { idleMinutes: 60, scrollbackLines: 3000 }), { scrollbackLines: 3000 });
+});
+
+test('the new-terminal control opens in the chosen project at once, and offers a menu only when it has a worktree to choose', () => {
+  const project = { id: 'p1', name: 'Shop', path: '/work/shop', exists: true, worktrees: [] } as unknown as Project;
+  const plain = renderToStaticMarkup(<NewTerminal project={project} projects={[project]} icon pending={false} onOpen={() => {}} />);
+  assert.match(plain, /<button type="button" class="icon-btn term-plus" aria-label="Nueva terminal">/);
+  assert.equal(plain.includes('Elegir dónde abrir la terminal'), false);
+  const withTrees = { ...project, worktrees: [{ path: '/work/shop-wt/fix', name: 'fix', branch: 'fix' }] } as unknown as Project;
+  assert.match(renderToStaticMarkup(<NewTerminal project={withTrees} projects={[withTrees]} icon pending={false} onOpen={() => {}} />), /aria-label="Elegir dónde abrir la terminal"/);
+  // With All projects the button is the menu's trigger, named for what it does
+  assert.match(renderToStaticMarkup(<NewTerminal project={null} projects={[project]} icon pending={false} onOpen={() => {}} />), /aria-label="Nueva terminal"/);
 });
