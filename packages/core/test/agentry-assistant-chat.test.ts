@@ -192,15 +192,12 @@ test('an empty prompt is a 400 and an unknown project a 404; nothing is started'
   }
 });
 
-test('it will not start without the API address, and it cannot be moved to another provider', async () => {
+test('it will not start without the API address', async () => {
   const { config } = setup();
   const core = new Core(config);
   try {
     await assert.rejects(core.startAgentryAssistantChat({ prompt: 'hi' }), /not listening/);
     assert.equal(core.runtime.list().length, 0, 'no unconfined chat is left behind');
-    core.runtime.apiUrl = API;
-    const chat = await core.startAgentryAssistantChat({ prompt: 'hi' });
-    await assert.rejects(core.chats.continueOn(chat.id, { provider: 'codex', action: 'restart' }), /Claude Code only/);
   } finally {
     cleanup(core);
   }

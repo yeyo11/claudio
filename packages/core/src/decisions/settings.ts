@@ -43,10 +43,10 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'checks.fix',
   'review.triage',
   'issue.triage',
-  'provider.on-limit',
-  'provider.pick',
-  'provider.model-map',
 ];
+
+/** The provider points of the multi-vendor days, which an old `project.json` may still carry */
+const REMOVED_POINTS: ReadonlySet<string> = new Set(['provider.on-limit', 'provider.pick', 'provider.model-map']);
 
 /**
  * The points of scope G, which a project cannot override. Kept here, next to the parser that
@@ -58,7 +58,6 @@ const GLOBAL_ONLY_POINTS: ReadonlySet<DecisionPointId> = new Set([
   'health.test-weakening',
   'palette.intent',
   'notification.urgency',
-  'provider.model-map',
 ]);
 
 export const DECISION_MODES: readonly DecisionMode[] = ['off', 'shadow', 'active'];
@@ -188,6 +187,8 @@ export function parseProjectDecisions(value: unknown): ProjectDecisionSettings {
     if (!isObject(value.points)) throw new Error('decisions.points must be an object');
     const points: NonNullable<ProjectDecisionSettings['points']> = {};
     for (const [id, raw] of Object.entries(value.points)) {
+      // A project file written before these points left: dropped, so the rest of its decisions load
+      if (REMOVED_POINTS.has(id)) continue;
       if (!isPointId(id)) throw new Error(`unknown decision point ${id}`);
       if (GLOBAL_ONLY_POINTS.has(id)) throw new Error(`${id} is set globally; a project cannot override it`);
       if (!isObject(raw)) throw new Error(`decisions.points.${id} must be an object`);

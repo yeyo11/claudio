@@ -7,8 +7,6 @@
     "workingDir": "<root>/workspace",
     "origin": "agentry",
     "derivedFrom": null,
-    "continuedFrom": null,
-    "continuedIn": null,
     "model": "claude-opus-5",
     "permissionMode": "acceptEdits",
     "status": "completed",

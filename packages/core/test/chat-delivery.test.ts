@@ -3,15 +3,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, test } from 'node:test';
+import { test } from 'node:test';
 import type { Execution, MessageDelivery } from '@agentry/shared';
 import { ChatManager, ChatRefusal } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
 import { LiveChat } from '../src/live-chat.ts';
-import type { AcpDriver } from '../src/providers/acp/driver.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
-import { acpHarness } from './acp-harness.ts';
 import { tempConfig } from './helpers.ts';
 
 // How a message is followed from the send to the agent taking it (docs/chat-delivery.md), over the
@@ -293,52 +291,5 @@ test('S-13: a message that would start a process waits its turn under the limit 
     assert.throws(() => r.chats.sendMessage(done.id, 'starts a second process'), (err: unknown) => err instanceof ChatRefusal && /Concurrent run limit/.test(err.message));
   } finally {
     await r.close();
-  }
-});
-
-// ---------- S-8: ACP ----------
-
-const harness = acpHarness('gemini');
-let savedPath: string | undefined;
-before(() => {
-  savedPath = process.env.PATH;
-  process.env.PATH = harness.env?.PATH ?? savedPath ?? '';
-});
-after(() => {
-  if (savedPath === undefined) delete process.env.PATH;
-  else process.env.PATH = savedPath;
-});
-
-test('S-8: an ACP interrupt that times out fails the turn and starts no prompt beside the one still running', async () => {
-  const config = tempConfig();
-  const scratch = mkdtempSync(join(tmpdir(), 'agentry-delivery-'));
-  const log = join(scratch, 'acp.jsonl');
-  const restore = withEnv({ AGENTRY_ACP_INTERRUPT_TIMEOUT_MS: '200', FAKE_ACP_LOG: log });
-  const db = new Db(config);
-  const chats = new ChatManager(config, db, [harness.driver(config) as AcpDriver]);
-  const prompts = () =>
-    (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { dir: string; line?: unknown }) : []).flatMap((m) => {
-      if (!m.line) return [];
-      const msg = (typeof m.line === 'string' ? JSON.parse(m.line) : m.line) as { method?: string; id?: number };
-      return [{ dir: m.dir, method: msg.method, id: msg.id }];
-    });
-  try {
-    const chat = chats.start({ prompt: 'STUBBORN 1200', name: 'stubborn' });
-    await until(() => prompts().some((p) => p.dir === 'in' && p.method === 'session/prompt'), 'the first prompt');
-    chats.send(chat.id, 'TURN second');
-    await chats.interrupt(chat.id);
-    // Given up on: the turn is reported failed, and the second prompt waits for the first one's reply
-    assert.equal(chats.events(chat.id).filter((e) => e.kind === 'result').length, 1);
-    assert.equal(prompts().filter((p) => p.dir === 'in' && p.method === 'session/prompt').length, 1, 'a second prompt ran beside the first');
-    await until(() => chats.events(chat.id).filter((e) => e.kind === 'result').length === 2, 'the second turn', 6000);
-    const results = chats.events(chat.id).filter((e) => e.kind === 'result');
-    assert.equal(results[1]?.text?.includes('TURN second'), true, `the second result is not the second turn's: ${results[1]?.text}`);
-  } finally {
-    chats.stopAll();
-    await pause(150);
-    db.close();
-    restore();
-    rmSync(scratch, { recursive: true, force: true });
-    rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
   }
 });

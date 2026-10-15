@@ -1194,22 +1194,22 @@ test("assistant.rerank unavailable, no quota included: the model's order stands,
   assert.deepEqual(workItemTitles(s.assistant.run(run.id)), ['Add CI', 'Retry webhooks']);
 });
 
-// ---------- a limit: waiting and moving ----------
+// ---------- a limit: waiting ----------
 
-const assistantMove = (runId: string, fromChat: string, toChat: string): ProviderMove => ({
-  id: `move-${toChat}`,
+const assistantWait = (runId: string, fromChat: string): ProviderMove => ({
+  id: `wait-${fromChat}`,
   at: new Date().toISOString(),
   subjectKind: 'assistant_run',
   subjectId: runId,
   projectId: 'p1',
   fromChat,
-  toChat,
+  toChat: null,
   fromProvider: 'claude-code',
-  toProvider: 'codex',
+  toProvider: null,
   fromModel: 'sonnet',
-  toModel: 'gpt-5.5',
-  action: 'handoff',
-  state: 'moved',
+  toModel: null,
+  action: 'wait',
+  state: 'waiting',
   decidedBy: 'setting',
   decisionId: null,
   resetsAt: null,
@@ -1250,36 +1250,17 @@ test('a person who stops waiting stops the run, and a wait that ran out fails it
   s.assistant.waitEnded({ fromChat: 'nobody' }, 'failed', null);
 });
 
-test('a move re-points the run at its new chat once, and the new chat ends the run; its answer may come before the move does', async () => {
+test('the rotation reads what a running run works for, and nothing for any other chat', async () => {
   const s = setup();
   const run = await projectRun(s);
-  const from = run.chatId as string;
-  const work = s.assistant.workOf(from);
-  assert.equal(work?.kind, 'assistant');
-  assert.equal(work?.subjectKind, 'assistant_run');
-  assert.equal(work?.subjectId, run.id);
-  assert.equal(work?.prompt, s.launches.at(-1)?.prompt);
+  assert.deepEqual(s.assistant.workOf(run.chatId as string), { subjectKind: 'assistant_run', subjectId: run.id });
   assert.equal(s.assistant.workOf('nobody'), null);
-
-  assert.equal(s.assistant.moved(assistantMove(run.id, from, 'chat-codex')), true);
-  assert.equal(s.assistant.moved(assistantMove(run.id, from, 'chat-codex')), false, 'a second call changes nothing');
-  assert.equal(s.assistant.run(run.id).chatId, 'chat-codex');
-  assert.equal(s.assistant.workOf(from), null);
-  assert.equal(s.assistant.workOf('chat-codex')?.prompt, work?.prompt);
-  s.assistant.chatResult('chat-codex', { isError: false, result: '', structuredOutput: RESULT, costUsd: 0.07 });
-  assert.equal(s.assistant.run(run.id).status, 'completed');
-
-  // The new chat answers before anything re-pointed the run: the move row is there first
-  const early = await projectRun(s);
-  s.db.insertProviderMove(assistantMove(early.id, early.chatId as string, 'chat-early'));
-  s.assistant.chatResult('chat-early', { isError: false, result: '', structuredOutput: RESULT, costUsd: 0.07 });
-  assert.equal(s.assistant.run(early.id).status, 'completed');
 });
 
 test('a restart leaves a run that waits for a limit to reset alone, and continues one that does not', async () => {
   const first = setup();
   const waiting = await projectRun(first);
-  first.db.insertProviderMove({ ...assistantMove(waiting.id, waiting.chatId as string, ''), toChat: null, toProvider: null, toModel: null, action: 'wait', state: 'waiting' });
+  first.db.insertProviderMove(assistantWait(waiting.id, waiting.chatId as string));
   const second = setup({ db: first.db, dir: first.dir });
   await second.assistant.recover();
   await second.assistant.settled();

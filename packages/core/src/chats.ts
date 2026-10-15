@@ -8,7 +8,6 @@ import { createInterface } from 'node:readline';
 import {
   type AgentryAssistantMarker,
   type Attachment,
-  type ChatContinuation,
   type ChatMessageReceipt,
   type ChatMessageTaken,
   type ChatToolConfig,
@@ -64,24 +63,6 @@ import { RATE_LIMIT_RE } from './providers/claude-code/stream.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
-/** What a move to another provider starts the new chat with; the caller has already chosen all of it. */
-export interface ChatContinuationSpec {
-  provider: ProviderId;
-  /** A model of the target provider; null takes the target's own default */
-  model: string | null;
-  effort: string | null;
-  permissionMode: PermissionMode;
-  /** The handoff, or the original prompt */
-  prompt: string;
-  attachments?: string[];
-  action: ChatContinuation['action'];
-  moveId: string;
-  appendSystemPrompt?: string;
-  /** The policy and its rules in the target's words, and the MCP servers when it takes them */
-  toolConfig?: ChatToolConfig | null;
-  maxBudgetUsd?: number;
-}
-
 export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
@@ -1268,74 +1249,5 @@ export class ChatManager extends EventEmitter {
       this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined);
     }
     return true;
-  }
-
-  /**
-   * Moves the work to a new chat on another provider (decision P4-1): the old chat's process is
-   * stopped if it is still up, and the new chat starts in the same directory and worktree with the
-   * handoff or the original prompt as its first turn. The two chats link to each other; each keeps
-   * its own provider, session and transcript. Nothing of the old session travels: a session belongs to
-   * its provider.
-   */
-  async continueOn(fromId: string, spec: ChatContinuationSpec): Promise<ChatRuntime> {
-    const from = this.chats.get(fromId);
-    if (!from) throw new ChatRefusal('chat not found', 404);
-    if (from.continuedIn) throw new ChatRefusal('this chat was already continued on another provider', 409);
-    const driver = this.driverFor(spec.provider);
-    const proc = from.alive ? from.proc : null;
-    // What the old agent had not taken yet goes on in the new chat, after its first turn
-    const carried = [...from.pending.values()];
-    from.carrying = true;
-    if (from.alive) this.stop(fromId);
-    if (proc) await once(proc, 'close');
-    from.pending.clear();
-    from.carrying = false;
-    let attachments: Attachment[];
-    try {
-      this.admit({}, driver);
-      attachments = this.resolveAttachments(spec.attachments);
-    } catch (err) {
-      for (const message of carried) from.lose(message, err instanceof Error ? err.message : String(err));
-      throw err;
-    }
-    const { opts } = from;
-    const toolConfig = spec.toolConfig ?? null;
-    const next: NewChat = {
-      prompt: spec.prompt,
-      cwd: from.cwd,
-      name: from.name,
-      provider: spec.provider,
-      ...(spec.model ? { model: spec.model } : {}),
-      ...(spec.effort ? { effort: spec.effort } : {}),
-      permissionMode: spec.permissionMode,
-      ...(spec.appendSystemPrompt ? { appendSystemPrompt: spec.appendSystemPrompt } : {}),
-      ...(toolConfig ? { toolConfig, allowedTools: toolConfig.allowedTools, disallowedTools: toolConfig.disallowedTools } : {}),
-      ...(toolConfig?.mcp?.config ? { mcp: toolConfig.mcp } : {}),
-      ...(opts.worktree ? { worktree: opts.worktree } : {}),
-      ...(opts.jsonSchema !== undefined ? { jsonSchema: opts.jsonSchema } : {}),
-      ...(typeof spec.maxBudgetUsd === 'number' ? { maxBudgetUsd: spec.maxBudgetUsd } : {}),
-      ...(opts.permissionPrompts ? { permissionPrompts: opts.permissionPrompts } : {}),
-      ...(opts.internal ? { internal: true } : {}),
-      ...(opts.uploads !== undefined ? { uploads: opts.uploads } : {}),
-      ...(opts.keepAlive !== undefined ? { keepAlive: opts.keepAlive } : {}),
-    };
-    const chat = new LiveChat(randomUUID(), next, from.meta, from.origin, null, this.chatDefaults(), driver);
-    chat.workingDir = from.workingDir;
-    const at = now();
-    chat.continuedFrom = { chatId: from.id, provider: from.provider, action: spec.action, at, moveId: spec.moveId };
-    from.continuedIn = { chatId: chat.id, provider: chat.provider, action: spec.action, at, moveId: spec.moveId };
-    let started: ChatRuntime;
-    try {
-      started = this.begin(chat, spec.prompt, attachments);
-    } catch (err) {
-      from.continuedIn = null;
-      for (const message of carried) from.lose(message, err instanceof Error ? err.message : String(err));
-      throw err;
-    }
-    for (const message of carried) {
-      this.sendMessage(chat.id, message.text, message.attachments.map((a) => a.id), message.id);
-      from.push({ kind: 'delivery', delivery: { id: message.id, state: 'carried', chatId: chat.id } });
-    }
-    return carried.length ? chat.summary() : started;
   }
 }

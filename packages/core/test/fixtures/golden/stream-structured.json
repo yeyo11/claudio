@@ -7,8 +7,6 @@
     "workingDir": "<root>/workspace",
     "origin": "agentry",
     "derivedFrom": null,
-    "continuedFrom": null,
-    "continuedIn": null,
     "model": "fake",
     "permissionMode": "acceptEdits",
     "status": "completed",

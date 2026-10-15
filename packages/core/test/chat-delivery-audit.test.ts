@@ -3,16 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, test } from 'node:test';
+import { test } from 'node:test';
 import { entryText, type TranscriptEntry } from '@agentry/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
-import type { AcpDriver } from '../src/providers/acp/driver.ts';
-import { ChatEntriesTranscripts } from '../src/providers/chat-entries.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { encodeProjectId } from '../src/workspace.ts';
-import { acpHarness } from './acp-harness.ts';
 import { tempConfig } from './helpers.ts';
 
 // Reproductions of the server findings of the chat message audit (docs/reports/chat-audit/server.md).
@@ -214,67 +211,5 @@ test('S-4: a message the CLI absorbed into the running turn is in the transcript
   } finally {
     core.shutdown();
     rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
-  }
-});
-
-// ---------- ACP: S-6 and S-7 ----------
-
-const harness = acpHarness('gemini');
-let savedPath: string | undefined;
-before(() => {
-  savedPath = process.env.PATH;
-  process.env.PATH = harness.env?.PATH ?? savedPath ?? '';
-});
-after(() => {
-  if (savedPath === undefined) delete process.env.PATH;
-  else process.env.PATH = savedPath;
-});
-
-function acpRig() {
-  const config = tempConfig();
-  const driver = harness.driver(config) as AcpDriver;
-  const db = new Db(config);
-  const chats = new ChatManager(config, db, [driver]);
-  const close = () => {
-    chats.stopAll();
-    db.close();
-    rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
-  };
-  return { db, chats, close };
-}
-
-test("S-6: a Gemini or Copilot chat's transcript holds the person's own messages", async () => {
-  const { db, chats, close } = acpRig();
-  try {
-    const chat = chats.start({ prompt: 'TURN for the person', name: 'person', keepAlive: false });
-    await chats.exited(chat.id);
-    const recorded = db.chatEntries(chat.id).map((row) => row.entry as TranscriptEntry);
-    assert.ok(recorded.some((e) => e.role === 'assistant'), 'the agent side was recorded');
-    // What the page reads for a provider that keeps no transcript Agentry can read
-    const page = await new ChatEntriesTranscripts(db).page(chat.id);
-    const said = (page?.entries ?? []).filter((e) => e.role === 'user').map((e) => entryText(e));
-    assert.ok(said.includes('TURN for the person'), `only tool results were recorded as user entries: ${JSON.stringify(said)}`);
-  } finally {
-    close();
-  }
-});
-
-test('S-7: an ACP chat that ends its input after a turn still runs the turn queued behind it', async () => {
-  const { chats, close } = acpRig();
-  const saved = process.env.FAKE_ACP_STEP_MS;
-  process.env.FAKE_ACP_STEP_MS = '150';
-  try {
-    // keepAlive false, as every flow run, orchestration worker and decision chat has
-    const chat = chats.start({ prompt: 'TURN first', name: 'queued', keepAlive: false });
-    await until(() => chats.get(chat.id)?.status === 'busy', 'the first turn');
-    // A hint, or the person, while the first turn runs: the driver queues it
-    chats.send(chat.id, 'TURN second');
-    await chats.exited(chat.id);
-    const results = chats.events(chat.id).filter((e) => e.kind === 'result');
-    assert.equal(results.length, 2, 'the second turn was written after stdin closed and never ran');
-  } finally {
-    if (saved === undefined) delete process.env.FAKE_ACP_STEP_MS;
-    else process.env.FAKE_ACP_STEP_MS = saved;
-    close();
   }
 });

@@ -93,12 +93,10 @@ test('project overrides: only project-scope points, no consent', () => {
   assert.throws(() => parseProjectDecisions({ provider: 'nope' }), /provider/);
 });
 
-test('the provider points ship off, and only the model mapping is global', () => {
+test('the provider points of the multi-vendor days are gone: refused when set, dropped from an old project file', async () => {
   const { settings } = stores();
-  // No entry is the same as `off`: nothing is stored until a person sets a mode
-  for (const id of ['provider.on-limit', 'provider.pick', 'provider.model-map'] as const) assert.equal(settings.get().points[id], undefined);
-  assert.throws(() => parseProjectDecisions({ points: { 'provider.model-map': { mode: 'active' } } }), /globally/);
-  assert.doesNotThrow(() => parseProjectDecisions({ points: { 'provider.on-limit': { mode: 'shadow' }, 'provider.pick': { mode: 'shadow' } } }));
+  await assert.rejects(settings.setConsent('provider.pick', {} as never), /unknown decision point/);
+  assert.deepEqual(parseProjectDecisions({ points: { 'provider.on-limit': { mode: 'shadow' }, 'flow.bounce': { mode: 'shadow' } } }), { points: { 'flow.bounce': { mode: 'shadow' } } });
 });
 
 test('ProjectSettings carries the decisions field through parseProjectSettings', () => {

@@ -6,7 +6,6 @@ import type {
   AgentryAssistantMarker,
   Attachment,
   ChatActivity,
-  ChatContinuation,
   ChatFork,
   ChatMessageReceipt,
   ChatOrigin,
@@ -192,8 +191,6 @@ export interface ChatRuntime {
   workingDir: string;
   origin: ChatOrigin;
   derivedFrom: ChatFork | null;
-  continuedFrom?: ChatContinuation | null;
-  continuedIn?: ChatContinuation | null;
   model: string | null;
   permissionMode: PermissionMode;
   /** The process's state, as the stream reports it: a chat's own state is derived from it */
@@ -352,7 +349,7 @@ export class LiveChat {
   turnOver = true;
   /** The live process has closed its pipes; until then a process that exited is still on its way out */
   procClosed = true;
-  /** The live process's messages go on in another process (a move, a limit replay): stopping it loses none */
+  /** The live process's messages go on in another process (a limit replay): stopping it loses none */
   carrying = false;
   /**
    * The CLI has confirmed the session exists (its `init` arrived): from then on a process resumes
@@ -380,9 +377,6 @@ export class LiveChat {
   limitRequested = false;
   /** Replays of the last turn for this execution: a second failure on the limit is a real one */
   limitReplays = 0;
-  /** The chat this one continues after a move to another provider, and the one that continues it */
-  continuedFrom: ChatContinuation | null = null;
-  continuedIn: ChatContinuation | null = null;
 
   constructor(
     /** The session id */
@@ -450,8 +444,6 @@ export class LiveChat {
     // The process's own status, for whatever still asks: nothing is running, and how it ended is
     // what the last execution says
     chat.status = last?.outcome === 'completed' || last?.outcome === 'failed' ? last.outcome : 'stopped';
-    chat.continuedFrom = record.continuedFrom ?? null;
-    chat.continuedIn = record.continuedIn ?? null;
     chat.createdAt = record.createdAt;
     chat.updatedAt = record.updatedAt;
     chat.endedAt = last?.endedAt ?? record.updatedAt;
@@ -584,8 +576,6 @@ export class LiveChat {
       workingDir: this.workingDir ?? (this.opts.worktree ? join(this.cwd, '.claude', 'worktrees', this.opts.worktree) : this.cwd),
       origin: this.origin,
       derivedFrom: this.derivedFrom,
-      continuedFrom: this.continuedFrom,
-      continuedIn: this.continuedIn,
       model: this.model,
       permissionMode: this.permissionMode,
       status: this.status,
@@ -635,8 +625,6 @@ export class LiveChat {
       orchestrationId: this.meta.orchestrationId ?? null,
       orchestrationTaskId: this.meta.orchestrationTaskId ?? null,
       derivedFrom: this.derivedFrom,
-      continuedFrom: this.continuedFrom,
-      continuedIn: this.continuedIn,
       prompt: this.opts.prompt,
       lastText: this.lastText,
       model: this.model,
