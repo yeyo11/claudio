@@ -1,15 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { useToast } from '@claudio/ui/components/Toast';
 import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
-import { api } from '../../api';
 import { BAR_OPEN_KEY, DOCK_KEY, readPref, writePref } from './terminal-prefs';
 import { useTerminalAccess } from './use-terminals';
 
 /*
  * The terminal panel docked above the status bar. The app shell owns its state, so it is the same
- * panel on every page: the status bar's Terminal item, the chat header's button and Ctrl+` all
+ * panel on every page: the status bar's Terminal item (the only entry point on a desktop) and Ctrl+`
  * drive this one. What is open and how tall is remembered in this browser.
  */
 
@@ -42,18 +38,13 @@ export interface TerminalBar {
   /** Set when the person opened the panel: with a project chosen and nothing running, the panel opens a shell once */
   wantsShell: boolean;
   shellOpened: () => void;
-  /** Shows the panel on the chat's terminal, opening one in the chat's directory when it has none */
-  openChat: (chatId: string) => Promise<void>;
 }
 
 const Context = createContext<TerminalBar | null>(null);
 
 export function TerminalBarProvider({ children }: { children: ReactNode }) {
-  const { t } = useTranslation('terminal');
   const available = useTerminalAccess();
   const compact = useMediaQuery(COMPACT);
-  const queryClient = useQueryClient();
-  const toast = useToast();
   const [wanted, setWanted] = useState(() => readPref(BAR_OPEN_KEY) === '1');
   const [height, setHeightState] = useState(storedHeight);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,21 +64,6 @@ export function TerminalBarProvider({ children }: { children: ReactNode }) {
     writePref(DOCK_KEY, String(clamped));
   }, []);
   const shellOpened = useCallback(() => setWantsShell(false), []);
-
-  const openChat = useCallback(
-    async (chatId: string) => {
-      try {
-        const running = (await api.terminals({ chat: chatId })).find((terminal) => terminal.state === 'running');
-        const terminal = running ?? (await api.createTerminal({ chatId }));
-        void queryClient.invalidateQueries({ queryKey: ['terminal', 'list'] });
-        setSelectedId(terminal.id);
-        setOpen(true);
-      } catch (error) {
-        toast.error(t('notices.openFailed'), error);
-      }
-    },
-    [queryClient, setOpen, toast, t],
-  );
 
   // A window that shrinks must not leave a panel taller than the room
   useEffect(() => {
@@ -112,8 +88,8 @@ export function TerminalBarProvider({ children }: { children: ReactNode }) {
   }, [usable, toggle]);
 
   const value = useMemo<TerminalBar>(
-    () => ({ available, open: wanted && usable, height, setHeight, selectedId, select: setSelectedId, toggle, show, hide, wantsShell, shellOpened, openChat }),
-    [available, wanted, usable, height, setHeight, selectedId, toggle, show, hide, wantsShell, shellOpened, openChat],
+    () => ({ available, open: wanted && usable, height, setHeight, selectedId, select: setSelectedId, toggle, show, hide, wantsShell, shellOpened }),
+    [available, wanted, usable, height, setHeight, selectedId, toggle, show, hide, wantsShell, shellOpened],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

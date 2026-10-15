@@ -68,7 +68,6 @@ export function TerminalDock() {
       />
       <TerminalWorkspace
         scope={{ all: true }}
-        compact={false}
         labels={labels}
         autoOpen={bar.wantsShell && project !== null}
         onAutoOpened={bar.shellOpened}

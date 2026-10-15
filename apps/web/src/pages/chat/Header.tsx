@@ -1,6 +1,6 @@
 import type { Chat } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Search, Square, SquareTerminal, Trash2, WifiOff } from 'lucide-react';
+import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Search, Square, Trash2, WifiOff } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -109,8 +109,6 @@ export interface HeaderActions {
   remove: { run: () => void; pending: boolean };
   /** `rail`: the inspector keeps a strip of its own on the right edge, so the header needs no button for it */
   inspector: { open: boolean; rail: boolean; toggle: () => void; show: (tab: InspectorTab) => void };
-  /** Absent where a terminal cannot be opened: then the header has no button for it */
-  terminal?: { open: boolean; toggle: () => void };
 }
 
 /**
@@ -131,7 +129,7 @@ export const ChatHeader = memo(function ChatHeader({
   limitPhase?: LimitPhase;
   limitResetsAt?: string | null;
 }) {
-  const { t } = useTranslation(['chat', 'work', 'common', 'components', 'terminal']);
+  const { t } = useTranslation(['chat', 'work', 'common', 'components']);
   const toast = useToast();
   const { control } = chat;
   const { agentNameFor } = useChatUi();
@@ -247,13 +245,6 @@ export const ChatHeader = memo(function ChatHeader({
             <button type="button" className={`btn btn-small btn-danger chat-stop${compact ? ' is-icon' : ''}`} aria-label={t('common:actions.stop')} disabled={actions.stop.pending} onClick={actions.stop.run}>
               <Square {...ICON_SM} />
               {!compact && t('common:actions.stop')}
-            </button>
-          </Tooltip>
-        )}
-        {actions.terminal && (
-          <Tooltip content={t('terminal:dock.hint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}\`` })}>
-            <button type="button" className="icon-btn" aria-label={t('terminal:dock.button')} aria-pressed={actions.terminal.open} onClick={actions.terminal.toggle}>
-              <SquareTerminal {...ICON_SM} />
             </button>
           </Tooltip>
         )}

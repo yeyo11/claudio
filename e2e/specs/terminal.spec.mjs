@@ -1,8 +1,9 @@
-// The person's own terminal: a real shell in the project's directory, on the project page, in the
-// panel above the status bar (which the chat header's button and the status bar's Terminal item both
-// open) and on a phone's screen. The wrapper runs with authentication off on loopback, which is
-// the one case the terminal allows without a token. The renderer is forced to the DOM, so the text of
-// the screen can be read from `.xterm-rows`. Nothing here starts Claude Code in a terminal.
+// The person's own terminal: a real shell in the project's directory, in the panel above the status
+// bar (opened from the status bar's Terminal item, the only desktop entry point) and on a phone's
+// screens (More -> Terminals and one terminal's own screen). The wrapper runs with authentication off
+// on loopback, which is the one case the terminal allows without a token. The renderer is forced to
+// the DOM, so the text of the screen can be read from `.xterm-rows`. Nothing here starts Claude Code
+// in a terminal.
 //
 // Output is told from the echo of what was typed by arithmetic: `echo m$((6*7))` echoes as typed, and
 // only the shell's answer reads `m42`.
@@ -17,7 +18,6 @@ const SCREEN = `document.querySelector('.term .xterm-rows')?.innerText ?? ''`;
 
 export default async ({ page, api, check, dirs }) => {
   let projectId = null;
-  let chatId = null;
   const path = join(dirs.workspaceDir, 'e2e-terminal');
   mkdirSync(path, { recursive: true });
 
@@ -41,21 +41,31 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto('/', 800);
     await page.eval(`localStorage.setItem(${JSON.stringify(RENDERER)}, 'dom'); localStorage.removeItem('claudio-theme'); return true`);
 
-    // ---- 1. off by default; on through the settings, the page offers "New terminal" ----
+    // The project chosen in the top bar is what the panel's first shell opens in
+    const home = `/?project=${encodeURIComponent(projectId)}`;
+    const ITEM = '.statusbar-btn';
+    const item = () => page.eval(`const b=document.querySelector('${ITEM}'); return { count: b?.querySelector('.mono')?.textContent ?? '0', expanded: b?.getAttribute('aria-expanded'), name: b?.getAttribute('aria-label') }`);
+    const hasPanel = () => page.eval(`return !!document.querySelector('.term-dock')`);
+
+    // ---- 1. off by default: no item; on through the settings, the status bar offers the Terminal item ----
     const before = await api.get('/terminal');
     check(before.status === 200 && before.body.available === false && before.body.reason === 'off', `the terminal is off by default (${before.body.reason})`);
-    await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
-    check(!(await page.text('main')).includes('New terminal'), 'with the feature off, the page offers no terminal');
+    await page.goto(home, 1500);
+    check(!(await page.eval(`return !!document.querySelector('${ITEM}')`)), 'with the feature off, the status bar has no Terminal item');
 
     const on = await api.put('/terminal/settings', { enabled: true });
     check(on.status === 200, `the feature was turned on (${on.status})`);
     check((await api.get('/terminal')).body.available === true, 'the terminal is available from loopback with authentication off');
-    await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
-    await page.waitFor(`return [...document.querySelectorAll('main button')].some((b) => b.textContent.includes('New terminal'))`, { label: 'the New terminal button' });
+    await page.goto(home, 1500);
+    await page.waitFor(`return !!document.querySelector('${ITEM}')`, { label: 'the status bar Terminal item' });
+    const idle = await item();
+    check(idle.expanded === 'false' && idle.count === '0' && /Terminal/.test(idle.name ?? ''), `the item is a closed button named for the terminal, counting none (${JSON.stringify(idle)})`);
 
-    // ---- 2. open one; a command's answer reaches the screen ----
-    await page.click('main button', 'New terminal', 800);
+    // ---- 2. open the panel from the item; a command's answer reaches the screen ----
+    await page.click(ITEM, undefined, 800);
     await ready();
+    check((await item()).expanded === 'true', 'the item says the panel is expanded');
+    check(await page.eval(`return !!document.querySelector('section.term-dock[aria-label]')`), 'the panel is a labelled region');
     await run('echo m$((6*7))');
     await onScreen('m42');
     check(true, 'a typed command ran in the shell and its output reached the screen');
@@ -67,6 +77,7 @@ export default async ({ page, api, check, dirs }) => {
     const printed = (await screen()).match(/cwd:(\/\S*)/g)?.map((m) => m.slice(4)) ?? [];
     const open = (await terminalsOf())[0];
     check(open?.state === 'running', `the API lists the terminal as running (${open?.state})`);
+    check((await terminalsOf()).length === 1, 'opening the panel with a project chosen opened one shell');
     check(printed.some((p) => p.endsWith('/e2e-terminal')) && Boolean(open?.cwd.endsWith('e2e-terminal')), `pwd prints the project's directory (${printed.join(', ')} vs ${open?.cwd})`);
     await run('echo env$(env | grep -c "^CLAUDIO_")');
     await onScreen('env0');
@@ -75,47 +86,18 @@ export default async ({ page, api, check, dirs }) => {
     await onScreen('key0');
     check(true, "Claude's own credentials do not reach the shell");
 
-    // ---- 4. a reload brings the screen back from the server's snapshot ----
-    await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
+    // ---- 4. a reload brings the screen back from the server's snapshot (the panel remembers it is open) ----
+    await page.goto(home, 1500);
     await ready();
     await onScreen('m42', 'the earlier output after a reload');
     check((await terminalsOf()).length === 1, 'the reload attached to the same shell, it did not open another');
 
-    // ---- 5. the chat page: the dock opens in the chat's directory ----
-    const chat = await api.post('/chats', { prompt: 'e2e-terminal chat', cwd: path });
-    check(chat.status === 201, `a chat started in the project (${chat.status})`);
-    chatId = chat.body.id;
-    await page.goto(`/chats/${chatId}`, 1500);
-    await page.waitFor(`return !!document.querySelector('.chat-head h1')`, { label: 'the chat header' });
-    await page.click('.chat-head button[aria-label="Terminal"]', undefined, 800);
-    await ready();
-    await page.waitFor(`return !!document.querySelector('.term-dock .term')`, { label: 'the dock' });
-    await run('echo dock$((5*5))');
-    await onScreen('dock25');
-    const mine = (await api.get(`/terminals?chat=${encodeURIComponent(chatId)}`)).body[0];
-    check(mine?.scope?.kind === 'chat' && mine.cwd.endsWith('e2e-terminal'), `the dock's terminal belongs to the chat and opens in its directory (${mine?.cwd})`);
-    const dock = await page.eval(`const r=document.querySelector('.term-dock').getBoundingClientRect(); return { height: r.height, handle: !!document.querySelector('.term-dock-handle') }`);
-    check(dock.handle && dock.height >= 160, `the dock has its resize handle and a usable height (${dock.height}px)`);
-    await page.click('.chat-head button[aria-label="Terminal"]', undefined, 600);
-    check(!(await page.eval(`return !!document.querySelector('.term-dock')`)), 'the header button closes the dock');
-    await api.del(`/terminals/${mine.id}`).catch(() => {});
-
-    // ---- 5b. the status bar's Terminal item: the same panel on any page, a shell in the chosen project ----
-    for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`);
-    await page.goto(`/?project=${encodeURIComponent(projectId)}`, 1500);
-    await page.waitFor(`return !!document.querySelector('.statusbar-btn')`, { label: 'the status bar Terminal item' });
-    const item = () => page.eval(`const b=document.querySelector('.statusbar-btn'); return { count: b?.querySelector('.mono')?.textContent, expanded: b?.getAttribute('aria-expanded'), name: b?.getAttribute('aria-label') }`);
-    const idle = await item();
-    check(idle.expanded === 'false' && idle.count === '0' && /Terminal/.test(idle.name ?? ''), `the item is a closed button named for the terminal, counting none (${JSON.stringify(idle)})`);
-    await page.click('.statusbar-btn', undefined, 800);
-    await ready();
-    check((await item()).expanded === 'true', 'the item says the panel is expanded');
-    check((await page.eval(`return !!document.querySelector('section.term-dock[aria-label]')`)), 'the panel is a labelled region');
-    const shell = (await terminalsOf())[0];
-    check((await terminalsOf()).length === 1 && Boolean(shell?.cwd.endsWith('e2e-terminal')), `opening the panel with a project chosen opened a shell in that project (${shell?.cwd})`);
+    // ---- 5. the panel's "+", its bounded height, X, Esc ----
     await page.click('.term-plus', undefined, 800);
     await page.waitFor(`return document.querySelectorAll('.term-tab').length === 2`, { label: 'two tabs' });
     check((await terminalsOf()).length === 2 && (await item()).count === '2', 'the "+" opened a second shell in the chosen project and the item counts two');
+    const dock = await page.eval(`const r=document.querySelector('.term-dock').getBoundingClientRect(); return { height: r.height, handle: !!document.querySelector('.term-dock-handle') }`);
+    check(dock.handle && dock.height >= 160, `the panel has its resize handle and a usable height (${dock.height}px)`);
     // The screen is bounded by the panel: it neither grows nor shrinks on its own (a loop between the fit and the layout did)
     const sized = () => page.eval(`const s=document.querySelector('.term-screen').getBoundingClientRect(); const d=document.querySelector('.term-dock').getBoundingClientRect(); return { screen: Math.round(s.height), dock: Math.round(d.height) }`);
     const first = await sized();
@@ -130,18 +112,35 @@ export default async ({ page, api, check, dirs }) => {
     await page.focus('.term .xterm-helper-textarea');
     await page.key('Escape');
     await page.sleep(300);
-    check(await page.eval(`return !!document.querySelector('.term-dock')`), 'Esc inside the terminal does not hide the panel');
+    check(await hasPanel(), 'Esc inside the terminal does not hide the panel');
     await page.eval(`document.activeElement?.blur(); return true`);
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('.term-dock')`, { label: 'the panel hidden by Esc' });
     check(await page.eval(`return localStorage.getItem('claudio-terminal-bar') === '0'`), 'the panel remembers it is closed');
+    // The item opens it again, on the shell that is still running
+    await page.click(ITEM, undefined, 800);
+    await ready();
+    check((await terminalsOf()).length === 1, 'showing the panel again reused the running shell');
+
+    // ---- 5b. the page that used to hold the terminals is gone on a desktop: an old bookmark shows the panel and goes home ----
+    await page.click(ITEM, undefined, 600);
+    check(!(await hasPanel()), 'the item hides the panel');
+    await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
+    await page.waitFor(`return location.pathname === '/'`, { label: 'the old terminals page redirected home' });
+    await ready();
+    check(await hasPanel(), '/terminals on a desktop opens the status bar panel');
     for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`).catch(() => {});
 
     // ---- 6. a phone: the route is a screen, the key bar sends Esc and Ctrl+C ----
     await page.viewport(420, 900);
     const phoneTerminal = await api.post('/terminals', { projectId, cols: 40, rows: 20 });
     check(phoneTerminal.status === 201, `a terminal was opened for the phone (${phoneTerminal.status})`);
-    await page.goto(`/terminals/${phoneTerminal.body.id}`, 1500);
+    // More -> Terminals is the phone's list: the open terminals as rows, and a way to open another
+    await page.goto('/terminals', 1500);
+    await page.waitFor(`return !!document.querySelector('.term-row')`, { label: 'the terminal row on the phone list' });
+    check((await page.text('main')).includes('New terminal'), "the phone's list offers New terminal");
+    await page.click('.term-row', undefined, 1500);
+    await page.waitFor(`return location.pathname === '/terminals/${phoneTerminal.body.id}'`, { label: "the row opened the terminal's own screen" });
     await ready();
     const keys = await page.eval(`const bar=document.querySelector('.term-keys'); const r=bar?.getBoundingClientRect(); return { shown: !!bar && r.height > 0, tabBar: [...document.querySelectorAll('.tab-bar, .tabbar')].some((e) => e.getClientRects().length > 0) }`);
     check(keys.shown, 'the key bar is visible at phone width');
@@ -168,7 +167,8 @@ export default async ({ page, api, check, dirs }) => {
     // ---- 7. the light theme paints the terminal with the light --term-bg ----
     await page.viewport(1440, 900);
     await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
-    await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
+    await page.goto(home, 1500);
+    if (!(await hasPanel())) await page.click(ITEM, undefined, 800);
     await ready();
     const paint = await page.eval(`
       const probe = document.createElement('div');
@@ -176,35 +176,24 @@ export default async ({ page, api, check, dirs }) => {
       document.body.append(probe);
       const token = getComputedStyle(probe).backgroundColor;
       probe.remove();
-      const screen = document.querySelector('.term .xterm-viewport');
+      const screen = document.querySelector('.term-screen .xterm .xterm-viewport') ?? document.querySelector('.term .xterm-viewport');
       return { token, screen: screen ? getComputedStyle(screen).backgroundColor : null, theme: document.documentElement.dataset.theme };`);
     check(paint.screen === paint.token, `the screen reads --term-bg of the light theme (${paint.screen} vs ${paint.token})`);
     await page.shot('terminal-light');
     await page.eval(`localStorage.removeItem('claudio-theme'); return true`);
 
-    // ---- 8. turned off: the button goes, the open terminal says it is closed ----
-    await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
-    await ready();
+    // ---- 8. turned off: the item and the panel go ----
     const off = await api.put('/terminal/settings', { enabled: false });
     check(off.status === 200, `the feature was turned off (${off.status})`);
-    await page.waitFor(`return ![...document.querySelectorAll('main button')].some((b) => b.textContent.includes('New terminal'))`, { label: 'the New terminal button gone', timeout: 30_000 });
-    check(true, 'the New terminal button disappeared');
+    await page.waitFor(`return !document.querySelector('${ITEM}')`, { label: 'the Terminal item gone', timeout: 30_000 });
+    check(!(await hasPanel()), 'the Terminal item and the panel disappeared');
     // With the feature off every terminal route answers 409 (the gate), so nothing can be listed or reached
     const listed = await api.get(`/terminals?project=${encodeURIComponent(projectId)}`);
     check(listed.status === 409 || (Array.isArray(listed.body) && listed.body.every((t) => t.state !== 'running')), `no terminal is reachable once the feature is off (${listed.status})`);
-    const status = await page.text('main');
-    check(/Closed|Cerrado/.test(status) || status.includes('not available'), `the page says the terminal is closed or unavailable (${status.slice(0, 120).replace(/\s+/g, ' ')})`);
   } finally {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(RENDERER)}); localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
-    if (chatId) {
-      await api.post(`/chats/${chatId}/stop`).catch(() => {});
-      for (let i = 0; i < 40; i++) {
-        if ((await api.del(`/chats/${chatId}`).catch(() => ({ status: 0 }))).status === 200) break;
-        await page.sleep(250);
-      }
-    }
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
 };

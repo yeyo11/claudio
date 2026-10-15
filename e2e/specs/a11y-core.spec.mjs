@@ -17,13 +17,16 @@ export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
     '/connectors',
     ...SETTINGS_TABS.map((tab) => `/settings?tab=${tab}`),
   ];
-  // The terminal's project page only exists while the feature is on; it is off again when the scan ends
-  const terminal = `/terminals?project=${encodeURIComponent(fx.projectId)}`;
+  // A terminal's own screen (what a phone opens) and the phone's list only exist while the feature is on; it
+  // is off again when the scan ends. On a desktop /terminals redirects to the status bar's panel.
   await api.put('/terminal/settings', { enabled: true });
+  const shell = await api.post('/terminals', { projectId: fx.projectId });
+  const screen = shell.body?.id ? `/terminals/${shell.body.id}` : null;
   try {
-    await scanBothThemes(page, [...pages, terminal], scan, (theme) => tokenContrast(page, theme, problems));
-    await scanNarrow(page, [terminal], scan, problems);
+    await scanBothThemes(page, screen ? [...pages, screen] : pages, scan, (theme) => tokenContrast(page, theme, problems));
+    await scanNarrow(page, screen ? ['/terminals', screen] : ['/terminals'], scan, problems);
   } finally {
+    if (shell.body?.id) await api.del(`/terminals/${shell.body.id}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
   }
 });

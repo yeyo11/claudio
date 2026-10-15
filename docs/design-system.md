@@ -1588,8 +1588,8 @@ step, "Omitido" on a summary line. The `en` source follows the same structure ("
 ### Terminal: the person's own shell
 
 The terminal ([plans/terminal.md](plans/terminal.md), §4) is the person's own shell, not an agent working. The
-reference is `DesktopTerminal.html` (the project's Terminales page: tabs, header with status and search, the
-screen) and `MobileTerminal.html` (the full-screen route with its key bar), dark and light, drawn by
+reference is `DesktopTerminal.html` (tabs, header with status and search, the screen; today the
+status bar's panel holds them) and `MobileTerminal.html` (the full-screen route with its key bar), dark and light, drawn by
 `reference/tools/terminal.py`. The rules:
 
 - **Surface.** A `.term` frame on `--bg-1` with `--radius-lg` and a hairline `--line`, a 40 px header on `--bg-2`.
@@ -1617,15 +1617,17 @@ screen) and `MobileTerminal.html` (the full-screen route with its key bar), dark
 - **Panel above the status bar.** The terminal lives in the status bar. A **Terminal item** (`.statusbar-btn`: the
   `SquareTerminal` icon and the number of running shells in mono, tabular) sits beside the usage and the
   account; it is a button with an accessible name ("Terminal (2 en marcha)") and `aria-expanded`, in `--fg-3`
-  and `--fg` while the panel is open. It never moves or lights up: a shell is not an agent working. Clicking it,
-  the chat header's Terminal button and `Ctrl+\`` toggle `.term-dock.term-bar-panel`, a labelled region docked
+  and `--fg` while the panel is open. It never moves or lights up: a shell is not an agent working. Clicking it
+  and `Ctrl+\`` toggle `.term-dock.term-bar-panel`, a labelled region docked
   above the status bar on **every page**: `--bg-1`, a hairline `--line` on top, a `.term-dock-handle` resize bar
   (drag or arrow keys; height and open state are remembered per browser), the tabs (one per terminal, named
   after its project or folder, with its status word), a **"+"** (`.term-plus`, an `icon-btn`) and a hide
   button, then the open terminal in its frame. "+" opens a shell in the project chosen in the top bar; with
   All projects it is a `Menu` of projects (a `Sheet` on a phone). Esc hides the panel unless the focus is in
   xterm, a menu, a dialog or the search field. The panel has no gradient: the page keeps its own. A phone has
-  no status bar and no panel: its terminals are reached from the More sheet and open full screen.
+  no status bar and no panel: More → Terminals is a list of rows (`.term-list`, `.term-row`, 44 px tall) with
+  "Nueva terminal", and a row opens the terminal full screen. The panel is the only desktop entry point: no page,
+  project button, palette command or chat header button opens a terminal.
 - **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
   chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
   fit follows the host's box only.

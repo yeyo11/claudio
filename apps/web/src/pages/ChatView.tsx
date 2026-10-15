@@ -16,7 +16,6 @@ import { useSmoothText } from '@claudio/chat-ui/lib/smooth-text';
 import { useToast } from '@claudio/ui/components/Toast';
 import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@claudio/chat-ui/components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@claudio/chat-ui/components/TranscriptSearch';
-import { useTerminalDock } from '../components/terminal/use-dock';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
 import { Empty, ErrorBox, PageHeader, Skeleton, usePageTitle } from '@claudio/ui/components/ui';
@@ -96,7 +95,6 @@ export function ChatView() {
   const [forking, setForking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const inspector = useInspector();
-  const terminal = useTerminalDock(id);
 
   const transcript = useChatTranscript(id, sidechains);
   const { chat } = transcript;
@@ -312,9 +310,8 @@ export function ChatView() {
         pending: remove.isPending,
       },
       inspector,
-      terminal: terminal.available ? { open: terminal.open, toggle: terminal.toggle } : undefined,
     }),
-    [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector, terminal.available, terminal.open, terminal.toggle],
+    [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector],
   );
 
   if (transcript.query.isLoading) return <ChatLoading label={t('view.loading')} />;

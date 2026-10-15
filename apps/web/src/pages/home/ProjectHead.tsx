@@ -1,5 +1,5 @@
 import type { Project } from '@claudio/shared';
-import { ChevronRight, MessageCircle, Pencil, Plus, Sparkle, SquareTerminal } from 'lucide-react';
+import { ChevronRight, MessageCircle, Pencil, Plus, Sparkle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import type { TFunction } from 'i18next';
@@ -7,8 +7,6 @@ import { useAssistantRuns, useDocuments, useProjectSettings } from '../../api';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../components/work-item-icons';
-import { useTerminalAccess } from '../../components/terminal/use-terminals';
-import { projectTerminalsPath } from '../../components/terminal/use-dock';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { NEW_TASK_PATH } from '../../lib/work-items';
@@ -37,11 +35,10 @@ export function ProjectHead({
   /** On Resumen: turns the dashboard into its edit mode */
   onEditHome?: () => void;
 }) {
-  const { t } = useTranslation(['home', 'projects', 'common', 'terminal']);
+  const { t } = useTranslation(['home', 'projects', 'common']);
   const template = useProjectSettings(project.id).data?.template ?? null;
   const board = project.modules.includes('board');
   // Only where a shell can be opened from this page; Settings says why it cannot
-  const terminals = useTerminalAccess();
   return (
     <header className="page-header project-head">
       <Monogram name={project.name} size={44} project />
@@ -78,12 +75,6 @@ export function ProjectHead({
             <Sparkle {...ICON_SM} />
             {t('projects:head.assistant')}
           </Link>
-          {terminals && (
-            <Link to={projectTerminalsPath(project.id)} className="btn btn-quiet" aria-disabled={!project.exists || undefined} aria-label={t('terminal:project.openIn', { name: project.name })}>
-              <SquareTerminal {...ICON_SM} />
-              {t('terminal:project.open')}
-            </Link>
-          )}
           <Link to={newChatPath(project)} className={board ? 'btn' : 'btn btn-primary'} aria-disabled={!project.exists || undefined} aria-label={t('projects:worktrees.newChatIn', { name: project.name })}>
             <MessageCircle {...ICON_SM} />
             {t('projects:worktrees.newChatHere')}
@@ -108,13 +99,10 @@ export function ProjectHead({
 export function PhoneHead({ project, onEditHome }: { project: Project; onEditHome?: () => void }) {
   const { t } = useTranslation(['projects', 'home']);
   const navigate = useNavigate();
-  const terminals = useTerminalAccess();
-  const { t: tt } = useTranslation('terminal');
   const more: MenuEntry[] = [
     ...(onEditHome ? [{ id: 'edit-home', label: t('home:edit.enter'), icon: Pencil, onSelect: onEditHome }] : []),
     { id: 'chat', label: t('worktrees.newChatHere'), icon: MessageCircle, disabled: !project.exists, onSelect: () => navigate(newChatPath(project)) },
     ...(project.modules.includes('board') ? [{ id: 'task', label: t('head.newTask'), icon: Plus, onSelect: () => navigate(NEW_TASK_PATH) }] : []),
-    ...(terminals ? [{ id: 'terminal', label: tt('project.open'), icon: SquareTerminal, disabled: !project.exists, onSelect: () => navigate(projectTerminalsPath(project.id)) }] : []),
   ];
   return (
     <PhoneHeader

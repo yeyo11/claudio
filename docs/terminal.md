@@ -64,12 +64,12 @@ rows, shown in the card's history table.
   to open another. "+" opens in the project chosen in the top bar; with All projects it is a menu of the
   projects. It is resizable by its handle, remembers open or closed and its height in the browser, and Esc
   hides it unless focus is inside a terminal. `Ctrl+\`` toggles it from anywhere.
-- the chat header's Terminal button shows the same panel on a terminal in the chat's directory (it opens one
-  when the chat has none);
-- the project page (`/terminals?project=`), reached from the project card and header and from the
-  palette ("Open terminal in …"); with All projects it lists every terminal;
-- on a phone there is no status bar: More → Terminals, and `/terminals/:id` is a full screen with a key bar
-  (Esc, Tab, arrows, sticky Ctrl and Alt).
+- **That is the only desktop entry point** (owner, 2026-10-15). There is no Terminals page, no "Open
+  terminal" button on a project, no palette command and no button in the chat header. An old `/terminals`
+  link on a desktop shows the panel and goes to the home page.
+- On a phone there is no status bar: More → Terminals lists the open terminals and offers "New terminal"
+  (in the project chosen, or a menu of projects with All projects); a row opens `/terminals/:id`, a full
+  screen with a key bar (Esc, Tab, arrows, sticky Ctrl and Alt).
 
 **Closing.** X (`DELETE /terminals/:id`) ends the shell and removes the terminal from the list at once,
 and forgets one that already ended. A terminal that ended by itself (the shell exited, idle, a server
@@ -83,8 +83,8 @@ tokens, in both themes; the cursor blinks only at motion level `full`.
 
 - Unit: `packages/core/test/terminals-*.test.ts`; API: `apps/api/test/terminals.test.ts`; web:
   `apps/web/test/terminal-*.test.tsx`.
-- Browser: `e2e/specs/terminal.spec.mjs` (renderer forced to the DOM), plus the terminal page in
-  `a11y-core.spec.mjs` (both themes, phone width) and the cursor in `motion.spec.mjs`.
+- Browser: `e2e/specs/terminal.spec.mjs` (renderer forced to the DOM), plus a terminal's screen and the phone's list in
+  `a11y-core.spec.mjs` (both themes, phone width) and the panel's cursor in `motion.spec.mjs`.
 - Performance: `node e2e/perf/terminal-perf.mjs` (see [reports/terminal-perf.md](reports/terminal-perf.md));
   budgets in `e2e/perf/budgets.json`.
 

@@ -26,7 +26,7 @@ function tabNames(terminals: readonly Terminal[]): Map<string, string> {
 
 /**
  * The terminals of one scope: tabs, a "New terminal" button and the open terminal in its frame. The
- * project page, the chat's dock and the phone's screen are this, in different clothes. Only the open
+ * status bar's panel is this. Only the open
  * tab is attached; the others keep running in the server and attach again when opened.
  */
 export function TerminalWorkspace({
@@ -36,7 +36,6 @@ export function TerminalWorkspace({
   labels,
   trailing,
   emptyText,
-  compact,
   autoOpen = false,
   onAutoOpened,
   onToggle,
@@ -53,8 +52,7 @@ export function TerminalWorkspace({
   /** After the new control, at the end of the bar */
   trailing?: ReactNode;
   emptyText?: string;
-  compact: boolean;
-  /** Opens one when the scope has none running: the panel does after the person opened it, the project page lets the person choose */
+  /** Opens one when the scope has none running: the panel does after the person opened it */
   autoOpen?: boolean;
   onAutoOpened?: () => void;
   onToggle?: () => void;
@@ -123,7 +121,7 @@ export function TerminalWorkspace({
                 >
                   <SquareTerminal {...ICON_SM} aria-hidden />
                   <span className="ellipsis">{names.get(terminal.id)}</span>
-                  {!compact && <TerminalStatus terminal={terminal} link={on ? (links[terminal.id] ?? 'connecting') : 'ended'} />}
+                  <TerminalStatus terminal={terminal} link={on ? (links[terminal.id] ?? 'connecting') : 'ended'} />
                 </button>
                 {on && (
                   <button type="button" className="x" aria-label={t('tabs.close', { name: names.get(terminal.id) ?? '' })} onClick={() => closeCurrent(terminal)}>
@@ -142,7 +140,7 @@ export function TerminalWorkspace({
           // Another terminal is another xterm: nothing of the last one's screen may stay
           key={current.id}
           terminal={current}
-          compact={compact}
+          compact={false}
           onToggle={onToggle}
           onLink={(link) => setLinks((all) => ({ ...all, [current.id]: link }))}
           onEnded={refresh}

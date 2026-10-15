@@ -209,7 +209,10 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
       return { cursor: !!el, blink: !!document.querySelector('.term .xterm-cursor-blink') };`;
     for (const level of ['full', 'subtle', 'off']) {
       await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
-      await open(`/terminals?project=${projectId}`, '.term .xterm-rows .xterm-cursor');
+      // The panel is the only desktop surface of a terminal: the status bar's item opens it
+      await open(`/?project=${projectId}`, '.statusbar-btn');
+      if (!(await page.eval(`return !!document.querySelector('.term-dock')`))) await page.click('.statusbar-btn', undefined, 800);
+      await page.waitFor(`return !!document.querySelector('.term .xterm-rows .xterm-cursor')`, { label: 'the panel draws the cursor' });
       const seen = await page.eval(cursor);
       check(seen.cursor, `the terminal draws its cursor at ${level}`);
       if (level === 'full') {
@@ -246,7 +249,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     }
     if (terminalId) await api.del(`/terminals/${terminalId}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
-    await page.eval(`localStorage.removeItem('claudio-terminal-renderer');`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-terminal-renderer'); localStorage.removeItem('claudio-terminal-bar');`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
 };

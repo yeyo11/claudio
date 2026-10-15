@@ -259,7 +259,7 @@ async function inBrowser(projectId) {
   browser = await launch({ baseUrl, port: Number(process.env.PERF_CDP_PORT ?? 0) });
   const { page } = browser;
   await page.goto('/', 800);
-  await page.eval(`localStorage.setItem('claudio-terminal-renderer', 'dom'); return true`);
+  await page.eval(`localStorage.setItem('claudio-terminal-renderer', 'dom'); localStorage.setItem('claudio-terminal-bar', '1'); return true`);
   const rows = `document.querySelector('.term .xterm-rows')?.innerText ?? ''`;
   const ready = () => page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea') && (${rows}).trim().length > 0`, { label: 'the terminal drawn', timeout: 60_000 });
   const typeLine = async (line) => {
@@ -270,7 +270,8 @@ async function inBrowser(projectId) {
   const id = await openTerminal(projectId);
   // Long tasks of the main thread, from before the page's own scripts
   await page.onNewDocument(`window.__long = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(e.duration); }).observe({ type: 'longtask', buffered: true }); } catch {}`);
-  const url = `/terminals?project=${encodeURIComponent(projectId)}`;
+  // The status bar's panel, remembered open, on the terminal opened above
+  const url = `/?project=${encodeURIComponent(projectId)}`;
   await page.goto(url, 1500);
   await ready();
 

@@ -86,20 +86,12 @@
   },
   "dock": {
     "label": "Terminal",
-    "button": "Terminal",
-    "hint": "Terminal ({{shortcut}})",
-    "resize": "Resize the terminal"
+    "resize": "Resize the terminal",
+    "hint": "Terminal ({{shortcut}})"
   },
   "page": {
     "title": "Terminals",
     "notFound": "This terminal is not there any more."
-  },
-  "project": {
-    "open": "Open terminal",
-    "openIn": "Open a terminal in {{name}}"
-  },
-  "palette": {
-    "openIn": "Open terminal in {{name}}"
   },
   "settings": {
     "title": "Terminal",

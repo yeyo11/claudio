@@ -53,6 +53,16 @@ sections below where they differ.
    terminal working only once token authentication is on. See
    [the audit](../reports/terminal-security.md#t8-1--under-auth-off-a-detached-agent-passes-the-peer-check-high-within-its-scope-open-owner-decision).
 
+6. **One desktop entry point: the status bar (owner, 2026-10-15).** The terminal is managed only from
+   the status bar's Terminal item and its panel. The Terminals page (`/terminals`,
+   `/terminals?project=`), the "Open terminal" buttons of the project card and header, the command
+   palette's "Open terminal in …" and the chat header's Terminal button are removed; they override the
+   entry points listed in the UI section below. `Ctrl+\`` still toggles the panel. An old
+   `/terminals` link on a desktop opens the panel and goes to the home page. A phone has no status bar:
+   More → Terminals is a short list of the open terminals (each opens `/terminals/:id`, full screen
+   with the key bar) and the same "New terminal" control the panel's "+" uses. Rejected: keeping the
+   page beside the panel.
+
 Still open, with this plan's default unless the owner says otherwise: Q2 (re-confirm the token
 before opening from another device: default no), Q4 (no `/proc` under auth off: terminal
 unavailable), Q5 (no refusal while an agent works in the same worktree), Q6 (a chat without a
