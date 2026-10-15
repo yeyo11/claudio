@@ -707,7 +707,8 @@ complains. Test: none at unit level is practical; add a line to the e2e chat spe
 
 ### CHAT-5 — First partial at once (leading-edge throttle)
 
-Status: proposed.
+Status: built 2026-10-15 (no PR yet). As sketched (`emitPartial` / `sendPartial` in
+`live-chat.ts`); test in `packages/core/test/chat-partial.test.ts`.
 
 `packages/core/src/live-chat.ts:653`. Emit at once when the last emit is older than the throttle,
 otherwise schedule the trailing emit for the remainder:
@@ -826,7 +827,15 @@ never shows unformatted markdown.
 
 ### CHAT-8 — Smooth text reveal
 
-Status: proposed. Depends on nothing; pairs with CHAT-9 and CHAT-10.
+Status: built 2026-10-15 (no PR yet). Depends on nothing; pairs with CHAT-9 and CHAT-10.
+
+Changes from the plan: `SmoothReveal` drains a backlog with a time constant of `lagMs / 4`
+(a proportional catch-up only approaches zero, so `lagMs` itself would take about 1.5 s to drain a
+burst) and `finish()` drains at a fixed pace so it is done within 150 ms. `useSmoothText` takes a
+4th argument, `onRevealing`, which feeds `ChatStreamStore.setRevealing`; `settle()` holds back
+while a stored block is still revealing and runs once it has caught up. `LiveTail` renders text
+blocks through a `SmoothEntry` keyed by `partial.since`. The `outcome === 'present'` path in
+`chats.ts` still clears the partial at once (the stored row is already on screen); CHAT-10 owns that swap.
 
 **Problem.** The text of a block appears in bursts: up to 50 ms worth of tokens at a time, and
 bursty whenever the model or the network is. ChatGPT reveals characters at a steady, adaptive rate

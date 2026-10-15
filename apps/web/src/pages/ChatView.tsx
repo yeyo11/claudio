@@ -11,6 +11,8 @@ import { useDeleteChat } from '@agentry/chat-ui/components/ChatDelete';
 import { PermissionPrompts } from '@agentry/chat-ui/components/PermissionPrompts';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { AnimatePresence, motion } from '@agentry/ui/components/motion';
+import { useMotionLevel } from '@agentry/ui/lib/motion';
+import { useSmoothText } from '@agentry/chat-ui/lib/smooth-text';
 import { useToast } from '@agentry/ui/components/Toast';
 import { endsWithAssistant, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@agentry/chat-ui/components/TranscriptSearch';
@@ -48,6 +50,14 @@ const AT_MARK_MS = 2400;
  * ticker under it. The only part of the page that reads the stream's text, so it is the only part
  * rendered again on every frame of it.
  */
+const SmoothEntry = memo(function SmoothEntry({ stream, text, continued }: { stream: ChatStreamStore; text: string; continued: boolean }) {
+  const level = useMotionLevel();
+  const ending = useStreamSnapshot(stream, (snapshot) => snapshot.ending);
+  const onRevealing = useCallback((revealing: boolean) => stream.setRevealing(revealing), [stream]);
+  const shown = useSmoothText(text, level !== 'off', ending, onRevealing);
+  return shown ? <StreamingEntry block="text" text={shown} continued={continued} /> : null;
+});
+
 const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: ChatStreamStore; chat: Chat; continued: boolean }) {
   const partial = useStreamSnapshot(stream, (snapshot) => snapshot.partial);
   const block = partial?.block;
@@ -56,7 +66,12 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
   const activity = useMemo(() => tickerActivity(chat, block && since !== undefined ? { block, since } : null), [chat, block, since]);
   return (
     <>
-      {partial && partial.text && <StreamingEntry block={partial.block} text={partial.text} continued={continued} />}
+      {partial && partial.text && (partial.block === 'text' ? (
+        // Keyed by the block, so a new one starts a new reveal; thinking shows raw (already truncated)
+        <SmoothEntry key={partial.since} stream={stream} text={partial.text} continued={continued} />
+      ) : (
+        <StreamingEntry block={partial.block} text={partial.text} continued={continued} />
+      ))}
       {activity && (
         <div className="chat-now" data-find-ignore>
           {chat.state === 'working' ? <WorkingLine detail={activityTarget(activity)} /> : <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />}

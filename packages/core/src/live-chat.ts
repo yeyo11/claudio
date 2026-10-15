@@ -313,6 +313,7 @@ export class LiveChat {
   idleTimer: NodeJS.Timeout | null = null;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
+  private partialSentAt = 0;
   /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
   structured: string | null = null;
   /** Prompts the CLI is holding for a person */
@@ -668,17 +669,25 @@ export class LiveChat {
   emitPartial(): void {
     this.activityAt = now();
     if (this.partialTimer) return;
+    // The first token of a block goes out at once; after that at most one frame per throttle
+    const wait = PARTIAL_THROTTLE_MS - (Date.now() - this.partialSentAt);
+    if (wait <= 0) return this.sendPartial();
     this.partialTimer = setTimeout(() => {
       this.partialTimer = null;
-      if (!this.partial) return;
-      this.emitter.emit('event', {
-        seq: this.seq,
-        ts: now(),
-        kind: 'partial',
-        block: this.partial.block,
-        text: this.partial.text,
-      } satisfies RunEvent);
-    }, PARTIAL_THROTTLE_MS);
+      this.sendPartial();
+    }, wait);
+  }
+
+  private sendPartial(): void {
+    if (!this.partial) return;
+    this.partialSentAt = Date.now();
+    this.emitter.emit('event', {
+      seq: this.seq,
+      ts: now(),
+      kind: 'partial',
+      block: this.partial.block,
+      text: this.partial.text,
+    } satisfies RunEvent);
   }
 
   setStatus(status: RunStatus): void {

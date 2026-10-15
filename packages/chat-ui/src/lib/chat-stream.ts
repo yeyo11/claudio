@@ -186,6 +186,8 @@ export interface StreamingPartial {
 export interface StreamSnapshot {
   partial: StreamingPartial | null;
   connected: boolean;
+  /** The block was stored: what is shown is the rest of it catching up, then it leaves */
+  ending: boolean;
 }
 
 /** A partial not updated for this long is not being written any more, whatever became of it. */
@@ -197,11 +199,15 @@ const QUIET_MS = 1000;
  * not rendered again that often. One per chat, so switching chats never shows the last one's text.
  */
 export class ChatStreamStore {
-  private snapshot: StreamSnapshot = { partial: null, connected: false };
+  private snapshot: StreamSnapshot = { partial: null, connected: false, ending: false };
   private readonly listeners = new Set<() => void>();
   /** The stored message that finalises the partial arrived; it goes once the transcript shows that */
   private ended = false;
   private updatedAt = 0;
+  /** The smooth reveal is still behind the text: the partial stays until it has caught up */
+  private revealing = false;
+  /** A settle was held back by the reveal, and runs when it is done */
+  private settleHeld = false;
   /** What the stream said became of each message since the page opened it, by the message's id */
   private readonly deliveries = new Map<string, MessageDelivery>();
   private readonly deliveryListeners = new Set<() => void>();
@@ -237,7 +243,7 @@ export class ChatStreamStore {
 
   private set(next: Partial<StreamSnapshot>): void {
     const merged = { ...this.snapshot, ...next };
-    if (merged.partial === this.snapshot.partial && merged.connected === this.snapshot.connected) return;
+    if (merged.partial === this.snapshot.partial && merged.connected === this.snapshot.connected && merged.ending === this.snapshot.ending) return;
     this.snapshot = merged;
     for (const listener of this.listeners) listener();
   }
@@ -249,12 +255,14 @@ export class ChatStreamStore {
   setPartial(partial: StreamingPartial, now = Date.now()): void {
     this.ended = false;
     this.updatedAt = now;
-    this.set({ partial });
+    this.set({ partial, ending: false });
   }
 
   /** The block was stored: keep showing it until the transcript does, so it never blinks out. */
   endPartial(): void {
-    if (this.snapshot.partial) this.ended = true;
+    if (!this.snapshot.partial) return;
+    this.ended = true;
+    this.set({ ending: true });
   }
 
   get ending(): boolean {
@@ -263,7 +271,15 @@ export class ChatStreamStore {
 
   clearPartial(): void {
     this.ended = false;
-    this.set({ partial: null });
+    this.settleHeld = false;
+    this.set({ partial: null, ending: false });
+  }
+
+  /** The smooth reveal of the shown block started or finished catching up with its text */
+  setRevealing(revealing: boolean): void {
+    if (this.revealing === revealing) return;
+    this.revealing = revealing;
+    if (!revealing && this.settleHeld) this.clearPartial();
   }
 
   /**
@@ -271,6 +287,12 @@ export class ChatStreamStore {
    * that has gone quiet lost its message to a gap in the stream and would otherwise stay forever.
    */
   settle(now = Date.now()): void {
-    if (this.snapshot.partial && (this.ended || now - this.updatedAt > QUIET_MS)) this.clearPartial();
+    if (!this.snapshot.partial) return;
+    if (this.ended && this.revealing) {
+      // The reveal drains within ~150 ms once the block is stored; the page settles again if not
+      this.settleHeld = true;
+      return;
+    }
+    if (this.ended || now - this.updatedAt > QUIET_MS) this.clearPartial();
   }
 }
