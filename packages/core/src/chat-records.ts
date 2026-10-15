@@ -33,6 +33,10 @@ export interface ChatRecord {
   nativeSessionId?: string | null;
   /** Where permissions, questions and plans go, kept so a resumed execution asks the same way */
   permissionPrompts: 'host' | 'none';
+  /** Id of the account its last process ran on; absent before accounts, or without them */
+  account?: string | null;
+  /** The chat was started on `account` on purpose: it keeps it while it can run, and rotates only within its policy */
+  accountPinned?: true;
   /** The tool preset and MCP servers it was started with; a process that resumes it is given them again */
   tools?: ChatToolConfig | null;
   /**
@@ -79,7 +83,7 @@ export interface LegacyRun {
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
   internal: boolean;
-  /** Read from an old file and ignored: accounts were retired */
+  /** Read from an old file and ignored: a run of that time had no account of its own */
   account?: string | null;
   workingDir?: string | null;
   permissionPrompts?: 'host' | 'none';

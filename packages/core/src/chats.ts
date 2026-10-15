@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { DEFAULT_ID, readingFromEvent, readingFromFailure, type AccountRef, type AccountStore, type Choice, type Reading } from '@agentry/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -6,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
+  type AccountSwitchReason,
   type AgentryAssistantMarker,
   type Attachment,
   type ChatMessageReceipt,
@@ -23,6 +25,7 @@ import {
   type RunEvent,
   type RunStatus,
   type TranscriptEntry,
+  type UsageHistoryPoint,
 } from '@agentry/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
@@ -54,7 +57,7 @@ import { runningCommands, type ToolCall, type Trace } from './health.ts';
 import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
-import type { ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
+import type { DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { ProviderLimits } from './providers/limits.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
@@ -89,8 +92,11 @@ export class ChatRefusal extends Error {
 /** One replay of a turn lost to a limit per execution: a second failure is a real one, not a quota one */
 const MAX_LIMIT_REPLAYS = 1;
 
-/** What a request that still sends `account` is told: pinning an account went away with claude-swap */
-const ACCOUNTS_RETIRED = 'accounts were retired; see Settings → Providers';
+/** The windows `usage_history` keeps a line for */
+const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
+
+/** What the chat manager needs of the accounts: the store, as `@agentry/accounts` builds it */
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'settings' | 'policyFor' | 'get'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -165,6 +171,15 @@ export class ChatManager extends EventEmitter {
   uploads: UploadStore | null = null;
   /** Where changes to chats are announced; set by Core */
   bus: EventBus | null = null;
+  /**
+   * The Claude accounts a process may run on, chosen at every launch; Core sets it. Without it every
+   * process runs on the CLI's own login, as before accounts.
+   */
+  accounts: ChatAccounts | null = null;
+  /** The project a directory belongs to, for its rotation policy; Core sets it */
+  projectOf: ((dir: string) => string | null) | null = null;
+  /** Epoch ms of the last time a chat moved to another account, for the cooldown between switches */
+  private lastSwitchAt: number | null = null;
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
   defaults: RunDefaults;
   /** Latest `init` snapshot per working directory */
@@ -217,6 +232,7 @@ export class ChatManager extends EventEmitter {
       observeLimit: (chat, event) => {
         try {
           this.limits.observe(chat.provider, event);
+          this.observeAccount(chat, event);
         } catch {
           // Output still draining after the database closed (shutdown): losing a limit reading must not become an uncaught error
         }
@@ -615,8 +631,14 @@ export class ChatManager extends EventEmitter {
 
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions, driver: ProviderDriver): void {
-    // A body is whatever was sent: the field is gone from the type, the refusal is not
-    if ('account' in opts && (opts as { account?: unknown }).account !== undefined) throw new ChatRefusal(ACCOUNTS_RETIRED);
+    if (opts.account !== undefined) {
+      if (!this.accounts) throw new ChatRefusal('accounts are not available here');
+      try {
+        this.accounts.ref(opts.account);
+      } catch {
+        throw new ChatRefusal(`account ${opts.account} not found`);
+      }
+    }
     const limit = this.defaults.maxConcurrentRuns;
     if (this.activeCount() >= limit) {
       throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
@@ -658,6 +680,7 @@ export class ChatManager extends EventEmitter {
       else opts.uploads = options.uploads;
     }
     if (options.keepAlive !== undefined) opts.keepAlive = options.keepAlive;
+    if (options.account !== undefined) opts.account = options.account;
     if (options.confine !== undefined) {
       if (options.confine === null) delete opts.confine;
       else opts.confine = options.confine;
@@ -979,9 +1002,10 @@ export class ChatManager extends EventEmitter {
   }
 
   /** What a process of the chat is started from: the driver turns it into a command line. */
-  private launchSpec(chat: LiveChat): SessionLaunch {
+  private launchSpec(chat: LiveChat, account: AccountRef | null): SessionLaunch {
     const { opts } = chat;
     return {
+      ...(account ? { account } : {}),
       id: chat.id,
       nativeId: chat.nativeId,
       created: chat.created,
@@ -1013,6 +1037,109 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * The account the chat's next process runs on, chosen at every launch: the one the rotation moved
+   * the chat to, else what `choose` makes of the accounts and their readings (a pinned chat keeps
+   * its account while it can run). When nobody can take the work the chat stays where it is and the
+   * limit path waits. Announced when it differs from the last process's.
+   */
+  private chooseAccount(chat: LiveChat): AccountRef | null {
+    const store = this.accounts;
+    if (!store) return null;
+    const moved = chat.forcedAccount;
+    chat.forcedAccount = null;
+    const at = Date.now();
+    let to: string;
+    let reason: AccountSwitchReason | null = null;
+    if (moved) {
+      to = moved;
+      reason = 'limit';
+    } else {
+      const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
+      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, now: at });
+      to = choice.account ?? chat.account ?? DEFAULT_ID;
+      reason = choice.reason;
+    }
+    let ref: AccountRef;
+    try {
+      ref = store.ref(to);
+    } catch {
+      // The account was removed since the chat last ran: the CLI's own login is always there
+      ref = store.ref(DEFAULT_ID);
+    }
+    const from = chat.account;
+    if (from && from !== ref.id) {
+      this.lastSwitchAt = at;
+      this.bus?.emit({ type: 'account.switched', title: `New work moves from ${from} to ${ref.id}`, from, to: ref.id, reason: reason ?? 'threshold' });
+    }
+    return ref;
+  }
+
+  /**
+   * What the chat's account reports, kept per account: a stream reading is stored as it is, a turn
+   * that died on the limit marks the account out until its reset (or, when no reset is known, for
+   * the cooldown), and every change of a window lands in `usage_history`.
+   */
+  private observeAccount(chat: LiveChat, event: DriverEvent): void {
+    const store = this.accounts;
+    const id = chat.account;
+    if (!store || !id) return;
+    const at = Date.now();
+    let reading: Reading | null = null;
+    if (event.kind === 'rate-limit') {
+      const { info } = event;
+      reading = readingFromEvent({ status: info.status, rateLimitType: info.rateLimitType, resetsAt: info.resetsAt, unifiedWindows: info.windows }, at);
+    } else {
+      const known = store.get(id).limits;
+      // A rejection the stream already reported says when the account is back
+      if (known?.state === 'exhausted' && known.resetsAt && Date.parse(known.resetsAt) > at) return;
+      const cooldown = store.settings().cooldownSeconds * 1000;
+      reading = readingFromFailure(Math.floor((at + cooldown) / 1000), at);
+    }
+    if (!reading) return;
+    void this.noteAccountReading(id, reading).catch(() => undefined);
+  }
+
+  /** Stores a reading and appends the windows that moved to `usage_history`; also what Core's idle-cache pass calls. */
+  async noteAccountReading(id: string, reading: Reading): Promise<void> {
+    const store = this.accounts;
+    if (!store) return;
+    if (!(await store.observe(id, reading))) return;
+    const limit = store.get(id).limits;
+    if (!limit) return;
+    const points: UsageHistoryPoint[] = [];
+    for (const window of HISTORY_WINDOWS) {
+      const w = limit.windows[window];
+      if (!w) continue;
+      const pct = Math.round(w.utilization * 1000) / 10;
+      if (this.db.latestUsagePoint(id, window)?.pct === pct) continue;
+      points.push({ account: id, window, at: limit.observedAt, pct });
+    }
+    this.db.appendUsagePoints(points);
+  }
+
+  /**
+   * What `choose` makes of the accounts for a chat that just hit its limit: the account to move it
+   * to, or when none is left the earliest reset. Null for a chat that runs on none.
+   */
+  chooseNext(id: string): Choice | null {
+    const chat = this.chats.get(id);
+    const store = this.accounts;
+    if (!chat || !store || !chat.account) return null;
+    const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt });
+  }
+
+  /** The id of the account the chat's last process ran on; null when it ran on none. */
+  accountOf(id: string): string | null {
+    return this.chats.get(id)?.account ?? null;
+  }
+
+  /** Whether a person's chat moves to another account at its limit (`rotateOnLimit`); false without accounts. */
+  rotatesOnLimit(): boolean {
+    return !!this.accounts && this.accounts.settings().rotateOnLimit;
+  }
+
+  /**
    * The only place a CLI process starts, and it becomes the chat's at once: every process is tracked
    * by the chat it works for, and a chat never has two.
    */
@@ -1026,7 +1153,10 @@ export class ChatManager extends EventEmitter {
       );
     }
     this.confineAssistant(chat);
-    const plan = chat.driver.launch(this.launchSpec(chat));
+    const account = this.chooseAccount(chat);
+    // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
+    const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
+    if (account) chat.account = account.id;
     chat.stopRequested = false;
     chat.endedAt = null;
     chat.error = null;
@@ -1224,10 +1354,14 @@ export class ChatManager extends EventEmitter {
    * Re-sends the turn that died against the limit, on the same chat and provider: what `wait` does
    * once the reset has passed. The process is gone by now, so `send` respawns it with `--resume`.
    */
-  async replayLastTurn(id: string): Promise<boolean> {
+  async replayLastTurn(id: string, account?: string): Promise<boolean> {
     const chat = this.chats.get(id);
-    if (!chat || !chat.lastUserTurn || chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
-    chat.limitReplays++;
+    if (!chat || !chat.lastUserTurn) return false;
+    // A move to another account is not the second failure the counter guards against: every account
+    // that fails is out until its reset, so a chain of moves ends by itself
+    if (account) chat.forcedAccount = account;
+    else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    else chat.limitReplays++;
     chat.rateLimited = false;
     chat.limitRequested = false;
     // The turn that died is its first message and every one written while it ran, and whatever the

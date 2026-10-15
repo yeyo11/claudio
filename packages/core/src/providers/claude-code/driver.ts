@@ -132,7 +132,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
-    return { bin: this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code'), unsetEnv: [] };
+    return { bin: this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker): DriverSession {

@@ -37,6 +37,8 @@ interface Stored {
 }
 
 const NO_IDENTITY: Identity = { signedIn: false, email: null, organization: null, plan: null };
+/** The CLI's own login is taken as usable until `refresh` learns it is not: a fresh install works with nothing to set up */
+const ASSUMED_IDENTITY: Identity = { ...NO_IDENTITY, signedIn: true };
 
 export interface AccountStoreOptions {
   /** Claudio's data dir; `accounts.json`, `limits.json` and `accounts/<id>/` live in it */
@@ -92,7 +94,7 @@ function parse(doc: Record<string, unknown>): Stored {
     : [];
   return {
     settings: parseSettings(doc.settings),
-    default: { enabled: def.enabled !== false, alias: str(def.alias), identity: parseIdentity(def.identity) },
+    default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY } },
     accounts,
     policies,
   };
@@ -109,7 +111,7 @@ export class AccountStore {
   private readonly file: string;
   private readonly claude: string;
   private readonly env: NodeJS.ProcessEnv;
-  private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...NO_IDENTITY } }, accounts: [], policies: [] };
+  private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
 
   constructor(private readonly opts: AccountStoreOptions) {
     this.env = opts.env ?? process.env;
