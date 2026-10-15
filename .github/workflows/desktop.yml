@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: agentry-linux
+          name: claudio-linux
           path: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb

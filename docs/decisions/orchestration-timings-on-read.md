@@ -29,7 +29,7 @@ executions of its chats. Nothing new is stored for it and there is no cache.
 ## Linked by the chat records
 
 `ChatService.chatOrchestrations()` now builds its map from each chat record's `orchestrationId` and
-`orchestrationTaskId`, which every chat Agentry starts for a graph has always carried, instead of
+`orchestrationTaskId`, which every chat Claudio starts for a graph has always carried, instead of
 from the graph's current session ids. The graph's ids stay as a fallback for chats without a record.
 
 - The graph only remembers a task's current chat, so a chat a clean retry replaced, the integrator

@@ -73,7 +73,7 @@ prompt and reads the structured result.
   - `POST /projects/:id/docs/:docId/ask` — open a chat about the document (returns the chat), the
     way "Work on it" opens one.
 - **Shared types:** `ProjectDoc`, `ProjectDocsOverview`, `AddProjectDocRequest`; then
-  `pnpm --filter @agentry/api openapi:schemas`.
+  `pnpm --filter @claudio/api openapi:schemas`.
 
 ## Web
 

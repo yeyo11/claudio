@@ -10,9 +10,9 @@ tags:
     - sonnet-5-5
     - decision
 ---
-# The prompts Agentry builds
+# The prompts Claudio builds
 
-Agentry drives Claude Code unattended: flow runs, orchestration workers, the integrator and the
+Claudio drives Claude Code unattended: flow runs, orchestration workers, the integrator and the
 fixer. Every word these runs are given is built in `packages/core/src`. This document lists every
 prompt, says which run uses it, and checks it against the Opus 5.5 and Sonnet 5.5 prompting guides.
 It also covers what the harness does around the prompts: it reads `stop_reason` from the CLI's
@@ -29,7 +29,7 @@ resumes the same CLI chat (`--resume`), and nothing calls the SDK or Anthropic's
 
 ## The twelve points
 
-These are the parts of the guides that apply to Agentry, numbered as the story numbers them. The
+These are the parts of the guides that apply to Claudio, numbered as the story numbers them. The
 sections below refer to them by number.
 
 1. **No reasoning in the answer.** A prompt that asks the model to write its reasoning into the
@@ -106,7 +106,7 @@ the result.
   run goes on **in the same chat** (`resumeChatId`, `continuing: true`) with the continuation
   prompt. A chat that ends in an error meanwhile fails the run as usual. After the third
   continuation, the result the run has is judged as it is.
-- **Orchestration workers** (`Orchestrator.settle`) are not schema runs. Agentry commits what a
+- **Orchestration workers** (`Orchestrator.settle`) are not schema runs. Claudio commits what a
   worker leaves uncommitted (`commitTask`), so only the final text is read. The worker goes back to
   its chat with the continuation prompt, `WORKER_CLOSING` and the time signal.
   `OrchestrationTaskState.continuations` counts it. It is not an attempt, since nothing failed.
@@ -165,14 +165,14 @@ the result.
 10. n/a: a flow run is one agent with no budget of its own. `flow.maxCostUsd` is a cost ceiling the
     CLI enforces.
 11. Work runs carry `frontend(designSources(project))`.
-12. n/a: a flow run is one turn, plus Agentry's own continuations.
+12. n/a: a flow run is one turn, plus Claudio's own continuations.
 
 ### Flow continuations and the restart prompt
 
 1–2. n/a: short and factual.
 3. This is the harness side of point 3. The message names the open items and the count, and it asks
    before risky steps.
-4. n/a: only Agentry's words.
+4. n/a: only Claudio's words.
 5–6. The run already has its first prompt.
 7. It ends with "End with the structured result."
 8–12. n/a.
@@ -317,7 +317,7 @@ the point's state in one `pasted()` block, the questions with their options or l
 8. The chat is started with no tool at all (`--tools=`), so there is nothing to discourage.
 
 Points 5, 6 and 9–12 are n/a: it neither writes code nor works over several turns. It gets no
-`AGENTRY_API_URL` or `AGENTRY_API_TOKEN`, so it cannot call back. See
+`CLAUDIO_API_URL` or `CLAUDIO_API_TOKEN`, so it cannot call back. See
 [decision-engine.md](decision-engine.md).
 
 ### Work on it (`workItemPrompt(item)`, mode `chat`)
@@ -340,9 +340,9 @@ Existing files are the person's and are not rewritten.
 
 ## Follow-up turns (point 12)
 
-The future Agentry assistant (CW-12) is a chat of many turns. Where re-examining earlier answers is
+The future Claudio assistant (CW-12) is a chat of many turns. Where re-examining earlier answers is
 not wanted, its system prompt should say: "Once you have answered something, treat that answer as
-done…". Nothing in Agentry has follow-up turns of its own today, so there is no code for it. The
+done…". Nothing in Claudio has follow-up turns of its own today, so there is no code for it. The
 line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Deferred
@@ -356,10 +356,10 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
   a flow run, `KEY · title` for "Work on it" and a node, the assistant's title line, and a node's
   name at the head of a worker prompt. That line stays bare. So does the epic's title in "part of
   the epic …", and the task names in the `<task name="…">` attributes.
-- **The CLI loads CLAUDE.md itself for flow runs and workers.** Agentry wraps the CLAUDE.md it
+- **The CLI loads CLAUDE.md itself for flow runs and workers.** Claudio wraps the CLAUDE.md it
   appends for the assistant (which runs with no setting sources). But the CLAUDE.md the CLI reads
   on its own, for every run that loads the project's settings, reaches the model as the CLI puts
-  it, and Agentry cannot mark it.
+  it, and Claudio cannot mark it.
 - **The open-item phrases are English.** A final text in another language that offers to continue
   is not caught. It costs a run that ends early, not a wrong move.
 - A continuation held in memory (`FlowService.nudges`) is lost to a restart between the result and

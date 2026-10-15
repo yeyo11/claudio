@@ -12,14 +12,14 @@ tags:
     - design-system
     - built
 ---
-# Plan: set up a fresh Agentry from Agentry
+# Plan: set up a fresh Claudio from Claudio
 
 Status: **landed** in #228, released in v0.37.0 (proposed 2026-10-08, every step done 2026-10-09,
 built on branch `fix/adjustments`; see [Outcome](#outcome)). The owner chose the options recorded under [Decisions](#decisions).
 
 ## Goal
 
-A person who starts a fresh Agentry (above all the Docker image, where they have no terminal on the
+A person who starts a fresh Claudio (above all the Docker image, where they have no terminal on the
 machine) does every piece of the first setup in the app: who may open it, every agent's sign-in,
 GitHub and GitLab, YouTrack. Nothing asks them to open a shell on the server. Everything the setup
 writes stays editable in Settings afterwards.
@@ -35,7 +35,7 @@ Measured on `fix/adjustments` (see the chat of 2026-10-08 and [container-state.m
 - Every other agent and both code hosts offer only a link to the vendor's page. There is no field
   for a key, nothing that passes one to a CLI, and nothing that runs a sign-in command.
 - The first-run screen covers providers only (`FirstRunGate`, `ProvidersStep.tsx`).
-- The image has no `gh`, `glab` or `youtrack-app`, and no `AGENTRY_SECRET_KEY`, so every secret in a
+- The image has no `gh`, `glab` or `youtrack-app`, and no `CLAUDIO_SECRET_KEY`, so every secret in a
   container is a plain file.
 
 ## What each vendor allows (the one rule)
@@ -66,13 +66,13 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
    Agents → Code and work items → Done. Every step can be skipped, and every step is the same panel
    Settings shows.
 3. **gh, glab and youtrack-app in the image, and secrets sealed in Docker** (owner). The CLIs pinned
-   like the agents, their config homes under `/data`. With no `AGENTRY_SECRET_KEY` in the
+   like the agents, their config homes under `/data`. With no `CLAUDIO_SECRET_KEY` in the
    environment, the server makes one and keeps it in the data directory, mode 0600, and says in
    Settings → Security that a key beside the data it seals protects a copy of the files, not the
    volume; passing the key through the environment is the recommended setup.
 4. **The CLI owns its credential when it has a command for it.** A key for Codex, Copilot, gh or glab
    goes to that CLI's own login command on stdin and is stored where the CLI stores it (under `/data`
-   in the image). Agentry keeps only what a CLI reads from its environment: Claude Code, Gemini,
+   in the image). Claudio keeps only what a CLI reads from its environment: Claude Code, Gemini,
    OpenCode's upstream keys, YouTrack. Those are sealed and given to the child process only.
    (Copilot moved to the vault side: decision 7.)
 5. **A secret never goes in argv, a log, an event or an answer.** Write-only fields, stdin or env only.
@@ -80,11 +80,11 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
    access could not be set up in a container: the image had no `tailscale` and the tunnel was off
    there. The image now carries Tailscale's static build, and its entrypoint starts `tailscaled
    --tun=userspace-networking` (no root, no `NET_ADMIN`, no `/dev/net/tun`) with its state in
-   `/data/tailscale/`; the tunnel is on by default in the image, and `AGENTRY_TUNNEL=off` starts no
+   `/data/tailscale/`; the tunnel is on by default in the image, and `CLAUDIO_TUNNEL=off` starts no
    daemon. Tailscale joins the setup's tools with two methods, a login URL (`tailscale up` with no
    TTY, no code) and an auth key passed as `--auth-key=file:<0600 file>` (the only way its CLI takes a
    key outside argv, so decision 5 holds), and signs out with `tailscale logout`. Only that daemon is
-   Agentry's to sign in (`AGENTRY_TAILSCALE_MANAGED`); a machine's own Tailscale stays the person's.
+   Claudio's to sign in (`CLAUDIO_TAILSCALE_MANAGED`); a machine's own Tailscale stays the person's.
    Tailnet only, never Funnel.
 7. **Copilot signs in through its environment and gh, not its own login** (owner, 2026-10-08).
    In the image, `copilot login --device-code` (1.0.93) took the approval and then exited 1 with
@@ -104,7 +104,7 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
 
 - **`SecretVault`** (`packages/core/src/secret-vault.ts`): one sealed JSON document,
   `<dataDir>/secrets.json` (mode 0600), keyed by tool and variable: `{ "gemini": { "GEMINI_API_KEY":
-  "enc:v1:…" } }`. It reads the key from `AGENTRY_SECRET_KEY` or, failing that, from
+  "enc:v1:…" } }`. It reads the key from `CLAUDIO_SECRET_KEY` or, failing that, from
   `<dataDir>/secret.key`, made on first use. The Claude credential store and the YouTrack store move
   onto it, reading their old files once and removing them.
 - **Child environments.** Every place that spawns a provider, a host CLI or `youtrack-app` takes the
@@ -207,12 +207,12 @@ and use the vault.
 
 ## Outcome
 
-Built on `fix/adjustments`, 2026-10-08 and 2026-10-09, and merged into `main` in #228 (v0.37.0). A fresh Agentry, the Docker image above all,
+Built on `fix/adjustments`, 2026-10-08 and 2026-10-09, and merged into `main` in #228 (v0.37.0). A fresh Claudio, the Docker image above all,
 is set up from the browser: no step asks for a shell on the server.
 
 **What was built.**
 
-- **Core and API.** The sealed secret vault (`secrets.json`, with the key from `AGENTRY_SECRET_KEY`,
+- **Core and API.** The sealed secret vault (`secrets.json`, with the key from `CLAUDIO_SECRET_KEY`,
   an existing `secret.key`, or one the image makes beside the data) and the move of the Claude and
   YouTrack stores onto it; `childEnv`, so each secret reaches only the processes of the CLI that reads
   it; `LoginService` with a key and a device code per tool, read from recordings of the real commands
@@ -228,7 +228,7 @@ is set up from the browser: no step asks for a shell on the server.
   device code large with a copy button), Sign out in Settings, and the Secrets card in Settings →
   Security; reference screens in both themes, desktop and phone, and `e2e/specs/setup.spec.mjs`.
 - **Docs.** [setup.md](../setup.md), [security-model.md](../security-model.md), and the updates to
-  [providers.md](../providers.md), [code-hosts.md](../code-hosts.md#signing-in-from-agentry),
+  [providers.md](../providers.md), [code-hosts.md](../code-hosts.md#signing-in-from-claudio),
   [trackers.md](../trackers.md), [deploy.md](../deploy.md) and [tunnel.md](../tunnel.md).
 
 **Decisions taken on the way.** Two were added by the owner on 2026-10-08, after the first build met
@@ -237,7 +237,7 @@ the real image:
 - **Decision 6, Tailscale in the image.** Remote access could not be set up in a container at all, so
   the image runs `tailscaled` in userspace networking with its state in `/data/tailscale/`, and the
   app signs it in with a login URL or an auth key (`--auth-key=file:`, so no key in argv). Only the
-  daemon Agentry runs is Agentry's to sign in.
+  daemon Claudio runs is Claudio's to sign in.
 - **Decision 7, Copilot through its environment and gh.** Copilot's own `login` cannot store a token
   without a keychain unless a terminal answers it, so its key became `COPILOT_GITHUB_TOKEN` in the
   vault and its Code became gh's github.com device sign-in, the fallback GitHub documents.
@@ -260,7 +260,7 @@ e2e suites:
 - **GitHub Enterprise for the gh fallback.** `copilot help environment` documents `COPILOT_GH_HOST`
   and `GH_HOST` as the host Copilot authenticates against (GitHub Enterprise Cloud with data
   residency). Copilot's readiness asks gh about that host, and its Code signs gh in to it.
-- **The Helm chart's `AGENTRY_SECRET_KEY`** comes from a Secret: `secretKey.existingSecret` and
+- **The Helm chart's `CLAUDIO_SECRET_KEY`** comes from a Secret: `secretKey.existingSecret` and
   `secretKey.key`, or `secretKey.value` for a Secret the chart makes ([deploy.md](../deploy.md#kubernetes-helm)).
 
 **Left open.**

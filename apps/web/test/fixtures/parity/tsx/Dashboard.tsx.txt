@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { SessionSummary } from '@agentry/shared';
+import type { SessionSummary } from '@claudio/shared';
 import { Link } from 'react-router-dom';
 import { useOverview, useProjects } from '../api';
 import { ICON, ICON_SM } from '../components/icons';
@@ -108,7 +108,7 @@ export function Dashboard() {
     <>
       <PageHeader
         title="Dashboard"
-        subtitle={`Agentry v${system.version} · up ${formatDuration(system.uptimeSec * 1000)}`}
+        subtitle={`Claudio v${system.version} · up ${formatDuration(system.uptimeSec * 1000)}`}
       />
       <ErrorBox error={error} title="Last refresh failed" />
 

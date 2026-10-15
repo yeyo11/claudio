@@ -8,7 +8,7 @@ tags:
 ---
 # Notifications: what is kept, and what interrupts
 
-Agentry has two separate controls for notifications:
+Claudio has two separate controls for notifications:
 
 - **The kinds** (*Notify me when*) decide what the bell keeps at all.
 - **The interruption level** decides which of those notifications also break into someone's work:

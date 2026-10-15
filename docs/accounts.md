@@ -10,7 +10,7 @@ tags:
 # Claude accounts
 
 Claudio can run on several Claude accounts and move work from one to another at a usage limit. It
-does so with `packages/accounts` (`@agentry/accounts`, renamed `@claudio/accounts` in the rename
+does so with `packages/accounts` (`@claudio/accounts`, renamed `@claudio/accounts` in the rename
 stage), which reaches Claude Code only through what the CLI ships for programs: a `CLAUDE_CONFIG_DIR`
 per account, `claude auth login`, `claude auth status --json`, the `rate_limit_event` of the
 stream and the CLI's own `cachedUsageUtilization`. There is no claude-swap, no call to Anthropic's

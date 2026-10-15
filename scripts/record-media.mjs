@@ -49,7 +49,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // A fixed path, because it is in frame (a chat's directory, a graph's): a random suffix would change
 // every recording. Created here and refused if it exists, so nothing of anyone else's is ever reused
 // or removed; a run killed with SIGKILL leaves it behind, and says so the next time.
-const sandbox = join(tmpdir(), 'agentry-demo');
+const sandbox = join(tmpdir(), 'claudio-demo');
 try {
   mkdirSync(sandbox);
 } catch (error) {
@@ -69,7 +69,7 @@ const cswap = join(dirs.bin, 'cswap');
 const scriptsFile = join(sandbox, 'fake-cli-scripts.json');
 const gitConfig = join(sandbox, 'gitconfig');
 // Commits in frame (the seeded history, the workers' and the merges) carry an invented author
-writeFileSync(gitConfig, '[user]\n\tname = Agentry Demo\n\temail = demo@agentry.dev\n[init]\n\tdefaultBranch = main\n[advice]\n\tdetachedHead = false\n');
+writeFileSync(gitConfig, '[user]\n\tname = Claudio Demo\n\temail = demo@claudio.dev\n[init]\n\tdefaultBranch = main\n[advice]\n\tdetachedHead = false\n');
 const env = {
   ...process.env,
   PORT: String(PORT),

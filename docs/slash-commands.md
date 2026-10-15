@@ -14,8 +14,8 @@ for that directory. It works in a chat's composer and on New chat.
 
 ## Where the list comes from
 
-Agentry doesn't keep its own list. It uses `slash_commands` from the CLI's `init` event, which
-Agentry already stores per directory (`EffectiveEnvironment`, `GET /environments`) and attaches to
+Claudio doesn't keep its own list. It uses `slash_commands` from the CLI's `init` event, which
+Claudio already stores per directory (`EffectiveEnvironment`, `GET /environments`) and attaches to
 each chat as `chat.environment`. So the list shows exactly what the CLI loaded: skills, plugin and
 project commands, and the built-ins that `claude -p` accepts. An interactive-only command (say,
 `/login`) is never offered and then refused.

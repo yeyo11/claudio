@@ -22,7 +22,7 @@ RUN apk add --no-cache git curl jq \
     && rm -rf /var/cache/apk/*
 
 FROM base AS runtime
-LABEL org.opencontainers.image.source="https://github.com/example/agentry" \
+LABEL org.opencontainers.image.source="https://github.com/example/claudio" \
       maintainer="team@example.com"
 ARG VERSION=dev
 ENV NODE_ENV=production APP_VERSION=$VERSION
@@ -35,11 +35,11 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=tools /usr/bin/jq /usr/local/bin/jq
 ADD https://example.com/release.tar.gz /tmp/
 VOLUME ["/data", "/workspace"]
-EXPOSE 8787/tcp
+EXPOSE 8797/tcp
 USER node
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://localhost:8787/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://localhost:8797/api/health || exit 1
 STOPSIGNAL SIGTERM
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ONBUILD RUN echo "built on top"
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["node", "dist/server.js", "--port", "8787"]
+CMD ["node", "dist/server.js", "--port", "8797"]

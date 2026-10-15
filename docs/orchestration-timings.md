@@ -12,14 +12,14 @@ tags:
 # Where an orchestration's time goes
 
 Built by CW-13 (workstream A of [plans/orchestration-speed.md](plans/orchestration-speed.md), spec in
-[plans/orchestration-timings.md](plans/orchestration-timings.md)). Agentry records when each phase
+[plans/orchestration-timings.md](plans/orchestration-timings.md)). Claudio records when each phase
 of a graph ran, links every chat it starts for a graph with its role, and answers
 `GET /orchestrations/:id/timings` from what that leaves. It changes no scheduling, retry or
 verification behaviour: it measures the workstreams that do.
 
 ## What is recorded
 
-Everything comes from what Agentry already records about the CLI runs it starts. Every field is
+Everything comes from what Claudio already records about the CLI runs it starts. Every field is
 optional, so a graph stored before it still loads, and nothing is backfilled.
 
 | Where | Field | Set by |
@@ -35,7 +35,7 @@ ever.
 
 ## Chats linked with a role
 
-`ChatService.chatOrchestrations()` reads the chat records: every chat Agentry starts for a graph has
+`ChatService.chatOrchestrations()` reads the chat records: every chat Claudio starts for a graph has
 `orchestrationId` and `orchestrationTaskId`. The pseudo-ids map to roles
 (`__integration__` → `integration`, `__verification__` → `verification`, `__synthesis__` →
 `synthesis`, `__workflow__` → `workflow`, anything else → `task`), and `ChatOrchestration.role`
@@ -77,11 +77,11 @@ nothing is cached. What is still running counts up to `at`.
 ## The script
 
 `node scripts/orchestration-timings.mjs [id|name…] [--min-tasks N] [--json]` prints the plan's
-tables in Markdown against `AGENTRY_API_URL` (it exits when that is unset, without guessing a port,
-and sends `AGENTRY_API_TOKEN` as a Bearer token when it is set). It needs no dependencies. The
+tables in Markdown against `CLAUDIO_API_URL` (it exits when that is unset, without guessing a port,
+and sends `CLAUDIO_API_TOKEN` as a Bearer token when it is set). It needs no dependencies. The
 breakdown inside the workers reads every task chat's transcript through
 `GET /chats/:id/export?format=json`; the command patterns are a table at the top of the script, so
-another repository can adapt them. An older graph's "Agentry running checks" is marked `~`: it is
+another repository can adapt them. An older graph's "Claudio running checks" is marked `~`: it is
 what the other phases leave of the time after the tasks, since only each check's last run was kept.
 
 ## The panel

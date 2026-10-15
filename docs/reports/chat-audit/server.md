@@ -113,7 +113,7 @@ happens. [[chat-delivery.md]] describes the result.
   (`stream_event`, `--include-partial-messages`) and `init` do not change it. `ChatManager.interrupt`
   returns early unless the status is `busy` or `starting` (`chats.ts:776`), so it never sends the
   control request. The CLI's interrupt response has `still_queued` (the fixture
-  `fake-claude-control.mjs` records it), and Agentry ignores it. Codex and ACP have the same window:
+  `fake-claude-control.mjs` records it), and Claudio ignores it. Codex and ACP have the same window:
   their drivers start the next queued turn right after emitting the result
   (`codex/session.ts:203-204`, `acp/session.ts:411` → `idle()` → `pump()`), and the manager has
   already set the chat `idle`.
@@ -186,9 +186,9 @@ happens. [[chat-delivery.md]] describes the result.
   149 stream-json sessions on this machine.
 - **Sequence:** `POST /messages` M2 during a turn that still has tool calls ahead → the CLI enqueues
   M2 → at the next tool result it writes `attachment/queued_command` and `remove`
-  (`absorbed_mid_turn`) → the transcript Agentry serves has no entry for M2.
+  (`absorbed_mid_turn`) → the transcript Claudio serves has no entry for M2.
 - **Reproduction:** `S-4: a message the CLI absorbed into the running turn is in the transcript
-  Agentry serves` (a JSONL in the CLI's shape; `GET /chats/:id` returns the first prompt only).
+  Claudio serves` (a JSONL in the CLI's shape; `GET /chats/:id` returns the first prompt only).
 - **Fix:** in the Claude transcript reader, read `attachment` lines whose type is `queued_command`
   (with `commandMode: 'prompt'`) as the person's `user` entries, in place, with their own uuid.
   `task-notification` prompts follow the rule that already applies to them. The export, the search and
@@ -207,7 +207,7 @@ happens. [[chat-delivery.md]] describes the result.
   every queued prompt into one entry (session `f7ddba36…`, lines 884-890).
 - **Reproduction:** from the CLI's own transcripts, as cited. The queueing fake models the merge, but
   no test asserts it, because the matching is the page's (see the client report).
-- **Fix:** send each message with a uuid Agentry chooses, and run the CLI with
+- **Fix:** send each message with a uuid Claudio chooses, and run the CLI with
   `--replay-user-messages`, both documented stream-json features. Emit a `delivered` event for each
   uuid the CLI echoes or absorbs, and serve that uuid on the transcript entry. Then the page matches
   by id, not by text, and a merged prompt resolves every card in it.
@@ -215,7 +215,7 @@ happens. [[chat-delivery.md]] describes the result.
 ### S-6 — Gemini and Copilot chats never record the person's messages
 
 - **Severity:** major
-- **Symptom:** in a chat on a provider whose transcript Agentry keeps itself (Gemini, Copilot), every
+- **Symptom:** in a chat on a provider whose transcript Claudio keeps itself (Gemini, Copilot), every
   message the person wrote, the first prompt included, vanishes after a reload. Only the agent's side
   and the tool results remain.
 - **Root cause:** `recordEntry` (`chat-fold.ts:16-25`) runs only for the `message` events a driver
@@ -359,7 +359,7 @@ happens. [[chat-delivery.md]] describes the result.
 - With `keepAlive` on, Codex queues turns sent while one runs and starts them in order. Its interrupt
   waits for the turn id before calling `turn/interrupt` (`codex/session.ts:254-269`).
 - The Claude interrupt is a documented control request (`subtype: 'interrupt'`). The CLI answers it
-  between turns too, so sending it when the chat looks idle is safe. Only Agentry's own status gate
+  between turns too, so sending it when the chat looks idle is safe. Only Claudio's own status gate
   is wrong (S-1).
 
 ## Not covered

@@ -47,8 +47,8 @@ MACHINE_A = [
 
 # Another machine, for the states the first one does not have. OpenCode is being dragged above Gemini.
 MACHINE_B = [
-  dict(id='claude-code', state='degraded', version='2.0.8', range='≥ 2.1 < 3', path='~/.local/bin/claude', account='yeyo@inmoseo.net', reason='Funciona, pero la 2.0.8 es anterior a las versiones con las que Agentry se ha probado (2.1 a 2.x).', default=True),
-  dict(id='copilot', state='incompatible', version='2.0.0', range='≥ 1.0 < 2', path='/usr/local/bin/copilot', account='yeyo-dev', reason='La 2.0.0 es más nueva de lo que Agentry sabe usar (1.x). Instala una anterior y elígela aquí.'),
+  dict(id='claude-code', state='degraded', version='2.0.8', range='≥ 2.1 < 3', path='~/.local/bin/claude', account='yeyo@inmoseo.net', reason='Funciona, pero la 2.0.8 es anterior a las versiones con las que Claudio se ha probado (2.1 a 2.x).', default=True),
+  dict(id='copilot', state='incompatible', version='2.0.0', range='≥ 1.0 < 2', path='/usr/local/bin/copilot', account='yeyo-dev', reason='La 2.0.0 es más nueva de lo que Claudio sabe usar (1.x). Instala una anterior y elígela aquí.'),
   dict(id='codex', state='unknown', version='', path='~/.codex', account='Sin cuenta', reason='No se ha podido comprobar: no ha respondido en 10 s.'),
   dict(id='opencode', state='ready', version='1.4.2', path='~/.local/bin/opencode', account='yeyo@inmoseo.net', reason='Instalado, con sesión iniciada y respondiendo.', lifted=True),
   dict(id='gemini', state='disabled', version='0.9.1', path='~/.nvm/…/bin/gemini', account='yeyo@inmoseo.net', reason='No se busca ni se comprueba mientras esté desactivado.', off=True),
@@ -157,7 +157,7 @@ def bin_panel():
   return f'''<div class="prov-bin" role="group" aria-label="Binario de Codex">
 <span class="t-label">Binario de Codex</span>
 <div class="prov-bin-row"><label class="field field-mono grow">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/codex/bin/codex" aria-label="Ruta del binario de Codex"></label><button type="button" class="btn">Buscar…</button></div>
-<span class="form-hint">Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="mono">≥ 0.40</span>).</span>
+<span class="form-hint">Claudio usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="mono">≥ 0.40</span>).</span>
 <div class="row" style="gap: 8px"><button type="button" class="btn">Comprobar y guardar</button><button type="button" class="btn btn-ghost">Cancelar</button><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm">Usar el del PATH</button></div>
 </div>'''
 
@@ -169,7 +169,7 @@ def card_head(title, hint, id_):
 def settings_nav():
   out = []
   for g, items in SETTINGS_NAV:
-    if g == 'Agentry':
+    if g == 'Claudio':
       items = ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Proveedores', 'Decisiones']
     links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Proveedores" else ""}" style="height: 30px; font-size: 13px">{i}</a>' for i in items)
     out.append(f'<div class="col" style="gap: 1px"><span class="t-label" style="padding: 0 10px 4px">{g}</span>{links}</div>')
@@ -201,7 +201,7 @@ def desktop_settings(name, title, machine, open_id=None, drop_after=None):
     if p['id'] == drop_after:
       rows.append('<div class="prov-drop" aria-hidden="true"></div>')
   head = (f'<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: 20px">Proveedores</h2>'
-          f'<p class="fg-2 t-sm" style="margin: 0; max-width: 640px">Los agentes de programación que Agentry encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, esta lista se actualiza sola.</p></div>'
+          f'<p class="fg-2 t-sm" style="margin: 0; max-width: 640px">Los agentes de programación que Claudio encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, esta lista se actualiza sola.</p></div>'
           f'<span class="mono t-xs fg-3" style="white-space: nowrap; padding-bottom: 6px">Comprobado hace 2 min</span>'
           f'<button type="button" class="btn">{ico("retry", "ico")}Volver a comprobar</button></div>')
   card = (f'<section class="card grad-border col" style="flex-shrink: 0; gap: 0; overflow: hidden" aria-labelledby="sec-providers">'
@@ -246,7 +246,7 @@ def mbody(machine):
                 f'<span class="grow col" style="gap: 1px"><span style="font-weight: 500">Predeterminado y orden</span><span class="mono t-xs fg-3">{first} · 1.º de {len(machine)}</span></span>{ico("right", "ico fg-3")}</a>')
   return f'''{mhead('Proveedores')}
 <div class="m-body" style="gap: 12px">
-<p class="t-sm fg-2" style="margin: 0 4px; line-height: 1.5">Los agentes de programación que Agentry encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, la lista se actualiza sola.</p>
+<p class="t-sm fg-2" style="margin: 0 4px; line-height: 1.5">Los agentes de programación que Claudio encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, la lista se actualiza sola.</p>
 <div class="row" style="gap: 10px"><button type="button" class="btn grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button><span class="mono t-xs fg-3" style="white-space: nowrap">hace 2 min</span></div>
 {order_cell}
 {rotation_cells()}
@@ -292,7 +292,7 @@ def binary_sheet(p):
 <label class="row" style="gap: 12px; min-height: 48px"><span class="grow" style="font-weight: 500">Activado</span>{switch(p).replace('<span class="switch', '<span class="switch switch-lg')}</label>
 <div class="col" style="gap: 8px"><span class="t-label">Binario</span>
 <label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/codex/bin/codex" aria-label="Ruta del binario de Codex" style="font-size: 16px"></label>
-<span class="form-hint">Agentry lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="mono">≥ 0.40</span>).</span></div>
+<span class="form-hint">Claudio lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="mono">≥ 0.40</span>).</span></div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary">Comprobar y guardar</button>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">Usar el del PATH</button><button type="button" class="btn btn-lg btn-ghost">Instalar{ico("ext", "ico ico-sm")}</button></div></div>
 </div>'''
@@ -321,14 +321,14 @@ SKIP = '<button type="button" class="btn btn-ghost">Omitir por ahora</button>'
 
 
 def brand_row(right=''):
-  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>'
+  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span>'
           f'<span class="grow"></span>{right}</div>')
 
 
 def first_head(kind):
   if kind == 'found':
     return ('<div class="col" style="gap: 10px"><h1 class="t-display" style="margin: 0">Estos son los agentes de tu equipo</h1>'
-            '<p class="fg-2" style="margin: 0; max-width: 620px; line-height: 1.55">Agentry los ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales. Empiezas con el primero que esté listo; el orden y el resto los cambias luego en Ajustes.</p></div>')
+            '<p class="fg-2" style="margin: 0; max-width: 620px; line-height: 1.55">Claudio los ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales. Empiezas con el primero que esté listo; el orden y el resto los cambias luego en Ajustes.</p></div>')
   return ('<div class="col" style="gap: 10px"><h1 class="t-display" style="margin: 0">Buscando agentes en tu equipo</h1>'
           '<p class="fg-2" style="margin: 0; max-width: 620px; line-height: 1.55">Lee el PATH de tu terminal, las carpetas de instalación y la configuración de cada agente. Cada uno se comprueba por separado, así que no hace falta esperar a todos.</p></div>')
 
@@ -342,7 +342,7 @@ def desktop_first(name, title, kind):
         groups.append(f'<div class="prov-group"><div class="prov-group-head"><span class="t-label">{lab}</span><span class="mono t-xs fg-3">{len(ps)}</span></div>'
                       f'<section class="card" style="overflow: hidden">{"".join(row(p, compact=True) for p in ps)}</section></div>')
     body = ''.join(groups)
-    foot = (f'<div class="row" style="gap: 10px"><span class="prov-step-note grow">{ico("activity", "ico ico-sm")}Agentry vigila tus carpetas: lo que instales o inicies en una terminal aparece aquí solo.</span>'
+    foot = (f'<div class="row" style="gap: 10px"><span class="prov-step-note grow">{ico("activity", "ico ico-sm")}Claudio vigila tus carpetas: lo que instales o inicies en una terminal aparece aquí solo.</span>'
             f'<button type="button" class="btn btn-ghost">{ico("retry", "ico")}Volver a comprobar</button>{SKIP}<button type="button" class="btn btn-primary">Continuar con Claude Code</button></div>')
   elif kind == 'checking':
     rows = [row(MACHINE_A[0], compact=True)] + [checking_row(pid, i) for i, pid in enumerate(['copilot', 'codex', 'gemini', 'opencode'])]
@@ -353,7 +353,7 @@ def desktop_first(name, title, kind):
     chips = ''.join(f'<a href="#" class="chip">{PROV[i][0]}{ico("ext", "ico ico-sm")}</a>' for i in ['codex', 'gemini', 'copilot', 'opencode'])
     body = f'''<div class="empty-state" style="padding: 8px 24px 0">{_il('il-lg', INSTALL_BODY)}
 <h2 class="t-h2">No se ha encontrado ningún agente</h2>
-<p>Agentry ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales, y no hay ninguno. Instala uno y aparecerá aquí solo, sin volver a comprobar.</p>
+<p>Claudio ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales, y no hay ninguno. Instala uno y aparecerá aquí solo, sin volver a comprobar.</p>
 <div class="row" style="gap: 8px"><a href="#" class="btn btn-primary">Ver cómo instalar Claude Code{ico("ext", "ico ico-sm")}</a><button type="button" class="btn">{ico("retry", "ico")}Volver a comprobar</button></div>
 <div class="col" style="gap: 8px; align-items: center"><span class="t-label">O elige otro</span><div class="row" style="gap: 6px; flex-wrap: wrap; justify-content: center">{chips}</div></div></div>'''
     foot = f'<div class="row" style="justify-content: center; gap: 10px">{SKIP}</div>'
@@ -395,7 +395,7 @@ def mfirst(name, title, kind):
     chips = ''.join(f'<a href="#" class="chip">{PROV[i][0]}{ico("ext", "ico ico-sm")}</a>' for i in ['codex', 'gemini', 'copilot', 'opencode'])
     body = f'''<div class="empty-state" style="padding: 12px 8px 0">{_il('il-sm', INSTALL_BODY)}
 <h2 class="t-h2">No se ha encontrado ningún agente</h2>
-<p>Agentry ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales, y no hay ninguno. Instala uno y aparecerá aquí solo.</p>
+<p>Claudio ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales, y no hay ninguno. Instala uno y aparecerá aquí solo.</p>
 <div class="col" style="gap: 8px; align-self: stretch"><a href="#" class="btn btn-lg btn-primary" style="justify-content: center">Ver cómo instalar Claude Code{ico("ext", "ico ico-sm")}</a><button type="button" class="btn btn-lg" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button></div>
 <div class="col" style="gap: 8px; align-items: center"><span class="t-label">O elige otro</span><div class="row" style="gap: 6px; flex-wrap: wrap; justify-content: center">{chips}</div></div></div>'''
     foot = '<div class="m-foot" style="flex-direction: column"><button type="button" class="btn btn-lg btn-ghost" style="justify-content: center">Omitir por ahora</button></div>'

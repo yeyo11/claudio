@@ -10,7 +10,7 @@ tags:
 ---
 # The knowledge base
 
-What Agentry knows about itself lives in two indexes that [pando](https://github.com/digiogithub/pando)
+What Claudio knows about itself lives in two indexes that [pando](https://github.com/digiogithub/pando)
 keeps beside the repo: the **knowledge base**, which is this `docs/` folder chunked and embedded, and
 the **code index**, which is every source file parsed into symbols. Both answer semantic questions —
 "where is a chat's permission mode decided", "what did we decide about the app stores" — that a

@@ -81,7 +81,7 @@ index f32eb39..dc1522e 100644
 +  return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '', home: mainTopLevel(cwd) };
  }
  
- /** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
+ /** `claudio/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
 @@ -505,8 +511,8 @@ export class Orchestrator {
     * worktree of the name it is given, so it still locks it and records it as its own.
     */

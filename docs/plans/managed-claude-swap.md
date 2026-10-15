@@ -9,20 +9,20 @@ tags:
     - desktop
     - packaging
 ---
-# Plan: claude-swap that comes with Agentry
+# Plan: claude-swap that comes with Claudio
 
-> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02): Agentry no longer switches Claude accounts, so the managed claude-swap install no longer exists. Kept as the record of why it was built.
+> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02): Claudio no longer switches Claude accounts, so the managed claude-swap install no longer exists. Kept as the record of why it was built.
 
-Make multiple accounts work out of the box in the desktop app. Today they need claude-swap to be installed by hand. Agentry will install a pinned claude-swap itself, on demand, into its own data directory, and keep talking to it only through its CLI.
+Make multiple accounts work out of the box in the desktop app. Today they need claude-swap to be installed by hand. Claudio will install a pinned claude-swap itself, on demand, into its own data directory, and keep talking to it only through its CLI.
 
 ## Why
 
-Agentry delegates multiple accounts and automatic rotation to
+Claudio delegates multiple accounts and automatic rotation to
 [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`), a Python ≥ 3.12 CLI under the MIT
 licence. `packages/core/src/accounts.ts` runs `cswap list / switch / add-token --json`, supervises
 `cswap auto --json`, and spawns `cswap run … --` for a chat pinned to an account.
 
-Whether it is there depends on where Agentry runs:
+Whether it is there depends on where Claudio runs:
 
 | Distribution | claude-swap |
 |---|---|
@@ -32,11 +32,11 @@ Whether it is there depends on where Agentry runs:
 
 On the desktop, the Accounts page is a dead end. It shows "claude-swap is not installed" and a link to a guide. To continue, the user has to open a terminal, install `uv`, run `uv tool install claude-swap` and come back. A GUI launch reads the login shell's `PATH` once (`apps/desktop/src/shell-path.ts`), so the app may still say "not installed" until it restarts.
 
-There is also a quieter problem. Agentry parses cswap's `--json` output, and the Dockerfile installs the latest version when `CLAUDE_SWAP_VERSION` is empty. A claude-swap release that changes that output breaks the integration with no clear message: usage stops refreshing, or the account list comes back empty.
+There is also a quieter problem. Claudio parses cswap's `--json` output, and the Dockerfile installs the latest version when `CLAUDE_SWAP_VERSION` is empty. A claude-swap release that changes that output breaks the integration with no clear message: usage stops refreshing, or the account list comes back empty.
 
 ## Decision
 
-**Keep claude-swap an external CLI, pin its version, and let Agentry install that version itself when the user asks for multiple accounts.**
+**Keep claude-swap an external CLI, pin its version, and let Claudio install that version itself when the user asks for multiple accounts.**
 
 Alternatives considered and rejected:
 
@@ -44,7 +44,7 @@ Alternatives considered and rejected:
 - **Rewriting it in TypeScript.** This would lose claude-swap's refresh-token handling, cooldown, hysteresis and quarantine. Every upstream fix would become our work.
 - **A frozen binary (PyInstaller or Nuitka) in `extraResources`.** Activation would be instant and work offline. But every user would download another 30–50 MB on each install and each update, though most never use more than one account. We would also need a Python build per architecture in CI. If offline activation ever matters, this can replace the installer without touching `accounts.ts`, because only the binary's origin changes.
 
-The process boundary stays where it is. Agentry reaches claude-swap the same way it reaches Claude Code: through flags, `--json` output and exit codes.
+The process boundary stays where it is. Claudio reaches claude-swap the same way it reaches Claude Code: through flags, `--json` output and exit codes.
 
 ## Design
 
@@ -52,8 +52,8 @@ The process boundary stays where it is. Agentry reaches claude-swap the same way
 
 A single module in core, `packages/core/src/cswap-pin.ts`, holds:
 
-- `CSWAP_VERSION`: the exact version Agentry installs.
-- `CSWAP_COMPATIBLE`: the range of versions whose `--json` output Agentry parses (e.g. `>=0.26 <0.27`).
+- `CSWAP_VERSION`: the exact version Claudio installs.
+- `CSWAP_COMPATIBLE`: the range of versions whose `--json` output Claudio parses (e.g. `>=0.26 <0.27`).
 - `UV_VERSION` and `UV_SHA256`: the `uv` release the installer downloads, and its digest.
 
 The Dockerfile's `CLAUDE_SWAP_VERSION` default becomes that pinned version instead of empty (latest). `apps/api/test/packaging.test.ts` checks that the two match, the way the uv digest is already kept in step.
@@ -65,10 +65,10 @@ Order, first match wins:
 1. `CSWAP_BIN`, if set. The operator chose it, so it is used even if it is incompatible; Accounts shows a warning.
 2. `cswap` on `PATH`, if its version is in `CSWAP_COMPATIBLE`.
 3. The managed copy under `<dataDir>/tools/bin/cswap`.
-4. An incompatible `cswap` on `PATH`, used with a warning and an offer to install Agentry's version.
+4. An incompatible `cswap` on `PATH`, used with a warning and an offer to install Claudio's version.
 5. Nothing: `installed: false`.
 
-With `CSWAP_BIN` set, Agentry installs and removes nothing: the operator owns the binary.
+With `CSWAP_BIN` set, Claudio installs and removes nothing: the operator owns the binary.
 
 `CswapInfo` in `packages/shared/src/types.ts` grows:
 
@@ -77,7 +77,7 @@ source: 'env' | 'path' | 'managed' | null;
 compatible: boolean;
 pinned: string;               // CSWAP_VERSION
 managed: {
-  available: boolean;         // false in Docker, or with AGENTRY_CSWAP_MANAGED=0
+  available: boolean;         // false in Docker, or with CLAUDIO_CSWAP_MANAGED=0
   state: 'absent' | 'installing' | 'installed' | 'failed';
   step?: 'uv' | 'claude-swap';   // uv fetches Python inside the second step
   version: string | null;       // of the managed copy
@@ -95,10 +95,10 @@ managed: {
 
 The install:
 
-- **Runs only when asked.** That means `POST /accounts/cswap/install`, or a managed copy that is older than the pin after an Agentry update. Nothing downloads at first launch, and a user with one account pays nothing.
+- **Runs only when asked.** That means `POST /accounts/cswap/install`, or a managed copy that is older than the pin after an Claudio update. Nothing downloads at first launch, and a user with one account pays nothing.
 - **Leaves the account data alone.** claude-swap keeps accounts in its own data dir (`~/.local/share/claude-swap`), separate from the binary. Installing, updating or removing the managed copy never touches it, and someone who already used cswap keeps their accounts.
-- **Upgrades after an Agentry update.** When a managed copy differs from the pin at boot, it is reinstalled in the background (`uv tool install --force`). The auto-switch supervisor stops for the reinstall and starts again after.
-- **Is off in Docker**, where the image already bakes the pinned version (`AGENTRY_DISTRIBUTION`). `AGENTRY_CSWAP_MANAGED=0` turns it off anywhere.
+- **Upgrades after an Claudio update.** When a managed copy differs from the pin at boot, it is reinstalled in the background (`uv tool install --force`). The auto-switch supervisor stops for the reinstall and starts again after.
+- **Is off in Docker**, where the image already bakes the pinned version (`CLAUDIO_DISTRIBUTION`). `CLAUDIO_CSWAP_MANAGED=0` turns it off anywhere.
 - **Fails in the open.** A network error, a digest mismatch or a uv failure sets `state: 'failed'` with the reason. It never loops.
 
 ### API
@@ -117,8 +117,8 @@ These states follow the design system and use the existing `Empty` and illustrat
 - **Not installed, managed install available.** `cli-missing` in `warn`, "Activate multiple accounts" as the primary button, and the install guide as a secondary link for people who prefer their own.
 - **Installing.** The braille spinner next to the step ("Downloading uv…", "Installing claude-swap…"). The page polls `GET /accounts` until the state changes. When it ends, the Add account dialog opens.
 - **Failed.** `bad`, the reason, and "Retry".
-- **Incompatible.** A `warn` notice above the accounts: "claude-swap 0.30 on your PATH is not compatible — use Agentry's version". Its action installs the managed copy, which then takes precedence.
-- **Managed and installed.** The header shows the version and source (`claude-swap 0.26.0 · Agentry`). "Remove claude-swap" in the "⋯" menu (a `Sheet` on a phone) asks for confirmation and says the accounts are kept.
+- **Incompatible.** A `warn` notice above the accounts: "claude-swap 0.30 on your PATH is not compatible — use Claudio's version". Its action installs the managed copy, which then takes precedence.
+- **Managed and installed.** The header shows the version and source (`claude-swap 0.26.0 · Claudio`). "Remove claude-swap" in the "⋯" menu (a `Sheet` on a phone) asks for confirmation and says the accounts are kept.
 - **Not available (Docker, or turned off).** As today, with the guide.
 
 The Updates card in Settings → Account lists claude-swap's version beside the CLI's.
@@ -127,7 +127,7 @@ The Updates card in Settings → Account lists claude-swap's version beside the 
 
 - **One account (most users).** Nothing changes, and nothing is downloaded.
 - **Wants several accounts.** One button and about 20 s the first time (50–80 MB when uv also has to fetch Python), instead of a terminal and two tools.
-- **Already uses cswap.** Their binary and accounts keep working. The only new thing is a warning if their version drifts outside the range Agentry understands.
+- **Already uses cswap.** Their binary and accounts keep working. The only new thing is a warning if their version drifts outside the range Claudio understands.
 
 ## Tasks
 

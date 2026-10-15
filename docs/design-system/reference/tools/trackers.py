@@ -28,7 +28,7 @@ TRK_STATE = {
   'unavailable': ('No disponible', 'b-warn', 'dot-warn'),
   'unknown': ('Sin comprobar', 'b-idle', 'dot-idle'),
 }
-NOT_RECORDED_P2 = 'Agentry todavía no ha probado {cli}, así que no puede ofrecerlo.'
+NOT_RECORDED_P2 = 'Claudio todavía no ha probado {cli}, así que no puede ofrecerlo.'
 
 # Each scenario is a project: its host line, which tracker it has saved and what the four options say.
 # `opts` is (tracker id, state, the one line under the name); `noun`/`ref` are the host's change request.
@@ -115,11 +115,11 @@ def mapping(sc, big=False):
             ('in_review', 'En revisión', ['Sin cambios'], 'Sin cambios', True, f'{label} solo tiene abierta y cerrada.'),
             ('done', 'Hecha', [close, 'Sin cambios'], close, False, '')]
     foot = (f'Al fusionarse la {s["noun"]} la incidencia se cierra sola con <span class="mono fg-2">Closes #12</span> en su descripción. '
-            f'Si no pudo, porque la rama de destino no es la principal, Agentry la cierra después y comprueba que ha quedado cerrada.')
+            f'Si no pudo, porque la rama de destino no es la principal, Claudio la cierra después y comprueba que ha quedado cerrada.')
   else:
-    rows = [('in_progress', 'En curso', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe youtrack-app.'),
-            ('in_review', 'En revisión', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe youtrack-app.'),
-            ('done', 'Hecha', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe youtrack-app.')]
+    rows = [('in_progress', 'En curso', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Claudio pruebe youtrack-app.'),
+            ('in_review', 'En revisión', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Claudio pruebe youtrack-app.'),
+            ('done', 'Hecha', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Claudio pruebe youtrack-app.')]
     foot = 'Los estados de YouTrack se leen de su propio proyecto; hasta entonces el tablero no cambia nada en YouTrack.'
   out = ''
   for k, name, options, value, dis, note in rows:
@@ -136,9 +136,9 @@ def fields(sc, big=False):
     return ''
   if tid == 'youtrack':
     scope_label, scope_hint = 'Nombre corto del proyecto', 'El nombre corto del proyecto de YouTrack, el que encabeza sus incidencias.'
-    q_hint = 'Hasta que Agentry pruebe youtrack-app, la consulta no se puede escribir.'
+    q_hint = 'Hasta que Claudio pruebe youtrack-app, la consulta no se puede escribir.'
     disabled = ' disabled'
-    q_ph = 'Disponible cuando Agentry pruebe youtrack-app'
+    q_ph = 'Disponible cuando Claudio pruebe youtrack-app'
   elif tid == 'gitlab-issues':
     scope_label = 'Alcance'
     scope_hint = 'Las incidencias de este repositorio. Por defecto es el del remoto <span class="mono fg-2">origin</span>.'
@@ -162,10 +162,10 @@ def saved_note(sc):
   s = SCENES[sc]
   state = next((st for t, st, _ in s['opts'] if t == s['saved']), None)
   if state == 'signed-out':
-    return (f'<div class="callout callout-warn" role="note">{ico("warn", "ico fg-3")}<span style="line-height: 1.5">Hasta que {s["cli"]} tenga sesión en {s["where"]}, Agentry no lee ni cierra incidencias de este proyecto. '
+    return (f'<div class="callout callout-warn" role="note">{ico("warn", "ico fg-3")}<span style="line-height: 1.5">Hasta que {s["cli"]} tenga sesión en {s["where"]}, Claudio no lee ni cierra incidencias de este proyecto. '
             f'Lo guardado se conserva.</span><a href="DesktopIntegraciones.html" class="btn btn-sm">Ir a Integraciones</a></div>')
   if state == 'unknown':
-    return (f'<div class="callout" role="note">{ico("info", "ico fg-3")}<span style="line-height: 1.5">Este proyecto guarda un tracker que Agentry todavía no ha probado: no lee ni escribe incidencias. '
+    return (f'<div class="callout" role="note">{ico("info", "ico fg-3")}<span style="line-height: 1.5">Este proyecto guarda un tracker que Claudio todavía no ha probado: no lee ni escribe incidencias. '
             f'Puedes elegir otro tracker o dejarlo guardado.</span></div>')
   return ''
 
@@ -327,7 +327,7 @@ HOSTS = [
 ]
 
 NOT_BUILT = {
-  'youtrack': ('YouTrack todavía no está disponible: Agentry aún no ha visto cómo responde <span class="mono">youtrack-app</span> '
+  'youtrack': ('YouTrack todavía no está disponible: Claudio aún no ha visto cómo responde <span class="mono">youtrack-app</span> '
                'y no construye nada sobre algo que no ha visto.'),
 }
 
@@ -339,7 +339,7 @@ MAIN = [
        reason='Lee y escribe incidencias con glab, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en GitLab.',
        short='Usa glab y su sesión, en proyectos con el código en GitLab.'),
   dict(id='youtrack', state='not-recorded', version='', path='', reason=NOT_BUILT['youtrack'],
-       short='Agentry aún no ha visto cómo responde <span class="mono">youtrack-app</span>, y no construye nada sobre eso.'),
+       short='Claudio aún no ha visto cómo responde <span class="mono">youtrack-app</span>, y no construye nada sobre eso.'),
 ]
 
 # Scenarios for the states the first machine lacks. A tracker's readiness is its host's (it reuses the CLI),
@@ -347,15 +347,15 @@ MAIN = [
 SCENARIOS = [
   ('Un gh antiguo y un glab sin sesión', [
     dict(id='github-issues', state='incompatible', version='2.45.0', path='/usr/bin/gh',
-         reason='La 2.45.0 es anterior a la 2.92.0, la más antigua con la que funciona Agentry.'),
+         reason='La 2.45.0 es anterior a la 2.92.0, la más antigua con la que funciona Claudio.'),
     dict(id='gitlab-issues', state='signed-out', version='1.120.0', path='~/.local/bin/glab',
          reason='glab está instalado, pero no tiene la sesión iniciada en ningún host.'),
   ]),
   ('Sin gh y un glab que no responde', [
-    dict(id='github-issues', state='not-installed', version='', path='', reason='gh no está instalado, o Agentry no lo encuentra.'),
-    dict(id='gitlab-issues', state='unknown', version='', path='~/.local/bin/glab', reason='glab no ha respondido en 10 s, así que Agentry lo ha detenido.'),
+    dict(id='github-issues', state='not-installed', version='', path='', reason='gh no está instalado, o Claudio no lo encuentra.'),
+    dict(id='gitlab-issues', state='unknown', version='', path='~/.local/bin/glab', reason='glab no ha respondido en 10 s, así que Claudio lo ha detenido.'),
   ]),
-  ('Justo después de abrir Agentry', [
+  ('Justo después de abrir Claudio', [
     dict(id='github-issues', state='checking', version='', path='', reason='Leyendo la versión y los hosts…'),
     dict(id='gitlab-issues', state='checking', version='', path='', reason=''),
   ]),
@@ -442,7 +442,7 @@ def bin_panel(t):
   return f'''<div class="prov-bin" role="group" aria-label="Binario de {cli} para {label}" style="padding-left: 68px">
 <span class="t-label">Binario de {cli} para {label}</span>
 <div class="prov-bin-row"><label class="field field-mono grow">{ico("folder", "ico fg-3")}<input class="mono" placeholder="El mismo que usa {host}" aria-label="Ruta del binario de {cli} para {label}"></label><button type="button" class="btn">Buscar…</button></div>
-<span class="form-hint">Vacío, {label} usa el mismo programa que {host}. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span>
+<span class="form-hint">Vacío, {label} usa el mismo programa que {host}. Si eliges otro, Claudio lee su versión antes de guardarlo y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span>
 <div class="row" style="gap: 8px"><button type="button" class="btn">Comprobar y guardar</button><button type="button" class="btn btn-ghost">Cancelar</button><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm">Usar el del host</button></div>
 </div>'''
 
@@ -452,7 +452,7 @@ def summary(machine):
   return f'{len(machine)} gestores · {ready} listo' + ('s' if ready != 1 else '')
 
 
-INTRO = ('Agentry importa incidencias de GitHub Issues (<span class="mono">#12</span>) y GitLab Issues (<span class="mono">#12</span>) con los mismos programas '
+INTRO = ('Claudio importa incidencias de GitHub Issues (<span class="mono">#12</span>) y GitLab Issues (<span class="mono">#12</span>) con los mismos programas '
          'que ya usa para las PR y las MR: no pide otra sesión ni guarda otra clave. YouTrack llegará cuando se haya comprobado cómo responde su programa.')
 
 
@@ -528,7 +528,7 @@ def binary_sheet(t):
 <p class="prov-reason" style="font-size: 14px">{t["reason"]}</p>
 <div class="col" style="gap: 8px"><span class="t-label">Binario de {cli} para {label}</span>
 <label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" placeholder="El mismo que usa {host}" aria-label="Ruta del binario de {cli} para {label}" style="font-size: 16px"></label>
-<span class="form-hint">Vacío, {label} usa el mismo programa que {host}. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span></div>
+<span class="form-hint">Vacío, {label} usa el mismo programa que {host}. Si eliges otro, Claudio lee su versión antes de guardarlo y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span></div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary">Comprobar y guardar</button>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">Usar el del host</button><button type="button" class="btn btn-lg btn-ghost">Cancelar</button></div></div>
 </div>'''

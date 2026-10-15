@@ -1,16 +1,16 @@
-# Contributing to Agentry
+# Contributing to Claudio
 
 Thanks for taking the time. This is a small project with a couple of strong opinions, and knowing
 them up front saves everyone a round of review.
 
 ## The one rule
 
-**Agentry talks to Claude Code only through its CLI.** No SDK, no HTTP calls to Anthropic, no
+**Claudio talks to Claude Code only through its CLI.** No SDK, no HTTP calls to Anthropic, no
 scraping a terminal. If a feature cannot be expressed as a documented CLI surface — a flag, a
 subcommand, a stream-json event, a file the CLI writes — it does not belong here yet. The table in
 [README.md](README.md#how-it-talks-to-claude) lists every surface currently in use.
 
-This is what keeps the project honest: whatever Claude Code does, Agentry does, and nothing more.
+This is what keeps the project honest: whatever Claude Code does, Claudio does, and nothing more.
 
 ## Getting set up
 
@@ -18,11 +18,11 @@ You need Node >= 22, pnpm, and the Claude Code CLI on your `PATH`.
 
 ```bash
 pnpm install
-pnpm dev          # API on :8787, Vite on :5173
+pnpm dev          # API on :8797, Vite on :5181
 ```
 
 The API serves the built UI too, so `pnpm build && pnpm start` gives you the production shape on
-`:8787` alone.
+`:8797` alone.
 
 For the Linux desktop app in `apps/desktop`, `pnpm desktop:dev` builds the UI and the API bundle and
 opens Electron, and `pnpm desktop:dist` produces the AppImage and `.deb` in `apps/desktop/release/`.
@@ -41,7 +41,7 @@ CI runs exactly these, plus a Docker image build. It also regenerates the OpenAP
 schemas and fails if they differ from what you committed, so if you touched a shared type:
 
 ```bash
-pnpm --filter @agentry/api openapi:schemas
+pnpm --filter @claudio/api openapi:schemas
 ```
 
 Every route must carry a summary and a tag — there is a test that enforces it.

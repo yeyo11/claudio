@@ -44,7 +44,7 @@ RUNS = [
   dict(day='today', who='PO', stage='refine', key='AGN-43', title='Tarea eliminada', gone=True, outcome='cancelled', note='No llegó a empezar: eliminaste la tarea mientras esperaba', t='1 h'),
   dict(day='yesterday', who='QA', stage='verify', key='AGN-31', outcome='rejected', note='Rebote 3 de 3 · ahora te espera a ti', dur='1 min 50 s', cost='0,17 US$', t='18:20'),
   dict(day='yesterday', who='QA', stage='verify', key='AGN-26', outcome='failed', dur='2 min 30 s', cost='0,39 US$', t='17:44', retried='pasó hace 12 min',
-       why=('Se cortó tres veces.', 'Agentry se reinició mientras QA verificaba. Siguió en su chat las dos veces que se permiten; a la tercera, la ejecución se dio por fallida.', 'cut off by a restart (restarts: 2 of 2)')),
+       why=('Se cortó tres veces.', 'Claudio se reinició mientras QA verificaba. Siguió en su chat las dos veces que se permiten; a la tercera, la ejecución se dio por fallida.', 'cut off by a restart (restarts: 2 of 2)')),
   dict(day='yesterday', who='PO', stage='refine', key='AGN-33', outcome='passed', note='Escribió 5 criterios de aceptación · pasó a Por hacer', dur='2 min 48 s', cost='0,31 US$', t='16:05'),
 ]
 DAYS = [('now', 'Ahora'), ('today', 'Hoy'), ('yesterday', 'Ayer · domingo 27')]
@@ -190,7 +190,7 @@ def team_activity_mobile():
 
 # ---------------------------------------------------------------- a failed run's own chat
 FAIL_BANNER = f'''<div class="run-fail" role="status">{ico('x')}<div class="col" style="gap: 4px; min-width: 0">
-<span><b>Esta verificación falló y no movió la tarea.</b> Se cortó tres veces: Agentry se reinició mientras QA verificaba; siguió en este chat las dos veces que se permiten y, a la tercera, la ejecución se dio por fallida. QA lo comentó en AGN-26.</span>
+<span><b>Esta verificación falló y no movió la tarea.</b> Se cortó tres veces: Claudio se reinició mientras QA verificaba; siguió en este chat las dos veces que se permiten y, a la tercera, la ejecución se dio por fallida. QA lo comentó en AGN-26.</span>
 <span class="mono t-xs fg-3">cut off by a restart (restarts: 2 of 2) · ayer 17:44</span>
 <span class="row t-sm" style="gap: 6px; margin-top: 4px">{ico('check', 'ico ico-sm c-ok')}<span>Reintentada hoy: <b class="c-ok">pasó</b> hace 12 min, en el chat 7c2e01.</span></span>
 <div class="acts"><a href="DesktopChat.html" class="btn btn-sm">Abrir el chat 7c2e01</a><a href="DesktopTarea.html" class="btn btn-sm btn-ghost">Abrir AGN-26</a></div>
@@ -199,9 +199,9 @@ FAIL_BANNER = f'''<div class="run-fail" role="status">{ico('x')}<div class="col"
 
 def restart_line(n, short=False):
   if n > 2:
-    txt = 'Reinicio · sin reanudaciones' if short else 'Agentry se reinició · no quedan reanudaciones'
+    txt = 'Reinicio · sin reanudaciones' if short else 'Claudio se reinició · no quedan reanudaciones'
   else:
-    txt = f'Reinicio · sigue aquí ({n} de 2)' if short else f'Agentry se reinició · sigue en este chat ({n} de 2)'
+    txt = f'Reinicio · sigue aquí ({n} de 2)' if short else f'Claudio se reinició · sigue en este chat ({n} de 2)'
   return f'<div class="row t-xs mono fg-3" style="gap: 8px; justify-content: center; white-space: nowrap"><span style="flex: 1 1 0; height: 1px; background: var(--line)"></span>{ico("retry", "ico ico-sm")}{txt}<span style="flex: 1 1 0; height: 1px; background: var(--line)"></span></div>'
 
 
@@ -285,7 +285,7 @@ def flow_chat_mobile():
 </header>
 {flow_part_of(True)}
 <div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 16px 0; gap: 14px; font-size: 15px; line-height: 1.6">
-<div class="run-fail" role="status">{ico('x')}<div class="col" style="gap: 4px; min-width: 0"><span><b>Esta verificación falló y no movió la tarea.</b> Agentry se reinició tres veces mientras QA verificaba; a la tercera ya no pudo seguir.</span><span class="mono t-xs fg-3">cut off by a restart (restarts: 2 of 2)</span>
+<div class="run-fail" role="status">{ico('x')}<div class="col" style="gap: 4px; min-width: 0"><span><b>Esta verificación falló y no movió la tarea.</b> Claudio se reinició tres veces mientras QA verificaba; a la tercera ya no pudo seguir.</span><span class="mono t-xs fg-3">cut off by a restart (restarts: 2 of 2)</span>
 <span class="row t-sm" style="gap: 6px; margin-top: 2px">{ico('check', 'ico ico-sm c-ok')}<span>Reintentada hoy: <b class="c-ok">pasó</b> hace 12 min.</span></span>
 <div class="acts" style="flex-direction: column"><a href="MobileChat.html" class="btn btn-lg" style="width: 100%">Abrir el chat 7c2e01</a></div></div></div>
 <div class="col" style="align-self: flex-end; max-width: 88%; gap: 4px; background: var(--bg-2); border: 1px dashed var(--line-3); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 10px 14px; font-size: 14px; line-height: 1.5"><span class="row t-xs" style="gap: 6px; color: var(--fg-3); font-family: var(--mono)">{ico('flow', 'ico ico-sm')}flujo automático · En revisión → QA</span><span><b>Verifica AGN-26</b>: cada criterio contra <span class="mono">task/agn-26</span>.</span></div>
@@ -379,7 +379,7 @@ def ds_board():
   phone_rows = mrow('AGN-28', who='DEV', strip=live_strip('DEV', 'Implementando', '4:12', 'pnpm test')) + mrow('AGN-31', who='Y', strip=wait_strip('QA la devolvió tres veces'), lead=[bounce(3)])
   phone = (f'<div class="app m-screen" data-theme="dark" style="width: 390px; height: auto; border-radius: var(--r-xl); border: 1px solid var(--line-2); overflow: hidden; padding: 14px 0 16px">'
            f'<div class="m-body stack" style="gap: 12px; overflow: visible">{jump("in_progress")}{msection("in_progress", by_col("in_progress"), rows_html=phone_rows, head_right=role("DEV"))}</div></div>')
-  head = ('<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · ecosistema · tablero</span><h1 class="t-display" style="margin: 0">Tablero y tareas</h1>'
+  head = ('<header class="col" style="gap: 8px"><span class="t-label">Claudio design system · ecosistema · tablero</span><h1 class="t-display" style="margin: 0">Tablero y tareas</h1>'
           '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Cinco columnas fijas, una tarjeta que se lee de arriba abajo y una franja al pie que dice qué pasa ahora y quién lo hace. '
           'Sin fechas, estimaciones ni sprints: el tablero cuenta el trabajo, no el calendario.</p></header>')
   principles = ''.join([

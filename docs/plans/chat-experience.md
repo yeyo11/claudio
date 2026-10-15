@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: a chat that feels as good as ChatGPT's
 
-Make Agentry's chat feel as fast and smooth as ChatGPT's web chat: the first token sooner, text that
+Make Claudio's chat feel as fast and smooth as ChatGPT's web chat: the first token sooner, text that
 flows instead of jumping, no flicker when a block ends, a question that stays in view while it is
 answered, and a composer that never loses what was typed.
 
@@ -27,7 +27,7 @@ numbers drift: search for the quoted code when a number no longer matches.
 1. [Ground rules for whoever implements this](#ground-rules-for-whoever-implements-this)
 2. [How this was found](#how-this-was-found)
 3. [Part A — what ChatGPT does (reference)](#part-a--what-chatgpt-does-reference)
-4. [Part B — how Agentry's chat works today](#part-b--how-agentrys-chat-works-today)
+4. [Part B — how Claudio's chat works today](#part-b--how-agentrys-chat-works-today)
 5. [Part C — the work items](#part-c--the-work-items)
 6. [Order, pull requests and checks](#order-pull-requests-and-checks)
 7. [Decisions taken and rejected](#decisions-taken-and-rejected)
@@ -38,7 +38,7 @@ numbers drift: search for the quoted code when a number no longer matches.
 ## Ground rules for whoever implements this
 
 - **Techniques only, never OpenAI.** Nothing in this plan talks to ChatGPT, OpenAI or any of their
-  endpoints. ChatGPT was studied to learn *how* a good chat behaves; Agentry keeps reaching Claude
+  endpoints. ChatGPT was studied to learn *how* a good chat behaves; Claudio keeps reaching Claude
   only through the Claude Code CLI ([CLAUDE.md](../../CLAUDE.md), "The one rule"). Do not copy
   ChatGPT's code: the bundles are minified, proprietary and not ours. Re-implement the behaviour.
 - Read [CLAUDE.md](../../CLAUDE.md) and [CONTRIBUTING.md](../../CONTRIBUTING.md) first. TypeScript
@@ -61,7 +61,7 @@ numbers drift: search for the quoted code when a number no longer matches.
   messages) and of [decisions/stray-scroll-back-to-end.md](../decisions/stray-scroll-back-to-end.md)
   (a scroll up that is not the reader's is undone while following).
 - If a route or a shared type changes, use the `add-rest-route` skill: `packages/shared/src/types.ts`,
-  then `pnpm --filter @agentry/api openapi:schemas`, summary and tag in
+  then `pnpm --filter @claudio/api openapi:schemas`, summary and tag in
   `apps/api/src/openapi/routes.ts`, README tables.
 - Commits are Conventional Commits (`feat(chat-ui): …`, `perf(core): …`). Never edit `CHANGELOG.md`.
 - Each work item ends by updating **this** document: set its status line to built, with the date
@@ -77,7 +77,7 @@ numbers drift: search for the quoted code when a number no longer matches.
 
 On 2026-10-15 the ChatGPT web app (chatgpt.com, Chrome 154, logged in, Linux) was studied with
 [REA](https://github.com/morluto/rea) (`rea-agents` 6.5.0, MCP server registered in Claude Code),
-and Agentry's chat was read end to end.
+and Claudio's chat was read end to end.
 
 | Source | What it gave | Confidence |
 |---|---|---|
@@ -85,7 +85,7 @@ and Agentry's chat was read end to end.
 | `analyze_web_bundle` (Evidence `ev_30d1aaa6…d2ff6`) | 145 webpack chunks, React, endpoint candidates | Observed (static) |
 | Static reading of the 145 public JS chunks and 22 CSS files, downloaded from `chatgpt.com/cdn/assets/` | Rendering, smoothing, markdown, scroll, composer, styles, error handling | **Observed in code** (file + offset below); behaviour at runtime is inferred from code |
 | `capture_web_screenshot` | Visual layout | Observed |
-| Reading Agentry's code (`packages/chat-ui`, `packages/ui`, `packages/core`, `apps/web`, `apps/api`) | Part B | Observed in code; no profiling was done |
+| Reading Claudio's code (`packages/chat-ui`, `packages/ui`, `packages/core`, `apps/web`, `apps/api`) | Part B | Observed in code; no profiling was done |
 
 Limits: the SSE response body of ChatGPT was not captured (REA's passive capture omits raw bodies),
 so the stream's event sequence comes from the code that parses it. Two live coverage windows were
@@ -115,8 +115,8 @@ Every one of these was initiated from the same client module (`399565.*.js`, lin
 one HTTP client for the whole app. **No WebSocket** is opened for chat. The conversation is a
 **tree**: every message names its `parent_message_id`, which is how edit and regenerate branch.
 
-What Agentry takes from this: (a) streaming over the response of the send itself; (b) pre-warming
-while the person types; (c) a tree of messages. Agentry already has (a) in spirit (a long-lived SSE
+What Claudio takes from this: (a) streaming over the response of the send itself; (b) pre-warming
+while the person types; (c) a tree of messages. Claudio already has (a) in spirit (a long-lived SSE
 per chat) and has its own reasons not to do (c) now (see [Open questions](#open-questions)). (b)
 becomes CHAT-3 and CHAT-13.
 
@@ -242,7 +242,7 @@ under it (inferred).
 
 ---
 
-## Part B — how Agentry's chat works today
+## Part B — how Claudio's chat works today
 
 All verified in code on 2026-10-15.
 
@@ -263,7 +263,7 @@ All verified in code on 2026-10-15.
    Only then `runtime.sendMessage` writes to the CLI's stdin. The response calls `require(id)`
    (line 885), which is `summaryOf` again.
 4. Yet the answer of that check is already known when the process is ours:
-   `sessionHolder` (`packages/core/src/chat-model.ts:92`) returns `'agentry'` whenever
+   `sessionHolder` (`packages/core/src/chat-model.ts:92`) returns `'claudio'` whenever
    `ownProcess` is true, and `chatControl` (line 115) then returns `interactive` (unless the chat
    belongs to an orchestration). The CLI list cannot change the outcome for our own live process.
 5. The CLI process: one long-lived
@@ -373,7 +373,7 @@ while working.
 
 ### B7. Styles and motion
 
-| Thing | Agentry | Where |
+| Thing | Claudio | Where |
 |---|---|---|
 | Column | 740 px (padding trick) | `chat.css:457` |
 | Composer | max 780 px | `chat.css:555` |
@@ -609,7 +609,7 @@ or new chat that includes the person's own message and the first assistant block
    `this.deps.runtime.streamPosition(id)` — **read it before the transcript is read**, so the window
    between the two is covered by the replay (duplicates are harmless: `appendStreamed` dedupes by
    uuid). Add `streamPosition` to the deps' runtime type if it is a `Pick`. Regenerate OpenAPI
-   (`pnpm --filter @agentry/api openapi:schemas`).
+   (`pnpm --filter @claudio/api openapi:schemas`).
 4. `packages/chat-ui/src/lib/chats.ts`, `connect()` (line 331): replace the URL with
 
    ```ts
@@ -623,7 +623,7 @@ or new chat that includes the person's own message and the first assistant block
    ```
 
    with `const FRESH_EXECUTION_MS = 120_000;` near the other constants (line 188). `ChatDetail` type
-   import from `@agentry/shared`.
+   import from `@claudio/shared`.
 5. Check `apps/desktop/src/sse.ts` and `apps/desktop/src/live-monitor.ts`: they consume the global
    feed, not this route; no change expected. Confirm with a grep for `/stream?since`.
 
@@ -653,7 +653,7 @@ whose process is ours the answer is fixed (B1.4).
 ```ts
 /**
  * The chat as a send needs it. A process of ours makes the chat interactive whatever the CLI's list
- * says (`sessionHolder` → 'agentry'), so the send does not wait for that list, which can mean
+ * says (`sessionHolder` → 'claudio'), so the send does not wait for that list, which can mean
  * spawning `claude agents --json`. Anything else takes the full read.
  */
 private async summaryForSend(id: string): Promise<ChatSummary | null> {
@@ -811,7 +811,7 @@ Status: built 2026-10-15.
 `packages/chat-ui/src/components/Transcript.tsx:32`:
 
 ```ts
-const loadMarkdown = () => import('@agentry/ui/components/Markdown');
+const loadMarkdown = () => import('@claudio/ui/components/Markdown');
 const Markdown = lazy(loadMarkdown);
 /** Starts loading the renderer, so the first answer on the page is never drawn as raw text first. */
 export const preloadMarkdown = (): void => void loadMarkdown();
@@ -1045,7 +1045,7 @@ Four independent changes; do them in this order and measure with the React profi
    `liveStreams.add(id)` in `es.onopen`, `liveStreams.delete(id)` in `disconnect()` and in the
    effect cleanup. In `apps/web/src/lib/events.ts:244`:
    `return event.previousStatus === null ? (hasLiveStream(event.runId) ? [] : transcriptOf(event.runId)) : …`.
-   (`apps/web` may import from `@agentry/chat-ui`; the boundaries test,
+   (`apps/web` may import from `@claudio/chat-ui`; the boundaries test,
    `packages/chat-ui/test/boundaries.test.ts`, guards the other direction.)
 2. **One invalidation at turn end, not two.** `chats.ts:327` invalidates `keys.chatScope(id)` 400 ms
    after a turn ends; the global feed already invalidates `keys.chatScope(runId)` on the status
@@ -1131,7 +1131,7 @@ idle processes.
 3. `packages/core/src/chat-fold.ts:286`: replace the timer with
 
    ```ts
-   const VIEWED_IDLE_MAX_MS = Number(process.env.AGENTRY_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
+   const VIEWED_IDLE_MAX_MS = Number(process.env.CLAUDIO_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
    chat.idleSince = Date.now();
    const onIdle = () => {
      // Someone has the chat open: their next message should not wait for a cold start. Bounded, so a
@@ -1222,7 +1222,7 @@ Status: **built** on 2026-10-15 in branch `feat/rich-composer`, as planned (`com
 
 `packages/chat-ui/src/composer/Composer.tsx`:
 
-- Key: `agentry-composer-draft:${chat.id}:${kind}`. Value: `{ text: string; at: number }` JSON.
+- Key: `claudio-composer-draft:${chat.id}:${kind}`. Value: `{ text: string; at: number }` JSON.
 - Initial state: `useState(() => readDraft(key))` — read with `try/catch`, ignore drafts older than
   7 days (delete them).
 - Write with a 300 ms debounce on `text` change (`setTimeout` in an effect, cleared on change);
@@ -1332,7 +1332,7 @@ Status: built 2026-10-15. Run `night-shift-ui-check`.
 
 Status: **needs a decision**; do not implement without the owner's approval.
 
-ChatGPT's measured CSS uses 14px base and 1.625 markdown leading, close to Agentry's 14px/1.65. The
+ChatGPT's measured CSS uses 14px base and 1.625 markdown leading, close to Claudio's 14px/1.65. The
 screenshot looked larger (≈16px rendered text). Options to try behind a quick A/B in the browser:
 `.md { font-size: 15px; line-height: 1.7 }` and paragraph spacing `1em`, user bubble max 70 %. Ask
 the owner before changing tokens; follow `docs/design-system.md`.
@@ -1367,15 +1367,15 @@ when each block ends, the question staying at the top, the composer keeping a dr
 - **Taken: re-implement behaviours, never call or copy ChatGPT.** The one rule of
   [CLAUDE.md](../../CLAUDE.md) and the code's licence both forbid more.
 - **Taken: keep EventSource and the per-chat stream.** ChatGPT streams on the response of the send
-  (`fetch` + `ReadableStream`), which allows a POST body and custom headers. Agentry's chat outlives
+  (`fetch` + `ReadableStream`), which allows a POST body and custom headers. Claudio's chat outlives
   a single send (queued messages, other tabs, the desktop app), and the per-chat stream with
   `Last-Event-ID` already gives resume. Switching transport would not change how it feels.
-- **Rejected for now: ChatGPT's full JSON-Patch delta protocol.** Agentry streams one text block at
+- **Rejected for now: ChatGPT's full JSON-Patch delta protocol.** Claudio streams one text block at
   a time; `append` (CHAT-12) gives the same byte savings with a fraction of the complexity.
 - **Rejected for now: a conversation tree (edit, regenerate, variants).** The Claude Code CLI
-  transcript is linear and Agentry reaches it only through the CLI; branching would need a CLI
+  transcript is linear and Claudio reaches it only through the CLI; branching would need a CLI
   capability to rewind a session. See open questions.
-- **Rejected: a pre-hydration textarea like ChatGPT's.** Agentry's composer is a plain textarea that
+- **Rejected: a pre-hydration textarea like ChatGPT's.** Claudio's composer is a plain textarea that
   is interactive as soon as the chat page renders; there is no editor to wait for.
 
 ## Open questions
@@ -1387,7 +1387,7 @@ when each block ends, the question staying at the top, the composer keeping a dr
    MCP servers? The owner chooses; it is an environment variable either way.
 3. CHAT-19: typography, owner decision.
 4. The submit-key setting (Enter vs Ctrl+Enter, and Enter = newline on touch screens) is in ChatGPT;
-   Agentry's phone layout blurs the box after sending instead. Worth a setting?
+   Claudio's phone layout blurs the box after sending instead. Worth a setting?
 
 ## Related
 

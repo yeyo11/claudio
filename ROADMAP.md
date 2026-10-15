@@ -4,10 +4,10 @@
 
 - **Core over the CLI only** — detection, auth status, multi-turn chats over stream-json with
   transparent `--resume`, token streaming, background tasks, subagents, effective environment.
-- **Chats and projects** — Agentry's own model of a conversation: a chat is a session id, and every
+- **Chats and projects** — Claudio's own model of a conversation: a chat is a session id, and every
   time a process works on it that is an execution with its own outcome, cost and turns. Chats are read
-  from the CLI's transcripts, whoever started them (a terminal, Agentry, an orchestration worker), and
-  what only Agentry knows lives in a record next to them. Projects are directories you import, with
+  from the CLI's transcripts, whoever started them (a terminal, Claudio, an orchestration worker), and
+  what only Claudio knows lives in a record next to them. Projects are directories you import, with
   their worktrees and every chat under them; the wrapper's own housekeeping chats leave no transcript;
   resume, fork into a copy, delete, and create or clone projects.
 - **Orchestration** — task DAG with parallelism, dependency context, synthesis and an auto-planner;
@@ -19,7 +19,7 @@
   time and cost limit per task or per graph.
 - **Verification phase** — the checks (build, the browser suite) run once on the integration branch,
   each under a timeout, after an install step worked out from the lockfile (or given, or turned off),
-  with a fixer agent held to rules Agentry writes and a cap on its attempts and on what it may spend
+  with a fixer agent held to rules Claudio writes and a cap on its attempts and on what it may spend
   (`--max-budget-usd` with what is left after each attempt); the outcome (`passed`, `fixed`,
   `failed`) is on the graph before a pull request is offered, and `failGraph` makes failed checks end
   the graph as failed with no pull request. Workers run only the type check and the unit tests.
@@ -44,7 +44,7 @@
   last steps through a read-only housekeeping chat and proposes the hint, to send, edit, dismiss or
   have sent on its own; what it costs lands on the graph. Every reason and hint carries a stable code
   and the figures behind it, so a client says them in its own language. The changes are reviewed inside
-  Agentry, on one screen with a diff comparator of its own.
+  Claudio, on one screen with a diff comparator of its own.
 - **A suite that cannot hang** — the browser suite has a time limit per spec and per run, and closes
   Chrome and the wrapper on every way out by the pid it started, never by a name match.
 - **Configuration, user and project scope** — settings (guided + raw), instructions, MCP servers
@@ -56,7 +56,7 @@
   TLS guidance and a proxy profile: see [SECURITY.md](SECURITY.md) and [docs/deploy.md](docs/deploy.md).
   The audit log narrows by path (matched literally), method and status code or class, a tool
   permission is answered from the notification without opening the chat, and a lost token is replaced
-  from the environment with `AGENTRY_AUTH_TOKEN_RESET=1`, audited with actor `env`.
+  from the environment with `CLAUDIO_AUTH_TOKEN_RESET=1`, audited with actor `env`.
 - **Multi-account** — several accounts through claude-swap, with usage per window, manual switch,
   proactive rotation at a usage threshold, rotate-and-resume for a chat that hits its limit, and
   per-chat account pinning. Each account can have a config directory of its own (nothing moved or
@@ -71,13 +71,13 @@
 - **Scheduling** — recurring chats and orchestrations on a cron expression and a time zone, with a
   cron builder that explains itself, a form that can be filled from an orchestration that already ran,
   run now, and a run history. A slot is claimed by a unique key so it never fires twice; one missed
-  while Agentry was down is recorded as skipped, never run late; and one that arrives while the last
+  while Claudio was down is recorded as skipped, never run late; and one that arrives while the last
   run is still going follows the schedule's overlap policy — start anyway, skip it, or queue it as a
   row that survives a restart. `schedule.changed` and `schedule.fired` keep the lists fresh without
   polling.
 - **Usage and cost over time** — per day or week, per project and per model, from the cost the CLI
   reports (never estimated from tokens), a Usage page with an accessible chart and a date picker of
-  Agentry's own for a custom range, and any transcript — or a whole project's chats, streamed —
+  Claudio's own for a custom range, and any transcript — or a whole project's chats, streamed —
   exported as Markdown or JSON.
 - **Persistence** — chats survive wrapper restarts, and one cut off by a restart says so and when it
   stopped; orchestrations, schedules and credentials are in the data volume.
@@ -91,7 +91,7 @@
   or failed chats and orchestrations, conflicts, rate limits and rotations, a worker that looks stuck
   and the hint the supervisor proposes for it, and finished tasks, subagents and workflows; toasts,
   and opt-in browser notifications for a hidden tab.
-- **On a phone** — Agentry installs to a home screen on Android and iPhone as a progressive web app:
+- **On a phone** — Claudio installs to a home screen on Android and iPhone as a progressive web app:
   a manifest, icons generated from the brand mark, and a service worker that caches the app shell
   (keyed by build, and an allowlist of what it answers, so `/api`, `/docs` and `/openapi.json` never
   go through it and the event streams are untouched). An install button on Android and the desktop,
@@ -143,7 +143,7 @@
   release-please versioning and changelog.
 - **Linux desktop app** — Electron shell running the bundled API, packaged as AppImage and `.deb`
   and attached to every release. See [docs/desktop.md](docs/desktop.md).
-- **Knowing about a new release, and taking it** — the server asks GitHub for Agentry's latest
+- **Knowing about a new release, and taking it** — the server asks GitHub for Claudio's latest
   release once a day and on demand, keeps the answer in `release.json` and tells every open page
   through `system.release`; Settings → Account has an Updates card with the steps for this install
   (Docker, a source checkout, the desktop app), and a dot on Settings — never the bell — says a newer
@@ -185,7 +185,7 @@
 - **The team, the flow by column, shared memory and documents** — orchestration 3 of the project
   ecosystem, core and web:
   - a project's team: each member a Claude Code agent file plus the role, model, responsibility and
-    write paths Agentry keeps. A file a person wrote or edited is never overwritten, only reported;
+    write paths Claudio keeps. A file a person wrote or edited is never overwritten, only reported;
   - the flow by column, switched on per project. A card entering a column starts its role's run with
     `--agent`, `--model`, the journal as `--append-system-prompt` and a structured result through
     `--json-schema`. QA sends the card back a set number of times; only a person moves it to Done.
@@ -243,7 +243,7 @@ The rest of what is still open was decided against rather than left undone. The 
 
 - **A banner on every page while read-only is on.** The Security tab already says the mode is on,
   and a person who turned it on knows: a strip across every screen buys nothing for the noise.
-- **A sign-in through an identity provider.** Agentry validates a JWT and nothing more. A browser
+- **A sign-in through an identity provider.** Claudio validates a JWT and nothing more. A browser
   login flow (authorization code with PKCE, a callback route, refresh) is a product of its own, not
   a field on the security settings; in `oidc` mode clients bring a JWT, or an identity-aware proxy
   adds it.
@@ -253,7 +253,7 @@ The rest of what is still open was decided against rather than left undone. The 
   The PWA reaches both operating systems today for nothing. If push on an installed PWA turns out to
   be unreliable in practice, that is the moment to revisit this — not before.
 - **Per-user push.** A subscription belongs to an install, not to a person, so every device that
-  turned it on is sent the same notifications. Agentry has one credential for everyone who holds it
+  turned it on is sent the same notifications. Claudio has one credential for everyone who holds it
   and no per-user isolation anywhere else either; inventing an identity model for the notification
   layer alone would be the wrong place to start. It waits for a real per-user model.
 - **Offline use.** The worker caches the app shell so a cold start paints at once, and never `/api`.
@@ -280,7 +280,7 @@ The rest of what is still open was decided against rather than left undone. The 
 
 ### Noticed and not fixed
 
-Nothing at the moment. The one item that was here, a chat Agentry starts shown under the name
+Nothing at the moment. The one item that was here, a chat Claudio starts shown under the name
 the wrapper generated (`my-project-ce007b`) until its transcript was on disk, was fixed in the UI
 by #101: every chat surface shows the first prompt instead. See
 [post-roadmap's verification](docs/plans/post-roadmap.md#what-no-task-built).
@@ -288,13 +288,13 @@ by #101: every chat surface shows the first prompt instead. See
 ### Out of reach of the CLI
 
 - **Web artifacts and claude.ai chat memory** — no public API, no CLI command.
-- **Authorising a claude.ai connector from Agentry** — it happens in an interactive session (`/mcp`) or in
+- **Authorising a claude.ai connector from Claudio** — it happens in an interactive session (`/mcp`) or in
   claude.ai's connector settings; the page links the instructions.
 - **Plugin and claude.ai connector servers in a chat's own MCP selection** — they are in no file
-  Agentry can read, and `--strict-mcp-config` drops them.
-- **A time limit as a CLI flag** — the cost limit is `--max-budget-usd`; the time limit is Agentry's
+  Claudio can read, and `--strict-mcp-config` drops them.
+- **A time limit as a CLI flag** — the cost limit is `--max-budget-usd`; the time limit is Claudio's
   own clock.
-- **Per-model cost for chats started from a terminal, or run before Agentry recorded it** — the CLI
-  reports it in the result of a process Agentry drove, so such a cost is "not reported", never estimated.
+- **Per-model cost for chats started from a terminal, or run before Claudio recorded it** — the CLI
+  reports it in the result of a process Claudio drove, so such a cost is "not reported", never estimated.
 - **Cancelling one command on every platform** — finding a command's process tree reads `/proc`, so it
-  works on Linux; elsewhere Agentry refuses rather than guess.
+  works on Linux; elsewhere Claudio refuses rather than guess.

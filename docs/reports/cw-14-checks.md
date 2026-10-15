@@ -15,12 +15,12 @@ test is unchanged since: the commit that adds this report changes no code.
 | Check | Result |
 |---|---|
 | `pnpm typecheck` | exit 0 |
-| `pnpm --filter @agentry/shared test` | 31 pass, 0 fail |
-| `pnpm --filter @agentry/desktop test` | 49 pass, 0 fail |
-| `pnpm --filter @agentry/core test` | 839 pass, 0 fail |
-| `pnpm --filter @agentry/web test` | 857 pass, 0 fail |
-| `pnpm --filter @agentry/api test` | 174 pass, 0 fail |
-| `pnpm --filter @agentry/api openapi:schemas`, then `git diff apps/api/src/openapi/schemas.json` | exit 0, no drift |
+| `pnpm --filter @claudio/shared test` | 31 pass, 0 fail |
+| `pnpm --filter @claudio/desktop test` | 49 pass, 0 fail |
+| `pnpm --filter @claudio/core test` | 839 pass, 0 fail |
+| `pnpm --filter @claudio/web test` | 857 pass, 0 fail |
+| `pnpm --filter @claudio/api test` | 174 pass, 0 fail |
+| `pnpm --filter @claudio/api openapi:schemas`, then `git diff apps/api/src/openapi/schemas.json` | exit 0, no drift |
 | `pnpm build`, then `node --test e2e/harness.test.mjs e2e/shards.test.mjs` | 27 pass, 0 fail |
 
 ## A test that flaked

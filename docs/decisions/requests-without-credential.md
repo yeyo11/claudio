@@ -17,16 +17,16 @@ install.
 ## What happened
 
 The owner turned `token` mode on from Settings → Security, so `auth.json` held only the token's
-hash and `AGENTRY_AUTH_TOKEN` was not in the environment. Three things then met:
+hash and `CLAUDIO_AUTH_TOKEN` was not in the environment. Three things then met:
 
-1. The desktop tray's `LiveMonitor` only had a bearer token when `AGENTRY_AUTH_TOKEN` was set, so it
+1. The desktop tray's `LiveMonitor` only had a bearer token when `CLAUDIO_AUTH_TOKEN` was set, so it
    polled `GET /api/events` every 15 s and `GET /api/overview` every 30 s with no credential, and
    `server.log` filled with 401s from `127.0.0.1` (514 and 299 in a morning).
 2. The guard's `FailureBackoff` counted every refused request under `req.ip`. On a local install
    every process is `127.0.0.1`, so after ten refusals the owner's authenticated window and his
    chats (`POST /api/chats/:id/resume`) were answered `429 too many failed authentications from
    this address`, for up to a minute, renewed as long as the tray kept polling.
-3. Chats Agentry starts get `AGENTRY_API_URL` with no token (work item CW-10, separate), so a chat
+3. Chats Claudio starts get `CLAUDIO_API_URL` with no token (work item CW-10, separate), so a chat
    calling the API could do the same.
 
 ## The rule
@@ -40,7 +40,7 @@ hash and `AGENTRY_AUTH_TOKEN` was not in the environment. Three things then met:
   credentials (the real token included), a credential that works clears the count, `OPTIONS` is
   untouched and the `421` host check still comes first (`apps/api/src/security.ts`).
 - **The desktop app authenticates its tray** with a secret of its own: 32 random bytes generated at
-  each launch, handed to the server it spawns as `AGENTRY_DESKTOP_TOKEN`. The server keeps its
+  each launch, handed to the server it spawns as `CLAUDIO_DESKTOP_TOKEN`. The server keeps its
   SHA-256 in memory only (`AuthStore`, `packages/core/src/security/auth.ts`), compares in constant
   time, accepts it only from a loopback socket dialled on a loopback `Host` (a tunnel or a reverse
   proxy also arrives from `127.0.0.1`, but carries the public name), and deletes the variable from

@@ -191,7 +191,7 @@ jobs:
         run: docker build -f docker/Dockerfile -t claudio:ci .
       - name: Container reports a detected CLI
         run: |
-          docker run -d --name agentry --init -p 8797:8797 claudio:ci
+          docker run -d --name claudio --init -p 8797:8797 claudio:ci
           for i in $(seq 1 30); do curl -fsS localhost:8797/api/system && break; sleep 1; done
           curl -fsS localhost:8797/api/system | grep -q '"installed":true'
           curl -fsS -o /dev/null localhost:8797/docs/

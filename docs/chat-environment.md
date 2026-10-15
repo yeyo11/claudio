@@ -11,21 +11,21 @@ tags:
 ---
 # A chat knows which wrapper runs it
 
-Every chat Agentry starts gets these variables in its environment:
+Every chat Claudio starts gets these variables in its environment:
 
-- `AGENTRY_API_URL`: the REST API of the wrapper that spawned it, with the real port it bound (for
+- `CLAUDIO_API_URL`: the REST API of the wrapper that spawned it, with the real port it bound (for
   example `http://127.0.0.1:34331/api`). `startServer` sets it on the runtime once it listens.
-- `AGENTRY_CHAT_ID`: the chat's own id.
-- `AGENTRY_API_TOKEN`: a credential of the chat's own for that API, minted for each process (each
-  turn) whenever `AGENTRY_API_URL` is set. Send it as `Authorization: Bearer $AGENTRY_API_TOKEN`.
+- `CLAUDIO_CHAT_ID`: the chat's own id.
+- `CLAUDIO_API_TOKEN`: a credential of the chat's own for that API, minted for each process (each
+  turn) whenever `CLAUDIO_API_URL` is set. Send it as `Authorization: Bearer $CLAUDIO_API_TOKEN`.
   Under `mode: none` nothing reads it.
 
 ## Why
 
 On one machine there are often two wrappers: the desktop app (loopback, a port it keeps between
-launches, data in `~/.config/Agentry/data`) and a dev server from a checkout (`8787`, data in the
+launches, data in `~/.config/Claudio/data`) and a dev server from a checkout (`8797`, data in the
 checkout's `data/`). A chat in the desktop app asked to launch an orchestration called
-`localhost:8787` from habit. The orchestration ran, on the dev server, and never appeared in the
+`localhost:8797` from habit. The orchestration ran, on the dev server, and never appeared in the
 app the person was looking at. Nothing told the agent where its own wrapper was.
 
 ## Decisions
@@ -33,7 +33,7 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
 - **The address comes from the listening server, not from config.** A port asked for is only a
   preference (`listenOn` falls back to a free one), so only the bound address is right.
 - **An inherited value is removed.** A wrapper started from a chat of another wrapper inherits that
-  chat's `AGENTRY_API_URL`. Its own chats must not see it: before the API listens, they get none.
+  chat's `CLAUDIO_API_URL`. Its own chats must not see it: before the API listens, they get none.
 - **The chat gets its own token, never the owner's** (CW-10, replacing "no credential is passed").
   With the guard on, a chat with a URL and no credential got `401` on every call, and one had to read
   `wrapper.db` to diagnose the board. Handing it the owner's token would widen what a prompt
@@ -55,15 +55,15 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
     `local` and is never refused (CW-17, `apps/api/src/security.ts`). The work-item routes turn that
     label into an agent actor with the cause `chat.api-write`
     ([work-items.md](work-items.md#a-write-from-a-chat)).
-  - An inherited `AGENTRY_API_TOKEN` is always removed, like the URL: it is another wrapper's.
-  - MCP servers the CLI starts inherit it, which is how the assistant's server calls the API. Agentry's
-    own server (`agentry`) is given it in its config file as `${AGENTRY_API_TOKEN}`, expanded by the CLI
+  - An inherited `CLAUDIO_API_TOKEN` is always removed, like the URL: it is another wrapper's.
+  - MCP servers the CLI starts inherit it, which is how the assistant's server calls the API. Claudio's
+    own server (`claudio`) is given it in its config file as `${CLAUDIO_API_TOKEN}`, expanded by the CLI
     ([agentry-mcp-server.md](plans/agentry-mcp-server.md)). The global assistant chat uses it for its
     read and write tools ([agentry-assistant.md](agentry-assistant.md)).
 
   The full specification is [chat-api-token.md](plans/chat-api-token.md); the decision is §2 of
   [flow-start-and-chat-token.md](plans/flow-start-and-chat-token.md).
 - **Nothing is added to the system prompt.** The variable is there for whoever looks. This repo's
-  `CLAUDE.md` tells agents to use it; other projects do not call Agentry's API.
+  `CLAUDE.md` tells agents to use it; other projects do not call Claudio's API.
 
 Related: [[desktop]], [[pinned-chat-rotation]], [[plans/chat-api-token.md]], [[plans/flow-start-and-chat-token.md]].

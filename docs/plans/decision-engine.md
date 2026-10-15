@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: the decision engine, with Jev as an optional provider
 
-Agentry makes many small judgments, and each one is decided today in one of three ways: a fixed
+Claudio makes many small judgments, and each one is decided today in one of three ways: a fixed
 rule, a paid Claude run, or a person. Examples: whether a card needs refining, what to do after QA
 sends a card back, whether to retry a failed task, whether a stuck worker needs a hint, which
 journal entries an agent reads, and which memory proposals come first. This plan gives those
@@ -146,7 +146,7 @@ interface DecisionProvider {
   never supervised: `supervisor.ts` skips `origin === 'internal'`), `uploads: false`,
   `keepAlive: false`, and confined with `confine: { tools: [], settingSources: [] }` (no built-in
   tool, no settings file, so no hook or MCP server of the person's). Since CW-10 every chat gets
-  `AGENTRY_API_URL` and a per-chat `AGENTRY_API_TOKEN` (`chats.ts`, `security/chat-tokens.ts`
+  `CLAUDIO_API_URL` and a per-chat `CLAUDIO_API_TOKEN` (`chats.ts`, `security/chat-tokens.ts`
   `ChatTokenStore`); a decision chat gets neither: `NewChat` gains `api?: false`, which leaves both
   out of the environment and mints no token. A decision chat never calls the API back.
 - **Its prompt follows the shared rules of CW-24** (`prompt-rules.ts`, [prompts.md](../prompts.md)):
@@ -394,7 +394,7 @@ row or clear a filtered set from History. Consent is not a row: it is a setting.
   line);
 - `DecisionPreview` (the state a point would send, or sent last, plus its byte size and provider).
 
-After changing them, run `pnpm --filter @agentry/api openapi:schemas`. CI fails on drift.
+After changing them, run `pnpm --filter @claudio/api openapi:schemas`. CI fails on drift.
 
 **Routes**, in a new `apps/api/src/routes/decisions.ts`, tag `decisions`:
 
@@ -417,14 +417,14 @@ After changing them, run `pnpm --filter @agentry/api openapi:schemas`. CI fails 
 | `POST` | `/projects/:id/work-items/triage` | `board.triage` for a draft being typed: `{ triage: { type, priority, duplicate, decisionId } \| null }`. The New task form fills the fields the person has not touched and marks them decided |
 | `POST` | `/decisions/palette` | Intent routing for the command palette: the query and the command ids, answered with a choice (the `palette.intent` point) |
 
-**A chat's token cannot change them.** Since CW-10 a chat Agentry starts holds its own
-`AGENTRY_API_TOKEN`, and `apps/api/src/security.ts` refuses a chat token only on the routes in
+**A chat's token cannot change them.** Since CW-10 a chat Claudio starts holds its own
+`CLAUDIO_API_TOKEN`, and `apps/api/src/security.ts` refuses a chat token only on the routes in
 `CHAT_FORBIDDEN` (the guard and the tunnel). Consent is the owner's (D12), so the routes that widen
 what leaves the machine join a second set with its own `403` message ("a chat's token cannot change
 what the decision engine sends"): `PUT /decisions/settings`, `PUT` and `DELETE /decisions/credentials`,
 and `PUT /decisions/points/:point/consent`. Without it, a prompt injection in any chat could consent
 to a point or switch the provider to Jev. The desktop app's per-launch credential (#129) already only
-reads. The Agentry assistant's write tools (CW-17) do not include these routes either.
+reads. The Claudio assistant's write tools (CW-17) do not include these routes either.
 
 The per-project override travels in the existing `GET` and `PUT /projects/:id/settings`, so no new
 route is needed for it. Because that route also takes a chat token, a project override can set a
@@ -440,13 +440,13 @@ tables**, and the OpenAPI schemas are regenerated in the same change (the `add-r
 **Prototypes come first.** New reference screens go into `docs/design-system/reference/`, and the
 owner validates them before any web code is written.
 
-**Settings → Agentry → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`).
+**Settings → Claudio → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`).
 
 Reference: `DesktopAjustes.html` and `MobileAjustes.html`, plus new prototypes
 `DesktopAjustesDecisiones.html` and `MobileAjustesDecisiones.html` with dark and light screenshots.
 
 - **Where it lives in `Settings.tsx`.**
-  - A `decisions` entry is added to `TAB_LABELS` and to the `agentry` group of `GROUPS`.
+  - A `decisions` entry is added to `TAB_LABELS` and to the `claudio` group of `GROUPS`.
   - The Supervisor tab leaves the `system` group. Its card becomes the Decisions tab's Supervisor
     section.
   - `?tab=supervisor` still lands there. Today `isTab` would send an unknown id to Appearance, so
@@ -576,15 +576,15 @@ Every point ships `off`.
 | `palette.intent` | suggest | G | `apps/web/src/components/CommandPalette.tsx` · `CommandPalette`, with `palette-model.ts` `score` | Subsequence match over titles, groups, keywords and hints | whether the person runs the proposed command | proposed command = command run | the query, the command ids and titles (no page content) |
 | `notification.urgency` | act | G | `packages/core/src/push.ts` · `PushService.onEvent`, with `packages/shared/src/notifications.ts` `notificationsFor` | Priority is fixed per kind (health `bad` is `high`) and filtered by the subscription's `level` | whether the notification was opened (a new `opened_at` on the decision row, set when the app opens from it) | a raised urgency followed by an open within the TTL counts as right | the notification's kind, title and body |
 
-The global **Agentry assistant** ([plans/agentry-assistant.md](agentry-assistant.md)) has no code on
+The global **Claudio assistant** ([plans/agentry-assistant.md](agentry-assistant.md)) has no code on
 `main`, so it has no point yet. When it is built, choosing which of its tools to call first is a
 candidate, and it is added to this table then. The project assistant of
 [assistant.md](../assistant.md) is covered by `assistant.rerank` and `assistant.sources`.
 
 **In flight on the board, not on `main`: the plan knows them and depends on none.**
 
-- **CW-6 / CW-17 / CW-18, the Agentry assistant** (MCP server, write tools, global entry). Its tool
-  choice stays the future candidate above. CW-18 adds an always-present "Agentry assistant" entry to
+- **CW-6 / CW-17 / CW-18, the Claudio assistant** (MCP server, write tools, global entry). Its tool
+  choice stays the future candidate above. CW-18 adds an always-present "Claudio assistant" entry to
   the command palette; once it is on `main`, `palette.intent` gets that entry as one more option, so a
   free question that matches no command can be routed to it. CW-17's write tools must not reach the
   decision settings, credentials or consent routes ([API](#api-and-shared-types)).
@@ -688,10 +688,10 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
 
 - `c1` (shared types), dependsOn none.
   - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated).
-  - Checks: `pnpm --filter @agentry/shared test`, `openapi:schemas` with no drift.
+  - Checks: `pnpm --filter @claudio/shared test`, `openapi:schemas` with no drift.
 - `c2` (SQLite table and store methods), dependsOn c1.
   - Files: `packages/core/src/db.ts` and its tests.
-  - Check: `pnpm --filter @agentry/core test`.
+  - Check: `pnpm --filter @claudio/core test`.
 - `c3` (settings and credentials), dependsOn c1.
   - Files: `packages/core/src/decisions/settings.ts` (with `cli.effort` and `consent.providers`),
     `packages/core/src/project-settings.ts` (`decisions` field), tests.
@@ -703,7 +703,7 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
 - `c5` (`cli` provider), dependsOn c4.
   - Files: `packages/core/src/decisions/providers/cli.ts` (through `chats.ts` `buildArgs`
     `jsonSchema`, `effort`, `maxBudgetUsd`, `confine`), `packages/core/src/chats.ts` (the
-    `NewChat.api?: false` option: no `AGENTRY_API_URL`, no minted `AGENTRY_API_TOKEN`), the prompt
+    `NewChat.api?: false` option: no `CLAUDIO_API_URL`, no minted `CLAUDIO_API_TOKEN`), the prompt
     built from `prompt-rules.ts` `pasted`, `PASTED_NOTE` and `thinkThrough`, tests with a fake CLI.
   - Check: core tests, `prompt-rules.test.ts` included (its banned-phrase scan covers
     `decisions/`).
@@ -719,7 +719,7 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
   - Files: `apps/api/src/routes/decisions.ts`, `apps/api/src/app.ts`, `apps/api/src/openapi/routes.ts`,
     `apps/api/src/security.ts` (the chat-token `403` set for settings, credentials and consent),
     `README.md` REST tables, API tests.
-  - Checks: `pnpm --filter @agentry/api test` (the summary-and-tag test included).
+  - Checks: `pnpm --filter @claudio/api test` (the summary-and-tag test included).
 
 **D2 · `decision-points`** (every point wired in, shipping `off`), all dependsOn D1:
 
@@ -774,7 +774,7 @@ Each task's checks are core tests plus a test per point:
 
 Checks for every D3 task:
 
-- `pnpm --filter @agentry/web test` (the tokens guard and i18n parity included);
+- `pnpm --filter @claudio/web test` (the tokens guard and i18n parity included);
 - the `night-shift-ui-check` skill;
 - the e2e specs the surface is covered by, run one at a time (for example `shell.spec.mjs` for
   `?tab=supervisor`, and `a11y.spec.mjs`).
@@ -827,13 +827,13 @@ D2 and D0 run in parallel with each other. D3 starts as soon as both D0 and `c7`
 This is D16. The text below is in CONTRIBUTING.md under "The one rule" since 2026-09-30 (added with
 CW-5's pull request):
 
-> **One bounded exception: typed decision services.** Agentry may call an optional outside service
+> **One bounded exception: typed decision services.** Claudio may call an optional outside service
 > that only answers small typed questions (a choice, a score, a yes/no) for its decision engine.
 > Today there is exactly one, TypeSafe's Jev. It is allowed only while all of this holds: it is off
 > by default and used with the owner's own key; it never replaces or reaches Claude Code (it writes
 > no text or code, runs no agent and makes no call to Anthropic); it receives only the state a
 > decision point declares, after the owner has consented to that point having seen a preview of it;
-> and Agentry works in full with the `cli` provider alone, which asks the same questions through the
+> and Claudio works in full with the `cli` provider alone, which asks the same questions through the
 > Claude Code CLI (`--json-schema`). See
 > [docs/decisions/decision-engine.md](docs/decisions/decision-engine.md).
 
@@ -855,7 +855,7 @@ CW-5's pull request):
     run judged as it is, one continuation early, which QA, the checks or the synthesis still judge;
     it never skips a structural item (a missing structured result, uncommitted paths), which code
     keeps deciding.
-  - A chat's own `AGENTRY_API_TOKEN` (CW-10) cannot change the decision settings, the key or consent
+  - A chat's own `CLAUDIO_API_TOKEN` (CW-10) cannot change the decision settings, the key or consent
     (the second `403` set in [API](#api-and-shared-types)), so an injected instruction in any chat
     cannot widen what leaves the machine.
 - **Jev is weak at numbers, counting and dates.** No question asks Jev to compare numbers or dates.
@@ -894,7 +894,7 @@ CW-5's pull request):
   - `cli` against the fake CLI the core tests already use: a `--json-schema` answer, an invalid
     one, a `max_tokens` stop whose JSON parses (`unavailable: 'max-tokens'`), a rate-limited turn
     (`rate-limited`, not resumed), the state inside a `pasted()` block with `PASTED_NOTE`,
-    `THINK_THROUGH` only on a Sonnet model, and no `AGENTRY_API_URL` or `AGENTRY_API_TOKEN` in the
+    `THINK_THROUGH` only on a Sonnet model, and no `CLAUDIO_API_URL` or `CLAUDIO_API_TOKEN` in the
     decision chat's environment.
   - `jev` with the SDK stubbed behind the adapter (answers, 429 then success, timeout).
   - No test reaches TypeSafe or Anthropic.
@@ -921,7 +921,7 @@ CW-5's pull request):
 
 Implementing this plan is the owner's top priority. **The Developer that builds it is Claude
 Sonnet 5.5, named by its exact id `claude-sonnet-5-5`**, not by the `sonnet` alias: on the owner's
-machine the alias resolves to `claude-sonnet-5` (Agentry's `model-aliases.json` records what each
+machine the alias resolves to `claude-sonnet-5` (Claudio's `model-aliases.json` records what each
 alias ran on). Checked on 2026-09-30: the CLI accepts `--model claude-sonnet-5-5` and reports usage
 on it; `claude-sonnet-5.5` is refused. Every worker of the orchestrations below that writes code,
 and the team's Developer on any work item of this plan, runs with `claude-sonnet-5-5`. Review and
@@ -958,7 +958,7 @@ The owner's eighteen decisions are unchanged.
   per-criterion notes (`flow_runs.criteria`, from #130) and leaves `needsPerson` criteria out;
   `flow.criteria-precheck` answers per criterion with a `needs-a-person` option that never sends a
   card back. `needsPerson` itself and `testCommands` are added to "left out" (they grant).
-- **#133 (CW-10), per-chat API token.** A decision chat gets no `AGENTRY_API_URL` and no token
+- **#133 (CW-10), per-chat API token.** A decision chat gets no `CLAUDIO_API_URL` and no token
   (`NewChat.api?: false`) and no tools (`confine`); the answer comes back as `structured_output`, so
   it never calls back. The decision settings, credentials and consent routes join a chat-token `403`
   set in `apps/api/src/security.ts`, and consent names the providers it covers.
@@ -1069,7 +1069,7 @@ merged branch. The feature is documented in [decision-engine.md](../decision-eng
 - **CW-25 seam: closed.** CW-25 landed ([effort.md](../effort.md)): the Decisions tab uses `EffortPicker`
   in place of its own `Segmented`, and a task can carry an effort, so `orchestration.model` may suggest one
   per task.
-- **Not built, as planned:** the global Agentry assistant's tool choice and CW-15's `e2e-specs` choice
+- **Not built, as planned:** the global Claudio assistant's tool choice and CW-15's `e2e-specs` choice
   as points; CW-13's `decision` chat role.
 - **Shadow period.** Nothing has been measured yet: the owner runs chosen points in `shadow` on their
   own projects, then moves them to `active` one at a time from `/decisions/stats`.

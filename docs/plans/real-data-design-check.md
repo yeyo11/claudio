@@ -57,7 +57,7 @@ so all three exist on real data and can be checked.
 
 ## How to check
 
-1. **Where.** The Agentry instance where the flow runs on this project: read `AGENTRY_API_URL` from
+1. **Where.** The Claudio instance where the flow runs on this project: read `CLAUDIO_API_URL` from
    the environment (CLAUDE.md), never a guessed port. Check the dev server and the desktop app are
    not mixed up: the CW cards and their runs must be visible there.
 2. **Read-only on real data.** Do not move, retry, edit or delete real cards or runs to produce a
@@ -86,7 +86,7 @@ so all three exist on real data and can be checked.
   phone layout, `a11y.spec.mjs` and `motion.spec.mjs` green, and a test that would have caught it (a
   web unit test, or an e2e spec with a fake-CLI state). If a fix changes
   `packages/shared/src/types.ts` or a route, regenerate the OpenAPI schemas
-  (`pnpm --filter @agentry/api openapi:schemas`), give the route a summary and a tag in
+  (`pnpm --filter @claudio/api openapi:schemas`), give the route a summary and a tag in
   `apps/api/src/openapi/routes.ts`, and add a row to the README's REST tables.
 - **A new card in Backlog** when it is larger or needs a decision, with the finding, the capture's
   description, the reference and the route in its description.

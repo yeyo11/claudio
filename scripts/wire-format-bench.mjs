@@ -2,7 +2,7 @@
 // Wire-format bench: compact JSON against TOON for what the list tools of @claudio/mcp answer.
 // Plan: docs/plans/agent-wire-format.md ("The bench").
 //
-// For each list tool it reads the real data from a running Agentry, narrows it with the tool's own
+// For each list tool it reads the real data from a running Claudio, narrows it with the tool's own
 // field selector, encodes it both ways, and asks a few questions whose answers are in the data. Every
 // question goes through `claude -p --output-format stream-json`, once per format; the input tokens
 // come from the CLI's `result` event, which counts with Claude's own tokenizer. Nothing else is

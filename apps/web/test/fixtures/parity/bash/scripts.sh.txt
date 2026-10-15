@@ -4,10 +4,10 @@ set -euo pipefail
 IFS=$'\n\t'
 
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE=${IMAGE:-ghcr.io/example/agentry}
+IMAGE=${IMAGE:-ghcr.io/example/claudio}
 TAG="${1:-latest}"
-PORT=8787
-declare -a ARGS=(--rm -p "$PORT:8787")
+PORT=8797
+declare -a ARGS=(--rm -p "$PORT:8797")
 export NODE_ENV=production DEBUG=0
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
@@ -83,7 +83,7 @@ size=$(du -sh "$ROOT/apps/web/dist" | cut -f1)
 echo "dist is $size" | tee -a build.log > /dev/null
 name=${IMAGE##*/}
 lower=${name,,}
-echo "${name%.*} ${lower/agentry/wrapper}"
+echo "${name%.*} ${lower/claudio/wrapper}"
 
 if $PUSH; then
   docker push "$IMAGE:$TAG" && log "pushed" || die "push failed"

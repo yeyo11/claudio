@@ -10,12 +10,12 @@ tags:
     - work-items
     - built
 ---
-# Spec: write tools for the Agentry assistant, each confirmed by the person (CW-17)
+# Spec: write tools for the Claudio assistant, each confirmed by the person (CW-17)
 
-Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome). Story CW-17 of epic CW-12, "The Agentry assistant". It builds on
+Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome). Story CW-17 of epic CW-12, "The Claudio assistant". It builds on
 [agentry-assistant.md](agentry-assistant.md) and depends on two earlier stories:
 
-- **CW-6**: Agentry's own MCP server, with its read tools.
+- **CW-6**: Claudio's own MCP server, with its read tools.
 - **CW-10**: the chat's own API token ([chat-api-token.md](chat-api-token.md)).
 
 Decision 3 of the plan says the assistant writes and does not only read. That decision is not
@@ -30,7 +30,7 @@ the owner answers.** The answer goes in the plan's "Confirming writes" section (
 The options, as the plan lists them:
 
 - **A (recommended, and what this spec is written for).** Every write tool goes through the CLI's
-  permission prompt. Agentry already shows that prompt in the chat as a host prompt
+  permission prompt. Claudio already shows that prompt in the chat as a host prompt
   (`permissionPrompts: 'host'`), and the person allows or denies each call.
 - **B.** Writes run straight away. The chat lists them as they happen, with undo where possible.
 - **C.** Writes become proposals that the person accepts one by one, like the project assistant's.
@@ -46,14 +46,14 @@ Everything here goes through the CLI:
 - the confirmation is the CLI's own `can_use_tool` control request, sent with
   `--permission-prompt-tool stdio`, which `ChatRunner` already answers from the `PermissionBroker`
   (`packages/core/src/chats.ts`, `packages/core/src/permissions.ts`);
-- the MCP server calls Agentry's REST API at `AGENTRY_API_URL`, never Anthropic.
+- the MCP server calls Claudio's REST API at `CLAUDIO_API_URL`, never Anthropic.
 
 No SDK is used.
 
 ## The tools
 
-The tools live in the MCP server that CW-6 builds. This spec assumes the server is named `agentry`,
-so each tool reaches the CLI as `mcp__agentry__<name>`. If CW-6 chose another name, use that one.
+The tools live in the MCP server that CW-6 builds. This spec assumes the server is named `claudio`,
+so each tool reaches the CLI as `mcp__claudio__<name>`. If CW-6 chose another name, use that one.
 
 Every tool calls one REST route that already exists. **No route is added.**
 
@@ -74,8 +74,8 @@ Rules that apply to every tool:
 - **Input schemas.** Each input schema is a strict JSON Schema, with `additionalProperties: false`
   and the same limits the route validates. A key is resolved to its id with
   `GET /api/work-items/by-key/:key`.
-- **Credentials.** Every request sends `Authorization: Bearer $AGENTRY_API_TOKEN` when that variable
-  is set. It uses `AGENTRY_API_URL` and never a guessed port.
+- **Credentials.** Every request sends `Authorization: Bearer $CLAUDIO_API_TOKEN` when that variable
+  is set. It uses `CLAUDIO_API_URL` and never a guessed port.
 - **Errors.** When the route answers 4xx or 5xx, the tool returns an MCP error result that carries
   the status and the route's `error` text, so the model can explain or adapt. It does not retry.
 - **Success.** The tool returns the route's JSON, trimmed to what identifies the result: the key,
@@ -112,7 +112,7 @@ These settings, the read tools and the write tools apply as follows:
    the chat uses. A test asserts that the argv of an assistant chat names no write tool in an allow
    flag. Every write therefore reaches `ChatRunner` as a `can_use_tool` request, and the broker shows
    it as a host prompt in the chat.
-3. **Allow once, every time.** When the request is for an Agentry write tool (`mcp__agentry__*`
+3. **Allow once, every time.** When the request is for an Claudio write tool (`mcp__claudio__*`
    minus the read tools), `ChatRunner` drops the CLI's `permission_suggestions` before it hands the
    request to the broker. When the prompt is answered, it also ignores any `updatedPermissions` in
    the decision. So no "always allow" can turn later writes into silent ones.
@@ -127,7 +127,7 @@ These settings, the read tools and the write tools apply as follows:
 ### The prompt in the chat
 
 `apps/web/src/components/PermissionPrompts.tsx` shows `request.toolName` as it is. For
-`mcp__agentry__*` write tools, it shows instead:
+`mcp__claudio__*` write tools, it shows instead:
 
 - a readable title through i18n, one key per tool in `en` and `es` (for example "Create a work
   item" and "Crear una tarea", following `apps/web/src/i18n/GLOSSARY.md`);
@@ -156,7 +156,7 @@ The first two points come from CW-10.
 - **The item's history.** The work-item routes (`apps/api/src/routes/work-items.ts`) and the
   proposal accept route (`apps/api/src/routes/assistant.ts`) pass a `WorkItemContext` when the actor
   is `chat:<id>`:
-  - `actor: { kind: 'agent', role }`, where `role` is `'assistant'` when the chat is an Agentry
+  - `actor: { kind: 'agent', role }`, where `role` is `'assistant'` when the chat is an Claudio
     assistant chat and null for any other chat;
   - `cause: { kind: 'chat', chatId, orchestrationId: null, taskId: null, event: 'chat.api-write' }`;
   - for a comment, the same `source`.
@@ -235,7 +235,7 @@ prompt, shown as a host prompt). Feature doc: [agentry-assistant.md](../agentry-
 tools: [agentry-mcp-server.md](../agentry-mcp-server.md#write-tools).
 
 - Nine tools in `packages/mcp/src/write-tools.ts`; `move_work_item` refuses `done`.
-- The chat's permission mode is the CLI's default (`manual` in Agentry) with host prompts; no write
+- The chat's permission mode is the CLI's default (`manual` in Claudio) with host prompts; no write
   tool is allowed ahead of time. A write's prompt has no suggestions and an allow carries no rules.
 - A chat token labels the actor `chat:<id>` under `mode: none`; the history records an agent of role
   `assistant` with the cause `chat.api-write`.

@@ -7,7 +7,7 @@ tags:
     - chats
     - report
 ---
-# QA report: CW-10, a chat Agentry starts gets its own API token
+# QA report: CW-10, a chat Claudio starts gets its own API token
 
 Branch `task/cw-10`, commit `c6361f75` on top of the spec commit `be7ffe47`.
 
@@ -15,7 +15,7 @@ Branch `task/cw-10`, commit `c6361f75` on top of the spec commit `be7ffe47`.
 
 The diff meets every behavioural, test and documentation criterion when read. The item fails only
 because this QA session could not run `pnpm typecheck`, `pnpm test` or
-`pnpm --filter @agentry/api openapi:schemas`: the flow ran in "don't ask" mode, and Bash was
+`pnpm --filter @claudio/api openapi:schemas`: the flow ran in "don't ask" mode, and Bash was
 denied, for the QA session and for a subagent too. That criterion cannot be marked met without
 output. Run QA again with Bash allowed, or run the three commands and attach the output.
 
@@ -24,7 +24,7 @@ output. Run QA again with Bash allowed, or run the three commands and attach the
 - `packages/core/src/security/chat-tokens.ts` (new): `agc_` + `randomBytes(32).toString('base64url')`,
   held as a SHA-256 `Buffer` keyed by its hex, compared with `timingSafeEqual`, and aged out by
   `CHAT_TOKEN_MAX_AGE_MS` (24 h), both on `verify` and in a sweep on each `mint`.
-- `packages/core/src/chats.ts` `spawnProcess`: always runs `delete env.AGENTRY_API_TOKEN`, mints a token only
+- `packages/core/src/chats.ts` `spawnProcess`: always runs `delete env.CLAUDIO_API_TOKEN`, mints a token only
   when `apiUrl` is set, revokes it when `spawn` throws, and revokes this process's own token on
   `error`/`exit` before the `current()` check. `stopAll` calls `revokeAll()`.
 - `packages/core/src/index.ts`: `runtime.chatTokens = security.chatTokens`, so the guard reads the store that
@@ -78,7 +78,7 @@ output. Run QA again with Bash allowed, or run the three commands and attach the
 - The expiry test in `chats.test.ts` swaps `runtime.chatTokens` for a store with its own clock, so it
   checks the runtime's store, not the guard's. The API side of expiry rests on the unit test of
   `ChatTokenStore`.
-- `AGENTRY_AUTH_TOKEN_RESET` has no new test. It is unaffected by the diff (the owner's path is
+- `CLAUDIO_AUTH_TOKEN_RESET` has no new test. It is unaffected by the diff (the owner's path is
   untouched) and its existing tests are unchanged.
 
 Related: [[plans/chat-api-token.md]], [[chat-environment]].

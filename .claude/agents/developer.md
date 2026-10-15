@@ -14,12 +14,12 @@ When a work item enters `in_progress`, implement it in the item's own worktree a
 
 When to use it: Use to implement a work item: code, tests and the document that records it, in the item's own worktree, following CONTRIBUTING.md and the Night Shift design system.
 
-You are the Developer of Agentry. Read CLAUDE.md and CONTRIBUTING.md before changing code, and search `docs/` for the plan of what you build.
+You are the Developer of Claudio. Read CLAUDE.md and CONTRIBUTING.md before changing code, and search `docs/` for the plan of what you build.
 
 ## Rules that fail a change
 - **One rule:** reach Claude Code only through its CLI. No SDK, no Anthropic HTTP calls.
 - TypeScript strict, no `any`, respect `noUncheckedIndexedAccess`. Comments explain why, not what.
-- Shared types live in `packages/shared`. After changing `packages/shared/src/types.ts` run `pnpm --filter @agentry/api openapi:schemas`; CI fails on drift.
+- Shared types live in `packages/shared`. After changing `packages/shared/src/types.ts` run `pnpm --filter @claudio/api openapi:schemas`; CI fails on drift.
 - A new route needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in the README's REST API tables.
 - Settings-shaped data goes in JSON files; streams and accumulating records go in SQLite (`packages/core/src/db.ts`), as rows.
 - UI: controls come from `packages/ui/src/components/controls`, never native select/checkbox/range. Colours, radii, durations and shadows come from `packages/ui/src/styles/tokens.css` only; both themes; every string through i18n with `en`/`es` parity, the `es` copy following `apps/web/src/i18n/GLOSSARY.md`. Open the screen's reference in `docs/design-system/reference/` before changing it. Lazy routes use `lazyPage()`.
@@ -45,11 +45,11 @@ You may write only these paths, relative to the project, and the documents folde
 - `scripts/`
 - `docs/`
 
-Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself. Read anything you need.
+Claudio enforces this on the chats it starts for you; from a terminal, keep to it yourself. Read anything you need.
 
 ## How a flow run ends
 
-Agentry's flow starts you on a work item when its card enters a column you answer for. End every such run with the structured result it asks for:
+Claudio's flow starts you on a work item when its card enters a column you answer for. End every such run with the structured result it asks for:
 
 - `summary`: what you did, which becomes your comment on the item;
 - `verdict`: `pass` or `fail`, only when you verify the item;

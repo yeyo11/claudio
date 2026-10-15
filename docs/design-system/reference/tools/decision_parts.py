@@ -14,7 +14,7 @@ def mark(conf='0,93', expanded=False, what=''):
   """The mark on a row where a decision changed something a person sees. "decidido · 0,93", or
   "sugerido" when the provider gave no confidence (the CLI). Neutral: no status colour."""
   text = f'decidido · {conf}' if conf else 'sugerido'
-  label = (f'Decidido por Agentry, confianza {conf}' if conf else 'Sugerido por Agentry') + (f': {what}' if what else '') + '. Ver la respuesta'
+  label = (f'Decidido por Claudio, confianza {conf}' if conf else 'Sugerido por Claudio') + (f': {what}' if what else '') + '. Ver la respuesta'
   return (f'<button type="button" class="decided" aria-haspopup="dialog" aria-expanded="{"true" if expanded else "false"}" '
           f'aria-label="{label}"><span class="decided-face">{text}</span></button>')
 
@@ -45,7 +45,7 @@ def answer(title, point, question, answer_text, odds, meta, chosen=0):
 def popover(style, *args, useful=None, **kw):
   head, body = answer(*args, **kw)
   close = f'<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico("x", "ico ico-sm")}</button>'
-  return (f'<div class="decided-pop" role="dialog" aria-label="Respuesta de Agentry" style="{style}">'
+  return (f'<div class="decided-pop" role="dialog" aria-label="Respuesta de Claudio" style="{style}">'
           f'<div class="decided-head">{head}{close}</div>{body}{rate(useful)}</div>')
 
 
@@ -54,7 +54,7 @@ def sheet(*args, useful=None, **kw):
   head, body = answer(*args, **kw)
   close = f'<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar">{ico("x", "ico ico-lg")}</button>'
   return ('<div style="position: absolute; inset: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 60%, transparent)"></div>'
-          f'<div class="sheet decided-sheet" role="dialog" aria-label="Respuesta de Agentry" style="z-index: 11; padding-bottom: 28px"><div class="grab" style="margin-bottom: -4px"></div>'
+          f'<div class="sheet decided-sheet" role="dialog" aria-label="Respuesta de Claudio" style="z-index: 11; padding-bottom: 28px"><div class="grab" style="margin-bottom: -4px"></div>'
           f'<div class="decided-head">{head}{close}</div>{body}{rate(useful)}</div>')
 
 
@@ -159,7 +159,7 @@ def override_card(open_groups=('flow', 'orch')):
               '<button type="button" role="radio" aria-checked="false">Claude Code CLI</button>'
               '<button type="button" role="radio" aria-checked="false">Jev</button></div>')
   return f'''<section class="card col" style="gap: 0" aria-labelledby="decisions-h">
-<div class="col" style="padding: 18px; gap: 14px"><div class="col" style="gap: 4px"><h2 class="t-h2" id="decisions-h">Decisiones</h2><span class="t-sm fg-2">Qué decide Agentry por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.</span></div>
+<div class="col" style="padding: 18px; gap: 14px"><div class="col" style="gap: 4px"><h2 class="t-h2" id="decisions-h">Decisiones</h2><span class="t-sm fg-2">Qué decide Claudio por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.</span></div>
 <div class="decision-provider"><span class="t-label" style="color: var(--fg-2)">Proveedor</span>{prov_seg}<span class="t-xs fg-3">Jev está disponible: hay una clave global guardada.</span></div>
 <div class="callout">{ico('info', 'ico fg-3')}<span style="line-height: 1.5"><b style="color: var(--fg); font-weight: 500">Sombra</b> decide en silencio y compara con lo que pasó: no cambia nada. <b style="color: var(--fg); font-weight: 500">Activo</b> cambia lo que ves, y lo marca con «decidido».</span></div></div>
 {head}{groups}

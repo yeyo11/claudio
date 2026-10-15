@@ -31,7 +31,7 @@ FAIL = {
   'no-code': ('bad', '{t} ha terminado sin mostrar un código. Prueba con una clave.', 'Usar una clave'),
   'cli-missing': ('bad', 'No se encuentra el programa de {t} en este equipo.', 'Ver instalación'),
   'spawn-failed': ('bad', 'No se ha podido iniciar {t}.', 'Reintentar'),
-  'timeout': ('bad', '{t} no ha respondido a tiempo y Agentry lo ha detenido.', 'Reintentar'),
+  'timeout': ('bad', '{t} no ha respondido a tiempo y Claudio lo ha detenido.', 'Reintentar'),
   'expired': ('warn', 'El código ha caducado: nadie lo aprobó en 15 minutos.', 'Pedir otro código'),
 }
 
@@ -101,7 +101,7 @@ def vendor_link(text, big=False):
 def claude_key_body(big=False):
   hint = 'Se guarda cifrado y solo lo reciben los procesos de Claude Code. No se vuelve a mostrar.'
   return (f'{seg("Qué vas a pegar", ("Token de OAuth", "Clave de API"), "Token de OAuth", big)}'
-          f'<p class="signin-note">Claude Code no tiene un inicio de sesión que Agentry pueda hacer por ti. En <b>tu propio ordenador</b>, donde ya usas Claude, '
+          f'<p class="signin-note">Claude Code no tiene un inicio de sesión que Claudio pueda hacer por ti. En <b>tu propio ordenador</b>, donde ya usas Claude, '
           f'ejecuta <code>claude setup-token</code> en una terminal: abre el navegador, entras con tu suscripción y te muestra un token que dura un año. Pégalo aquí.</p>'
           f'{vendor_link("Cómo se crea el token", big)}'
           f'{key_field("Token de OAuth", "sk-ant-oat01-…", big)}<span class="form-hint">{hint}</span>')
@@ -155,7 +155,7 @@ def head(title, text):
 
 
 def brand(step):
-  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>'
+  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span>'
           f'<span class="grow"></span><span class="t-label">Configuración · paso {step} de 4</span></div>')
 
 
@@ -178,19 +178,19 @@ def access_card(big=False):
            f'<button type="button" class="btn btn-ghost{lg}">Usar mi propio token…</button></div>')
   return (f'<section class="card col" style="padding: 18px; gap: 14px" aria-labelledby="acc-h">'
           f'<div class="row" style="gap: 10px">{ico("shield", "ico fg-3")}<h2 class="t-h2 grow" id="acc-h">Acceso</h2><span class="badge b-ok">token</span></div>'
-          f'{mode}<p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Toda petición debe llevar el token. Con «Ninguno», cualquiera que llegue al puerto puede usar Agentry: vale en tu propio equipo, no en una red.</p>'
+          f'{mode}<p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Toda petición debe llevar el token. Con «Ninguno», cualquiera que llegue al puerto puede usar Claudio: vale en tu propio equipo, no en una red.</p>'
           f'{shown}{other}<span class="form-hint">OIDC y el modo solo lectura están en Ajustes → Seguridad.</span></section>')
 
 
 def secrets_callout(big=False):
   return (f'<div class="callout callout-warn" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--warn)")}'
           f'<div class="col" style="gap: 4px; flex: 1 1 0; min-width: 0"><span style="font-weight: 500; color: var(--fg)">Las claves que guardes se cifran, pero la clave está junto a los datos</span>'
-          f'<span>Protege una copia de los archivos, no el volumen. Pasa la clave en <span class="mono">AGENTRY_SECRET_KEY</span> para que viva fuera de él.</span>'
+          f'<span>Protege una copia de los archivos, no el volumen. Pasa la clave en <span class="mono">CLAUDIO_SECRET_KEY</span> para que viva fuera de él.</span>'
           f'{vendor_link("Cómo pasar la clave", big)}</div></div>')
 
 
 def d_access():
-  body = (head('Quién puede abrir Agentry', 'Ahora mismo cualquiera que llegue a este puerto puede usarlo. Si Agentry corre en un servidor o en una red, pide un token.')
+  body = (head('Quién puede abrir Claudio', 'Ahora mismo cualquiera que llegue a este puerto puede usarlo. Si Claudio corre en un servidor o en una red, pide un token.')
           + access_card() + secrets_callout()
           + foot(back=False, note='Lo cambias cuando quieras en Ajustes → Seguridad.'))
   dpage('DesktopConfiguracionAcceso.html', 'Configuración, acceso', 1, body)
@@ -253,11 +253,11 @@ def glab_body(big=False):
   host = (f'<label class="col" style="gap: 6px"><span class="t-label">Host</span><span class="field field-mono{" field-lg" if big else ""}">{ico("git", "ico fg-3")}'
           f'<input class="mono" value="gitlab.com" aria-label="Host de GitLab"{" style=\"font-size: 16px\"" if big else ""}></span></label>')
   return host + stdin_key_body('glab', 'Token de acceso personal', 'Crear un token en gitlab.com',
-                               'Con los permisos api y write_repository. glab lo guarda en su propia configuración; Agentry no se queda con una copia.', big)
+                               'Con los permisos api y write_repository. glab lo guarda en su propia configuración; Claudio no se queda con una copia.', big)
 
 
 def youtrack_out():
-  return srow('youtrack', 'signed-out', 'Sin cuenta', 'youtrack-app 0.4.1', 'Indica a Agentry la dirección de tu YouTrack y un token permanente.', '<button type="button" class="btn">Conectar</button>')
+  return srow('youtrack', 'signed-out', 'Sin cuenta', 'youtrack-app 0.4.1', 'Indica a Claudio la dirección de tu YouTrack y un token permanente.', '<button type="button" class="btn">Conectar</button>')
 
 
 def d_hosts():
@@ -296,10 +296,10 @@ def sum_rows(big=False):
 def d_done():
   il = _il('', WELCOME_BODY)
   top = (f'<div class="row" style="gap: 24px; align-items: center"><div style="flex-shrink: 0">{il}</div>'
-         f'<div class="col" style="gap: 10px"><h1 class="t-display" style="margin: 0">Agentry está listo</h1>'
+         f'<div class="col" style="gap: 10px"><h1 class="t-display" style="margin: 0">Claudio está listo</h1>'
          f'<p class="fg-2" style="margin: 0; line-height: 1.55">Esto es lo que ha quedado hecho. Lo que has omitido sigue en Ajustes, en el mismo panel que has visto aquí, y no vuelve a salir este asistente.</p></div></div>')
   card = f'<section class="card" style="overflow: hidden" aria-label="Resumen">{sum_rows()}</section>'
-  body = top + card + f'<div class="setup-foot"><button type="button" class="btn btn-ghost">{ico("left", "ico")}Volver</button><span class="grow"></span><button type="button" class="btn btn-primary">Empezar a usar Agentry</button></div>'
+  body = top + card + f'<div class="setup-foot"><button type="button" class="btn btn-ghost">{ico("left", "ico")}Volver</button><span class="grow"></span><button type="button" class="btn btn-primary">Empezar a usar Claudio</button></div>'
   dpage('DesktopConfiguracionListo.html', 'Configuración, listo', 4, body, skipped=(3,))
 
 
@@ -320,7 +320,7 @@ WELCOME_BODY = '''<rect x="0" y="0" width="240" height="160" class="f-dots" mask
 def security_nav():
   out = []
   for g, items in SETTINGS_NAV:
-    if g == 'Agentry':
+    if g == 'Claudio':
       items = ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Proveedores', 'Integraciones', 'Decisiones']
     links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Seguridad" else ""}" style="height: 30px; font-size: 13px">{i}</a>' for i in items)
     out.append(f'<div class="col" style="gap: 1px"><span class="t-label" style="padding: 0 10px 4px">{g}</span>{links}</div>')
@@ -336,8 +336,8 @@ def secrets_card(big=False):
           f'y cada uno solo llega a los procesos de su herramienta. Nunca se muestran, ni en un registro ni en una respuesta de la API.</p>'
           f'<div class="callout callout-warn" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn)")}<div class="col" style="gap: 4px; flex: 1 1 0; min-width: 0">'
           f'<span style="font-weight: 500; color: var(--fg)">La clave está junto a los datos</span>'
-          f'<span>Agentry la creó en <span class="mono">{path}</span> porque no recibió ninguna. Protege una copia de los archivos, como una copia de seguridad, pero no el volumen: quien lo lea tiene las dos cosas.</span>'
-          f'<span>Recomendado: pasa la clave en la variable de entorno <span class="mono">AGENTRY_SECRET_KEY</span> y guárdala fuera del volumen.</span>'
+          f'<span>Claudio la creó en <span class="mono">{path}</span> porque no recibió ninguna. Protege una copia de los archivos, como una copia de seguridad, pero no el volumen: quien lo lea tiene las dos cosas.</span>'
+          f'<span>Recomendado: pasa la clave en la variable de entorno <span class="mono">CLAUDIO_SECRET_KEY</span> y guárdala fuera del volumen.</span>'
           f'{vendor_link("Cómo pasar la clave", big)}</div></div></section>')
 
 
@@ -368,7 +368,7 @@ def d_security():
 # ---------------------------------------------------------------- phone
 def mbrand(step):
   # The phone's step bar keeps only the bars; the step's name rides with its number here
-  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px">Agentry</span>'
+  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px">Claudio</span>'
           f'<span class="grow"></span><span class="t-label">{step} de 4 · {STEPS[step - 1]}</span></div>')
 
 
@@ -429,7 +429,7 @@ def sheet(tool, state, body, buttons, methods=None):
 
 
 def m_access():
-  body = mhead_('Quién puede abrir Agentry', 'Si corre en un servidor o en una red, pide un token.') + access_card(True)
+  body = mhead_('Quién puede abrir Claudio', 'Si corre en un servidor o en una red, pide un token.') + access_card(True)
   mpage('MobileConfiguracionAcceso.html', 'Configuración, acceso', 1, body, mfoot(back=False))
 
 
@@ -461,7 +461,7 @@ def m_hosts():
   card = ('<section class="card" style="overflow: hidden" aria-label="Código y tareas">'
           + mcell('gh', 'ready', 'gh 2.92.0 · yeyo-dev en github.com', 'Con sesión iniciada y respondiendo.')
           + mcell('glab', 'signed-out', 'glab 1.120.0', 'Instalado, pero sin sesión en ningún host.', m_signin('glab'))
-          + mcell('youtrack', 'signed-out', 'youtrack-app 0.4.1', 'Indica a Agentry la dirección de tu YouTrack y un token permanente.',
+          + mcell('youtrack', 'signed-out', 'youtrack-app 0.4.1', 'Indica a Claudio la dirección de tu YouTrack y un token permanente.',
                   '<button type="button" class="btn btn-lg grow" style="justify-content: center">Conectar</button>')
           + '</section>')
   s = sheet('glab', 'signed-out', glab_body(True),
@@ -472,10 +472,10 @@ def m_hosts():
 
 
 def m_done():
-  top = (f'<div class="col" style="gap: 6px; align-items: center; text-align: center">{_il("il-sm", WELCOME_BODY)}<h1 class="t-h1">Agentry está listo</h1>'
+  top = (f'<div class="col" style="gap: 6px; align-items: center; text-align: center">{_il("il-sm", WELCOME_BODY)}<h1 class="t-h1">Claudio está listo</h1>'
          f'<p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Lo que has omitido sigue en Ajustes, en el mismo panel.</p></div>')
   body = top + f'<section class="card" style="overflow: hidden" aria-label="Resumen">{sum_rows(True)}</section>'
-  mpage('MobileConfiguracionListo.html', 'Configuración, listo', 4, body, mfoot(skip=False, primary='Empezar a usar Agentry'), skipped=(3,))
+  mpage('MobileConfiguracionListo.html', 'Configuración, listo', 4, body, mfoot(skip=False, primary='Empezar a usar Claudio'), skipped=(3,))
 
 
 def m_security():
@@ -498,10 +498,10 @@ def ds():
                  + '<span class="form-hint">Se guarda cifrada y solo la reciben los procesos de Gemini CLI.</span>', btns)
   copilot_row = copilot_out(True)
   copilot = panel('copilot', stdin_key_body('copilot', 'Token de GitHub', 'Crear un token en github.com',
-                  'Un token de grano fino con el permiso Copilot Requests. Copilot lo guarda en su configuración; Agentry no se queda con una copia.'), btns, methods='Clave')
+                  'Un token de grano fino con el permiso Copilot Requests. Copilot lo guarda en su configuración; Claudio no se queda con una copia.'), btns, methods='Clave')
   opencode_row = srow('opencode', 'signed-out', 'Sin cuenta', 'v1.4.2', 'Instalado, pero sin la clave de ningún proveedor.', signin_btn('opencode', True), True)
   opencode = panel('opencode', seg('Proveedor de la clave', ('Anthropic', 'OpenAI', 'Google', 'OpenRouter'), 'Anthropic')
-                   + key_field('ANTHROPIC_API_KEY', 'Pega la clave') + '<span class="form-hint">OpenCode usa la clave del proveedor que elijas; Agentry la cifra y se la da en esa variable.</span>', btns)
+                   + key_field('ANTHROPIC_API_KEY', 'Pega la clave') + '<span class="form-hint">OpenCode usa la clave del proveedor que elijas; Claudio la cifra y se la da en esa variable.</span>', btns)
   starting_row = srow('codex', 'signed-out', 'Sin cuenta', 'v0.46.0', 'Instalado, pero sin sesión iniciada.', signin_btn('codex', True), True)
   starting = panel('codex', '<div class="signin-wait" style="border-top: 0; padding-top: 0" role="status"><span class="spin-braille" aria-hidden="true"></span>Pidiendo un código a Codex…</div>',
                    '<button type="button" class="btn btn-ghost">Cancelar</button>', methods='Código')
@@ -513,7 +513,7 @@ def ds():
     fails.append(f'<div class="col" style="gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line)">{msg}<div class="row" style="gap: 8px"><button type="button" class="btn">{icon}{action}{tail}</button><button type="button" class="btn btn-ghost">Cancelar</button></div></div>')
   secrets = ''.join(f'<div class="row" style="gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); align-items: flex-start"><span class="badge {b}" style="flex-shrink: 0">{w}</span><div class="col" style="gap: 2px"><span class="mono t-xs fg-3">{k}</span><span class="t-sm">{t}</span></div></div>'
                     for b, w, k, t in [
-                      ('b-ok', 'cifrados', 'sealed · key from env', 'Las claves se guardan cifradas con la clave que llega en AGENTRY_SECRET_KEY. Es lo recomendado; no hay aviso.'),
+                      ('b-ok', 'cifrados', 'sealed · key from env', 'Las claves se guardan cifradas con la clave que llega en CLAUDIO_SECRET_KEY. Es lo recomendado; no hay aviso.'),
                       ('b-ok', 'cifrados', 'sealed · keyBeside', 'Cifrados, con el aviso warn «La clave está junto a los datos» y la recomendación de pasarla por el entorno (como en DesktopAjustesSeguridad).'),
                       ('b-warn', 'sin cifrar', 'not sealed', 'No hay clave (una app de escritorio sin llavero, una instalación desde el código): los valores se guardan en claro, con permisos 0600. El aviso dice eso mismo y cómo pasar una clave.')])
   steps_demo = ''.join(f'<div style="padding: 14px 18px; border-bottom: 1px solid var(--line)">{setup_steps(a, s)}</div>' for a, s in [(1, ()), (3, ()), (4, (3,))])
@@ -523,7 +523,7 @@ def ds():
 <div class="row" style="gap: 28px; align-items: flex-start">
 <div class="col grow" style="gap: 28px; flex-basis: 0">
 {ds_block('La barra de pasos', 'Primer paso, un paso a mitad y el último con «Código y tareas» omitido: barra punteada y la palabra, sin color de estado.', steps_demo)}
-{ds_block('Clave en el entorno: Gemini', 'Agentry la guarda cifrada y la da solo a los procesos de Gemini CLI. Campo de solo escritura; el enlace va a la página del proveedor.', gemini_row + gemini)}
+{ds_block('Clave en el entorno: Gemini', 'Claudio la guarda cifrada y la da solo a los procesos de Gemini CLI. Campo de solo escritura; el enlace va a la página del proveedor.', gemini_row + gemini)}
 {ds_block('Clave por stdin: Copilot, con los dos métodos', 'El CLI la guarda donde siempre. Con dos métodos, el control segmentado «Código / Clave» encabeza el panel.', copilot_row + copilot)}
 {ds_block('Varias variables: OpenCode', 'Un segmentado elige la variable; el nombre del campo es la variable, en mono.', opencode_row + opencode)}
 </div>

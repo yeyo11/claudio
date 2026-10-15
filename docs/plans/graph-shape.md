@@ -60,7 +60,7 @@ A knowledge-base document (front matter, tags, a Related list; see
 7. A worked example: the five-stage shape above rewritten into three stages, as an ASCII graph like
    the "How it is built" graph of the plan.
 
-The wording must hold for any repository Agentry drives, as the planner prompt does. Repo-specific
+The wording must hold for any repository Claudio drives, as the planner prompt does. Repo-specific
 names (`pnpm`, `types.ts`) appear only as examples.
 
 ### 2. The planner prompt

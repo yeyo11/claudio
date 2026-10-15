@@ -11,7 +11,7 @@ tags:
 ---
 # A pinned chat that hits its limit leaves its account
 
-> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02): Agentry no longer switches Claude accounts, so a chat pinned to a claude-swap account no longer exists. Kept as the record of why it was built.
+> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02): Claudio no longer switches Claude accounts, so a chat pinned to a claude-swap account no longer exists. Kept as the record of why it was built.
 
 A chat can be pinned to one claude-swap account (`account` on a new chat, a resume or a fork). A
 pinned chat runs through `cswap run <account> --share-history -- claude …`, or plain `claude` when

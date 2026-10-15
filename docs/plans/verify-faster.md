@@ -176,7 +176,7 @@ export interface VerificationCommand {
 }
 ```
 
-Regenerate `apps/api/src/openapi/schemas.json` (`pnpm --filter @agentry/api openapi:schemas`). No
+Regenerate `apps/api/src/openapi/schemas.json` (`pnpm --filter @claudio/api openapi:schemas`). No
 route is added or renamed, so neither `routes.ts` nor the README's REST tables change. The README
 row for `POST /orchestrations/:id/verify` gets one clause saying that an entry may be a list that
 runs in parallel.

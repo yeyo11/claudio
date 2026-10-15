@@ -151,7 +151,7 @@ HOST_LINES = {
   'gl-ready': dict(host='gitlab.inmoseo.net', path='equipo/pagos-api', mono=('GL', 35), cli='glab 1.120.0', account='yeyo', state='ready',
                    reason='glab tiene sesión en gitlab.inmoseo.net y responde.', noun='MR', ref='!12'),
   'unsupported': dict(host='git.acme.internal', path='equipo/facturas', mono=None, cli='', account='', state='unsupported',
-                      reason='Agentry no puede llegar a git.acme.internal: ni gh ni glab tienen sesión en él.',
+                      reason='Claudio no puede llegar a git.acme.internal: ni gh ni glab tienen sesión en él.',
                       action=('Ir a Integraciones', 'DesktopIntegraciones.html', False)),
   'signed-out': dict(host='github.com', path='yeyochico/claude-wrapper', mono=('GH', 262), cli='gh 2.92.0', account='', state='signed-out',
                      reason='gh no tiene sesión en github.com.', noun='PR', ref='#12',
@@ -191,9 +191,9 @@ def host_action(v, lg=False):
 
 def host_hint(v):
   if v['state'] == 'unsupported':
-    return 'Sin un host conocido Agentry no abre ni sigue PR ni MR de este proyecto.'
+    return 'Sin un host conocido Claudio no abre ni sigue PR ni MR de este proyecto.'
   if v['state'] == 'signed-out':
-    return f'Hasta que tenga sesión, Agentry no abre ni sigue {v["noun"]} ({v["ref"]}) de este proyecto.'
+    return f'Hasta que tenga sesión, Claudio no abre ni sigue {v["noun"]} ({v["ref"]}) de este proyecto.'
   return f'Las propuestas de cambio de este proyecto son {v["noun"]}: se leen como <span class="mono fg-2">{v["ref"]}</span>.'
 
 
@@ -241,7 +241,7 @@ def project_settings_desktop():
 <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">{limits}</div>
 </section>
 <section class="card col" style="padding: 18px; gap: 12px"><h2 class="t-h2">Quitar el proyecto</h2>
-<div class="row" style="gap: 14px; align-items: flex-start"><span class="t-sm fg-2 grow" style="line-height: 1.5">Deja de aparecer en Agentry. Sus ajustes y sus tareas se conservan: si vuelves a importar el directorio, vuelve todo. No toca el repositorio.</span><button type="button" class="btn">{ico('x')}Quitar de Agentry</button></div>
+<div class="row" style="gap: 14px; align-items: flex-start"><span class="t-sm fg-2 grow" style="line-height: 1.5">Deja de aparecer en Claudio. Sus ajustes y sus tareas se conservan: si vuelves a importar el directorio, vuelve todo. No toca el repositorio.</span><button type="button" class="btn">{ico('x')}Quitar de Claudio</button></div>
 </section>
 </div>
 <div class="col" style="flex: 1.15 1 0; gap: 18px; min-width: 0">

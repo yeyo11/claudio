@@ -21,7 +21,7 @@ if (!command) {
 }
 
 const system = tmpdir();
-const run = mkdtempSync(join(system, 'agentry-run-'));
+const run = mkdtempSync(join(system, 'claudio-run-'));
 for (const cache of [`tsx-${userInfo().uid}`, 'node-compile-cache']) {
   const shared = join(system, cache);
   try {

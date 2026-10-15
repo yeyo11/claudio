@@ -232,7 +232,7 @@
 .card-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
 .card-link { transition: border-color var(--dur-fast), background var(--dur-fast), transform var(--dur) var(--ease-out); cursor: pointer; }
 .card-link:hover { border-color: var(--line-3); transform: translateY(-1px); }
-/* Borde degradado: el sello de Agentry. Para lo destacado (cuenta en uso, KPI principal, compositor). */
+/* Borde degradado: el sello de Claudio. Para lo destacado (cuenta en uso, KPI principal, compositor). */
 .grad-border { border: 1px solid transparent; background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--grad-border) border-box; }
 .glow-top { background-image: var(--glow); background-repeat: no-repeat; }
 /* Borde de energía: SOLO una superficie viva por pantalla (compositor trabajando, etapa en curso). */
@@ -668,7 +668,7 @@ a.part-of { color: inherit; text-decoration: none; }
 .wi-mrow .wi-strip { margin: 2px -14px -12px; padding: 8px 14px 9px; font-size: 13px; }
 .wi-mrow.rail-live .wi-strip { margin-left: -16px; padding-left: 16px; }
 /* A card's pull request on its strip (docs/plans/work-item-pull-requests.md): a conflict takes warn,
-   an open PR waits in idle, one that failed to open is bad, Agentry preparing it stays neutral and
+   an open PR waits in idle, one that failed to open is bad, Claudio preparing it stays neutral and
    still. The number is an id; the link opens GitHub and never the card. */
 .wi-strip.warn { background: color-mix(in srgb, var(--warn-soft) 55%, transparent); }
 .wi-strip.warn .verb { color: var(--fg-2); font-weight: 400; }
@@ -820,7 +820,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 
 /* ---------- 16. Equipo, flujo, memoria y documentos (proto-team) ----------
    The Team, Memory and Documents modules of docs/plans/project-ecosystem.md. A team member is an
-   agent file of the CLI plus the role Agentry keeps for it. A person is round (.monogram); a role is
+   agent file of the CLI plus the role Claudio keeps for it. A person is round (.monogram); a role is
    a squircle, so a board never mixes them up. Nothing here loops: a member at work borrows
    .rail-live, .spin-ring and .spin-braille from §11. */
 
@@ -1401,7 +1401,7 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .doc-origin-phone .doc-origin-chevron { flex-shrink: 0; color: var(--fg-3); }
 /* ---------- end of 19 ---------- */
 
-/* ---------- Decisions tab (Settings → Agentry → Decisions; plans/decision-engine.md, UI) ---------- */
+/* ---------- Decisions tab (Settings → Claudio → Decisions; plans/decision-engine.md, UI) ---------- */
 /* The app's Slider (components/controls). Quiet here: 13 of them sit on one page, and the gradient is
    for the screen's one primary action, so the range is neutral and the thumb is the ink colour. */
 .slider { position: relative; display: flex; align-items: center; width: 100%; height: 22px; }
@@ -1485,7 +1485,7 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .prov-group { display: flex; flex-direction: column; gap: 6px; }
 .prov-group-head { display: flex; align-items: center; gap: 8px; padding: 0 4px; }
-/* The binary override, open under its row: the path Agentry uses instead of looking on PATH */
+/* The binary override, open under its row: the path Claudio uses instead of looking on PATH */
 .prov-bin { display: flex; flex-direction: column; gap: 10px; padding: 4px 18px 16px 88px; background: var(--bg-1); border-bottom: 1px solid var(--line); }
 .prov-bin-row { display: flex; align-items: center; gap: 8px; }
 /* Phone: a cell per provider that stacks, and the order list of the Sheet */
@@ -2064,7 +2064,7 @@ a.cont-from:hover { color: var(--fg); }
 .workitem-strip-verb.is-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 
 
-/* ---------- 22. The Agentry assistant (CW-30): the entry screen, its starters and the host prompt of a write ---------- */
+/* ---------- 22. The Claudio assistant (CW-30): the entry screen, its starters and the host prompt of a write ---------- */
 .as-hello { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .as-hello .ai-mark { width: 40px; height: 40px; border-radius: var(--r-lg); }
 .as-hello .ai-mark .ico { width: 20px; height: 20px; }
@@ -2103,7 +2103,7 @@ a.cont-from:hover { color: var(--fg); }
 .permission-reason { flex: 1 1 200px; min-width: 0; }
 .m-screen .permission-actions .btn { flex: 1 1 0; justify-content: center; }
 .m-screen .permission-reason { flex-basis: 100%; }
-/* ---------- end of The Agentry assistant ---------- */
+/* ---------- end of The Claudio assistant ---------- */
 
 /* ---------- Editable Home (CW-34): edit mode, the add-widget picker and the Documents and Flow widgets ---------- */
 .home-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }

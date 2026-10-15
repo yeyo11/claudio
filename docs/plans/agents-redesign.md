@@ -8,9 +8,9 @@ tags:
     - model
     - landed
 ---
-# Plan: chats, projects and Agentry's own model
+# Plan: chats, projects and Claudio's own model
 
-Status: **landed** in `feat!: chats, projects and Agentry's own model` (#60), the orchestration this
+Status: **landed** in `feat!: chats, projects and Claudio's own model` (#60), the orchestration this
 document was written for. Extends [agent-observability](agent-observability.md) with the context and
 cost of every conversation, and rebuilds the model the web is built on. The text below is left as it
 was planned; three things ended up different, and the code is where they are settled:
@@ -30,14 +30,14 @@ was planned; three things ended up different, and the code is where they are set
 
 ## Why
 
-Agentry's API contract mirrors what the Claude Code CLI happens to write. `SubagentInfo.toolUseId`
+Claudio's API contract mirrors what the Claude Code CLI happens to write. `SubagentInfo.toolUseId`
 identifies an agent by a tool call of the stream; `source: 'run' | 'cli' | 'disk'` says which pipe a
 record came through; `SessionLive.status` and `ActiveCliSession.state` are the CLI's own words;
 `ProjectSummary.id` is an encoded directory name under `~/.claude/projects`. Every question about
 the product ("is this a run or a session?") turns into a question about plumbing, and every change
 in the CLI reaches the browser.
 
-This plan separates the two: **facts read from the CLI** stay in `packages/core`, and **Agentry's
+This plan separates the two: **facts read from the CLI** stay in `packages/core`, and **Claudio's
 model** is what `packages/shared/src/types.ts` and the web speak. A field that exists only because
 the CLI writes it that way does not cross the API.
 
@@ -55,7 +55,7 @@ Chat
   title · firstPrompt · messageCount · startedAt · updatedAt · model · cliVersion
   project       Project | null
   cwd · worktree
-  origin        agentry | external | orchestration
+  origin        claudio | external | orchestration
   derivedFrom   { chatId, at } | null
   state         one state (to be defined)
   control       what can be done now, and why not when it cannot
@@ -68,7 +68,7 @@ Chat
   health        from the observability plan
 ```
 
-The id never goes missing: Agentry generates the session id for its own chats and imposes it on the
+The id never goes missing: Claudio generates the session id for its own chats and imposes it on the
 CLI (`randomUUID()` + `--session-id`). That holds for a fork too: the CLI accepts `--session-id`
 beside `--resume` and `--fork-session` (2.1.278 was checked, and the copy is written under the id
 given), so a fork's id is chosen before the process starts and there is no window in which the chat
@@ -84,7 +84,7 @@ at most one live.
 - **Resume never creates a chat.** It iterates on the same session, as the CLI already does:
   `--resume <id>` keeps the id (`runner.ts:811`); only `--fork-session` (`:813`) makes a new one.
 - **A fork is a new chat**, offered on any chat, and it records where it came from.
-- **A chat created outside Agentry is read-only while something else holds it.** When nothing does,
+- **A chat created outside Claudio is read-only while something else holds it.** When nothing does,
   resuming adopts it in place: it becomes interactive and no second chat appears. Its origin stays
   `external` — where a chat was born and what can be done with it now are two different things.
 - Whether the session is held is decided **on the server, at resume time**, not from what the
@@ -102,7 +102,7 @@ the noise. Instead:
 - **Worktrees belong to their project** automatically; they are not projects of their own. `parentId`
   and `temporary` disappear, and so does the "temporary projects" filter.
 - A chat whose `cwd` is under no imported project is **loose**: no project, listed on its own.
-- Removing a project from Agentry (harmless) and purging what Claude Code keeps about it
+- Removing a project from Claudio (harmless) and purging what Claude Code keeps about it
   (`DELETE /projects/:id/state`, irreversible) stay two clearly separate actions.
 - The curated list is also what the project scope of Config, Memory, New run and Orchestration
   offer, so they lose the same noise.
@@ -131,7 +131,7 @@ crashed and one that finished are both `idle`; the outcome of their last executi
 
 | Driver | Control |
 |---|---|
-| Agentry | `interactive` |
+| Claudio | `interactive` |
 | A terminal | `readOnly`, with the reason shown; the way forward is a fork |
 | An orchestration, task running | `readOnly`, plus one explicit action: send a hint |
 | An orchestration, task finished | `readOnly`; the way forward is a fork |
@@ -165,8 +165,8 @@ Instead:
   orchestration (2 in total by default). A retry is **a new execution of the same chat**, continuing
   where it stopped with its worktree intact, so no duplicate chat appears and the chat's execution
   history shows every attempt and what it cost.
-- **The retry message is written by Agentry** from the error, the way the observability plan already
-  has Agentry, not the objective, set the rules workers follow.
+- **The retry message is written by Claudio** from the error, the way the observability plan already
+  has Claudio, not the objective, set the rules workers follow.
 - **Two failures are never retried automatically**: a budget that ran out (the retry meets the same
   ceiling) and a task stopped on purpose. Rate limits are not retried here either — they already
   have their own rotate-and-resume one layer down (`runner.ts:51`).
@@ -198,7 +198,7 @@ subagent has a window of its own) but do count towards its tokens spent. `isSide
 tells them apart.
 
 **Only real data is shown.** `total_cost_usd` arrives in the `result` event, so cost exists for what
-Agentry launched and for every chat of an orchestration; for a chat started from a terminal the CLI
+Claudio launched and for every chat of an orchestration; for a chat started from a terminal the CLI
 records none, and the cost reads **not available**. Nothing is estimated from a price table: the
 tokens are real and they are shown, the cost either exists or it does not.
 
@@ -211,8 +211,8 @@ percentage of the window is not invented.
 The window is not a table kept in the code: whether a model has 200k or 1M depends on the variant
 and even on the account (`opus` and `opus[1m]` both reported 1M on the account this was checked
 with), so any table would be a guess. The CLI reports it with every result, in
-`modelUsage.<model id>.contextWindow`; Agentry stores the last value seen per exact model id and
-measures transcripts against it. A model no execution of Agentry has answered with yet has none.
+`modelUsage.<model id>.contextWindow`; Claudio stores the last value seen per exact model id and
+measures transcripts against it. A model no execution of Claudio has answered with yet has none.
 
 Where it is shown: the percentage of context in the chat list (what tells you a chat is about to
 compact), context, tokens and cost in the chat detail, the total per orchestration — what a large
@@ -287,7 +287,7 @@ With a project selected in the top bar, a home filtered by that project and a se
 filtered by the same project would be two places for one idea. They are one page, with tabs:
 
 ```
- [ agentry v ]
+ [ claudio v ]
  Activity · Settings · Memory · Resources · Worktrees        (+ Knowledge, Roadmap, ...)
 ```
 

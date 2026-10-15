@@ -37,22 +37,22 @@ RUN pnpm install --frozen-lockfile
 
 COPY --chown=node:node packages packages
 COPY --chown=node:node apps apps
-RUN pnpm --filter @agentry/web build
+RUN pnpm --filter @claudio/web build
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup
 ENV NODE_ENV=production \
-    PORT=8787 \
+    PORT=8797 \
     HOST=0.0.0.0 \
     CLAUDE_CONFIG_DIR=/home/node/.claude \
-    AGENTRY_WORKSPACE_DIR=/workspace \
-    AGENTRY_DATA_DIR=/data \
-    AGENTRY_DEFAULT_PERMISSION_MODE=bypassPermissions \
+    CLAUDIO_WORKSPACE_DIR=/workspace \
+    CLAUDIO_DATA_DIR=/data \
+    CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1
 
-EXPOSE 8787
+EXPOSE 8797
 VOLUME ["/home/node/.claude", "/workspace", "/data", "/home/node/.local/share/claude-swap"]
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s \
-  CMD curl -fsS http://localhost:8787/api/health || exit 1
+  CMD curl -fsS http://localhost:8797/api/health || exit 1
 
-CMD ["pnpm", "--filter", "@agentry/api", "start"]
+CMD ["pnpm", "--filter", "@claudio/api", "start"]

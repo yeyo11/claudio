@@ -1,4 +1,4 @@
-import type { Attachment } from '@agentry/shared';
+import type { Attachment } from '@claudio/shared';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
 import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 import { api } from '../api';

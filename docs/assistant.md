@@ -13,7 +13,7 @@ tags:
 
 The **project assistant** reads a project and proposes what to create in it: a team, resources
 (agents, skills, commands) and work items. It never writes anything itself. Each proposal waits for
-the person, who accepts or discards it on its own, and only an accept makes Agentry write something,
+the person, who accepts or discards it on its own, and only an accept makes Claudio write something,
 through the service that already owns that thing: the team, the resources or the board.
 
 It shows up in three places:
@@ -95,7 +95,7 @@ build.
 
 ### What it is handed, and what it read
 
-Besides the directory, Agentry hands the run what only Agentry knows, so it does not propose what
+Besides the directory, Claudio hands the run what only Claudio knows, so it does not propose what
 the project already has:
 
 - the journal, as a flow run gets it, and the project's `CLAUDE.md` (cut at 40,000 characters),
@@ -111,13 +111,13 @@ starts:
 
 - from a look at the directory (at most 10 files and 10 folders, skipping `node_modules`, build
   output and lock files, and `CLAUDE.md`, which has its own entry);
-- and from what Agentry handed it, with counts.
+- and from what Claudio handed it, with counts.
 
 The chat's own reads fill it in while it runs. They arrive on `chat.activity`, and the run announces
 them at most every 3 seconds (`READ_EVENT_MS`). The answer's own list of what it read is added at the
 end. Anything that was laid out and never read is dropped once the run ends, so the list it keeps is
 only what it read. **`CLAUDE.md` shows once** (orchestration 6, gap 11): a read of it by the chat, or
-in its answer, counts toward the entry for what Agentry handed the run, instead of adding a second
+in its answer, counts toward the entry for what Claudio handed the run, instead of adding a second
 and a third.
 
 ### What it is told
@@ -189,7 +189,7 @@ template. The assistant's page then asks what the project is for. That descripti
 A run's chat is listed by its first prompt, so the prompt's first line is a short title in the
 person's language (`assistantTitle`): "Asistente de pagos-api" or "Assistant for pagos-api",
 "Sugerir tareas · …", "Sugerir recursos · …", "Crear agente con IA · …". The language comes from
-the request's `Accept-Language`, which the web sets to the language the person reads Agentry in;
+the request's `Accept-Language`, which the web sets to the language the person reads Claudio in;
 the instructions below the title stay in English. **The language is stored on the run**
 (`AssistantRun.language`, orchestration 6, gap 10), so a run a restart finds without a chat is asked
 again in the person's language, not in English.
@@ -388,8 +388,8 @@ had left for the owner:
 
 ## Its global sibling
 
-The project assistant stays as it is: one project, read-only, proposals one by one. The **Agentry
-assistant** is a separate, global chat that reads Agentry through its MCP server and writes only
+The project assistant stays as it is: one project, read-only, proposals one by one. The **Claudio
+assistant** is a separate, global chat that reads Claudio through its MCP server and writes only
 after the person allows each call; see [agentry-assistant.md](agentry-assistant.md). Its proposal
 tools (`accept_assistant_proposal`, `discard_assistant_proposal`) call the routes above with the
 chat's token: the proposal is then decided, and its item made, by an agent of role `assistant` with

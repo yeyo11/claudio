@@ -1,4 +1,4 @@
-import type { Run, RunStatus } from '@agentry/shared';
+import type { Run, RunStatus } from '@claudio/shared';
 import * as path from 'node:path';
 import fs, { promises as fsp } from 'node:fs';
 export * from './events';
@@ -6,7 +6,7 @@ export { default as Store, type StoreOptions } from './store';
 
 declare global {
   interface Window {
-    __AGENTRY__?: { version: string };
+    __CLAUDIO__?: { version: string };
   }
 }
 
@@ -121,6 +121,6 @@ namespace Legacy {
 const el = document.querySelector<HTMLDivElement>('#root')!;
 el.addEventListener('click', function (this: HTMLElement, e) {
   e.preventDefault();
-  delete (window as any).__AGENTRY__;
+  delete (window as any).__CLAUDIO__;
 });
 export const lazy = () => import('./heavy').then((m) => m.default);

@@ -1,6 +1,6 @@
 ---
 name: write-knowledge-doc
-description: Write or update a document under docs/ in the format Agentry's knowledge base expects: front matter, tags, a Related list of wiki links. Use for every feature and every decision.
+description: Write or update a document under docs/ in the format Claudio's knowledge base expects: front matter, tags, a Related list of wiki links. Use for every feature and every decision.
 ---
 
 # Writing a document for the knowledge base

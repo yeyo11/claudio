@@ -140,7 +140,7 @@ LINKS = [
   ('QA', 'QA verifica AGN-26', 'chat 91ab22 · ejecución del flujo · ayer 17:44 · no movió la tarea', '<span class="badge b-bad">✕ fallida</span>', '0,39 US$'),
   ('QA2', 'QA verifica AGN-26', 'chat 7c2e01 · ejecución del flujo · 12 min · te espera para pasar a Hecho', '<span class="badge b-ok">✓ pasó</span>', '0,42 US$'),
 ]
-LINK_WHY = {'QA': 'Se cortó tres veces: Agentry se reinició mientras verificaba.'}
+LINK_WHY = {'QA': 'Se cortó tres veces: Claudio se reinició mientras verificaba.'}
 
 
 def link_ico(i):
@@ -177,7 +177,7 @@ def activity(compact=False):
     ('h', 'play', 'Pasó de Por hacer a <b>En curso</b>', 'automático · empezó el chat 4c1d0e', '1 d'),
     ('a', '', 'He dejado las cinco plantillas como datos en <code>project-templates.ts</code> y la ruta que las lista. Queda el criterio 5: los proyectos ya importados deben leerse sin módulos, y eso depende de <span class="mono">AGN-24</span>.', 'chat 4c1d0e', '1 d'),
     ('h', 'move', 'Pasó de En curso a <b>En revisión</b>', 'automático · el turno del chat terminó bien', '1 d'),
-    ('q', '', 'Esta verificación falló y no movió nada: se cortó tres veces al reiniciarse Agentry. La tarea sigue en En revisión.', 'ejecución del flujo · chat 91ab22', '1 d'),
+    ('q', '', 'Esta verificación falló y no movió nada: se cortó tres veces al reiniciarse Claudio. La tarea sigue en En revisión.', 'ejecución del flujo · chat 91ab22', '1 d'),
     ('p', '', 'AGN-24 ya está hecha. Revisa el criterio 5 contra un proyecto importado antes de darla por buena.', 'yeyo', '40 min'),
     ('h', 'check', 'Criterio 4 marcado', 'yeyo', '40 min'),
     ('h', 'retry', 'Verificación reintentada', 'yeyo · QA empezó el chat 7c2e01', '16 min'),
@@ -515,7 +515,7 @@ def detail_mr_desktop():
   h = _swap(h, crit, mr_wait_panel() + crit)
   diff = '<div class="row" style="gap: 8px"><a href="#" class="btn btn-sm grow">'
   h = _swap(h, diff, mr_row() + diff)
-  write('DesktopTareaMR.html', h.replace('<title>Agentry · Tarea (desktop)', '<title>Agentry · Tarea con MR (desktop)'))
+  write('DesktopTareaMR.html', h.replace('<title>Claudio · Tarea (desktop)', '<title>Claudio · Tarea con MR (desktop)'))
 
 
 def detail_mr_mobile():
@@ -527,7 +527,7 @@ def detail_mr_mobile():
   h = _swap(h, links, '<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Su merge request</span></div>' + mr_row() + links)
   done = f'<button type="button" class="btn btn-lg" style="flex: 0 0 auto">{ico("check", "ico ico-lg")}Mover a Hecho</button>'
   h = _swap(h, done, f'<a href="#" class="btn btn-lg" style="flex: 0 0 auto" target="_blank" rel="noreferrer">{ext_ico("ico ico-lg")}Abrir MR !12</a>')
-  write('MobileTareaMR.html', h.replace('<title>Agentry · Tarea (móvil)', '<title>Agentry · Tarea con MR (móvil)'))
+  write('MobileTareaMR.html', h.replace('<title>Claudio · Tarea (móvil)', '<title>Claudio · Tarea con MR (móvil)'))
 
 
 if __name__ == '__main__':

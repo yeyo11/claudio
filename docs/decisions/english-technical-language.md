@@ -16,7 +16,7 @@ Decided by the owner on 2026-09-28 (option B of three), while discussing the [de
 
 ## The rule
 
-- **English, always**: code, comments, docs, commit messages, prompts Agentry sends to Claude (planner, supervisor, verification fixer, assistant, team roles, templates), schemas, Jev questions and rubrics, agent files, and **the technical records agents write**: the project journal, memory entries, acceptance criteria and QA comments, even when the person chats in Spanish.
+- **English, always**: code, comments, docs, commit messages, prompts Claudio sends to Claude (planner, supervisor, verification fixer, assistant, team roles, templates), schemas, Jev questions and rubrics, agent files, and **the technical records agents write**: the project journal, memory entries, acceptance criteria and QA comments, even when the person chats in Spanish.
 - **The person's language**: UI copy, through i18n with en/es parity (CLAUDE.md), and whatever a person writes (work items, comments, chat messages). A chat's title stays in the person's language (`assistant-answer.ts` `assistantTitle`).
 
 ## Why

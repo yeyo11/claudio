@@ -27,7 +27,7 @@ then leaves the queue in one of two ways:
 
 The `remove` path is how the CLI now delivers mid-turn messages: the line's `rendered` content is a
 system reminder that starts "The user sent a new message while you were working … Address the
-message above as you continue this turn". Agentry's transcript reader drops every `attachment` line
+message above as you continue this turn". Claudio's transcript reader drops every `attachment` line
 (`packages/shared/src/normalize.ts:72`: `if (o.type !== 'user' && o.type !== 'assistant') return null`),
 so a message read this way is never in any read of the transcript. In 15 transcripts a message
 waited while the turn was interrupted; every one of them left the queue by `dequeue` and became the

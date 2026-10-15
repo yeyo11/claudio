@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Installs the Agentry desktop app on Linux from the latest GitHub release.
+# Installs the Claudio desktop app on Linux from the latest GitHub release.
 #
-#   curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash
 #
 # Debian/Ubuntu get the .deb through apt (asks for sudo once); every other distribution gets the
 # AppImage in ~/.local, with a menu entry and icon, and no root at all.
@@ -12,7 +12,7 @@
 #   --uninstall        remove what this script installed
 set -euo pipefail
 
-REPO="yeyo11/agentry"
+REPO="yeyo11/claudio"
 VERSION=""
 FORMAT=""
 UNINSTALL=0
@@ -32,21 +32,21 @@ fail() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "$1 is required"; }
 
 BIN_DIR="$HOME/.local/bin"
-APP_DIR="$HOME/.local/share/agentry"
-DESKTOP_FILE="$HOME/.local/share/applications/agentry.desktop"
-ICON_FILE="$HOME/.local/share/icons/hicolor/512x512/apps/agentry.png"
+APP_DIR="$HOME/.local/share/claudio"
+DESKTOP_FILE="$HOME/.local/share/applications/claudio.desktop"
+ICON_FILE="$HOME/.local/share/icons/hicolor/512x512/apps/claudio.png"
 
 sudo_() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 
 if [ "$UNINSTALL" -eq 1 ]; then
   # The AppImage's files first: they need no password, so a declined sudo below still leaves them gone
-  rm -f "$BIN_DIR/agentry" "$DESKTOP_FILE" "$ICON_FILE"
+  rm -f "$BIN_DIR/claudio" "$DESKTOP_FILE" "$ICON_FILE"
   rm -rf "$APP_DIR"
-  if dpkg -s agentry >/dev/null 2>&1; then
-    say "Removing the agentry package (it may ask for your password)"
-    sudo_ apt-get remove -y agentry
+  if dpkg -s claudio >/dev/null 2>&1; then
+    say "Removing the claudio package (it may ask for your password)"
+    sudo_ apt-get remove -y claudio
   fi
-  say "Agentry removed. Your data in ~/.config/Agentry and ~/Agentry was kept."
+  say "Claudio removed. Your data in ~/.config/Claudio and ~/Claudio was kept."
   exit 0
 fi
 
@@ -80,7 +80,7 @@ done < <(sed -n -E 's/.*"browser_download_url": *"(https:[^"]+)".*/\1/p' "$TMP/r
 [ -n "$URL" ] || fail "release ${TAG:-?} has no $FORMAT package yet"
 
 FILE="$TMP/$(basename "$URL")"
-say "Downloading Agentry $TAG ($FORMAT)"
+say "Downloading Claudio $TAG ($FORMAT)"
 curl -fL --progress-bar -o "$FILE" "$URL"
 chmod 644 "$FILE"
 
@@ -89,21 +89,21 @@ if [ "$FORMAT" = "deb" ]; then
   sudo_ apt-get install -y "$FILE"
 else
   mkdir -p "$APP_DIR" "$BIN_DIR" "$(dirname "$DESKTOP_FILE")" "$(dirname "$ICON_FILE")"
-  install -m 755 "$FILE" "$APP_DIR/Agentry.AppImage"
-  ln -sf "$APP_DIR/Agentry.AppImage" "$BIN_DIR/agentry"
+  install -m 755 "$FILE" "$APP_DIR/Claudio.AppImage"
+  ln -sf "$APP_DIR/Claudio.AppImage" "$BIN_DIR/claudio"
   curl -fsSL -o "$ICON_FILE" "https://raw.githubusercontent.com/$REPO/$TAG/apps/desktop/build/icons/512x512.png" || true
   cat > "$DESKTOP_FILE" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Agentry
+Name=Claudio
 GenericName=Claude Code Control Panel
 Comment=Desktop UI for Claude Code agents: runs, sessions and multi-agent orchestration
-Exec=$APP_DIR/Agentry.AppImage %U
-Icon=agentry
+Exec=$APP_DIR/Claudio.AppImage %U
+Icon=claudio
 Terminal=false
 Categories=Development;
 Keywords=Claude;Claude Code;AI;agents;orchestration;
-StartupWMClass=agentry
+StartupWMClass=claudio
 DESKTOP
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q "$(dirname "$DESKTOP_FILE")" || true
   command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" || true
@@ -114,11 +114,11 @@ DESKTOP
     *libfuse.so.2*) ;;
     *) say "Note: the AppImage needs libfuse2 (libfuse2t64 on Ubuntu 24.04+) to start" ;;
   esac
-  case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Note: add $BIN_DIR to your PATH to run 'agentry' from a terminal" ;; esac
+  case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Note: add $BIN_DIR to your PATH to run 'claudio' from a terminal" ;; esac
 fi
 
 if ! command -v claude >/dev/null 2>&1; then
-  say "Agentry drives the Claude Code CLI, which is not on your PATH yet:"
+  say "Claudio drives the Claude Code CLI, which is not on your PATH yet:"
   echo "    curl -fsSL https://claude.ai/install.sh | bash"
 fi
-say "Agentry $TAG installed. Open it from your applications menu, or run: agentry"
+say "Claudio $TAG installed. Open it from your applications menu, or run: claudio"

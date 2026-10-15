@@ -9,9 +9,9 @@ tags:
     - core
     - diff
 ---
-# Plan: review changes inside Agentry, without an editor
+# Plan: review changes inside Claudio, without an editor
 
-Redesign the Changes screen around a diff comparator of our own, and remove Agentry's dependency on
+Redesign the Changes screen around a diff comparator of our own, and remove Claudio's dependency on
 the person's editor. This plan is the source of truth for the `changes-review` orchestration,
 together with CLAUDE.md, CONTRIBUTING.md and [docs/design-system.md](../design-system.md) (§5 is the
 comparator). Where a task prompt and this plan disagree, the plan wins; where the plan and the
@@ -41,7 +41,7 @@ two uncommitted files) found this:
 - **A diff is raw `git diff` text.** The file opens in an 820 px drawer as a highlighted code
   block: `diff --git`, `index` and `---`/`+++` headers, no line numbers, long lines wrapped into
   the next row, and the block capped at 60 vh, so half the drawer stays empty.
-- **Reviewing sends you out of Agentry.** Every file and every hunk carries a `vscode://` link,
+- **Reviewing sends you out of Claudio.** Every file and every hunk carries a `vscode://` link,
   the summary has "Open the worktree in the editor", and a button copies `code --diff …` for a
   terminal. All of it needs Settings → Editor (a link template, a diff command and a
   container-to-host path map, stored on the server as `editor.json` behind `/settings/editor`), and
@@ -92,7 +92,7 @@ Decisions already taken, not to be reopened by a task:
 3. **One screen, three routes**: `/chats/:id/changes`, `/orchestration/:id/tasks/:taskId/changes`
    and `/orchestration/:id/changes` (the integration branch). `?file=`, `?mode=`, `?lens=steps` and
    `?step=` are deep links. The screen hides the phone's tab bar, like a chat.
-4. **Reading is the default mode.** The mode is remembered per browser (`agentry-diff-mode`).
+4. **Reading is the default mode.** The mode is remembered per browser (`claudio-diff-mode`).
    Side by side needs 1100 px of diff; below that it falls back to Unified. A phone offers Reading
    and Unified, and wraps long lines instead of scrolling sideways.
 5. **"Seen" is a per-browser convenience**, kept in `localStorage` per source and file, keyed with
@@ -160,7 +160,7 @@ Decisions already taken, not to be reopened by a task:
     the block's text; a diff over 5 000 lines is never requested with `context=full`.
 11. **Compare with the reference before you finish.** Don't use `e2e/run.mjs` for this: it is
     `pnpm e2e`, on a fixed port. Run your own instance: the API with `PORT` set to a free port,
-    `AGENTRY_DATA_DIR` and `CLAUDE_CONFIG_DIR` on scratch directories, and Vite with `--port` on
+    `CLAUDIO_DATA_DIR` and `CLAUDE_CONFIG_DIR` on scratch directories, and Vite with `--port` on
     another free port and `VITE_API_TARGET` pointing at your API. Seed a worktree chat like
     `e2e/specs/observability.spec.mjs` does. Screenshot your screens at 1440 × 1024 and 390 × 844,
     dark and light, with headless Chrome (`CHROME_BIN`), and fix what drifts from the reference.
@@ -410,10 +410,10 @@ References: `DesktopCambiosPasos`, `MobilePasos`.
 ### `remove-editor` (depends on `review` and `summary`)
 
 - Delete the files listed in the ownership table, and every import, route, type, schema, i18n key
-  and test of the editor integration (decision 1). `rg -n "editor-sync|EditorLink|OpenWorktree|DiffCommandButton|settings/editor|EditorSettings|editorLink|diffCommand|hunksOf|LEGACY_EDITOR_KEY|agentry-editor" apps packages e2e scripts`
+  and test of the editor integration (decision 1). `rg -n "editor-sync|EditorLink|OpenWorktree|DiffCommandButton|settings/editor|EditorSettings|editorLink|diffCommand|hunksOf|LEGACY_EDITOR_KEY|claudio-editor" apps packages e2e scripts`
   ends empty. The CodeMirror editors of Settings (`CodeEditor*`, `config.json`'s `editor` labels)
   are a different thing and stay.
-- Settings loses the Editor tab from the Agentry group, and the tab count in its comment follows;
+- Settings loses the Editor tab from the Claudio group, and the tab count in its comment follows;
   `?tab=editor` behaves like any unknown tab.
 - `observability.spec.mjs` drops its editor half (the settings round trip, the links, the
   migration of the old browser key) and keeps the branch, commits, counts and diff assertions,
@@ -500,7 +500,7 @@ Runs alone, so it may run `pnpm e2e`.
 
 ## What "done" means
 
-- **Changes are read in Agentry.** No link, button, setting, route or type of the editor
+- **Changes are read in Claudio.** No link, button, setting, route or type of the editor
   integration is left, and `/settings/editor` answers 404.
 - **Every source has the review screen** (chat, task, integration), with Result in three modes and
   Step by step where there is a transcript, matching the references on desktop and phone, dark and
@@ -547,7 +547,7 @@ the orchestration's verification.
   the entry's page and marks it in the accent. `ReviewSource` gained `conversation`, the chat whose
   transcript holds the steps.
 - **`remove-editor`.** Decision 1 in full: `GET`/`PUT /settings/editor` answer 404, Settings'
-  Agentry group has three tabs, `?tab=editor` falls back like any unknown tab, and the grep of the
+  Claudio group has three tabs, `?tab=editor` falls back like any unknown tab, and the grep of the
   plan ends empty. `observability.spec.mjs` checks the branch, base, commits and diff on the review
   screen, and `record-media.mjs` opens the review where it opened the dialog.
 - **`consistency`.** Compared every screen with the reference in both themes and `motion=subtle`,
@@ -584,7 +584,7 @@ dev and build, desktop and phone) found the screen working as planned, and three
   with per-option `disabled` added to the control.
 
 What looked like two more failures was the environment: `pnpm dev` on a machine where another
-Agentry held `:8787` moved the API to a random port while Vite kept proxying `/api` to `:8787`, so
+Claudio held `:8787` moved the API to a random port while Vite kept proxying `/api` to `:8787`, so
 the new UI talked to an older API without the `steps` route ("Not Found" on Step by step). The
 CLI entrypoint now refuses a taken port with the way out; the desktop shell keeps its fallback.
 

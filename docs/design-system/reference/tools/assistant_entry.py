@@ -1,6 +1,6 @@
-# The Agentry assistant's entry (CW-30, CW-18 and CW-17): the global "Asistente" item, its /assistant screen with
+# The Claudio assistant's entry (CW-30, CW-18 and CW-17): the global "Asistente" item, its /assistant screen with
 # the greeting, the starters and the composer, and one assistant chat holding a write behind the host prompt.
-# Writes DesktopAsistenteAgentry, DesktopAsistenteAgentryChat, MobileAsistenteAgentry, MobileAsistenteAgentryChat and
+# Writes DesktopAsistenteClaudio, DesktopAsistenteAgentryChat, MobileAsistenteClaudio, MobileAsistenteAgentryChat and
 # MobileAsistenteAgentryMas (the Más page with the new item, lifted from MobileMas.html).
 # Runs on its own; imports common.py.
 from common import *
@@ -15,7 +15,7 @@ STARTERS = [
   ('edit', 'Crear una tarea', 'Crea una tarea en AGN para revisar los límites de las columnas', True),
   ('retry', 'Reintentar un fallo', 'Reintenta la tarea que falló en ecosystem-foundation', True),
 ]
-GREETING = 'Hola, soy el asistente de Agentry'
+GREETING = 'Hola, soy el asistente de Claudio'
 SUB = 'Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso. Antes de escribir nada, te pido permiso.'
 ASK = 'Crea una tarea en AGN para revisar los límites de las columnas, prioridad media'
 
@@ -69,7 +69,7 @@ def desktop_entry():
 {entry_composer()}
 </div>'''
   crumb = '<span style="font-weight: 500">Asistente</span>'
-  write('DesktopAsistenteAgentry.html', desktop('Asistente de Agentry', 'assistant', crumb, main, assistant=True))
+  write('DesktopAsistenteClaudio.html', desktop('Asistente de Claudio', 'assistant', crumb, main, assistant=True))
 
 
 def prompt_block(mobile=False):
@@ -135,8 +135,8 @@ def desktop_chat():
 </div>
 </div>
 </div>'''
-  crumb = '<a href="DesktopAsistenteAgentry.html" class="fg-2">Asistente</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">c41e9b</span>'
-  write('DesktopAsistenteAgentryChat.html', desktop('Chat del asistente de Agentry', 'assistant', crumb, main, assistant=True, agents=2))
+  crumb = '<a href="DesktopAsistenteClaudio.html" class="fg-2">Asistente</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">c41e9b</span>'
+  write('DesktopAsistenteAgentryChat.html', desktop('Chat del asistente de Claudio', 'assistant', crumb, main, assistant=True, agents=2))
 
 
 def mobile_entry():
@@ -148,7 +148,7 @@ def mobile_entry():
 </div>
 {entry_composer(True)}
 {tabbar('more')}'''
-  write('MobileAsistenteAgentry.html', mobile('Asistente de Agentry', inner))
+  write('MobileAsistenteClaudio.html', mobile('Asistente de Claudio', inner))
 
 
 def mobile_chat():
@@ -170,13 +170,13 @@ def mobile_chat():
 <button type="button" class="btn btn-icon" aria-label="Enviar" disabled style="width: var(--touch); height: var(--touch); border-radius: 50%">{ico("send", "ico ico-lg", "stroke-width: 2.2")}</button>
 </div>
 </div>'''
-  write('MobileAsistenteAgentryChat.html', mobile('Chat del asistente de Agentry', inner))
+  write('MobileAsistenteAgentryChat.html', mobile('Chat del asistente de Claudio', inner))
 
 
 def mobile_mas():
   # The Más page keeps its list; the assistant is the first row, with the sparkle on the neutral .ai-mark tile
   s = open(os.path.join(OUT, 'MobileMas.html')).read()
-  row = (f'<a href="MobileAsistenteAgentry.html" class="cell">{mark()}<span class="grow" style="font-weight: 500">Asistente</span>'
+  row = (f'<a href="MobileAsistenteClaudio.html" class="cell">{mark()}<span class="grow" style="font-weight: 500">Asistente</span>'
          f'<span class="mono t-xs fg-3">pregunta o pide</span>{ico("right", "ico fg-3")}</a>\n\n')
   marker = '<nav aria-label="Secciones" class="card" style="overflow: hidden">\n\n'
   assert marker in s

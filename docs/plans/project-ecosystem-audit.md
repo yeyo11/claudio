@@ -14,7 +14,7 @@ tags:
 
 An audit of what the `ecosystem-foundation` orchestration delivered, against
 [the plan](project-ecosystem.md). Run on 2026-09-27 over the integrated branch
-(`agentry/ecosystem-foundation-3fd41f07`, commit `ba77298`) by five reviewers in parallel, one per
+(`claudio/ecosystem-foundation-3fd41f07`, commit `ba77298`) by five reviewers in parallel, one per
 area, with the main findings checked again by hand in the code.
 
 Status: **fixed by `ecosystem-fixes` (orchestration 1b) on 2026-09-27**, except what is listed under
@@ -311,7 +311,7 @@ phase, on the merged branch.
 
 1. **A flow run cut by a restart can start over in a fresh chat with no item context.** When the
    cut run's chat cannot be resumed, `launchFlowRun` falls back to a new chat with only the prompt
-   "Agentry restarted while you were on this run…" (`flow.ts:495`, `index.ts:1230`). The structured
+   "Claudio restarted while you were on this run…" (`flow.ts:495`, `index.ts:1230`). The structured
    result still moves the card. Reproduced. The flow also has no restart counter, unlike the
    assistant. Fix: build the full prompt in the fallback (or fail the run) and bound restarts.
    → **Closed** by `fix-flow`: a cut run continues only in its own chat, at most twice
@@ -643,9 +643,9 @@ line in the team's activity (6), and the phone document editor's bar mid-screen 
 | 10 | An assistant run keeps its language | Closed | `5d180cf`; `assistant.test.ts` |
 | 11 | `CLAUDE.md` shows once | Closed | `03dd0df`; `assistant.test.ts` |
 | 12 | "Crear con IA" streams | Closed | `b18cb87`, `0ac4b91`, `8b26570`; `assistant-screens.test.tsx`, `create-ai-stream.spec.mjs` |
-| 13 | Chats Agentry starts open in the person's language | Closed | `28a2e70`, `7fd7484`; `assistant.test.ts`, `flow.test.ts`, work-links tests |
+| 13 | Chats Claudio starts open in the person's language | Closed | `28a2e70`, `7fd7484`; `assistant.test.ts`, `flow.test.ts`, work-links tests |
 | 14 | Template responsibilities in the person's language | Closed | `3cf261f`; a test reads `project-templates.ts` |
-| 15 | A chat Agentry does not run is named by its title in the history | Closed | `354223b`; `work-item-history.test.ts` |
+| 15 | A chat Claudio does not run is named by its title in the history | Closed | `354223b`; `work-item-history.test.ts` |
 | 16 | `GET /work-items/by-key/:key` | Closed | `683e8f5`; `ecosystem-gaps-client.test.ts`, `shell.spec.mjs` |
 | 17 | A generic start error answers 500 | Closed | `85691ec`; `chat-start-errors.test.ts` |
 | 18 | `from-template` answers 201 or 200 | Closed | `0c7af0f`; `team.test.ts` |
@@ -744,8 +744,8 @@ Run on 2026-09-29 over the three things the seed of the audit above could not pr
 data of `claude-wrapper`, where the flow by column now refines, works and verifies the CW cards
 (specification: [real-data-design-check.md](real-data-design-check.md)).
 
-**Instance.** The desktop app at `AGENTRY_API_URL` (`http://127.0.0.1:34331`, Agentry 0.24.0, deb),
-whose flow was running this very card. It guards its API with a token, and a chat Agentry starts
+**Instance.** The desktop app at `CLAUDIO_API_URL` (`http://127.0.0.1:34331`, Claudio 0.24.0, deb),
+whose flow was running this very card. It guards its API with a token, and a chat Claudio starts
 does not get one yet (CW-10, in review), so the check could not read that server directly. It read
 its data instead, without touching it: a copy of its data dir taken at 2026-09-29T20:20:30Z, served
 by this branch's build (0.24.0 plus this card) in a `bwrap` sandbox where the whole disk is read
@@ -841,7 +841,7 @@ findings 4 and 5:
 
 - The two cards above are not filed yet, so findings 4 and 5 have no key.
 - The captures came from a read-only copy of the desktop app's data, not from the live instance at
-  `AGENTRY_API_URL`, which the criterion names. Either the owner accepts the copy as evidence, or the
+  `CLAUDIO_API_URL`, which the criterion names. Either the owner accepts the copy as evidence, or the
   captures are redone on the live instance once CW-10 lands; the procedure is the same, without the
   copy and the sandbox.
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Where the time of Agentry's orchestrations went, as Markdown tables (or raw figures with --json).
+// Where the time of Claudio's orchestrations went, as Markdown tables (or raw figures with --json).
 //
 //   node scripts/orchestration-timings.mjs [id…] [--min-tasks N] [--json]
 //
-// Reads a running Agentry at CLAUDIO_API_URL (the API root, e.g. http://127.0.0.1:8797/api), sending
+// Reads a running Claudio at CLAUDIO_API_URL (the API root, e.g. http://127.0.0.1:8797/api), sending
 // CLAUDIO_API_TOKEN as a Bearer token when it is set. Everything comes from the API: the graphs'
 // timings (GET /orchestrations/:id/timings) and, for the breakdown inside the workers, the
 // transcripts the CLI wrote, read through GET /chats/:id/export?format=json. No dependencies.
@@ -46,9 +46,9 @@ for (let i = 0; i < args.length; i++) {
 const base = process.env.CLAUDIO_API_URL?.replace(/\/+$/, '');
 if (!base) {
   fail(
-    'CLAUDIO_API_URL is not set. Point it at the API of the Agentry to measure, e.g.\n' +
+    'CLAUDIO_API_URL is not set. Point it at the API of the Claudio to measure, e.g.\n' +
       '  CLAUDIO_API_URL=http://127.0.0.1:8797/api node scripts/orchestration-timings.mjs\n' +
-      'A chat started by Agentry has it already. No port is guessed: a desktop app and a dev server often run side by side.',
+      'A chat started by Claudio has it already. No port is guessed: a desktop app and a dev server often run side by side.',
   );
 }
 const headers = process.env.CLAUDIO_API_TOKEN ? { authorization: `Bearer ${process.env.CLAUDIO_API_TOKEN}` } : {};
@@ -128,7 +128,7 @@ for (const orch of chosen) {
   try {
     timings = await get(`/orchestrations/${orch.id}/timings`);
   } catch (err) {
-    if (err.status === 404) fail(`${base} has no GET /orchestrations/:id/timings: it runs an Agentry older than this script`);
+    if (err.status === 404) fail(`${base} has no GET /orchestrations/:id/timings: it runs an Claudio older than this script`);
     throw err;
   }
   graphs.push({ id: orch.id, name: orch.name, status: orch.status, tasks: orch.tasks.length, timings });
@@ -180,7 +180,7 @@ table(['Phase', 'Hours', 'Share'], [
 
 lines.push('## After the tasks', '');
 table(
-  ['Graph', 'After the tasks', 'Agentry running checks', 'Fixer'],
+  ['Graph', 'After the tasks', 'Claudio running checks', 'Fixer'],
   graphs.map((g) => {
     const v = g.timings.verification;
     const fixes = v?.fixes.length ?? 0;

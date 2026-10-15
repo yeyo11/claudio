@@ -13,7 +13,7 @@ tags:
 How to shape the tasks of a graph orchestration so it finishes early. It applies to a graph written
 by hand (a plan in `docs/plans/`, the launch form, "Edit and relaunch") and to the planner, whose
 prompt carries the same rules (`PLANNER_GRAPH_GUIDANCE` in `packages/core/src/orchestrator.ts`).
-The rules hold for any repository Agentry drives; names such as `pnpm` or `types.ts` below are only
+The rules hold for any repository Claudio drives; names such as `pnpm` or `types.ts` below are only
 examples.
 
 The measurements behind it are in [plans/orchestration-speed.md](plans/orchestration-speed.md):
@@ -55,7 +55,7 @@ tasks. A review task that runs it again spends its time on a result nobody reads
 reviews the design, the conventions and what the checks cannot see (copy, naming, a missed case),
 and runs at most the one test it wants to read.
 
-With verification on, Agentry also adds one task to the end of the graph, `e2e-specs`: it depends
+With verification on, Claudio also adds one task to the end of the graph, `e2e-specs`: it depends
 on every other task, so it starts from their combined work, and runs only the browser specs that
 work touches, each alone on a port of its own, fixing a spec the work left stale before the merge.
 Workers run none (CW-15). The planner does not write that task, and a graph that names one keeps its

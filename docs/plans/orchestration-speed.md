@@ -54,7 +54,7 @@ because one fix can break another check). Meanwhile the e2e suite on the merged 
 because specs no longer matched a UI that had changed. The usual sequence was a failing e2e run
 (about 15 min), then the fixer (12–33 min), then everything again (about 20 min).
 
-| Graph | After the tasks | Agentry running checks | Fixer |
+| Graph | After the tasks | Claudio running checks | Fixer |
 |---|---|---|---|
 | ecosystem-board-web | 75 min | 52 | 22 (3 attempts) |
 | ecosystem-team | 67 min | 33 | 33 |
@@ -99,7 +99,7 @@ this branch's API over a copy of the dev server's data (the dev server itself ra
 
 #### After the tasks
 
-| Graph | After the tasks | Agentry running checks | Fixer |
+| Graph | After the tasks | Claudio running checks | Fixer |
 |---|---|---|---|
 | ecosystem-design | 51 min | ~45 | 5 |
 | ecosystem-gaps | 87 min | ~18 | 17 (2 attempts) |
@@ -115,7 +115,7 @@ this branch's API over a copy of the dev server's data (the dev server itself ra
 | post-roadmap | 37 min | ~6 | 9 |
 | roadmap-completion | 39 min | – | – |
 | chats-redesign | 7 min | – | – |
-| agentry-live-events-notifications-execution-detail | 1 min | – | – |
+| claudio-live-events-notifications-execution-detail | 1 min | – | – |
 
 #### Critical paths
 
@@ -135,7 +135,7 @@ this branch's API over a copy of the dev server's data (the dev server itself ra
 | post-roadmap | types → scheduling-2 → web-schedules-usage-2 → media → docs | 89 min | 89 min | 2.1 |
 | roadmap-completion | types → connectors → web-orchestration-v2 → docs | 91 min | 91 min | 3.0 |
 | chats-redesign | model → chats-core → context-cost → web-home-nav → a11y → verification | 112 min | 112 min | 1.4 |
-| agentry-live-events-notifications-execution-detail | event-feed → notifications → integrate | 63 min | 63 min | 1.3 |
+| claudio-live-events-notifications-execution-detail | event-feed → notifications → integrate | 63 min | 63 min | 1.3 |
 
 #### Limit waits over 5 min
 
@@ -155,7 +155,7 @@ this branch's API over a copy of the dev server's data (the dev server itself ra
 | `until … sleep` / `while sleep` polling | 2.6 | 6 % | 156 calls |
 | Bash reads (`grep`, `sed`, `cat`…) | 1.4 | 3 % | 6,830 calls |
 
-13 graphs were stored before some figures were recorded; a `~` figure is derived from the others. Missing: ecosystem-design (verification.runs); ecosystem-gaps (verification.runs); ecosystem-review-fixes (verification.runs); ecosystem-assistant (integration.startedAt, verification.runs); ecosystem-team (verification.runs); ecosystem-board-web (verification.runs); tunnel (verification.runs); ecosystem-fixes (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); ecosystem-foundation (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); mobile-pwa (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); ui-redesign (verification.runs); post-roadmap (verification.runs); agentry-live-events-notifications-execution-detail (integration.startedAt, synthesisStartedAt).
+13 graphs were stored before some figures were recorded; a `~` figure is derived from the others. Missing: ecosystem-design (verification.runs); ecosystem-gaps (verification.runs); ecosystem-review-fixes (verification.runs); ecosystem-assistant (integration.startedAt, verification.runs); ecosystem-team (verification.runs); ecosystem-board-web (verification.runs); tunnel (verification.runs); ecosystem-fixes (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); ecosystem-foundation (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); mobile-pwa (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); ui-redesign (verification.runs); post-roadmap (verification.runs); claudio-live-events-notifications-execution-detail (integration.startedAt, synthesisStartedAt).
 
 How it differs from the hand-built tables above:
 
@@ -165,7 +165,7 @@ How it differs from the hand-built tables above:
 - **The after-the-tasks table matches.** For the five graphs the plan listed, the time after the
   tasks, the checks and the fixer come out exactly as built by hand (75/52/22 with 3 attempts,
   67/33/33, 51/31/19, 49/36/12, 41/32/7). Those graphs were stored before check runs were kept, so
-  "Agentry running checks" is derived (`~`): the time after the tasks less the fixer, integration
+  "Claudio running checks" is derived (`~`): the time after the tasks less the fixer, integration
   and synthesis, which is how the hand-built figure was reached. A graph run from now on reports
   every run instead.
 - **Parallelism is now exact, and lower where a limit hit.** It is the sum of every task's
@@ -200,7 +200,7 @@ the `durationMs` of its last run, so earlier runs are overwritten.
   with the waits between links), the time tasks spent waiting on a limit or a slot, and the
   verification runs. Computed when it is read, from what is already stored.
 - `scripts/orchestration-timings.mjs`: the analysis in this document, reproducible against any
-  running Agentry (`AGENTRY_API_URL`), including the worker breakdown read from the transcripts.
+  running Claudio (`CLAUDIO_API_URL`), including the worker breakdown read from the transcripts.
 - Web: a "Where the time went" panel on the orchestration page, from the new route. It uses the
   segmented bars and neutral colours of the design system, and status colours only for waits and
   failures.
@@ -219,7 +219,7 @@ spent. See [limit-resume.md](limit-resume.md#what-replaced-it).
   attempts. This replaces "the next tasks use it".
 - When no account has quota left, the task goes into a waiting state with the reason and the time
   the limit resets, which the CLI already sends as `resetsAt` in `rate_limit_event` (`chats.ts`).
-  At that time Agentry resumes it by itself. While it waits, no new task of any orchestration
+  At that time Claudio resumes it by itself. While it waits, no new task of any orchestration
   starts on an exhausted pool.
 - On the board, a task waiting on a limit reads as warn, with a word and the reset time, never as
   failed.
@@ -252,7 +252,7 @@ Measured by: in the next graphs, the time between the last task and the end of t
 ### D. `worker-checks`: cheaper checks, and e2e breakage caught earlier
 
 This changes `workerChecks()` in `packages/core/src/verification.ts`. Its wording has to hold for
-any repository Agentry drives, not only this one.
+any repository Claudio drives, not only this one.
 
 - Run the type check and the tests **of the package or files you changed**, not the whole
   repository's. The whole suite runs once, in verification.
@@ -345,7 +345,7 @@ Filled in as the workstreams land and the graphs after them are measured.
 
    **Answered on 2026-09-30: wait and resume by itself (option A).** A task or flow run with no
    account left is *waiting for quota* (warn, with the time the first account resets), never
-   failed, and Agentry resumes it in its own chat as soon as an account has room. While it waits,
+   failed, and Claudio resumes it in its own chat as soon as an account has room. While it waits,
    nothing new starts on the exhausted pool. CW-4 was to build it; phase 4 of multiple providers did
    instead (see [limit-resume.md](limit-resume.md#what-replaced-it)).
 3. **Two big graphs at once.** Should the launch form warn, should the second one wait in a queue
