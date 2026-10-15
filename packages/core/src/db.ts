@@ -31,6 +31,7 @@ import type {
   ProviderMove,
   ProviderMoveState,
   RateLimitWindow,
+  RotationEvent,
   SupervisorProposal,
   SupervisorProposalStatus,
   UsageHistoryPoint,
@@ -48,20 +49,6 @@ import { pruneWebhookDeliveries } from './webhook-store.ts';
  * image. WAL is the point of it as much as the persistence: several wrapper processes share one
  * data dir, and a JSON blob read, mutated and rewritten by two of them loses one side's writes.
  */
-
-/** One account switch, as `rotation_events` keeps it. */
-export interface RotationEvent {
-  seq: number;
-  ts: string;
-  /** `switch` when a chat moved to another account, `wait` when none was left */
-  event: string;
-  /** Account ids; null when there was no previous account */
-  from: string | null;
-  to: string | null;
-  reason: string | null;
-  detail: string | null;
-  data: Record<string, unknown> | null;
-}
 
 const KEEP_ROTATION_EVENTS = 2_000;
 

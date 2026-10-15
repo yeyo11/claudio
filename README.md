@@ -826,6 +826,29 @@ The agents Agentry can drive, as detection finds them on this machine: one cache
 
 The routes for what a provider does at its usage limit are under [Usage limits and rotation between providers](#usage-limits-and-rotation-between-providers). Each status carries its `limit` (state, binding window, use, reset and how old the reading is), and `GET /overview` all of them as `limits`.
 
+### Accounts
+
+The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, chosen per process: who they are, the usage each reported (from the run's stream, or the CLI's own cache when idle, stamped with its age), the sign-in of a `login` account and the settings and policies that decide when work moves to another account. A `token` or `api-key` account's secret is kept in a 0600 file of its dir and is in no response, log or event. Every write, and reading a sign-in, is refused to a chat's token with `403`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/accounts` | The CLI's own login (`default`) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading |
+| POST | `/accounts` | Add a `login` account and start `claude auth login` in its dir; `201` with the sign-in (`url` for the person to open). `{ alias?, email? }` |
+| POST | `/accounts/token` | Add a `token` or `api-key` account: `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
+| GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `cancelled`); `404` for an unknown one |
+| POST | `/accounts/logins/:id/code` | Hand the CLI the code the page showed, when its browser could not open: `{ code }`; `409` when the sign-in is over |
+| DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |
+| PATCH | `/accounts/:id` | `{ alias?, enabled? }`; a disabled account is never chosen for new work |
+| DELETE | `/accounts/:id` | Remove an account and its dir; `400` for `default` |
+| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds` and `strategy` from `accounts.json` |
+| PUT | `/accounts/settings` | Change them, validated |
+| GET | `/accounts/policies` | Per-project rotation policies: the accounts allowed, their order and a threshold |
+| POST | `/accounts/policies` | Create one: `{ projects, order?, threshold?, looseChats? }`; `201` |
+| PUT | `/accounts/policies/:id` | Replace one; `404` for an unknown policy |
+| DELETE | `/accounts/policies/:id` | Delete one |
+| GET | `/accounts/usage-history` | The `usage_history` rows, oldest first: `?account=&window=five_hour\|seven_day&since=&until=&limit=` |
+| GET | `/accounts/events` | The `rotation_events` rows, oldest first (each switch or wait): `?limit=&since=` |
+
 ### Code hosts
 
 The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitLab through `glab`, as detection finds them on this machine: one cache with one 5-minute TTL, refreshed by watchers and on demand, with `hosts.changed` on the event stream when a status differs. A chat's token gets `403` on the settings write and the refresh.
