@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-15T13:30:00Z
+updated_at: 2026-10-15T18:30:00Z
 tags:
     - design-system
     - web
@@ -1585,6 +1585,42 @@ Claudio. Methods: Código, Clave. Waiting: "Esperando a que lo apruebes", "caduc
 step, "Omitido" on a summary line. The `en` source follows the same structure ("Back", "Skip", "Continue", "Sign in",
 "Code", "Key", "Waiting for you to approve").
 
+### Terminal: the person's own shell
+
+The terminal ([plans/terminal.md](plans/terminal.md), §4) is the person's own shell, not an agent working. The
+reference is `DesktopTerminal.html` (the project's Terminales page: tabs, header with status and search, the
+screen) and `MobileTerminal.html` (the full-screen route with its key bar), dark and light, drawn by
+`reference/tools/terminal.py`. The rules:
+
+- **Surface.** A `.term` frame on `--bg-1` with `--radius-lg` and a hairline `--line`, a 40 px header on `--bg-2`.
+  No gradient, no `.grad-border`, no energy border and no `--live`: those mean an agent is working, and a shell
+  is not. The one gradient of the page is the primary action, "Nueva terminal".
+- **Palette.** `--term-bg` (the `--bg-1` surface), `--term-fg`, `--term-cursor`, `--term-selection` and
+  `--term-ansi-0` … `--term-ansi-15`, in both themes, in `tokens.css` and `agentry-ds.css`. The 16 colours are
+  muted to sit with `--sx-*`; each reads at ≥ 4.5:1 on `--term-bg` except black and bright black, which
+  programs paint behind text (`packages/ui/test/term-tokens.test.ts` checks it in both themes). They are
+  **content** colours: no status, badge, chip or other chrome uses them, and none equals `--ok`, `--warn`,
+  `--bad`, `--live` or `--idle`. The app builds xterm's theme from these tokens and re-reads them on a theme
+  switch; no hex in any stylesheet or component.
+- **Type.** Geist Mono, 13 px on a desktop and 12 px on a phone, line height 1.2, ligatures off. The view
+  waits for the font before it opens xterm, or the cell width is measured on the fallback font.
+- **Status.** Always a word and an icon, in `.term-status` and in the tab: *Conectado* (ok), *Reconectando*
+  (warn, no loop), *Terminó (0)* (neutral), *Terminó con 1* (bad), *Cerrado por inactividad* (warn).
+- **Motion.** The cursor is a steady block; it blinks only at motion `full` with the tab visible, and under
+  `subtle`, `off`, `prefers-reduced-motion` or a hidden tab it does not.
+- **Tabs.** `.term-tab` (mono, 36 px) on a `.term-tabs` rail; the open one sits on `--bg-2` and joins the frame.
+  A tab shows its close button only when open.
+- **Phone.** A full-screen route, no tab bar: a back button, the terminal's title (mono), the status and a `⋯`
+  `Sheet`. The key bar (`.term-keys`, `.term-key`) holds Esc, Tab, ⇧Tab, Ctrl and Alt (sticky: `.on`), the
+  arrows, `|` `~` `/` `-` and ^C ^D ^L ^R; every key is ≥ 44 px, the bar scrolls sideways and sits above the
+  keyboard. The terminal's own text stays at 12 px, but its hidden input is 16 px so iOS does not zoom.
+- **Dock.** On the chat page the terminal is a bottom dock under the transcript with a `.term-dock-handle`
+  resize bar, toggled by an icon button; the same frame, header and status.
+- **Notes.** What limits the terminal (this machine only, the tunnel and a token from another device) is a
+  `.term-note` line in `--warn` with an icon, never an illustration: the page has content.
+- **Copy.** "Terminal" is feminine in Spanish ("la terminal"); buttons in the infinitive ("Nueva terminal",
+  "Cerrar terminal"); sentence case.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
@@ -2083,4 +2119,4 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[desktop.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[desktop.md]]

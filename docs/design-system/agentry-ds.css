@@ -49,6 +49,12 @@
   --diff-add: var(--ok);  --diff-add-bg: rgba(74, 222, 154, 0.055); --diff-add-word: rgba(74, 222, 154, 0.2);
   --diff-del: var(--bad); --diff-del-bg: rgba(248, 123, 127, 0.06); --diff-del-word: rgba(248, 123, 127, 0.24);
   --sx-kw: #b7a4d9; --sx-str: #d4bd8f; --sx-num: #93b4db; --sx-type: #e4e4e7; --sx-fn: #f4f7ff; --sx-com: var(--fg-3);
+  /* terminal: la paleta de lo que imprime un programa; nunca un color de estado ni del chrome */
+  --term-bg: var(--bg-1); --term-fg: var(--fg); --term-cursor: var(--fg); --term-selection: rgba(147, 180, 219, 0.28);
+  --term-ansi-0: #1b2238;   --term-ansi-1: #e08a8f;   --term-ansi-2: #8fc9a4;   --term-ansi-3: #d4bd8f;
+  --term-ansi-4: #8fb0e0;   --term-ansi-5: #b7a4d9;   --term-ansi-6: #86c4cf;   --term-ansi-7: #c9d0e3;
+  --term-ansi-8: #3a4666;   --term-ansi-9: #f0a3a7;   --term-ansi-10: #a8dbbb;   --term-ansi-11: #e6d0a3;
+  --term-ansi-12: #a9c5ee;   --term-ansi-13: #cdbfe8;   --term-ansi-14: #a3d8e2;   --term-ansi-15: #f4f7ff;
   /* forma */
   --r-xs: 4px; --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
   /* One height for every control of a row (field, select, button, segmented); 44 under a finger */
@@ -96,6 +102,12 @@
   --diff-add-bg: rgba(21, 128, 61, 0.06); --diff-add-word: rgba(21, 128, 61, 0.16);
   --diff-del-bg: rgba(185, 28, 28, 0.05); --diff-del-word: rgba(185, 28, 28, 0.15);
   --sx-kw: #6a4a9e; --sx-str: #7c5a22; --sx-num: #2d5a93; --sx-type: #0b1020; --sx-fn: #0b1020;
+  /* terminal: la paleta de lo que imprime un programa; nunca un color de estado ni del chrome */
+  --term-bg: var(--bg-1); --term-fg: var(--fg); --term-cursor: var(--fg); --term-selection: rgba(45, 90, 147, 0.2);
+  --term-ansi-0: #2a3350;   --term-ansi-1: #a12a30;   --term-ansi-2: #2c6b45;   --term-ansi-3: #7c5a22;
+  --term-ansi-4: #2d5a93;   --term-ansi-5: #6a4a9e;   --term-ansi-6: #1f6670;   --term-ansi-7: #5d6783;
+  --term-ansi-8: #8b94ad;   --term-ansi-9: #b8383e;   --term-ansi-10: #2f7a4e;   --term-ansi-11: #8a6420;
+  --term-ansi-12: #3a6aa8;   --term-ansi-13: #7d5bb5;   --term-ansi-14: #25727c;   --term-ansi-15: #3a4466;
   --shadow: 0 1px 2px rgba(11, 16, 32, 0.06), 0 8px 24px -14px rgba(11, 16, 32, 0.18);
   --shadow-pop: 0 18px 48px -12px rgba(11, 16, 32, 0.22), 0 0 0 1px var(--line-2);
   --on-accent: var(--bg);
@@ -2237,3 +2249,30 @@ a.cont-from:hover { color: var(--fg); }
 .composer-server.is-off .composer-server-name, .composer-server.is-off .composer-server-icon { color: var(--fg-3); }
 .composer-server-link { color: var(--accent); }
 /* ---------- end of The box and its "+" menu ---------- */
+
+/* ---------- The terminal: the person's own shell ---------- */
+/* A shell is not an agent working: no gradient, no energy border, no --live. It sits on --bg-1 in a framed card. */
+.term { display: flex; flex-direction: column; min-height: 0; background: var(--term-bg); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.term-head { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 14px; flex-shrink: 0; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.term-title { font-family: var(--mono); font-size: 12px; color: var(--fg-2); min-width: 0; }
+.term-status { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
+.term-status.ok { color: var(--ok); } .term-status.warn { color: var(--warn); } .term-status.bad { color: var(--bad); } .term-status.neutral { color: var(--fg-2); }
+.term-screen { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 10px 14px; background: var(--term-bg); color: var(--term-fg); font-family: var(--mono); font-size: 13px; line-height: 1.2; font-variant-ligatures: none; white-space: pre; }
+.m-screen .term-screen { font-size: 12px; padding: 8px 10px; }
+.term-cursor { display: inline-block; width: 0.6em; height: 1.2em; vertical-align: text-bottom; background: var(--term-cursor); }
+.term-sel { background: var(--term-selection); }
+.term-tabs { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); }
+.term-tab { white-space: nowrap; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: none; color: var(--fg-2); font-family: var(--mono); font-size: 12px; cursor: pointer; }
+.term-tab.on { color: var(--fg); background: var(--bg-2); border-color: var(--line); margin-bottom: -1px; padding-bottom: 1px; }
+.term-tab:not(.on) .x { display: none; }
+.term-tab .x { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: var(--r-xs); color: var(--fg-3); }
+.term-keys { display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; flex-shrink: 0; border-top: 1px solid var(--line); background: var(--bg-1); }
+.term-key { flex: 0 0 auto; min-width: var(--touch); height: var(--touch); padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); font-family: var(--mono); font-size: 13px; }
+.term-key.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.term-search { width: 220px; }
+.term-dock-handle { height: 8px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.term-dock-handle::before { content: ''; width: 36px; height: 3px; border-radius: var(--r-full); background: var(--line-2); }
+.term-ansi { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.term-ansi i { display: block; height: 22px; border-radius: var(--r-xs); border: 1px solid var(--line); }
+.term-note { display: flex; align-items: center; gap: 8px; color: var(--warn); font-size: 12.5px; }
+/* ---------- end of The terminal ---------- */
