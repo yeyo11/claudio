@@ -35,7 +35,7 @@ function SignInSession({ session, onCode, sending, error }: { session: AccountLo
   }
   const url = session.url;
   return (
-    <div className="signin-device live-energy" role="group" aria-label={t('signIn.title')}>
+    <div className={`signin-device live-energy${url ? ' is-link' : ''}`} role="group" aria-label={t('signIn.title')}>
       {url ? (
         <>
           <ol className="signin-steps">

@@ -306,6 +306,18 @@
   overflow-wrap: anywhere;
 }
 
+/* A sign-in that shows a long authorize link instead of a short code (a Claude account) stacks in
+   one column: in the code's own auto-sized column the link took the whole width and left the steps
+   and the code form a word per line */
+.signin-device.is-link {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.signin-device.is-link .signin-code-box {
+  min-width: 0;
+  align-items: flex-start;
+}
+
 .signin-code {
   font-family: var(--mono);
   font-size: 34px;

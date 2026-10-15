@@ -2192,6 +2192,9 @@ a.cont-from:hover { color: var(--fg); }
 .signin-steps .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .signin-url { font-family: var(--mono); font-size: 13px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; gap: 5px; }
 .signin-code-box { display: flex; align-items: center; gap: 10px; }
+/* A long authorize link instead of a short code (a Claude account's sign-in) stacks in one column */
+.signin-device.is-link { grid-template-columns: minmax(0, 1fr); }
+.signin-device.is-link .signin-code-box { min-width: 0; align-items: flex-start; }
 .signin-code { font-family: var(--mono); font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: 0.08em; color: var(--fg); font-variant-numeric: tabular-nums; }
 .signin-wait { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--fg-2); }
 .signin-wait .spin-braille { color: var(--live); }

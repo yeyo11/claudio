@@ -1537,6 +1537,10 @@ Integrations, so nothing is assistant-only.
   person gets. A waiting link is the same `.signin-device` box with `.energy`, its two lines (open the link; sign in and
   connect this machine, with no code to type), the `.signin-url` link and **Copiar** in the code's place, and the same
   waiting line. The key is a write-only field with the `tskey-auth-…` placeholder and the admin console's link.
+- **A long link (a Claude account's sign-in, Cuentas → Añadir una cuenta)** stacks the box in one column with
+  `.signin-device.is-link`: the two lines, then the authorize link (wrapping anywhere) with **Copiar**, then the code
+  field and **Enviar código** at full width. In the two-column box the link's auto-sized column took the whole width
+  and left the lines and the code field a word per line.
 - **In Settings → Acceso remoto** a signed-out managed node shows the tunnel tab's warn alert with **Iniciar sesión en
   Tailscale** (the card's one primary) and Volver a comprobar; pressing it opens the panel inside the card (`.signin-card-body`,
   with Cancelar). It never asks for a link before the person presses it. No command is ever shown for the managed daemon.
