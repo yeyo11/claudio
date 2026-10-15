@@ -85,6 +85,15 @@ auth:
 tunnel:
   enabled: true
 
+# The person's own terminal (Settings > Terminal): a login shell in the pod, as user `node`, with the
+# vault's tool credentials. `false` (the default) writes CLAUDIO_TERMINAL=off, which vetoes the
+# feature for the whole deployment and shows it read-only in the UI; `true` writes `on`, which
+# switches it on. Even then, with auth `none` it stays unavailable (every request reaches the pod
+# from the bridge, not from loopback): it needs `token` or `oidc`, and a device other than the pod
+# itself only reaches it through the tunnel.
+terminal:
+  enabled: false
+
 # Extra environment variables for the container (CLAUDIO_MAX_CONCURRENT_RUNS, CLAUDIO_CLI_UPDATE_CHECK...).
 # Plain values: a secret goes in `secretKey`, `auth.token` or `claude.existingSecret` instead.
 env: {}

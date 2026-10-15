@@ -27,7 +27,8 @@ directories:
   buildResources: build
 
 # The main process and preload are esbuild bundles and the API is a self-contained bundle, so nothing from
-# node_modules has to ship: only the compiled shell and its package.json (electron-builder adds the latter).
+# node_modules has to ship (node-pty, below, is the one exception and goes through extraResources): only
+# the compiled shell and its package.json (electron-builder adds the latter).
 # That also sidesteps the symlinked pnpm node_modules, which app-builder cannot walk reliably.
 files:
   - dist/**/*
@@ -35,20 +36,27 @@ files:
   - package.json
 
 # Paths the shell reads at runtime (src/resources.ts): <resources>/server/server.mjs, the MCP server beside it
-# (<resources>/server/mcp.mjs) and <resources>/web/index.html.
+# (<resources>/server/mcp.mjs), the terminal host (<resources>/server/terminal-host.mjs) and
+# <resources>/web/index.html.
 extraResources:
   - from: ../api/dist
     to: server
     filter:
       - server.mjs
       - mcp.mjs
+      - terminal-host.mjs
+      # node-pty, staged by the API's bundle script (package.json, lib/ and the Linux x64 prebuild, with
+      # pnpm's symlinks dereferenced). Node's resolution from terminal-host.mjs finds it here
+      - node_modules/node-pty/**
   - from: ../web/dist
     to: web
   # The window's own icon (src/resources.ts); without it the running window has no _NET_WM_ICON
   - from: build/icons/512x512.png
     to: icon.png
 
-# No native modules: the SQLite store is node:sqlite, built into the Node that Electron ships.
+# Nothing is rebuilt: the SQLite store is node:sqlite, built into the Node that Electron ships, and the
+# one native module, node-pty, is a N-API prebuild (pinned 1.2.0-beta.15) that loads on Electron's Node
+# as it is. A version without the Linux prebuild would need this changed.
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false

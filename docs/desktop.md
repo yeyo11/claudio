@@ -240,6 +240,19 @@ hidden). Each log is rotated when the app starts once it passes 5 MB, keeping th
 
 Only one instance runs at a time: opening the app again focuses the existing window.
 
+## The terminal
+
+Settings → Terminal opens your login shell in the app. With authentication off, the window counts as
+this machine, so it works as soon as you turn it on; a phone needs the tunnel and a token. The server
+forks the shell host from `<resources>/server/terminal-host.mjs`, run on Electron's own Node, and
+loads `node-pty` from `<resources>/server/node_modules/node-pty` (a prebuilt binary: the build
+compiles nothing).
+
+While a terminal has focus, the menu leaves its keys to the shell: `Ctrl+W`, `Ctrl+R`,
+`Ctrl+Shift+R` and `Ctrl+Shift+C/V` reach it. Reload is `F5` (`Shift+F5` forces it), closing the window
+is `Alt+F4`, and DevTools in a dev run is `F12`. Shells outlive a reloaded window, not a restart of the
+app.
+
 ## Accounts
 
 The app runs the CLI on the account you choose for each chat. The default account is whatever
@@ -332,7 +345,8 @@ because the top bar is (`--topbar-h`): change one and change the other.
 
 `desktop:dist` writes `Claudio-<version>-x86_64.AppImage` and `Claudio-<version>-amd64.deb` to
 `apps/desktop/release/`. The first run downloads Electron and the packaging tools from GitHub, so it
-needs network access. The packaging is configured in `apps/desktop/electron-builder.yml`.
+needs network access. The packaging is configured in `apps/desktop/electron-builder.yml`, which also ships the terminal host
+and `node-pty` as `extraResources`.
 
 ## How releases publish it
 
