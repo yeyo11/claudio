@@ -280,7 +280,11 @@
     "remove": "Quitar la credencial guardada",
     "working": "Funciona",
     "failed": "Error: {{detail}}",
-    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte."
+    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte.",
+    "accounts": "Cuentas",
+    "accountsOne": "Claude Code usa su propio inicio de sesión. Añade más cuentas para pasar a otra cuando se alcance un límite.",
+    "accountsMany": "Cuentas: {{names}}. El trabajo nuevo empieza en la primera con margen.",
+    "manageAccounts": "Gestionar cuentas"
   },
   "instructions": {
     "variants": {

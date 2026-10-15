@@ -280,7 +280,11 @@
     "remove": "Remove stored credential",
     "working": "Working",
     "failed": "Failed: {{detail}}",
-    "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure."
+    "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure.",
+    "accounts": "Accounts",
+    "accountsOne": "Claude Code runs on its own login. Add more accounts to switch to another one when a limit is reached.",
+    "accountsMany": "Accounts: {{names}}. New work starts on the first one with room.",
+    "manageAccounts": "Manage accounts"
   },
   "instructions": {
     "variants": {

@@ -2,7 +2,9 @@ import type { TokenSource } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { api, keys } from '../../api';
+import { Link } from 'react-router-dom';
+import { api, keys, useAccounts } from '../../api';
+import { accountName } from '../../lib/accounts';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
@@ -49,12 +51,22 @@ export function AccountTab() {
     },
     onError: (err) => toast.error(t('account.verifyFailed'), err),
   });
+  const accounts = useAccounts().data ?? [];
   const fromWrapper = auth?.tokenSource.startsWith('wrapper-') ?? false;
 
   return (
     <>
       <UpdatesCard />
       <CliCard />
+
+      <Card title={t('account.accounts')}>
+        <p className="small muted">{accounts.length > 1 ? t('account.accountsMany', { names: accounts.map(accountName).join(', ') }) : t('account.accountsOne')}</p>
+        <div className="form-actions">
+          <Link to="/accounts" className="btn">
+            {t('account.manageAccounts')}
+          </Link>
+        </div>
+      </Card>
 
       <Card title={t('account.inUse')}>
         <ErrorBox error={error} />

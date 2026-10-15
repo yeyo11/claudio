@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
-import { api, keys } from '../../api';
+import { api, keys, useAccounts } from '../../api';
+import { accountName, usagePct, windowRows } from '../../lib/accounts';
 import { ICON } from '@agentry/ui/components/icons';
 import { formatCost } from '@agentry/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
@@ -149,6 +150,65 @@ export function ProviderCard({ now, connection }: { now: Now; connection: Connec
 }
 
 /**
+ * The phone's More sheet opens on this when there are accounts: the one new work would start on, its
+ * 5 h and 7 d windows, and how many others are ready. It leads to the Accounts page. With no
+ * account it gives way to the provider's own card.
+ */
+export function AccountCard({ now, connection }: { now: Now; connection: Connection }) {
+  const { t } = useTranslation('shell');
+  const windowOf = useLimitWindowName();
+  const accounts = useAccounts().data ?? [];
+  const snapshot = now.overview.data?.accounts;
+  const current = accounts.find((a) => a.id === snapshot?.current) ?? null;
+  if (!current) return <ProviderCard now={now} connection={connection} />;
+  const name = accountName(current);
+  const exhausted = current.limits?.state === 'exhausted';
+  const rows = windowRows(current.limits).filter((row) => row.key === 'five_hour' || row.key === 'seven_day');
+  const tone: DotTone = exhausted ? 'bad' : current.limits?.state === 'near' ? 'warn' : 'ok';
+  const word = exhausted ? t('statusbar.limit.exhausted') : current.limits?.state === 'near' ? t('statusbar.limit.near') : t('account.ready');
+  return (
+    <NavLink to="/accounts" className="card grad-border glow-top more-account" title={t('account.card')}>
+      <span className="more-account-head">
+        <span className="more-account-avatar" aria-hidden>
+          {name.charAt(0).toUpperCase()}
+        </span>
+        <span className="more-account-text">
+          <span className="more-account-name ellipsis">{name}</span>
+          <span className="more-account-meta ellipsis">
+            <StatusDot tone={tone} live={connection.live && tone === 'ok' && rows.length === 0} />
+            {[word, snapshot && snapshot.total > 1 ? t('account.ofTotal', { ready: snapshot.ready, total: snapshot.total }) : null].filter(Boolean).join(' · ')}
+          </span>
+        </span>
+        <ChevronRight {...ICON} className="more-cell-chevron" />
+      </span>
+      {rows.length > 0 && (
+        <span className="more-account-limits">
+          {rows.map((row) => (
+            <LimitMeter key={row.key} label={windowOf(row.key === 'five_hour' ? '5h' : '7d')} percent={row.pct} exhausted={exhausted && row.pct >= 100} />
+          ))}
+        </span>
+      )}
+    </NavLink>
+  );
+}
+
+/** The account new work starts on, with the share used of its binding window; only when there is a choice of accounts. */
+function AccountChip({ now }: { now: Now }) {
+  const { t } = useTranslation('shell');
+  const accounts = useAccounts().data ?? [];
+  const current = accounts.find((a) => a.id === now.overview.data?.accounts?.current);
+  if (!current || accounts.length < 2) return null;
+  const pct = usagePct(current.limits);
+  const tone = pct === null ? 'neutral' : usageTone(pct, current.limits?.state === 'exhausted');
+  return (
+    <NavLink to="/accounts" className="statusbar-item" title={t('statusbar.account')}>
+      <span className="ellipsis">{accountName(current)}</span>
+      {pct !== null && <span className={`mono ${tone === 'neutral' ? '' : `statusbar-${tone}`}`.trim()}>{pct}%</span>}
+    </NavLink>
+  );
+}
+
+/**
  * The desktop's bottom strip, as in an IDE: the connection on the left, and on the right what is
  * running, what today cost and one dot per provider with its limit. Text and dots only: it sits
  * beside every page.
@@ -175,6 +235,7 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
           {now.todayCost === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(now.todayCost) })}
         </NavLink>
       )}
+      <AccountChip now={now} />
       <ProviderDots limits={now.limits} />
     </footer>
   );

@@ -2,6 +2,7 @@ import {
   BookOpen,
   CalendarClock,
   ChartColumn,
+  UsersRound,
   FolderGit2,
   House,
   MessagesSquare,
@@ -30,7 +31,7 @@ import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
 import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
 import { LiveSection, useLive } from './components/shell/live';
-import { ProviderCard, StatusBar, useConnection } from './components/shell/StatusBar';
+import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
 import { useRailCollapsed } from './components/shell/rail';
 import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
@@ -46,6 +47,7 @@ import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
+import { Accounts } from './pages/Accounts';
 import { Home } from './pages/Home';
 import { AGENTRY_ASSISTANT_PATH } from './pages/agentry-assistant/model';
 
@@ -200,6 +202,7 @@ function Shell() {
   const schedules: NavItem = { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock };
   const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
   const connectors: NavItem = { to: '/connectors', label: t('connectors:nav'), icon: Plug };
+  const accounts: NavItem = { to: '/accounts', label: t('nav.accounts'), icon: UsersRound };
   const usage: NavItem = { to: '/usage', label: t('nav.usage'), icon: ChartColumn };
   const settings: NavItem = {
     to: '/settings',
@@ -211,7 +214,7 @@ function Shell() {
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
     { id: 'work', label: t('shell:nav.work'), items: [home, assistant, chats, tasks, orchestrations, schedules] },
-    { id: 'space', label: t('shell:nav.space'), items: [projects, connectors, usage, settings] },
+    { id: 'space', label: t('shell:nav.space'), items: [projects, connectors, accounts, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
@@ -358,7 +361,7 @@ function Shell() {
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/orchestration/:id/changes" element={<IntegrationChangesReview />} />
               <Route path="/orchestration/:id/tasks/:taskId/changes" element={<TaskChangesReview />} />
-              <Route path="/accounts" element={<Navigate to="/settings?tab=providers" replace />} />
+              <Route path="/accounts" element={<Accounts />} />
               <Route path="/schedules" element={<Schedules />} />
               <Route path="/schedules/new" element={<ScheduleEditor />} />
               <Route path="/schedules/:id/edit" element={<ScheduleEditor />} />
@@ -399,7 +402,7 @@ function Shell() {
             tabs={[home, chats, orchestrations]}
             more={[assistant, tasks, projects, schedules, usage, connectors, settings]}
             start={startEntries}
-            account={<ProviderCard now={now} connection={connection} />}
+            account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}
           />
         </>
