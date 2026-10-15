@@ -115,10 +115,16 @@ export default async ({ page, api, check, dirs }) => {
     await run('echo after$((10+11))');
     await onScreen('after21');
     check(true, 'Ctrl+C from the key bar interrupted cat and the prompt came back');
+    // `cat -v` prints what it receives, so the check does not depend on how the person's shell binds Esc
+    // (zsh and bash read Esc followed by a letter as Meta and would eat the next command's first byte)
+    await run('cat -v');
     await page.click('.term-key[aria-label="Esc"]', undefined, 300);
+    await page.key('Enter');
+    await onScreen('^[', 'the Esc byte echoed by cat -v');
+    await page.click('.term-key[aria-label="Ctrl+C"]', undefined, 600);
     await run('echo esc$((3+4))');
     await onScreen('esc7');
-    check(true, 'Esc from the key bar reached the shell without breaking the line');
+    check(true, 'Esc from the key bar reached the shell as the Esc byte');
     await page.shot('terminal-phone');
 
     // ---- 7. the light theme paints the terminal with the light --term-bg ----
@@ -145,7 +151,9 @@ export default async ({ page, api, check, dirs }) => {
     check(off.status === 200, `the feature was turned off (${off.status})`);
     await page.waitFor(`return ![...document.querySelectorAll('main button')].some((b) => b.textContent.includes('New terminal'))`, { label: 'the New terminal button gone', timeout: 30_000 });
     check(true, 'the New terminal button disappeared');
-    check((await terminalsOf()).every((t) => t.state !== 'running'), 'no terminal is running once the feature is off');
+    // With the feature off every terminal route answers 409 (the gate), so nothing can be listed or reached
+    const listed = await api.get(`/terminals?project=${encodeURIComponent(projectId)}`);
+    check(listed.status === 409 || (Array.isArray(listed.body) && listed.body.every((t) => t.state !== 'running')), `no terminal is reachable once the feature is off (${listed.status})`);
     const status = await page.text('main');
     check(/Closed|Cerrado/.test(status) || status.includes('not available'), `the page says the terminal is closed or unavailable (${status.slice(0, 120).replace(/\s+/g, ' ')})`);
   } finally {
