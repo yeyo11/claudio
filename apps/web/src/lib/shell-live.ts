@@ -170,6 +170,8 @@ export function hidesTabBar(pathname: string, search = ''): boolean {
   // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
+  // A terminal on a phone is the whole screen, its key bar sitting above the keyboard
+  if (/^\/terminals\/[^/]+\/?$/.test(pathname)) return true;
   // The new project wizard walks its steps with a bar of its own at the bottom, as a new chat does
   if (/^\/projects\/new\/?$/.test(pathname)) return true;
   // The project assistant, which the wizard hands off to, ends in its own bar ("Ir al proyecto")

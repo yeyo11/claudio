@@ -1,14 +1,16 @@
 import type { Project, ProjectCandidate } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
+import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, SquareTerminal, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useChats, useProjectCandidates, useProjects } from '../api';
 import { Menu, Sheet, type MenuEntry } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../components/work-item-icons';
+import { projectTerminalsPath } from '../components/terminal/use-dock';
+import { useTerminalAccess } from '../components/terminal/use-terminals';
 import { ListToolbar } from '@claudio/ui/components/ListToolbar';
 import { StatusDot } from '@claudio/ui/components/motion';
 import { useToast } from '@claudio/ui/components/Toast';
@@ -112,8 +114,10 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
  * card keeps one button, so opening the project joins the sheet (MobileProyectos).
  */
 function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Project; onRename: () => void; onRemove: () => void; onPurge: () => void }) {
-  const { t } = useTranslation(['projects', 'common']);
+  const { t } = useTranslation(['projects', 'common', 'terminal']);
   const narrow = useMediaQuery(NARROW);
+  const navigate = useNavigate();
+  const terminals = useTerminalAccess() && project.exists;
   const [open, setOpen] = useState(false);
   const label = t('card.actionsNamed', { name: project.name });
 
@@ -133,6 +137,11 @@ function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Pro
             <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn">
               <FolderOpen {...ICON_SM} /> {t('common:actions.open')}
             </Link>
+            {terminals && (
+              <Link to={projectTerminalsPath(project.id)} className="btn">
+                <SquareTerminal {...ICON_SM} /> {t('terminal:project.open')}
+              </Link>
+            )}
             <button type="button" className="btn" onClick={run(onRename)}>
               <Pencil {...ICON_SM} /> {t('card.rename')}
             </button>
@@ -152,6 +161,7 @@ function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Pro
   }
 
   const entries: MenuEntry[] = [
+    ...(terminals ? [{ id: 'terminal', label: t('terminal:project.open'), icon: SquareTerminal, onSelect: () => navigate(projectTerminalsPath(project.id)) }] : []),
     { id: 'rename', label: t('card.rename'), icon: Pencil, onSelect: onRename },
     { id: 'remove', label: t('card.remove'), icon: X, onSelect: onRemove },
     { id: 'sep', separator: true },

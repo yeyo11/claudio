@@ -168,6 +168,7 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
   permiso — never "prompt", which is only what a person sends to Claude |
 | Model | Modelo |
 | Tunnel | Túnel ("Abrir el túnel", "Cerrar el túnel") |
+| Terminal (the person's own shell) | la terminal, las terminales — feminine: "Nueva terminal", "Abrir terminal", "Cerrar terminal", "Abrir de nuevo", "Copiar selección", "Pegar". Its states agree with the status, not the noun ("Conectado", "Cerrado por inactividad"). "Shell" stays as in the CLI: "el shell" |
 | Remote access | Acceso remoto |
 | Set by the environment | Fijado por el entorno (a setting an environment variable decides) |
 | Usage | Uso |

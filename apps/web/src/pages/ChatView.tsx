@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
 import { entryText, type Chat, type ChatDetail, type ChatPendingAttachment, type EditStep } from '@claudio/shared';
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
@@ -16,6 +16,8 @@ import { useSmoothText } from '@claudio/chat-ui/lib/smooth-text';
 import { useToast } from '@claudio/ui/components/Toast';
 import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@claudio/chat-ui/components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@claudio/chat-ui/components/TranscriptSearch';
+import { lazyPage } from '../components/ReloadOffer';
+import { useTerminalDock } from '../components/terminal/use-dock';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
 import { Empty, ErrorBox, PageHeader, Skeleton, usePageTitle } from '@claudio/ui/components/ui';
@@ -42,6 +44,9 @@ import { HISTORY_LIMIT } from '@claudio/chat-ui/composer/history';
 import { useStickToBottom } from '@claudio/chat-ui/composer/stick-to-bottom';
 import { useTurnSpacer } from '@claudio/chat-ui/composer/turn-spacer';
 import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
+
+// xterm is the heaviest thing on this page, and most chats never open a terminal
+const TerminalDock = lazyPage(() => import('../components/terminal/TerminalDock').then((m) => m.TerminalDock));
 
 /** How long the entry a link opened the chat at stays marked */
 const AT_MARK_MS = 2400;
@@ -95,6 +100,7 @@ export function ChatView() {
   const [forking, setForking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const inspector = useInspector();
+  const terminal = useTerminalDock(id);
 
   const transcript = useChatTranscript(id, sidechains);
   const { chat } = transcript;
@@ -310,8 +316,9 @@ export function ChatView() {
         pending: remove.isPending,
       },
       inspector,
+      terminal: terminal.available ? { open: terminal.open, toggle: terminal.toggle } : undefined,
     }),
-    [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector],
+    [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector, terminal.available, terminal.open, terminal.toggle],
   );
 
   if (transcript.query.isLoading) return <ChatLoading label={t('view.loading')} />;
@@ -436,6 +443,12 @@ export function ChatView() {
             )}
           </AnimatePresence>
         </div>
+
+        {terminal.open && (
+          <Suspense fallback={null}>
+            <TerminalDock chatId={id} onToggle={terminal.toggle} />
+          </Suspense>
+        )}
 
         {composer === 'fork' && (
           <div className="chat-fork" role="group" aria-label={t('chat:sessionView.continueCopy')}>

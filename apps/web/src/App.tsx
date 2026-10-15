@@ -65,6 +65,8 @@ const Chats = lazyPage(() => loadChats().then((m) => m.Chats));
 const NewChat = lazyPage(() => import('./pages/NewChat').then((m) => m.NewChat));
 const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) => m.Orchestration));
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
+const Terminals = lazyPage(() => import('./pages/Terminals').then((m) => m.Terminals));
+const TerminalScreen = lazyPage(() => import('./pages/Terminals').then((m) => m.TerminalScreen));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
 const AgentryAssistant = lazyPage(() => import('./pages/agentry-assistant/Entry').then((m) => m.AgentryAssistant));
@@ -351,6 +353,8 @@ function Shell() {
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/chats/:id/changes" element={<ChatChangesReview />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/terminals" element={<Terminals />} />
+              <Route path="/terminals/:id" element={<TerminalScreen />} />
               <Route path="/projects/new" element={<NewProject />} />
               <Route path="/projects/:id/assistant" element={<AssistantPage />} />
               <Route path="/tasks" element={<TasksBoard />} />

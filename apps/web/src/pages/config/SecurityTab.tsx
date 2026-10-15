@@ -15,6 +15,7 @@ import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 import { SecretsCard } from '../../components/setup/SecretsCard';
 import { AppSettingsCards } from './AppSettingsCards';
 import { OwnTokenForm, RevealedToken, useTokenActions } from './security/token';
+import { TerminalCard } from './security/TerminalCard';
 
 const MODES: AuthMode[] = ['none', 'token', 'oidc'];
 const AUDIT_PAGE = 25;
@@ -53,6 +54,7 @@ export function SecurityTab() {
         </>
       )}
       <AppSettingsCards />
+      <TerminalCard />
       <AuditCard />
       <p className="small muted">{t('security.footnote')}</p>
     </>
