@@ -11,7 +11,8 @@
     "hostFailed": "Closed: the terminal host failed",
     "disabled": "Closed: terminals were turned off",
     "readOnly": "Closed: read-only mode",
-    "closed": "Closed"
+    "closed": "Closed",
+    "elsewhere": "In another window"
   },
   "unavailable": {
     "title": "The terminal is not available here",
@@ -91,7 +92,8 @@
   },
   "page": {
     "title": "Terminals",
-    "notFound": "This terminal is not there any more."
+    "notFound": "This terminal is not there any more.",
+    "windowTitle": "Terminal"
   },
   "settings": {
     "title": "Terminal",
@@ -153,5 +155,16 @@
     "empty": "No terminal is open. Use + to open one in a project.",
     "running": "running",
     "label": "Terminal"
+  },
+  "fullscreen": {
+    "enter": "Full screen",
+    "exit": "Exit full screen"
+  },
+  "window": {
+    "open": "Open in a window",
+    "elsewhere": "In another window",
+    "elsewhereHint": "This terminal is open in a window of its own. Closing that window leaves the shell running.",
+    "bringBack": "Bring it here",
+    "blocked": "The browser blocked the window. Allow pop-ups for Claudio and try again."
   }
 }

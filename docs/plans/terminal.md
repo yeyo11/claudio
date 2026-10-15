@@ -63,6 +63,26 @@ sections below where they differ.
    with the key bar) and the same "New terminal" control the panel's "+" uses. Rejected: keeping the
    page beside the panel.
 
+7. **A terminal can leave the panel and fill the screen (owner, 2026-10-15).** Two buttons in the
+   header of the open terminal on a desktop, in the panel and in the window below.
+   - **Full screen** (`Maximize2` / `Minimize2`): the browser's Fullscreen API on the terminal's
+     frame (header included, so the button that leaves stays in reach); the screen refits on enter
+     and exit. Hidden where `document.fullscreenEnabled` is false. Esc leaves it, as the button does;
+     where the browser grants keyboard lock, a short Esc goes to the shell and holding it leaves.
+     A menu opened in full screen is outside the element and does not show: leave first.
+   - **Open in a window** (`ExternalLink`): `window.open` of `/terminal-window/:id`, named
+     `claudio-terminal-<id>` so a second click focuses it. The route draws that one terminal and no
+     app shell, behind the same authentication gate, and attaches to **the same shell** through the
+     ticket and socket the panel uses (the server lets several clients attach). While it is open the
+     panel shows the terminal as *En otra ventana* with **Traer aquí**, which asks the window to close
+     (a `BroadcastChannel`, same origin only) and shows the terminal again; closing the window leaves
+     the shell running. In the Electron app the same call is allowed by `setWindowOpenHandler` for that
+     one same-origin route only, and opens a native window with the main window's security flags
+     (`contextIsolation`, `sandbox`, no Node) and no preload, titled *Terminal — <project>*; it does not
+     touch the single-instance lock, and closes with the main window. A phone gets neither button.
+     Rejected: a second shell in the window (not the same session), and `postMessage` through
+     `window.opener` (it breaks when the panel's page reloads).
+
 Still open, with this plan's default unless the owner says otherwise: Q2 (re-confirm the token
 before opening from another device: default no), Q4 (no `/proc` under auth off: terminal
 unavailable), Q5 (no refusal while an agent works in the same worktree), Q6 (a chat without a
@@ -1150,6 +1170,11 @@ Against the isolated wrapper (auth `none`, loopback, which is the allowed case),
    shell (`cat` interrupted).
 7. Light theme: the terminal background reads `--term-bg` of light.
 8. Turn the feature off: the button disappears and the open terminal shows *Cerrado*.
+9. Full screen: a real click on the header button puts the frame in `document.fullscreenElement`, the
+   screen refits and still answers, and the same button leaves. Open in a window: the button asks for
+   `/terminal-window/<id>` by that terminal's name, the panel says *In another window*, **Bring it
+   here** restores it, and the route itself (loaded as the other window would) has no shell, attaches
+   to the same terminal and shows what was typed there back in the panel.
 
 Also: `a11y-core.spec.mjs` visits `/terminals?project=…` in both themes and at phone width;
 `motion.spec.mjs` asserts the cursor does not blink under `subtle`.

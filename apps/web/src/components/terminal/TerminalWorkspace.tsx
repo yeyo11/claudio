@@ -1,13 +1,15 @@
-import { SquareTerminal, X } from 'lucide-react';
+import { ExternalLink, SquareTerminal, X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@claudio/ui/components/Toast';
 import type { CreateTerminalRequest, Terminal } from '@claudio/shared';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Skeleton } from '@claudio/ui/components/ui';
 import { keys } from '../../api';
 import { TerminalPanel } from './TerminalPanel';
 import { TerminalStatus } from './TerminalStatus';
+import { openTerminalWindow, useDetachedTerminals } from './terminal-window';
 import { baseName, requestFor, type LinkState } from './terminal-model';
 import { scopeKey, useCloseTerminal, useOpenTerminal, useTerminalList, type TerminalScopeKey } from './use-terminals';
 
@@ -66,6 +68,7 @@ export function TerminalWorkspace({
 }) {
   const { t } = useTranslation('terminal');
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { terminals, isLoading, error } = useTerminalList(scope);
   const [picked, setPicked] = useState<string | null>(null);
   const [links, setLinks] = useState<Record<string, LinkState>>({});
@@ -80,6 +83,13 @@ export function TerminalWorkspace({
   });
   const close = useCloseTerminal();
   const names = (labels ?? tabNames)(terminals);
+  const windows = useDetachedTerminals();
+  const detached = current !== null && windows.detached.has(current.id) && current.state === 'running';
+  const detach = (terminal: Terminal) => {
+    // A popup the browser blocked leaves the terminal where it is
+    if (openTerminalWindow(terminal.id)) windows.markOpened(terminal.id);
+    else toast.info(t('window.blocked'));
+  };
 
   // The dock opens a shell on first use; once, so a slow answer does not open two
   const asked = useRef(false);
@@ -131,7 +141,7 @@ export function TerminalWorkspace({
                 >
                   <SquareTerminal {...ICON_SM} aria-hidden />
                   <span className="ellipsis">{names.get(terminal.id)}</span>
-                  <TerminalStatus terminal={terminal} link={on ? (links[terminal.id] ?? 'connecting') : 'ended'} />
+                  <TerminalStatus terminal={terminal} link={windows.detached.has(terminal.id) ? 'window' : on ? (links[terminal.id] ?? 'connecting') : 'ended'} />
                 </button>
                 {on && (
                   <button type="button" className="x" aria-label={t('tabs.close', { name: names.get(terminal.id) ?? '' })} onClick={() => closeCurrent(terminal)}>
@@ -145,13 +155,25 @@ export function TerminalWorkspace({
         {renderNew({ open: (body) => open.mutate(body), pending: open.isPending })}
         {trailing}
       </div>
-      {current ? (
+      {current && detached ? (
+        <section className="term term-detached" aria-label={t('panel.label', { name: baseName(current.cwd) })}>
+          <div className="term-detached-body">
+            <ExternalLink {...ICON_SM} aria-hidden />
+            <p className="term-detached-title">{t('window.elsewhere')}</p>
+            <p className="muted small">{t('window.elsewhereHint')}</p>
+            <button type="button" className="btn btn-small" onClick={() => windows.bringBack(current.id)}>
+              {t('window.bringBack')}
+            </button>
+          </div>
+        </section>
+      ) : current ? (
         <TerminalPanel
           // Another terminal is another xterm: nothing of the last one's screen may stay
           key={current.id}
           terminal={current}
           compact={false}
           onToggle={onToggle}
+          onDetach={() => detach(current)}
           autoFocus={focusFront || fresh === current.id}
           onFocused={() => {
             setFresh(null);

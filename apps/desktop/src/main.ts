@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
 import { IPC, isAppPath } from './ipc.ts';
 import { EMPTY_SNAPSHOT, liveWords, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction } from './live.ts';
@@ -15,6 +15,7 @@ import { secretKeyFor } from './secret-key.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
 import { resolveUserPath } from '@claudio/core/providers/path';
+import { isTerminalWindowUrl } from './terminal-window.ts';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
 import {
@@ -358,6 +359,27 @@ async function restartServer(): Promise<void> {
   await startServer();
 }
 
+// Anything that is not the local server goes to the system browser
+const openExternal = (url: string) => {
+  if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+};
+
+/** The main window's and a terminal window's navigation: the local server stays, the rest leaves */
+function guardNavigation(webContents: WebContents): void {
+  webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith(ACTION_SCHEME)) {
+      event.preventDefault();
+      const action = url.slice(ACTION_SCHEME.length);
+      if (action === 'restart') void restartServer();
+      else if (action === 'logs') void shell.openPath(logsDir);
+      return;
+    }
+    if (serverOrigin && new URL(url).origin === serverOrigin) return;
+    event.preventDefault();
+    openExternal(url);
+  });
+}
+
 function createWindow(): void {
   const state = restoreWindowState();
   win = new BrowserWindow({
@@ -386,26 +408,42 @@ function createWindow(): void {
   // The web UI sets its own <title>; the window keeps the app name
   webContents.on('page-title-updated', (event) => event.preventDefault());
 
-  // Anything that is not the local server goes to the system browser
-  const openExternal = (url: string) => {
-    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
-  };
+  guardNavigation(webContents);
+  // A terminal detached from the panel: the web app's own route, in a native window as locked down as
+  // this one. It has no preload, because the bridge it carries only drives the main window.
   webContents.setWindowOpenHandler(({ url }) => {
+    if (isTerminalWindowUrl(url, serverOrigin)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 1000,
+          height: 640,
+          minWidth: 420,
+          minHeight: 260,
+          // Replaced by the page's own title, "Terminal — <project>"
+          title: 'Terminal',
+          icon: resolveResources().icon,
+          backgroundColor: '#0b1020',
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+        },
+      };
+    }
     openExternal(url);
     return { action: 'deny' };
   });
-  webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith(ACTION_SCHEME)) {
-      event.preventDefault();
-      const action = url.slice(ACTION_SCHEME.length);
-      if (action === 'restart') void restartServer();
-      else if (action === 'logs') void shell.openPath(logsDir);
-      return;
-    }
-    if (serverOrigin && new URL(url).origin === serverOrigin) return;
-    event.preventDefault();
-    openExternal(url);
+  webContents.on('did-create-window', (child) => {
+    guardNavigation(child.webContents);
+    child.webContents.setWindowOpenHandler(({ url }) => {
+      openExternal(url);
+      return { action: 'deny' };
+    });
+    // The server goes with the main window: nothing is left for a terminal window to attach to
+    win?.once('closed', () => {
+      if (!child.isDestroyed()) child.close();
+    });
   });
+
   // The server can vanish under a loaded page (e.g. reload after a crash): offer a restart instead of Chromium's error page
   webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
     if (isMainFrame && code !== -3 && serverOrigin && url.startsWith(serverOrigin)) {

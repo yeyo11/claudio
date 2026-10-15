@@ -113,6 +113,7 @@ test('a status is a word and a tone: connected is ok, reconnecting warns, an exi
   assert.deepEqual(statusOf(shell({}), 'open'), { tone: 'ok', key: 'connected' });
   assert.deepEqual(statusOf(shell({}), 'reconnecting'), { tone: 'warn', key: 'reconnecting' });
   assert.deepEqual(statusOf(shell({}), 'connecting'), { tone: 'neutral', key: 'connecting' });
+  assert.deepEqual(statusOf(shell({}), 'window'), { tone: 'neutral', key: 'elsewhere' });
   assert.deepEqual(statusOf(shell({ state: 'exited', endReason: 'exit', exitCode: 0 }), 'ended'), { tone: 'neutral', key: 'exited', params: { code: 0 } });
   assert.deepEqual(statusOf(shell({ state: 'exited', endReason: 'exit', exitCode: 1 }), 'ended'), { tone: 'bad', key: 'exitedWith', params: { code: 1 } });
   assert.deepEqual(statusOf(shell({ state: 'closed', endReason: 'idle' }), 'ended'), { tone: 'warn', key: 'idle' });

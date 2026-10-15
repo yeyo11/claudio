@@ -232,6 +232,19 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       await sleep(wait);
     },
     /**
+     * A click made with real mouse input, which the browser counts as a user gesture: what the
+     * Fullscreen API and pop-ups require, and a synthetic `click()` is not.
+     */
+    async realClick(selector, wait = 500) {
+      await this.waitFor(`const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.scrollIntoView({block:'center'});return true;`, { label: `find ${selector}` });
+      const at = await this.eval(`const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}`);
+      const base = { x: at.x, y: at.y, button: 'left', clickCount: 1 };
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...base });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...base });
+      await sleep(wait);
+    },
+    /**
      * Picks `optionText` in a themed Select: clicks its trigger, then the matching [role=option]
      * in the portalled menu. A synthetic click takes Radix's touch path, which opens and selects.
      */

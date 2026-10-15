@@ -3,12 +3,15 @@ import type { CreateTerminalRequest, Terminal, TerminalEndReason, TerminalUnavai
 /** The tone a status word is drawn in (`.term-status.<tone>`); each is also an icon and a word, never a colour alone. */
 export type TerminalTone = 'ok' | 'warn' | 'bad' | 'neutral';
 
-/** How the page's socket stands, apart from what the terminal itself is doing. */
-export type LinkState = 'connecting' | 'open' | 'reconnecting' | 'ended';
+/**
+ * How the page's socket stands, apart from what the terminal itself is doing. `window`: not attached
+ * here because the terminal is open in a window of its own.
+ */
+export type LinkState = 'connecting' | 'open' | 'reconnecting' | 'ended' | 'window';
 
 /** The words under `status.` in the `terminal` namespace */
 export type StatusKey =
-  | 'connected' | 'connecting' | 'reconnecting' | 'detached' | 'exited' | 'exitedWith'
+  | 'connected' | 'connecting' | 'reconnecting' | 'detached' | 'elsewhere' | 'exited' | 'exitedWith'
   | 'idle' | 'serverStopped' | 'hostFailed' | 'disabled' | 'readOnly' | 'closed';
 
 export interface TerminalStatusWord {
@@ -42,6 +45,7 @@ export function statusOf(terminal: Pick<Terminal, 'state' | 'endReason' | 'exitC
   }
   if (link === 'reconnecting') return { tone: 'warn', key: 'reconnecting' };
   if (link === 'connecting') return { tone: 'neutral', key: 'connecting' };
+  if (link === 'window') return { tone: 'neutral', key: 'elsewhere' };
   if (link === 'ended') return { tone: 'neutral', key: 'detached' };
   return { tone: 'ok', key: 'connected' };
 }

@@ -128,6 +128,56 @@ export default async ({ page, api, check, dirs }) => {
     await ready();
     check((await terminalsOf()).length === 1, 'showing the panel again reused the running shell');
 
+    // ---- 5a. full screen: the frame fills the screen, the terminal refits, Esc or the button leaves ----
+    const FULL = '.term-head [aria-label="Full screen"]';
+    await page.waitFor(`return !!document.querySelector('${FULL}')`, { label: 'the full screen button' });
+    const inFrame = (await page.eval(`const s=document.querySelector('.term-screen').getBoundingClientRect(); return Math.round(s.height)`));
+    await page.realClick(FULL, 600);
+    await page.waitFor(`return document.fullscreenElement?.classList.contains('term') === true`, { label: 'the terminal frame in full screen' });
+    await page.waitFor(`return !!document.querySelector('.term-head [aria-label="Exit full screen"][aria-pressed="true"]')`, { label: 'the button offering to leave' });
+    await page.waitFor(`return document.querySelector('.term-screen').getBoundingClientRect().height > ${inFrame} + 100`, { label: 'the screen refitted to the full window' });
+    check(true, 'the full screen button put the terminal frame in full screen and the screen grew with it');
+    // The resize makes the shell redraw its prompt and the first key typed after it is eaten, so an Enter goes first
+    await page.sleep(1000);
+    await page.eval(`document.activeElement?.blur(); return true`);
+    await page.focus('.term .xterm-helper-textarea');
+    await page.key('Enter');
+    await page.sleep(500);
+    await run('echo fs$((20+22))');
+    await onScreen('fs42');
+    check(true, 'the shell still answers in full screen');
+    await page.realClick('.term-head [aria-label="Exit full screen"]', 600);
+    await page.waitFor(`return document.fullscreenElement === null`, { label: 'full screen left' });
+    await page.waitFor(`return Math.abs(document.querySelector('.term-screen').getBoundingClientRect().height - ${inFrame}) <= 2`, { label: 'the screen back to the panel size' });
+    check(true, 'the same button leaves full screen and the screen refits to the panel');
+
+    // ---- 5c. a window of its own: the button asks for the route, the panel says where the terminal is, and the route is that terminal alone ----
+    const shellId = (await terminalsOf())[0].id;
+    await page.eval(`window.__opened = []; window.open = (...args) => { window.__opened.push(args); return {}; }; return true`);
+    await page.click('.term-head [aria-label="Open in a window"]', undefined, 600);
+    const opened = await page.eval(`return window.__opened`);
+    check(opened.length === 1 && opened[0][0] === '/terminal-window/' + shellId && opened[0][1] === 'claudio-terminal-' + shellId, `the detach button opened the terminal's route in a window named for it (${JSON.stringify(opened[0])})`);
+    await page.waitFor(`return !!document.querySelector('.term-detached') && !document.querySelector('.term-screen')`, { label: 'the panel saying the terminal is in another window' });
+    check((await page.text('.term-detached')).includes('In another window'), 'the panel says the terminal is in another window');
+    await page.shot('terminal-detached');
+    check((await page.text('.term-tab.on .term-status')).includes('In another window'), "the tab's status says it too, in words");
+    await page.click('.term-detached .btn', undefined, 600);
+    await ready();
+    check(!(await page.eval(`return !!document.querySelector('.term-detached')`)), '"Bring it here" showed the terminal in the panel again');
+    // The window's route, as the other window would load it: the terminal alone, attached to the same shell
+    await page.goto(`/terminal-window/${shellId}`, 1500);
+    await ready();
+    check(await page.eval(`return !document.querySelector('.statusbar') && !document.querySelector('.sidebar') && !document.querySelector('.term-dock') && !document.querySelector('.term-detach, .term-head [aria-label="Open in a window"]')`), 'the window route has no app shell, no panel and no detach button');
+    check((await page.eval(`return document.title`)).startsWith('Terminal'), 'the window is titled for the terminal');
+    check(await page.eval(`return !!document.querySelector('.term-head [aria-label="Full screen"]')`), 'the window offers full screen too');
+    await onScreen('m42', 'the shell\'s earlier output');
+    await run('echo win$((30+12))');
+    await onScreen('win42');
+    check((await terminalsOf()).length === 1, 'the window attached to the same shell, it did not open another');
+    await page.goto(home, 1500);
+    await ready();
+    await onScreen('win42', "what was typed in the window, back in the panel");
+
     // ---- 5b. the page that used to hold the terminals is gone on a desktop: an old bookmark shows the panel and goes home ----
     await page.click(ITEM, undefined, 600);
     check(!(await hasPanel()), 'the item hides the panel');

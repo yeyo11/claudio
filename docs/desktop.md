@@ -253,6 +253,14 @@ While a terminal has focus, the menu leaves its keys to the shell: `Ctrl+W`, `Ct
 is `Alt+F4`, and DevTools in a dev run is `F12`. Shells outlive a reloaded window, not a restart of the
 app.
 
+**A terminal in its own window.** The panel's *Open in a window* button calls `window.open` on the web
+app's `/terminal-window/:id` route. The main window's `setWindowOpenHandler` allows exactly that route on
+the local server's origin and opens a native window titled *Terminal — <project>* with the same security
+flags as the main window (`contextIsolation`, `sandbox`, no Node) and no preload (the bridge only drives
+the main window); anything else still goes to the system browser. It shares the app's one instance and
+closes with the main window. Full screen is the browser's Fullscreen API, which Electron allows inside
+the window.
+
 ## Accounts
 
 The app runs the CLI on the account you choose for each chat. The default account is whatever

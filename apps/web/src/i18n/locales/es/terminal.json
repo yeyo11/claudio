@@ -11,7 +11,8 @@
     "hostFailed": "Cerrado: ha fallado el host de terminales",
     "disabled": "Cerrado: las terminales se han desactivado",
     "readOnly": "Cerrado: modo de solo lectura",
-    "closed": "Cerrado"
+    "closed": "Cerrado",
+    "elsewhere": "En otra ventana"
   },
   "unavailable": {
     "title": "La terminal no está disponible aquí",
@@ -91,7 +92,8 @@
   },
   "page": {
     "title": "Terminales",
-    "notFound": "Esta terminal ya no existe."
+    "notFound": "Esta terminal ya no existe.",
+    "windowTitle": "Terminal"
   },
   "settings": {
     "title": "Terminal",
@@ -153,5 +155,16 @@
     "empty": "No hay ninguna terminal abierta. Usa + para abrir una en un proyecto.",
     "running": "en marcha",
     "label": "Terminal"
+  },
+  "fullscreen": {
+    "enter": "Pantalla completa",
+    "exit": "Salir de pantalla completa"
+  },
+  "window": {
+    "open": "Abrir en una ventana",
+    "elsewhere": "En otra ventana",
+    "elsewhereHint": "Esta terminal está abierta en su propia ventana. Al cerrarla, el shell sigue en marcha.",
+    "bringBack": "Traer aquí",
+    "blocked": "El navegador ha bloqueado la ventana. Permite las ventanas emergentes para Claudio e inténtalo de nuevo."
   }
 }

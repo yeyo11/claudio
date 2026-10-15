@@ -67,6 +67,15 @@ rows, shown in the card's history table.
 - **That is the only desktop entry point** (owner, 2026-10-15). There is no Terminals page, no "Open
   terminal" button on a project, no palette command and no button in the chat header. An old `/terminals`
   link on a desktop shows the panel and goes to the home page.
+- **Full screen and a window of its own** (desktop only, owner 2026-10-15). The header of the open
+  terminal has **Full screen** (the Fullscreen API on the terminal's frame; Esc or the same button
+  leaves; the button is hidden where the browser has no such API) and **Open in a window**, which opens
+  `/terminal-window/:id`: that terminal alone, with no app shell, attached to the same shell as the
+  panel (several clients may attach). The panel then shows the terminal as "En otra ventana" with
+  "Traer aquí", which closes the other window; closing the window leaves the shell running and the panel
+  shows it again. Windows know each other through a same-origin `BroadcastChannel`. In the Electron
+  app the window is native (see [desktop.md](desktop.md#the-terminal)). A menu opened in full screen
+  does not show (it is outside the element); leave full screen first.
 - On a phone there is no status bar: More → Terminals lists the open terminals and offers "New terminal"
   (in the project chosen, or a menu of projects with All projects); a row opens `/terminals/:id`, a full
   screen with a key bar (Esc, Tab, arrows, sticky Ctrl and Alt).

@@ -1,4 +1,4 @@
-import { CaseSensitive, ChevronDown, ChevronUp, ClipboardPaste, Copy, Minus, Plus, Regex, RotateCcw, Search, X } from 'lucide-react';
+import { CaseSensitive, ChevronDown, ChevronUp, ClipboardPaste, Copy, ExternalLink, Maximize2, Minimize2, Minus, Plus, Regex, RotateCcw, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@claudio/shared';
@@ -13,6 +13,7 @@ import { TerminalView, type TerminalViewHandle } from './TerminalView';
 import { TerminalStatus } from './TerminalStatus';
 import { baseName, withModifiers, type LinkState } from './terminal-model';
 import { clampFont, useScreenReaderMode, useTerminalFont } from './terminal-prefs';
+import { useFullscreen } from './terminal-window';
 
 /**
  * One terminal in its frame: the header (status, title, search, ⋯), the screen and, on a phone, the
@@ -28,6 +29,7 @@ export function TerminalPanel({
   onEnded,
   autoFocus = false,
   onFocused,
+  onDetach,
 }: {
   terminal: Terminal;
   compact: boolean;
@@ -39,12 +41,16 @@ export function TerminalPanel({
   /** Takes the keyboard once attached: the person just opened this terminal */
   autoFocus?: boolean;
   onFocused?: () => void;
+  /** Opens this terminal in a window of its own; only where that is offered (the panel on a desktop) */
+  onDetach?: () => void;
   /** The shell ended or the server closed it: the lists should be read again */
   onEnded: () => void;
 }) {
   const { t } = useTranslation('terminal');
   const toast = useToast();
   const view = useRef<TerminalViewHandle>(null);
+  const frame = useRef<HTMLElement>(null);
+  const fullscreen = useFullscreen(frame);
   const [link, setLink] = useState<LinkState>('connecting');
   const [title, setTitle] = useState('');
   const [searching, setSearching] = useState(false);
@@ -152,12 +158,35 @@ export function TerminalPanel({
           </button>
         </Tooltip>
       )}
+      {fullscreen.supported && !compact && running && (
+        <Tooltip content={fullscreen.active ? t('fullscreen.exit') : t('fullscreen.enter')}>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={fullscreen.active ? t('fullscreen.exit') : t('fullscreen.enter')}
+            aria-pressed={fullscreen.active}
+            onClick={() => {
+              fullscreen.toggle();
+              view.current?.focus();
+            }}
+          >
+            {fullscreen.active ? <Minimize2 {...ICON_SM} /> : <Maximize2 {...ICON_SM} />}
+          </button>
+        </Tooltip>
+      )}
+      {onDetach && running && !compact && (
+        <Tooltip content={t('window.open')}>
+          <button type="button" className="icon-btn" aria-label={t('window.open')} onClick={onDetach}>
+            <ExternalLink {...ICON_SM} />
+          </button>
+        </Tooltip>
+      )}
       <MoreActions entries={entries} label={t('menu.label')} title={baseName(terminal.cwd)} />
     </div>
   );
 
   return (
-    <section className="term" aria-label={t('panel.label', { name: baseName(terminal.cwd) })}>
+    <section ref={frame} className="term" aria-label={t('panel.label', { name: baseName(terminal.cwd) })}>
       {head}
       {wasLive.current ? (
         <TerminalView

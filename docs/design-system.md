@@ -1610,6 +1610,12 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   `subtle`, `off`, `prefers-reduced-motion` or a hidden tab it does not.
 - **Tabs.** `.term-tab` (mono, 36 px) on a `.term-tabs` rail; the open one sits on `--bg-2` and joins the frame (the rail's line is an inset shadow, so the strip never overflows or shows a scrollbar; it scrolls along only when tabs overflow).
   A tab shows its close button only when open.
+- **Full screen and window.** Two `icon-btn`s in `.term-head`, before the `⋯`, on a desktop and only for a
+  running terminal: `Maximize2` / `Minimize2` (`aria-pressed`) and `ExternalLink`. `.term:fullscreen` drops
+  the border and the radius. A terminal open in a window of its own shows `.term.term-detached` in the
+  panel: the `ExternalLink` icon, "En otra ventana" in mono, one line of text and a quiet `.btn-small`
+  ("Traer aquí"); its tab says the same in `.term-status.neutral`. The window itself is `.term-window`,
+  the frame on `--bg` with 8 px around it and no app shell.
 - **Phone.** A full-screen route, no tab bar: a back button, the terminal's title (mono), the status and a `⋯`
   `Sheet`. The key bar (`.term-keys`, `.term-key`) holds Esc, Tab, ⇧Tab, Ctrl and Alt (sticky: `.on`), the
   arrows, `|` `~` `/` `-` and ^C ^D ^L ^R; every key is ≥ 44 px, the bar scrolls sideways and sits above the

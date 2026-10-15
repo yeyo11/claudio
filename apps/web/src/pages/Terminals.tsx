@@ -19,7 +19,7 @@ import { useCloseTerminal, useOpenTerminal, useTerminalList, useTerminalStatus }
 import { useProjectScope } from '../lib/project-scope';
 
 /** The feature is there but cannot be opened from here and now: the reason, and where it is changed. */
-function Unavailable({ status }: { status: TerminalStatusInfo | undefined }) {
+export function Unavailable({ status }: { status: TerminalStatusInfo | undefined }) {
   const { t } = useTranslation('terminal');
   return (
     <Empty icon={SquareTerminal} title={t('unavailable.title')}>

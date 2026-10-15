@@ -405,3 +405,45 @@
     height: 44px;
   }
 }
+
+/* ---- full screen and the detached window ---- */
+/* The frame is what goes full screen, so its header (and the button that leaves) stays with the screen */
+.term:fullscreen {
+  border: 0;
+  border-radius: 0;
+}
+
+/* The route of a window of its own: the terminal and nothing around it */
+.term-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: 8px;
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+/* The panel's terminal while it is open in a window: where it went, and the way back */
+.term-detached {
+  align-items: center;
+  justify-content: center;
+}
+
+.term-detached-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  padding: 14px;
+  text-align: center;
+  color: var(--fg-2);
+}
+
+.term-detached-title {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg);
+}

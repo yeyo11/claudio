@@ -46,6 +46,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
+import { terminalWindowId } from './components/terminal/terminal-window';
 import { TerminalBarProvider, useTerminalBar } from './components/terminal/terminal-bar';
 import { useTerminalAccess, useTerminalList } from './components/terminal/use-terminals';
 import { runningCount } from './components/terminal/terminal-model';
@@ -71,6 +72,7 @@ const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) =>
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Terminals = lazyPage(() => import('./pages/Terminals').then((m) => m.Terminals));
 const TerminalDock = lazyPage(() => import('./components/terminal/TerminalDock').then((m) => m.TerminalDock));
+const TerminalWindow = lazyPage(() => import('./pages/TerminalWindow').then((m) => m.TerminalWindow));
 const TerminalScreen = lazyPage(() => import('./pages/Terminals').then((m) => m.TerminalScreen));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
@@ -96,12 +98,22 @@ const PREFETCH_FRESH_MS = 10_000;
 
 
 export function App() {
+  const { pathname } = useLocation();
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
   // mounted at all: one screen that asks, instead of every page failing on its own
   const challenge = useAuthChallenge();
   const settled = useAuthSettled();
   if (challenge) return <SignIn mode={challenge} />;
   if (!settled) return null;
+  // A terminal in a window of its own is the terminal and nothing else: no shell, no first-run gate
+  const detached = terminalWindowId(pathname);
+  if (detached) {
+    return (
+      <Suspense fallback={null}>
+        <TerminalWindow id={detached} />
+      </Suspense>
+    );
+  }
   return <FirstRunGate />;
 }
 
