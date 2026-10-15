@@ -622,7 +622,7 @@ export class ChatService {
    */
   private gate(
     requested: ProviderId | undefined,
-    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort' | 'maxTurns' | 'maxThinkingTokens' | 'thinking'> & { resumeSessionAt?: string },
+    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort' | 'maxTurns' | 'maxThinkingTokens' | 'thinking' | 'resumeSessionAt'>,
     asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
   ): ProviderId {
     if (options.effort !== undefined && options.effort !== null && !isEffort(options.effort)) throw new EffortRefusal();

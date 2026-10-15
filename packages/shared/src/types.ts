@@ -1094,6 +1094,8 @@ export interface ChatStartOptions {
   maxThinkingTokens?: number;
   /** How thinking is shown in the stream (`--thinking-display`) */
   thinkingDisplay?: string;
+  /** On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end */
+  resumeSessionAt?: string;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
 }
@@ -1115,8 +1117,6 @@ export interface NewChatRequest extends ChatStartOptions {
 export interface ResumeChatRequest extends ChatStartOptions {
   prompt: string;
   attachments?: string[];
-  /** Resume at this message of the session, a rewind (`--resume-session-at`), instead of at its end */
-  resumeSessionAt?: string;
 }
 
 /** Continues a chat in a copy of it, which is a new chat that records where it came from. */

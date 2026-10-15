@@ -11320,6 +11320,10 @@
         "type": "string",
         "description": "How thinking is shown in the stream (`--thinking-display`)"
       },
+      "resumeSessionAt": {
+        "type": "string",
+        "description": "On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end"
+      },
       "permissionPrompts": {
         "type": "string",
         "enum": [
@@ -11437,6 +11441,10 @@
         "type": "string",
         "description": "How thinking is shown in the stream (`--thinking-display`)"
       },
+      "resumeSessionAt": {
+        "type": "string",
+        "description": "On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end"
+      },
       "permissionPrompts": {
         "type": "string",
         "enum": [
@@ -11453,10 +11461,6 @@
         "items": {
           "type": "string"
         }
-      },
-      "resumeSessionAt": {
-        "type": "string",
-        "description": "Resume at this message of the session, a rewind (`--resume-session-at`), instead of at its end"
       }
     },
     "required": [
@@ -11545,6 +11549,10 @@
       "thinkingDisplay": {
         "type": "string",
         "description": "How thinking is shown in the stream (`--thinking-display`)"
+      },
+      "resumeSessionAt": {
+        "type": "string",
+        "description": "On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end"
       },
       "permissionPrompts": {
         "type": "string",
@@ -16972,6 +16980,10 @@
       "thinkingDisplay": {
         "type": "string",
         "description": "How thinking is shown in the stream (`--thinking-display`)"
+      },
+      "resumeSessionAt": {
+        "type": "string",
+        "description": "On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end"
       },
       "permissionPrompts": {
         "type": "string",
