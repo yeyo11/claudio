@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T09:00:00Z
-updated_at: 2026-10-15T13:00:00Z
+updated_at: 2026-10-15T14:00:00Z
 tags:
     - plan
     - fork
@@ -284,8 +284,16 @@ the other stages would make every merge conflict.
 
 ### A · `claudio-accounts` (several accounts), depends on S
 
-- `a0` facts, the owner with real accounts, before `a2` builds on them. Recorded as fixtures with
-  the scrubbing of [plans/multi-provider.md](multi-provider.md) phase 3:
+- `a0` facts, the owner with real accounts, before `a2` builds on them. **Partly done
+  (2026-10-15):** `claude auth login` per dir, `auth status --json` for a `login` account, and
+  `cachedUsageUtilization` captured and recorded, scrubbed, in
+  [reports/accounts-a0.md](../reports/accounts-a0.md). Corrections it carries: a `login` account
+  already has its email/org/plan, so an alias is only for `token`/`api-key` accounts; and
+  `cachedUsageUtilization` is confirmed usable but can be stale (the sample's resets were in the
+  past), so it is stamped and a window past its reset reads `unknown`. Still to capture (not blocking
+  `a2`): `auth status` for a `setup-token` and an `api-key` account, a real `rate_limit_event`, and
+  a cross-account `--resume`. Recorded as fixtures with the scrubbing of
+  [plans/multi-provider.md](multi-provider.md) phase 3:
   - what `claude auth login` prints and asks for with `CLAUDE_CONFIG_DIR` set (a URL, a code to
     paste back), and how it ends;
   - `claude auth status --json` for a `login` dir, a `setup-token` and an API key;

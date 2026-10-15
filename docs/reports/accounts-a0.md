@@ -1,0 +1,66 @@
+---
+created_at: 2026-10-15T14:00:00Z
+updated_at: 2026-10-15T14:00:00Z
+tags:
+    - accounts
+    - fixtures
+    - claude-code
+---
+# Stage A · a0 facts (recorded with a real account)
+
+Ground truth for the accounts work of [plans/claude-only-fork.md](../plans/claude-only-fork.md),
+captured on CLI 2.1.295 with a real Max account. Secrets are scrubbed (`<email>`, `<org-uuid>`,
+`<account-uuid>`, the OAuth `code`/`state`/`challenge`); no credential file was read.
+
+## 1. `claude auth login` per account directory
+
+`CLAUDE_CONFIG_DIR=/tmp/cuenta-prueba claude auth login` works: it opens the browser and prints the
+authorize URL as a fallback, waits for a pasted code if the browser cannot open, then prints
+`Login successful.`. The flow is the **CLI's own OAuth** (its client id, scopes `user:inference`,
+`user:sessions:claude_code`, `user:mcp_servers`, …): Claudio only runs the subcommand with the
+account's `CLAUDE_CONFIG_DIR`, it does not drive the OAuth itself. So `login(account)` =
+`spawn claude auth login` in the account dir and relay the URL/code the way the setup device
+sign-ins do.
+
+## 2. `claude auth status --json` (a `login` account)
+
+```json
+{ "loggedIn": true, "authMethod": "claude.ai", "apiProvider": "firstParty",
+  "projectsDirectory": "/tmp/cuenta-prueba/projects", "configDirectory": "/tmp/cuenta-prueba",
+  "email": "<email>", "orgId": "<org-uuid>", "orgName": "<org>", "subscriptionType": "max" }
+```
+
+A `login` account **carries its email, org and plan**. Correction to the plan: `identify()` fills
+`email`/`organization`/`plan` for `login` accounts, so an alias is only needed for `token` and
+`api-key` accounts (which have no `oauthAccount`).
+
+## 3. `cachedUsageUtilization` (the idle-account reading)
+
+Present and rich. Per window `{ utilization, resets_at }` for `five_hour` and `seven_day`, plus
+`extra_usage` (`is_enabled`, `monthly_limit`, `used_credits`, `utilization`, `currency`), a `spend`
+block, and a `limits[]` array (`kind`, `group`, `percent`, `severity`, `resets_at`, `is_active`, and
+a `scope.model.display_name` for scoped windows). Model-scoped windows appear as
+`seven_day_opus`/`seven_day_sonnet` (null when unused) and under `limits[]` with a `scope`.
+
+**Freshness:** in the sample `fetchedAtMs` was two days old and the `resets_at` were already in the
+past. So the cache can be stale — it is best-effort, exactly as the plan says: stamp each reading
+with `fetchedAtMs`, treat a window whose `resets_at` has passed as `unknown`, and let a live
+`rate_limit_event` always win. Worth surfacing beyond the binding window: `extra_usage`/`spend`
+(overage credits used) for the accounts UI.
+
+## 4. Connectors
+
+The account had **no connectors enabled**, which is why Gmail and Calendar showed as `notListed`
+and only `claude.ai Claude Docs` appeared. Confirmed: the panel reflects the account's enabled set;
+enabling Gmail/Calendar is done on claude.ai, not in Claudio.
+
+## Still to capture (not blocking a2; record when available)
+
+- `auth status --json` for a `setup-token` account and an `api-key` account (to confirm no email →
+  alias needed).
+- A real `rate_limit_event` near and at a limit (window keys `five_hour`/`seven_day`).
+- `--resume` of a session started on one account, from another account's dir with linked `projects/`.
+
+## Related
+
+[[plans/claude-only-fork.md]] · [[providers.md]]
