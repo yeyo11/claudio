@@ -63,6 +63,7 @@ const ROOT_TYPES = [
   // Team, flow by column, journal, memory proposals and documents
   'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunPage', 'FlowWaiting', 'FlowStartWaitingResult', 'FlowRunResult',
   'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
+  'ProjectDoc', 'ProjectDocsOverview', 'AddProjectDocRequest',
   'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',
   // The project assistant: runs and their proposals
   'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartAgentryAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
