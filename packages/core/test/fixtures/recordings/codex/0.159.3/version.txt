@@ -1,3 +1,0 @@
-WARNING: proceeding, even though we could not create PATH aliases: CODEX_HOME points to "<home>/.codex", but that path does not exist
-codex-cli 0.159.3
-exit 0

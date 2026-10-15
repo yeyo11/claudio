@@ -208,24 +208,18 @@ export const APP_SETTING_ENV = {
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 /**
- * The variables that say where each agent, and each code host's CLI, keeps its sign-in, settings
- * and sessions. The Docker image points them inside the data directory so the one volume holds them
+ * The variables that say where each code host's CLI keeps its sign-in and settings. The Docker image points them inside the data directory so the one volume holds them
  * (docs/deploy.md); the CLIs would otherwise write to their default homes, which are gone with the
  * container.
  */
 export const PROVIDER_HOME_ENV = [
-  'CODEX_HOME',
-  'GEMINI_CLI_HOME',
-  'COPILOT_HOME',
-  'XDG_CONFIG_HOME',
-  'XDG_DATA_HOME',
   'GH_CONFIG_DIR',
   'GLAB_CONFIG_DIR',
 ] as const;
 
 /**
  * Creates the provider homes that live inside the data directory. A fresh volume has none of them,
- * and Codex refuses to start with a `CODEX_HOME` that does not exist. A home somewhere else is the
+ * and a CLI may refuse to start with a home that does not exist. A home somewhere else is the
  * operator's own and is left to them. Returns what it created or found, for the log.
  */
 export function ensureProviderHomes(env: NodeJS.ProcessEnv, dataDir: string): string[] {

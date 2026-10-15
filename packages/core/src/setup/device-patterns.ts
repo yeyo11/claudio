@@ -1,7 +1,6 @@
 /**
  * How to find the verification URL and the code in what a device-code sign-in prints, one row per
- * tool, written from the recordings under packages/core/test/fixtures/logins/ (each run with no
- * terminal on the pinned version; see its README). A CLI that starts printing something else
+ * tool, written from what each CLI prints when run with no terminal. A CLI that starts printing something else
  * changes the row, not the parser. Nothing but the URL and the code is ever
  * taken from the output: success is the tool's readiness probe, never a line the CLI printed.
  *
@@ -13,14 +12,9 @@ export interface DevicePattern {
   code: RegExp | null;
 }
 
-// No Copilot row: its own `login --device-code` cannot keep the token without a keychain, so its
-// Code signs gh in instead (methods.ts). Its recording stays under fixtures/logins/ as evidence.
-export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'codex' | 'glab' | 'tailscale', DevicePattern>> = {
+export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'glab' | 'tailscale', DevicePattern>> = {
   // stderr: `! First copy your one-time code: 250D-975E`, then `Open this URL to continue in your web browser: https://github.com/login/device`
   gh: { url: /web browser:\s*(https:\/\/\S+)/, code: /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/ },
-  // stdout, coloured even with no terminal: the URL alone on the line after "Open this link", the
-  // code alone on the line after "Enter this one-time code": `   https://auth.openai.com/codex/device`, `   LK0N-5V0Q5`
-  codex: { url: /^\s*(https:\/\/\S+)\s*$/, code: /^\s*([A-Z0-9]{4}-[A-Z0-9]{5})\s*$/ },
   // stderr: `First copy your one-time code: WZS9BFLC` (eight characters, no dash), then
   // `Then open this URL on any device to authorize: https://gitlab.com/oauth/device`
   glab: { url: /to authorize:\s*(https:\/\/\S+)/, code: /one-time code:\s*([A-Z0-9]{8})\b/ },

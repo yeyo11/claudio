@@ -13,7 +13,7 @@ export interface ProviderLimitStore {
   providerLimits(): ProviderLimit[];
 }
 
-/** A handshake that also read the account's limits (Codex's does); the driver's own type does not name it. */
+/** A handshake that also read the account's limits (a driver's may); the driver's own type does not name it. */
 export interface HandshakeLimits {
   rateLimits?: RateLimitInfo | null;
 }
@@ -105,12 +105,12 @@ export class ProviderLimits {
     else if (event.kind === 'rate-limited' || (event.kind === 'result' && event.rateLimited)) this.observeFailure(provider);
   }
 
-  /** A turn failed on the limit (Claude's 429, Codex's `usageLimitExceeded`). */
+  /** A turn failed on the limit (Claude's 429). */
   observeFailure(provider: ProviderId): void {
     this.record(limitFromFailure(provider, this.raw(provider), this.stamp()));
   }
 
-  /** A read that spends nothing (Codex's `account/rateLimits/read`). */
+  /** A read that spends nothing (a handshake that reads them). */
   observeProbe(provider: ProviderId, info: RateLimitInfo): void {
     this.record(limitFromInfo(provider, info, 'probe', this.stamp()));
   }
