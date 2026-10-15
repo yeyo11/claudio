@@ -40,7 +40,7 @@ const ROOT_TYPES = [
   // Per-chat MCP servers and tool presets
   'McpSelection', 'ToolPreset', 'ChatToolConfig', 'ToolPresetsConfig', 'ToolPresetsOverview',
   // claude.ai connectors
-  'Connector', 'ConnectorAction', 'ConnectorGuide', 'ConnectorLimit', 'ConnectorsOverview',
+  'Connector', 'ConnectorAction', 'ConnectorAuthorisation', 'ConnectorGuide', 'ConnectorLimit', 'ConnectorsOverview',
 
   // Scheduling
   'Schedule', 'ScheduleRun', 'SchedulePreview', 'CreateScheduleRequest', 'UpdateScheduleRequest', 'ScheduleOverlap',
