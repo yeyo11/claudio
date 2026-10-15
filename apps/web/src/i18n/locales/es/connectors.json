@@ -3,7 +3,7 @@
   "title": "Conectores",
   "subtitle": "consultado {{when}}",
   "subtitleLoading": "Preguntando al CLI…",
-  "intro": "Los conectores de claude.ai de la cuenta con la sesión iniciada, tal como los lista Claude Code. Claudio solo lee esta lista: no puede autorizar, cambiar ni llamar a un conector por sí mismo.",
+  "intro": "Los conectores de claude.ai de la cuenta con sesión iniciada, tal como los lista Claude Code. Claudio puede iniciar el acceso de un conector a través del CLI, y la persona lo termina en su navegador.",
   "refresh": "Preguntar al CLI otra vez",
   "refreshing": "Preguntando…",
   "cliFailed": "El CLI no ha podido listar sus conectores",
@@ -37,7 +37,13 @@
     "none": "No hay prompts preparados para este conector."
   },
   "authorise": {
-    "title": "Cómo autorizar un conector"
+    "title": "Cómo autorizar un conector",
+    "action": "Autorizar",
+    "starting": "Iniciando…",
+    "named": "Autorizar {{connector}} en el navegador",
+    "waiting": "Esperando a que termines de iniciar sesión…",
+    "again": "Abrir de nuevo el inicio de sesión",
+    "timedOut": "{{connector}} sigue sin conectarse pasados dos minutos. Autorízalo de nuevo o vuelve a preguntar al CLI cuando hayas iniciado sesión."
   },
   "unavailable": {
     "title": "Fuera de alcance",

@@ -1,5 +1,6 @@
 import type { Connector, ConnectorAction, ConnectorKind, ConnectorsOverview } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { CalendarDays, ExternalLink, FileText, Info, KeyRound, Mail, Plug, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { api, keys, useConnectors } from '../api';
 import { Tooltip } from '@claudio/ui/components/controls';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { StatusDot } from '@claudio/ui/components/motion';
+import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Skeleton, StatusBadge, Tag } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { formatDateTime } from '@claudio/ui/lib/format';
@@ -15,6 +17,10 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { connectorActionLabel, connectorLimitName, localized } from '../lib/server-strings';
 import { useProjectScope } from '../lib/project-scope';
 import '../insights.css';
+
+// The person finishes the sign-in in their browser: ask the CLI again every few seconds, for two minutes
+const AUTH_POLL_MS = 4_000;
+const AUTH_WAIT_MS = 120_000;
 
 const KIND_ICON: Record<ConnectorKind, LucideIcon> = { docs: FileText, gmail: Mail, calendar: CalendarDays, other: Plug };
 
@@ -73,11 +79,20 @@ function ConnectorCard({
   guide,
   pending,
   onAsk,
+  waiting,
+  authUrl,
+  authBusy,
+  onAuthorise,
 }: {
   connector: Connector;
   guide: ConnectorsOverview['authorisation'];
   pending: string | null;
   onAsk: (connector: Connector, action: ConnectorAction) => void;
+  /** This connector's sign-in is open in the browser and the page is watching for it */
+  waiting: boolean;
+  authUrl: string | null;
+  authBusy: boolean;
+  onAuthorise: (connector: Connector) => void;
 }) {
   const { t } = useTranslation('connectors');
   const Icon = KIND_ICON[connector.kind];
@@ -95,6 +110,13 @@ function ConnectorCard({
           {connector.toolCount !== undefined && <span className="mono small muted connector-tools">{t('toolCount', { count: connector.toolCount })}</span>}
           {connector.detail && connector.status !== 'connected' && <span className="mono small muted break">{t('cliSays', { detail: connector.detail })}</span>}
         </div>
+        {connector.status === 'needs-auth' && (
+          <div className="task-actions connector-actions">
+            <button type="button" className="btn btn-small" disabled={authBusy || waiting} onClick={() => onAuthorise(connector)} aria-label={t('authorise.named', { connector: connector.name })}>
+              <ExternalLink {...ICON_SM} aria-hidden /> {authBusy ? t('authorise.starting') : t('authorise.action')}
+            </button>
+          </div>
+        )}
         {actions.length > 0 && (
           <div className="task-actions connector-actions">
             {actions.map((action) => (
@@ -113,6 +135,16 @@ function ConnectorCard({
           </div>
         )}
       </div>
+      {connector.status === 'needs-auth' && waiting && (
+        <p className="connector-waiting small" role="status">
+          <Spinner /> <span>{t('authorise.waiting')}</span>
+          {authUrl && (
+            <a href={authUrl} target="_blank" rel="noreferrer" className="meta-icon">
+              {t('authorise.again')} <ExternalLink {...ICON_SM} aria-hidden />
+            </a>
+          )}
+        </p>
+      )}
       {connector.status === 'needs-auth' && (
         <div className="connector-body">
           <AuthorisationSteps guide={guide} />
@@ -142,6 +174,46 @@ export function Connectors() {
       api.createChat({ prompt: action.prompt, permissionPrompts: 'host', ...(project?.exists ? { cwd: project.path } : {}) }),
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
   });
+  // One sign-in at a time: the id being watched, and its URL for a link if the browser blocked the tab
+  const [watching, setWatching] = useState<{ id: string; authUrl: string } | null>(null);
+  const [timedOut, setTimedOut] = useState<string | null>(null);
+  const authorise = useMutation({
+    mutationFn: (connector: Connector) => api.authoriseConnector(connector.id).then((auth) => ({ connector, auth })),
+    onSuccess: ({ connector, auth }) => {
+      // The URL goes to the person's browser and nowhere else
+      window.open(auth.authUrl, '_blank', 'noopener,noreferrer');
+      setTimedOut(null);
+      setWatching({ id: connector.id, authUrl: auth.authUrl });
+    },
+  });
+  const watchedId = watching?.id ?? null;
+  useEffect(() => {
+    if (!watchedId) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = Date.now() + AUTH_WAIT_MS;
+    const poll = async () => {
+      try {
+        const next = await api.connectors(true);
+        if (stopped) return;
+        queryClient.setQueryData(keys.connectors, next);
+        if (next.connectors.find((c) => c.id === watchedId)?.status === 'connected') return setWatching(null);
+      } catch {
+        // A failed read is one missed tick: the next one asks again
+      }
+      if (stopped) return;
+      if (Date.now() >= deadline) {
+        setTimedOut(watchedId);
+        return setWatching(null);
+      }
+      timer = setTimeout(poll, AUTH_POLL_MS);
+    };
+    timer = setTimeout(poll, AUTH_POLL_MS);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [watchedId, queryClient]);
   const pending = ask.isPending && ask.variables ? `${ask.variables.connector.id}:${ask.variables.action.id}` : null;
 
   const connectors = data?.connectors ?? [];
@@ -184,7 +256,7 @@ export function Connectors() {
           </>
         }
       />
-      <ErrorBox error={error ?? refresh.error ?? ask.error} />
+      <ErrorBox error={error ?? refresh.error ?? ask.error ?? authorise.error} />
 
       {isLoading ? (
         <Skeleton rows={4} height={20} />
@@ -206,6 +278,11 @@ export function Connectors() {
                 </Empty>
               </div>
             )}
+            {timedOut && (
+              <div className="alert alert-warn" role="status">
+                <div className="alert-body small">{t('authorise.timedOut', { connector: timedOut })}</div>
+              </div>
+            )}
             {connectors.length === 0 && !data.error ? (
               <div className="card connectors-lead">
                 <Empty illustration="connector" size="sm" title={t('none')}>
@@ -216,7 +293,13 @@ export function Connectors() {
               connectors.length > 0 && (
                 <ul className="lrows connectors-list">
                   {connectors.map((connector) => (
-                    <ConnectorCard key={connector.id} connector={connector} guide={data.authorisation} pending={pending} onAsk={(c, action) => ask.mutate({ connector: c, action })} />
+                    <ConnectorCard key={connector.id} connector={connector} guide={data.authorisation} pending={pending}
+                      onAsk={(c, action) => ask.mutate({ connector: c, action })}
+                      waiting={watching?.id === connector.id}
+                      authUrl={watching?.id === connector.id ? watching.authUrl : null}
+                      authBusy={authorise.isPending && authorise.variables?.id === connector.id}
+                      onAuthorise={(c) => authorise.mutate(c)}
+                    />
                   ))}
                 </ul>
               )
