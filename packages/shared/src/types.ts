@@ -822,20 +822,6 @@ export interface ChatEnvironment {
 }
 
 /**
- * The other end of a provider move, as a chat links to it. A move is always a new chat (a session
- * belongs to its provider), so the old chat and the new one point at each other.
- */
-export interface ChatContinuation {
-  chatId: string;
-  /** The provider of the chat at the other end */
-  provider: ProviderId;
-  action: 'handoff' | 'restart';
-  at: string;
-  /** The {@link ProviderMove} that recorded it */
-  moveId: string;
-}
-
-/**
  * One Claude Code conversation: the root entity of the product. Always exactly one session id, which
  * is also the chat's id. Subagents and workflows are branches of a chat, not chats.
  */
@@ -862,10 +848,6 @@ export interface Chat {
   orchestration: ChatOrchestration | null;
   /** Set on a fork: where it started from */
   derivedFrom: ChatFork | null;
-  /** The chat this one continues after a provider move; null when it is not a continuation */
-  continuedFrom?: ChatContinuation | null;
-  /** The chat that continues this one after a provider move; null while none does */
-  continuedIn?: ChatContinuation | null;
   /**
    * The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after
    * a restart it is absent, and the page falls back on the provider's reading.
@@ -3292,17 +3274,6 @@ export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'fai
 /** `waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides. */
 export type OrchestrationStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
 
-/** One chat of a task's chain: the provider and model it ran on, and how it got there. */
-export interface TaskChainEntry {
-  chatId: string;
-  provider: ProviderId;
-  model: string | null;
-  /** The effort it ran with; null when none was passed, absent on an entry written before it was kept */
-  effort?: Effort | null;
-  /** How this chat came to be; the first chat of a task has none */
-  action: LimitAction | null;
-}
-
 /** Work that stopped to wait for a provider's limit to reset. */
 export interface LimitWait {
   provider: ProviderId;
@@ -3339,8 +3310,6 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   sessionId: string | null;
   /** The provider its current chat is on; absent on a task written before providers were chosen */
   provider?: ProviderId;
-  /** The chats the task went through, oldest first, one entry per provider move */
-  chain?: TaskChainEntry[];
   /** Set while the task waits for its provider's limit to reset; it stays `running` and keeps its place */
   waiting?: LimitWait | null;
   result: string | null;
@@ -4689,15 +4658,6 @@ export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
   resetsAt?: string | null;
 }
 
-/** Work went on in a new chat on another provider after a limit. */
-export interface RunProviderMovedEvent extends AgentryEventBase, RunEventRef {
-  type: 'run.providerMoved';
-  from: ProviderId;
-  to: ProviderId;
-  action: 'handoff' | 'restart';
-  decidedBy: ProviderMoveDecider;
-}
-
 /** Work stopped to wait for its provider's limit to reset. */
 export interface RunLimitWaitingEvent extends AgentryEventBase, RunEventRef {
   type: 'run.limitWaiting';
@@ -4890,7 +4850,7 @@ export interface SessionsChangedEvent extends AgentryEventBase {
 export type ProviderId = string;
 
 /** How Agentry talks to a provider's CLI: each one needs its own driver to read events and send input. */
-export type ProviderTransport = 'stream-json' | 'json-rpc' | 'acp';
+export type ProviderTransport = 'stream-json';
 
 /**
  * What a provider's driver can do. Declared by its manifest and confirmed by the handshake for the
@@ -5863,35 +5823,20 @@ export interface ProvidersSettings {
   order: ProviderId[];
   /** The provider a new chat starts with; null takes the first ready one in `order` */
   defaultProvider: ProviderId | null;
-  /** What happens at a usage limit, and the model mapping; absent on a file written before it, read as the defaults */
+  /** What happens at a usage limit; absent on a file written before it, read as the defaults */
   rotation?: RotationSettings;
 }
 
-/** What work does when its provider reaches a usage limit. */
-export type LimitAction = 'handoff' | 'restart' | 'wait';
+/** What work does at a usage limit: it waits for the reset (a switch of account is a later stage). */
+export type LimitAction = 'wait';
 
 export interface RotationSettings {
   onLimit: {
-    /** What automated work does at a limit; a person's chat offers it first */
     action: LimitAction;
-    /** What a decision point may choose among; always includes `action` */
     allowed: LimitAction[];
     /** How long a wait with no known reset lasts before the run fails, 1..48 */
     maxWaitHours: number;
-    /** Moves per run before it waits, 0..5 */
-    maxMoves: number;
   };
-  /** Global only; never filled without a person */
-  modelMap: ModelMapEntry[];
-}
-
-/** One model standing in for another across two providers. */
-export interface ModelMapEntry {
-  from: { provider: ProviderId; model: string };
-  to: { provider: ProviderId; model: string };
-  /** `decision`: a suggestion of the `provider.model-map` point that a person accepted */
-  origin: 'person' | 'decision';
-  at: string;
 }
 
 /** `unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading. */
@@ -5947,85 +5892,6 @@ export interface ProviderMove {
   resetsAt: string | null;
   reason: string | null;
   updatedAt: string;
-}
-
-/** Why a provider cannot take a run, as the candidates say it; the UI words each one. */
-export type Exclusion =
-  | 'disabled'
-  | 'not-ready'
-  | 'no-driver'
-  | 'capability'
-  | 'policy'
-  | 'policy-not-portable'
-  | 'no-mapping'
-  | 'exhausted'
-  | 'left-already'
-  | 'not-in-order';
-
-/** A provider that can take a run, or one that cannot and why. */
-export type CandidateView =
-  | { provider: ProviderId; model: string | null; utilization: number | null; resetsAt: string | null }
-  | { provider: ProviderId; excluded: Exclusion };
-
-/** `POST /chats/:id/move`: a person moves a chat that reached a limit. */
-export interface MoveChatRequest {
-  provider: ProviderId;
-  action: 'handoff' | 'restart';
-  /** A model of the target provider; absent takes the mapped one */
-  model?: string;
-}
-
-/** `GET /providers/candidates`: who could take a chat at a limit, and why each of the others cannot. */
-export interface ProviderCandidates {
-  candidates: Array<Extract<CandidateView, { model: string | null }>>;
-  excluded: Array<Extract<CandidateView, { excluded: Exclusion }>>;
-  /** The work made every move it may: nothing is offered however many are ready */
-  movesCapped: boolean;
-}
-
-/** An open `provider.model-map` suggestion: a counterpart the engine proposed that no person has answered yet. */
-export interface ModelMapSuggestion {
-  /** The decision's id: what `POST /providers/model-map/suggestions/:id` answers */
-  id: string;
-  from: { provider: ProviderId; model: string };
-  to: { provider: ProviderId; model: string };
-  at: string;
-}
-
-/** `POST /providers/model-map/suggest`: ask `provider.model-map` now for a counterpart of one model on one target. */
-export interface SuggestModelMapRequest {
-  from: { provider: ProviderId; model: string };
-  /** The provider the counterpart would be on */
-  target: ProviderId;
-}
-
-/** `POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion. */
-export interface AnswerModelMapSuggestionRequest {
-  accept: boolean;
-}
-
-/** What claude-swap left behind, for the one-time notice. */
-export interface CswapRetirement {
-  found: Array<'accounts' | 'account-config' | 'managed-copy' | 'cswap-bin'>;
-  /** Agentry's own copy of claude-swap is on disk: the one thing the notice offers to remove */
-  managedCopy: boolean;
-  /** Projects that had a rotation policy; their provider order is what applies now */
-  policyProjects: string[];
-}
-
-/** `GET /providers/cswap-retirement`: `notice` is null when there is nothing to say or the person dismissed it. */
-export interface CswapRetirementState {
-  notice: CswapRetirement | null;
-}
-
-/** `GET /chats/:id/handoff`: the text as it would be sent, built locally and not sent. */
-export interface HandoffPreview {
-  text: string;
-  bytes: number;
-  provider: ProviderId;
-  model: string | null;
-  /** The headers of the sections the text contains */
-  sections: string[];
 }
 
 /**
@@ -6421,7 +6287,7 @@ export interface WebhookChangedEvent extends AgentryEventBase {
  * (`gh` for GitHub, `glab` for GitLab), YouTrack, and the Tailscale that carries Remote access
  * (only where Agentry runs its daemon: `TunnelStatus.managed`).
  */
-export const SETUP_TOOLS = ['claude-code', 'codex', 'gemini', 'copilot', 'opencode', 'gh', 'glab', 'youtrack', 'tailscale'] as const;
+export const SETUP_TOOLS = ['claude-code', 'gh', 'glab', 'youtrack', 'tailscale'] as const;
 export type SetupTool = (typeof SETUP_TOOLS)[number];
 
 /**
@@ -6605,8 +6471,7 @@ export type AgentryEvent =
   | PermissionRequestedEvent
   | PermissionResolvedEvent
   | RunRateLimitedEvent
-  | RunProviderMovedEvent
-  | RunLimitWaitingEvent
+    | RunLimitWaitingEvent
   | TaskStartedEvent
   | TaskEndedEvent
   | SubagentStartedEvent
@@ -6718,10 +6583,7 @@ export type DecisionPointId =
   | 'notification.urgency'
   | 'checks.fix'
   | 'review.triage'
-  | 'issue.triage'
-  | 'provider.on-limit'
-  | 'provider.pick'
-  | 'provider.model-map';
+  | 'issue.triage';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
