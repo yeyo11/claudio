@@ -1,5 +1,5 @@
 {
-  "name": "agentry",
+  "name": "claudio",
   "private": true,
   "version": "0.1.0",
   "description": "Dockerized Claude Code wrapper: REST API + UI on top of the CLI",
