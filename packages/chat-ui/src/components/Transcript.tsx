@@ -1,6 +1,6 @@
 import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, EditStep, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
-import { lazy, memo, Suspense, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useChatUi } from '../lib/context';
@@ -8,7 +8,8 @@ import { upperFirst, useAgentName } from '../lib/agent';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
-import { justStreamed } from '../lib/chat-stream';
+import { useStreamFade } from '../lib/smooth-text';
+import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '@agentry/ui/lib/format';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
@@ -29,7 +30,10 @@ import { copyText } from '@agentry/ui/lib/clipboard';
 
 const RESULT_PREVIEW_CHARS = 6000;
 
-const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
+const loadMarkdown = () => import('@agentry/ui/components/Markdown');
+const Markdown = lazy(loadMarkdown);
+/** Starts loading the renderer, so the first answer on the page is never drawn as raw text first. */
+export const preloadMarkdown = (): void => void loadMarkdown();
 
 /**
  * Markdown the way chat apps show it: GFM tables and task lists, highlighted code, safe links. The
@@ -74,7 +78,7 @@ function ThinkingFold({ text }: { text: string }) {
   );
 }
 
-function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant' }) {
+function Block({ block, role, streaming = false }: { block: ContentBlock; role: 'user' | 'assistant'; streaming?: boolean }) {
   const { t } = useTranslation('chat');
   switch (block.type) {
     case 'text': {
@@ -82,7 +86,7 @@ function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant
       return (
         <>
           {/* What a person typed is shown as typed, the way chat apps do; Claude's answers are markdown */}
-          {text.trim() && (role === 'user' ? <div className="prose">{text.trim()}</div> : <RichText text={text} />)}
+          {text.trim() && (role === 'user' ? <div className="prose">{text.trim()}</div> : <RichText text={text} streaming={streaming} />)}
           <AttachedFiles files={files} />
         </>
       );
@@ -251,12 +255,15 @@ export const EntryView = memo(function EntryView({
   entry,
   continued = false,
   fresh = false,
+  streamedCopy = false,
   actions,
 }: {
   entry: TranscriptEntry;
   continued?: boolean;
   /** Said a moment ago: the row rises into place once */
   fresh?: boolean;
+  /** An answer streamed a moment ago: drawn with the streaming markup, so the swap from the live copy changes nothing */
+  streamedCopy?: boolean;
   /** The chat page's menu for a message; left out, a message has none (a subagent's transcript) */
   actions?: MessageActions;
 }) {
@@ -281,7 +288,7 @@ export const EntryView = memo(function EntryView({
     );
   }
   return (
-    <article className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
+    <article data-entry-id={entry.uuid} className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
       {head ? <Avatar role={entry.role} /> : <span className="avatar-gap" aria-hidden />}
       <div className="msg-body">
         <RowTime at={entry.timestamp} />
@@ -293,7 +300,7 @@ export const EntryView = memo(function EntryView({
           </header>
         )}
         {withoutListedMedia(blocks).map((block, i) => (
-          <Block key={i} block={block} role={entry.role} />
+          <Block key={i} block={block} role={entry.role} streaming={streamedCopy} />
         ))}
         {notices.map((notice, i) => (
           <NoticeRow key={`notice-${i}`} notice={notice} />
@@ -566,13 +573,27 @@ export function WorkingLine({ detail }: { detail?: string }) {
 }
 
 /** The block the agent is generating right now, fed by ephemeral `partial` stream events. */
-export function StreamingEntry({ block, text, continued = false }: { block: 'text' | 'thinking'; text: string; continued?: boolean }) {
+export function StreamingEntry({ block, text, continued = false, fade = false, onHeight }: { block: 'text' | 'thinking'; text: string; continued?: boolean; fade?: boolean; onHeight?: (height: number) => void }) {
   const { t } = useTranslation('chat');
   const agentName = useAgentName();
+  const article = useRef<HTMLElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const fading = useStreamFade(body, text, fade && block === 'text');
+  const report = useRef(onHeight);
+  report.current = onHeight;
+  // The stored copy of this block takes this height as its first size
+  useLayoutEffect(() => {
+    const el = article.current;
+    if (!el) return;
+    report.current?.(el.offsetHeight);
+    const watch = new ResizeObserver(() => report.current?.(el.offsetHeight));
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
   return (
-    <article className={`msg msg-assistant msg-streaming ${continued ? 'is-continued' : ''}`} aria-live="off" data-find-ignore>
+    <article ref={article} className={`msg msg-assistant msg-streaming ${continued ? 'is-continued' : ''}`} aria-live="off" data-find-ignore>
       {continued ? <span className="avatar-gap" aria-hidden /> : <Avatar role="assistant" />}
-      <div className="msg-body">
+      <div className="msg-body" ref={body}>
         {!continued && (
           <header className="msg-head">
             <span className="msg-role">{agentName}</span>
@@ -586,7 +607,7 @@ export function StreamingEntry({ block, text, continued = false }: { block: 'tex
             <div className="prose muted">{text.length > 1200 ? `…${text.slice(-1200)}` : text}</div>
           </div>
         ) : (
-          <RichText text={text} className="streaming-text" streaming />
+          <RichText text={text} className={fading ? 'streaming-text has-fade' : 'streaming-text'} streaming />
         )}
       </div>
     </article>
@@ -605,6 +626,8 @@ export function endsWithAssistant(entries: readonly TranscriptEntry[]): boolean 
  * purpose and never exact — it only has to be closer than "every row is 140px", which is what the
  * list reserved before and had to take back, in front of the reader, the moment a row was measured.
  */
+const sizeHint = (row: TranscriptRow): number | undefined => (row.kind === 'entry' ? streamedHeight.get(row.entry) : undefined);
+
 function estimateRow(row: TranscriptRow, width: number): number {
   if (row.kind === 'step') return 40;
   const perLine = Math.max(20, Math.floor((width - 44) / 7.2));
@@ -663,11 +686,11 @@ export function Transcript({
     return byRow;
   }, [own, workflows]);
   return (
-    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow}>
+    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>
         row.kind === 'entry' ? (
           // Only what a person sent: an answer of Claude's was already on screen as it was written
-          <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} actions={messages} />
+          <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} streamedCopy={row.entry.role === 'assistant' && justStreamed(row.entry)} actions={messages} />
         ) : (
           <StepView
             row={row}

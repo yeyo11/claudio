@@ -35,6 +35,7 @@ import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
+import { hasLiveStream } from '@agentry/chat-ui/lib/chats';
 import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
 
 export {
@@ -244,7 +245,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // Only a status change moves counts elsewhere. The rest is a chat's own numbers, which
       // `patchRun` writes into the rows: the lists are read again only when that moved the state
       return event.previousStatus === null
-        ? transcriptOf(event.runId)
+        ? (hasLiveStream(event.runId) ? [] : transcriptOf(event.runId))
         : [[keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards(false)];
     case 'run.ended':
       return [

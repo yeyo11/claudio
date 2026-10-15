@@ -521,6 +521,17 @@ export class ChatService {
     return this.summaryWith(id, await this.facts(fresh, false));
   }
 
+  /**
+   * The chat as a send needs it. A process of ours makes the chat interactive whatever the CLI's list
+   * says (`sessionHolder` → 'agentry'), so the send does not wait for that list, which can mean
+   * spawning `claude agents --json`. Anything else takes the full read.
+   */
+  private async summaryForSend(id: string): Promise<ChatSummary | null> {
+    const runtime = this.deps.runtime.get(id);
+    if (runtime?.pid == null) return this.summaryOf(id);
+    return this.summaryWith(id, { transcripts: new Map(), cli: new Map(), processes: [], orchestrations: this.chatOrchestrations() });
+  }
+
   private async summaryWith(id: string, facts: Facts): Promise<ChatSummary | null> {
     const transcript = await this.deps.sessions.summary(id).catch(() => null);
     if (transcript) facts.transcripts.set(id, transcript);
@@ -570,14 +581,16 @@ export class ChatService {
   async detail(id: string, opts: { includeSidechains?: boolean; limit?: number; before?: number } = {}): Promise<ChatDetail> {
     const chat = await this.get(id);
     if (!chat) throw new Error('chat not found');
+    // Read before the transcript, so what is pushed in between is covered by the stream's replay
+    const stream = this.deps.runtime.streamPosition(id);
     const page = await this.fromStores(id, (store, key) => store.page(key, opts));
-    if (page) return { chat, entries: page.entries, from: page.from, total: page.total };
+    if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream };
     const messages = this.deps.runtime.messages(id) ?? [];
     const visible = opts.includeSidechains ? messages : messages.filter((m) => !m.isSidechain);
     const limit = pageSize(opts.limit);
     const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), visible.length)) : visible.length;
     const from = Math.max(0, until - limit);
-    return { chat, entries: visible.slice(from, until), from, total: visible.length };
+    return { chat, entries: visible.slice(from, until), from, total: visible.length, stream };
   }
 
   /**
@@ -812,7 +825,7 @@ export class ChatService {
     if (request.id !== undefined && (typeof request.id !== 'string' || !UUID_RE.test(request.id))) throw new Error('id must be a UUID');
     const before = this.sending.get(id) ?? Promise.resolve();
     const turn = before.then(async () => {
-      const chat = await this.summaryOf(id);
+      const chat = await this.summaryForSend(id);
       if (!chat) throw new Error('chat not found');
       if (chat.control.mode !== 'interactive') {
         throw new ChatConflictError(chat.control.mode === 'readOnly' ? chat.control.reason : 'This chat has no live execution: resume it to continue.', chat.control.mode === 'readOnly' ? chat.control.action : null);
@@ -828,7 +841,7 @@ export class ChatService {
       if (this.sending.get(id) === settled) this.sending.delete(id);
     });
     const message = await turn;
-    return { ...(await this.require(id)), message };
+    return { ...(await this.requireForSend(id)), message };
   }
 
   /**
@@ -895,6 +908,12 @@ export class ChatService {
     return backgroundLogs(this.deps.config, id);
   }
 
+  private async requireForSend(id: string): Promise<ChatSummary> {
+    const chat = await this.summaryForSend(id);
+    if (!chat) throw new Error('chat not found');
+    return chat;
+  }
+
   private async require(id: string): Promise<ChatSummary> {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
@@ -909,6 +928,11 @@ export class ChatService {
 
   events(id: string, sinceSeq = 0): RunEvent[] {
     return this.deps.runtime.events(id, sinceSeq);
+  }
+
+  /** The block being written right now, whole, for a subscriber that joined in the middle of it. */
+  partialSnapshot(id: string): RunEvent | null {
+    return this.deps.runtime.partialSnapshot(id);
   }
 
   /** Whether Agentry has a live stream for the chat to follow. */

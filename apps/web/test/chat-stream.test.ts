@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Chat, ChatDetail, TranscriptEntry } from '@agentry/shared';
-import { appendStreamed, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '@agentry/chat-ui/lib/chat-stream';
+import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '@agentry/chat-ui/lib/chat-stream';
 
 // A live chat's page is kept current from its stream and read back a short tail at a time. These
 // rules decide whether a message said a moment ago shows, shows twice or vanishes.
@@ -18,7 +18,7 @@ const entry = (uuid: string, extra: Partial<TranscriptEntry> = {}): TranscriptEn
 });
 
 const chat = {} as Chat;
-const page = (from: number, uuids: string[], total = from + uuids.length): ChatDetail => ({ chat, from, total, entries: uuids.map((u) => entry(u)) });
+const page = (from: number, uuids: string[], total = from + uuids.length): ChatDetail => ({ chat, from, total, entries: uuids.map((u) => entry(u)), stream: null });
 const uuids = (detail: ChatDetail | null) => detail?.entries.map((e) => e.uuid);
 
 test('a stored message goes on the end of the page once, and a subagent’s is left to the next read', () => {
@@ -102,7 +102,7 @@ test('a message a person sent stays on the page until the chat writes it down, h
   // The CLI reads its stdin when the turn ends: minutes of reads land without the message in them
   assert.deepEqual(uuids(spliceTail(held, page(0, ['a']), Number.POSITIVE_INFINITY, at + 120_000)), ['a', 'sent']);
   // Once the turn takes it, the transcript's own copy replaces the wrapper's
-  const written: ChatDetail = { chat, from: 0, total: 2, entries: [entry('a'), entry('written', { role: 'user', blocks: [{ type: 'text', text: 'and one more thing' }] })] };
+  const written: ChatDetail = { chat, from: 0, total: 2, stream: null, entries: [entry('a'), entry('written', { role: 'user', blocks: [{ type: 'text', text: 'and one more thing' }] })] };
   assert.deepEqual(uuids(spliceTail(held, written, Number.POSITIVE_INFINITY, at + 120_000)), ['a', 'written']);
 });
 
@@ -111,7 +111,7 @@ test('a user message sent while the read was on its way is not kept twice under 
   const since = streamMark();
   const said = (uuid: string) => entry(uuid, { role: 'user', blocks: [{ type: 'text', text: 'hi' }] });
   const later = appendStreamed(held, said('wrapper-copy')).page;
-  const fresh: ChatDetail = { chat, from: 0, total: 2, entries: [entry('a'), said('transcript-copy')] };
+  const fresh: ChatDetail = { chat, from: 0, total: 2, stream: null, entries: [entry('a'), said('transcript-copy')] };
   assert.deepEqual(uuids(spliceTail(later, fresh, since)), ['a', 'transcript-copy']);
 });
 
@@ -134,4 +134,24 @@ test('a stored block stays on screen until the transcript shows it, and a quiet 
   const before = renders;
   store.setConnected(false);
   assert.equal(renders, before, 'nothing that did not change is announced');
+});
+
+test('a tail read that hands back identical entries keeps the objects already held', () => {
+  const held = page(0, ['a', 'b', 'c']);
+  const merged = spliceTail(held, page(1, ['b', 'c']));
+  assert.ok(merged);
+  assert.equal(merged.entries[1], held.entries[1]);
+  assert.equal(merged.entries[2], held.entries[2]);
+  const changed = spliceTail(held, { ...page(1, ['b', 'c']), entries: [entry('b'), entry('c', { blocks: [{ type: 'text', text: 'longer' }] })] });
+  assert.ok(changed);
+  assert.equal(changed.entries[1], held.entries[1]);
+  assert.notEqual(changed.entries[2], held.entries[2]);
+});
+
+test('a partial is a whole text or an append that starts exactly where the held text ends', () => {
+  assert.equal(applyPartial('', { text: 'He' }), 'He');
+  assert.equal(applyPartial('He', { append: 'llo', at: 2 }), 'Hello');
+  assert.equal(applyPartial('He', { text: 'Yo' }), 'Yo', 'a whole text replaces');
+  assert.equal(applyPartial('He', { append: 'llo', at: 5 }), 'He', 'a gap is ignored');
+  assert.equal(applyPartial('Hello', { append: 'llo', at: 2 }), 'Hello', 'a repeat is ignored');
 });

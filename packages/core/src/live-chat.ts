@@ -294,6 +294,8 @@ export class LiveChat {
   /** When `proc` was spawned: its stream reports every workflow started since, and none before */
   procStartedAt: string | null = null;
   seq = 0;
+  /** `seq` when the current execution began: a stream opened from here replays the whole execution */
+  executionSeq = 0;
   status: RunStatus = 'starting';
   model: string | null;
   name: string;
@@ -311,8 +313,17 @@ export class LiveChat {
   lastResult: RunResult | null = null;
   stopRequested = false;
   idleTimer: NodeJS.Timeout | null = null;
+  /** When the chat went idle, while its idle timer runs */
+  idleSince: number | null = null;
+  /** Pages holding the chat's stream open */
+  viewers = 0;
+  /** Its input was ended to make room for a start: the process is on its way out and no longer counts */
+  released = false;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
+  private partialSentAt = 0;
+  /** How much of the current block subscribers hold; null until its first partial went out */
+  partialSent: { block: 'text' | 'thinking'; length: number } | null = null;
   /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
   structured: string | null = null;
   /** Prompts the CLI is holding for a person */
@@ -558,6 +569,7 @@ export class LiveChat {
 
   /** Opens the execution a process starts, on top of the settings the chat has now. */
   beginExecution(): Execution {
+    this.executionSeq = this.seq;
     const execution: Execution = {
       id: randomUUID(),
       startedAt: now(),
@@ -668,17 +680,36 @@ export class LiveChat {
   emitPartial(): void {
     this.activityAt = now();
     if (this.partialTimer) return;
+    // The first token of a block goes out at once; after that at most one frame per throttle
+    const wait = PARTIAL_THROTTLE_MS - (Date.now() - this.partialSentAt);
+    if (wait <= 0) return this.sendPartial();
     this.partialTimer = setTimeout(() => {
       this.partialTimer = null;
-      if (!this.partial) return;
-      this.emitter.emit('event', {
-        seq: this.seq,
-        ts: now(),
-        kind: 'partial',
-        block: this.partial.block,
-        text: this.partial.text,
-      } satisfies RunEvent);
-    }, PARTIAL_THROTTLE_MS);
+      this.sendPartial();
+    }, wait);
+  }
+
+  private sendPartial(): void {
+    if (!this.partial) return;
+    this.partialSentAt = Date.now();
+    const { block, text } = this.partial;
+    const sent = this.partialSent;
+    // The first partial of a block carries all of it; after that only what is new, and where it starts
+    const whole = !sent || sent.block !== block || sent.length > text.length;
+    this.partialSent = { block, length: text.length };
+    this.emitter.emit('event', {
+      seq: this.seq,
+      ts: now(),
+      kind: 'partial',
+      block,
+      ...(whole ? { text } : { append: text.slice(sent.length), at: sent.length }),
+    } satisfies RunEvent);
+  }
+
+  /** The current block as a late subscriber needs it: the whole text so far, or null between blocks. */
+  partialSnapshot(): RunEvent | null {
+    if (!this.partial) return null;
+    return { seq: this.seq, ts: now(), kind: 'partial', block: this.partial.block, text: this.partial.text };
   }
 
   setStatus(status: RunStatus): void {

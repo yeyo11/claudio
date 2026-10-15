@@ -378,8 +378,9 @@ export interface RunWorkflowRequest {
 }
 
 /**
- * `partial` events are ephemeral: they carry the text generated so far for the block being
- * streamed, reuse the seq of the last stored event, are never buffered or replayed, and are
+ * `partial` events are ephemeral: they carry the block being streamed (the first one of a block, and
+ * the first a subscriber receives, all the text so far in `text`; the rest only what is new, in
+ * `append`, with where it starts in `at`), reuse the seq of the last stored event, are never buffered or replayed, and are
  * superseded by the next `message` event.
  */
 export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial' | 'delivery';
@@ -396,6 +397,9 @@ export interface RunEvent {
   text?: string;
   /** For `partial` events: which kind of block is streaming */
   block?: 'text' | 'thinking';
+  /** For `partial` events after the first of a block: text to append at `at` (the length the client must hold) */
+  append?: string;
+  at?: number;
   /** For `init` events, in the provider's neutral words */
   init?: RunInit;
   /** For `result` events */
@@ -966,6 +970,9 @@ export interface ChatDetail {
   from: number;
   /** Entries the transcript holds in total, so a caller knows what is still above `from` */
   total: number;
+  /** The chat's stream position when this page was read: open the stream from `seq` to miss nothing
+   *  said after the read, or from `executionSeq` to see the whole live execution. Null without a live chat. */
+  stream: { seq: number; executionSeq: number } | null;
 }
 
 /**

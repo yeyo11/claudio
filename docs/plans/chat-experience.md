@@ -426,7 +426,7 @@ plan's; create tracker items with these titles if the project tracks them.
 
 ### CHAT-1 — Optimistic user message
 
-Status: proposed.
+Status: **built** on 2026-10-15 (`optimisticEntry`, `dropOptimistic` and the in-place replace in `appendStreamed` in `chat-stream.ts`; `Composer` `onSending`; test `packages/chat-ui/test/chat-stream.test.ts`). The optimistic row shows text only; files arrive with the confirmed entry. No e2e spec added.
 
 **Problem.** After Send the words stay in the box and nothing appears in the conversation until the
 POST returns and, later, the stream's `message` event arrives (B1.2, B3). On a resume or a cold
@@ -574,7 +574,7 @@ puts everything back with the error box.
 
 ### CHAT-2 — Open the stream where the read ends
 
-Status: proposed.
+Status: **built** on 2026-10-15 (`streamPosition`, `ChatDetail.stream`, `streamSince` in `packages/chat-ui/src/lib/chats.ts`; tests `live-chat-stream-position.test.ts`, `chat-stream-since.test.ts`).
 
 **Problem.** The first `EventSource` asks for `since = Number.MAX_SAFE_INTEGER` (B3), so anything
 pushed between the transcript read and the stream opening is lost until a later read; for a resume
@@ -642,7 +642,7 @@ stream, without waiting for a transcript read.
 
 ### CHAT-3 — Send without waiting for `claude agents`
 
-Status: proposed.
+Status: **built** on 2026-10-15 (`summaryForSend` and `requireForSend` in `chat-service.ts`; test `packages/core/test/chat-service-send.test.ts`).
 
 **Problem.** `ChatService.send` awaits `summaryOf(id)`, which waits for a fresh
 `claude agents --json` process when the cached list is older than 10 s (B1.3), though for a chat
@@ -707,7 +707,8 @@ complains. Test: none at unit level is practical; add a line to the e2e chat spe
 
 ### CHAT-5 — First partial at once (leading-edge throttle)
 
-Status: proposed.
+Status: built 2026-10-15 (no PR yet). As sketched (`emitPartial` / `sendPartial` in
+`live-chat.ts`); test in `packages/core/test/chat-partial.test.ts`.
 
 `packages/core/src/live-chat.ts:653`. Emit at once when the last emit is older than the throttle,
 otherwise schedule the trailing emit for the remainder:
@@ -744,7 +745,7 @@ the latest text.
 
 ### CHAT-6 — Colour code while it streams
 
-Status: proposed.
+Status: built 2026-10-15.
 
 **Problem.** `useHighlight` (`packages/ui/src/components/CodeBlock.tsx:22`) restarts a 120 ms timer
 on every change, so it never fires while partials arrive every 50 ms (B4).
@@ -805,7 +806,7 @@ and unit-test it. Manually: stream a 60-line code block and watch it colour as i
 
 ### CHAT-7 — Load the Markdown renderer before it is needed
 
-Status: proposed.
+Status: built 2026-10-15.
 
 `packages/chat-ui/src/components/Transcript.tsx:32`:
 
@@ -826,7 +827,15 @@ never shows unformatted markdown.
 
 ### CHAT-8 — Smooth text reveal
 
-Status: proposed. Depends on nothing; pairs with CHAT-9 and CHAT-10.
+Status: built 2026-10-15 (no PR yet). Depends on nothing; pairs with CHAT-9 and CHAT-10.
+
+Changes from the plan: `SmoothReveal` drains a backlog with a time constant of `lagMs / 4`
+(a proportional catch-up only approaches zero, so `lagMs` itself would take about 1.5 s to drain a
+burst) and `finish()` drains at a fixed pace so it is done within 150 ms. `useSmoothText` takes a
+4th argument, `onRevealing`, which feeds `ChatStreamStore.setRevealing`; `settle()` holds back
+while a stored block is still revealing and runs once it has caught up. `LiveTail` renders text
+blocks through a `SmoothEntry` keyed by `partial.since`. The `outcome === 'present'` path in
+`chats.ts` still clears the partial at once (the stored row is already on screen); CHAT-10 owns that swap.
 
 **Problem.** The text of a block appears in bursts: up to 50 ms worth of tokens at a time, and
 bursty whenever the model or the network is. ChatGPT reveals characters at a steady, adaptive rate
@@ -932,7 +941,7 @@ exactly as received at `off`.
 
 ### CHAT-9 — Fade new words in
 
-Status: proposed. After CHAT-8.
+Status: built 2026-10-15 (no PR yet). Deviations: the hook `useStreamFade` lives in `smooth-text.ts` next to `freshRanges`; `SmoothEntry` passes `fade` (motion `full`) to `StreamingEntry`, which sets `has-fade` on `.streaming-text` and scopes the caret rules with `:not(.has-fade)`. Two steps (0–120 ms, 120–240 ms), as in the sketch. Not checked in a browser.
 
 **Design.** Fade the freshest characters of the streaming block without touching React's DOM, with
 the CSS Custom Highlight API (Chromium, which the web app and the Electron desktop app use;
@@ -969,7 +978,11 @@ feature-detect and do nothing elsewhere).
 
 ### CHAT-10 — No jump when a block is stored
 
-Status: proposed. After CHAT-8 if both are done (they touch the same swap).
+Status: built 2026-10-15 (no PR yet). Deviations: the height is written through an `onHeight` prop of
+`StreamingEntry` (a `ResizeObserver` on its `<article>`, wired in `SmoothEntry`) into
+`ChatStreamStore.lastBlockHeight`; `chats.ts` moves it to `streamedHeight` only when the entry was
+appended (not `present`) and resets it. `EntryView` takes `streamedCopy` for the streaming markup.
+No e2e spec written; the frame-by-frame check is left to the verification phase.
 
 **Problem.** B4: the stored row starts at an *estimated* height, then is measured, and the list and
 scroll correct in front of the reader; the streamed element is replaced by a new tree in the same
@@ -1016,7 +1029,7 @@ is stored; assert no frame moves the last row by more than 2 px while following.
 
 ### CHAT-11 — Fewer reads and renders
 
-Status: proposed.
+Status: built 2026-10-15 (no PR yet). As sketched; also `liveStreams` is cleared in `es.onerror`, so the feed refetches while the stream retries. Profile numbers not taken (no browser run).
 
 Four independent changes; do them in this order and measure with the React profiler after each.
 
@@ -1069,7 +1082,7 @@ renders during one streamed answer of ~10 blocks; record the numbers in this doc
 
 ### CHAT-12 — Partials as appends
 
-Status: proposed. Protocol change: shared type, API, client.
+Status: built 2026-10-15 (no PR yet). Protocol change: shared type, API, client. As sketched; `partialSnapshot` sits on `LiveChat`, `ChatManager` and `ChatService`, and `applyPartial` lives in `chat-stream.ts`. No other consumer of `partial` reads its text.
 
 **Design.** The first partial of a block, and the first one any subscriber receives, carries the
 whole text; after that the server sends only what is new, with where it starts.
@@ -1101,7 +1114,7 @@ block restarts with `text`. Route: a late subscriber receives a snapshot. Client
 
 ### CHAT-13 — Keep the process warm while the chat is open
 
-Status: proposed.
+Status: **built** on 2026-10-15, as planned; `admit` counts the chats it releases as free (`released` on the live chat). Tests: `packages/core/test/chat-warm.test.ts`.
 
 **Problem.** A chat idle for 10 minutes loses its process (B1.5). Someone reading a long answer
 for 11 minutes then pays a cold `--resume` (with MCP start-up) for their next message.
@@ -1155,7 +1168,7 @@ warm idle chat when at the limit.
 
 ### CHAT-14 — The new question goes to the top
 
-Status: proposed. After CHAT-1 (it needs the optimistic row).
+Status: **built** on 2026-10-15, as planned (`composer/turn-spacer.ts`, `turnSpacerHeight` tested as a pure function). A resume's optimistic id is swapped for the last stored user row, since the stored entry arrives under another id. The e2e checks (row 16–40 px from the top; paging specs with `overflow-anchor: none`) are not written yet.
 
 **Design.** On Send, scroll so the new user row sits near the top of the viewport, with a spacer
 under the conversation that fills the rest of the viewport. Because the spacer exactly fills the
@@ -1240,7 +1253,7 @@ Status: **built** on 2026-10-15 in branch `feat/rich-composer`, as planned (`com
 
 ### CHAT-17 — Repair half-written markdown
 
-Status: proposed.
+Status: built 2026-10-15.
 
 `packages/ui/src/lib/markdown-repair.ts` (new), applied in `StreamingMarkdown`
 (`packages/ui/src/components/Markdown.tsx:107`) to the **last** piece only
@@ -1278,7 +1291,7 @@ Unit tests in `packages/ui/test/markdown-repair.test.ts`: `"**bold"`, `"a *b"`, 
 
 ### CHAT-18 — Calmer motion while text streams
 
-Status: proposed. Run `night-shift-ui-check`.
+Status: built 2026-10-15. Run `night-shift-ui-check`.
 
 1. **Composer energy border**: `Composer.tsx:275` adds `live-energy` while the chat works. Keep it
    while the agent is running tools, drop it while **text** streams (the reader's eyes are on the

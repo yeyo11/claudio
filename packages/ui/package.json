@@ -73,6 +73,7 @@
     "./lib/lru": "./src/lib/lru.ts",
     "./lib/markdown-autolink": "./src/lib/markdown-autolink.ts",
     "./lib/markdown-blocks": "./src/lib/markdown-blocks.ts",
+    "./lib/markdown-repair": "./src/lib/markdown-repair.ts",
     "./lib/media": "./src/lib/media.ts",
     "./lib/motion": "./src/lib/motion.ts",
     "./lib/page-cache": "./src/lib/page-cache.ts",

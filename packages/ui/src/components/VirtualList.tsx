@@ -28,6 +28,7 @@ export function VirtualList<T>({
   onReachTop,
   focus,
   estimate,
+  sizeHint,
   children,
 }: {
   items: T[];
@@ -54,6 +55,12 @@ export function VirtualList<T>({
    * re-places rows, and an answer that moves would move them under the reader.
    */
   estimate?: (item: T, width: number) => number;
+  /**
+   * The exact height of a row that was on screen before in another form (a streamed block that has
+   * just been stored), when the caller knows it. Used in place of the estimate until the row is
+   * measured, so the first size is the right one and nothing needs correcting.
+   */
+  sizeHint?: (item: T) => number | undefined;
   children: (item: T, index: number) => ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -112,9 +119,11 @@ export function VirtualList<T>({
     (index: number) => {
       const item = items[index];
       if (item === undefined || !estimate || width === 0) return FIRST_GUESS;
+      const hint = sizeHint?.(item);
+      if (hint !== undefined) return Math.max(24, Math.round(hint));
       return Math.max(24, Math.round(estimate(item, width)));
     },
-    [items, estimate, width],
+    [items, estimate, sizeHint, width],
   );
 
   const rows = useVirtualizer({

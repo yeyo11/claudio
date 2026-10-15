@@ -186,3 +186,14 @@ test("a chat's own page gets the activity the feed carries, so its ticker never 
   assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-1', false))?.chat.activity, activity);
   assert.equal(client.getQueryData(keys.chat('chat-1', true)), undefined, 'a page nobody opened is not invented');
 });
+
+test('rows built again from the same entries are the objects handed in before', () => {
+  const entries = [say('go'), call('a', 'Read'), result('a'), answer('done')];
+  const first = transcriptRows(entries);
+  const again = transcriptRows(entries, first);
+  assert.deepEqual(again.map((row, k) => row === first[k]), [true, true, true]);
+  const grown = transcriptRows([...entries, say('more')], first);
+  assert.deepEqual(grown.slice(0, 3).map((row, k) => row === first[k]), [true, true, true]);
+  const changed = transcriptRows([...entries.slice(0, 3), answer('other')], first);
+  assert.notEqual(changed[2], first[2]);
+});

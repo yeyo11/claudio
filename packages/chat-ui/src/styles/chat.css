@@ -453,6 +453,8 @@
      and anything too wide for the column (a table, a diagram) scrolls inside its own box */
   overflow: hidden auto;
   overscroll-behavior: contain;
+  /* The turn spacer resizes by itself; the browser's own anchoring would move the view with it */
+  overflow-anchor: none;
   /* One column of reading width in the middle, the scrollbar still at the edge */
   padding: 24px max(12px, calc((100% - 740px) / 2)) 12px;
   /* The times hang beside the column only where there is room for them (styles/transcript.css) */
@@ -460,8 +462,28 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  -webkit-mask-image: linear-gradient(transparent, var(--mask-ink) 14px, var(--mask-ink) calc(100% - 14px), transparent);
-  mask-image: linear-gradient(transparent, var(--mask-ink) 14px, var(--mask-ink) calc(100% - 14px), transparent);
+}
+
+/* The edges fade into the page with two overlays, not a mask that makes the scroller re-composite on every frame; they stop short of the scrollbar so it stays usable */
+.run-stage::before,
+.run-stage::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 12px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.run-stage::before {
+  top: 0;
+  background: linear-gradient(var(--bg), transparent);
+}
+
+.run-stage::after {
+  bottom: 0;
+  background: linear-gradient(transparent, var(--bg));
 }
 
 /* The ticker sits where the next row will appear, lined up with the messages' text */

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import { entryText, type Chat, type ChatPendingAttachment, type EditStep } from '@agentry/shared';
+import { entryText, type Chat, type ChatDetail, type ChatPendingAttachment, type EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -11,8 +11,10 @@ import { useDeleteChat } from '@agentry/chat-ui/components/ChatDelete';
 import { PermissionPrompts } from '@agentry/chat-ui/components/PermissionPrompts';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { AnimatePresence, motion } from '@agentry/ui/components/motion';
+import { useMotionLevel } from '@agentry/ui/lib/motion';
+import { useSmoothText } from '@agentry/chat-ui/lib/smooth-text';
 import { useToast } from '@agentry/ui/components/Toast';
-import { endsWithAssistant, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
+import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@agentry/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
@@ -20,8 +22,8 @@ import { Empty, ErrorBox, PageHeader, Skeleton, usePageTitle } from '@agentry/ui
 import { api, ApiRequestError, keys, useProjects } from '../api';
 import { tickerActivity } from '@agentry/chat-ui/lib/chat-live';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
-import { subagentFor, transcriptRows } from '@agentry/chat-ui/lib/chat-steps';
-import type { ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
+import { subagentFor, transcriptRows, type TranscriptRow } from '@agentry/chat-ui/lib/chat-steps';
+import { appendStreamed, dropOptimistic, optimisticEntry, type ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '@agentry/chat-ui/lib/chats';
 import { useDetailPanel } from '../lib/detail';
 import { taskPath } from '../lib/work-items';
@@ -38,6 +40,7 @@ import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from '@agentry/chat-ui/composer/queued';
 import { HISTORY_LIMIT } from '@agentry/chat-ui/composer/history';
 import { useStickToBottom } from '@agentry/chat-ui/composer/stick-to-bottom';
+import { useTurnSpacer } from '@agentry/chat-ui/composer/turn-spacer';
 import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 
 /** How long the entry a link opened the chat at stays marked */
@@ -48,6 +51,15 @@ const AT_MARK_MS = 2400;
  * ticker under it. The only part of the page that reads the stream's text, so it is the only part
  * rendered again on every frame of it.
  */
+const SmoothEntry = memo(function SmoothEntry({ stream, text, continued }: { stream: ChatStreamStore; text: string; continued: boolean }) {
+  const level = useMotionLevel();
+  const ending = useStreamSnapshot(stream, (snapshot) => snapshot.ending);
+  const onRevealing = useCallback((revealing: boolean) => stream.setRevealing(revealing), [stream]);
+  const shown = useSmoothText(text, level !== 'off', ending, onRevealing);
+  const onHeight = useCallback((height: number) => void (stream.lastBlockHeight = height), [stream]);
+  return shown ? <StreamingEntry block="text" text={shown} continued={continued} fade={level === 'full'} onHeight={onHeight} /> : null;
+});
+
 const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: ChatStreamStore; chat: Chat; continued: boolean }) {
   const partial = useStreamSnapshot(stream, (snapshot) => snapshot.partial);
   const block = partial?.block;
@@ -56,7 +68,12 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
   const activity = useMemo(() => tickerActivity(chat, block && since !== undefined ? { block, since } : null), [chat, block, since]);
   return (
     <>
-      {partial && partial.text && <StreamingEntry block={partial.block} text={partial.text} continued={continued} />}
+      {partial && partial.text && (partial.block === 'text' ? (
+        // Keyed by the block, so a new one starts a new reveal; thinking shows raw (already truncated)
+        <SmoothEntry key={partial.since} stream={stream} text={partial.text} continued={continued} />
+      ) : (
+        <StreamingEntry block={partial.block} text={partial.text} continued={continued} />
+      ))}
       {activity && (
         <div className="chat-now" data-find-ignore>
           {chat.state === 'working' ? <WorkingLine detail={activityTarget(activity)} /> : <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />}
@@ -68,6 +85,7 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
 
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
+  useEffect(() => preloadMarkdown(), []);
   const { t } = useTranslation(['chat', 'work', 'common']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -91,12 +109,36 @@ export function ChatView() {
   // A message still waiting for the turn is a card over the box, so it is not also a row here
   const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
   const items = pendingless;
+  // The person's words are drawn at the end of the conversation the moment Send is pressed; the undo takes them out again if the send fails
+  // The question the view is scrolled to the top for (CHAT-14); a resume's guess is replaced by the stored entry under another id
+  const [sentAnchor, setAnchor] = useState<string | null>(null);
+  const anchor = useMemo(() => {
+    if (!sentAnchor || !sentAnchor.startsWith('optimistic-') || items.some((entry) => entry.uuid === sentAnchor)) return sentAnchor;
+    return items.findLast((entry) => entry.role === 'user' && !entry.isSidechain)?.uuid ?? sentAnchor;
+  }, [sentAnchor, items]);
+  const spacerRef = useTurnSpacer(scroller, anchor);
+  const onSending = useCallback(
+    ({ id: messageId, text }: { id: string | null; text: string }) => {
+      const uuid = messageId ?? `optimistic-${crypto.getRandomValues(new Uint32Array(1))[0]}`;
+      const entry = optimisticEntry(uuid, text);
+      const cached = [keys.chat(id, false), keys.chat(id, true)];
+      for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? appendStreamed(page, entry).page : page));
+      setAnchor(uuid);
+      setFollow(true);
+      return () => {
+        setAnchor(null);
+        for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? dropOptimistic(page, uuid) : page));
+      };
+    },
+    [id, queryClient, setFollow],
+  );
   const limit = useLimitState(chat);
   usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
   useEffect(() => {
     setFollow(true);
+    setAnchor(null);
     setForking(false);
   }, [id, setFollow]);
 
@@ -174,7 +216,9 @@ export function ChatView() {
     toDelete.current = { request: remove.requestDelete, chat };
   });
 
-  const rows = useMemo(() => transcriptRows(items), [items]);
+  // Rows built again from the same entries stay the same objects, so what renders them does not
+  const lastRows = useRef<readonly TranscriptRow[]>([]);
+  const rows = useMemo(() => (lastRows.current = transcriptRows(items, lastRows.current)), [items]);
   // What the person sent here, for the box's ArrowUp: their own words, the newest last
   const sentHistory = useMemo(
     () =>
@@ -373,6 +417,8 @@ export function ChatView() {
             <PermissionPrompts chatId={id} live={live} />
             <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(items)} />
             {limit.phase !== 'none' && <LimitStopped chat={chat} at={chat.executions.at(-1)?.endedAt ?? chat.updatedAt} waiting={limit.phase === 'waiting'} />}
+            {/* Its height is written by useTurnSpacer; the negative margin takes back the column's gap, as this is not a row */}
+            <div ref={spacerRef} aria-hidden style={{ flex: 'none', height: 0, marginTop: -14 }} />
           </div>
           <AnimatePresence>
             {!follow && (
@@ -460,6 +506,8 @@ export function ChatView() {
             kind={composer}
             restore={restore}
             history={sentHistory}
+            onSending={onSending}
+            writing={writing}
             onSent={(sent) => {
               setFollow(true);
               // The server says whether it waits: a resume or a fork, or a message that starts a turn, does not

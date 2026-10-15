@@ -24,7 +24,9 @@ export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<Drive
   }
 }
 
-const IDLE_TIMEOUT_MS = Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
+/** Read when used, so a test can shorten them */
+export const idleTimeoutMs = (): number => Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
+const viewedIdleMaxMs = (): number => Number(process.env.AGENTRY_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
 
 /**
  * Folds what a driver reports into the chat it belongs to: the settings, the ticker, the history of
@@ -97,6 +99,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // here, seconds before its arguments have finished streaming
       chat.activity.blockStarted(event.block, now());
       chat.partial = event.streams === 'other' ? null : { block: event.streams, text: '' };
+      chat.partialSent = null;
       chat.structured = event.structured ? '' : null;
       return;
 
@@ -114,6 +117,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
     case 'block-stopped':
       chat.activity.blockStopped();
       chat.partial = null;
+      chat.partialSent = null;
       chat.structured = null;
       return;
 
@@ -157,6 +161,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // The agent can start a turn on its own (e.g. after a background task notification)
       if (entry.role === 'assistant' && chat.status === 'idle') {
         if (chat.idleTimer) clearTimeout(chat.idleTimer);
+        chat.idleSince = null;
         chat.setStatus('busy');
       }
       if (event.mainAgent) {
@@ -234,6 +239,7 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
   // which can stream nothing whole for a long while
   if (chat.status === 'idle') {
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.idleSince = null;
     chat.setStatus('busy');
   }
   host.persist();
@@ -281,9 +287,21 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     // The agent has messages of ours still to read and goes on with them as its next turn: the chat
     // is not waiting for anyone
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.idleSince = null;
   } else {
     chat.setStatus('idle');
-    chat.idleTimer = setTimeout(() => chat.session?.endInput(), IDLE_TIMEOUT_MS);
+    chat.idleSince = Date.now();
+    const onIdle = () => {
+      // Someone has the chat open: their next message should not wait for a cold start. Bounded, so a
+      // tab forgotten open does not hold a process for ever (a hidden tab lets go of its stream after 30 s anyway)
+      if (chat.viewers > 0 && Date.now() - (chat.idleSince ?? 0) < viewedIdleMaxMs()) {
+        chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
+        chat.idleTimer.unref();
+        return;
+      }
+      chat.session?.endInput();
+    };
+    chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
     chat.idleTimer.unref();
   }
   host.maybeLimit(chat);

@@ -20,7 +20,7 @@ const entry = (uuid: string, role: 'user' | 'assistant', text: string): Transcri
   blocks: [{ type: 'text', text }],
 });
 
-const detail = (entries: TranscriptEntry[]): ChatDetail => ({ chat, from: 0, total: entries.length, entries });
+const detail = (entries: TranscriptEntry[]): ChatDetail => ({ chat, from: 0, total: entries.length, entries, stream: null });
 
 test('S-5: two queued messages the CLI read as one prompt are shown once, not twice', () => {
   const at = Date.now();

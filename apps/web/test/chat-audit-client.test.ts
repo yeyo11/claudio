@@ -21,7 +21,7 @@ const assistant = (uuid: string): TranscriptEntry => ({
 
 const user = (uuid: string, text: string): TranscriptEntry => ({ ...assistant(uuid), role: 'user', blocks: [{ type: 'text', text }] });
 
-const detail = (entries: TranscriptEntry[], from = 0): ChatDetail => ({ chat, from, total: from + entries.length, entries });
+const detail = (entries: TranscriptEntry[], from = 0): ChatDetail => ({ chat, from, total: from + entries.length, entries, stream: null });
 
 const uuids = (page: ChatDetail | null) => page?.entries.map((entry) => entry.uuid);
 

@@ -1,5 +1,5 @@
 import { entryText } from '@agentry/shared';
-import type { ChatDetail, MessageDelivery, TranscriptEntry } from '@agentry/shared';
+import type { ChatDetail, MessageDelivery, RunEvent, TranscriptEntry } from '@agentry/shared';
 
 // ---------- the transcript, kept current from the stream ----------
 
@@ -25,6 +25,13 @@ export const streamMark = (): number => appended;
 /** Whether this entry is on the page because the stream said it, and no read has confirmed it yet. */
 export const isStreamed = (entry: TranscriptEntry): boolean => streamed.has(entry);
 
+/**
+ * How tall the streaming block was on screen when its stored message arrived, by that message. The
+ * list takes it as the row's first size, so the swap from the streamed copy to the stored one needs
+ * no correction.
+ */
+export const streamedHeight = new WeakMap<TranscriptEntry, number>();
+
 /** How long an entry counts as having just arrived: what an entrance animation is allowed to play for. */
 const FRESH_MS = 1200;
 
@@ -48,6 +55,38 @@ export function unconfirmedTail(page: ChatDetail): number {
   return count;
 }
 
+/** What a message says, as a transcript line and the stream's copy of it both put it. */
+const said = (entry: TranscriptEntry): string => entryText(entry).trim();
+
+/** Entries the page drew on Send, before the server said anything: removed again if the send fails. */
+const optimistic = new WeakSet<TranscriptEntry>();
+
+/**
+ * The person's message as the page draws it on Send; the server's copy has the same uuid. Text
+ * only: the confirmed entry brings the files and the row updates in place.
+ */
+export function optimisticEntry(id: string, text: string, now = new Date()): TranscriptEntry {
+  const entry: TranscriptEntry = {
+    uuid: id,
+    role: 'user',
+    timestamp: now.toISOString(),
+    model: null,
+    isSidechain: false,
+    parentToolUseId: null,
+    blocks: [{ type: 'text', text }],
+  };
+  optimistic.add(entry);
+  return entry;
+}
+
+export const isOptimistic = (entry: TranscriptEntry): boolean => optimistic.has(entry);
+
+/** `page` without the optimistic entry `id` (its send failed). */
+export function dropOptimistic(page: ChatDetail, id: string): ChatDetail {
+  const entries = page.entries.filter((e) => !(e.uuid === id && optimistic.has(e)));
+  return entries.length === page.entries.length ? page : { ...page, entries, total: page.total - 1 };
+}
+
 /** How far back a stored message is looked for before it is taken to be new. */
 const DEDUPE_WINDOW = 50;
 
@@ -59,21 +98,29 @@ const DEDUPE_WINDOW = 50;
  */
 export function appendStreamed(page: ChatDetail, entry: TranscriptEntry, now = Date.now()): { page: ChatDetail; outcome: 'appended' | 'present' | 'skipped' } {
   if (entry.isSidechain) return { page, outcome: 'skipped' };
+  // Searched before the timestamp check: an optimistic entry carries the page's clock, which the
+  // server's copy may slightly precede
+  for (let i = page.entries.length - 1; i >= Math.max(0, page.entries.length - DEDUPE_WINDOW); i--) {
+    const held = page.entries[i];
+    if (!held) continue;
+    // A resume has no id of its own to send, so its optimistic row is matched by words
+    const isOptimisticTwin = entry.role === 'user' && optimistic.has(held) && said(held) === said(entry);
+    if (!(entry.uuid && held.uuid === entry.uuid) && !isOptimisticTwin) continue;
+    if (!optimistic.has(held)) return { page, outcome: 'present' };
+    // The server's copy takes the optimistic row's place, with its real timestamp and blocks
+    streamed.set(entry, { mark: ++appended, at: streamed.get(held)?.at ?? now });
+    streamed.delete(held);
+    const entries = page.entries.slice();
+    entries[i] = entry;
+    return { page: { ...page, entries }, outcome: 'present' };
+  }
   // Older than the page's end: a replay (a restarted server replays a restored chat whole), whose
   // place is somewhere above and not at the end
   const last = page.entries.at(-1)?.timestamp;
   if (entry.timestamp && last && entry.timestamp < last) return { page, outcome: 'skipped' };
-  if (entry.uuid) {
-    for (let i = page.entries.length - 1; i >= Math.max(0, page.entries.length - DEDUPE_WINDOW); i--) {
-      if (page.entries[i]?.uuid === entry.uuid) return { page, outcome: 'present' };
-    }
-  }
   streamed.set(entry, { mark: ++appended, at: now });
   return { page: { ...page, entries: [...page.entries, entry], total: page.total + 1 }, outcome: 'appended' };
 }
-
-/** What a message says, as a transcript line and the stream's copy of it both put it. */
-const said = (entry: TranscriptEntry): string => entryText(entry).trim();
 
 /**
  * The streamed messages of the person that the read's new user entries stand for, each entry
@@ -168,10 +215,19 @@ export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.P
     else streamed.delete(entry);
   }
   const entries: TranscriptEntry[] = [...(after.get(null) ?? [])];
-  for (const entry of fresh.entries) entries.push(entry, ...(after.get(entry.uuid) ?? []));
+  // An entry the read hands back unchanged stays the object already held, so what renders it does not
+  const heldByUuid = new Map(region.map((entry) => [entry.uuid, entry]));
+  for (const entry of fresh.entries) {
+    const held = heldByUuid.get(entry.uuid);
+    const kept = held && !streamed.has(held) && sameEntry(held, entry) ? held : entry;
+    entries.push(kept, ...(after.get(entry.uuid) ?? []));
+  }
   entries.push(...late);
   return { ...fresh, from: held.from, entries: [...held.entries.slice(0, at), ...entries], total: fresh.total + entries.length - fresh.entries.length };
 }
+
+const sameEntry = (a: TranscriptEntry, b: TranscriptEntry) =>
+  a.timestamp === b.timestamp && a.blocks.length === b.blocks.length && JSON.stringify(a.blocks) === JSON.stringify(b.blocks);
 
 // ---------- what is being written right now ----------
 
@@ -186,6 +242,18 @@ export interface StreamingPartial {
 export interface StreamSnapshot {
   partial: StreamingPartial | null;
   connected: boolean;
+  /** The block was stored: what is shown is the rest of it catching up, then it leaves */
+  ending: boolean;
+}
+
+/**
+ * The text of the block after a `partial` event: a whole text replaces what is held, an append
+ * extends it only where it starts exactly at the held length. A gap leaves the text as it is: the
+ * next block, or the snapshot of the next connection, brings the whole of it again.
+ */
+export function applyPartial(current: string, event: Pick<RunEvent, 'text' | 'append' | 'at'>): string {
+  if (event.append === undefined) return event.text ?? current;
+  return event.at === current.length ? current + event.append : current;
 }
 
 /** A partial not updated for this long is not being written any more, whatever became of it. */
@@ -197,11 +265,17 @@ const QUIET_MS = 1000;
  * not rendered again that often. One per chat, so switching chats never shows the last one's text.
  */
 export class ChatStreamStore {
-  private snapshot: StreamSnapshot = { partial: null, connected: false };
+  private snapshot: StreamSnapshot = { partial: null, connected: false, ending: false };
   private readonly listeners = new Set<() => void>();
   /** The stored message that finalises the partial arrived; it goes once the transcript shows that */
   private ended = false;
   private updatedAt = 0;
+  /** The smooth reveal is still behind the text: the partial stays until it has caught up */
+  private revealing = false;
+  /** A settle was held back by the reveal, and runs when it is done */
+  private settleHeld = false;
+  /** The height of the block being streamed, as last measured; null before one is shown */
+  lastBlockHeight: number | null = null;
   /** What the stream said became of each message since the page opened it, by the message's id */
   private readonly deliveries = new Map<string, MessageDelivery>();
   private readonly deliveryListeners = new Set<() => void>();
@@ -237,7 +311,7 @@ export class ChatStreamStore {
 
   private set(next: Partial<StreamSnapshot>): void {
     const merged = { ...this.snapshot, ...next };
-    if (merged.partial === this.snapshot.partial && merged.connected === this.snapshot.connected) return;
+    if (merged.partial === this.snapshot.partial && merged.connected === this.snapshot.connected && merged.ending === this.snapshot.ending) return;
     this.snapshot = merged;
     for (const listener of this.listeners) listener();
   }
@@ -249,12 +323,14 @@ export class ChatStreamStore {
   setPartial(partial: StreamingPartial, now = Date.now()): void {
     this.ended = false;
     this.updatedAt = now;
-    this.set({ partial });
+    this.set({ partial, ending: false });
   }
 
   /** The block was stored: keep showing it until the transcript does, so it never blinks out. */
   endPartial(): void {
-    if (this.snapshot.partial) this.ended = true;
+    if (!this.snapshot.partial) return;
+    this.ended = true;
+    this.set({ ending: true });
   }
 
   get ending(): boolean {
@@ -263,7 +339,15 @@ export class ChatStreamStore {
 
   clearPartial(): void {
     this.ended = false;
-    this.set({ partial: null });
+    this.settleHeld = false;
+    this.set({ partial: null, ending: false });
+  }
+
+  /** The smooth reveal of the shown block started or finished catching up with its text */
+  setRevealing(revealing: boolean): void {
+    if (this.revealing === revealing) return;
+    this.revealing = revealing;
+    if (!revealing && this.settleHeld) this.clearPartial();
   }
 
   /**
@@ -271,6 +355,12 @@ export class ChatStreamStore {
    * that has gone quiet lost its message to a gap in the stream and would otherwise stay forever.
    */
   settle(now = Date.now()): void {
-    if (this.snapshot.partial && (this.ended || now - this.updatedAt > QUIET_MS)) this.clearPartial();
+    if (!this.snapshot.partial) return;
+    if (this.ended && this.revealing) {
+      // The reveal drains within ~150 ms once the block is stored; the page settles again if not
+      this.settleHeld = true;
+      return;
+    }
+    if (this.ended || now - this.updatedAt > QUIET_MS) this.clearPartial();
   }
 }

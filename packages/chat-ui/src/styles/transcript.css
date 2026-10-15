@@ -411,8 +411,17 @@
   background: var(--bg-hover);
 }
 
-/* While Claude is writing, the caret follows the last block */
-.streaming-text > :last-child::after {
+/* The newest words of the block being written arrive faded and settle in two steps (CSS Custom Highlight API, so no DOM is touched) */
+::highlight(stream-fresh-1) {
+  color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+::highlight(stream-fresh-2) {
+  color: color-mix(in srgb, currentColor 65%, transparent);
+}
+
+/* While Claude is writing, the caret follows the last block, unless the fade already shows where text arrives */
+.streaming-text:not(.has-fade) > :last-child::after {
   content: '';
   display: inline-block;
   width: 7px;
@@ -421,11 +430,10 @@
   vertical-align: -0.18em;
   border-radius: var(--radius-xs);
   background: var(--live);
-  box-shadow: 0 0 6px var(--live), 0 0 14px var(--live-soft);
   animation: caret-blink var(--caret-cycle) steps(2, start) infinite;
 }
 
-.streaming-text > .code-block:last-child::after {
+.streaming-text:not(.has-fade) > .code-block:last-child::after {
   display: none;
 }
 

@@ -1656,6 +1656,13 @@
         ],
         "description": "For `partial` events: which kind of block is streaming"
       },
+      "append": {
+        "type": "string",
+        "description": "For `partial` events after the first of a block: text to append at `at` (the length the client must hold)"
+      },
+      "at": {
+        "type": "number"
+      },
       "init": {
         "$ref": "#/components/schemas/RunInit",
         "description": "For `init` events, in the provider's neutral words"
@@ -1698,7 +1705,7 @@
       "partial",
       "delivery"
     ],
-    "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
+    "description": "`partial` events are ephemeral: they carry the block being streamed (the first one of a block, and the first a subscriber receives, all the text so far in `text`; the rest only what is new, in `append`, with where it starts in `at`), reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
   },
   "TranscriptEntry": {
     "type": "object",
@@ -10979,13 +10986,37 @@
       "total": {
         "type": "number",
         "description": "Entries the transcript holds in total, so a caller knows what is still above `from`"
+      },
+      "stream": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "number"
+              },
+              "executionSeq": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "seq",
+              "executionSeq"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat's stream position when this page was read: open the stream from `seq` to miss nothing said after the read, or from `executionSeq` to see the whole live execution. Null without a live chat."
       }
     },
     "required": [
       "chat",
       "entries",
       "from",
-      "total"
+      "total",
+      "stream"
     ],
     "description": "A page of a chat's transcript with the chat it belongs to."
   },

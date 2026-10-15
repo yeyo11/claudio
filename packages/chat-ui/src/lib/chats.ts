@@ -4,7 +4,7 @@ import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
 import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
 import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
-import { appendStreamed, ChatStreamStore, spliceTail, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
+import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
 
 // ---------- reads ----------
@@ -48,6 +48,10 @@ const NO_ITEMS: never[] = [];
  * is windowed whatever the count: the cap is for memory alone.
  */
 const MAX_HELD = 4000;
+
+const liveStreams = new Set<string>();
+/** The chat's page holds an open stream: it keeps the transcript current by itself. */
+export const hasLiveStream = (chatId: string): boolean => liveStreams.has(chatId);
 
 /** The most kept between every chat's run: the one on the page in full, and one more long one behind it. */
 const MAX_HELD_ALL = 2 * MAX_HELD;
@@ -185,12 +189,27 @@ export function useChatTranscript(id: string, sidechains: boolean) {
 
 // ---------- the live stream of a chat ----------
 
+/**
+ * Where a stream opens. A reconnect resumes after what it already saw; a first open starts where the
+ * transcript read ended, or, for an execution that began a moment ago, at its start, because the
+ * person's own message and the first blocks were pushed before this page could open the stream.
+ */
+export function streamSince(lastSeq: number, page: ChatDetail | undefined, now = Date.now()): number {
+  if (lastSeq) return lastSeq;
+  if (!page?.stream) return Number.MAX_SAFE_INTEGER;
+  const startedAt = page.chat.execution?.startedAt;
+  const recent = startedAt !== undefined && now - Date.parse(startedAt) < FRESH_EXECUTION_MS;
+  return recent ? page.stream.executionSeq : page.stream.seq;
+}
+
 /** A quiet spell after stored messages, after which what the stream put on the page is read back. */
 const CONFIRM_AFTER_MS = 1000;
 /** ...and the longest a busy stream goes without that. */
 const CONFIRM_AT_LEAST_EVERY_MS = 4000;
 /** A block stored while its page was not held shows until the page is read, or this long at most. */
 const SETTLE_FALLBACK_MS = 3000;
+/** A live execution that began this recently is replayed whole when its stream opens. */
+const FRESH_EXECUTION_MS = 120_000;
 /** Longest wait between attempts to open a stream the server refused. */
 const RECONNECT_MAX_MS = 30_000;
 /**
@@ -227,6 +246,9 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
     let frame = 0;
     let next: StreamingPartial | null | undefined;
     let streaming: { block: 'text' | 'thinking'; since: string } | null = null;
+    /** The text of the block being streamed, built from a whole partial and the appends after it */
+    let current = '';
+    let heldBlock: 'text' | 'thinking' | null = null;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let hidden: ReturnType<typeof setTimeout> | undefined;
     let confirm: ReturnType<typeof setTimeout> | undefined;
@@ -287,7 +309,10 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         // The same block growing keeps its start; a new one (thinking gave way to text) starts again
         const since = streaming && streaming.block === block ? streaming.since : event.ts || new Date().toISOString();
         streaming = { block, since };
-        next = { block, text: event.text ?? '', since };
+        // An append goes on the block held; a new block always opens with its whole text
+        current = applyPartial(block === heldBlock ? current : '', event);
+        heldBlock = block;
+        next = { block, text: current, since };
         if (!frame) frame = requestAnimationFrame(apply);
         return;
       }
@@ -300,9 +325,13 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         const outcome = show(event.entry);
         scheduleConfirm();
         if (event.entry.role !== 'assistant') return;
+        if (outcome === 'appended' && store.lastBlockHeight !== null) streamedHeight.set(event.entry, store.lastBlockHeight);
+        store.lastBlockHeight = null;
         // The block is final: whatever text of it is still waiting for a frame goes first
         flush();
         streaming = null;
+        current = '';
+        heldBlock = null;
         if (outcome === 'present') return store.clearPartial();
         // It leaves once the transcript shows the message (the page settles it), never before
         store.endPartial();
@@ -317,6 +346,8 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         frame = 0;
         next = undefined;
         streaming = null;
+        current = '';
+        heldBlock = null;
         // A block cut off by an interrupt is never stored; one that was stays until it shows
         if (!store.ending) store.clearPartial();
         // The turn is over: everything the chat's page reads may have moved, once
@@ -324,16 +355,18 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         confirm = undefined;
         confirmBy = 0;
         clearTimeout(turnEnd);
-        turnEnd = setTimeout(() => void client.invalidateQueries({ queryKey: keys.chatScope(id) }), 400);
+        // The global feed invalidates the chat's scope on the status change; this only settles the transcript
+        turnEnd = setTimeout(confirmNow, 400);
       }
     };
 
     const connect = () => {
       retry = undefined;
-      const es = new EventSource(server.streamUrl(id, lastSeq || Number.MAX_SAFE_INTEGER));
+      const es = new EventSource(server.streamUrl(id, streamSince(lastSeq, client.getQueryData<ChatDetail>(keys.chat(id, false)))));
       source = es;
       es.onopen = () => {
         attempts = 0;
+        liveStreams.add(id);
         store.setConnected(true);
         if (!dropped) return;
         dropped = false;
@@ -343,11 +376,14 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         frame = 0;
         next = undefined;
         streaming = null;
+        current = '';
+        heldBlock = null;
         store.clearPartial();
         confirmNow();
       };
       es.onerror = () => {
         dropped = true;
+        liveStreams.delete(id);
         // While the browser is retrying by itself it says CONNECTING; CLOSED means it gave up (the
         // server answered with an error), and only a new EventSource can recover
         store.setConnected(es.readyState === EventSource.OPEN);
@@ -363,6 +399,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       retry = undefined;
       source?.close();
       source = null;
+      liveStreams.delete(id);
     };
 
     const onVisibility = () => {
