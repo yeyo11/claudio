@@ -23,6 +23,8 @@ const ROOT_TYPES = [
   // Agentry's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatMessageResponse', 'ChatInterruptRequest', 'ChatSettingsUpdate', 'ChatMcpServers', 'ChatMcpToggle',
   'UsageReport',
+  // Models per account
+  'ModelFallback', 'ModelFallbacksRequest', 'ModelFallbackSuggestRequest', 'ModelFallbackSuggestion',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
   // What a chat or a task changed on disk
   'ChangeSummary', 'FileDiff', 'ChatChanges', 'Checklist',

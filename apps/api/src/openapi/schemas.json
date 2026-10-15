@@ -12081,6 +12081,125 @@
       "total"
     ]
   },
+  "ModelFallback": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "description": "The model the chat runs on: an alias or an id, matched like `ModelOption.value`"
+      },
+      "to": {
+        "type": "string",
+        "description": "The model that runs instead"
+      },
+      "origin": {
+        "type": "string",
+        "enum": [
+          "user",
+          "suggestion"
+        ]
+      },
+      "at": {
+        "type": "string",
+        "description": "ISO time it was accepted"
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "origin",
+      "at"
+    ],
+    "description": "A model standing in for another on an account that lacks the first (stage A2). Nothing swaps a model silently: a person accepts each pair, and `origin` says whether they wrote it or accepted a suggestion."
+  },
+  "ModelFallbacksRequest": {
+    "type": "object",
+    "properties": {
+      "fallbacks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "origin": {
+              "type": "string",
+              "enum": [
+                "user",
+                "suggestion"
+              ]
+            },
+            "from": {
+              "type": "string",
+              "description": "The model the chat runs on: an alias or an id, matched like `ModelOption.value`"
+            },
+            "to": {
+              "type": "string",
+              "description": "The model that runs instead"
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ]
+        }
+      }
+    },
+    "required": [
+      "fallbacks"
+    ],
+    "description": "The body of `PUT /accounts/model-fallbacks`: the whole list, as settings documents are written."
+  },
+  "ModelFallbackSuggestRequest": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "model"
+    ],
+    "description": "The body of `POST /accounts/model-fallbacks/suggest`: the model no account with headroom can run."
+  },
+  "ModelFallbackSuggestion": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "candidates": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ModelOption"
+        }
+      },
+      "suggestion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "model",
+      "candidates",
+      "suggestion",
+      "confidence",
+      "decisionId"
+    ],
+    "description": "What `account.model-fallback` proposed for a model. `candidates` are the models the accounts with headroom offer, the same line first and then the tier below; `suggestion` is the one the point picked, null when it is off, unavailable or answered `none`. Nothing is saved: the person accepts it with `PUT /accounts/model-fallbacks` and `origin: 'suggestion'`."
+  },
   "TaskHintRequest": {
     "$ref": "#/components/schemas/HintRequest",
     "description": "A nudge sent to a task that is still running, from the orchestration board."
