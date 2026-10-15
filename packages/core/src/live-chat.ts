@@ -311,6 +311,12 @@ export class LiveChat {
   lastResult: RunResult | null = null;
   stopRequested = false;
   idleTimer: NodeJS.Timeout | null = null;
+  /** When the chat went idle, while its idle timer runs */
+  idleSince: number | null = null;
+  /** Pages holding the chat's stream open */
+  viewers = 0;
+  /** Its input was ended to make room for a start: the process is on its way out and no longer counts */
+  released = false;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
   /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */

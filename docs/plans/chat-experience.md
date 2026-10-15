@@ -1101,7 +1101,7 @@ block restarts with `text`. Route: a late subscriber receives a snapshot. Client
 
 ### CHAT-13 — Keep the process warm while the chat is open
 
-Status: proposed.
+Status: **built** on 2026-10-15, as planned; `admit` counts the chats it releases as free (`released` on the live chat). Tests: `packages/core/test/chat-warm.test.ts`.
 
 **Problem.** A chat idle for 10 minutes loses its process (B1.5). Someone reading a long answer
 for 11 minutes then pays a cold `--resume` (with MCP start-up) for their next message.
