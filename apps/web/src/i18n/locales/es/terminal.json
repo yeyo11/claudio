@@ -1,0 +1,157 @@
+{
+  "status": {
+    "connected": "Conectado",
+    "connecting": "Conectando",
+    "reconnecting": "Reconectando",
+    "detached": "En segundo plano",
+    "exited": "Terminó ({{code}})",
+    "exitedWith": "Terminó con {{code}}",
+    "idle": "Cerrado por inactividad",
+    "serverStopped": "Cerrado al parar el servidor",
+    "hostFailed": "Cerrado: ha fallado el host de terminales",
+    "disabled": "Cerrado: las terminales se han desactivado",
+    "readOnly": "Cerrado: modo de solo lectura",
+    "closed": "Cerrado"
+  },
+  "unavailable": {
+    "title": "La terminal no está disponible aquí",
+    "unknown": "Claudio no ha podido saber por qué. Revisa Ajustes → Seguridad.",
+    "settings": "Abrir los ajustes de seguridad",
+    "off": "La terminal está desactivada. Actívala en Ajustes → Seguridad.",
+    "disabled-by-env": "El entorno ha desactivado la terminal (CLAUDIO_TERMINAL).",
+    "pty-missing": "Esta instalación no admite pseudoterminales, así que no se puede iniciar un shell.",
+    "host-failed": "El host de terminales ha fallado varias veces. Reinicia Claudio, o desactiva y vuelve a activar la terminal.",
+    "read-only": "Claudio está en modo de solo lectura, que no permite un shell.",
+    "needs-auth": "Desde otro dispositivo la terminal necesita autenticación con token. Actívala en Ajustes → Seguridad.",
+    "remote-off": "Los demás dispositivos no pueden abrir una terminal. Permite el túnel en Ajustes → Seguridad.",
+    "needs-tunnel": "Desde otro dispositivo la terminal solo se abre a través del túnel.",
+    "from-agent": "No se puede abrir una terminal desde un proceso que ha iniciado un agente.",
+    "chat-token": "El token de un chat no puede abrir una terminal."
+  },
+  "limits": {
+    "off": "Una terminal se abre solo en este equipo. Los demás dispositivos no pueden abrir ninguna.",
+    "tunnel": "Una terminal se abre en este equipo, y desde otros dispositivos solo a través del túnel y con un token.",
+    "any": "Cualquier dispositivo que llegue a esta dirección con un token puede abrir un shell en este equipo."
+  },
+  "notices": {
+    "pasteBlocked": "El navegador no ha permitido leer el portapapeles. Pega con Ctrl+Shift+V.",
+    "pasteTooLarge": "Ese texto supera 1 MiB, así que no se ha pegado nada.",
+    "openFailed": "No se ha podido abrir una terminal",
+    "closeFailed": "No se ha podido cerrar la terminal",
+    "copied": "Se ha copiado la selección",
+    "nothingSelected": "No hay nada seleccionado"
+  },
+  "keys": {
+    "label": "Teclas de la terminal"
+  },
+  "search": {
+    "none": "Sin coincidencias",
+    "placeholder": "Buscar",
+    "label": "Buscar en la terminal",
+    "case": "Distinguir mayúsculas",
+    "regex": "Expresión regular",
+    "previous": "Coincidencia anterior",
+    "next": "Coincidencia siguiente",
+    "close": "Cerrar la búsqueda"
+  },
+  "menu": {
+    "label": "Acciones de la terminal",
+    "copy": "Copiar selección",
+    "paste": "Pegar",
+    "search": "Buscar",
+    "fontUp": "Texto más grande ({{size}} px)",
+    "fontDown": "Texto más pequeño ({{size}} px)",
+    "close": "Cerrar terminal"
+  },
+  "actions": {
+    "reopen": "Abrir de nuevo"
+  },
+  "panel": {
+    "label": "Terminal en {{name}}",
+    "screen": "Terminal en {{path}}",
+    "gone": "Esta terminal ha terminado."
+  },
+  "new": {
+    "button": "Nueva terminal",
+    "choose": "Elegir dónde abrir la terminal",
+    "checkout": "La copia de trabajo del proyecto"
+  },
+  "tabs": {
+    "label": "Terminales abiertas",
+    "close": "Cerrar la terminal {{name}}"
+  },
+  "list": {
+    "none": "No hay ninguna terminal abierta. Abre una para tener un shell aquí.",
+    "failed": "No se han podido leer las terminales."
+  },
+  "dock": {
+    "label": "Terminal",
+    "button": "Terminal",
+    "hint": "Terminal ({{shortcut}})",
+    "resize": "Cambiar el tamaño de la terminal"
+  },
+  "page": {
+    "title": "Terminales",
+    "noProject": "Elige un proyecto para abrir una terminal en él.",
+    "projects": "Ir a proyectos",
+    "notFound": "Esta terminal ya no existe."
+  },
+  "project": {
+    "open": "Abrir terminal",
+    "openIn": "Abrir una terminal en {{name}}"
+  },
+  "palette": {
+    "openIn": "Abrir terminal en {{name}}"
+  },
+  "settings": {
+    "title": "Terminal",
+    "intro": "Tu propio shell, en el directorio del proyecto o en el worktree de un chat. Es para ti, junto a Claude Code: Claudio nunca escribe en él ni lo lee.",
+    "enabled": "Permitir terminales",
+    "fromEnv": "Lo fija el entorno; cámbialo allí.",
+    "remoteLabel": "Desde otros dispositivos",
+    "remoteHint": "Este equipo siempre puede abrir una terminal. Los demás dispositivos necesitan un token.",
+    "remote": {
+      "off": "No permitido",
+      "tunnel": "Solo a través del túnel",
+      "any": "También por la red local"
+    },
+    "maxTerminals": "Terminales a la vez",
+    "idleMinutes": "Cerrar tras minutos sin atender",
+    "scrollbackLines": "Líneas guardadas para recargar",
+    "range": "De {{min}} a {{max}}",
+    "save": "Guardar",
+    "saved": "Se han guardado los ajustes de la terminal",
+    "saveFailed": "No se han podido guardar los ajustes de la terminal",
+    "shell": "Shell",
+    "shellHint": "Un shell de inicio de sesión, con las credenciales de las herramientas del almacén (GitHub, GitLab, YouTrack). Nunca las credenciales de Claude ni las variables de Claudio.",
+    "loginShell": "Tu shell de inicio de sesión",
+    "peerOn": "Se comprueba el proceso que se conecta: un proceso que ha iniciado un agente no puede abrir una terminal.",
+    "peerUnknown": "Aquí no se puede comprobar el proceso que se conecta, así que sin autenticación una terminal se abre solo desde este equipo.",
+    "screenReader": "Modo de lector de pantalla",
+    "screenReaderHint": "Hace la terminal legible para un lector de pantalla, a costa de algo de velocidad. Se guarda en este navegador."
+  },
+  "history": {
+    "title": "Historial de terminales",
+    "none": "Todavía no se ha abierto ninguna terminal",
+    "noneHint": "Aquí aparece cada terminal abierta y cada intento rechazado. Nunca lo que se escribió ni lo que se imprimió.",
+    "when": "Cuándo",
+    "actor": "Quién",
+    "where": "Directorio",
+    "how": "Cómo acabó",
+    "running": "En marcha",
+    "refused": "{{count}} rechazados: {{reasons}}",
+    "ended": {
+      "exit": "El shell terminó",
+      "closed": "La cerraste tú",
+      "idle": "Cerrado por inactividad",
+      "server-stopping": "Cerrado al parar el servidor",
+      "server-crashed": "Terminó al caerse el servidor",
+      "host-failed": "Falló el host",
+      "disabled": "Terminales desactivadas",
+      "read-only": "Modo de solo lectura"
+    },
+    "newer": "Más recientes",
+    "older": "Más antiguos",
+    "range": "{{first}}–{{last}} de {{total}}"
+  }
+}

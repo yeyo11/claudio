@@ -1,0 +1,157 @@
+{
+  "status": {
+    "connected": "Connected",
+    "connecting": "Connecting",
+    "reconnecting": "Reconnecting",
+    "detached": "In the background",
+    "exited": "Exited ({{code}})",
+    "exitedWith": "Exited with {{code}}",
+    "idle": "Closed for inactivity",
+    "serverStopped": "Closed when the server stopped",
+    "hostFailed": "Closed: the terminal host failed",
+    "disabled": "Closed: terminals were turned off",
+    "readOnly": "Closed: read-only mode",
+    "closed": "Closed"
+  },
+  "unavailable": {
+    "title": "The terminal is not available here",
+    "unknown": "Claudio could not tell why. Check Settings → Security.",
+    "settings": "Open Security settings",
+    "off": "The terminal is off. Turn it on in Settings → Security.",
+    "disabled-by-env": "The terminal is turned off by the environment (CLAUDIO_TERMINAL).",
+    "pty-missing": "This install has no pseudo-terminal support, so no shell can be started.",
+    "host-failed": "The terminal host failed repeatedly. Restart Claudio, or turn the terminal off and on again.",
+    "read-only": "Claudio is in read-only mode, which does not allow a shell.",
+    "needs-auth": "From another device the terminal needs token authentication. Turn it on in Settings → Security.",
+    "remote-off": "Other devices cannot open a terminal. Allow the tunnel in Settings → Security.",
+    "needs-tunnel": "From another device the terminal opens only through the tunnel.",
+    "from-agent": "A terminal cannot be opened from a process an agent started.",
+    "chat-token": "A chat's token cannot open a terminal."
+  },
+  "limits": {
+    "off": "A terminal opens only on this machine. Other devices cannot open one.",
+    "tunnel": "A terminal opens on this machine, and from other devices only through the tunnel with a token.",
+    "any": "Any device that reaches this address with a token can open a shell on this machine."
+  },
+  "notices": {
+    "pasteBlocked": "The browser did not allow reading the clipboard. Paste with Ctrl+Shift+V instead.",
+    "pasteTooLarge": "That paste is over 1 MiB, so nothing was pasted.",
+    "openFailed": "Could not open a terminal",
+    "closeFailed": "Could not close the terminal",
+    "copied": "Copied the selection",
+    "nothingSelected": "Nothing is selected"
+  },
+  "keys": {
+    "label": "Terminal keys"
+  },
+  "search": {
+    "none": "No match",
+    "placeholder": "Search",
+    "label": "Search the terminal",
+    "case": "Match case",
+    "regex": "Regular expression",
+    "previous": "Previous match",
+    "next": "Next match",
+    "close": "Close search"
+  },
+  "menu": {
+    "label": "Terminal actions",
+    "copy": "Copy selection",
+    "paste": "Paste",
+    "search": "Search",
+    "fontUp": "Larger text ({{size}} px)",
+    "fontDown": "Smaller text ({{size}} px)",
+    "close": "Close terminal"
+  },
+  "actions": {
+    "reopen": "Open again"
+  },
+  "panel": {
+    "label": "Terminal in {{name}}",
+    "screen": "Terminal in {{path}}",
+    "gone": "This terminal has ended."
+  },
+  "new": {
+    "button": "New terminal",
+    "choose": "Choose where to open the terminal",
+    "checkout": "The project's checkout"
+  },
+  "tabs": {
+    "label": "Open terminals",
+    "close": "Close terminal {{name}}"
+  },
+  "list": {
+    "none": "No terminal is open. Open one to get a shell here.",
+    "failed": "The terminals could not be read."
+  },
+  "dock": {
+    "label": "Terminal",
+    "button": "Terminal",
+    "hint": "Terminal ({{shortcut}})",
+    "resize": "Resize the terminal"
+  },
+  "page": {
+    "title": "Terminals",
+    "noProject": "Choose a project to open a terminal in.",
+    "projects": "Go to projects",
+    "notFound": "This terminal is not there any more."
+  },
+  "project": {
+    "open": "Open terminal",
+    "openIn": "Open a terminal in {{name}}"
+  },
+  "palette": {
+    "openIn": "Open terminal in {{name}}"
+  },
+  "settings": {
+    "title": "Terminal",
+    "intro": "Your own shell, in the project's directory or a chat's worktree. It is for you, beside Claude Code: Claudio never types into it or reads it.",
+    "enabled": "Allow terminals",
+    "fromEnv": "Set by the environment; change it there.",
+    "remoteLabel": "From other devices",
+    "remoteHint": "This machine can always open a terminal. Other devices need a token.",
+    "remote": {
+      "off": "Not allowed",
+      "tunnel": "Through the tunnel only",
+      "any": "Also over the local network"
+    },
+    "maxTerminals": "Terminals at once",
+    "idleMinutes": "Close after minutes unattended",
+    "scrollbackLines": "Lines kept for a reload",
+    "range": "{{min}} to {{max}}",
+    "save": "Save",
+    "saved": "Terminal settings saved",
+    "saveFailed": "Could not save the terminal settings",
+    "shell": "Shell",
+    "shellHint": "A login shell, with the tool credentials from the vault (GitHub, GitLab, YouTrack). Never Claude's own credentials or Claudio's variables.",
+    "loginShell": "Your login shell",
+    "peerOn": "The peer check runs: a process an agent started cannot open a terminal.",
+    "peerUnknown": "The peer check cannot run here, so a terminal opens only from this machine without authentication.",
+    "screenReader": "Screen reader mode",
+    "screenReaderHint": "Makes the terminal readable to a screen reader, at some cost in speed. Kept in this browser."
+  },
+  "history": {
+    "title": "Terminal history",
+    "none": "No terminal opened yet",
+    "noneHint": "Every terminal opened, and every attempt that was turned away, is listed here. Never what was typed or printed.",
+    "when": "When",
+    "actor": "Who",
+    "where": "Directory",
+    "how": "How it went",
+    "running": "Running",
+    "refused": "{{count}} refused: {{reasons}}",
+    "ended": {
+      "exit": "The shell exited",
+      "closed": "Closed by you",
+      "idle": "Closed for inactivity",
+      "server-stopping": "Closed when the server stopped",
+      "server-crashed": "Ended when the server crashed",
+      "host-failed": "The host failed",
+      "disabled": "Terminals turned off",
+      "read-only": "Read-only mode"
+    },
+    "newer": "Newer",
+    "older": "Older",
+    "range": "{{first}}–{{last}} of {{total}}"
+  }
+}

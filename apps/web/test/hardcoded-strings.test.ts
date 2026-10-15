@@ -41,6 +41,8 @@ const ALLOWED: ReadonlyArray<{ text: string; why: string }> = [
   { text: 'Tailscale', why: "the network's own name, a proper noun that is never translated" },
   { text: 'Esc', why: 'the key as it is engraved on the keyboard' },
   { text: 'Ctrl', why: 'the key as it is engraved on the keyboard' },
+  { text: 'Alt', why: 'the key as it is engraved on the keyboard' },
+  { text: 'Tab', why: 'the key as it is engraved on the keyboard' },
   { text: 'The user declined to answer', why: 'the default deny reason, read by the model and not by a person' },
   { text: 'The user wants to keep planning', why: 'the default plan feedback, read by the model and not by a person' },
 ];
