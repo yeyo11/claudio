@@ -326,16 +326,16 @@ test('prompt injection: a grandchild of a chat that dropped CLAUDIO_CHAT_ID is s
   assert.match(out, /^403 .*from-agent/);
 });
 
-test(
-  'prompt injection: a chat process that detaches and drops CLAUDIO_CHAT_ID is still refused under none',
-  { todo: 'finding T8-1 in docs/reports/terminal-security.md: the peer check scans the chats’ trees only, and a reparented process has left them' },
-  async (t) => {
-    const w = await wrapper(t, { verdict: 'real' });
-      const open = await listen(t, w.app);
-    const out = await fromChatTree(t, open.base, { detach: true });
-    assert.match(out, /^403 .*from-agent/);
-  },
-);
+// T8-1, accepted by the owner on 2026-10-15 (plans/terminal.md, Decisions): under `none` nothing the
+// person holds is secret from a process running as the same user, so a detached process is not caught.
+// The test pins that, so fixing it later (a cgroup per chat) fails here and the warning in Settings goes
+// with it. Under a token or OIDC it is refused anyway: it holds no credential.
+test('prompt injection: under none, a chat process that detaches and drops CLAUDIO_CHAT_ID reads like the person (T8-1, accepted and warned in Settings)', async (t) => {
+  const w = await wrapper(t, { verdict: 'real' });
+  const open = await listen(t, w.app);
+  const out = await fromChatTree(t, open.base, { detach: true });
+  assert.match(out, /^200 /);
+});
 
 // ---------- a leaked owner token ----------
 

@@ -46,6 +46,13 @@ sections below where they differ.
    A daemon that survives restarts is a possible v2 (Q3). Rejected: surviving restarts in v1; one tab,
    one shell.
 
+5. **T8-1, an agent that detaches (owner, 2026-10-15): accepted, with a warning.** With authentication
+   off, an agent that has a shell can leave its chat's process tree (a detached process) and reach the
+   terminal; with token or OIDC authentication it cannot. The card says so beside the switch when the
+   mode is `none`. Rejected: a cgroup per chat (peer check reads `/proc/<pid>/cgroup`), and the
+   terminal working only once token authentication is on. See
+   [the audit](../reports/terminal-security.md#t8-1--under-auth-off-a-detached-agent-passes-the-peer-check-high-within-its-scope-open-owner-decision).
+
 Still open, with this plan's default unless the owner says otherwise: Q2 (re-confirm the token
 before opening from another device: default no), Q4 (no `/proc` under auth off: terminal
 unavailable), Q5 (no refusal while an agent works in the same worktree), Q6 (a chat without a
@@ -899,8 +906,10 @@ CREATE INDEX terminal_attachments_session ON terminal_attachments (session_id);
 The card that turns the terminal on says, in en/es: that it runs commands as the user that runs
 Claudio, with access to everything that user can reach; that with authentication off it only works
 on this machine; that from another device it goes through the tunnel unless the person allows the
-plain LAN address, which sends keystrokes unencrypted; that agents can never use it; and that what
-is typed is not recorded, only who opened what and when.
+plain LAN address, which sends keystrokes unencrypted; that with authentication off an agent that has a shell can reach it (a detached process leaves its
+chat's process tree), while with token or OIDC authentication it cannot (shown as a warning beside the
+switch only when the mode is `none`, decision 5); and that what is typed is not recorded, only who
+opened what and when.
 
 ---
 

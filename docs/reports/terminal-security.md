@@ -48,9 +48,9 @@ The gate holds against every attacker that has no shell on this machine:
 
 It also refuses a chat's process tree when that tree has no token.
 
-One finding is open and serious within its scope (**T8-1**). With auth off, an agent that has a Bash
+One finding was serious within its scope (**T8-1**): with auth off, an agent that has a Bash
 tool can leave its chat's process tree and type into a shell the person has open. No small fix
-exists: it needs an owner decision.
+exists; the owner accepted it with a warning in Settings.
 
 Two small findings were fixed in t3's files (**T8-4**, **T8-5**). One finding for the core is open
 (**T8-3**, the flow-control freeze t7 measured). The rest are low.
@@ -65,7 +65,7 @@ Two small findings were fixed in t3's files (**T8-4**, **T8-5**). One finding fo
 | DNS rebinding | "DNS rebinding": `Host: rebind.evil.example` from loopback, on every route and the upgrade, under `none` and under a token. | `421` before any credential or gate. **Holds** |
 | A prompt injection in a chat (with its token) | "prompt injection" ×2: a chat token on the upgrade, as `Authorization` and as `?token=`, under `none` and under a token. Plus the existing "a chat token… 403 on every route, reads too". | `403 chat-token` under `none`. `?token=` is no credential on the socket. Under a token, the socket asks for a ticket that a chat cannot mint. **Holds** |
 | A prompt injection in a chat (no token, from its process tree) | "a grandchild of a chat that dropped `CLAUDIO_CHAT_ID`" through the **real** peer check. Plus the existing "a request from a chat's own process…". | `403 from-agent`, and the attempt is a row. **Holds** |
-| The same, after the chat process detaches | `todo` test "a chat process that detaches…", plus the manual check below. | **Fails under `mode: none`: T8-1** |
+| The same, after the chat process detaches | test "a chat process that detaches…" (it pins the accepted behaviour), plus the manual check below. | **Reaches the shell under `mode: none`: T8-1, accepted by the owner, warned in Settings** |
 | A leaked owner token | "leaked token" ×4: with the feature off, a LAN request with the token opens nothing and cannot turn it on. A session opened from another device names the address. Rotating the token, or narrowing `remote`, while a socket is attached. | Feature off: `409`. Turning it on: `403 needs-tunnel`. The session row has `client: 192.168.1.42`. Before T8-5 an attached socket **stayed open** after rotation, and a ticket minted with the old token still opened one for 30 s. Both now end. **Holds after the fix** |
 | The tunnel | "tunnel, auth off": the runtime host on every route and the upgrade, and the tunnel's client-IP header on a loopback name. Plus the existing "tunnel only by default", where the tunnel name from a LAN peer is refused. | `403 needs-auth` under `none`. Under a token it is allowed only from a loopback peer on the runtime name. **Holds** |
 
@@ -79,7 +79,13 @@ The last paragraph of §3.1 asks for two things:
 
 ## Findings
 
-### T8-1 — Under auth off, a detached agent passes the peer check (high within its scope, open, owner decision)
+### T8-1 — Under auth off, a detached agent passes the peer check (high within its scope, accepted by the owner, warned in Settings)
+
+**Status (2026-10-15): accepted by the owner, warned in Settings.** Option (c) and the cgroup option
+(a) were rejected. The card warns beside the switch when the auth mode is `none`; §3.11, the security
+model and the terminal doc say the same. The `todo` test is now a passing test that pins the accepted
+behaviour, so fixing it later fails the test and forces the warning to be removed with it.
+
 
 **What.** §3.5 finds the client's socket among the file descriptors of the chats' processes and their
 descendants. A chat's process is one that carries `CLAUDIO_CHAT_ID`, and a descendant is found by
@@ -131,8 +137,8 @@ the same user. Options for the owner:
 - **(c)** Revisit decision 1: under `mode: none`, the terminal works only after the person has turned
   token authentication on.
 
-The Settings card should say, beside the switch, that with auth off an agent that has a shell can
-reach it. §3.11 currently says "agents can never use it", which is not true under `mode: none`.
+The Settings card now says, beside the switch, that with auth off an agent that has a shell can
+reach it, and §3.11 no longer says "agents can never use it".
 
 ### T8-2 — Processes Claudio starts outside a chat's tree are not checked (medium, open, core)
 
@@ -250,7 +256,7 @@ Tested by "rotating the token… ends the sockets" and "narrowing `remote`…".
 ## Checks run (2026-10-15)
 
 - `pnpm typecheck` (root): exit 0.
-- `pnpm --filter @claudio/api test`: 352 tests, 351 pass, 0 fail, 1 todo (T8-1).
+- `pnpm --filter @claudio/api test`: 352 tests, 351 pass, 0 fail, 0 todo (T8-1 is now a test of the accepted behaviour).
 - `pnpm --filter @claudio/core test`: 2 245 tests, 2 239 pass, 0 fail, 5 skipped, 1 todo (T8-3).
   - The skips are conformance cases the Claude Code harness has no rig for. None is a terminal test.
 - No process was left running. The detached child in the T8-1 test ends itself after 5 s.

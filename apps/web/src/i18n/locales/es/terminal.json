@@ -125,6 +125,7 @@
     "shell": "Shell",
     "shellHint": "Un shell de inicio de sesión, con las credenciales de las herramientas del almacén (GitHub, GitLab, YouTrack). Nunca las credenciales de Claude ni las variables de Claudio.",
     "loginShell": "Tu shell de inicio de sesión",
+    "agentReach": "Aviso: sin autenticación, un agente que tenga un shell puede llegar a la terminal, porque un proceso desacoplado sale del árbol de procesos de su chat. Con autenticación por token o por OIDC no puede.",
     "peerOn": "Se comprueba el proceso que se conecta: un proceso que ha iniciado un agente no puede abrir una terminal.",
     "peerUnknown": "Aquí no se puede comprobar el proceso que se conecta, así que sin autenticación una terminal se abre solo desde este equipo.",
     "screenReader": "Modo de lector de pantalla",
