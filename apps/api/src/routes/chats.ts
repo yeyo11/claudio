@@ -217,6 +217,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     // Subscribe before replaying so nothing is lost in between; the client dedupes by seq.
     stream.onClose(chats.subscribe(req.params.id, write));
     for (const event of chats.events(req.params.id, lastEventId)) write(event);
+    // Partials after the first are appends: someone joining mid-block needs the text so far
+    const snapshot = chats.partialSnapshot(req.params.id);
+    if (snapshot) write(snapshot);
   });
 
   // What the CLI is holding until someone decides: tool calls, questions, plans. The chat's event

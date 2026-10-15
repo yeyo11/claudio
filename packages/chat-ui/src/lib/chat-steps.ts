@@ -86,7 +86,8 @@ function partsOf(entries: TranscriptEntry[]): StepPart[] {
  * a run with only thinking in it stays as it is (there is nothing to fold). A subagent's entries
  * never share a step with the chat's own, and a row says who wrote it only when that changes.
  */
-export function transcriptRows(entries: readonly TranscriptEntry[]): TranscriptRow[] {
+export function transcriptRows(entries: readonly TranscriptEntry[], previous?: readonly TranscriptRow[]): TranscriptRow[] {
+  const before = new Map(previous?.map((row) => [row.key, row]));
   const rows: TranscriptRow[] = [];
   let lastAuthor: string | null = null;
   let i = 0;
@@ -103,7 +104,7 @@ export function transcriptRows(entries: readonly TranscriptEntry[]): TranscriptR
       const run = entries.slice(i, end + 1);
       const parts = partsOf(run);
       if (parts.some((p) => p.kind === 'call')) {
-        rows.push({
+        const step: TranscriptRow = {
           kind: 'step',
           key: first.uuid || `step-${i}`,
           entries: run,
@@ -112,7 +113,9 @@ export function transcriptRows(entries: readonly TranscriptEntry[]): TranscriptR
           endedAt: run.at(-1)?.timestamp ?? null,
           pending: parts.some((p) => p.kind === 'call' && p.result === null && p.name !== null),
           isSidechain: first.isSidechain,
-        });
+        };
+        const old = before.get(step.key);
+        rows.push(old && old.kind === 'step' && old.entries.length === run.length && old.entries.every((e, k) => e === run[k]) ? old : step);
         // A step is Claude's (or its subagent's) doing, whatever role the results were filed under
         lastAuthor = `assistant:${first.isSidechain}`;
         i = end + 1;
@@ -121,7 +124,9 @@ export function transcriptRows(entries: readonly TranscriptEntry[]): TranscriptR
     }
     // Results on their own (their calls are on a page not read yet) do not change who is speaking
     const who: string | null = onlyResults(first) ? lastAuthor : author(first);
-    rows.push({ kind: 'entry', key: first.uuid || `entry-${i}`, entry: first, continued: who === lastAuthor && lastAuthor !== null });
+    const row: TranscriptRow = { kind: 'entry', key: first.uuid || `entry-${i}`, entry: first, continued: who === lastAuthor && lastAuthor !== null };
+    const old = before.get(row.key);
+    rows.push(old && old.kind === 'entry' && old.entry === first && old.continued === row.continued ? old : row);
     lastAuthor = who;
     i++;
   }

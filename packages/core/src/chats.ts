@@ -529,6 +529,11 @@ export class ChatManager extends EventEmitter {
     return chat ? { seq: chat.seq, executionSeq: chat.executionSeq } : null;
   }
 
+  /** The block being written right now, whole, for a subscriber that joined in the middle of it. */
+  partialSnapshot(id: string): RunEvent | null {
+    return this.chats.get(id)?.partialSnapshot() ?? null;
+  }
+
   /**
    * The messages a chat's process streamed, oldest first: what its transcript would hold, for a
    * chat that keeps none (housekeeping ones run without persistence, and a new one has written

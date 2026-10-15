@@ -920,6 +920,11 @@ export class ChatService {
     return this.deps.runtime.events(id, sinceSeq);
   }
 
+  /** The block being written right now, whole, for a subscriber that joined in the middle of it. */
+  partialSnapshot(id: string): RunEvent | null {
+    return this.deps.runtime.partialSnapshot(id);
+  }
+
   /** Whether Agentry has a live stream for the chat to follow. */
   streams(id: string): boolean {
     return this.deps.runtime.get(id) !== null;

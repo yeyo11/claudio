@@ -99,6 +99,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // here, seconds before its arguments have finished streaming
       chat.activity.blockStarted(event.block, now());
       chat.partial = event.streams === 'other' ? null : { block: event.streams, text: '' };
+      chat.partialSent = null;
       chat.structured = event.structured ? '' : null;
       return;
 
@@ -116,6 +117,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
     case 'block-stopped':
       chat.activity.blockStopped();
       chat.partial = null;
+      chat.partialSent = null;
       chat.structured = null;
       return;
 
