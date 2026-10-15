@@ -97,7 +97,7 @@ const MAX_LIMIT_REPLAYS = 1;
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@agentry/accounts` builds it */
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'settings' | 'policyFor' | 'get'>;
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -215,7 +215,9 @@ export class ChatManager extends EventEmitter {
     this.file = join(config.dataDir, 'runs.json');
     this.modelIds = new ModelAliasIds(config.dataDir);
     for (const driver of drivers) {
-      if (driver instanceof ClaudeCodeDriver) driver.modelSource = { file: config.globalConfigFile, seen: () => this.modelIds.get() };
+      if (driver instanceof ClaudeCodeDriver) {
+        driver.modelSource = { file: config.globalConfigFile, seen: () => this.modelIds.get(), listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
+      }
     }
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
     const manager = this;
@@ -1086,7 +1088,7 @@ export class ChatManager extends EventEmitter {
       reason = 'limit';
     } else {
       const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, now: at });
+      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, now: at, model: chat.model });
       to = choice.account ?? chat.account ?? DEFAULT_ID;
       reason = choice.reason;
     }
@@ -1157,7 +1159,12 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt });
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model });
+  }
+
+  /** Reads the model lists the account choice needs and does not have yet (no turn, no tokens). */
+  async warmModels(): Promise<void> {
+    await this.accounts?.warmModels();
   }
 
   /** The id of the account the chat's last process ran on; null when it ran on none. */

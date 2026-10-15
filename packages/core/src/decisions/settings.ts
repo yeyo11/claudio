@@ -6,6 +6,7 @@ import type {
   DecisionPointSettings,
   DecisionProviderId,
   DecisionSettings,
+  ModelFallback,
   ProjectDecisionSettings,
 } from '@agentry/shared';
 import { writeAtomic } from '../config/files.ts';
@@ -43,6 +44,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'checks.fix',
   'review.triage',
   'issue.triage',
+  'account.model-fallback',
 ];
 
 /** The provider points of the multi-vendor days, which an old `project.json` may still carry */
@@ -58,6 +60,7 @@ const GLOBAL_ONLY_POINTS: ReadonlySet<DecisionPointId> = new Set([
   'health.test-weakening',
   'palette.intent',
   'notification.urgency',
+  'account.model-fallback',
 ]);
 
 export const DECISION_MODES: readonly DecisionMode[] = ['off', 'shadow', 'active'];
@@ -331,4 +334,94 @@ export class DecisionSettingsStore {
   private async write(settings: StoredDecisionSettings): Promise<void> {
     await writeAtomic(this.file, `${JSON.stringify(settings, null, 2)}\n`);
   }
+}
+
+const MAX_MODEL_FALLBACKS = 50;
+
+/**
+ * `model-fallbacks.json`: the model mappings a person accepted, one per `from`. Settings-shaped, so a
+ * JSON file; absent until the first save, which reads as no mapping, so a chat waits instead of
+ * changing model. Like the other decision settings it is global and written by a person: the API
+ * refuses a chat's token on `PUT`.
+ */
+export class ModelFallbackStore {
+  private readonly file: string;
+
+  constructor(config: CoreConfig) {
+    this.file = join(config.dataDir, 'model-fallbacks.json');
+    mkdirSync(config.dataDir, { recursive: true });
+  }
+
+  /** A hand-edited entry that went bad is skipped on its own, so one typo does not drop the rest */
+  list(): ModelFallback[] {
+    if (!existsSync(this.file)) return [];
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(this.file, 'utf8'));
+    } catch {
+      return [];
+    }
+    if (!isObject(raw) || !Array.isArray(raw.fallbacks)) return [];
+    const seen = new Set<string>();
+    const fallbacks: ModelFallback[] = [];
+    for (const entry of raw.fallbacks) {
+      try {
+        const parsed = parseModelFallback(entry, 'fallbacks');
+        if (seen.has(parsed.from)) continue;
+        seen.add(parsed.from);
+        fallbacks.push(parsed);
+      } catch {
+        // skipped
+      }
+    }
+    return fallbacks;
+  }
+
+  /** The model a chat on `model` runs on instead, if a person accepted one */
+  target(model: string): string | null {
+    return this.list().find((f) => f.from === model)?.to ?? null;
+  }
+
+  /**
+   * Replaces the document. A pair already there keeps its `origin` and `at`; a new one is stamped
+   * now, as a suggestion only when the request says so.
+   */
+  async set(input: unknown, now: Date = new Date()): Promise<ModelFallback[]> {
+    if (!isObject(input) || !Array.isArray(input.fallbacks)) throw new Error('fallbacks must be an array');
+    if (input.fallbacks.length > MAX_MODEL_FALLBACKS) throw new Error(`fallbacks holds at most ${String(MAX_MODEL_FALLBACKS)} entries`);
+    const before = this.list();
+    const seen = new Set<string>();
+    const fallbacks: ModelFallback[] = input.fallbacks.map((raw, index) => {
+      const field = `fallbacks[${String(index)}]`;
+      if (!isObject(raw)) throw new Error(`${field} must be an object`);
+      const from = parseModelId(raw.from, `${field}.from`);
+      const to = parseModelId(raw.to, `${field}.to`);
+      if (from === to) throw new Error(`${field}: a model cannot fall back on itself`);
+      if (seen.has(from)) throw new Error(`${field}: ${from} already has a fallback`);
+      seen.add(from);
+      const kept = before.find((f) => f.from === from && f.to === to);
+      if (kept) return kept;
+      const origin = raw.origin === undefined ? 'user' : raw.origin;
+      if (origin !== 'user' && origin !== 'suggestion') throw new Error(`${field}.origin must be user or suggestion`);
+      return { from, to, origin, at: now.toISOString() };
+    });
+    await writeAtomic(this.file, `${JSON.stringify({ fallbacks }, null, 2)}\n`);
+    return fallbacks;
+  }
+}
+
+function parseModelId(value: unknown, field: string): string {
+  const id = typeof value === 'string' ? value.trim() : '';
+  if (!MODEL_RE.test(id)) throw new Error(`${field} must be a model alias or id`);
+  return id;
+}
+
+function parseModelFallback(raw: unknown, field: string): ModelFallback {
+  if (!isObject(raw)) throw new Error(`${field} must be an object`);
+  const from = parseModelId(raw.from, `${field}.from`);
+  const to = parseModelId(raw.to, `${field}.to`);
+  if (from === to) throw new Error(`${field}: a model cannot fall back on itself`);
+  if (raw.origin !== 'user' && raw.origin !== 'suggestion') throw new Error(`${field}.origin must be user or suggestion`);
+  if (typeof raw.at !== 'string' || Number.isNaN(Date.parse(raw.at))) throw new Error(`${field}.at must be a date`);
+  return { from, to, origin: raw.origin, at: raw.at };
 }

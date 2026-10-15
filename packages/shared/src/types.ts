@@ -136,6 +136,51 @@ export interface ModelOption {
   disabled?: boolean;
   /** How capable it is among its provider's models, where the provider says; a model with no rank has none */
   tier?: ModelTier;
+  /** The concrete model id behind `value` (`claude-opus-5-5` for `opus`), as the CLI's `initialize` reports it */
+  resolvedModel?: string;
+  /** Whether the model takes an effort level at all */
+  supportsEffort?: boolean;
+  /** The effort levels it takes (`low`, `medium`, `high`, `xhigh`, `max`); only these are offered for it */
+  supportedEffortLevels?: string[];
+}
+
+/**
+ * A model standing in for another on an account that lacks the first (stage A2). Nothing swaps a
+ * model silently: a person accepts each pair, and `origin` says whether they wrote it or accepted
+ * a suggestion.
+ */
+export interface ModelFallback {
+  /** The model the chat runs on: an alias or an id, matched like `ModelOption.value` */
+  from: string;
+  /** The model that runs instead */
+  to: string;
+  origin: 'user' | 'suggestion';
+  /** ISO time it was accepted */
+  at: string;
+}
+
+/** The body of `PUT /accounts/model-fallbacks`: the whole list, as settings documents are written. */
+export interface ModelFallbacksRequest {
+  fallbacks: Array<Pick<ModelFallback, 'from' | 'to'> & Partial<Pick<ModelFallback, 'origin'>>>;
+}
+
+/** The body of `POST /accounts/model-fallbacks/suggest`: the model no account with headroom can run. */
+export interface ModelFallbackSuggestRequest {
+  model: string;
+}
+
+/**
+ * What `account.model-fallback` proposed for a model. `candidates` are the models the accounts
+ * with headroom offer, the same line first and then the tier below; `suggestion` is the one the
+ * point picked, null when it is off, unavailable or answered `none`. Nothing is saved: the person
+ * accepts it with `PUT /accounts/model-fallbacks` and `origin: 'suggestion'`.
+ */
+export interface ModelFallbackSuggestion {
+  model: string;
+  candidates: ModelOption[];
+  suggestion: string | null;
+  confidence: number | null;
+  decisionId: string | null;
 }
 
 /** A provider's models by how fast or how strong they are; what model mapping across providers builds on. */
@@ -6876,7 +6921,8 @@ export type DecisionPointId =
   | 'notification.urgency'
   | 'checks.fix'
   | 'review.triage'
-  | 'issue.triage';
+  | 'issue.triage'
+  | 'account.model-fallback';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =

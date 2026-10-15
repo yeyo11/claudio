@@ -12,6 +12,7 @@ import { formatDateTime, timeAgo, toMs } from '@agentry/ui/lib/format';
 import { accountName, sortAccounts } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
+import { ModelFallbacksCard } from './accounts/ModelFallbacksCard';
 import { PoliciesCard } from './accounts/PoliciesCard';
 import { RotationCard } from './accounts/RotationCard';
 import { UsageHistoryCard } from './accounts/UsageHistoryCard';
@@ -26,6 +27,7 @@ export function Accounts() {
   const overview = useOverview();
   const settings = useQuery({ queryKey: keys.accountsSettings, queryFn: ({ signal }) => api.accountsSettings({ signal }) });
   const policies = useQuery({ queryKey: keys.accountPolicies, queryFn: ({ signal }) => api.accountPolicies({ signal }) });
+  const fallbacks = useQuery({ queryKey: keys.modelFallbacks, queryFn: ({ signal }) => api.modelFallbacks({ signal }) });
   const [fullHistory, setFullHistory] = useState(false);
   const events = useQuery({
     queryKey: [...keys.accountEvents, fullHistory ? 500 : 40],
@@ -133,6 +135,8 @@ export function Accounts() {
       {settings.data && <RotationCard key={JSON.stringify(settings.data)} settings={settings.data} />}
 
       <PoliciesCard policies={policies.data ?? []} accounts={data} />
+
+      <ModelFallbacksCard fallbacks={fallbacks.data ?? []} />
 
       <UsageHistoryCard accounts={data} threshold={settings.data?.threshold ?? 85} />
 

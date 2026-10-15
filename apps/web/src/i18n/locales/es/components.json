@@ -366,6 +366,7 @@
       "opus-medium": "Opus 5.5 da sus mejores resultados en medium; low se acerca en muchas tareas de código con un coste mucho menor.",
       "sonnet-medium": "Sonnet 5.5 rinde bien en medium en tareas bien especificadas y en el chat; en low puede saltarse la verificación.",
       "sonnet-high": "Sonnet 5.5 rinde mejor en high al planificar y al arreglar lo que falló, donde el trabajo es difícil o largo."
-    }
+    },
+    "unavailableModel": "Este modelo no admite niveles de effort."
   }
 }

@@ -206,7 +206,8 @@
       "turns_one": "{{count}} turns",
       "turns_other": "{{count}} turns",
       "budget": "budget {{amount}}",
-      "errorPrefix": "Error:"
+      "errorPrefix": "Error:",
+      "switchedFrom": "switched from {{model}}"
     },
     "branches": {
       "title": "Branches ({{n}})",

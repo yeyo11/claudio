@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -210,6 +210,7 @@ test('usage history and events are read from their tables, oldest first, with fi
 
 test("a chat's token reads the accounts but changes none, and cannot read a sign-in", async () => {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-api-accounts-sec-'));
+  mkdirSync(join(dir, 'claude')); // the fake CLI writes its probe counter there
   const secured = new Core(
     loadConfig({ CLAUDE_BIN: FAKE_CLAUDE, CLAUDE_CONFIG_DIR: join(dir, 'claude'), AGENTRY_WORKSPACE_DIR: join(dir, 'workspace'), AGENTRY_DATA_DIR: join(dir, 'data') }),
   );
@@ -224,7 +225,7 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
     });
 
-    for (const url of ['/api/accounts', '/api/accounts/settings', '/api/accounts/policies', '/api/accounts/usage-history', '/api/accounts/events']) {
+    for (const url of ['/api/accounts', '/api/accounts/settings', '/api/accounts/policies', '/api/accounts/usage-history', '/api/accounts/events', '/api/accounts/model-fallbacks', '/api/accounts/default/models']) {
       assert.equal((await guarded.inject({ url, ...as(chat) })).statusCode, 200, url);
     }
     const created = await guarded.inject({ method: 'POST', url: '/api/accounts/token', ...as(owner, { kind: 'token', alias: 'ci', secret: 's' }) });
@@ -240,6 +241,7 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ['PATCH', `/api/accounts/${id}`, { enabled: false }],
       ['DELETE', `/api/accounts/${id}`, undefined],
       ['PUT', '/api/accounts/settings', { threshold: 80 }],
+      ['PUT', '/api/accounts/model-fallbacks', { fallbacks: [] }],
       ['POST', '/api/accounts/policies', { projects: ['p'] }],
       ['PUT', '/api/accounts/policies/any', { projects: ['p'] }],
       ['DELETE', '/api/accounts/policies/any', undefined],

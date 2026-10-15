@@ -116,7 +116,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   transcripts: TranscriptStore | null = null;
 
   /** Where the CLI lists what the account may run, and the names chats learned for the aliases; set by the manager */
-  modelSource: { file: string; seen: () => Readonly<Record<string, string>> } | null = null;
+  modelSource: { file: string; seen: () => Readonly<Record<string, string>>; listed?: () => ModelOption[] | null } | null = null;
 
   constructor(private readonly claudeBin: string) {}
 
@@ -125,7 +125,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   models(): ModelOption[] {
-    return modelOptions(this.modelSource?.file ?? '', this.modelSource?.seen() ?? {});
+    return modelOptions(this.modelSource?.file ?? '', this.modelSource?.seen() ?? {}, this.modelSource?.listed?.() ?? null);
   }
 
   modelNames(model: string): string[] {

@@ -108,6 +108,19 @@ fixer on sonnet.
 - `m5` web: the fuller model picker, effort levels per model, the fallback editor and the
   per-segment model on the chat; locales en/es, fixtures. Depends on m4.
 
+## Web (m5, built)
+
+- The picker reads the overview's model list once per model (`dedupeModels`: an alias and its id
+  collapse; the `[1m]` variant stays) and shows each description, on the phone sheet too.
+- `EffortPicker` offers only the model's `supportedEffortLevels`; `supportsEffort: false` disables
+  it. A model the list does not cover keeps every level.
+- Settings live on the Accounts page: `ModelFallbacksCard` edits `model-fallbacks.json` and accepts
+  the `account.model-fallback` suggestion (`origin: 'suggestion'`); nothing is saved before that.
+- The chat's Executions card shows each segment's model and effort, and "switched from X" when it
+  differs from the segment before.
+- Not wired: pickers use the default account's list; `GET /accounts/:id/models` has a client
+  method but no screen.
+
 ## Risks
 
 | Risk | What holds it |

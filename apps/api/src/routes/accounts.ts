@@ -4,6 +4,9 @@ import type {
   Account,
   AccountLoginSession,
   AccountsSettings,
+  ModelFallback,
+  ModelFallbackSuggestion,
+  ModelOption,
   RotationEvent,
   RotationPolicy,
   RotationPolicyRequest,
@@ -19,7 +22,31 @@ import { AccountLogins } from '../account-logins.ts';
  * chat's token in `security.ts`.
  */
 
-const WINDOWS: ReadonlyArray<UsageHistoryPoint['window']> = ['five_hour', 'seven_day'];
+const TIER_RANK = { fast: 0, balanced: 1, strong: 2 } as const;
+const LINES = ['opus', 'sonnet', 'haiku', 'fable'];
+
+/** The model line a name belongs to (`opus` for `claude-opus-5-5`), where it names one. */
+const lineOf = (option: Pick<ModelOption, 'value' | 'resolvedModel' | 'ids'>): string | null => {
+  const names = [option.value, option.resolvedModel, ...(option.ids ?? [])].map((n) => (n ?? '').toLowerCase());
+  return LINES.find((line) => names.some((n) => n.includes(line))) ?? null;
+};
+
+/**
+ * The models a fallback may map to: the same line first, then the tier below it (nearest first).
+ * A higher tier is never offered, and neither is a model the CLI lists but cannot run.
+ */
+export function fallbackCandidates(model: ModelOption | null, wanted: string, offered: ModelOption[]): ModelOption[] {
+  const line = model ? lineOf(model) : lineOf({ value: wanted });
+  const rank = model?.tier ? TIER_RANK[model.tier] : null;
+  const usable = offered.filter((o) => !o.disabled && o.value !== 'default' && o.value !== wanted && o.resolvedModel !== wanted);
+  const sameLine = usable.filter((o) => line !== null && lineOf(o) === line);
+  const below = usable
+    .filter((o) => !sameLine.includes(o) && o.tier !== undefined && rank !== null && TIER_RANK[o.tier] < rank)
+    .sort((a, b) => TIER_RANK[b.tier ?? 'fast'] - TIER_RANK[a.tier ?? 'fast']);
+  return [...sameLine, ...below];
+}
+
+const WINDOWS:ReadonlyArray<UsageHistoryPoint['window']> = ['five_hour', 'seven_day'];
 
 const body = (value: unknown): Record<string, unknown> => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('the body must be a JSON object');
@@ -88,6 +115,34 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   app.put<{ Body: unknown }>('/accounts/settings', (req): Promise<AccountsSettings> => core.accounts.setSettings(body(req.body) as Partial<AccountsSettings>));
 
+  app.get('/accounts/model-fallbacks', (): ModelFallback[] => core.modelFallbacks.list());
+
+  app.put<{ Body: unknown }>('/accounts/model-fallbacks', (req): Promise<ModelFallback[]> => core.modelFallbacks.set(req.body));
+
+  app.post<{ Body: unknown }>('/accounts/model-fallbacks/suggest', async (req): Promise<ModelFallbackSuggestion> => {
+    const model = body(req.body).model;
+    if (typeof model !== 'string' || model.trim() === '') throw new Error('model must be a non-empty string');
+    await core.accounts.warmModels();
+    const ready = core.accounts.list().filter((a) => a.enabled && a.signedIn);
+    const listed = ready.flatMap((a) => core.accounts.cachedModels(a.id) ?? []);
+    // Only the models the accounts with headroom offer can be a target, and each once
+    const offered = [...new Map(listed.map((o) => [o.value, o])).values()];
+    const own = listed.find((o) => o.value === model || o.resolvedModel === model || o.ids?.includes(model)) ?? null;
+    const candidates = fallbackCandidates(own, model, offered);
+    const base: ModelFallbackSuggestion = { model, candidates, suggestion: null, confidence: null, decisionId: null };
+    if (candidates.length === 0) return base;
+    const outcome = await core.decisions.ask(
+      'account.model-fallback',
+      { kind: 'model', id: model, data: { model, candidates: candidates.map((c) => ({ id: c.value, displayName: c.label ?? c.value, tier: c.tier ?? '' })) } },
+      { projectId: null },
+    );
+    const answer = outcome.act ? outcome.answers?.model : undefined;
+    const value = answer?.kind === 'choice' ? answer.value : null;
+    // `none` and a value the caller never listed both mean "no suggestion": the chat waits
+    const suggestion = value !== null && candidates.some((c) => c.value === value) ? value : null;
+    return { ...base, suggestion, confidence: suggestion ? (answer?.confidence ?? null) : null, decisionId: outcome.decisionId };
+  });
+
   app.get('/accounts/policies', (): RotationPolicy[] => {
     core.accounts.reload();
     return core.accounts.policies();
@@ -122,6 +177,11 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     const max = count(req.query.limit, 'limit');
     const since = moment(req.query.since, 'since');
     return core.db.rotationEvents({ ...(max ? { limit: max } : {}), ...(since ? { since } : {}) });
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { refresh?: string } }>('/accounts/:id/models', (req): Promise<ModelOption[]> => {
+    core.accounts.get(req.params.id); // 404 before the CLI is asked anything
+    return core.accounts.models(req.params.id, { refresh: req.query.refresh === 'true' || req.query.refresh === '1' });
   });
 
   app.patch<{ Params: { id: string }; Body: unknown }>('/accounts/:id', async (req): Promise<Account> => {

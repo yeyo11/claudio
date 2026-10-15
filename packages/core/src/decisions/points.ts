@@ -251,6 +251,17 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ]),
     ),
   ),
+  // The candidates are what the account with headroom offers, from its cached `initialize` list: the question's options are built from them, so the answer is always a model that account can run. A person accepts the mapping; the answer alone changes nothing
+  point({ id: 'account.model-fallback', kind: 'suggest', scope: 'global', primitives: ['choice'], fields: ['model', 'candidates'] }, (subject) => {
+    const candidates = items(subject, 'candidates').map((c) => ({ id: c.id, label: text(c.displayName) || c.id, tier: text(c.tier) }));
+    if (candidates.length === 0) return [];
+    return [
+      choice('model', `No account with headroom can run ${text(subject.data.model) || 'this chat\'s model'}. Which of these models is the nearest to it: the same line first, then the tier below?`, [
+        ...candidates.map((c): [string, string] => [c.id, `${c.label}${c.tier ? ` (${c.tier})` : ''}`]),
+        ['none', 'None: nothing here is close enough, so the chat should wait for an account that can run its model'],
+      ]),
+    ];
+  }),
 ];
 
 const BY_ID: ReadonlyMap<DecisionPointId, DecisionPointDefinition> = new Map(DECISION_POINTS.map((p) => [p.id, p]));

@@ -207,6 +207,7 @@ const CHAT_FORBIDDEN_ACCOUNTS = new Set([
   `PATCH ${API_PREFIX}/accounts/:id`,
   `DELETE ${API_PREFIX}/accounts/:id`,
   `PUT ${API_PREFIX}/accounts/settings`,
+  `PUT ${API_PREFIX}/accounts/model-fallbacks`,
   `POST ${API_PREFIX}/accounts/policies`,
   `PUT ${API_PREFIX}/accounts/policies/:id`,
   `DELETE ${API_PREFIX}/accounts/policies/:id`,

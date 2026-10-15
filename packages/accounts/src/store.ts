@@ -3,12 +3,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountKind, AccountsSettings, RotationPolicy, RotationPolicyRequest } from '@agentry/shared';
+import type { Account, AccountKind, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@agentry/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { identify, type Identity } from './identify.ts';
+import { ModelCache, offers } from './models.ts';
 import { readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
@@ -108,6 +109,7 @@ function parse(doc: Record<string, unknown>): Stored {
 export class AccountStore {
   readonly defaultDir: string;
   readonly readings: Readings;
+  private readonly modelCache: ModelCache;
   private readonly file: string;
   private readonly claude: string;
   private readonly env: NodeJS.ProcessEnv;
@@ -119,6 +121,7 @@ export class AccountStore {
     this.claude = opts.claude ?? 'claude';
     this.file = join(opts.dataDir, 'accounts.json');
     this.readings = new Readings(join(opts.dataDir, 'accounts', 'limits.json'));
+    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), { claude: this.claude, env: this.env });
     this.reload();
   }
 
@@ -248,6 +251,40 @@ export class AccountStore {
     return this.get(id);
   }
 
+  /**
+   * The models an account can run, from the CLI's `initialize` (no turn, no tokens), cached under
+   * `<data>/accounts/models/`; refreshed when the CLI version or the account's plan moves.
+   */
+  models(id: string, opts: { refresh?: boolean } = {}): Promise<ModelOption[]> {
+    return this.modelCache.models(this.ref(id), { plan: this.get(id).plan, ...opts });
+  }
+
+  /**
+   * Whether the account can run the model, from the stored list. An account whose list was never
+   * read is given the benefit of the doubt: the first turn would tell, and `warmModels` reads them.
+   */
+  canRun(id: string, model: string): boolean {
+    const listed = this.modelCache.cached(id);
+    if (!listed || offers(listed, model)) return true;
+    // A name no account lists (a model id a chat reported, a custom endpoint's model) is not one the
+    // lists can speak for: refusing it everywhere would only stop the chat
+    return !this.list().some((a) => {
+      const other = a.id === id ? null : this.modelCache.cached(a.id);
+      return !!other && offers(other, model);
+    });
+  }
+
+  /** The stored list of an account without reading it, for the paths that cannot wait. */
+  cachedModels(id: string): ModelOption[] | null {
+    return this.modelCache.cached(id);
+  }
+
+  /** Reads the lists of every signed-in, enabled account that has none yet; a failing one is skipped. */
+  async warmModels(): Promise<void> {
+    const missing = this.list().filter((a) => a.enabled && a.signedIn && !this.modelCache.cached(a.id));
+    await Promise.all(missing.map((a) => this.models(a.id).catch(() => undefined)));
+  }
+
   /** Records a reading from a run's stream or a failed turn. */
   observe(id: string, reading: Reading): Promise<boolean> {
     return this.readings.observe(id, reading);
@@ -352,6 +389,6 @@ export class AccountStore {
     const now = opts.now ?? Date.now();
     const accounts = this.list(now);
     const limits = Object.fromEntries(accounts.map((a) => [a.id, a.limits]));
-    return choose(accounts, limits, this.stored.settings, { ...opts, now });
+    return choose(accounts, limits, this.stored.settings, { canRun: (id, model) => this.canRun(id, model), ...opts, now });
   }
 }

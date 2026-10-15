@@ -366,6 +366,7 @@
       "opus-medium": "Opus 5.5 gives its best results at medium; low comes close on many coding tasks at a much lower cost.",
       "sonnet-medium": "Sonnet 5.5 does well at medium on well-specified tasks and on chat; low may skip verification.",
       "sonnet-high": "Sonnet 5.5 does better at high for planning and for fixing what failed, where the work is hard or long."
-    }
+    },
+    "unavailableModel": "This model does not take an effort level."
   }
 }

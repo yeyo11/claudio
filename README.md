@@ -842,6 +842,10 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | DELETE | `/accounts/:id` | Remove an account and its dir; `400` for `default` |
 | GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds` and `strategy` from `accounts.json` |
 | PUT | `/accounts/settings` | Change them, validated |
+| GET | `/accounts/:id/models` | The models an account can run, from the CLI's `initialize` (no tokens), cached per account; `?refresh=true` reads it again; `404` for an unknown account |
+| GET | `/accounts/model-fallbacks` | The accepted `{ from, to, origin, at }` model fallbacks from `model-fallbacks.json` |
+| PUT | `/accounts/model-fallbacks` | Replace the list: `{ fallbacks: [{ from, to, origin? }] }`, validated |
+| POST | `/accounts/model-fallbacks/suggest` | `{ model }` — the `account.model-fallback` point: `{ candidates, suggestion, confidence, decisionId }`; `suggestion` is null when the point is off or unsure. Saves nothing |
 | GET | `/accounts/policies` | Per-project rotation policies: the accounts allowed, their order and a threshold |
 | POST | `/accounts/policies` | Create one: `{ projects, order?, threshold?, looseChats? }`; `201` |
 | PUT | `/accounts/policies/:id` | Replace one; `404` for an unknown policy |

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AccountLimit, AccountsSettings } from '@agentry/shared';
-import { AccountStore, choose, envFor, fold, identify, login, readCache, readingFromEvent, Readings } from '../src/index.ts';
+import { AccountStore, choose, envFor, fold, identify, login, ModelCache, parseInitialize, readCache, readingFromEvent, Readings } from '../src/index.ts';
 import { main } from '../src/commands.ts';
 
 const FAKE = join(dirname(fileURLToPath(import.meta.url)), 'fake-claude.mjs');
@@ -231,6 +231,16 @@ describe('choose', () => {
     ...extra,
   });
 
+  it('skips an account that cannot run the chat\'s model, and waits for one that can', () => {
+    const canRun = (id: string): boolean => id === 'c';
+    const opts = { current: 'a', now: NOW, model: 'opus', canRun };
+    assert.equal(choose(accts, { a: lim(1), b: lim(0), c: lim(0.2) }, settings, opts).account, 'c', 'b is free but has no opus');
+    const waits = choose(accts, { a: lim(1), b: lim(1), c: lim(1, { resetsAt: new Date(NOW + 7200_000).toISOString() }) }, settings, opts);
+    assert.deepEqual(waits, { account: null, reason: null, waitUntil: NOW + 7200_000 }, 'b is back sooner but cannot run it');
+    assert.equal(choose(accts, { a: lim(1), b: lim(0) }, settings, { ...opts, model: 'default' }).account, 'b', 'the default model runs anywhere');
+    assert.equal(choose(accts, { a: lim(0), b: lim(0), c: lim(0) }, settings, { ...opts, current: null, pinned: 'b' }).account, 'c', 'a pinned account that cannot run it is not kept');
+  });
+
   it('keeps the current account while under the threshold, even when an earlier one is free', () => {
     const c = choose(accts, { a: lim(0), b: lim(0.5) }, settings, { current: 'b', now: NOW });
     assert.deepEqual(c, { account: 'b', reason: null, waitUntil: null });
@@ -313,5 +323,56 @@ describe('claudio-accounts', () => {
     assert.equal(ran.code, 0);
     assert.equal((await run(['remove', 'work'])).code, 0);
     assert.equal((await run(['remove', 'work'])).code, 1);
+  });
+});
+
+describe('models from initialize', () => {
+  it('parses models[] into options with the id, description and effort levels', async () => {
+    const dir = join(root, 'models-a');
+    mkdirSync(dir, { recursive: true });
+    const opts = { claude: FAKE, env: env() };
+    const cache = new ModelCache(join(root, 'model-cache'), opts);
+    const entry = await cache.entry({ id: 'a', kind: 'login', dir });
+    assert.deepEqual(entry.models.map((m) => m.value), ['default', 'opus', 'haiku']);
+    const opus = entry.models.find((m) => m.value === 'opus');
+    assert.equal(opus?.resolvedModel, 'claude-opus-5-5');
+    assert.equal(opus?.label, 'Opus');
+    assert.equal(opus?.tier, 'strong');
+    assert.deepEqual(opus?.supportedEffortLevels, ['low', 'medium', 'high', 'xhigh', 'max']);
+    assert.equal(entry.models.find((m) => m.value === 'haiku')?.supportsEffort, false);
+    assert.equal(entry.account.subscriptionType, 'Claude Max');
+    assert.equal(entry.cliVersion, '2.1.300 (Claude Code)');
+  });
+
+  it('keeps one list per account: a token account lacks what the Max one has', async () => {
+    const root2 = join(root, 'accts');
+    const s = new AccountStore({ dataDir: root2, defaultDir, claude: FAKE, env: env() });
+    const t = await s.add({ kind: 'token', alias: 'pro', secret: 'sk-ant-oat-x' });
+    const pro = (await s.models(t.id)).map((m) => m.value);
+    const max = (await s.models('default')).map((m) => m.value);
+    assert.ok(!pro.includes('opus'));
+    assert.ok(max.includes('opus'));
+  });
+
+  it('serves the cache until the CLI version or the plan moves', async () => {
+    const dir = join(root, 'models-b');
+    mkdirSync(dir, { recursive: true });
+    const ref = { id: 'b', kind: 'login' as const, dir };
+    const count = (): number => readFileSync(join(dir, 'initialize-count'), 'utf8').length;
+    const at = (version: string): ModelCache => new ModelCache(join(root, 'model-cache-b'), { claude: FAKE, env: { ...env(), FAKE_CLAUDE_VERSION: version } });
+    await at('1.0.0').models(ref);
+    await at('1.0.0').models(ref, { plan: 'max' });
+    assert.equal(count(), 1);
+    await at('1.0.1').models(ref);
+    assert.equal(count(), 2);
+    await at('1.0.1').models(ref, { plan: 'pro' });
+    assert.equal(count(), 3);
+    await at('1.0.1').models(ref, { refresh: true });
+    assert.equal(count(), 4);
+  });
+
+  it('refuses an answer that is not an object', () => {
+    assert.throws(() => parseInitialize(null), /no object/);
+    assert.deepEqual(parseInitialize({}).models, []);
   });
 });
