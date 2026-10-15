@@ -4,7 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The fake Claude is ready and first in the order, so a New chat starts on Claude and its models; with only the sandbox's fake Codex ready it would start on Codex
+// The fake Claude is the one agent, so a New chat starts on Claude and its models
 export const fakeCli = true;
 
 const ALIASES = ['fable', 'opus', 'sonnet', 'haiku'];
