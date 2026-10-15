@@ -4465,6 +4465,67 @@ export interface UsageHistoryPoint {
   account: string;
 }
 
+/** One account switch or wait, as `rotation_events` keeps it. */
+export interface RotationEvent {
+  seq: number;
+  ts: string;
+  /** `switch` when a chat moved to another account, `wait` when none was left */
+  event: string;
+  /** Account ids; null when there was no previous account */
+  from: string | null;
+  to: string | null;
+  reason: string | null;
+  detail: string | null;
+  data: Record<string, unknown> | null;
+}
+
+/** `POST /accounts`: a `login` account, signed in by the CLI itself. */
+export interface AddLoginAccountRequest {
+  /** Shown instead of the email; optional, since the CLI reports an identity */
+  alias?: string;
+  /** Pre-fills the email the CLI asks for */
+  email?: string;
+}
+
+/** `POST /accounts/token`: a `token` (`claude setup-token`) or `api-key` account. Write-only secret. */
+export interface AddTokenAccountRequest {
+  kind: 'token' | 'api-key';
+  /** Required: these have no identity of their own */
+  alias: string;
+  /** The token or key; kept in a 0600 file of the account's dir and never answered back */
+  secret: string;
+}
+
+/** `PATCH /accounts/:id` */
+export interface UpdateAccountRequest {
+  alias?: string | null;
+  enabled?: boolean;
+}
+
+export type AccountLoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'cancelled';
+
+/**
+ * The sign-in of a `login` account, as `POST /accounts` started it. Carries the URL the CLI printed
+ * and nothing else it said.
+ */
+export interface AccountLoginSession {
+  id: string;
+  /** The account the sign-in is for; removed again when the sign-in fails or is cancelled and it never signed in */
+  accountId: string;
+  state: AccountLoginState;
+  /** The page the person opens, once the CLI printed it */
+  url: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  /** The account once the sign-in succeeded */
+  account: Account | null;
+}
+
+/** `POST /accounts/logins/:id/code`: the code the page showed, when the CLI's browser could not open. Write-only. */
+export interface AccountLoginCodeRequest {
+  code: string;
+}
+
 /** What the dashboard needs about accounts, without the full list. */
 export interface AccountsSnapshot {
   total: number;

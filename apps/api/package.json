@@ -12,6 +12,7 @@
     "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
+    "@agentry/accounts": "workspace:*",
     "@agentry/core": "workspace:*",
     "@agentry/shared": "workspace:*",
     "@fastify/compress": "^9.2.0",

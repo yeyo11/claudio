@@ -30,6 +30,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@agentry/accounts':
+        specifier: workspace:*
+        version: link:../../packages/accounts
       '@agentry/core':
         specifier: workspace:*
         version: link:../../packages/core

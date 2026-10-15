@@ -70,6 +70,8 @@ const ROOT_TYPES = [
   'AppSettings', 'UpdateAppSettingsRequest', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
   // Providers
   'ProviderStatus', 'ProvidersSettings', 'ProviderMove',
+  // Several Claude accounts
+  'Account', 'AccountsSettings', 'RotationPolicy', 'RotationPolicyRequest', 'UsageHistoryPoint', 'RotationEvent', 'AddLoginAccountRequest', 'AddTokenAccountRequest', 'UpdateAccountRequest', 'AccountLoginSession', 'AccountLoginCodeRequest',
   // Code hosts
   'CodeHostStatus', 'CodeHostsSettings', 'TrackerStatus', 'TrackersSettings', 'YoutrackCredentialsStatus', 'PutYoutrackCredentialsRequest', 'SetupState', 'StartLoginRequest', 'LoginSession', 'SignOutResult', 'ProjectTrackerSettings', 'TrackerIssuesPage', 'TrackerImportRequest', 'TrackerImportResult', 'LinkWorkItemIssueRequest', 'ProjectCodeHost', 'ChangeRequest', 'ChangeRequestChecks', 'CheckLog', 'ChecksRerunRequest', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
   // Reviews

@@ -192,6 +192,26 @@ const CHAT_FORBIDDEN_SETUP = new Set([
   `DELETE ${API_PREFIX}/setup/credentials/:tool`,
 ]);
 
+/**
+ * An account is a sign-in or a secret on this machine: adding, signing in, removing, enabling,
+ * renaming and the rotation settings and policies are the person's. A chat's token cannot even read
+ * a sign-in (it carries the page the person opens). The accounts, their usage and the events stay
+ * readable.
+ */
+const CHAT_FORBIDDEN_ACCOUNTS = new Set([
+  `POST ${API_PREFIX}/accounts`,
+  `POST ${API_PREFIX}/accounts/token`,
+  `GET ${API_PREFIX}/accounts/logins/:id`,
+  `POST ${API_PREFIX}/accounts/logins/:id/code`,
+  `DELETE ${API_PREFIX}/accounts/logins/:id`,
+  `PATCH ${API_PREFIX}/accounts/:id`,
+  `DELETE ${API_PREFIX}/accounts/:id`,
+  `PUT ${API_PREFIX}/accounts/settings`,
+  `POST ${API_PREFIX}/accounts/policies`,
+  `PUT ${API_PREFIX}/accounts/policies/:id`,
+  `DELETE ${API_PREFIX}/accounts/policies/:id`,
+]);
+
 /** How Home is laid out is the person's own setting; a chat may read it. */
 const CHAT_FORBIDDEN_LAYOUT = new Set([`PUT ${API_PREFIX}/dashboard/layout`, `DELETE ${API_PREFIX}/dashboard/layout`]);
 
@@ -527,6 +547,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_SETUP.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot start, read or cancel a sign-in, or sign a tool out: that is the person's" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_ACCOUNTS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot add, sign in, change or remove an account, or change how work moves between them: that is the person's" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
