@@ -1192,3 +1192,59 @@
     min-height: 56px;
   }
 }
+
+/* ---------- Claude Docs: the project's registry of documents on claude.ai ---------- */
+
+.cdoc {
+  margin-bottom: 16px;
+}
+
+.cdoc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.cdoc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 12px 8px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.cdoc-row .doc-row-title {
+  color: var(--fg);
+}
+
+.cdoc-row .doc-row-title:hover {
+  color: var(--accent);
+}
+
+.cdoc-row .doc-row-meta .mono {
+  max-width: 220px;
+}
+
+@media (max-width: 560px) {
+  /* The row's own actions fold into the "⋯" sheet, as a phone's cards do */
+  .cdoc-ask {
+    display: none;
+  }
+
+  .cdoc-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .cdoc-actions .btn {
+    min-height: 44px;
+  }
+
+  .cdoc-row {
+    padding-left: 14px;
+  }
+}

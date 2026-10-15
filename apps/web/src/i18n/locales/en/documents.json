@@ -52,10 +52,22 @@
     "chat": "chat {{id}}"
   },
   "kinds": {
-    "spec": { "name": "Specification", "tag": "SPEC" },
-    "adr": { "name": "Architecture decision", "tag": "ADR" },
-    "report": { "name": "Report", "tag": "INFO" },
-    "doc": { "name": "Document", "tag": "DOC" }
+    "spec": {
+      "name": "Specification",
+      "tag": "SPEC"
+    },
+    "adr": {
+      "name": "Architecture decision",
+      "tag": "ADR"
+    },
+    "report": {
+      "name": "Report",
+      "tag": "INFO"
+    },
+    "doc": {
+      "name": "Document",
+      "tag": "DOC"
+    }
   },
   "tied": {
     "title": "Tied to tasks",
@@ -124,5 +136,55 @@
     "untie": "Untie {{path}} from the task",
     "untied": "{{path}} is no longer tied to the task. The file stays in the folder.",
     "untieFailed": "Could not untie the document"
+  },
+  "claudeDocs": {
+    "title": "Claude Docs",
+    "count_one": "{{n}} document",
+    "count_other": "{{n}} documents",
+    "hint": "The Claude Docs this project knows. Claude Docs cannot list an account, so add the ones you use by link, or create one here.",
+    "connect": "Connect Claude Docs",
+    "connectHint": "Claude Docs is not connected, so its documents cannot be read or written. Connect it in Connectors.",
+    "connectLink": "Open Connectors",
+    "loadFailed": "Could not read this project's Claude Docs",
+    "emptyTitle": "No Claude Docs yet",
+    "emptyHint": "Add one by its link, or have Claude write a new one.",
+    "add": "Add by link",
+    "new": "New document",
+    "refresh": "Refresh",
+    "refreshing": "Reading…",
+    "open": "Open on claude.ai",
+    "ask": "Ask Claude",
+    "remove": "Remove from project",
+    "more": "Document actions",
+    "status": {
+      "unread": "Not read",
+      "ok": "Read",
+      "unavailable": "Unavailable"
+    },
+    "by": {
+      "claudio": "Created here",
+      "person": "Added by link"
+    },
+    "checked": "Read {{when}}",
+    "addTitle": "Add a Claude Doc",
+    "urlLabel": "Link or id",
+    "urlPlaceholder": "https://claude.ai/…",
+    "addHint": "Paste the document's link. It is only added to this project's list; the document itself is not changed.",
+    "adding": "Adding…",
+    "addSubmit": "Add",
+    "newTitle": "New Claude Doc",
+    "titleLabel": "Title",
+    "bodyLabel": "First content",
+    "bodyHint": "What Claude should write in it. Claude creates the document through the connector.",
+    "creating": "Creating…",
+    "create": "Create",
+    "addFailed": "Could not add the document",
+    "refreshFailed": "Could not refresh the documents",
+    "removeFailed": "Could not remove the document",
+    "askFailed": "Could not open a chat about the document",
+    "removed": "Removed “{{title}}” from this project",
+    "removeTitle": "Remove “{{title}}”?",
+    "removeBody": "It leaves this project's list. The document stays on claude.ai.",
+    "removeConfirm": "Remove"
   }
 }
