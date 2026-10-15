@@ -1306,11 +1306,12 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 
 ### Connectors
 
-The claude.ai connectors of the signed-in account, as the CLI reports them. Claudio cannot authorise one: the answer says what a person does (`/mcp` in an interactive session, or claude.ai's connector settings).
+The claude.ai connectors of the signed-in account, as the CLI reports them. A connector waiting for its sign-in is authorised with `POST /connectors/:id/authorise`, which returns the CLI's sign-in link for the person's browser; the answer also says what a person does by hand (`/mcp` in an interactive session, or claude.ai's connector settings).
 
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/connectors?refresh=` | The claude.ai connectors (Docs, Gmail, Calendar) as the CLI's `mcp_status` reports them (with their tool count; `claude mcp list` is the fallback), with prepared prompts, what a person must do to authorise one and what has no CLI surface (web artifacts, claude.ai memory). The authorisation steps, the link labels and the out-of-reach reasons carry a stable code and their params beside the English, so a client can translate them. Cached for a minute |
+| POST | `/connectors/:id/authorise` | Starts the sign-in of a connector that needs it (`:id` as listed, e.g. `claude.ai Gmail`): a short-lived CLI process answers `mcp_authenticate` and the `{ authUrl, requiresUserAction, callbackExpected }` comes back for the person's browser; Claudio never fetches or logs the link. `404` unknown connector, `409` not waiting for authorisation, `502` the CLI could not start it. Not open to a chat's token |
 
 ## UI
 

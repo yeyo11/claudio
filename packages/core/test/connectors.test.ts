@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { Connectors, connectorKind, parseConnectors } from '../src/connectors.ts';
+import { ConnectorAuthError, Connectors, connectorKind, parseConnectors } from '../src/connectors.ts';
 import { tempConfig } from './helpers.ts';
 
 const LIST = `Checking MCP server health…
@@ -90,6 +90,14 @@ let asked = 0;
 const servers = ${JSON.stringify(servers)};
 createInterface({ input: process.stdin }).on('line', (line) => {
   const message = JSON.parse(line);
+  if (message.request.subtype === 'mcp_authenticate') {
+    const known = servers.some((s) => s.name === message.request.serverName);
+    const response = known
+      ? { subtype: 'success', request_id: message.request_id, response: { authUrl: 'https://claude.ai/start-auth/' + encodeURIComponent(message.request.serverName), requiresUserAction: true, callbackExpected: false } }
+      : { subtype: 'error', request_id: message.request_id, error: 'Server not found' };
+    console.log(JSON.stringify({ type: 'control_response', response }));
+    return;
+  }
   const pending = asked++ < ${String(pendingFor)};
   const list = servers.map((s) => (pending ? { name: s.name, status: 'pending', scope: s.scope } : s));
   console.log(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response: { mcpServers: list } } }));
@@ -150,4 +158,25 @@ test('when the probe fails the claude mcp list scrape answers', async () => {
   const overview = await new Connectors({ ...config, claudeBin: stub }).overview();
   assert.equal(overview.error, undefined);
   assert.deepEqual(overview.connectors.map((c) => c.id), ['claude.ai Gmail']);
+});
+
+test('authorise returns the CLI sign-in link of a connector needing it and drops the cached overview', async () => {
+  const config = tempConfig();
+  const connectors = new Connectors({ ...config, claudeBin: statusStub(config.dataDir, SERVERS) });
+  const first = await connectors.overview();
+  const started = await connectors.authorise('claude.ai Gmail');
+  assert.deepEqual(started, { authUrl: 'https://claude.ai/start-auth/claude.ai%20Gmail', requiresUserAction: true, callbackExpected: false });
+  assert.notEqual(await connectors.overview(), first);
+});
+
+test('authorise refuses an unknown connector, one already connected and one the CLI will not start', async () => {
+  const config = tempConfig();
+  const connectors = new Connectors({ ...config, claudeBin: statusStub(config.dataDir, SERVERS) });
+  await assert.rejects(connectors.authorise('claude.ai Nope'), (e: unknown) => e instanceof ConnectorAuthError && e.statusCode === 404);
+  await assert.rejects(connectors.authorise('claude.ai Claude Docs'), (e: unknown) => e instanceof ConnectorAuthError && e.statusCode === 409);
+  // The scrape lists Gmail as needing authorisation, but the CLI cannot start a session: a 502
+  const stub = join(config.dataDir, 'claude-mute-auth-stub.sh');
+  writeFileSync(stub, `#!/bin/sh\nif [ "$1" = mcp ]; then echo 'claude.ai Gmail: https://g - ! Needs authentication'; exit 0; fi\nexit 3\n`);
+  chmodSync(stub, 0o755);
+  await assert.rejects(new Connectors({ ...config, claudeBin: stub }).authorise('claude.ai Gmail'), (e: unknown) => e instanceof ConnectorAuthError && e.statusCode === 502);
 });

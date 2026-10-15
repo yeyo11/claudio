@@ -13395,6 +13395,27 @@
     ],
     "description": "A button that opens a new chat with a prompt already written. Nothing more magic than that."
   },
+  "ConnectorAuthorisation": {
+    "type": "object",
+    "properties": {
+      "authUrl": {
+        "type": "string"
+      },
+      "requiresUserAction": {
+        "type": "boolean"
+      },
+      "callbackExpected": {
+        "type": "boolean",
+        "description": "Whether the sign-in comes back to Claudio; false for a claude.ai connector, which finishes on claude.ai"
+      }
+    },
+    "required": [
+      "authUrl",
+      "requiresUserAction",
+      "callbackExpected"
+    ],
+    "description": "What the CLI's `mcp_authenticate` answers: a page for the person's browser that runs the sign-in"
+  },
   "ConnectorGuide": {
     "type": "object",
     "properties": {

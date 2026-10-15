@@ -4367,6 +4367,14 @@ export interface ConnectorGuide {
   links: Array<{ label: Localized; url: string }>;
 }
 
+/** What the CLI's `mcp_authenticate` answers: a page for the person's browser that runs the sign-in */
+export interface ConnectorAuthorisation {
+  authUrl: string;
+  requiresUserAction: boolean;
+  /** Whether the sign-in comes back to Claudio; false for a claude.ai connector, which finishes on claude.ai */
+  callbackExpected: boolean;
+}
+
 export interface ConnectorsOverview {
   /** The claude.ai connectors `claude mcp list` reports, in the CLI's order */
   connectors: Connector[];

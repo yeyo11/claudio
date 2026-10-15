@@ -1,10 +1,10 @@
 import type { AccountRef } from '@claudio/accounts';
-import type { Connector, ConnectorAction, ConnectorGuide, ConnectorKind, ConnectorLimit, ConnectorsOverview, LiveMcpServer } from '@claudio/shared';
+import type { Connector, ConnectorAction, ConnectorAuthorisation, ConnectorGuide, ConnectorKind, ConnectorLimit, ConnectorsOverview, LiveMcpServer } from '@claudio/shared';
 import { parseMcpHealth } from './config/mcp.ts';
 import { execCli } from './cli.ts';
 import { childEnv } from './child-env.ts';
 import type { CoreConfig } from './paths.ts';
-import { probeMcpServers } from './providers/claude-code/mcp-probe.ts';
+import { probeMcpServers, startMcpAuth } from './providers/claude-code/mcp-probe.ts';
 
 // `claude mcp list` connects to every server, so it takes seconds: an answer is reused for a minute
 // unless the caller asks for a fresh one.
@@ -132,6 +132,17 @@ export function connectorsFromStatus(servers: LiveMcpServer[]): Connector[] {
   return connectors;
 }
 
+/** Why a connector cannot be authorised from here; the message is written for the person */
+export class ConnectorAuthError extends Error {
+  readonly expose = true;
+  constructor(
+    message: string,
+    readonly statusCode: 404 | 409 | 502,
+  ) {
+    super(message);
+  }
+}
+
 export interface ConnectorsOptions {
   /** The account whose connectors are read: the default one, as `claude mcp list` always did */
   account?: () => AccountRef;
@@ -183,5 +194,32 @@ export class Connectors {
     }
     this.cache = overview;
     return overview;
+  }
+
+  /**
+   * Starts a connector's sign-in: a short-lived CLI process answers `mcp_authenticate` with a claude.ai
+   * page that runs the whole sign-in. The link is only handed back for the person's browser (never
+   * fetched, never logged); the overview is dropped so the next read sees the connector connected.
+   */
+  async authorise(connectorId: string): Promise<ConnectorAuthorisation> {
+    const connector = (await this.overview()).connectors.find((c) => c.id === connectorId);
+    if (!connector) throw new ConnectorAuthError('connector not found', 404);
+    if (connector.status !== 'needs-auth') throw new ConnectorAuthError('this connector does not need authorising', 409);
+    try {
+      const started = await startMcpAuth(
+        {
+          bin: this.config.claudeBin,
+          env: childEnv('claude-code', process.env, this.opts.account?.() ?? null),
+          ...(this.opts.probeCeilingMs !== undefined ? { ceilingMs: this.opts.probeCeilingMs } : {}),
+          ...(this.opts.probePollMs !== undefined ? { pollMs: this.opts.probePollMs } : {}),
+        },
+        connectorId,
+      );
+      this.cache = null;
+      return started;
+    } catch (err) {
+      // The CLI's own words, without a link: its refusals carry none
+      throw new ConnectorAuthError(`the CLI could not start the sign-in: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300), 502);
+    }
   }
 }
