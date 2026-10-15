@@ -96,7 +96,10 @@ export function ModelPicker({
                   onChange(pick.value);
                 }}
               >
-                <PickFace pick={pick} />
+                <span className="menu-item-text">
+                  <PickFace pick={pick} />
+                  {pick.hint && <span className="menu-item-hint">{pick.hint}</span>}
+                </span>
                 {pick.value === current?.value && <Check {...ICON_SM} className="model-pick-check" aria-hidden />}
               </button>
             ))}

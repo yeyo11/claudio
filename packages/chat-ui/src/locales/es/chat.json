@@ -206,7 +206,8 @@
       "turns_one": "{{count}} turno",
       "turns_other": "{{count}} turnos",
       "budget": "presupuesto {{amount}}",
-      "errorPrefix": "Error:"
+      "errorPrefix": "Error:",
+      "switchedFrom": "cambió desde {{model}}"
     },
     "branches": {
       "title": "Ramas ({{n}})",

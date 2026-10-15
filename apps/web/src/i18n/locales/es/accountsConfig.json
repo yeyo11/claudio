@@ -189,5 +189,29 @@
     "fullHistory": "Historial completo",
     "nothingYet": "Aún nada",
     "hint": "Aquí aparece un chat que pasa a otra cuenta o espera a un reinicio."
+  },
+  "modelFallbacks": {
+    "title": "Modelos de reserva",
+    "intro": "Cuando ninguna cuenta con margen puede ejecutar el modelo de un chat, el chat espera. Una reserva le permite seguir con otro modelo que aceptes aquí; nada cambia de modelo por su cuenta.",
+    "none": "Sin reservas",
+    "noneHint": "Los chats esperan a una cuenta que pueda ejecutar su modelo.",
+    "from": "Cuando el chat usa",
+    "to": "seguir con",
+    "add": "Añadir reserva",
+    "saving": "Guardando…",
+    "suggest": "Sugerir una",
+    "suggesting": "Buscando…",
+    "suggestion": "Sugerencia: {{from}} → {{to}}",
+    "noSuggestion": "Sin sugerencia para {{model}}. Puede que el punto de decisión esté apagado o que ninguna otra cuenta ofrezca un modelo cercano.",
+    "accept": "Aceptar",
+    "remove": "Quitar la reserva {{from}} → {{to}}",
+    "saved": "Reservas guardadas",
+    "saveFailed": "No se han podido guardar las reservas",
+    "suggestFailed": "No se ha podido pedir una sugerencia",
+    "origin": {
+      "user": "Añadida por ti",
+      "suggestion": "Sugerencia aceptada"
+    },
+    "pick": "Elige un modelo"
   }
 }

@@ -154,7 +154,8 @@ function ContextGauge({ chat }: { chat: Chat }) {
 
 // ---------- executions ----------
 
-function ExecutionRow({ execution }: { execution: Execution }) {
+/** `previous` is the segment before it: a different model there is a switch the chat should say, whatever caused it. */
+function ExecutionRow({ execution, previous }: { execution: Execution; previous: Execution | undefined }) {
   const { t } = useTranslation(['chat', 'work', 'common']);
   const money = useMoney();
   return (
@@ -171,6 +172,10 @@ function ExecutionRow({ execution }: { execution: Execution }) {
         <span>{t('side.executions.turns', { count: execution.turns })}</span>
         <span>{execution.permissionMode}</span>
         {execution.model && <span className="mono">{execution.model}</span>}
+        {execution.effort && <span className="mono">{execution.effort}</span>}
+        {execution.model && previous?.model && previous.model !== execution.model && (
+          <span className="text-warn">{t('side.executions.switchedFrom', { model: previous.model })}</span>
+        )}
         {execution.maxBudgetUsd !== null && <span>{t('side.executions.budget', { amount: money(execution.maxBudgetUsd) })}</span>}
       </div>
       {execution.error && (
@@ -189,14 +194,15 @@ function ExecutionRow({ execution }: { execution: Execution }) {
 export function ExecutionsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');
   const newestFirst = [...chat.executions].reverse();
+  // Newest first, so the segment before an execution is the next row
   return (
     <Section title={t('side.executions.title', { n: chat.executions.length })}>
       {newestFirst.length === 0 ? (
         <div className="muted small">{t('side.executions.empty')}</div>
       ) : (
         <ol className="stack-tight list-plain">
-          {newestFirst.map((execution) => (
-            <ExecutionRow key={execution.id} execution={execution} />
+          {newestFirst.map((execution, i) => (
+            <ExecutionRow key={execution.id} execution={execution} previous={newestFirst[i + 1]} />
           ))}
         </ol>
       )}
