@@ -150,7 +150,7 @@ export function addWorktree(repo: string, path: string, branch: string, base: st
 
 /** Paths git left unmerged, i.e. the ones someone has to resolve. */
 export function conflictedPaths(dir: string): string[] {
-  const out = git(dir, ['diff', '--name-only', '--diff-filter=U']);
+  const out = git(dir, ['diff', '--no-textconv', '--no-ext-diff', '--name-only', '--diff-filter=U']);
   return out ? out.split('\n') : [];
 }
 
@@ -206,7 +206,7 @@ export function commitAll(dir: string, message: string): string | null {
   if (!existsSync(dir)) return null;
   git(dir, ['add', '-A']);
   try {
-    git(dir, ['diff', '--cached', '--quiet']);
+    git(dir, ['diff', '--no-textconv', '--no-ext-diff', '--cached', '--quiet']);
     return null; // nothing staged
   } catch {
     /* there are changes */
@@ -299,8 +299,8 @@ const NAME_STATUS: Record<string, ChangedFileStatus> = { A: 'added', D: 'deleted
  */
 export function diffFiles(dir: string, from: string, to?: string): ChangedFile[] {
   const range = [from, ...(to ? [to] : []), '--'];
-  const status = gitRaw(dir, ['diff', '-M', '--name-status', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
-  const numstat = gitRaw(dir, ['diff', '-M', '--numstat', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
+  const status = gitRaw(dir, ['diff', '--no-textconv', '--no-ext-diff', '-M', '--name-status', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
+  const numstat = gitRaw(dir, ['diff', '--no-textconv', '--no-ext-diff', '-M', '--numstat', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
 
   const counts = new Map<string, { additions: number; deletions: number; binary?: boolean }>();
   for (let i = 0; i < numstat.length; i++) {
@@ -472,7 +472,7 @@ function capped(out: string): string {
 export function fileDiff(dir: string, from: string, to: string | undefined, paths: string[], unified = 3): string {
   try {
     return capped(
-      gitRaw(dir, ['--literal-pathspecs', 'diff', '-M', '--no-ext-diff', '--no-color', `--unified=${unified}`, from, ...(to ? [to] : []), '--', ...paths], {
+      gitRaw(dir, ['--literal-pathspecs', 'diff', '--no-textconv', '--no-ext-diff', '-M', '--no-color', `--unified=${unified}`, from, ...(to ? [to] : []), '--', ...paths], {
         timeout: 60_000,
         maxBuffer: DIFF_LIMIT * 2,
       }),
@@ -486,7 +486,7 @@ export function fileDiff(dir: string, from: string, to: string | undefined, path
 /** The diff of a file git does not track yet: all of it is new. `--no-index` exits 1 when files differ. */
 export function untrackedDiff(dir: string, path: string): string {
   try {
-    return capped(execFileSync('git', ['-C', dir, 'diff', '--no-index', '--no-color', '--', '/dev/null', path], { stdio: 'pipe', timeout: 30_000, encoding: 'utf8', maxBuffer: DIFF_LIMIT * 2 }));
+    return capped(execFileSync('git', ['-C', dir, 'diff', '--no-textconv', '--no-ext-diff', '--no-index', '--no-color', '--', '/dev/null', path], { stdio: 'pipe', timeout: 30_000, encoding: 'utf8', maxBuffer: DIFF_LIMIT * 2 }));
   } catch (err) {
     const e = err as { status?: number; stdout?: string };
     if (e.status === 1 && typeof e.stdout === 'string') return capped(e.stdout);
@@ -521,7 +521,7 @@ export async function probeChanges(dir: string, base: string | null): Promise<Ch
   const [head, ahead, numstat, others] = await Promise.all([
     gitAsync(dir, ['rev-parse', 'HEAD']),
     base ? gitAsync(dir, ['rev-list', '--count', `${base}..HEAD`]) : Promise.resolve('0'),
-    gitAsync(dir, ['diff', '--numstat', '-z', 'HEAD', '--']),
+    gitAsync(dir, ['diff', '--no-textconv', '--no-ext-diff', '--numstat', '-z', 'HEAD', '--']),
     gitAsync(dir, ['ls-files', '--others', '--exclude-standard', '-z']),
   ]);
   const created = others.split('\0').filter(Boolean);

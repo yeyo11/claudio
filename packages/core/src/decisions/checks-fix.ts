@@ -132,7 +132,7 @@ export class ChecksFix {
   private diffStat(crId: string, item: WorkItem): Promise<string> {
     const row = this.deps.sql.prepare('SELECT base FROM work_item_pull_requests WHERE id = ?').get(crId) as { base: string } | undefined;
     if (!item.worktree || !row) return Promise.resolve('');
-    const args = ['-C', item.worktree, 'diff', '--stat=100', `origin/${row.base}...HEAD`, '--'];
+    const args = ['-C', item.worktree, 'diff', '--no-textconv', '--no-ext-diff', '--stat=100', `origin/${row.base}...HEAD`, '--'];
     return new Promise((resolve) => {
       execFile('git', args, { timeout: 15_000, encoding: 'utf8', maxBuffer: 1024 * 1024 }, (err, stdout) => resolve(err ? '' : endOf(stdout, STAT_BYTES)));
     });

@@ -115,6 +115,19 @@ Signing out from Claudio runs each CLI's documented sign-out (`gh auth logout`, 
 On a person's own machine (a source checkout, the desktop app) the CLIs use the system keyring when
 there is one, as they always did; Claudio changes nothing there.
 
+## What a repository can make Claudio run
+
+A repository is not trusted: its `.git/config` and `.gitattributes` can name a `textconv` or external
+`diff` driver, which is a program git runs when it builds a diff. Every `git diff` Claudio runs
+itself (changes, the diff stat of a failing check, the health probe, the merge state) passes
+`--no-textconv --no-ext-diff`, so opening a project never executes code a clone brought along.
+
+## Agents never push
+
+`git push` is denied, as `--disallowedTools`, to every run Claudio starts for an orchestration (workers,
+integrator, verification and fixer, planner, workflow, synthesis), to the supervisor, and to every flow
+stage. The push of a pull request branch is Claudio's own process, after the person approved.
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.

@@ -73,7 +73,7 @@ export class HealthService {
     }
     if (!repo) return null;
     try {
-      return [headCommit(dir), git(dir, ['status', '--porcelain'], 10_000), git(dir, ['diff', 'HEAD', '--numstat'], 10_000)].join('\n');
+      return [headCommit(dir), git(dir, ['status', '--porcelain'], 10_000), git(dir, ['diff', '--no-textconv', '--no-ext-diff', 'HEAD', '--numstat'], 10_000)].join('\n');
     } catch {
       return null;
     }
