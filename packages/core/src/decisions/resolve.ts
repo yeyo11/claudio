@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution } from '@agentry/shared';
+import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@agentry/shared';
 import { TTL_SECONDS } from '../push.ts';
 
 /*
@@ -14,7 +14,12 @@ import { TTL_SECONDS } from '../push.ts';
  */
 
 type Sql = DatabaseSync;
-type Resolver = (row: DecisionRecord, sql: Sql, now: number) => DecisionResolution | null;
+type Resolver = (row: DecisionRecord, sql: Sql, now: number, context: ResolverContext) => DecisionResolution | null;
+
+/** What a resolver reads outside the database */
+interface ResolverContext {
+  modelFallbacks: () => readonly ModelFallback[];
+}
 
 const PERSON = 'person';
 
@@ -440,6 +445,22 @@ RESOLVERS['checks.fix'] = (row, sql) => {
   return verdict(fixable, 'A new head turned the checks passing', { rollup: 'passing', pushed: true });
 };
 
+/**
+ * `account.model-fallback`: judged by what the person did with the mapping. The same pair accepted
+ * in `model-fallbacks.json` says the suggestion was right, another target for the same model says
+ * it was not; until one of them exists the row waits, and "none" says nothing a later event could
+ * confirm.
+ */
+RESOLVERS['account.model-fallback'] = (row, _sql, _now, context) => {
+  const suggested = choiceOf(row, 'model');
+  const from = typeof row.state.model === 'string' ? row.state.model : null;
+  if (!suggested || suggested === 'none' || !from) return null;
+  const accepted = context.modelFallbacks().find((f) => f.from === from);
+  if (!accepted) return null;
+  const right = accepted.to === suggested;
+  return verdict(right, right ? 'The person accepted the suggested model' : 'The person mapped the model to another one', { from, suggested, accepted: accepted.to });
+};
+
 RESOLVERS['health.test-weakening'] = viaItemOfChat;
 RESOLVERS['changes.unexplained-hunk'] = viaItemOfChat;
 
@@ -457,6 +478,8 @@ export interface DecisionResolversDeps {
   db: { decision(id: string): DecisionRecord | null };
   engine: { resolve(decisionId: string, outcome: DecisionResolution): void };
   historyDays: () => number;
+  /** The accepted model mappings; absent reads as none */
+  modelFallbacks?: () => readonly ModelFallback[];
   now?: () => Date;
 }
 
@@ -490,7 +513,7 @@ export class DecisionResolvers {
         const resolver = row ? RESOLVERS[row.point] : undefined;
         if (!row || !resolver) continue;
         try {
-          const outcome = resolver(row, this.deps.sql, now.getTime());
+          const outcome = resolver(row, this.deps.sql, now.getTime(), { modelFallbacks: this.deps.modelFallbacks ?? (() => []) });
           if (outcome) {
             this.deps.engine.resolve(id, outcome);
             resolved += 1;
