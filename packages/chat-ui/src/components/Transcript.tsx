@@ -281,7 +281,7 @@ export const EntryView = memo(function EntryView({
     );
   }
   return (
-    <article className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
+    <article data-entry-id={entry.uuid} className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
       {head ? <Avatar role={entry.role} /> : <span className="avatar-gap" aria-hidden />}
       <div className="msg-body">
         <RowTime at={entry.timestamp} />
