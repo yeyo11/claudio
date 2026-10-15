@@ -299,6 +299,11 @@ export class ClaudeStream {
         input,
         ...(typeof request.description === 'string' ? { description: request.description } : {}),
         ...(Array.isArray(request.permission_suggestions) ? { suggestions: request.permission_suggestions as PermissionUpdate[] } : {}),
+        ...(typeof request.blocked_path === 'string' ? { blockedPath: request.blocked_path } : {}),
+        ...(typeof request.decision_reason === 'string' ? { decisionReason: request.decision_reason } : {}),
+        ...(typeof request.title === 'string' ? { title: request.title } : {}),
+        ...(typeof request.display_name === 'string' ? { displayName: request.display_name } : {}),
+        ...(typeof request.agent_id === 'string' ? { agentId: request.agent_id } : {}),
         ...(request.requires_user_interaction === true ? { requiresUserInteraction: true } : {}),
       },
     });
