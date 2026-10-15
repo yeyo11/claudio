@@ -354,7 +354,7 @@ test('GitLab state: with no pipeline the guard waits 90 s after the push when th
   assert.equal(refused.blocker?.code, 'checks-missing');
   assert.equal(refused.waitingForPipeline, false);
 
-  // A CI file at the head means a pipeline is coming; one Agentry cannot look for is not "no CI"
+  // A CI file at the head means a pipeline is coming; one Claudio cannot look for is not "no CI"
   for (const fileAt of [async () => true, async () => null] as Array<NonNullable<MergeTarget['fileAt']>>) {
     const coming = harness('gitlab', { fileAt });
     coming.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
@@ -528,10 +528,10 @@ test('GitLab Merge: --sha with the full id and --auto-merge=false, and the 409 b
     done = true;
     return ok('✓ Merged');
   });
-  const outcome = await h.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false, body: 'Merged by Agentry' }, PERSON);
+  const outcome = await h.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false, body: 'Merged by Claudio' }, PERSON);
   assert.equal(outcome.merged, true);
   assert.equal(outcome.branchDeleted, null);
-  assert.deepEqual(h.writes(), [`glab mr merge 12 -R https://gitlab.com/yeyo11/agentry -y --sha ${GL_HEAD} --auto-merge=false -m Merged by Agentry`]);
+  assert.deepEqual(h.writes(), [`glab mr merge 12 -R https://gitlab.com/yeyo11/agentry -y --sha ${GL_HEAD} --auto-merge=false -m Merged by Claudio`]);
   assert.deepEqual(h.merged, ['cr-1']);
   golden('merge-gitlab-merge', h.calls);
 
@@ -637,9 +637,9 @@ test('disarm: the cancel that says "error" with exit 0 is not believed, and the 
   golden('merge-gitlab-disarm', h.calls);
 });
 
-// ---------- before Agentry pushes ----------
+// ---------- before Claudio pushes ----------
 
-test('disarmBeforePush: an armed auto-merge is turned off and confirmed before the push, as Agentry, and nothing is written when none is armed', async () => {
+test('disarmBeforePush: an armed auto-merge is turned off and confirmed before the push, as Claudio, and nothing is written when none is armed', async () => {
   const h = harness('github');
   let armed = true;
   h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', autoMergeRequest: armed ? armedOn : null })));
@@ -690,7 +690,7 @@ test('a push resets the guard: the pipeline that follows it is the one GitLab Me
 
 // ---------- update from the base ----------
 
-test('Update from base on GitHub is Agentry\'s own merge, after auto-merge is off, and a conflict pushes nothing', async () => {
+test('Update from base on GitHub is Claudio\'s own merge, after auto-merge is off, and a conflict pushes nothing', async () => {
   let ran = 0;
   const h = harness('github', { updateFromBase: async () => ({ conflicts: ran++ === 0 ? ['src/a.ts'] : [] }) });
   let armed = true;
@@ -762,7 +762,7 @@ test('history lists the newest clicks first', async () => {
 
 // ---------- the person is told, and the guard holds ----------
 
-test('a push holds the change request: arming is busy until it ends, and the state says Agentry turned auto-merge off until the person arms again', async () => {
+test('a push holds the change request: arming is busy until it ends, and the state says Claudio turned auto-merge off until the person arms again', async () => {
   const h = harness('github');
   let armed = true;
   h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', autoMergeRequest: armed ? armedOn : null })));
@@ -790,7 +790,7 @@ test('a push holds the change request: arming is busy until it ends, and the sta
   assert.equal(rearmed.autoMergeOff, null);
 });
 
-test('the person turning auto-merge off themselves is not Agentry\'s doing', async () => {
+test('the person turning auto-merge off themselves is not Claudio\'s doing', async () => {
   const h = harness('github');
   let armed = true;
   h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', autoMergeRequest: armed ? armedOn : null })));
@@ -839,15 +839,15 @@ test('Rebase on GitLab is offered only when the checkout loses nothing, and says
   assert.equal(clean.blocker?.action, 'rebase-on-host');
   const dirty = await ffHarness({ checkout: async () => ({ uncommitted: true, unpushed: true }) }).service.state('cr-1');
   assert.deepEqual([dirty.canRebaseOnHost, dirty.rebaseOnHostWhy], [false, 'uncommitted-changes']);
-  assert.equal(dirty.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Agentry\'s own update');
+  assert.equal(dirty.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Claudio\'s own update');
   const ahead = await ffHarness({ checkout: async () => ({ uncommitted: false, unpushed: true }) }).service.state('cr-1');
   assert.deepEqual([ahead.canRebaseOnHost, ahead.rebaseOnHostWhy], [false, 'unpushed-commits']);
-  assert.equal(ahead.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Agentry\'s own update');
+  assert.equal(ahead.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Claudio\'s own update');
   const unreadable = await ffHarness({ checkout: () => Promise.reject(new Error('git failed')) }).service.state('cr-1');
   assert.deepEqual([unreadable.canRebaseOnHost, unreadable.rebaseOnHostWhy], [false, 'unpushed-commits']);
-  assert.equal(unreadable.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Agentry\'s own update');
+  assert.equal(unreadable.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Claudio\'s own update');
 
-  // With the rebase not offered, Update from base is Agentry's own merge, and the host is never asked to rebase
+  // With the rebase not offered, Update from base is Claudio's own merge, and the host is never asked to rebase
   let merged = 0;
   const own = ffHarness({
     checkout: async () => ({ uncommitted: true, unpushed: false }),
@@ -861,7 +861,7 @@ test('Rebase on GitLab is offered only when the checkout loses nothing, and says
   assert.deepEqual(own.writes(), []);
 });
 
-test('Update from base is refused while a chat or a run works in the checkout, and a host rebase that conflicts falls back to Agentry\'s own update', async () => {
+test('Update from base is refused while a chat or a run works in the checkout, and a host rebase that conflicts falls back to Claudio\'s own update', async () => {
   let working = true;
   let merged = 0;
   const updateFromBase = async (): Promise<{ conflicts: string[] }> => {

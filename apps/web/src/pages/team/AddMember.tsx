@@ -17,7 +17,7 @@ const NEW_FILE = '';
 
 /**
  * "Add a member": a role, the agent file that plays it (one already in `.claude/agents/` that no
- * member uses, or a new one Agentry writes), its model and what it answers for. The file itself is
+ * member uses, or a new one Claudio writes), its model and what it answers for. The file itself is
  * edited afterwards on the member's page, in the existing editor.
  */
 export function AddMemberDialog({ projectId, team, initialAgent, onClose, onAdded }: { projectId: string; team: Team; initialAgent?: string; onClose: () => void; onAdded: (agent: string) => void }) {

@@ -42,7 +42,7 @@ const READ_MAX = 200;
 /** A file or directory name the resources and the team accept */
 export const RESOURCE_NAME = /^[A-Za-z0-9][\w.-]{0,63}$/;
 
-/** What Agentry hands a run beside the directory itself, and what it offers when a project is new. */
+/** What Claudio hands a run beside the directory itself, and what it offers when a project is new. */
 export interface AssistantBrief {
   kind: AssistantRunKind;
   projectName: string;
@@ -70,7 +70,7 @@ export interface AssistantBrief {
   language: AssistantLanguage;
 }
 
-/** The languages Agentry speaks; a chat's title is written in the person's. */
+/** The languages Claudio speaks; a chat's title is written in the person's. */
 export type AssistantLanguage = AgentryLanguage;
 
 /** The history and state of a project's repository, as a run is handed them instead of a shell. */
@@ -128,7 +128,7 @@ const FRONTMATTER: Record<AssistantResourceKind, string> = {
 
 /**
  * How a member's model is chosen, as the Opus 5.5 and Sonnet 5.5 guides place them. Its effort is
- * not the model's to say: Agentry recommends it from the same guides ({@link recommendedMemberEffort}).
+ * not the model's to say: Claudio recommends it from the same guides ({@link recommendedMemberEffort}).
  */
 export const MODEL_CHOICE =
   'recommend opus for the roles that carry the hardest long-horizon work (deciding a design, refining large or vague items, working unattended across many files for a long time) and sonnet for the others, which it does well for less; say in its reason why the model you chose fits the role.';
@@ -152,7 +152,7 @@ function memberSchema(): Record<string, unknown> {
       responsibility: { type: 'string', description: 'One line on what it answers for' },
       writes: strings('Paths relative to the project it may write, such as src/ or docs/; empty means it only works on work items'),
       description: { type: 'string', description: "The agent file's description: when the CLI should pick it" },
-      instructions: { type: 'string', description: "The agent file's body in Markdown, specific to this project; empty lets Agentry write its standard one" },
+      instructions: { type: 'string', description: "The agent file's body in Markdown, specific to this project; empty lets Claudio write its standard one" },
       reason: { type: 'string', description: 'Why this project needs it, and why its model fits the role, in two or three sentences' },
     },
     required: ['role', 'agent', 'model', 'responsibility', 'writes', 'description', 'instructions', 'reason'],
@@ -255,14 +255,14 @@ export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName
 /** The language of an `Accept-Language` header or a stored choice: Spanish when it comes first, English otherwise. */
 export const assistantLanguage: (value: unknown) => AssistantLanguage = agentryLanguage;
 
-/** The prompt of a run: who it is, that it writes nothing, what Agentry already knows, what to propose. */
+/** The prompt of a run: who it is, that it writes nothing, what Claudio already knows, what to propose. */
 export function assistantPrompt(brief: AssistantBrief, model: string | null = null): string {
   const lines: string[] = [
     assistantTitle(brief),
     '',
-    `You are Agentry's project assistant for the project "${brief.projectName}", in this directory.`,
+    `You are Claudio's project assistant for the project "${brief.projectName}", in this directory.`,
     '',
-    'You are read-only. You have Read, Grep and Glob, confined to this directory, and no shell. Do not try to create, edit or delete any file: nothing is written until the person accepts each of your proposals, one by one, and Agentry writes it then. Secrets (.env files, keys, credentials) and the .git directory are closed to you; do not ask for them.',
+    'You are read-only. You have Read, Grep and Glob, confined to this directory, and no shell. Do not try to create, edit or delete any file: nothing is written until the person accepts each of your proposals, one by one, and Claudio writes it then. Secrets (.env files, keys, credentials) and the .git directory are closed to you; do not ask for them.',
     '',
   ];
   if (brief.empty) {
@@ -274,7 +274,7 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
     );
   }
 
-  lines.push('## What Agentry already knows', '');
+  lines.push('## What Claudio already knows', '');
   lines.push(`### Team (${String(brief.team.length)})`);
   if (brief.team.length) for (const m of brief.team) lines.push(`- ${roleTitle(m.role)} (${m.role}, agent ${m.agent}, ${m.model}): ${m.responsibility}`);
   else lines.push('- nobody yet');
@@ -366,8 +366,8 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
   return lines.join('\n');
 }
 
-/** Told to a run's chat continued after Agentry restarted in the middle of it. */
-export const RESUME_PROMPT = 'Agentry restarted while you were working on this. Carry on from where you were, still read-only, and end with the structured result.';
+/** Told to a run's chat continued after Claudio restarted in the middle of it. */
+export const RESUME_PROMPT = 'Claudio restarted while you were working on this. Carry on from where you were, still read-only, and end with the structured result.';
 
 function singular(kind: AssistantResourceKind): string {
   return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : 'command';

@@ -18,7 +18,7 @@ const CLAUDE_ONLY: readonly string[] = [
   'components:environment.empty',
   // Claude keeps its memory per project
   'home:settings.memory',
-  // The list of agents Agentry looks for
+  // The list of agents Claudio looks for
   'home:activity.noAgentHint',
 ];
 

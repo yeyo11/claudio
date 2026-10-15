@@ -39,7 +39,7 @@ export function SignIn({ mode }: { mode: AuthMode }) {
         <div className="signin-head">
           <span className="signin-brand">
             <BrandMark size={22} />
-            Agentry
+            Claudio
           </span>
           <h1>{t('signIn.title')}</h1>
           <p className="muted">{mode === 'oidc' ? t('signIn.oidcBody') : t('signIn.tokenBody')}</p>

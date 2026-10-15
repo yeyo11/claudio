@@ -232,7 +232,7 @@ test('each pull request state takes its one status colour, and only live things 
     const state = workItemStrip(it);
     return state ? stripTone(state) : 'none';
   };
-  assert.equal(tone(item('in_review', { pullRequest: pr({ phase: 'preparing' }) })), null, 'Agentry preparing a PR is neutral: no agent works on it');
+  assert.equal(tone(item('in_review', { pullRequest: pr({ phase: 'preparing' }) })), null, 'Claudio preparing a PR is neutral: no agent works on it');
   assert.equal(tone(item('in_progress', { pullRequest: pr({ phase: 'conflict', conflicts: ['a'] }) })), 'warn');
   assert.equal(tone(item('in_review', { pullRequest: pr({ phase: 'awaiting-verify' }) })), null);
   assert.equal(tone(item('in_review', { pullRequest: pr() })), 'wait', 'waiting for the merge is idle');

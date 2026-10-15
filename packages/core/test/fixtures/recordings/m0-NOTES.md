@@ -122,7 +122,7 @@ below came back while REST said `unchecked`), so `unchecked` should not disable 
   back to `unchecked`.
 - `tb_update_missing`: `--target-branch probe/m0-nonexistent` → **exit 0, accepted**: GitLab sets a
   target branch that does not exist (`tb_get_after_missing`: `target_branch: "probe/m0-nonexistent"`,
-  `unchecked`, also with recheck). Agentry must check the branch exists before offering or sending a
+  `unchecked`, also with recheck). Claudio must check the branch exists before offering or sending a
   base change (`projects/{P}/repository/branches/<b>`), since neither glab nor GitLab refuses.
 - `tb_update_back` → `probe/m0-base2` again, exit 0.
 
@@ -167,7 +167,7 @@ also after the pipeline succeeded, also plain `draft_get_plain` and the list `dr
 (`draft_gql_checks`). `draft_merge_refused` → exit 1, stdout empty, stderr a **client-side** box from
 glab (no request URL):
 `This merge request is still a draft; run \`glab mr update 15 --ready\` to mark it as ready for review.`
-(glab hands out a command; Agentry must show its own text, never this line). `draft_ready`:
+(glab hands out a command; Claudio must show its own text, never this line). `draft_ready`:
 `glab mr update 15 -R yeyo11/agentry --ready` → `✓ marked as ready`, title back.
 
 **Failed.** `setup_ci_fail` (15:43, head `0208baec`, job `exit 1`): `head_pipeline.status: "failed"`
@@ -202,7 +202,7 @@ fetched it; the outcome depends on timing, so the guard stays). The merge commit
 `.gitlab-ci.yml`.
 
 So `--auto-merge=false` means "merge now": it neither arms nor waits, and an unrequired running
-pipeline does not stop it. That confirms the plan's pipeline guard is needed (Agentry, not GitLab,
+pipeline does not stop it. That confirms the plan's pipeline guard is needed (Claudio, not GitLab,
 must hold Merge now while the head's pipeline runs) and that the flag is safe to always pass.
 
 ## 8. `conflict` (recorded)
@@ -242,7 +242,7 @@ MR !14 (`probe/m0-disc`, head `7d13d5b9` on `d57069b3`) → `probe/m0-base2`, wh
   head `b4199b8f`, `rebase_in_progress: false`, `merge_error: null`, `diff_refs.base_sha` = the
   target's head, status `unchecked`). The rebased commit keeps the author; its **committer is the
   signed-in GitLab user** (name and account e-mail, redacted in the capture): a host-side rebase
-  rewrites the head, so Agentry's worktree must `fetch` + `reset --keep` as the plan says.
+  rewrites the head, so Claudio's worktree must `fetch` + `reset --keep` as the plan says.
 - `ff_merge_stale_sha`: merging with the pre-rebase head → **409** `SHA does not match HEAD of source
   branch: b4199b8f…` → `head-moved`, as designed.
 - `ff_merge`: `glab mr merge 14 -R yeyo11/agentry -y --sha b4199b8f… --auto-merge=false` → exit 0,
@@ -251,7 +251,7 @@ MR !14 (`probe/m0-disc`, head `7d13d5b9` on `d57069b3`) → `probe/m0-base2`, wh
   fast-forward merge the merged commit is `sha`, not `merge_commit_sha`.
 - A conflicting MR under `ff` (`ff_conf_get`, MR !16): `detailed_merge_status: "need_rebase"` (not
   `conflict`), `merge_status: "cannot_be_merged_recheck"`, `has_conflicts: false`. "Rebase on GitLab"
-  is then offered and fails with the conflict (gl§3's recorded `merge_error`); Agentry's own update
+  is then offered and fails with the conflict (gl§3's recorded `merge_error`); Claudio's own update
   path stays the fallback.
 - `set_merge_method_back`: `-f merge_method=merge` → exit 0.
 

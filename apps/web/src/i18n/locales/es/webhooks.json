@@ -1,6 +1,6 @@
 {
   "title": "Webhooks",
-  "intro": "Un webhook hace que tu host de código avise a Agentry en cuanto una PR o MR cambia, en lugar de esperar a la siguiente lectura. Solo sirve de aviso: Agentry vuelve a leer la petición y no cambia nada por lo que diga el aviso. Sin webhook, o si un aviso se pierde, la sigue leyendo cada pocos minutos.",
+  "intro": "Un webhook hace que tu host de código avise a Claudio en cuanto una PR o MR cambia, en lugar de esperar a la siguiente lectura. Solo sirve de aviso: Claudio vuelve a leer la petición y no cambia nada por lo que diga el aviso. Sin webhook, o si un aviso se pierde, la sigue leyendo cada pocos minutos.",
   "aria": "Webhooks por proyecto",
   "summary_one": "{{count}} proyecto · {{active}} con webhook",
   "summary_other": "{{count}} proyectos · {{active}} con webhook",
@@ -9,7 +9,7 @@
   "arrive": "Los avisos llegan a",
   "open": "Abierta",
   "noAddress": {
-    "title": "Agentry no tiene una dirección pública.",
+    "title": "Claudio no tiene una dirección pública.",
     "body": "El túnel solo llega a tu propia tailnet, así que un host de código en internet no puede entregar aquí."
   },
   "state": {
@@ -19,12 +19,12 @@
     "stale": "Dirección antigua"
   },
   "text": {
-    "active": "{{host}} entrega los avisos y Agentry vuelve a leer la PR al momento.",
-    "off": "Sin webhook, Agentry lee las PR cada {{count}} min. Con uno se entera al momento.",
-    "failing": "{{host}} no consigue entregar los avisos: la dirección de Agentry respondió con un error.",
-    "stale": "El webhook apunta a una dirección que ya no es la de Agentry. Agentry lo apunta solo a la nueva cuando puede; hasta entonces, quítalo o espera.",
-    "noAddress": "Registrar un webhook necesita una dirección pública. Mientras tanto Agentry lee las PR cada {{count}} min.",
-    "noAddressStale": "{{host}} ya no llega a la dirección a la que apunta este webhook, y Agentry no tiene una dirección pública a la que moverlo. Quítalo; mientras tanto Agentry lee las PR por su cuenta."
+    "active": "{{host}} entrega los avisos y Claudio vuelve a leer la PR al momento.",
+    "off": "Sin webhook, Claudio lee las PR cada {{count}} min. Con uno se entera al momento.",
+    "failing": "{{host}} no consigue entregar los avisos: la dirección de Claudio respondió con un error.",
+    "stale": "El webhook apunta a una dirección que ya no es la de Claudio. Claudio lo apunta solo a la nueva cuando puede; hasta entonces, quítalo o espera.",
+    "noAddress": "Registrar un webhook necesita una dirección pública. Mientras tanto Claudio lee las PR cada {{count}} min.",
+    "noAddressStale": "{{host}} ya no llega a la dirección a la que apunta este webhook, y Claudio no tiene una dirección pública a la que moverlo. Quítalo; mientras tanto Claudio lee las PR por su cuenta."
   },
   "fact": {
     "lastNotice": "último aviso",
@@ -49,7 +49,7 @@
   },
   "remove": {
     "title": "Quitar el webhook de {{project}}",
-    "body": "Agentry borrará el webhook de {{repo}} en {{host}} y dejará de recibir sus avisos. Las PR se seguirán leyendo cada {{count}} min. Puedes registrarlo de nuevo cuando quieras.",
+    "body": "Claudio borrará el webhook de {{repo}} en {{host}} y dejará de recibir sus avisos. Las PR se seguirán leyendo cada {{count}} min. Puedes registrarlo de nuevo cuando quieras.",
     "confirm": "Quitar webhook",
     "done": "Webhook quitado",
     "error": "No se ha podido quitar el webhook"
@@ -58,22 +58,22 @@
     "title": "Registrar un webhook en {{project}}",
     "addressId": "su id",
     "address": "Dirección",
-    "addressNote": "Es la dirección pública de Agentry ahora mismo. {{host}} firma cada aviso con el secreto; Agentry lo comprueba antes de leer nada.",
+    "addressNote": "Es la dirección pública de Claudio ahora mismo. {{host}} firma cada aviso con el secreto; Claudio lo comprueba antes de leer nada.",
     "events": "Eventos",
-    "eventsNote": "Los elige Agentry y son los que hacen falta para seguir una PR; solo sirven para que la lea antes. No se pueden cambiar aquí.",
-    "secret": "Agentry genera un secreto de 32 bytes, lo guarda y se lo entrega a {{host}} al registrar el webhook. No se vuelve a mostrar. Si el repositorio ya tiene un webhook con esta dirección, Agentry lo adopta en lugar de crear otro. Registrarlo necesita permiso de administración sobre el repositorio.",
+    "eventsNote": "Los elige Claudio y son los que hacen falta para seguir una PR; solo sirven para que la lea antes. No se pueden cambiar aquí.",
+    "secret": "Claudio genera un secreto de 32 bytes, lo guarda y se lo entrega a {{host}} al registrar el webhook. No se vuelve a mostrar. Si el repositorio ya tiene un webhook con esta dirección, Claudio lo adopta en lugar de crear otro. Registrarlo necesita permiso de administración sobre el repositorio.",
     "session": "Se registra con {{cli}}, con tu sesión de {{user}}",
     "sessionPlain": "Se registra con {{cli}}, con su propia sesión",
     "submit": "Registrar webhook",
     "submitting": "Registrando…",
     "retry": "Volver a intentarlo",
     "done": "Webhook registrado",
-    "failed": "Agentry no ha podido registrar el webhook.",
+    "failed": "Claudio no ha podido registrar el webhook.",
     "noPermission": "{{host}} no ha dejado registrar el webhook.",
     "noPermissionBody": "La sesión de {{cli}} no tiene permiso de administración sobre este repositorio. Pide ese permiso al propietario y vuelve a intentarlo."
   },
   "reason": {
-    "noPublicUrl": "Agentry no tiene una dirección pública a la que un host pueda entregar.",
+    "noPublicUrl": "Claudio no tiene una dirección pública a la que un host pueda entregar.",
     "noRemote": "Este proyecto no tiene un remoto de un host de código."
   },
   "event": {

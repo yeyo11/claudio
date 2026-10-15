@@ -27,7 +27,7 @@
     "workers": "Orchestration workers",
     "workersHint": "The chats that carry out the tasks of an orchestration: their home is the orchestration board",
     "internal": "Internal",
-    "internalHint": "Housekeeping chats of Agentry itself (the planner, the auth check)",
+    "internalHint": "Housekeeping chats of Claudio itself (the planner, the auth check)",
     "emptyFiltered": "No chats match",
     "empty": "No chats yet",
     "emptyFilteredBody": "Nothing in this list matches the search or the filters in force.",
@@ -103,7 +103,7 @@
   },
   "new": {
     "title": "New chat",
-    "subtitle": "Starts a conversation with {{agent}} that Agentry keeps",
+    "subtitle": "Starts a conversation with {{agent}} that Claudio keeps",
     "prompt": "Prompt",
     "promptHint": "Drop or paste files onto the prompt to attach them.",
     "promptPlaceholder": "What should {{agent}} do?",

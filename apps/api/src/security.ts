@@ -165,16 +165,16 @@ const CHAT_FORBIDDEN = new Set([
   `DELETE ${API_PREFIX}/security/token`,
   `POST ${API_PREFIX}/tunnel/start`,
   `PUT ${API_PREFIX}/tunnel/settings`,
-  // It names a binary Agentry will run, so a prompt injection must not be able to point it at one
+  // It names a binary Claudio will run, so a prompt injection must not be able to point it at one
   `PUT ${API_PREFIX}/providers/settings`,
   `POST ${API_PREFIX}/providers/refresh`,
-  // Same for the code hosts: the settings name the gh or glab binary Agentry will run
+  // Same for the code hosts: the settings name the gh or glab binary Claudio will run
   `PUT ${API_PREFIX}/hosts/settings`,
   `POST ${API_PREFIX}/hosts/refresh`,
   // And the trackers: the same binaries
   `PUT ${API_PREFIX}/trackers/settings`,
   `POST ${API_PREFIX}/trackers/refresh`,
-  // YouTrack's token is the one tracker secret Agentry keeps: a chat neither reads where it points nor changes it
+  // YouTrack's token is the one tracker secret Claudio keeps: a chat neither reads where it points nor changes it
   `GET ${API_PREFIX}/trackers/youtrack/credentials`,
   `PUT ${API_PREFIX}/trackers/youtrack/credentials`,
   `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
@@ -227,7 +227,7 @@ const CHAT_FORBIDDEN_ROTATION = new Set([
 
 /**
  * Registering a webhook puts a URL and a secret on the person's repository, and removing one stops
- * Agentry hearing from it: the person's click, never a chat's. Reading them stays open.
+ * Claudio hearing from it: the person's click, never a chat's. Reading them stays open.
  */
 const CHAT_FORBIDDEN_WEBHOOKS = new Set([
   `POST ${API_PREFIX}/projects/:id/webhooks`,
@@ -350,7 +350,7 @@ interface Failures {
  *
  * Written here rather than pulled in as a rate-limiting plugin, for the reason `cron.ts` gives for
  * its own parser: what this needs is a count and an instant per address, and a plugin would bring
- * a store, a policy language and a dependency to hold them. A token Agentry generates is 32 random
+ * a store, a policy language and a dependency to hold them. A token Claudio generates is 32 random
  * bytes and out of reach of guessing, but a token someone chooses is accepted from 16 characters,
  * and 16 characters under an unlimited online attack are not enough.
  *
@@ -491,7 +491,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         // The mode travels with the refusal: it is what tells the UI whether to ask for a token
         // or to send the person to their identity provider, without an open route to ask first.
         return reply
-          .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Agentry"' : `Bearer realm="Agentry", error="invalid_token"`)
+          .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Claudio"' : `Bearer realm="Claudio", error="invalid_token"`)
           .status(401)
           .send({ error: 'authentication required', mode });
       };

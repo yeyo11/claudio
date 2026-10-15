@@ -2,7 +2,7 @@
   "title": "Review",
   "sub": "{{noun}} {{ref}}",
   "loading": "Reading the review…",
-  "failed": "Agentry could not read the review from {{host}}.",
+  "failed": "Claudio could not read the review from {{host}}.",
   "retry": "Try again",
   "row": {
     "decision": "Decision",

@@ -207,7 +207,7 @@ test('a run nobody answers for never asks', async () => {
   db.close();
 });
 
-test('continuing in a copy forks once, under the id Agentry chose, then resumes the copy', async () => {
+test('continuing in a copy forks once, under the id Claudio chose, then resumes the copy', async () => {
   const { runs, db } = setup();
   const source = { cwd: tempConfig().workspaceDir, name: 'terminal chat', model: null };
   assert.throws(() => runs.fork('terminal-session', { prompt: ' ' }, source), /prompt is required/);
@@ -262,12 +262,12 @@ test('a run resumed right after a stop keeps its new process', async () => {
   db.close();
 });
 
-// ---------- Agentry's own write tools: each one confirmed on its own, every time ----------
+// ---------- Claudio's own write tools: each one confirmed on its own, every time ----------
 
 const WRITE_TOOL = 'mcp__claudio__create_work_item';
 const decisionOf = (runs: ChatManager, id: string) => JSON.parse(resultText(runs, id).replace('decision=', '')) as Record<string, unknown>;
 
-test('a write tool of Agentry reaches the broker without suggestions, and an allow carries no rules', async () => {
+test('a write tool of Claudio reaches the broker without suggestions, and an allow carries no rules', async () => {
   const { runs, broker, db } = setup();
   const run = runs.start({ prompt: `ASK ${WRITE_TOOL}`, permissionPrompts: 'host' });
   const asked = await until(() => broker.list(run.id)[0], 'the prompt');

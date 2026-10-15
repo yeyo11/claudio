@@ -30,7 +30,7 @@ import { isTrackerId, TRACKER_IDS } from './trackers/ids.ts';
  * What a project configures, beyond its name and path: a settings document per project, a JSON file
  * in the data directory named after the project's id, read and written whole.
  *
- * The document outlives the project record on purpose. Removing a project only makes Agentry forget
+ * The document outlives the project record on purpose. Removing a project only makes Claudio forget
  * the directory, so the document (and the work items keyed by the same id) stays, and importing the
  * same directory again finds it by its path and takes the id back. That is why the file also records
  * the path it was written for.
@@ -66,7 +66,7 @@ const isStatus = (value: unknown): value is WorkItemStatus => (WORK_ITEM_STATUSE
 
 /**
  * A key prefix made from a project's name: the initials of its words when it has several (`claude
- * wrapper` → `CW`), or the first letter and the consonants after it when it has one (`Agentry` →
+ * wrapper` → `CW`), or the first letter and the consonants after it when it has one (`Claudio` →
  * `AGN`). Letters only, accents dropped. A prefix already taken gets a digit, from 2 up.
  */
 export function deriveKeyPrefix(name: string, taken: ReadonlySet<string>): string {

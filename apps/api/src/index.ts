@@ -12,7 +12,7 @@ const port = Number(process.env.PORT ?? 8797);
 const host = process.env.HOST ?? '127.0.0.1';
 // The address in front of this process is fixed: the Vite proxy of `pnpm dev`, a container's
 // published port. Moving to a free port would leave it pointing at whatever holds this one, which
-// once was an older Agentry from another worktree, silently answering a newer UI.
+// once was an older Claudio from another worktree, silently answering a newer UI.
 const server = await startServer({ port, host, portFallback: false }).catch((err: NodeJS.ErrnoException) => {
   if (err.code !== 'EADDRINUSE') throw err;
   console.error(

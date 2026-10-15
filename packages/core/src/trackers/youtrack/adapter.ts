@@ -3,7 +3,7 @@ import { parseJson } from '../../hosts/json.ts';
 import { ISSUES_PAGE_SIZE, TrackerInputError, type IssueRead, type TrackerAdapter } from '../tracker.ts';
 
 // YouTrack through JetBrains' `youtrack-app` CLI: `rest request --path`, which calls YouTrack's
-// documented REST API with the host and the token Agentry keeps (handed in the child's environment,
+// documented REST API with the host and the token Claudio keeps (handed in the child's environment,
 // never in argv). Every path, field and answer below is what youtrack-app 1.0.3 was recorded to
 // take and print against YouTrack 2026.2 (recordings/youtrack-app/NOTES.md). The scope is the
 // project's short name, and `scope.host` is the instance's address, which issue links are built on.

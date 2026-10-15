@@ -19,7 +19,7 @@ function RuleList({ rules }: { rules: string[] }) {
 
 /**
  * The tool preset and MCP servers a chat was started with: what explains a tool that was refused or
- * a server that was never there. Nothing is shown for a chat Agentry did not configure.
+ * a server that was never there. Nothing is shown for a chat Claudio did not configure.
  */
 export function ToolsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');

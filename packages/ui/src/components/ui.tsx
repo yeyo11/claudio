@@ -47,12 +47,12 @@ const TONES = {
   unknown: 'muted',
 } satisfies Record<string, string>;
 
-/** The statuses Agentry names; each has its text under `common:status`. */
+/** The statuses Claudio names; each has its text under `common:status`. */
 type Status = keyof typeof TONES;
 
 const isStatus = (value: string): value is Status => Object.hasOwn(TONES, value);
 
-/** A status in the active language; one Agentry does not know is shown as it came. */
+/** A status in the active language; one Claudio does not know is shown as it came. */
 export function statusText(status: string): string {
   const key = status.toLowerCase();
   return isStatus(key) ? i18n.t(`common:status.${key}`) : status;
@@ -184,7 +184,7 @@ export function Skeleton({ rows = 3, height = 14 }: { rows?: number; height?: nu
 
 export function usePageTitle(title: string | undefined): void {
   useEffect(() => {
-    if (title) document.title = `${title} · Agentry`;
+    if (title) document.title = `${title} · Claudio`;
   }, [title]);
 }
 

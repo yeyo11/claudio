@@ -88,7 +88,7 @@ function sourceCount(source: AssistantSource, t: ReturnType<typeof useTranslatio
   return '';
 }
 
-/** What a source is: its path in mono, or the words for what Agentry handed the run. */
+/** What a source is: its path in mono, or the words for what Claudio handed the run. */
 function SourceName({ source }: { source: AssistantSource }) {
   const { t } = useTranslation('suggestion');
   if (source.path !== null) {

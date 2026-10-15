@@ -1,7 +1,7 @@
 /**
  * How the web reads a project's webhooks: the rows of Integrations → Webhooks and the freshness
  * line of a change request. Plain data, no React: tested without a browser (test/webhooks.test.ts).
- * A webhook only makes Agentry read sooner; nothing here describes it as changing anything, and a
+ * A webhook only makes Claudio read sooner; nothing here describes it as changing anything, and a
  * secret is never part of the data it reads.
  */
 import type { ChangeRequestFreshness, ProjectWebhooks, WebhookRegistration, WebhookState, WebhookUnavailableReason } from '@claudio/shared';

@@ -64,7 +64,7 @@ function rules(value: unknown, field: string): string[] {
   return list;
 }
 
-/** Validates a preset a person wrote; `builtIn` is Agentry's to say, never the caller's. */
+/** Validates a preset a person wrote; `builtIn` is Claudio's to say, never the caller's. */
 export function parsePreset(id: string, input: unknown, builtIn = false): ToolPreset {
   if (!PRESET_ID_RE.test(id)) throw new Error('invalid preset id (lowercase letters, digits and - only, up to 40 characters)');
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('preset must be a JSON object');
@@ -297,7 +297,7 @@ export async function writeMcpConfig(dataDir: string, mcpServers: Record<string,
 }
 
 /**
- * The same file, written where a process is about to spawn and cannot wait: an Agentry assistant
+ * The same file, written where a process is about to spawn and cannot wait: an Claudio assistant
  * chat is given its config again at every process, a restart's included.
  */
 export function writeMcpConfigSync(dataDir: string, mcpServers: Record<string, Record<string, unknown>>): string {

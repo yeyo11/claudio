@@ -176,7 +176,7 @@ test('no address or QR code is shown before the address answers', () => {
   assert.ok(text(panel(status('verifying'))).includes('Checking that Tailscale holds the rule'));
 });
 
-test('a closed tunnel offers the one primary action, with the node, its port and what Agentry touches', () => {
+test('a closed tunnel offers the one primary action, with the node, its port and what Claudio touches', () => {
   const html = panel(status('stopped'));
   assert.match(html, /class="btn btn-primary"[^>]*data-testid="tunnel-start"/);
   assert.equal((html.match(/btn-primary/g) ?? []).length, 1);
@@ -222,7 +222,7 @@ test('each way Tailscale is not ready says what is missing and what to do, befor
   }
 });
 
-test('the Tailscale Agentry runs is signed in from the tab, never with a command to run, and signed out beside its name', () => {
+test('the Tailscale Claudio runs is signed in from the tab, never with a command to run, and signed out beside its name', () => {
   const managed = (state: TailscaleReadiness['state'], code: string, host: string | null = null) =>
     panel(status('stopped', { managed: true, tailscale: { state, version: '1.102.4', host, reason: state === 'ready' ? null : { code, params: { state: 'Stopped' }, text: 'x' } } }));
   for (const state of ['loggedOut', 'stopped'] as const) {
@@ -310,7 +310,7 @@ test('the tunnel and the settings are written whole from their events, and a new
 // ---------- the layered settings ----------
 
 const layered = (sources: Partial<AppSettings['sources']> = {}, hosts: Partial<AppSettings['allowedHostLayers']> = {}): AppSettings => {
-  const allowedHostLayers = { env: [], file: ['agentry.example.com'], runtime: [], ...hosts };
+  const allowedHostLayers = { env: [], file: ['claudio.example.com'], runtime: [], ...hosts };
   return {
     allowedHosts: [...allowedHostLayers.env, ...allowedHostLayers.file],
     maxConcurrentRuns: 8,
@@ -330,27 +330,27 @@ test('a save sends only what moved, and never a key the environment set', () => 
 });
 
 test("hosts are compared with the ones added here, so the environment's never count as a change", () => {
-  const saved = layered({ allowedHosts: 'env' }, { env: ['*.devtunnels.ms'], file: ['agentry.example.com'] });
-  assert.deepEqual(changedSettings(saved, { allowedHosts: ['agentry.example.com'] }), {});
-  assert.deepEqual(changedSettings(saved, { allowedHosts: ['agentry.example.com', '192.168.1.184'] }), { allowedHosts: ['agentry.example.com', '192.168.1.184'] });
+  const saved = layered({ allowedHosts: 'env' }, { env: ['*.devtunnels.ms'], file: ['claudio.example.com'] });
+  assert.deepEqual(changedSettings(saved, { allowedHosts: ['claudio.example.com'] }), {});
+  assert.deepEqual(changedSettings(saved, { allowedHosts: ['claudio.example.com', '192.168.1.184'] }), { allowedHosts: ['claudio.example.com', '192.168.1.184'] });
   // The run defaults' save does not carry the hosts along
   assert.deepEqual(changedSettings(saved, { maxConcurrentRuns: 8, defaultPermissionMode: 'acceptEdits' }), {});
 });
 
 test('hosts are read one per line, lower-cased, without the blanks', () => {
-  assert.deepEqual(parseHosts(' Agentry.Example.com\n\n*.corp.example.com ,x.example.com\n'), ['agentry.example.com', '*.corp.example.com', 'x.example.com']);
+  assert.deepEqual(parseHosts(' Claudio.Example.com\n\n*.corp.example.com ,x.example.com\n'), ['claudio.example.com', '*.corp.example.com', 'x.example.com']);
 });
 
 test('a setting the environment set is shown read-only, naming its variable', () => {
   const client = new QueryClient();
-  client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }, { env: ['*.devtunnels.ms'], file: ['agentry.example.com'] }));
+  client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }, { env: ['*.devtunnels.ms'], file: ['claudio.example.com'] }));
   const html = wrap(<AppSettingsCards />, client);
   assert.ok(text(html).includes('set by the environment'));
   assert.ok(html.includes('CLAUDIO_ALLOWED_HOSTS'));
   assert.ok(html.includes('CLAUDIO_DEFAULT_PERMISSION_MODE'));
   // The environment's hosts are a tagged list; the ones added here stay editable beside them
   assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text">set by the environment/);
-  assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>agentry\.example\.com<\/textarea>/);
+  assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>claudio.example.com<\/textarea>/);
   assert.ok(text(html).includes('beside the ones from the environment'));
   // The mode's picker is disabled; the run limit stays editable
   assert.match(html, /role="combobox"[^>]*disabled=""[^>]*class="select-trigger/);
@@ -372,5 +372,5 @@ test('settings nobody pinned are editable', () => {
   const html = wrap(<AppSettingsCards />, client);
   assert.doesNotMatch(html, /set by the environment/);
   assert.doesNotMatch(html, /fixed-hosts/);
-  assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>agentry\.example\.com<\/textarea>/);
+  assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>claudio.example.com<\/textarea>/);
 });

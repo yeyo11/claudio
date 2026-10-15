@@ -10,7 +10,7 @@ import type { Chat, Project } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // POST /assistant/chats over a real core and the fake CLI: it answers what POST /chats answers, and the
-// chat the fake spawned was given the confinement of the Agentry assistant.
+// chat the fake spawned was given the confinement of the Claudio assistant.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 

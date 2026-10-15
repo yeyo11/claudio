@@ -120,13 +120,13 @@
   },
   "remove": {
     "title": "¿Quitar {{name}}?",
-    "body": "Agentry olvida la cuenta y borra su directorio de configuración. Los chats iniciados en ella conservan sus transcripciones."
+    "body": "Claudio olvida la cuenta y borra su directorio de configuración. Los chats iniciados en ella conservan sus transcripciones."
   },
   "dialog": {
     "title": "Añadir una cuenta",
     "kind": "Tipo",
     "hint": {
-      "login": "Inicia sesión con Claude Code en un directorio de configuración propio. Agentry nunca lee las credenciales.",
+      "login": "Inicia sesión con Claude Code en un directorio de configuración propio. Claudio nunca lee las credenciales.",
       "token": "Un token de claude setup-token. No tiene identidad propia, así que necesita un alias.",
       "api-key": "Una clave de API. No tiene identidad ni límites de uso que leer, así que necesita un alias."
     },

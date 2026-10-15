@@ -73,7 +73,7 @@ Also measured on the throwaway, and why `LoginService` runs what it runs:
 - **`up` with flags that differ from what the daemon kept is refused** (`changing settings via 'tailscale
   up' requires mentioning all non-default flags`) unless `--reset` is given; `tailscale login` skips
   that check but its help calls it alpha. Hence `up --reset --hostname=<name>`, on a daemon only
-  Agentry drives.
+  Claudio drives.
 - **The CLI and the daemon run as the same unprivileged user** and the CLI may change everything
   (`up`, `logout`) with no `--operator`.
 - **`tailscale logout`** on a node that is not signed in exits 0 with no output.

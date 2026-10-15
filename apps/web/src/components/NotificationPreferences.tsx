@@ -14,7 +14,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 /**
  * What a person is told when push cannot work here. Each of these is a state in which the browser's
  * push APIs are missing or inert, and a switch would be a lie: an insecure origin — how most people
- * run Agentry on a LAN — has no service worker at all, and Safari delivers a push only to an app on
+ * run Claudio on a LAN — has no service worker at all, and Safari delivers a push only to an app on
  * the Home Screen. The sentence names the origin, because "not a secure origin" about an address
  * the person never chose to look at is not something anyone can act on.
  */

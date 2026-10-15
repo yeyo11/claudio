@@ -19,7 +19,7 @@ const FILE = 'dashboard-layouts.json';
 const scopeOf = (key: string): DashboardScope => (key === ALL_PROJECTS_LAYOUT ? 'global' : 'project');
 
 export interface DashboardLayoutDeps {
-  /** Whether a project id is one Agentry knows; an unknown one is refused with `project not found` */
+  /** Whether a project id is one Claudio knows; an unknown one is refused with `project not found` */
   hasProject: (id: string) => Promise<boolean>;
   emit?: (event: AgentryEventInput) => void;
 }

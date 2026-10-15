@@ -55,7 +55,7 @@
     "armedByUnknown": "Merges with {{method}} once the host is satisfied. {{host}} does not say who armed it.",
     "methodUnknown": "the default method",
     "turnOff": "Turn off",
-    "waitingForPipeline": "{{host}} has not attached the pipeline to this commit yet. Agentry reads it again every 10 seconds.",
+    "waitingForPipeline": "{{host}} has not attached the pipeline to this commit yet. Claudio reads it again every 10 seconds.",
     "others": "Also: {{words}}",
     "optionalChecksFailing": "A check that is not required failed. You can still merge.",
     "method": {

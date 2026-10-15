@@ -100,7 +100,7 @@ test('a verification spec gets its defaults, and what could not run is refused i
   assert.equal(normalizeVerification(spec({ model: '  ' }))?.model, undefined);
 });
 
-test('the fixer is told Agentry’s rules, the failure and what its earlier attempts said', () => {
+test('the fixer is told Claudio’s rules, the failure and what its earlier attempts said', () => {
   const prompt = fixerPrompt({
     objective: 'add notifications',
     branch: 'agentry/x',

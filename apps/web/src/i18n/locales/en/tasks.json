@@ -333,7 +333,7 @@
       "no-provider": "no provider could take it",
       "limit-wait-expired": "the limit did not reset in time",
       "stopped": "its chat was stopped",
-      "restarts": "Agentry restarted too many times",
+      "restarts": "Claudio restarted too many times",
       "unreadable": "it left no readable result",
       "no-verdict": "it ended without a verdict",
       "max-tokens": "it was cut off at the token limit",
@@ -416,11 +416,11 @@
     "notReady": {
       "not-git": "the project is not a git repository",
       "no-remote": "the project has no origin remote",
-      "unsupported-host": "Agentry cannot reach {{host}}: neither gh nor glab is signed in to it",
-      "cli-missing": "{{cli}} is not installed, or Agentry cannot find it",
-      "cli-incompatible": "{{cli}} is older than the oldest release Agentry works with",
+      "unsupported-host": "Claudio cannot reach {{host}}: neither gh nor glab is signed in to it",
+      "cli-missing": "{{cli}} is not installed, or Claudio cannot find it",
+      "cli-incompatible": "{{cli}} is older than the oldest release Claudio works with",
       "cli-signed-out": "{{cli}} is not signed in to {{host}}",
-      "no-default-branch": "Agentry could not find the default branch of this repository"
+      "no-default-branch": "Claudio could not find the default branch of this repository"
     },
     "noun": {
       "pr": "PR",

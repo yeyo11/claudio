@@ -1,7 +1,7 @@
 {
   "title": "Checks",
   "loading": "Reading the checks…",
-  "failed": "Agentry could not read the checks from {{host}}.",
+  "failed": "Claudio could not read the checks from {{host}}.",
   "retry": "Try again",
   "truncated": "The list is cut at its first 1,000 checks.",
   "openOn": "Open on {{host}}",
@@ -57,7 +57,7 @@
   },
   "limited": {
     "badge": "API limit",
-    "body": "The {{host}} API rate limit for your account is used up until {{time}}. Agentry waits until then.",
+    "body": "The {{host}} API rate limit for your account is used up until {{time}}. Claudio waits until then.",
     "asOf": "List read at {{time}}"
   },
   "fix": {
@@ -101,8 +101,8 @@
     "empty": "This log is empty.",
     "tail": "End of the log",
     "gap": "⋯ lines left out",
-    "foot": "Agentry hides likely secrets",
-    "footTruncated": "The end of the log · 16 KiB at most · Agentry hides likely secrets",
+    "foot": "Claudio hides likely secrets",
+    "footTruncated": "The end of the log · 16 KiB at most · Claudio hides likely secrets",
     "of": "Log of {{name}}",
     "close": "Close the log",
     "level": {

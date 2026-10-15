@@ -6,13 +6,13 @@ import { redactText } from '../../scripts/redact-recordings.mjs';
 // recording. The rules live in scripts/redact-recordings.mjs so that the fixtures and the running
 // app are cleaned by the same code.
 
-/** Keys Agentry drops from a host's objects before storing them, wherever they are */
+/** Keys Claudio drops from a host's objects before storing them, wherever they are */
 const DROPPED_KEYS: ReadonlySet<string> = new Set(['runners_token', 'author_email', 'committer_email']);
 
 /** Token patterns, Authorization and token headers, and e-mail addresses other than noreply ones */
 export const redactHostText = (text: string): string => redactText(text);
 
-/** The first non-empty line, redacted and cut: what the person reads beside Agentry's own sentence. Never parsed. */
+/** The first non-empty line, redacted and cut: what the person reads beside Claudio's own sentence. Never parsed. */
 export function firstLine(text: string, max = 500): string {
   const line =
     text
@@ -23,7 +23,7 @@ export function firstLine(text: string, max = 500): string {
 }
 
 /**
- * A copy of a parsed host object without the keys Agentry never stores (`runners_token` in GitLab's
+ * A copy of a parsed host object without the keys Claudio never stores (`runners_token` in GitLab's
  * project object, `commit.author_email` and `committer_email` in job objects, `config.secret` of a
  * hook), with every string inside run through the text rules.
  */

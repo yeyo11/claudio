@@ -105,7 +105,7 @@ function failure(what: string, result: HostResult, call: HostCall): ChecksError 
   return new ChecksError(`${what} failed`, reason, result.stderrFirstLine || null);
 }
 
-/** When Agentry may read again, from the headers the host sent; null without one */
+/** When Claudio may read again, from the headers the host sent; null without one */
 function resetOf(result: HostResult, now: number): string | null {
   const headers = result.http?.headers ?? {};
   const after = Number(headers['retry-after']);

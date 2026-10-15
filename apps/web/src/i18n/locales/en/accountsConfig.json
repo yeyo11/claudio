@@ -120,13 +120,13 @@
   },
   "remove": {
     "title": "Remove {{name}}?",
-    "body": "Agentry forgets the account and deletes its config directory. Chats already started on it keep their transcripts."
+    "body": "Claudio forgets the account and deletes its config directory. Chats already started on it keep their transcripts."
   },
   "dialog": {
     "title": "Add an account",
     "kind": "Kind",
     "hint": {
-      "login": "Signs in with Claude Code in a config directory of its own. Agentry never reads the credentials.",
+      "login": "Signs in with Claude Code in a config directory of its own. Claudio never reads the credentials.",
       "token": "A token from claude setup-token. It has no identity of its own, so it needs an alias.",
       "api-key": "An API key. It has no identity and no usage limits to read, so it needs an alias."
     },

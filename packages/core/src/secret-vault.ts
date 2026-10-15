@@ -5,7 +5,7 @@ import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { SecretBox } from './secret-box.ts';
 
-/** The file every secret Agentry hands a CLI through its environment lives in */
+/** The file every secret Claudio hands a CLI through its environment lives in */
 export const VAULT_FILE = 'secrets.json';
 /** The key made beside the data when the environment brings none (Docker only, see `keyFor`) */
 export const KEY_FILE = 'secret.key';
@@ -92,7 +92,7 @@ export class SecretVault {
     return Object.keys(this.get(tool)).length > 0;
   }
 
-  /** Every value kept, for the redaction of Agentry's own secrets in what leaves the machine */
+  /** Every value kept, for the redaction of Claudio's own secrets in what leaves the machine */
   values(): string[] {
     return Object.keys(this.stored).flatMap((tool) => Object.values(this.get(tool)));
   }

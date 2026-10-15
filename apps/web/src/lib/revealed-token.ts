@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /*
- * The token Agentry just generated, held only until the person says they have it.
+ * The token Claudio just generated, held only until the person says they have it.
  *
  * It lives here and not in the component because setting a token invalidates the one this browser
  * was sending: a poll that lands in that gap gets a 401, the sign-in screen replaces the shell, and

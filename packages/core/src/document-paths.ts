@@ -26,7 +26,7 @@ export function isMarkdown(name: string): boolean {
 
 /**
  * The segments of a path relative to the project, or an error naming what is wrong with it. Hidden
- * segments are refused too: `.git` and `.claude` hold what Agentry and the CLI run on, never
+ * segments are refused too: `.git` and `.claude` hold what Claudio and the CLI run on, never
  * documents, and are the first place a crafted path would aim.
  */
 export function pathSegments(value: unknown, field = 'path'): string[] {

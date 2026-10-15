@@ -336,7 +336,7 @@ test('after the conflict run, conflicts left fail it, a resolved merge is commit
     assert.deepEqual(s.service.settleConflict(item.id), ['cart.ts']);
     assert.equal(s.items.find(item.id)?.pullRequest?.phase, 'conflict');
 
-    // Resolved and staged, but the merge left for Agentry to commit
+    // Resolved and staged, but the merge left for Claudio to commit
     write(wt, 'cart.ts', 'export const total = 4;\n');
     sh(wt, 'add', 'cart.ts');
     assert.equal(s.service.settleConflict(item.id), null);

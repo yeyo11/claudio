@@ -190,7 +190,7 @@ export function CommandPalette() {
       ['remote', t('palette.settingsTabs.remote'), 'tunnel tailscale tailnet serve phone address qr', Globe],
     ];
     for (const [tab, title, extra, icon] of tabs) {
-      // Remote access is Agentry's own, not a file in ~/.claude
+      // Remote access is Claudio's own, not a file in ~/.claude
       list.push({ id: `settings:${tab}`, group: 'settings', title, hint: tab === 'remote' ? undefined : t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
     }
     // What is live goes first: it is what a person most often jumps to

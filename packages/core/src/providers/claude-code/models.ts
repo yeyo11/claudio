@@ -122,7 +122,7 @@ export function forgetModelOptions(): void {
  * A model id as people say it: `claude-sonnet-5` is "Sonnet 5", `claude-opus-5-5` "Opus 5.5",
  * `claude-haiku-4-5-20251001` "Haiku 4.5" and `claude-fable-5-1[1m]` "Fable 5.1 (1M)". The rule is
  * the naming scheme of the ids themselves (`claude-`, the family, the version's digits, an optional
- * release date, an optional `[…]` variant), so it needs no list of Agentry's own that a release
+ * release date, an optional `[…]` variant), so it needs no list of Claudio's own that a release
  * would make stale. An older id that puts the version first (`claude-3-5-sonnet-20241022`) reads
  * the same way. Null for anything that does not follow the scheme, which is then left unnamed.
  */

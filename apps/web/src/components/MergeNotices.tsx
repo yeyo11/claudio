@@ -7,7 +7,7 @@ import { autoMergeOffKey } from '../lib/merge';
 
 /**
  * What the merge state says besides what blocks it, worded the same on the item page and the
- * orchestration page: the host limiting reads, auto-merge that Agentry turned off before it pushed
+ * orchestration page: the host limiting reads, auto-merge that Claudio turned off before it pushed
  * (until the person arms it again), and a rebase on the host that is not offered because it would
  * drop what is only in the checkout.
  */

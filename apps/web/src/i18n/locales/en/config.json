@@ -34,7 +34,7 @@
       "remote": "Remote access"
     },
     "groups": {
-      "claudio": "Agentry",
+      "claudio": "Claudio",
       "claude": "Claude Code",
       "extensions": "Extensions",
       "system": "System"
@@ -45,7 +45,7 @@
     }
   },
   "security": {
-    "footnote": "Agentry checks a credential; it does not sign anyone in. Terminate TLS in a reverse proxy in front of it, so a token never crosses the network in the clear.",
+    "footnote": "Claudio checks a credential; it does not sign anyone in. Terminate TLS in a reverse proxy in front of it, so a token never crosses the network in the clear.",
     "saveFailed": "Could not save the security settings",
     "readOnly": {
       "title": "Read-only mode",
@@ -65,7 +65,7 @@
         "none": {
           "label": "None",
           "tag": "open",
-          "body": "Anyone who can reach the port can use Agentry. Fine on a loopback-only local install; not on a network."
+          "body": "Anyone who can reach the port can use Claudio. Fine on a loopback-only local install; not on a network."
         },
         "token": {
           "label": "Token",
@@ -84,7 +84,7 @@
       "audienceHint": "The audience a token must be issued for.",
       "clientId": "Client ID",
       "clientIdHint": "Optional. The client your proxy signs users in with.",
-      "oidcNoLogin": "Agentry only validates a JWT: it never talks to a token endpoint. The credential comes from a proxy in front of it, or is pasted on the sign-in screen.",
+      "oidcNoLogin": "Claudio only validates a JWT: it never talks to a token endpoint. The credential comes from a proxy in front of it, or is pasted on the sign-in screen.",
       "missing": {
         "token": "Set a token below before turning token authentication on: without one nobody could get in.",
         "oidc": "The issuer and the audience are required."
@@ -108,7 +108,7 @@
       "title": "Token",
       "set": "set",
       "notSet": "not set",
-      "intro": "Agentry keeps only a hash of the token, so it can be shown once and never again. Rotating replaces it: the old one stops working at once.",
+      "intro": "Claudio keeps only a hash of the token, so it can be shown once and never again. Rotating replaces it: the old one stops working at once.",
       "recovery": "Lost the token and locked out? Restart the server with {{token}} set to a new value and {{reset}}=1. That value replaces the stored token once, and the change is written to the audit log; a restart with the variables still set changes nothing.",
       "generate": "Generate token",
       "rotate": "Rotate token",
@@ -187,12 +187,12 @@
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
     "checking": "Checking…",
-    "updateHow": "Agentry does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Agentry image. On a plain install, run claude update.",
+    "updateHow": "Claudio does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Claudio image. On a plain install, run claude update.",
     "checkFailed": "Could not check for updates",
     "note": "Checked when you ask and once a day, never when a page loads. It reads the npm registry, not claude.ai."
   },
   "updates": {
-    "title": "Agentry",
+    "title": "Claudio",
     "version": "In use",
     "latest": "Newest release",
     "never": "not checked yet",
@@ -202,9 +202,9 @@
     "check": "Check for updates",
     "checking": "Checking…",
     "checkFailed": "Could not check for updates",
-    "note": "Checked when you ask and once a day, never when a page loads. It reads Agentry's latest release on GitHub.",
+    "note": "Checked when you ask and once a day, never when a page loads. It reads Claudio's latest release on GitHub.",
     "copyCommand": "Copy the command",
-    "remote": "This page is connected to the Agentry at {{host}}, which runs on another machine. Whoever runs it can update it:",
+    "remote": "This page is connected to the Claudio at {{host}}, which runs on another machine. Whoever runs it can update it:",
     "docker": {
       "intro": "The container cannot replace its own image. The command depends on how it was started:",
       "run": "With docker run: pull the image, then replace the container. The volumes keep every chat, setting and credential, but only the ones the command named: a container started without naming all three folders loses what is in the others when it is removed.",
@@ -214,15 +214,15 @@
       "helm": "With the Helm chart: raise image.tag and run helm upgrade."
     },
     "source": "Pull and rebuild, then restart the server:",
-    "desktopApp": "Open the Agentry desktop app and choose Help → Check for updates….",
-    "desktopAppRemote": "It is the Agentry desktop app: on that computer, choose Help → Check for updates….",
+    "desktopApp": "Open the Claudio desktop app and choose Help → Check for updates….",
+    "desktopAppRemote": "It is the Claudio desktop app: on that computer, choose Help → Check for updates….",
     "desktopManual": "Download it from the release page.",
-    "download": "Download Agentry {{version}}",
+    "download": "Download Claudio {{version}}",
     "looking": "Looking for the download…",
-    "downloading": "Downloading Agentry {{version}}: {{percent}}%",
-    "downloadProgress": "Downloading Agentry {{version}}",
+    "downloading": "Downloading Claudio {{version}}: {{percent}}%",
+    "downloadProgress": "Downloading Claudio {{version}}",
     "restart": "Restart to update to {{version}}",
-    "scheduled": "Agentry {{version}} will be installed the next time you quit.",
+    "scheduled": "Claudio {{version}} will be installed the next time you quit.",
     "desktopFailed": "The update did not go through",
     "busyTitle": "Restart to update to {{version}}?",
     "busyBody": "{{live}}, and a restart stops them. Restart now, or update when you quit?",
@@ -243,7 +243,7 @@
       "title": "This container would lose its data when it is updated",
       "body": "Updating replaces the container, and what is not on a volume with a name goes with it: the sign-in, every transcript, the projects. These folders are not on one:",
       "config": "Settings and chats",
-      "data": "Agentry's data",
+      "data": "Claudio's data",
       "workspace": "Projects",
       "kind": {
         "anonymous": "on a volume Docker made on its own",
@@ -513,7 +513,7 @@
     "removeNamed": "Remove {{name}}",
     "removeTitle": "Remove {{name}}?",
     "removeBody": "Chats already running keep the tools they were given.",
-    "removeShippedBody": "This preset ships with Agentry. Restore shipped presets brings it back.",
+    "removeShippedBody": "This preset ships with Claudio. Restore shipped presets brings it back.",
     "empty": "No presets",
     "emptyHint": "Without a preset a chat uses the CLI's own defaults.",
     "default": "Default preset",
@@ -862,7 +862,7 @@
     "askPermissionsHint": "Prompts appear on the worker's run page for you to allow or deny. Without this a worker has nobody to ask, so anything not listed below is denied automatically.",
     "tools": "Tools workers may use",
     "toolsHint": "A worker has nobody to ask, so the CLI denies anything not pre-authorised here. Leave empty to rely on the permission mode alone.",
-    "worktreeHint": "Workers then never write over each other, and never edit the checkout Agentry is running from — an orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git repository.",
+    "worktreeHint": "Workers then never write over each other, and never edit the checkout Claudio is running from — an orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git repository.",
     "tasks_one": "Tasks ({{count}})",
     "tasks_other": "Tasks ({{count}})",
     "addTask": "Add task",
@@ -954,24 +954,24 @@
       "failed": "failed"
     },
     "prBranches": "{{branch}} → {{base}}",
-    "prFollows": "Agentry follows the {{noun}} on {{host}}. Once it is merged, it says so here."
+    "prFollows": "Claudio follows the {{noun}} on {{host}}. Once it is merged, it says so here."
   },
   "install": {
     "title": "Install on this device",
-    "intro": "Installed, Agentry gets its own icon, opens in its own window without the address bar, and paints its shell from what it already has instead of waiting for the server.",
-    "installed": "Agentry is already running as an installed app on this device.",
-    "action": "Install Agentry",
-    "ios": "On iPhone and iPad there is no install button a page may offer: open Agentry in Safari, tap Share and then Add to Home Screen.",
+    "intro": "Installed, Claudio gets its own icon, opens in its own window without the address bar, and paints its shell from what it already has instead of waiting for the server.",
+    "installed": "Claudio is already running as an installed app on this device.",
+    "action": "Install Claudio",
+    "ios": "On iPhone and iPad there is no install button a page may offer: open Claudio in Safari, tap Share and then Add to Home Screen.",
     "manual": "This browser installs an app from its own menu, where the item is called Install or Add to Home Screen. Chrome and Edge offer it here as a button instead, on Android and on the desktop.",
-    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost.",
+    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Claudio to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost.",
     "push": {
       "title": "Notifications on this device",
-      "text": "Get told when a chat finishes or needs you, even with Agentry closed. Turn it on in Notifications."
+      "text": "Get told when a chat finishes or needs you, even with Claudio closed. Turn it on in Notifications."
     }
   },
   "notifications": {
     "title": "Notifications",
-    "intro": "What reaches you, and how. These switches are this browser's own; push is registered with the server, and it is what lets a notification arrive while Agentry is closed.",
+    "intro": "What reaches you, and how. These switches are this browser's own; push is registered with the server, and it is what lets a notification arrive while Claudio is closed.",
     "devices": {
       "title": "Devices registered for push",
       "intro": "Every install that turned push on. A subscription belongs to an install and not to a person, so each of these is sent the same notifications, and removing one silences that device for everybody.",
@@ -1078,7 +1078,7 @@
   },
   "remote": {
     "title": "Tunnel through Tailscale",
-    "intro": "Reach this Agentry from your phone or another computer on your tailnet, through this machine's Tailscale. Only devices signed in to your tailnet can open the address; nothing is published on the internet.",
+    "intro": "Reach this Claudio from your phone or another computer on your tailnet, through this machine's Tailscale. Only devices signed in to your tailnet can open the address; nothing is published on the internet.",
     "node": "This machine on the tailnet:",
     "states": {
       "stopped": "closed",
@@ -1089,18 +1089,18 @@
       "failed": "failed"
     },
     "progress": {
-      "starting": "Adding Agentry's Serve rule to this machine's Tailscale…",
+      "starting": "Adding Claudio's Serve rule to this machine's Tailscale…",
       "verifying": "Checking that Tailscale holds the rule before showing the address…",
       "stopping": "Closing the tunnel…"
     },
     "start": "Open tunnel",
     "stop": "Close tunnel",
     "retry": "Try again",
-    "caveat": "Agentry adds one Serve rule on port {{port}} of this machine's tailnet name, and removes only that rule when it closes. Traffic is encrypted end to end by Tailscale.",
+    "caveat": "Claudio adds one Serve rule on port {{port}} of this machine's tailnet name, and removes only that rule when it closes. Traffic is encrypted end to end by Tailscale.",
     "failedTitle": "The tunnel failed",
     "authRequired": {
       "title": "Turn on authentication first",
-      "body": "While Agentry asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
+      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
       "action": "Open Security"
     },
     "tailscale": {
@@ -1130,16 +1130,16 @@
       "recheck": "Check again",
       "version": "Tailscale {{version}}",
       "managed": {
-        "title": "Connect this Agentry to your tailnet",
-        "body": "This container runs a Tailscale of its own for Agentry. Sign it in to your tailnet, with a link you open on any device or with an auth key; it stays signed in when the container is replaced.",
+        "title": "Connect this Claudio to your tailnet",
+        "body": "This container runs a Tailscale of its own for Claudio. Sign it in to your tailnet, with a link you open on any device or with an auth key; it stays signed in when the container is replaced.",
         "signIn": "Sign in to Tailscale",
-        "daemonDown": "Restart the container: Agentry starts this Tailscale with it."
+        "daemonDown": "Restart the container: Claudio starts this Tailscale with it."
       }
     },
     "disabled": {
       "tag": "turned off",
       "title": "The tunnel is turned off in this deploy",
-      "body": "Whoever runs this Agentry decides whether it may be reached through Tailscale. They can turn it on with {{variable}} (tunnel.enabled in the Helm chart)."
+      "body": "Whoever runs this Claudio decides whether it may be reached through Tailscale. They can turn it on with {{variable}} (tunnel.enabled in the Helm chart)."
     },
     "address": {
       "label": "Tailnet address",
@@ -1150,29 +1150,29 @@
     },
     "startWith": {
       "title": "On start",
-      "label": "Open the tunnel when Agentry starts",
+      "label": "Open the tunnel when Claudio starts",
       "hint": "Off by default. It still needs authentication turned on and Tailscale ready."
     },
     "stopConfirm": {
       "title": "Close the tunnel this page uses?",
-      "body": "This page reached Agentry through the tunnel, so closing it ends this page too. To open it again, use Agentry on its own machine."
+      "body": "This page reached Claudio through the tunnel, so closing it ends this page too. To open it again, use Claudio on its own machine."
     },
-    "footnote": "The address stays the same while this machine keeps its name on the tailnet. Open it on a phone with the Tailscale app signed in to the same tailnet, and sign in to Agentry there once.",
+    "footnote": "The address stays the same while this machine keeps its name on the tailnet. Open it on a phone with the Tailscale app signed in to the same tailnet, and sign in to Claudio there once.",
     "startFailed": "Could not open the tunnel",
     "closedHere": {
       "title": "Tunnel closed",
-      "body": "This page came through the tunnel, so its address no longer works. To open the tunnel again, use Agentry on its own machine or on your local network."
+      "body": "This page came through the tunnel, so its address no longer works. To open the tunnel again, use Claudio on its own machine or on your local network."
     },
     "stopFailed": "Could not close the tunnel",
     "saveFailed": "Could not save the tunnel setting"
   },
   "appSettings": {
     "fromEnv": "set by the environment",
-    "envHint": "Set by the environment ({{variable}}): change it where Agentry is deployed.",
+    "envHint": "Set by the environment ({{variable}}): change it where Claudio is deployed.",
     "saveFailed": "Could not save the setting",
     "hosts": {
       "title": "Allowed hosts",
-      "intro": "Names this wrapper answers to besides localhost. A request for any other host is refused, which keeps a web page from reaching Agentry through a name it controls. A tunnel's address is added by itself while the tunnel is open.",
+      "intro": "Names this wrapper answers to besides localhost. A request for any other host is refused, which keeps a web page from reaching Claudio through a name it controls. A tunnel's address is added by itself while the tunnel is open.",
       "label": "Hosts",
       "hint": "One per line: a name, or *.example.com for the names under it. No ports.",
       "placeholder": "agentry.example.com",

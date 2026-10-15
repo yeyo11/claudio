@@ -10,7 +10,7 @@ import type { ChatConfinement } from './live-chat.ts';
 /** The absolute path of the bundled `mcp.mjs`. The API bundle and the desktop app set it; from source it is unset. */
 export const MCP_ENTRY_ENV = 'CLAUDIO_MCP_ENTRY';
 
-/** What a caller spreads into the options of a chat to hand it Agentry's own MCP server and nothing else. */
+/** What a caller spreads into the options of a chat to hand it Claudio's own MCP server and nothing else. */
 export interface AgentryMcpLaunch {
   /** `--mcp-config` (with `--strict-mcp-config`): a file holding only the `agentry` server */
   mcp: McpSelection & { config: string };
@@ -26,7 +26,7 @@ export interface AgentryMcpOptions {
   dataDir: string;
   /** `CLAUDIO_API_URL` of the wrapper that runs the chat; null while the API is not listening */
   apiUrl: string | null;
-  /** The version the server reports, so a client can tell which Agentry it talks to */
+  /** The version the server reports, so a client can tell which Claudio it talks to */
   version: string;
   env?: NodeJS.ProcessEnv;
   /** The binary that runs the server: Node, or the Electron binary acting as Node */
@@ -41,7 +41,7 @@ export interface AgentryMcpOptions {
 export function mcpCommand(env: NodeJS.ProcessEnv, execPath: string): { command: string; args: string[] } {
   const bundled = env[MCP_ENTRY_ENV];
   if (bundled) {
-    if (!existsSync(bundled)) throw new Error(`Agentry's MCP server is not at ${bundled} (${MCP_ENTRY_ENV})`);
+    if (!existsSync(bundled)) throw new Error(`Claudio's MCP server is not at ${bundled} (${MCP_ENTRY_ENV})`);
     return { command: execPath, args: [bundled] };
   }
   const source = fileURLToPath(new URL('../../mcp/src/main.ts', import.meta.url));
@@ -54,11 +54,11 @@ export function mcpCommand(env: NodeJS.ProcessEnv, execPath: string): { command:
       // falls through to the error below
     }
   }
-  throw new Error(`Agentry's MCP server cannot be started: ${MCP_ENTRY_ENV} is not set and the source is not runnable here`);
+  throw new Error(`Claudio's MCP server cannot be started: ${MCP_ENTRY_ENV} is not set and the source is not runnable here`);
 }
 
 /**
- * Writes the config file of Agentry's own MCP server and the flags that confine a chat to its read
+ * Writes the config file of Claudio's own MCP server and the flags that confine a chat to its read
  * tools. The CLI starts the server; this never talks to it.
  *
  * The file is the same for every chat. It holds the URL, which is the bound address of this wrapper,
@@ -73,7 +73,7 @@ export async function agentryMcp(opts: AgentryMcpOptions): Promise<AgentryMcpLau
 
 /** `agentryMcp` for a caller that cannot wait: a process about to spawn. */
 export function agentryMcpSync(opts: AgentryMcpOptions): AgentryMcpLaunch {
-  if (!opts.apiUrl) throw new Error("Agentry's MCP server needs the API's address, and the API is not listening yet");
+  if (!opts.apiUrl) throw new Error("Claudio's MCP server needs the API's address, and the API is not listening yet");
   const env = opts.env ?? process.env;
   const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
   const config = writeMcpConfigSync(opts.dataDir, {
@@ -99,7 +99,7 @@ export function agentryMcpSync(opts: AgentryMcpOptions): AgentryMcpLaunch {
 }
 
 /**
- * What an Agentry assistant chat runs with, whoever asked for what. This is the one place its argv
+ * What an Claudio assistant chat runs with, whoever asked for what. This is the one place its argv
  * is decided: the core applies it again at every process of the chat (start, resume, fork, a turn
  * after a restart), over whatever the request or the stored record held. The write tools extend
  * this function, and nothing else.

@@ -121,7 +121,7 @@ export function EnvironmentBody({ env }: { env: LoadedEnvironment }) {
 }
 
 /**
- * What Claude actually loaded in the latest chat Agentry started in `cwd`: the ground truth that the
+ * What Claude actually loaded in the latest chat Claudio started in `cwd`: the ground truth that the
  * configuration files only describe. `live` keeps it refreshed while a chat is in progress: the event
  * feed does it, and a slow poll stands in while the feed is down.
  */

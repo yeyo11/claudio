@@ -9,8 +9,8 @@
   },
   "loading": "Cargando…",
   "requestTimeout": "El servidor no ha respondido a tiempo. Puede que siga trabajando: recarga para ver el estado actual.",
-  "networkError": "No se ha podido conectar con Agentry. Revisa la conexión o si la dirección que usas sigue funcionando.",
-  "httpError": "No se ha podido llegar a Agentry por esta dirección (error {{status}}). Ha respondido un proxy o un túnel intermedio.",
+  "networkError": "No se ha podido conectar con Claudio. Revisa la conexión o si la dirección que usas sigue funcionando.",
+  "httpError": "No se ha podido llegar a Claudio por esta dirección (error {{status}}). Ha respondido un proxy o un túnel intermedio.",
   "cost": {
     "lessThan": "menos de {{amount}}"
   },
@@ -43,13 +43,13 @@
   },
   "signIn": {
     "title": "Este wrapper pide una credencial",
-    "tokenBody": "Agentry está funcionando con autenticación por token. Pega el token que te dieron al crearlo; solo se guarda en este navegador.",
-    "oidcBody": "Agentry está funcionando con autenticación OIDC. Pega un token de acceso de tu proveedor de identidad, o entra por el proxy que lo añade.",
+    "tokenBody": "Claudio está funcionando con autenticación por token. Pega el token que te dieron al crearlo; solo se guarda en este navegador.",
+    "oidcBody": "Claudio está funcionando con autenticación OIDC. Pega un token de acceso de tu proveedor de identidad, o entra por el proxy que lo añade.",
     "label": "Token",
     "placeholder": "Pega el token",
     "submit": "Entrar",
     "rejected": "No se ha aceptado esa credencial. Comprueba que no ha caducado y que es la que conoce este wrapper.",
     "failed": "No se ha podido contactar con el wrapper para comprobar la credencial.",
-    "hint": "Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Agentry."
+    "hint": "Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Claudio."
   }
 }

@@ -103,6 +103,6 @@ function failure(status: number, body: string): string {
   } catch {
     // not JSON: the body is the reason
   }
-  if (status === 401) return `401: Agentry's API is guarded and this chat has no token (CW-10)${reason ? ` (${reason})` : ''}`;
+  if (status === 401) return `401: Claudio's API is guarded and this chat has no token (CW-10)${reason ? ` (${reason})` : ''}`;
   return `${status}: ${reason || 'request failed'}`;
 }

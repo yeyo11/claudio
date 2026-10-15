@@ -63,7 +63,7 @@ test('the newest detection is the one that is shown', () => {
   assert.equal(latestCheck([status('a', { checkedAt: '2026-09-30T10:00:00Z' }), status('b', { checkedAt: '2026-09-30T10:05:00Z' })]), '2026-09-30T10:05:00Z');
 });
 
-test('Providers is a tab of the Agentry group, right after Account', () => {
+test('Providers is a tab of the Claudio group, right after Account', () => {
   assert.ok(isTab('providers'));
   const agentry = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
   assert.equal(agentry.indexOf('providers'), agentry.indexOf('account') + 1);

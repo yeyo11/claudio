@@ -51,7 +51,7 @@ test.beforeEach(async () => {
   await i18n.changeLanguage('es');
 });
 
-test('Decisions sits in the Agentry group and the Supervisor tab is gone from System', () => {
+test('Decisions sits in the Claudio group and the Supervisor tab is gone from System', () => {
   const agentry = GROUPS.find((group) => group.id === 'claudio');
   assert.ok(agentry?.tabs.includes('decisions'));
   assert.ok(!GROUPS.some((group) => (group.tabs as readonly string[]).includes('supervisor')));

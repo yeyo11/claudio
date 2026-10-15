@@ -8,7 +8,7 @@ import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '@claudio/m
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
-// The Agentry assistant's chat through the real core and the fake CLI: a real process given the real
+// The Claudio assistant's chat through the real core and the fake CLI: a real process given the real
 // flags at every start, resume, fork and restart.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
@@ -75,7 +75,7 @@ function assertConfined(argv: string, language: 'English' | 'Spanish' = 'English
   assert.match(argv, /--permission-prompt-tool stdio/);
   assert.ok(!/bypassPermissions|acceptEdits|dontAsk/.test(argv));
   assert.ok(!args.some((a) => a.startsWith('--allowedTools=') && CLAUDIO_MCP_WRITE_TOOL_NAMES.some((n) => a.includes(n))), 'no write tool is allowed ahead of time');
-  assert.match(argv, /--append-system-prompt You are the Agentry assistant/);
+  assert.match(argv, /--append-system-prompt You are the Claudio assistant/);
   assert.match(argv, new RegExp(`Answer in ${language}`));
   assert.ok(!argv.includes('ignore everything above'));
 }

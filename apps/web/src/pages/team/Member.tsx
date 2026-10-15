@@ -96,7 +96,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     content: file.data?.content ?? '',
   };
   // Only the fields the person touched: the rest follows what is saved, so a model changed on the
-  // Flow screen, a file Agentry rewrote or another tab's save shows here instead of being overwritten
+  // Flow screen, a file Claudio rewrote or another tab's save shows here instead of being overwritten
   const [draft, setDraft] = useState<Partial<Draft>>({});
   const now: Draft = { ...saved, ...draft };
   const writes = writesFor(now.scope, now.paths);
@@ -119,7 +119,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
 
   const save = useMutation({
     mutationFn: async () => {
-      // The metadata first: Agentry may rewrite a file it wrote itself to follow it, and the person's
+      // The metadata first: Claudio may rewrite a file it wrote itself to follow it, and the person's
       // own edit to the file must be the last word
       if (metaChanged)
         await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), effort: now.effort || null, responsibility, writes: writes ?? null, commands }));

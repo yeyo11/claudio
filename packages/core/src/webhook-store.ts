@@ -80,7 +80,7 @@ export function pruneWebhookDeliveries(sql: DatabaseSync, now = Date.now()): num
 }
 
 /**
- * The webhook tables: the hooks Agentry registered and the deliveries it has seen. The signing
+ * The webhook tables: the hooks Claudio registered and the deliveries it has seen. The signing
  * secret is not here (it lives in a 0600 file), so no row this store returns can leak it.
  */
 export class WebhookStore {

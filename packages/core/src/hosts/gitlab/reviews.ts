@@ -35,7 +35,7 @@ const sendJson = (repo: HostRepo, method: 'POST', path: string, body: unknown): 
 
 const porcelain = (repo: HostRepo, args: string[]): HostCall => ({ cli: 'glab', args: [...args, '-R', projectUrl(repo)], kind: 'write', class: 'write', host: repo.host });
 
-/** A discussion id is 40 hex characters; `mr note resolve` also takes a prefix, but Agentry always has the whole id */
+/** A discussion id is 40 hex characters; `mr note resolve` also takes a prefix, but Claudio always has the whole id */
 const discussionId = (value: string): string => {
   if (!/^[0-9a-f]{8,64}$/.test(value)) throw new HostParseError('a discussion id is not hex');
   return value;

@@ -70,7 +70,7 @@ function LimitFields({ limits, onChange }: { limits: Limits; onChange: (limits: 
 const HOST_TONE: Readonly<Record<string, 'ok' | 'warn'>> = { ready: 'ok', 'cli-missing': 'warn', 'cli-incompatible': 'warn', 'cli-signed-out': 'warn', 'unsupported-host': 'warn' };
 
 /**
- * Where the project's code lives, as Agentry detected it from the origin remote and never chosen
+ * Where the project's code lives, as Claudio detected it from the origin remote and never chosen
  * here: which host, which CLI answers for it and, when it cannot, what to do about it.
  */
 function ProjectHostLine({ project, stacked }: { project: Project; stacked: boolean }) {
@@ -146,7 +146,7 @@ function HostNoun({ project }: { project: Project }) {
 }
 
 /**
- * The part of a project's settings that is Agentry's own: its name, the prefix of its keys, its
+ * The part of a project's settings that is Claudio's own: its name, the prefix of its keys, its
  * modules and the limits of its board, saved together; and removing it. Claude Code's configuration
  * of the project follows it on the same tab.
  */

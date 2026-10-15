@@ -8,7 +8,7 @@
       "github-issues": "Es la búsqueda de GitHub: añade label:bug o author:nombre. Solo salen issues, no pull requests.",
       "gitlab-issues": "GitLab busca en el texto de los issues. Solo salen issues, no merge requests.",
       "other": "Solo salen issues.",
-      "youtrack": "Es la búsqueda de YouTrack, dentro del proyecto: añade Type: Bug o #Unresolved. Agentry ordena por la última actualización salvo que escribas un order by."
+      "youtrack": "Es la búsqueda de YouTrack, dentro del proyecto: añade Type: Bug o #Unresolved. Claudio ordena por la última actualización salvo que escribas un order by."
     },
     "open": "Issues · {{count}}",
     "suggested": "sugerido · issue.triage",
@@ -19,7 +19,7 @@
     "more": "Mostrar más",
     "loading": "Buscando…",
     "none": "Ningún issue coincide con esta búsqueda.",
-    "failed": "Agentry no pudo leer los issues de {{tracker}}.",
+    "failed": "Claudio no pudo leer los issues de {{tracker}}.",
     "retry": "Reintentar",
     "marksNote": "Las marcas las pone issue.triage y solo ayudan a elegir. lista: un agente puede empezar con el issue tal como está escrito. por refinar: falta el objetivo o cómo saber que está hecho. no es para agentes: necesita a una persona.",
     "untrustedLead": "Estos issues los escriben otras personas.",
@@ -64,10 +64,10 @@
   },
   "panel": {
     "title": "{{tracker}}",
-    "intro": "Agentry solo escribe en el tracker, una escritura por evento. Una que falla se ve aquí y solo se repite cuando lo pides.",
+    "intro": "Claudio solo escribe en el tracker, una escritura por evento. Una que falla se ve aquí y solo se repite cuando lo pides.",
     "opened": "{{state}} en {{tracker}}",
-    "none": "Agentry todavía no ha escrito en este issue.",
-    "synced": "Agentry escribió en él {{when}}.",
+    "none": "Claudio todavía no ha escrito en este issue.",
+    "synced": "Claudio escribió en él {{when}}.",
     "failedBecause": "Falló la escritura en {{tracker}}.",
     "again": "Sincronizar de nuevo",
     "againFailed": "No se ha podido sincronizar el issue",

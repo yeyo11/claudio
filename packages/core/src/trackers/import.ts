@@ -42,7 +42,7 @@ export class TrackerError extends WorkItemError {
 
 /**
  * Where a tracker's calls go. For GitHub and GitLab, what the project's host lends the trackers that
- * reuse it (see `PullRequestService.hostAccess`); for YouTrack, the instance Agentry keeps the
+ * reuse it (see `PullRequestService.hostAccess`); for YouTrack, the instance Claudio keeps the
  * address and token of, with `host` null and `hostname` the instance's address.
  */
 export interface TrackerAccess {
@@ -79,7 +79,7 @@ export function issueType(labels: readonly string[], kind: string | null = null)
 /**
  * The description of an imported item: the issue's body as a quoted block under "From <tracker>
  * <key>", so a reader and an agent both see where the text came from and that it is quoted. Cut
- * at the longest body Agentry handles.
+ * at the longest body Claudio handles.
  */
 export function quotedSource(tracker: TrackerId, key: string, body: string): string {
   const head = `> **From ${TRACKER_LABEL[tracker]} ${tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key}** — ${ISSUE_TEXT_MARK}`;
@@ -221,7 +221,7 @@ export class TrackerImportService {
     } catch (err) {
       if (err instanceof TrackerError) throw err;
       if (err instanceof IssueIsPullRequest) throw new TrackerError(err.message, 409, 'issue-is-pull-request');
-      if (err instanceof HostParseError) throw new TrackerError('the tracker answered in a shape Agentry does not know', 409, 'unexpected-output', err.message);
+      if (err instanceof HostParseError) throw new TrackerError('the tracker answered in a shape Claudio does not know', 409, 'unexpected-output', err.message);
       throw err;
     }
   }

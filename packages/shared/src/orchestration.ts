@@ -76,7 +76,7 @@ export function specOfOrchestration(orch: Orchestration): OrchestrationSpec {
     permissionPrompts: orch.permissionPrompts,
     ...(orch.limits ? { limits: orch.limits } : {}),
     ...(orch.verificationSpec ? { verification: orch.verificationSpec } : {}),
-    // A task Agentry added is added again by the launch, from the verification it is part of
+    // A task Claudio added is added again by the launch, from the verification it is part of
     tasks: orch.tasks.filter((task) => !task.builtIn).map((task) => {
       const { dependsOn, ...spec } = specOfTask(task);
       return dependsOn?.length ? { ...spec, dependsOn: [...dependsOn] } : spec;

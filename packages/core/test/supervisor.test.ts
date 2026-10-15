@@ -172,7 +172,7 @@ test('the question carries the signal, the settings and the worker\'s last steps
   assert.match(q?.prompt ?? '', /Its last steps, as its transcript records them:\n<pasted_content id="([0-9a-f]{8})">\n- Bash/);
   assert.ok(q?.prompt.includes(PASTED_NOTE));
   assert.match(q?.prompt ?? '', /hung-command: `pnpm e2e` has been running for 12 min\./);
-  assert.match(q?.prompt ?? '', /Agentry's generic suggestion: Run long commands/);
+  assert.match(q?.prompt ?? '', /Claudio's generic suggestion: Run long commands/);
   assert.match(q?.prompt ?? '', /- Bash \{"command":"pnpm e2e"\}\n {2}failed: line 0\n/);
   assert.match(q?.prompt ?? '', /line 5\n {2}… \(14 more lines\)/);
   assert.doesNotMatch(q?.prompt ?? '', /line 6/, 'a result is cut to a few lines');

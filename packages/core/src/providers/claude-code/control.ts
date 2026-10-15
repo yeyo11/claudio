@@ -15,7 +15,7 @@ function toControlDecision(decision: PermissionDecision, input: Record<string, u
 }
 
 /**
- * The control protocol of one process: requests Agentry sends down stdin and waits on
+ * The control protocol of one process: requests Claudio sends down stdin and waits on
  * (`interrupt`, `set_permission_mode`, `set_model`, `mcp_status`, `mcp_toggle`, `get_context_usage`), and the CLI's own (`can_use_tool`), which it
  * holds until they are answered.
  */
@@ -65,11 +65,11 @@ export class ControlChannel {
     else control.resolve((response.response ?? {}) as Record<string, unknown>);
   }
 
-  /** The CLI asks for something Agentry does not handle: an answer still has to come, or it waits for it. */
+  /** The CLI asks for something Claudio does not handle: an answer still has to come, or it waits for it. */
   refuse(requestId: string, subtype: unknown): void {
     this.write({
       type: 'control_response',
-      response: { subtype: 'error', request_id: requestId, error: `Agentry does not handle ${String(subtype)}` },
+      response: { subtype: 'error', request_id: requestId, error: `Claudio does not handle ${String(subtype)}` },
     });
   }
 

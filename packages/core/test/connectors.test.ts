@@ -27,7 +27,7 @@ test('parses only the claude.ai connectors, with the CLI status and prepared act
   );
   const [docs, gmail, calendar, slack] = connectors;
   assert.ok(docs?.actions?.length);
-  // Nothing to ask of a connector that cannot answer yet, nor of one Agentry has no prompts for
+  // Nothing to ask of a connector that cannot answer yet, nor of one Claudio has no prompts for
   assert.equal(gmail?.actions, undefined);
   assert.ok(calendar?.actions?.length);
   assert.equal(slack?.actions, undefined);

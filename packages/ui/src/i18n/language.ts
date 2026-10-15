@@ -15,7 +15,7 @@ const STORAGE_KEY = 'agentry-language';
 const primary = (tag: string) => tag.toLowerCase().split(/[-_.@]/)[0];
 
 /**
- * The first browser language Agentry has decides, so ['de', 'es', 'en'] reads Spanish and
+ * The first browser language Claudio has decides, so ['de', 'es', 'en'] reads Spanish and
  * ['en-US', 'es'] English; a browser with neither gets English.
  */
 export function detectLanguage(browser: readonly string[]): Language {

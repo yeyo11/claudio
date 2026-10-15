@@ -42,8 +42,8 @@
     "purged": "Se ha purgado lo que Claude Code guardaba sobre {{name}}",
     "purgeFailed": "No se ha podido purgar el proyecto",
     "removeTitle": "¿Quitar {{name}}?",
-    "removeBody_one": "Agentry olvida este directorio. No cambia nada en el disco, y si lo importas de nuevo recupera su chat.",
-    "removeBody_other": "Agentry olvida este directorio. No cambia nada en el disco, y si lo importas de nuevo recupera sus {{n}} chats.",
+    "removeBody_one": "Claudio olvida este directorio. No cambia nada en el disco, y si lo importas de nuevo recupera su chat.",
+    "removeBody_other": "Claudio olvida este directorio. No cambia nada en el disco, y si lo importas de nuevo recupera sus {{n}} chats.",
     "removeConfirm": "Quitar proyecto",
     "purgeTitle": "¿Purgar lo que Claude Code guarda sobre {{name}}?",
     "purgeBody_one": "Esto elimina sus transcripciones, tareas en segundo plano, historial de archivos y su entrada en la configuración de Claude Code (<code>claude project purge</code>), así que su chat se pierde para siempre. Tus archivos no se tocan. El proyecto sigue importado. <strong>Esto no se puede deshacer.</strong>",
@@ -54,7 +54,7 @@
     "rename": "Renombrar",
     "purge": "Purgar estado de Claude Code",
     "purgeHint": "Pide confirmación antes de borrar",
-    "remove": "Quitar de Agentry",
+    "remove": "Quitar de Claudio",
     "actionsNamed": "Acciones de {{name}}",
     "stats": {
       "chats": "chats",
@@ -222,11 +222,11 @@
     "reason": {
       "ready": "{{cli}} tiene sesión en {{hostname}} y responde.",
       "not-git": "El directorio no es un repositorio git, así que no hay alojamiento al que preguntar.",
-      "no-remote": "El proyecto no tiene remoto origin, así que Agentry no sabe dónde vive su código.",
+      "no-remote": "El proyecto no tiene remoto origin, así que Claudio no sabe dónde vive su código.",
       "unsupported-host": "{{cli}} no tiene sesión en {{hostname}}, o el alojamiento está desactivado en Integraciones.",
       "no-default-branch": "{{host}} no dijo cuál es la rama predeterminada.",
-      "cli-missing": "{{cli}} no está instalado, y es a quien Agentry pregunta por {{host}}.",
-      "cli-incompatible": "{{cli}} es anterior a las versiones con las que funciona Agentry.",
+      "cli-missing": "{{cli}} no está instalado, y es a quien Claudio pregunta por {{host}}.",
+      "cli-incompatible": "{{cli}} es anterior a las versiones con las que funciona Claudio.",
       "cli-signed-out": "{{cli}} no tiene sesión en {{hostname}}."
     },
     "remedy": {
@@ -252,7 +252,7 @@
     "limitOf": "Límite de {{column}}",
     "noLimits": "sin límites",
     "removeTitle": "Quitar el proyecto",
-    "removeBody": "Deja de aparecer en Agentry. Sus ajustes y sus tareas se conservan: si vuelves a importar el directorio, vuelve todo. No toca el repositorio.",
+    "removeBody": "Deja de aparecer en Claudio. Sus ajustes y sus tareas se conservan: si vuelves a importar el directorio, vuelve todo. No toca el repositorio.",
     "discard": "Descartar",
     "save": "Guardar los cambios",
     "saving": "Guardando…",
@@ -269,7 +269,7 @@
   },
   "decisions": {
     "title": "Decisiones",
-    "intro": "Qué decide Agentry por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.",
+    "intro": "Qué decide Claudio por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.",
     "saved": "Decisiones guardadas",
     "provider": "Proveedor",
     "providerLabel": "Proveedor de las decisiones del proyecto",
@@ -311,13 +311,13 @@
       "ready": "{{cli}} tiene sesión y responde.",
       "wrong-host": "El host de este proyecto es {{hostname}}, que {{tracker}} no usa.",
       "signed-out": "{{cli}} está instalado, pero no tiene sesión en el alojamiento del código.",
-      "incompatible": "{{cli}} es anterior a la versión más antigua con la que funciona Agentry.",
-      "not-installed": "{{cli}} no está instalado, o Agentry no lo encuentra.",
-      "unknown": "Agentry todavía no ha comprobado {{cli}}.",
-      "not-built": "Agentry todavía no puede ofrecer {{tracker}}: su programa ({{cli}}) no está soportado en esta versión.",
+      "incompatible": "{{cli}} es anterior a la versión más antigua con la que funciona Claudio.",
+      "not-installed": "{{cli}} no está instalado, o Claudio no lo encuentra.",
+      "unknown": "Claudio todavía no ha comprobado {{cli}}.",
+      "not-built": "Claudio todavía no puede ofrecer {{tracker}}: su programa ({{cli}}) no está soportado en esta versión.",
       "disabled": "{{tracker}} está desactivado en Integraciones.",
       "readyOwn": "{{cli}} responde con el acceso guardado en Integraciones.",
-      "signedOutOwn": "Indica a Agentry la dirección y el token de tu YouTrack en Integraciones."
+      "signedOutOwn": "Indica a Claudio la dirección y el token de tu YouTrack en Integraciones."
     },
     "scope": {
       "repository": "Alcance",
@@ -333,7 +333,7 @@
     "queryHint": {
       "github-issues": "La búsqueda de GitHub tal cual, la que escribirías en su pestaña de incidencias. Al importar sale ya escrita.",
       "gitlab-issues": "El texto con el que GitLab busca las incidencias. Al importar sale ya escrito.",
-      "youtrack": "La búsqueda de YouTrack tal como la escribirías allí; Agentry añade el proyecto y, si está vacía, #Unresolved. Al importar sale ya escrita."
+      "youtrack": "La búsqueda de YouTrack tal como la escribirías allí; Claudio añade el proyecto y, si está vacía, #Unresolved. Al importar sale ya escrita."
     },
     "queryHintDefault": "La consulta propia de {{tracker}}. Al importar sale ya escrita. Vacía son las incidencias abiertas.",
     "map": "Al mover una tarea",
@@ -343,9 +343,9 @@
       "completed": "Cerrar como completada"
     },
     "onlyOpenClosed": "{{tracker}} solo tiene abierta y cerrada.",
-    "mapHint": "Al fusionarse la PR la incidencia se cierra sola con <mono>Closes {{ref}}</mono> en su descripción. Si no pudo, porque la rama de destino no es la principal, Agentry la cierra después y comprueba que ha quedado cerrada.",
+    "mapHint": "Al fusionarse la PR la incidencia se cierra sola con <mono>Closes {{ref}}</mono> en su descripción. Si no pudo, porque la rama de destino no es la principal, Claudio la cierra después y comprueba que ha quedado cerrada.",
     "scopeHintProject": "El nombre corto del proyecto de YouTrack, como PROJ: las incidencias de ese proyecto.",
     "statusPlaceholder": "State, como lo llama tu proyecto",
-    "mapHintNamed": "Cada columna pone en el campo State de la incidencia el nombre que escribas aquí, tal como lo llama tu proyecto, y Agentry lo vuelve a leer para comprobarlo. Un State que el proyecto no tiene se indica en la tarea, y no cambia nada más."
+    "mapHintNamed": "Cada columna pone en el campo State de la incidencia el nombre que escribas aquí, tal como lo llama tu proyecto, y Claudio lo vuelve a leer para comprobarlo. Un State que el proyecto no tiene se indica en la tarea, y no cambia nada más."
   }
 }

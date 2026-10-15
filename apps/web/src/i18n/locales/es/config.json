@@ -34,7 +34,7 @@
       "remote": "Acceso remoto"
     },
     "groups": {
-      "claudio": "Agentry",
+      "claudio": "Claudio",
       "claude": "Claude Code",
       "extensions": "Extensiones",
       "system": "Sistema"
@@ -45,7 +45,7 @@
     }
   },
   "security": {
-    "footnote": "Agentry comprueba una credencial; no inicia sesión a nadie. Termina TLS en un proxy inverso delante de él, para que un token nunca viaje por la red en claro.",
+    "footnote": "Claudio comprueba una credencial; no inicia sesión a nadie. Termina TLS en un proxy inverso delante de él, para que un token nunca viaje por la red en claro.",
     "saveFailed": "No se ha podido guardar la configuración de seguridad",
     "readOnly": {
       "title": "Modo solo lectura",
@@ -65,7 +65,7 @@
         "none": {
           "label": "Ninguno",
           "tag": "abierto",
-          "body": "Cualquiera que llegue al puerto puede usar Agentry. Vale para una instalación local solo en loopback; no para una red."
+          "body": "Cualquiera que llegue al puerto puede usar Claudio. Vale para una instalación local solo en loopback; no para una red."
         },
         "token": {
           "label": "Token",
@@ -84,7 +84,7 @@
       "audienceHint": "La audiencia para la que debe estar emitido un token.",
       "clientId": "ID de cliente",
       "clientIdHint": "Opcional. El cliente con el que tu proxy inicia sesión a los usuarios.",
-      "oidcNoLogin": "Agentry solo valida un JWT: nunca habla con un endpoint de tokens. La credencial viene de un proxy delante de él, o se pega en la pantalla de acceso.",
+      "oidcNoLogin": "Claudio solo valida un JWT: nunca habla con un endpoint de tokens. La credencial viene de un proxy delante de él, o se pega en la pantalla de acceso.",
       "missing": {
         "token": "Fija un token abajo antes de activar la autenticación por token: sin uno, nadie podría entrar.",
         "oidc": "El emisor y la audiencia son obligatorios."
@@ -108,7 +108,7 @@
       "title": "Token",
       "set": "fijado",
       "notSet": "sin fijar",
-      "intro": "Agentry guarda solo un hash del token, así que se muestra una vez y no más. Rotarlo lo reemplaza: el anterior deja de funcionar al instante.",
+      "intro": "Claudio guarda solo un hash del token, así que se muestra una vez y no más. Rotarlo lo reemplaza: el anterior deja de funcionar al instante.",
       "recovery": "¿Has perdido el token y te has quedado fuera? Reinicia el servidor con {{token}} con un valor nuevo y {{reset}}=1. Ese valor reemplaza el token guardado una sola vez y el cambio queda en el registro de auditoría; reiniciar con las variables aún puestas no cambia nada.",
       "generate": "Generar un token",
       "rotate": "Rotar el token",
@@ -187,12 +187,12 @@
     "checked": "Última comprobación {{when}}",
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
-    "updateHow": "Agentry no actualiza el CLI dentro de un contenedor en marcha, así que un reinicio siempre da la misma versión. Reconstruye la imagen con CLAUDE_CODE_VERSION={{latest}} (Docker Compose: defínela en .env y ejecuta docker compose build) o descarga una imagen más reciente de Agentry. En una instalación normal, ejecuta claude update.",
+    "updateHow": "Claudio no actualiza el CLI dentro de un contenedor en marcha, así que un reinicio siempre da la misma versión. Reconstruye la imagen con CLAUDE_CODE_VERSION={{latest}} (Docker Compose: defínela en .env y ejecuta docker compose build) o descarga una imagen más reciente de Claudio. En una instalación normal, ejecuta claude update.",
     "checkFailed": "No se ha podido buscar actualizaciones",
     "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta el registro de npm, no claude.ai."
   },
   "updates": {
-    "title": "Agentry",
+    "title": "Claudio",
     "version": "En uso",
     "latest": "Última versión",
     "never": "aún sin comprobar",
@@ -202,9 +202,9 @@
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
     "checkFailed": "No se ha podido buscar actualizaciones",
-    "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta la última versión de Agentry en GitHub.",
+    "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta la última versión de Claudio en GitHub.",
     "copyCommand": "Copiar el comando",
-    "remote": "Esta página está conectada al Agentry de {{host}}, que funciona en otra máquina. Quien lo gestione puede actualizarlo:",
+    "remote": "Esta página está conectada al Claudio de {{host}}, que funciona en otra máquina. Quien lo gestione puede actualizarlo:",
     "docker": {
       "intro": "El contenedor no puede reemplazar su propia imagen. El comando depende de cómo se arrancó:",
       "run": "Con docker run: descarga la imagen y sustituye el contenedor. Los volúmenes conservan los chats, los ajustes y las credenciales, pero solo los que el comando nombró: un contenedor que se arrancó sin nombrar las tres carpetas pierde lo que hay en las demás al eliminarlo.",
@@ -214,15 +214,15 @@
       "helm": "Con el chart de Helm: sube image.tag y ejecuta helm upgrade."
     },
     "source": "Descarga los cambios y vuelve a compilar; después reinicia el servidor:",
-    "desktopApp": "Abre la aplicación de escritorio de Agentry y elige Help → Check for updates… en su menú.",
-    "desktopAppRemote": "Es la aplicación de escritorio de Agentry: en ese ordenador, elige Help → Check for updates… en su menú.",
+    "desktopApp": "Abre la aplicación de escritorio de Claudio y elige Help → Check for updates… en su menú.",
+    "desktopAppRemote": "Es la aplicación de escritorio de Claudio: en ese ordenador, elige Help → Check for updates… en su menú.",
     "desktopManual": "Descárgala desde la página de la versión.",
-    "download": "Descargar Agentry {{version}}",
+    "download": "Descargar Claudio {{version}}",
     "looking": "Buscando la descarga…",
-    "downloading": "Descargando Agentry {{version}}: {{percent}} %",
-    "downloadProgress": "Descargando Agentry {{version}}",
+    "downloading": "Descargando Claudio {{version}}: {{percent}} %",
+    "downloadProgress": "Descargando Claudio {{version}}",
     "restart": "Reiniciar para actualizar a {{version}}",
-    "scheduled": "Agentry {{version}} se instalará la próxima vez que salgas.",
+    "scheduled": "Claudio {{version}} se instalará la próxima vez que salgas.",
     "desktopFailed": "La actualización no se ha completado",
     "busyTitle": "¿Reiniciar para actualizar a {{version}}?",
     "busyBody": "{{live}}, y un reinicio los detiene. ¿Reiniciar ahora o actualizar al salir?",
@@ -243,7 +243,7 @@
       "title": "Este contenedor perdería sus datos al actualizarlo",
       "body": "Actualizar sustituye el contenedor, y lo que no está en un volumen con nombre se va con él: el inicio de sesión, todas las transcripciones y los proyectos. Estas carpetas no están en uno:",
       "config": "Ajustes y chats",
-      "data": "Datos de Agentry",
+      "data": "Datos de Claudio",
       "workspace": "Proyectos",
       "kind": {
         "anonymous": "en un volumen que Docker creó por su cuenta",
@@ -513,7 +513,7 @@
     "removeNamed": "Eliminar {{name}}",
     "removeTitle": "¿Eliminar {{name}}?",
     "removeBody": "Los chats que ya están en marcha conservan las herramientas que recibieron.",
-    "removeShippedBody": "Este preset viene con Agentry. «Restaurar los presets incluidos» lo recupera.",
+    "removeShippedBody": "Este preset viene con Claudio. «Restaurar los presets incluidos» lo recupera.",
     "empty": "Sin presets",
     "emptyHint": "Sin preset, un chat usa los valores predeterminados del CLI.",
     "default": "Preset predeterminado",
@@ -862,7 +862,7 @@
     "askPermissionsHint": "Las peticiones aparecen en la página de la ejecución del worker para que las permitas o deniegues. Sin esto, un worker no tiene a quién preguntar, así que todo lo que no esté en la lista de abajo se deniega automáticamente.",
     "tools": "Herramientas que pueden usar los workers",
     "toolsHint": "Un worker no tiene a quién preguntar, así que el CLI deniega todo lo que no esté autorizado aquí de antemano. Déjalo vacío para depender solo del modo de permisos.",
-    "worktreeHint": "Así los workers nunca se pisan entre sí ni editan el checkout desde el que se ejecuta Agentry: una orquestación que edita este repositorio reinicia el wrapper y se mata a sí misma. Requiere que el directorio sea un repositorio git.",
+    "worktreeHint": "Así los workers nunca se pisan entre sí ni editan el checkout desde el que se ejecuta Claudio: una orquestación que edita este repositorio reinicia el wrapper y se mata a sí misma. Requiere que el directorio sea un repositorio git.",
     "tasks_one": "Tareas ({{count}})",
     "tasks_other": "Tareas ({{count}})",
     "addTask": "Añadir una tarea",
@@ -954,24 +954,24 @@
       "failed": "fallida"
     },
     "prBranches": "{{branch}} → {{base}}",
-    "prFollows": "Agentry sigue la {{noun}} en {{host}}. Cuando se fusione, te lo dirá aquí."
+    "prFollows": "Claudio sigue la {{noun}} en {{host}}. Cuando se fusione, te lo dirá aquí."
   },
   "install": {
     "title": "Instalar en este dispositivo",
-    "intro": "Instalada, Agentry tiene su propio icono, se abre en su propia ventana sin barra de direcciones y pinta su interfaz con lo que ya tiene en lugar de esperar al servidor.",
-    "installed": "Agentry ya se está ejecutando como aplicación instalada en este dispositivo.",
-    "action": "Instalar Agentry",
-    "ios": "En iPhone y iPad ninguna página puede ofrecer un botón de instalación: abre Agentry en Safari, toca Compartir y después Añadir a pantalla de inicio.",
+    "intro": "Instalada, Claudio tiene su propio icono, se abre en su propia ventana sin barra de direcciones y pinta su interfaz con lo que ya tiene en lugar de esperar al servidor.",
+    "installed": "Claudio ya se está ejecutando como aplicación instalada en este dispositivo.",
+    "action": "Instalar Claudio",
+    "ios": "En iPhone y iPad ninguna página puede ofrecer un botón de instalación: abre Claudio en Safari, toca Compartir y después Añadir a pantalla de inicio.",
     "manual": "Este navegador instala la aplicación desde su propio menú, donde la opción se llama Instalar o Añadir a pantalla de inicio. Chrome y Edge la ofrecen aquí como botón, tanto en Android como en el escritorio.",
-    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost.",
+    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Claudio a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost.",
     "push": {
       "title": "Notificaciones en este dispositivo",
-      "text": "Entérate de cuándo termina un chat o te necesita, aunque Agentry esté cerrado. Se activan en Notificaciones."
+      "text": "Entérate de cuándo termina un chat o te necesita, aunque Claudio esté cerrado. Se activan en Notificaciones."
     }
   },
   "notifications": {
     "title": "Notificaciones",
-    "intro": "Qué te llega y por dónde. Estos interruptores son de este navegador; las notificaciones push se registran en el servidor, y son las que hacen que un aviso llegue con Agentry cerrado.",
+    "intro": "Qué te llega y por dónde. Estos interruptores son de este navegador; las notificaciones push se registran en el servidor, y son las que hacen que un aviso llegue con Claudio cerrado.",
     "devices": {
       "title": "Dispositivos registrados para push",
       "intro": "Cada instalación que activó las notificaciones push. Una suscripción pertenece a una instalación y no a una persona, así que todas reciben las mismas notificaciones, y quitar una silencia ese dispositivo para todo el mundo.",
@@ -1078,7 +1078,7 @@
   },
   "remote": {
     "title": "Túnel por Tailscale",
-    "intro": "Llega a este Agentry desde el móvil u otro ordenador de tu tailnet, a través del Tailscale de esta máquina. Solo los dispositivos con sesión en tu tailnet pueden abrir la dirección; no se publica nada en internet.",
+    "intro": "Llega a este Claudio desde el móvil u otro ordenador de tu tailnet, a través del Tailscale de esta máquina. Solo los dispositivos con sesión en tu tailnet pueden abrir la dirección; no se publica nada en internet.",
     "node": "Esta máquina en la tailnet:",
     "states": {
       "stopped": "cerrado",
@@ -1089,18 +1089,18 @@
       "failed": "fallido"
     },
     "progress": {
-      "starting": "Añadiendo la regla de Serve de Agentry al Tailscale de esta máquina…",
+      "starting": "Añadiendo la regla de Serve de Claudio al Tailscale de esta máquina…",
       "verifying": "Comprobando que Tailscale mantiene la regla antes de mostrar la dirección…",
       "stopping": "Cerrando el túnel…"
     },
     "start": "Abrir el túnel",
     "stop": "Cerrar el túnel",
     "retry": "Reintentar",
-    "caveat": "Agentry añade una regla de Serve en el puerto {{port}} del nombre de esta máquina en la tailnet, y al cerrar quita solo esa regla. Tailscale cifra el tráfico de extremo a extremo.",
+    "caveat": "Claudio añade una regla de Serve en el puerto {{port}} del nombre de esta máquina en la tailnet, y al cerrar quita solo esa regla. Tailscale cifra el tráfico de extremo a extremo.",
     "failedTitle": "El túnel ha fallado",
     "authRequired": {
       "title": "Activa antes la autenticación",
-      "body": "Mientras Agentry no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Seguridad.",
+      "body": "Mientras Claudio no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Seguridad.",
       "action": "Abrir Seguridad"
     },
     "tailscale": {
@@ -1130,16 +1130,16 @@
       "recheck": "Volver a comprobar",
       "version": "Tailscale {{version}}",
       "managed": {
-        "title": "Conecta este Agentry a tu tailnet",
-        "body": "Este contenedor ejecuta un Tailscale propio para Agentry. Inicia sesión en tu tailnet con un enlace que abres en cualquier dispositivo o con una clave de autenticación; la sesión se conserva aunque se sustituya el contenedor.",
+        "title": "Conecta este Claudio a tu tailnet",
+        "body": "Este contenedor ejecuta un Tailscale propio para Claudio. Inicia sesión en tu tailnet con un enlace que abres en cualquier dispositivo o con una clave de autenticación; la sesión se conserva aunque se sustituya el contenedor.",
         "signIn": "Iniciar sesión en Tailscale",
-        "daemonDown": "Reinicia el contenedor: Agentry arranca este Tailscale con él."
+        "daemonDown": "Reinicia el contenedor: Claudio arranca este Tailscale con él."
       }
     },
     "disabled": {
       "tag": "desactivado",
       "title": "El túnel está desactivado en este despliegue",
-      "body": "Quien ejecuta este Agentry decide si se puede llegar a él por Tailscale. Puede activarlo con {{variable}} (tunnel.enabled en el chart de Helm)."
+      "body": "Quien ejecuta este Claudio decide si se puede llegar a él por Tailscale. Puede activarlo con {{variable}} (tunnel.enabled en el chart de Helm)."
     },
     "address": {
       "label": "Dirección en la tailnet",
@@ -1150,29 +1150,29 @@
     },
     "startWith": {
       "title": "Al arrancar",
-      "label": "Abrir el túnel al arrancar Agentry",
+      "label": "Abrir el túnel al arrancar Claudio",
       "hint": "Desactivado de forma predeterminada. Sigue necesitando la autenticación activada y Tailscale listo."
     },
     "stopConfirm": {
       "title": "¿Cerrar el túnel que usa esta página?",
-      "body": "Esta página llegó a Agentry por el túnel, así que cerrarlo también la deja sin conexión. Para volver a abrirlo, usa Agentry en su propia máquina."
+      "body": "Esta página llegó a Claudio por el túnel, así que cerrarlo también la deja sin conexión. Para volver a abrirlo, usa Claudio en su propia máquina."
     },
-    "footnote": "La dirección no cambia mientras esta máquina conserve su nombre en la tailnet. Ábrela en un móvil con la app de Tailscale en la misma tailnet e inicia sesión en Agentry allí una vez.",
+    "footnote": "La dirección no cambia mientras esta máquina conserve su nombre en la tailnet. Ábrela en un móvil con la app de Tailscale en la misma tailnet e inicia sesión en Claudio allí una vez.",
     "startFailed": "No se ha podido abrir el túnel",
     "closedHere": {
       "title": "Túnel cerrado",
-      "body": "Esta página llegó por el túnel, así que su dirección ya no funciona. Para volver a abrirlo, usa Agentry en su propia máquina o en tu red local."
+      "body": "Esta página llegó por el túnel, así que su dirección ya no funciona. Para volver a abrirlo, usa Claudio en su propia máquina o en tu red local."
     },
     "stopFailed": "No se ha podido cerrar el túnel",
     "saveFailed": "No se ha podido guardar el ajuste del túnel"
   },
   "appSettings": {
     "fromEnv": "fijado por el entorno",
-    "envHint": "Lo fija el entorno ({{variable}}): cámbialo donde se despliega Agentry.",
+    "envHint": "Lo fija el entorno ({{variable}}): cámbialo donde se despliega Claudio.",
     "saveFailed": "No se ha podido guardar el ajuste",
     "hosts": {
       "title": "Hosts permitidos",
-      "intro": "Los nombres a los que responde este wrapper además de localhost. Una petición para cualquier otro host se rechaza, lo que impide que una página web llegue a Agentry por un nombre que controla. La dirección de un túnel se añade sola mientras el túnel está abierto.",
+      "intro": "Los nombres a los que responde este wrapper además de localhost. Una petición para cualquier otro host se rechaza, lo que impide que una página web llegue a Claudio por un nombre que controla. La dirección de un túnel se añade sola mientras el túnel está abierto.",
       "label": "Hosts",
       "hint": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos.",
       "placeholder": "agentry.example.com",

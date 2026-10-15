@@ -108,7 +108,7 @@ test('a project with its Board module off refuses changes with a clear error, an
 });
 
 test('items are created, listed with filters, updated and deleted, and each change reaches the feed', async () => {
-  const project = await importProject('Agentry');
+  const project = await importProject('Claudio');
   let epic!: WorkItem;
   let bug!: WorkItem;
   const created = await feed(async () => {
@@ -122,21 +122,21 @@ test('items are created, listed with filters, updated and deleted, and each chan
       acceptanceCriteria: [{ text: 'Items survive a reload' }],
     });
   });
-  assert.deepEqual([epic.key, bug.key, bug.status, bug.epic?.id], ['AGN-1', 'AGN-2', 'backlog', epic.id]);
+  assert.deepEqual([epic.key, bug.key, bug.status, bug.epic?.id], ['CLD-1', 'CLD-2', 'backlog', epic.id]);
   assert.deepEqual(
     created.filter((e) => e.type === 'workitem.created').map((e) => e.type === 'workitem.created' && [e.key, e.itemType, e.projectId]),
     [
-      ['AGN-1', 'epic', project.id],
-      ['AGN-2', 'bug', project.id],
+      ['CLD-1', 'epic', project.id],
+      ['CLD-2', 'bug', project.id],
     ],
   );
 
   const list = async (query: string) => (await app.inject(`/api/projects/${project.id}/work-items?${query}`)).json<WorkItem[]>().map((i) => i.key);
-  assert.deepEqual(await list('type=bug,story'), ['AGN-2']);
-  assert.deepEqual(await list('priority=urgent&labels=frontend'), ['AGN-2']);
-  assert.deepEqual(await list('q=agn-1'), ['AGN-1']);
-  assert.deepEqual(await list(`epicId=${epic.id}`), ['AGN-2']);
-  assert.deepEqual(await list('assignee=none'), ['AGN-1', 'AGN-2']);
+  assert.deepEqual(await list('type=bug,story'), ['CLD-2']);
+  assert.deepEqual(await list('priority=urgent&labels=frontend'), ['CLD-2']);
+  assert.deepEqual(await list('q=cld-1'), ['CLD-1']);
+  assert.deepEqual(await list(`epicId=${epic.id}`), ['CLD-2']);
+  assert.deepEqual(await list('assignee=none'), ['CLD-1', 'CLD-2']);
   for (const bad of ['status=doing', 'type=spike', 'priority=asap', 'assignee=somebody']) {
     const res = await app.inject(`/api/projects/${project.id}/work-items?${bad}`);
     assert.equal(res.statusCode, 400, bad);
@@ -164,17 +164,17 @@ test('items are created, listed with filters, updated and deleted, and each chan
   );
 
   const detail = (await app.inject(`/api/work-items/${epic.id}`)).json<WorkItemDetail>();
-  assert.deepEqual(detail.children.map((c) => c.key), ['AGN-2']);
+  assert.deepEqual(detail.children.map((c) => c.key), ['CLD-2']);
   assert.equal((await app.inject('/api/work-items/nope')).statusCode, 404);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/work-items/nope', ...json({ title: 'x' }) })).statusCode, 404);
 
   const removed = await feed(async () => {
     assert.equal((await app.inject({ method: 'DELETE', url: `/api/work-items/${bug.id}` })).statusCode, 200);
   });
-  assert.ok(removed.some((e) => e.type === 'workitem.removed' && e.itemId === bug.id && e.key === 'AGN-2'));
+  assert.ok(removed.some((e) => e.type === 'workitem.removed' && e.itemId === bug.id && e.key === 'CLD-2'));
   assert.equal((await app.inject(`/api/work-items/${bug.id}`)).statusCode, 404);
   // The number of a deleted item is never handed out again
-  assert.equal((await createItem(project.id, { title: 'Next' })).key, 'AGN-3');
+  assert.equal((await createItem(project.id, { title: 'Next' })).key, 'CLD-3');
   await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
 });
 

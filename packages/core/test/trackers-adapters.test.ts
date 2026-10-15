@@ -27,7 +27,7 @@ const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', own
 const ytScope: HostRepo = { host: 'https://acme.youtrack.cloud', path: 'AGP', owner: '', name: 'AGP' };
 const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
-/** The recordings were made with `-R owner/repo`; Agentry pins the host, so the pin is taken off to find the recorded argv. */
+/** The recordings were made with `-R owner/repo`; Claudio pins the host, so the pin is taken off to find the recorded argv. */
 function unpin(call: HostCall, repo: HostRepo): string[] {
   const at = call.args.indexOf('-R');
   if (at === -1) return call.args;
@@ -128,7 +128,7 @@ test('gh: the issues a pull request closes are read from closingIssuesReferences
 test('glab: the issues a merge request closes are read from closes_issues on the project id; the recorded answer is empty', () => {
   const call = gitlabIssuesAdapter.closedByChangeRequest(glRepo, 9);
   assert.equal(call.kind, 'read');
-  // The recorded argv, with the host pinned the way every other glab api call of Agentry is
+  // The recorded argv, with the host pinned the way every other glab api call of Claudio is
   assert.deepEqual(call.args, ['api', '--hostname', 'gitlab.com', 'projects/87089091/merge_requests/9/closes_issues']);
   assert.deepEqual(gitlabIssuesAdapter.parseClosedByChangeRequest(out('glab/1.120.0', 'api_closes')), []);
   // Not recorded non-empty: the API's issue objects, read by the `iid` and `web_url` issue view was recorded to print
@@ -172,7 +172,7 @@ test('gh: gh issue view on a pull request number is refused as a pull request', 
   assert.throws(() => githubIssuesAdapter.parseGet(out('gh/2.102.0', 'issue-view-pr')), IssueIsPullRequest);
 });
 
-test('gh: a view that lacks the fields Agentry asked for is refused, not read as an empty issue', () => {
+test('gh: a view that lacks the fields Claudio asked for is refused, not read as an empty issue', () => {
   assert.throws(() => githubIssuesAdapter.parseGet(out('gh/2.92.0', 'issue-view-sr')), HostParseError);
 });
 

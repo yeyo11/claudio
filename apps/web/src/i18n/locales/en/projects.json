@@ -42,8 +42,8 @@
     "purged": "Purged what Claude Code kept about {{name}}",
     "purgeFailed": "Could not purge the project",
     "removeTitle": "Remove {{name}}?",
-    "removeBody_one": "Agentry forgets this directory. Nothing on disk changes, and importing it again brings its chat back.",
-    "removeBody_other": "Agentry forgets this directory. Nothing on disk changes, and importing it again brings its {{n}} chats back.",
+    "removeBody_one": "Claudio forgets this directory. Nothing on disk changes, and importing it again brings its chat back.",
+    "removeBody_other": "Claudio forgets this directory. Nothing on disk changes, and importing it again brings its {{n}} chats back.",
     "removeConfirm": "Remove project",
     "purgeTitle": "Purge what Claude Code keeps about {{name}}?",
     "purgeBody_one": "This deletes its transcripts, background tasks, file history and its entry in Claude Code's configuration (<code>claude project purge</code>), so its chat is gone for good. Your files are not touched. The project stays imported. <strong>This cannot be undone.</strong>",
@@ -54,7 +54,7 @@
     "rename": "Rename",
     "purge": "Purge Claude Code state",
     "purgeHint": "Asks for confirmation before deleting",
-    "remove": "Remove from Agentry",
+    "remove": "Remove from Claudio",
     "actionsNamed": "Actions for {{name}}",
     "stats": {
       "chats": "chats",
@@ -222,11 +222,11 @@
     "reason": {
       "ready": "{{cli}} is signed in to {{hostname}} and answers.",
       "not-git": "The directory is not a git repository, so there is no host to ask.",
-      "no-remote": "The project has no origin remote, so Agentry cannot tell where its code lives.",
+      "no-remote": "The project has no origin remote, so Claudio cannot tell where its code lives.",
       "unsupported-host": "{{hostname}} is not a host that {{cli}} is signed in to, or the host is turned off in Integrations.",
       "no-default-branch": "{{host}} did not say which branch is the default.",
-      "cli-missing": "{{cli}} is not installed, and it is what Agentry asks about {{host}}.",
-      "cli-incompatible": "{{cli}} is older than Agentry works with.",
+      "cli-missing": "{{cli}} is not installed, and it is what Claudio asks about {{host}}.",
+      "cli-incompatible": "{{cli}} is older than Claudio works with.",
       "cli-signed-out": "{{cli}} is not signed in to {{hostname}}."
     },
     "remedy": {
@@ -252,7 +252,7 @@
     "limitOf": "Limit of {{column}}",
     "noLimits": "no limits",
     "removeTitle": "Remove the project",
-    "removeBody": "It stops showing in Agentry. Its settings and its tasks are kept: import the directory again and everything comes back. The repository is not touched.",
+    "removeBody": "It stops showing in Claudio. Its settings and its tasks are kept: import the directory again and everything comes back. The repository is not touched.",
     "discard": "Discard",
     "save": "Save changes",
     "saving": "Saving…",
@@ -269,7 +269,7 @@
   },
   "decisions": {
     "title": "Decisions",
-    "intro": "What Agentry decides for you in this project. Each point inherits the global setting until you change it here; consent stays global.",
+    "intro": "What Claudio decides for you in this project. Each point inherits the global setting until you change it here; consent stays global.",
     "saved": "Decisions saved",
     "provider": "Provider",
     "providerLabel": "Provider of this project's decisions",
@@ -311,13 +311,13 @@
       "ready": "{{cli}} is signed in and answers.",
       "wrong-host": "This project's code host is {{hostname}}, which {{tracker}} does not use.",
       "signed-out": "{{cli}} is installed, but not signed in to the code host.",
-      "incompatible": "{{cli}} is older than the oldest release Agentry works with.",
-      "not-installed": "{{cli}} is not installed, or Agentry cannot find it.",
-      "unknown": "Agentry has not checked {{cli}} yet.",
-      "not-built": "Agentry cannot offer {{tracker}} yet: its program ({{cli}}) is not supported in this version.",
+      "incompatible": "{{cli}} is older than the oldest release Claudio works with.",
+      "not-installed": "{{cli}} is not installed, or Claudio cannot find it.",
+      "unknown": "Claudio has not checked {{cli}} yet.",
+      "not-built": "Claudio cannot offer {{tracker}} yet: its program ({{cli}}) is not supported in this version.",
       "disabled": "{{tracker}} is turned off in Integrations.",
       "readyOwn": "{{cli}} answers with the access saved in Integrations.",
-      "signedOutOwn": "Give Agentry the address and token of your YouTrack in Integrations."
+      "signedOutOwn": "Give Claudio the address and token of your YouTrack in Integrations."
     },
     "scope": {
       "repository": "Repository",
@@ -333,7 +333,7 @@
     "queryHint": {
       "github-issues": "GitHub's search as it is, the one you would type in its issues tab. It comes already written when you import.",
       "gitlab-issues": "The text GitLab searches the issues for. It comes already written when you import.",
-      "youtrack": "YouTrack's search as you would type it there; Agentry adds the project and, when it is empty, #Unresolved. It comes already written when you import."
+      "youtrack": "YouTrack's search as you would type it there; Claudio adds the project and, when it is empty, #Unresolved. It comes already written when you import."
     },
     "queryHintDefault": "{{tracker}}'s own query. It comes already written when you import. Empty means the open issues.",
     "map": "When a task moves",
@@ -343,9 +343,9 @@
       "completed": "Close as completed"
     },
     "onlyOpenClosed": "{{tracker}} only has open and closed.",
-    "mapHint": "When the pull request is merged the issue closes by itself with <mono>Closes {{ref}}</mono> in its description. If it could not, because the target branch is not the main one, Agentry closes it afterwards and checks that it is closed.",
+    "mapHint": "When the pull request is merged the issue closes by itself with <mono>Closes {{ref}}</mono> in its description. If it could not, because the target branch is not the main one, Claudio closes it afterwards and checks that it is closed.",
     "scopeHintProject": "The short name of the YouTrack project, such as PROJ: the issues of that project.",
     "statusPlaceholder": "State, as your project calls it",
-    "mapHintNamed": "Each column sets the issue's State field to the name you write here, as your project calls it, and Agentry reads it back to check it. A State the project does not have is shown on the task, and nothing else changes."
+    "mapHintNamed": "Each column sets the issue's State field to the name you write here, as your project calls it, and Claudio reads it back to check it. A State the project does not have is shown on the task, and nothing else changes."
   }
 }

@@ -112,7 +112,7 @@ test('three of the same is not yet a loop', () => {
 const SPEC = 'e2e/specs/pages.spec.mjs';
 
 test('an existing test that no longer asserts anything is flagged, with the file and why', () => {
-  const before = `test('shows the title', async () => {\n  const t = await page.title();\n  expect(t).toBe('Agentry');\n  expect(await page.$('h1')).toBeTruthy();\n});`;
+  const before = `test('shows the title', async () => {\n  const t = await page.title();\n  expect(t).toBe('Claudio');\n  expect(await page.$('h1')).toBeTruthy();\n});`;
   const after = `test('shows the title', async () => {\n  const t = await page.title();\n});`;
   const [signal] = weakenedTests(trace([edit(SPEC, before, after)]));
   assert.equal(signal?.kind, 'weakened-test');

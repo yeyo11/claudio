@@ -135,13 +135,13 @@ export function timeLeft(expiresAt: string, now: number): string {
 
 /**
  * Whether a row offers Sign in: the tool is installed and says it is signed out, or it reads
- * `no-probe` (nothing to ask) and Agentry keeps no key for it yet.
+ * `no-probe` (nothing to ask) and Claudio keeps no key for it yet.
  */
 export const offersSignIn = (state: ProviderReadinessState, reason: ProviderReasonCode | null = null, keyStored = false): boolean =>
   state === 'signed-out' || (state === 'unknown' && reason === 'no-probe' && !keyStored);
 
 /**
- * Whether a row offers Sign out: the tool works, or it reads `no-probe` because a key Agentry keeps
+ * Whether a row offers Sign out: the tool works, or it reads `no-probe` because a key Claudio keeps
  * is all it has and one is kept. Where signing out only forgets that key (`signOutKeyOnly`) it is
  * offered only while one is kept.
  */
@@ -160,7 +160,7 @@ export const VIA_LABEL: Readonly<Partial<Record<SetupTool, string>>> = { gh: 'Gi
 export const tailscaleSignedIn = (state: TailscaleReadinessState): boolean => state === 'ready' || state === 'httpsDisabled' || state === 'stopped';
 
 /**
- * What the Tailscale row offers. Sign in and sign out only where Agentry runs the daemon (the Docker
+ * What the Tailscale row offers. Sign in and sign out only where Claudio runs the daemon (the Docker
  * image): a machine's own Tailscale is the person's, and the row shows its state and where to look.
  * `stopped` offers Sign in too: `tailscale up` is also what connects a node again.
  */

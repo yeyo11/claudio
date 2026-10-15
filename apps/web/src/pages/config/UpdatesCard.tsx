@@ -23,7 +23,7 @@ import {
 } from '../../lib/updates';
 
 /**
- * Which Agentry this is and whether a newer release is out, with the way to take it that fits this
+ * Which Claudio this is and whether a newer release is out, with the way to take it that fits this
  * install. Reading is free: GitHub is only asked by the button and once a day by the server.
  */
 export function UpdatesCard() {

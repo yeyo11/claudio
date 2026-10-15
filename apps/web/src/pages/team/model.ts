@@ -284,7 +284,7 @@ export function teamSearch(params: URLSearchParams, next: { section?: TeamSectio
 
 /**
  * Where a member may write, as its `writes` says it and the flow enforces it (`stageRules` in
- * packages/core/src/flow.ts): absent is no limit of Agentry's own, `[]` is nothing of the project
+ * packages/core/src/flow.ts): absent is no limit of Claudio's own, `[]` is nothing of the project
  * but the documents folder, and a list is those paths plus the documents folder.
  */
 export type WriteScope = 'anywhere' | 'documents' | 'paths';

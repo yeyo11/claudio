@@ -573,7 +573,7 @@ test('a failed task is tried again in the same chat, told what went wrong, and k
   assert.equal(flaky.status, 'completed');
   assert.equal(flaky.attempts, 2);
   assert.equal(flaky.error, null);
-  // The retry is Agentry's own words, from the error: the objective and the original prompt are not in it
+  // The retry is Claudio's own words, from the error: the objective and the original prompt are not in it
   assert.match(flaky.result ?? '', /^retried: Your previous attempt at this task ended with an error:\n\nthe tests do not pass\n/);
   assert.doesNotMatch(flaky.result ?? '', /FAKE-FAIL-ONCE/);
 
@@ -1430,7 +1430,7 @@ test('a person who stops waiting stops the task, and a wait that ran out fails i
   assert.equal(taskOf(started.id, 'a').status, 'stopped');
   assert.match(taskOf(started.id, 'a').error ?? '', /stopped waiting/);
   assert.equal(taskOf(started.id, 'b').status, 'failed');
-  assert.match(taskOf(started.id, 'b').error ?? '', /did not reset within the time Agentry waits/);
+  assert.match(taskOf(started.id, 'b').error ?? '', /did not reset within the time Claudio waits/);
   // Heard for a chat no task runs: nothing changes
   orchestrator.waitEnded({ fromChat: 'nobody', at: new Date().toISOString() }, 'failed', null);
   db.close();

@@ -30,18 +30,18 @@ export interface CoreConfig {
    * Whether this deploy offers the tunnel, from `CLAUDIO_TUNNEL`. On by default. In the Docker image
    * (`CLAUDIO_DISTRIBUTION=docker`) the default follows `tailscaleManaged`: a container sees neither
    * the host's `tailscale` CLI nor its daemon, so the tunnel is offered there only when the image's
-   * entrypoint started a `tailscaled` of Agentry's own (docs/deploy.md, "The tunnel in Docker").
+   * entrypoint started a `tailscaled` of Claudio's own (docs/deploy.md, "The tunnel in Docker").
    */
   tunnelEnabled: boolean;
   /**
-   * Whether the `tailscaled` the CLI talks to is Agentry's own, from `CLAUDIO_TAILSCALE_MANAGED`,
+   * Whether the `tailscaled` the CLI talks to is Claudio's own, from `CLAUDIO_TAILSCALE_MANAGED`,
    * which the image's entrypoint sets once it started one. Only then may the app sign it in and out:
-   * a machine's own Tailscale belongs to the person, and Agentry never runs `up` or `logout` on it.
+   * a machine's own Tailscale belongs to the person, and Claudio never runs `up` or `logout` on it.
    */
   tailscaleManaged: boolean;
   /** The node name a managed `tailscaled` signs in with, from `CLAUDIO_TAILSCALE_HOSTNAME`; `agentry` by default */
   tailscaleHostname: string;
-  /** The HTTPS port of Agentry's `tailscale serve` rule, from `CLAUDIO_TUNNEL_PORT`; 8444 by default */
+  /** The HTTPS port of Claudio's `tailscale serve` rule, from `CLAUDIO_TUNNEL_PORT`; 8444 by default */
   tunnelPort: number;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
@@ -70,7 +70,7 @@ export interface CoreConfig {
    */
   secretKey?: string;
   /**
-   * How this Agentry was installed, from `CLAUDIO_DISTRIBUTION` (lower case): `docker` makes the
+   * How this Claudio was installed, from `CLAUDIO_DISTRIBUTION` (lower case): `docker` makes the
    * secret vault keep a key of its own beside the data when the environment brings none.
    */
   distribution?: string;

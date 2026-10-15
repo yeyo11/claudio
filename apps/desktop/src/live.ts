@@ -112,7 +112,7 @@ export function liveWords(snapshot: LiveSnapshot): string | null {
 }
 
 export function trayTooltip(snapshot: LiveSnapshot): string {
-  return `Agentry — ${liveWords(snapshot) ?? 'nothing running'}`;
+  return `Claudio — ${liveWords(snapshot) ?? 'nothing running'}`;
 }
 
 const MAX_LABEL = 48;
@@ -136,7 +136,7 @@ export function trayMenu(snapshot: LiveSnapshot, updateReady?: string): TrayEntr
   const entries: TrayEntry[] = [
     { type: 'item', label: liveWords(snapshot) ?? 'Nothing running', action: null },
     { type: 'separator' },
-    { type: 'item', label: 'Open Agentry', action: { kind: 'show' } },
+    { type: 'item', label: 'Open Claudio', action: { kind: 'show' } },
     { type: 'item', label: 'New chat', action: { kind: 'open', path: '/chats/new' } },
   ];
   if (snapshot.items.length) {
@@ -149,7 +149,7 @@ export function trayMenu(snapshot: LiveSnapshot, updateReady?: string): TrayEntr
   }
   entries.push({ type: 'separator' });
   if (updateReady) entries.push({ type: 'item', label: `Restart to update to ${updateReady}`, action: { kind: 'update' } });
-  entries.push({ type: 'item', label: 'Quit Agentry', action: { kind: 'quit' } });
+  entries.push({ type: 'item', label: 'Quit Claudio', action: { kind: 'quit' } });
   return entries;
 }
 

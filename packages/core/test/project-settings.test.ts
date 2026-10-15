@@ -32,7 +32,7 @@ const valid = (over: Partial<ProjectSettings> = {}): ProjectSettings => ({
 });
 
 test('a key prefix is made from the initials of a name, or from a single word and its consonants', () => {
-  assert.equal(deriveKeyPrefix('Agentry', none), 'AGN');
+  assert.equal(deriveKeyPrefix('Claudio', none), 'CLD');
   assert.equal(deriveKeyPrefix('claude wrapper', none), 'CW');
   assert.equal(deriveKeyPrefix('my-online_shop', none), 'MOS');
   assert.equal(deriveKeyPrefix('MyShop', none), 'MS');
@@ -48,13 +48,13 @@ test('a key prefix is made from the initials of a name, or from a single word an
   assert.equal(deriveKeyPrefix('x', none), 'PRJ');
   assert.equal(deriveKeyPrefix('42', none), 'PRJ');
   assert.equal(deriveKeyPrefix('', none), 'PRJ');
-  for (const name of ['Agentry', 'claude wrapper', 'x', 'a b c d e f g']) assert.match(deriveKeyPrefix(name, none), WORK_ITEM_KEY_PREFIX_PATTERN);
+  for (const name of ['Claudio', 'claude wrapper', 'x', 'a b c d e f g']) assert.match(deriveKeyPrefix(name, none), WORK_ITEM_KEY_PREFIX_PATTERN);
 });
 
 test('a key prefix already taken gets a digit, the lowest free one', () => {
-  assert.equal(deriveKeyPrefix('Agentry', new Set(['AGN'])), 'AGN2');
-  assert.equal(deriveKeyPrefix('Agentry', new Set(['AGN', 'AGN2', 'AGN3'])), 'AGN4');
-  assert.equal(deriveKeyPrefix('Agentry', new Set(['AGN2'])), 'AGN');
+  assert.equal(deriveKeyPrefix('Claudio', new Set(['CLD'])), 'CLD2');
+  assert.equal(deriveKeyPrefix('Claudio', new Set(['CLD', 'CLD2', 'CLD3'])), 'CLD4');
+  assert.equal(deriveKeyPrefix('Claudio', new Set(['CLD2'])), 'CLD');
 });
 
 test('the five templates are data: each has its modules, a board with types, and Simple and Custom switch nothing on', () => {
@@ -171,8 +171,8 @@ test('what changed between two documents is named for the event', () => {
 
 test('a project imported without a template, or before modules existed, reads as every module off with a derived key', async () => {
   await withCore(async (core, config) => {
-    const imported = await core.importProject({ path: dir(), name: 'Agentry' });
-    assert.equal(imported.key, 'AGN');
+    const imported = await core.importProject({ path: dir(), name: 'Claudio' });
+    assert.equal(imported.key, 'CLD');
     assert.deepEqual(imported.modules, []);
     const settings = await core.projectSettings(imported.id);
     assert.deepEqual(settings.modules, []);
@@ -183,10 +183,10 @@ test('a project imported without a template, or before modules existed, reads as
     const file = join(config.dataDir, 'project-settings', `${imported.id}.json`);
     rmSync(file);
     const [project] = await core.projects();
-    assert.deepEqual([project?.key, project?.modules], ['AGN', []]);
+    assert.deepEqual([project?.key, project?.modules], ['CLD', []]);
     // ...and gets one on that first read, so the prefix stays put from then on
     assert.ok(existsSync(file));
-    assert.equal(JSON.parse(readFileSync(file, 'utf8')).settings.keyPrefix, 'AGN');
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).settings.keyPrefix, 'CLD');
   });
 });
 
@@ -329,7 +329,7 @@ test('a project removed and imported again gets its id, settings and key back', 
   const path = dir();
   let id = '';
   await withCore(async (core) => {
-    const first = await core.importProject({ path, name: 'Agentry', template: 'software' });
+    const first = await core.importProject({ path, name: 'Claudio', template: 'software' });
     id = first.id;
     await core.updateProject(id, { key: 'AGX' });
     await core.removeProject(id);
@@ -354,32 +354,32 @@ test('a project removed and imported again gets its id, settings and key back', 
 test('a project imported again whose key was taken meanwhile gets a new one, and modules asked for apply', async () => {
   await withCore(async (core) => {
     const path = dir();
-    const first = await core.importProject({ path, name: 'Agentry', template: 'software' });
+    const first = await core.importProject({ path, name: 'Claudio', template: 'software' });
     await core.removeProject(first.id);
     const newcomer = await core.importProject({ path: dir(), name: 'Other' });
     // The person may reuse the prefix of a removed project explicitly
-    await core.updateProject(newcomer.id, { key: 'AGN' });
+    await core.updateProject(newcomer.id, { key: 'CLD' });
 
-    const again = await core.importProject({ path, name: 'Agentry', modules: ['memory'] });
+    const again = await core.importProject({ path, name: 'Claudio', modules: ['memory'] });
     assert.equal(again.id, first.id);
-    assert.equal(again.key, 'AGN2');
+    assert.equal(again.key, 'CLD2');
     assert.deepEqual(again.modules, ['memory']);
   });
 });
 
 test('reading a document that does not parse answers defaults and leaves the file as the person wrote it', async () => {
   await withCore(async (core, config) => {
-    const { id } = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const { id } = await core.importProject({ path: dir(), name: 'Claudio', template: 'software' });
     const file = join(config.dataDir, 'project-settings', `${id}.json`);
     // One typo in a hand edit: a doubled comma
     const typo = readFileSync(file, 'utf8').replace('"board",', '"board",,');
     writeFileSync(file, typo);
 
     const [project] = await core.projects();
-    assert.deepEqual([project?.key, project?.modules], ['AGN', []]);
+    assert.deepEqual([project?.key, project?.modules], ['CLD', []]);
     const settings = await core.projectSettings(id);
     assert.deepEqual(settings.modules, []);
-    assert.equal(settings.keyPrefix, 'AGN');
+    assert.equal(settings.keyPrefix, 'CLD');
     // Neither read replaced the modules, limits and prefix the typo made unreadable
     assert.equal(readFileSync(file, 'utf8'), typo);
 
@@ -391,7 +391,7 @@ test('reading a document that does not parse answers defaults and leaves the fil
 
 test('reading a document whose prefix does not validate answers a derived one and leaves the file alone', async () => {
   await withCore(async (core, config) => {
-    const { id } = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const { id } = await core.importProject({ path: dir(), name: 'Claudio', template: 'software' });
     const file = join(config.dataDir, 'project-settings', `${id}.json`);
     const doc = JSON.parse(readFileSync(file, 'utf8'));
     doc.settings.keyPrefix = 'agn-1';
@@ -399,7 +399,7 @@ test('reading a document whose prefix does not validate answers a derived one an
     writeFileSync(file, edited);
 
     const settings = await core.projectSettings(id);
-    assert.equal(settings.keyPrefix, 'AGN');
+    assert.equal(settings.keyPrefix, 'CLD');
     // What still validates is kept in the answer
     assert.deepEqual(settings.modules, ['board', 'team', 'documents', 'memory']);
     await core.projects();
@@ -432,7 +432,7 @@ test('a project imported again with other modules emits project.updated and reco
     const events: AgentryEvent[] = [];
     core.events.subscribe((e) => events.push(e));
     const path = dir();
-    const first = await core.importProject({ path, name: 'Agentry', template: 'software' });
+    const first = await core.importProject({ path, name: 'Claudio', template: 'software' });
     await core.removeProject(first.id);
     assert.equal(events.filter((e) => e.type === 'project.updated').length, 0);
 
@@ -455,7 +455,7 @@ test('a project imported again with other modules emits project.updated and reco
 test('a project imported again keeps on disk what a hand edit broke, for the person to fix', async () => {
   await withCore(async (core, config) => {
     const path = dir();
-    const first = await core.importProject({ path, name: 'Agentry', template: 'software' });
+    const first = await core.importProject({ path, name: 'Claudio', template: 'software' });
     await core.removeProject(first.id);
     const file = join(config.dataDir, 'project-settings', `${first.id}.json`);
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -471,7 +471,7 @@ test('a project imported again keeps on disk what a hand edit broke, for the per
 
 test('switching a module or the key rewrites only that part, and keeps what a hand edit broke', async () => {
   await withCore(async (core, config) => {
-    const project = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const project = await core.importProject({ path: dir(), name: 'Claudio', template: 'software' });
     const file = join(config.dataDir, 'project-settings', `${project.id}.json`);
     const doc = JSON.parse(readFileSync(file, 'utf8'));
     doc.settings.board.columnLimits.todo = -1;
@@ -489,7 +489,7 @@ test('switching a module or the key rewrites only that part, and keeps what a ha
 
 test('a team change rewrites only the team and the flow, keeping what a hand edit broke and a module switched meanwhile', async () => {
   await withCore(async (core, config) => {
-    const project = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const project = await core.importProject({ path: dir(), name: 'Claudio', template: 'software' });
     const file = join(config.dataDir, 'project-settings', `${project.id}.json`);
     const doc = JSON.parse(readFileSync(file, 'utf8'));
     doc.settings.board.columnLimits.todo = -1;
@@ -511,7 +511,7 @@ test('a team change rewrites only the team and the flow, keeping what a hand edi
 test('two changes made to one document at once both land', async () => {
   const config = tempConfig();
   const store = new ProjectSettingsStore(config);
-  const project = { id: 'p1', name: 'Agentry', path: dir() };
+  const project = { id: 'p1', name: 'Claudio', path: dir() };
   await store.create(project, { template: 'software', modules: null }, [project]);
   const [first, second] = await Promise.all([
     store.update(project, (s) => ({ ...s, modules: s.modules.filter((m) => m !== 'documents') }), [project]),

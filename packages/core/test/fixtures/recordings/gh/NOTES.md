@@ -20,7 +20,7 @@ Recorded 2026-09-30 by running every command, with the same argv, on
   `yeyo11 <33735891+yeyo11@users.noreply.github.com>`; the push helper refused any other identity.
 - Environment on every call: `GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 NO_COLOR=1
   GIT_TERMINAL_PROMPT=0 LC_ALL=C`, stdin `/dev/null`, stdout and stderr redirected to files (non-TTY,
-  what Agentry sees). cwd `/tmp/code-hosts-research/ghm-work` (not a git repo) unless noted.
+  what Claudio sees). cwd `/tmp/code-hosts-research/ghm-work` (not a git repo) unless noted.
 - Recorder: `/tmp/code-hosts-research/m1.sh <92|102> <label> <gh args>` and `m2.sh <label> <args>`
   (runs both, prints `IDENTICAL`/`DIFFERS`). Raw captures:
   `/tmp/code-hosts-research/ghm/<label>.<92|102>.{out,err,rc,meta}`; webhook deliveries (with

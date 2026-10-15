@@ -38,7 +38,7 @@ export const isTrackerBuilt = (id: TrackerId): boolean => TRACKER_IDS.includes(i
  */
 export const hasNamedStatuses = (id: TrackerId): boolean => id === 'youtrack';
 
-/** Whether Agentry keeps the address and token the tracker's CLI is handed, rather than a sign-in of the CLI's own. */
+/** Whether Claudio keeps the address and token the tracker's CLI is handed, rather than a sign-in of the CLI's own. */
 export const keepsCredentials = (id: TrackerId): boolean => id === 'youtrack';
 
 /** The State names a YouTrack project starts with, offered as placeholders; the project's own may differ. */
@@ -69,7 +69,7 @@ export function trackerAction(status: Pick<TrackerStatus, 'id' | 'state'>, enabl
   if (!enabled || !isTrackerBuilt(status.id)) return null;
   switch (status.state) {
     case 'ready': return null;
-    // YouTrack's sign-in is the address and token Agentry keeps, entered on the row itself
+    // YouTrack's sign-in is the address and token Claudio keeps, entered on the row itself
     case 'signed-out': return keepsCredentials(status.id) ? 'connect' : 'sign-in';
     case 'incompatible': return 'choose-binary';
     case 'not-installed': return 'install';

@@ -6,7 +6,7 @@
 import type { TranscriptEntry } from '@claudio/shared';
 import type { TranscriptUsage } from './usage.ts';
 
-/** One transcript folded into what a list needs, before Agentry adds what it knows itself. */
+/** One transcript folded into what a list needs, before Claudio adds what it knows itself. */
 export interface TranscriptSummary {
   /** The session id: the file's name without its extension */
   id: string;

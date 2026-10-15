@@ -171,7 +171,7 @@ export function hostErrorFields(result: Pick<HostResult, 'http' | 'stdout'>): Ho
 }
 
 /**
- * The reason a failed result carries when nothing more specific is known: from Agentry's own kill,
+ * The reason a failed result carries when nothing more specific is known: from Claudio's own kill,
  * gh's exit code 4, and the HTTP status. Rate limits are the breaker's to say (it needs the
  * headers and the clock), so a 403 or 429 here is only `forbidden` or `slowed-down`.
  * Null for a call that succeeded.

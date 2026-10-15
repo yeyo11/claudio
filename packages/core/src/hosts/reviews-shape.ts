@@ -90,5 +90,5 @@ export function login(value: string, pattern: RegExp): string {
   return value;
 }
 
-/** Every body Agentry sends travels as JSON on stdin */
+/** Every body Claudio sends travels as JSON on stdin */
 export const json = (value: unknown): string => JSON.stringify(value);

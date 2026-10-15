@@ -1,7 +1,7 @@
 import type { ChatSummary } from './types.ts';
 
 /**
- * The title a person reads: the first prompt. A chat Agentry starts is named `<dir>-<id prefix>` for
+ * The title a person reads: the first prompt. A chat Claudio starts is named `<dir>-<id prefix>` for
  * the CLI's `--name`, which the transcript then reports as its title; that name is an id, not a
  * title, so the prompt wins over it. A name someone chose is kept.
  */

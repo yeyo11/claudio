@@ -59,7 +59,7 @@ test('Spanish many plurals are derived from other', () => {
   });
 });
 
-test('language detection: the first language Agentry has wins, English otherwise', () => {
+test('language detection: the first language Claudio has wins, English otherwise', () => {
   assert.equal(detectLanguage(['es-ES', 'en']), 'es');
   assert.equal(detectLanguage(['es']), 'es');
   assert.equal(detectLanguage(['ES-mx']), 'es');

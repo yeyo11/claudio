@@ -100,7 +100,7 @@ async function startServer(): Promise<void> {
     const res = resolveResources();
     const missing = missingResources(res);
     if (missing.length) {
-      showError('Agentry is missing files', `Not found:\n${missing.join('\n')}`);
+      showError('Claudio is missing files', `Not found:\n${missing.join('\n')}`);
       return;
     }
     mkdirSync(dataDir, { recursive: true });
@@ -125,7 +125,7 @@ async function startServer(): Promise<void> {
         }),
       },
       serverLog,
-      (detail) => showError('The Agentry server stopped unexpectedly', detail),
+      (detail) => showError('The Claudio server stopped unexpectedly', detail),
     );
     const url = await server.start();
     serverOrigin = new URL(url).origin;
@@ -135,7 +135,7 @@ async function startServer(): Promise<void> {
     startMonitor(serverOrigin);
     await load(url);
   } catch (err) {
-    showError('Agentry could not start its server', err instanceof Error ? err.message : String(err));
+    showError('Claudio could not start its server', err instanceof Error ? err.message : String(err));
   } finally {
     starting = false;
   }
@@ -268,7 +268,7 @@ async function confirmRestart(): Promise<void> {
   showWindow();
   const response = await message({
     type: 'question',
-    message: `Restart to update to Agentry ${answer.version}?`,
+    message: `Restart to update to Claudio ${answer.version}?`,
     detail: `${liveWords(live) ?? 'Work is running'}. Restarting now stops it.`,
     buttons: ['Restart now', 'Update when I quit', 'Cancel'],
     defaultId: 1,
@@ -298,7 +298,7 @@ async function checkForUpdatesFromMenu(): Promise<void> {
       if (
         await ask({
           type: 'info',
-          message: 'Agentry cannot update itself here',
+          message: 'Claudio cannot update itself here',
           detail: state.message,
           buttons: ['Open releases page', 'Close'],
         })
@@ -307,12 +307,12 @@ async function checkForUpdatesFromMenu(): Promise<void> {
       }
       return;
     case 'idle':
-      await message({ type: 'info', message: 'Agentry is up to date', detail: `You are running ${current}, the newest release.` });
+      await message({ type: 'info', message: 'Claudio is up to date', detail: `You are running ${current}, the newest release.` });
       return;
     case 'available': {
       const download = await ask({
         type: 'info',
-        message: `Agentry ${state.version} is available`,
+        message: `Claudio ${state.version} is available`,
         detail: `You are running ${current}. It downloads in the background, and you choose when to restart.`,
         buttons: ['Download', 'Later'],
       });
@@ -327,7 +327,7 @@ async function checkForUpdatesFromMenu(): Promise<void> {
     case 'downloading':
       await message({
         type: 'info',
-        message: `Downloading Agentry ${state.version}`,
+        message: `Downloading Claudio ${state.version}`,
         detail: `${state.percent}% so far. The tray offers the restart when it is done.`,
       });
       return;
@@ -345,7 +345,7 @@ async function checkForUpdatesFromMenu(): Promise<void> {
 async function offerRestart(version: string): Promise<void> {
   const restart = await ask({
     type: 'info',
-    message: `Agentry ${version} is ready to install`,
+    message: `Claudio ${version} is ready to install`,
     detail: 'Restart now to use it, or later from the tray.',
     buttons: ['Restart', 'Later'],
   });
@@ -364,7 +364,7 @@ function createWindow(): void {
     ...state.bounds,
     minWidth: 720,
     minHeight: 480,
-    title: 'Agentry',
+    title: 'Claudio',
     // The dock and the window switcher show this; the launcher entry's icon only covers the menu
     icon: resolveResources().icon,
     backgroundColor: '#0b1020',
@@ -409,7 +409,7 @@ function createWindow(): void {
   // The server can vanish under a loaded page (e.g. reload after a crash): offer a restart instead of Chromium's error page
   webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
     if (isMainFrame && code !== -3 && serverOrigin && url.startsWith(serverOrigin)) {
-      showError('Cannot reach the Agentry server', `${description} (${code})`);
+      showError('Cannot reach the Claudio server', `${description} (${code})`);
     }
   });
 

@@ -222,7 +222,7 @@ async function projectRun(s: Setup, extra: Record<string, unknown> = {}): Promis
 const proposalsOf = (run: AssistantRunDetail, kind: AssistantProposal['kind']) => run.proposals.filter((p) => p.kind === kind);
 const runEvents = (s: Setup) => s.events.flatMap((e) => (e.type === 'assistant.run' ? [e.action] : []));
 
-test('a project run is a read-only chat in the directory, with the schema, the journal and what Agentry knows', async () => {
+test('a project run is a read-only chat in the directory, with the schema, the journal and what Claudio knows', async () => {
   const s = setup();
   s.items.create('p1', { title: 'Epic of payments', type: 'epic' });
   const run = await projectRun(s);
@@ -245,7 +245,7 @@ test('a project run is a read-only chat in the directory, with the schema, the j
   assert.match(launch.prompt, /AGN-1 \[epic, backlog\] Epic of payments/);
   assert.match(launch.prompt, /Add the Stripe webhook/);
   assert.match(launch.prompt, /Professional software template/);
-  // What it will read is laid out; what Agentry hands it is already read
+  // What it will read is laid out; what Claudio hands it is already read
   const byPath = new Map(run.sources.map((x) => [x.path ?? x.kind, x]));
   assert.equal(byPath.get('README.md')?.state, 'pending');
   assert.equal(byPath.get('README.md')?.count, 3);
@@ -278,7 +278,7 @@ test('what the chat reads fills in as it goes, and what it never read is dropped
   const byPath = new Map(now.sources.map((x) => [x.path ?? x.kind, x]));
   assert.deepEqual([byPath.get('src/')?.state, byPath.get('src/')?.count, byPath.get('src/')?.total], ['partial', 1, 2]);
   assert.equal(byPath.get('README.md')?.state, 'read');
-  assert.equal(byPath.get('git')?.state, 'read', 'Agentry handed it the history');
+  assert.equal(byPath.get('git')?.state, 'read', 'Claudio handed it the history');
   assert.ok(!now.sources.some((x) => x.path?.includes('passwd')), 'nothing outside the project');
   // Announced once at once, the rest held back by the throttle
   assert.equal(runEvents(s).filter((a) => a === 'read').length, 2);
@@ -678,7 +678,7 @@ test('a run a restart cut off continues once in its own chat; one that cannot en
   const resumed = second.launches.find((l) => l.run.id === cut.id);
   assert.ok(resumed);
   assert.equal(resumed.resumeChatId, 'chat-1');
-  assert.match(resumed.prompt, /Agentry restarted/);
+  assert.match(resumed.prompt, /Claudio restarted/);
   assert.deepEqual(resumed.allowedTools, READ_ONLY_TOOLS);
   assert.deepEqual([resumed.tools, resumed.disallowedTools], [READ_ONLY_TOOLS, DENIED_TOOLS], 'confined again');
   const fresh = second.launches.find((l) => l.run.id === unstarted.id);

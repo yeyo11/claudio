@@ -33,7 +33,7 @@ const api = (repo: HostRepo, args: string[], kind: HostCall['kind'], input?: str
   bucket: 'core',
 });
 
-/** The hook as GitHub keeps it: what Agentry reads of a listing and of a single hook. */
+/** The hook as GitHub keeps it: what Claudio reads of a listing and of a single hook. */
 export interface GithubHook {
   /** As text: a 64-bit id must never pass through a double */
   id: string;

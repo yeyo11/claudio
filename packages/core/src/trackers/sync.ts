@@ -10,7 +10,7 @@ import { trackerHost } from './links.ts';
 import type { ClosedIssue, TrackerAdapter } from './tracker.ts';
 
 // Telling the tracker what happened to the work (docs/plans/code-hosts.md, phase 5, "Status
-// sync"). It runs from Agentry's own events: the item moved to a column the project mapped, and
+// sync"). It runs from Claudio's own events: the item moved to a column the project mapped, and
 // the change request merged. Each event is one write per issue, never retried: the outcome is
 // written on the issue's row (`synced`, or `failed` with its reason) and the person's "Sync again"
 // is the only second attempt. Nothing here moves an item or merges anything: the merge click is
@@ -89,7 +89,7 @@ export class TrackerSyncService {
 
   /**
    * The host merged the item's change request: `done`. Resolves when every issue has been tried
-   * once. An issue is closed by Agentry only when the host did not close it; an issue the host
+   * once. An issue is closed by Claudio only when the host did not close it; an issue the host
    * closed that the item does not link comes back, for the change request's row to show.
    */
   async merged(notice: MergedNotice): Promise<MergedOutcome> {
@@ -130,7 +130,7 @@ export class TrackerSyncService {
       throw new TrackerError(`${column} is not synced for this tracker`, 409);
     }
     if (this.running.has(lockOf(issue))) throw new TrackerError('a sync of this issue is already running', 409);
-    if (issue.scope === null) throw new TrackerError(`Agentry does not know which repository ${key} came from, so it does not write to it`, 409, 'issue-scope-unknown');
+    if (issue.scope === null) throw new TrackerError(`Claudio does not know which repository ${key} came from, so it does not write to it`, 409, 'issue-scope-unknown');
     await this.syncIssue(item, issue, column, 'none');
     const after = this.deps.items.find(itemId);
     if (!after) throw new WorkItemError('work item not found', 404);

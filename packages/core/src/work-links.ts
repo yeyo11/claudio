@@ -137,7 +137,7 @@ export function startOptions(request: ChatStartOptions | undefined): ChatStartOp
   if (mcp !== undefined) {
     const servers: unknown = mcp && typeof mcp === 'object' ? (mcp as { servers?: unknown }).servers : undefined;
     if (mcp !== null && !isStrings(servers)) throw new WorkItemError('mcp must name its servers in a list, or be null', 400);
-    // Only the names: the config file is the one Agentry writes for them
+    // Only the names: the config file is the one Claudio writes for them
     options.mcp = mcp === null ? null : { servers: servers as string[] };
   }
   if (maxBudgetUsd !== undefined) {

@@ -826,7 +826,7 @@ input.is-invalid {
   z-index: -1;
   border-radius: inherit;
   padding: 1px;
-  /* Live running into the brand's rose: what is working, in Agentry's colours */
+  /* Live running into the brand's rose: what is working, in Claudio's colours */
   background: conic-gradient(
     from var(--energy-angle, 0deg),
     transparent 0deg,

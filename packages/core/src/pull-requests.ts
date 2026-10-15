@@ -74,7 +74,7 @@ import type { WorkItemService } from './work-items.ts';
 
 /**
  * A work item's pull request (docs/plans/work-item-pull-requests.md): the person approves the item,
- * and Agentry commits what QA verified, updates the item's branch with the default branch, pushes it
+ * and Claudio commits what QA verified, updates the item's branch with the default branch, pushes it
  * and opens the PR (or MR) with the project's host CLI. The person merges it on the host, and the watcher brings the merge back:
  * the item reaches Done and the project's checkout moves forward.
  *
@@ -142,7 +142,7 @@ function runGit(cwd: string, args: string[], opts: { timeout: number; env: NodeJ
 
 const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err.message : String(err));
 
-/** The line a person reads beside a failed host call: what the CLI said, else Agentry's own reason. */
+/** The line a person reads beside a failed host call: what the CLI said, else Claudio's own reason. */
 const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
 
 const ADAPTERS: Readonly<Record<CodeHostId, MergeCodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
@@ -483,7 +483,7 @@ export class PullRequestService {
   /**
    * What the item's issues say in the change request's body. A closing word goes in only when the
    * request's base is the project's default branch: into any other branch neither host closes the
-   * issue, and Agentry closes it after the merge (docs/plans/code-hosts.md, F9). When the default
+   * issue, and Claudio closes it after the merge (docs/plans/code-hosts.md, F9). When the default
    * branch or the repository cannot be told, no closing word is written.
    */
   private async issueLines(item: WorkItem, projectPath: string, row: Pick<PullRequestRow, 'host' | 'base'>): Promise<string[]> {
@@ -510,7 +510,7 @@ export class PullRequestService {
     if (readiness.status !== 'ready' && readiness.status !== 'no-default-branch') {
       throw new PullRequestError(`this project cannot reach its code host (${readiness.status})${readiness.detail ? `: ${readiness.detail}` : ''}`, 409, readiness.status);
     }
-    if (!readiness.host) throw new PullRequestError("this project's remote is not on a code host Agentry knows", 409, 'unsupported-host');
+    if (!readiness.host) throw new PullRequestError("this project's remote is not on a code host Claudio knows", 409, 'unsupported-host');
     const target = await this.target(projectPath, { host: readiness.host, hostname: readiness.hostname });
     const cwd = mainCheckout(projectPath);
     const run = (call: HostCall): Promise<HostResult> => this.call(target, call, cwd);
@@ -538,7 +538,7 @@ export class PullRequestService {
     const origin = this.origin(projectPath);
     const searchPath = await (this.deps.searchPath ? this.deps.searchPath() : hostSearchPath(this.env(), homedir()));
     const binaryPath = await resolveHostBinary(manifest, this.deps.settings?.()?.hosts[id]?.binaryPath ?? null, searchPath);
-    if (!binaryPath) throw new Error(`${manifest.cli} is not installed, or Agentry cannot find it`);
+    if (!binaryPath) throw new Error(`${manifest.cli} is not installed, or Claudio cannot find it`);
     return { adapter, binaryPath, repo: repoOf(row.hostname ?? origin.hostname, origin.path) };
   }
 
@@ -796,7 +796,7 @@ export class PullRequestService {
   /**
    * Opens the change request and finds it. The lookup by head and base follows every create: it
    * gives the number, and after a failed create it is how one that is already open (opened by hand,
-   * say) is adopted. Agentry decides nothing from the CLI's stderr.
+   * say) is adopted. Claudio decides nothing from the CLI's stderr.
    */
   private async create(row: PullRequestRow, projectPath: string, cwd: string, req: { title: string; body: string }): Promise<{ number: number | null; url: string | null }> {
     let target: HostTarget;
@@ -1066,7 +1066,7 @@ export class PullRequestService {
 
   private async readThreads(row: PullRequestRow, threadIds: readonly string[]): Promise<{ threads: ReviewThread[]; headSha: string | null }> {
     const reviews = this.deps.reviews;
-    if (!reviews) throw new PullRequestError('Agentry cannot read review threads here', 409, 'reviews-unavailable');
+    if (!reviews) throw new PullRequestError('Claudio cannot read review threads here', 409, 'reviews-unavailable');
     try {
       const list = await reviews.threads(row.id, { refresh: true });
       const chosen = threadsToAddress(list, threadIds);
@@ -1080,7 +1080,7 @@ export class PullRequestService {
 
   private async readFailures(row: PullRequestRow): Promise<{ failing: Check[]; headSha: string | null }> {
     const checks = this.deps.checks;
-    if (!checks) throw new PullRequestError('Agentry cannot read checks here', 409, 'checks-unavailable');
+    if (!checks) throw new PullRequestError('Claudio cannot read checks here', 409, 'checks-unavailable');
     try {
       const list = await checks.list(row.id);
       return { failing: failingChecks(list.checks), headSha: list.headSha };

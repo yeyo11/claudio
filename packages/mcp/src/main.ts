@@ -1,12 +1,12 @@
-// Agentry's own MCP server: JSON-RPC 2.0 over stdio, one message per line, answered from the REST API
-// of the Agentry that started the chat. The CLI starts it from the file passed with --mcp-config.
+// Claudio's own MCP server: JSON-RPC 2.0 over stdio, one message per line, answered from the REST API
+// of the Claudio that started the chat. The CLI starts it from the file passed with --mcp-config.
 import { createInterface } from 'node:readline';
 import { apiUrlFrom, createClient } from './client.ts';
 import { createServer } from './server.ts';
 
 const baseUrl = apiUrlFrom(process.env.CLAUDIO_API_URL);
 if (!baseUrl) {
-  process.stderr.write('agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Agentry that started the chat\n');
+  process.stderr.write('agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat\n');
   process.exit(1);
 }
 

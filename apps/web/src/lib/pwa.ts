@@ -1,4 +1,4 @@
-// Installing Agentry on a device: the service worker, and what Settings can offer about it.
+// Installing Claudio on a device: the service worker, and what Settings can offer about it.
 //
 // The worker itself is public/sw.js, a plain file the build fills in; nothing here knows what it
 // caches. What this module owns is when it is registered and what the person is told about making
@@ -30,7 +30,7 @@ export interface InstallState {
   install?: () => void;
   /**
    * A service worker — and so an immediate cold start, and later any Web Push — exists only on a
-   * secure origin. `http://192.168.1.10:8797`, which is how most people run Agentry, is not one.
+   * secure origin. `http://192.168.1.10:8797`, which is how most people run Claudio, is not one.
    */
   secure: boolean;
   /** The origin as the browser sees it, so the message can name it instead of being abstract */
@@ -121,7 +121,7 @@ export function registerServiceWorker(): void {
   const register = (): void => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error: unknown) => {
       // An insecure origin has no worker and that is not a fault of ours; Settings says so
-      console.warn('[agentry] the service worker was not registered:', error);
+      console.warn('[claudio] the service worker was not registered:', error);
     });
   };
   if (document.readyState === 'complete') register();

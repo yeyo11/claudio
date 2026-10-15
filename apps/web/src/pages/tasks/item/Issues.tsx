@@ -109,7 +109,7 @@ function IssueRow({ item, issue }: { item: Pick<WorkItemDetail, 'id'>; issue: Is
 
 /**
  * The item's issues as a panel beside the pull request's: one block per tracker with each issue's
- * state, why its last write failed and, only then, Sync again. Agentry writes once per event; the
+ * state, why its last write failed and, only then, Sync again. Claudio writes once per event; the
  * second try is this click, never a timer.
  */
 export function Issues({ item }: { item: Pick<WorkItemDetail, 'id' | 'issues'> }) {

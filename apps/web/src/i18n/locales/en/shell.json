@@ -83,7 +83,7 @@
   },
   "appearance": {
     "tab": "Appearance",
-    "intro": "How Agentry looks and moves in this browser. Stored here, not on the server.",
+    "intro": "How Claudio looks and moves in this browser. Stored here, not on the server.",
     "theme": "Theme",
     "themeHint": "System follows your operating system's light or dark setting.",
     "themeOptions": {
@@ -109,12 +109,12 @@
     "preview": "Preview"
   },
   "reload": {
-    "updated": "Agentry was updated to {{version}}.",
-    "stale": "Agentry was updated.",
+    "updated": "Claudio was updated to {{version}}.",
+    "stale": "Claudio was updated.",
     "action": "Reload",
     "reloading": "Reloading…",
     "dismiss": "Dismiss",
-    "stalePage": "This page belongs to an older version of Agentry",
+    "stalePage": "This page belongs to an older version of Claudio",
     "stalePageHint": "The server was updated. Reload to open the current version."
   },
   "phoneHeader": {

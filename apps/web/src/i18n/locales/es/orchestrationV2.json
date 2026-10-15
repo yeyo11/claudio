@@ -4,7 +4,7 @@
     "maxMinutesOf": "Límite de tiempo en minutos de la tarea {{id}}",
     "maxCost": "Límite de coste (USD)",
     "maxCostOf": "Límite de coste en dólares de la tarea {{id}}",
-    "taskHint": "Agentry avisa antes de detener la tarea al llegar a este tiempo. El límite de coste lo aplica el propio CLI.",
+    "taskHint": "Claudio avisa antes de detener la tarea al llegar a este tiempo. El límite de coste lo aplica el propio CLI.",
     "default": "el del grafo",
     "none": "sin límite",
     "graphTitle": "Límites predeterminados de cada tarea",
@@ -160,7 +160,7 @@
       "skipped": "Omitidos"
     },
     "none": "El host aún no ha informado de ningún check para este commit.",
-    "limited": "Se ha agotado el límite de peticiones del host. Se muestra la última lista; Agentry vuelve a leer a las {{time}}.",
+    "limited": "Se ha agotado el límite de peticiones del host. Se muestra la última lista; Claudio vuelve a leer a las {{time}}.",
     "unavailable": "No se han podido leer los checks.",
     "rerunFailed": "Volver a ejecutar los fallidos",
     "cancel": "Cancelar",
@@ -191,7 +191,7 @@
     "push": {
       "title": "Arreglo listo para subir",
       "waiting": "te espera",
-      "body": "Agentry ha arreglado lo que ha podido y lo ha confirmado en la rama de integración. No sube nada hasta que pulses «Subir el arreglo».",
+      "body": "Claudio ha arreglado lo que ha podido y lo ha confirmado en la rama de integración. No sube nada hasta que pulses «Subir el arreglo».",
       "facts": "en {{branch}}",
       "head": "La {{noun}} {{ref}} sigue en el commit {{sha}} hasta que lo subas.",
       "button": "Subir el arreglo",

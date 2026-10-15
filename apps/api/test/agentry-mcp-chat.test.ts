@@ -10,7 +10,7 @@ import { Core, loadConfig } from '@claudio/core';
 import type { Project, WorkItem } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
-// A chat confined to Agentry's read tools answers from the wrapper that runs it: the fake CLI starts
+// A chat confined to Claudio's read tools answers from the wrapper that runs it: the fake CLI starts
 // the server from the config file the core wrote (through tsx, as from source) and calls it over stdio.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));

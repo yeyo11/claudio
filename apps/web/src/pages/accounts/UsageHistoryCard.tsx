@@ -18,7 +18,7 @@ const WINDOWS: readonly UsageWindowKind[] = ['five_hour', 'seven_day'];
 const SLIDE_MS = 5 * 60_000;
 
 /**
- * How much of each rate-limit window an account used, over time: the readings Agentry keeps
+ * How much of each rate-limit window an account used, over time: the readings Claudio keeps
  * every few minutes while claude-swap is installed. One line per account, or one account alone.
  */
 export function UsageHistoryCard({ accounts, threshold }: { accounts: Account[]; threshold: number }) {

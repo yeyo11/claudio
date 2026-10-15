@@ -39,13 +39,13 @@ test('the counts come from the overview, not from the capped lists', () => {
   const snapshot = liveSnapshot({ counts: counts(25, 3, 0), chats: [chat('a', 'working', '2026-09-21T10:00:00Z')], orchestrations: [] });
   assert.equal(snapshot.working, 25);
   assert.equal(snapshot.waiting, 3);
-  assert.equal(trayTooltip(snapshot), 'Agentry — 25 working · 3 waiting');
+  assert.equal(trayTooltip(snapshot), 'Claudio — 25 working · 3 waiting');
 });
 
 test('the tooltip says when nothing runs, and names orchestrations', () => {
-  assert.equal(trayTooltip(EMPTY_SNAPSHOT), 'Agentry — nothing running');
-  assert.equal(trayTooltip({ ...EMPTY_SNAPSHOT, running: 1 }), 'Agentry — 1 orchestration');
-  assert.equal(trayTooltip({ ...EMPTY_SNAPSHOT, working: 2, running: 2 }), 'Agentry — 2 working · 2 orchestrations');
+  assert.equal(trayTooltip(EMPTY_SNAPSHOT), 'Claudio — nothing running');
+  assert.equal(trayTooltip({ ...EMPTY_SNAPSHOT, running: 1 }), 'Claudio — 1 orchestration');
+  assert.equal(trayTooltip({ ...EMPTY_SNAPSHOT, working: 2, running: 2 }), 'Claudio — 2 working · 2 orchestrations');
 });
 
 test('the tray menu: status line, open, new chat, the live items, quit', () => {
@@ -57,14 +57,14 @@ test('the tray menu: status line, open, new chat, the live items, quit', () => {
   assert.deepEqual(trayMenu(snapshot), [
     { type: 'item', label: '1 working · 1 waiting · 1 orchestration', action: null },
     { type: 'separator' },
-    { type: 'item', label: 'Open Agentry', action: { kind: 'show' } },
+    { type: 'item', label: 'Open Claudio', action: { kind: 'show' } },
     { type: 'item', label: 'New chat', action: { kind: 'open', path: '/chats/new' } },
     { type: 'separator' },
     { type: 'item', label: 'Deploy — waiting for you', action: { kind: 'open', path: '/chats/b' } },
     { type: 'item', label: 'Fix the login — working', action: { kind: 'open', path: '/chats/a' } },
     { type: 'item', label: 'graph g — 2/4', action: { kind: 'open', path: '/orchestration/g' } },
     { type: 'separator' },
-    { type: 'item', label: 'Quit Agentry', action: { kind: 'quit' } },
+    { type: 'item', label: 'Quit Claudio', action: { kind: 'quit' } },
   ]);
 });
 

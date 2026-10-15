@@ -45,7 +45,7 @@ export function reachedThrough(url: string | null, host: string): boolean {
 }
 
 /**
- * Settings → Remote access: this Agentry on the person's tailnet, through `tailscale serve`. The
+ * Settings → Remote access: this Claudio on the person's tailnet, through `tailscale serve`. The
  * status comes whole with every `tunnel.changed` (lib/events.ts), so the page follows the tunnel
  * through its states without polling; reading it again also asks the CLI again, which is how a
  * `tailscale up` run in a terminal shows up.
@@ -135,7 +135,7 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
 /**
  * What the tunnel card shows for a status, kept apart from the queries so a test can draw every
  * state. Nothing about the tunnel is offered until Tailscale is ready: before that, the card says
- * what is missing and what the person runs or turns on, because Agentry never signs in to or
+ * what is missing and what the person runs or turns on, because Claudio never signs in to or
  * configures Tailscale itself. Once ready, the start button is the zone's one primary action;
  * while the guard is open it is replaced by the reason and the way to Security.
  */
@@ -176,7 +176,7 @@ export function TunnelPanel({
     );
   }
 
-  // Off by the deploy (CLAUDIO_TUNNEL, off in the image): only whoever runs Agentry can change that,
+  // Off by the deploy (CLAUDIO_TUNNEL, off in the image): only whoever runs Claudio can change that,
   // so a start button would only ever answer 409
   if (!status.enabled) {
     return (
@@ -203,7 +203,7 @@ export function TunnelPanel({
           <p className="small muted" data-testid="tunnel-node">
             {t('remote.node')} <span className="mono">{status.tailscale.host}</span>
           </p>
-          {/* Only the Tailscale Agentry runs is Agentry's to sign out; closing the tunnel comes first, on the server */}
+          {/* Only the Tailscale Claudio runs is Claudio's to sign out; closing the tunnel comes first, on the server */}
           {status.managed && <SignOutButton tool="tailscale" label="Tailscale" small />}
         </div>
       )}
@@ -260,7 +260,7 @@ export function TunnelPanel({
 /**
  * Tailscale is not there or not ready. Not installed is the one state with an illustration, since
  * the whole section depends on it; the others say what is missing in the server's words (by code),
- * and what the person can do about it: a command to run, or the admin page to open. Where Agentry
+ * and what the person can do about it: a command to run, or the admin page to open. Where Claudio
  * runs the daemon itself (`managed`, the Docker image) there is no terminal to run anything in, so
  * a signed-out node is signed in here instead, with the shared panel.
  */
@@ -342,7 +342,7 @@ function TailscaleNotReady({ readiness, managed, checking, onRecheck }: { readin
 }
 
 /**
- * The Tailscale Agentry runs is signed out: the card says so and offers Sign in, which opens the
+ * The Tailscale Claudio runs is signed out: the card says so and offers Sign in, which opens the
  * shared panel inside it (a link to open on any device, or an auth key). It never asks for a link on
  * its own: a visit to the tab is not a sign-in.
  */
