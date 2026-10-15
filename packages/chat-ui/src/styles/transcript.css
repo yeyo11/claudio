@@ -430,7 +430,6 @@
   vertical-align: -0.18em;
   border-radius: var(--radius-xs);
   background: var(--live);
-  box-shadow: 0 0 6px var(--live), 0 0 14px var(--live-soft);
   animation: caret-blink var(--caret-cycle) steps(2, start) infinite;
 }
 

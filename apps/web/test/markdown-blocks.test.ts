@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import Markdown, { pieceOptions } from '@agentry/ui/components/Markdown';
 import { splitMarkdownBlocks, type BlockSplit } from '@agentry/ui/lib/markdown-blocks';
+import { repairTail } from '@agentry/ui/lib/markdown-repair';
 import { ANSWERS } from './fixtures/answers.ts';
 
 const html = (text: string, streaming: boolean) =>
@@ -19,8 +20,15 @@ function prefixes(text: string, step: number): string[] {
   return out;
 }
 
+/** What a stream shows: the whole text, its growing last block made renderable (CHAT-17). */
+function withRepairedTail(text: string): string {
+  const { text: source, starts } = splitMarkdownBlocks(null, text);
+  const last = starts[starts.length - 1] ?? 0;
+  return source.slice(0, last) + repairTail(source.slice(last));
+}
+
 function assertSameMarkup(text: string, label: string) {
-  assert.equal(html(text, true), html(text, false), `${label}: ${JSON.stringify(text.slice(-80))}`);
+  assert.equal(html(text, true), html(withRepairedTail(text), false), `${label}: ${JSON.stringify(text.slice(-80))}`);
 }
 
 for (const [name, answer] of Object.entries(ANSWERS)) {

@@ -745,7 +745,7 @@ the latest text.
 
 ### CHAT-6 — Colour code while it streams
 
-Status: proposed.
+Status: built 2026-10-15.
 
 **Problem.** `useHighlight` (`packages/ui/src/components/CodeBlock.tsx:22`) restarts a 120 ms timer
 on every change, so it never fires while partials arrive every 50 ms (B4).
@@ -1253,7 +1253,7 @@ Status: **built** on 2026-10-15 in branch `feat/rich-composer`, as planned (`com
 
 ### CHAT-17 — Repair half-written markdown
 
-Status: proposed.
+Status: built 2026-10-15.
 
 `packages/ui/src/lib/markdown-repair.ts` (new), applied in `StreamingMarkdown`
 (`packages/ui/src/components/Markdown.tsx:107`) to the **last** piece only
@@ -1291,7 +1291,7 @@ Unit tests in `packages/ui/test/markdown-repair.test.ts`: `"**bold"`, `"a *b"`, 
 
 ### CHAT-18 — Calmer motion while text streams
 
-Status: proposed. Run `night-shift-ui-check`.
+Status: built 2026-10-15. Run `night-shift-ui-check`.
 
 1. **Composer energy border**: `Composer.tsx:275` adds `live-energy` while the chat works. Keep it
    while the agent is running tools, drop it while **text** streams (the reader's eyes are on the

@@ -163,6 +163,7 @@ export function Composer({
   restore,
   history = [],
   onSending,
+  writing = false,
 }: {
   chat: Chat;
   kind: ComposerKind;
@@ -179,6 +180,8 @@ export function Composer({
    * conversation. `id` is null for a resume, which has none to send. Returns the undo, run if the send fails.
    */
   onSending?: (message: { id: string | null; text: string; attachments: ChatPendingAttachment[] }) => (() => void) | void;
+  /** The answer's text is streaming: the text is the live surface then, so the box drops its energy border */
+  writing?: boolean;
 }) {
   const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
@@ -354,7 +357,7 @@ export function Composer({
         <AttachmentTray state={files} />
         <SlashMenu state={slash}>
           <form
-            className={`composer ${working ? 'live-energy is-working' : ''}`.trim()}
+            className={`composer ${working ? (writing ? 'is-working' : 'live-energy is-working') : ''}`.trim()}
             aria-label={kind === 'fork' ? t('sessionView.continueCopy') : t('composer.message')}
             onSubmit={(e) => {
               e.preventDefault();

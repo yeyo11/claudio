@@ -462,8 +462,28 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  -webkit-mask-image: linear-gradient(transparent, var(--mask-ink) 14px, var(--mask-ink) calc(100% - 14px), transparent);
-  mask-image: linear-gradient(transparent, var(--mask-ink) 14px, var(--mask-ink) calc(100% - 14px), transparent);
+}
+
+/* The edges fade into the page with two overlays, not a mask that makes the scroller re-composite on every frame; they stop short of the scrollbar so it stays usable */
+.run-stage::before,
+.run-stage::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 12px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.run-stage::before {
+  top: 0;
+  background: linear-gradient(var(--bg), transparent);
+}
+
+.run-stage::after {
+  bottom: 0;
+  background: linear-gradient(transparent, var(--bg));
 }
 
 /* The ticker sits where the next row will appear, lined up with the messages' text */
