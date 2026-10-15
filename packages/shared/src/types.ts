@@ -6833,7 +6833,8 @@ export type DecisionPointId =
   | 'notification.urgency'
   | 'checks.fix'
   | 'review.triage'
-  | 'issue.triage';
+  | 'issue.triage'
+  | 'account.model-fallback';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =

@@ -70,6 +70,7 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'checks.fix': 'checksFix',
   'review.triage': 'reviewTriage',
   'issue.triage': 'issueTriage',
+  'account.model-fallback': 'accountModelFallback',
   'notification.urgency': 'notificationUrgency',
   'palette.intent': 'paletteIntent',
 };
@@ -82,7 +83,7 @@ export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId
   { id: 'board', points: ['board.triage', 'team.assign'] },
   { id: 'memory', points: ['memory.triage', 'journal.relevance'] },
   { id: 'assistant', points: ['assistant.rerank', 'assistant.sources'] },
-  { id: 'orchestrations', points: ['orchestration.retry', 'orchestration.model', 'orchestration.fixer', 'run.continuation'] },
+  { id: 'orchestrations', points: ['orchestration.retry', 'orchestration.model', 'orchestration.fixer', 'run.continuation', 'account.model-fallback'] },
   { id: 'health', points: ['supervisor.intervene', 'health.semantic-loop', 'health.test-weakening'] },
   { id: 'review', points: ['changes.unexplained-hunk'] },
   { id: 'hosts', points: ['checks.fix', 'review.triage', 'issue.triage'] },
