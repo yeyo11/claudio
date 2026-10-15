@@ -79,3 +79,22 @@ test('step never returns more than the target', () => {
   for (let i = 0; i < 20; i++) assert.ok(reveal.step(1000).length <= 3);
   assert.equal(reveal.step(FRAME), 'abc');
 });
+
+test('freshRanges fades the newest text in two steps and leaves older text alone', async () => {
+  const { freshRanges } = await import('../src/lib/smooth-text');
+  const checkpoints = [
+    { length: 10, at: 0 },
+    { length: 20, at: 100 },
+    { length: 30, at: 250 },
+  ];
+  assert.deepEqual(freshRanges(checkpoints, 260, 30), [
+    { from: 10, to: 20, level: 2 },
+    { from: 20, to: 30, level: 1 },
+  ]);
+  assert.deepEqual(freshRanges(checkpoints, 1000, 30), []);
+  // A rendered text shorter than the checkpoints is clamped, never beyond its end
+  assert.deepEqual(freshRanges(checkpoints, 260, 25), [
+    { from: 10, to: 20, level: 2 },
+    { from: 20, to: 25, level: 1 },
+  ]);
+});
