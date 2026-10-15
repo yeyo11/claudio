@@ -2046,20 +2046,28 @@ Order and parallelism:
 There is no environment kill switch, on purpose: switching guards off is a visible, audited act by a
 person.
 
-## Open questions
+## Resolved questions (2026-10-15)
 
-1. **The temp dir as a root.** Should the system temp dir (`os.tmpdir()`) be a default root for
-   `destructive`? If yes, `rm -rf /tmp/build-x` and `rm -rf "$TMPDIR/x"` pass (the latter only when
-   `$TMPDIR` is set by Claudio). If no, they are blocked, as planned, and the agent is told to keep
-   scratch files in the worktree.
-2. **Unhooked delegation.** If t0 shows that subagent or Workflow tool calls are **not** hooked, two
-   options:
-   - block `Task`/`Agent`/`Workflow` in guarded runs, and refuse `engine: workflow` graphs while
-     guards are on (planned);
-   - or let workflow-engine graphs run with guards off and a warn line at launch.
-3. **"Allow once" in chats.** In an opted-in interactive chat, should a block offer the person an
-   "Allow once" action? It would respawn the turn with that rule off for one call. Without it, the
-   person switches the rule off for the project. Planned: no "Allow once" in v1.
+Answered by the integrator on the owner's behalf. Where an answer differs from a section above,
+the answer wins, and the task that builds the affected part follows it.
+
+1. **Temp dir: the run's own, not the system's.** `os.tmpdir()` is not a root. Every guarded run
+   gets its own scratch dir, `<data>/tmp/<run id>`, created at launch, exported as `TMPDIR`, and
+   removed when the run ends (the same pattern as `scripts/test-tmp.mjs`). `destructive` allows
+   recursive deletes inside the worktree and inside that dir only; `rm -rf /tmp/...` stays blocked
+   and the block reason tells the agent to use `$TMPDIR`. Task g7 creates, exports and removes the
+   dir; g2 adds both paths to the bypass corpus.
+2. **Unhooked delegation fails closed.** If g0 shows subagent or Workflow tool calls are not hooked:
+   `Task`/`Agent`/`Workflow` are disallowed in guarded runs, and an `engine: workflow` graph is
+   refused at launch while guards are on, with a message naming the reason. To run it anyway the
+   person switches guards off for that graph explicitly; the graph then shows a warn chip
+   "Guards off" for its whole life. No silent downgrade.
+3. **"Allow once": yes, in interactive chats only.** A block in an opted-in interactive chat offers
+   "Allow once" to the person (chat tokens get 403; never offered in workers or the flow). It
+   writes a one-use allowance keyed by the run, the rule and the hash of the normalised tool input,
+   valid for 10 minutes; the guard consumes it on the next identical call and records a
+   `guard_events` row with outcome `allowed-once`. No respawn and no rule switched off. Tasks g3
+   (allowance check), g8 (outcome), g10 (route), g12 (action in the transcript line).
 
 ## Related
 

@@ -1752,17 +1752,23 @@ l1 ─► l2 ─────┤                    ├──► l9 ──► l10
   written. Pending `lesson` proposals must be rejected before a hard rollback, because older code
   would show them as journal proposals. This is the rollback runbook's first step.
 
-## Open questions
+## Resolved questions (2026-10-15)
 
-- **Q1. Manual mining while `lesson.mine` is `off`.** Should a person be able to click "Look for
-  lessons" on a chat, which spends up to 0.05 USD with no gate, even while automatic mining is off?
-  The plan builds it behind `manualMining: false` until you say.
-- **Q2. Chat tokens and the other memory proposals.** Today a chat's token may approve any memory
-  proposal, including one that writes `CLAUDE.md` (`apps/api/src/routes/journal.ts:46`). This plan
-  closes that only for lessons and lesson-origin proposals. Should every approval and rejection be
-  the person's only?
-- **Q3. Interactive chats by default.** Should lessons reach the person's own interactive chats by
-  default (`deliverToChats: true`, as planned), or only flow runs and workers until a project opts in?
+Answered by the integrator on the owner's behalf. Where an answer differs from a section above,
+the answer wins, and the task that builds the affected part follows it.
+
+- **Q1. Manual mining: yes.** "Look for lessons" is available on any project chat while
+  `lesson.mine` is `off`. Decision points govern what Claudio does on its own; a person's click is
+  not that. It shows the cost cap (0.05 USD) before starting, is refused to chat tokens, and is
+  rate-limited to one run per chat per 10 minutes. `manualMining` ships `true`.
+- **Q2. Every approval is the person's.** Approving or rejecting any memory proposal (not only
+  lessons) is refused to chat tokens with 403. A chat can still *create* proposals; it can never
+  approve its own. This is a security fix independent of lessons and ships first, in the same small
+  fix as the worker push denial and `--no-textconv`; l9 then only adds the lesson routes to the
+  same refused set.
+- **Q3. Interactive chats receive lessons by default.** Lessons reach a chat only after a person
+  approved them, so delivering them is the point. `deliverToChats: true` per project, with a
+  switch in the project's settings; confined and assistant chats never receive them.
 
 ## Related
 

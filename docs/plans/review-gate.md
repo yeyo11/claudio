@@ -1863,16 +1863,21 @@ writes its own README rows, which it does anyway.
   - pull requests stay held for graphs whose gate did not pass. Turning the gate off does not
     open them; a person accepts or verifies again.
 
-## Open questions
+## Resolved questions (2026-10-15)
 
-1. **Design validation.** Should v8 wait for your validation of v8a's reference screens, as the
-   code-host screens did? Or may the web build directly from v8a in the same orchestration?
-2. **Default budget.** Is $5 per graph a reasonable default cap for the gate? A medium diff fits
-   one review and one fix round. A large diff stops as incomplete until the cap is raised.
-3. **Accepting an `incomplete` gate.** Should a person be able to accept an `incomplete` gate (a
-   reviewer that crashed), or only a `blocked` one with every reviewer run complete? This plan
-   allows both, because a reviewer that keeps crashing would otherwise hold the graph until the
-   cause is fixed.
+Answered by the integrator on the owner's behalf. Where an answer differs from a section above,
+the answer wins, and the task that builds the affected part follows it.
+
+1. **Design first.** v8 waits for the owner's validation of v8a's reference screens, as the
+   code-host screens did. The orchestration stops after v8a; v8 and v9 run as a second launch once
+   the reference is approved.
+2. **Budget: $5 per graph by default.** Editable per graph in the graph form and as a default in
+   Settings. A diff whose estimate exceeds the cap stops as `incomplete` before spending, with the
+   estimate shown next to "Raise the cap".
+3. **Accepting an incomplete gate: yes, with stricter terms.** Only after at least one retry has
+   also ended `incomplete`; only by a person (chat tokens get 403); with a written reason; voided
+   when the head moves. The acceptance is stored with its reason and shown on the verification
+   card in warn. `blocked` gates keep the rule as planned.
 
 ## Related
 

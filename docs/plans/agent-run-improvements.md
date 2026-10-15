@@ -2589,15 +2589,22 @@ After merge:
 | A path-scoped rule hides guidance where it is needed | It must name `paths`; guidance for everywhere stays in `CLAUDE.md`; every rule is a person's approval |
 | `RETRIEVAL` reads as discouraging tool use | Its wording, the `s1` banned-word test, and `s8`'s point-8 check |
 
-## Open questions for the owner
+## Resolved questions (2026-10-15)
 
-1. **What the cap counts.** Every cost the CLI reports, including subscription accounts, where it
-   is the API price of the use and not a bill (the plan's default)? Or only API-key accounts,
-   where it is money?
-2. **A person's way past the cap for the flow.** Graphs get "Seguir hoy de todos modos". Should a
-   board card waiting at the cap get the same per-card button, or is raising the cap the only way?
-3. **The plateau's default.** On by default, subject to the backtest (the plan's choice)? Or off by
-   default until it has been watched for a while?
+Answered by the integrator on the owner's behalf. Where an answer differs from a section above,
+the answer wins, and the task that builds the affected part follows it.
+
+1. **The cap counts every cost the CLI reports.** One metric, the one Claudio already shows
+   everywhere. For subscription accounts the UI labels it "API-equivalent cost" so nobody reads it
+   as a bill. The cap ships **unset** (no cap until the person sets one), so nothing changes for
+   anyone who does not opt in.
+2. **Same pass for the flow.** A card waiting at the cap gets the same per-item "Keep going today"
+   pass as a graph: person only (chat tokens get 403), valid until the day boundary, recorded. One
+   mechanism for both surfaces.
+3. **Plateau ships in observe mode.** It runs from day one but only records a `plateau` health
+   signal ("would have stopped here") without stopping anything, like the decision engine's
+   shadow mode. After the backtest and two weeks of signals the owner switches it to `stop`.
+   Setting: `plateau: 'observe' | 'stop' | 'off'`, default `observe`.
 
 ## Related
 

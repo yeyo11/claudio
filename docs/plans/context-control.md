@@ -1175,19 +1175,21 @@ x0 ─▶ x1 ─┬─▶ x2 ─┐
 - **Fork note.** Claudio appends migrations on `feat/claude-only`; any later merge from upstream
   must keep Claudio's migrations after upstream's at the end, never interleaved.
 
-## Open questions
+## Resolved questions (2026-10-15)
 
-1. **Context thresholds.** The design system says usage bars are neutral below 60 %, warn from
-   60 % and bad from 75 % (`design-system.md`, "Usage thresholds"), and the list's `ContextBar`
-   follows it, but the meter, the ring and the health signal use 80 % / 92 %
-   (`CONTEXT_WARN` / `CONTEXT_FULL`, `types.ts:548-549`), which track the CLI's auto-compaction
-   instead. This plan's new bar follows the design system and leaves the old ones alone. Should all
-   context meters follow the design-system thresholds, or should the design system make context an
-   exception tied to the CLI's own threshold (which the breakdown now reports)?
-2. **Idea 11's other triggers.** The ECC report also proposed writing a session note automatically
-   at a usage limit and when an orchestration task gives up after `maxAttempts`. Each is a paid turn
-   nobody asked for, so this plan leaves both out. Confirm, or name the ones to add (each would be a
-   decision point shipped `off`).
+Answered by the integrator on the owner's behalf. Where an answer differs from a section above,
+the answer wins, and the task that builds the affected part follows it.
+
+1. **Context thresholds: one rule everywhere.** Every context meter (the meter, the ring, the
+   list's `ContextBar`, the new breakdown bar) follows the design system: neutral below 60 %, warn
+   from 60 %, bad from 75 %. `CONTEXT_WARN` / `CONTEXT_FULL` (`types.ts:548-549`) move to 0.60 /
+   0.75, and the context health signal follows them. The CLI's auto-compaction point, which the
+   breakdown now reports, is drawn as a tick on the bar with its own label, so the person still
+   sees where the CLI will compact. Task x7 owns the change; x1 updates the constants and their
+   tests; `design-system.md` gains a line saying context bars carry the auto-compaction tick.
+2. **No automatic session notes.** Confirmed: no note at a usage limit nor when a task gives up.
+   Each would be a paid turn nobody asked for. They can come later, each as a decision point
+   shipped `off`; nothing in this plan builds them.
 
 ## Related
 

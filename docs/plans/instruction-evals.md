@@ -1164,18 +1164,21 @@ Each item is checked by `e14` (and by `f10` for Phase 2).
 - **Phase 2** ships behind its gate. Rolling it back leaves version 2 files, which Phase 1 refuses
   with `unsupported-version` rather than misreading them.
 
-## Open questions for the owner
+## Resolved questions (2026-10-15)
 
-1. **Defaults for spending:** are k = 2 samples and 0.50 USD per sample, with concurrency 2, the
-   right Phase 1 defaults? Or do you want k = 1 to keep "a few prompts" as cheap as possible?
-2. **Committing eval files:** `.claude/claudio-evals/` shows up in `git status` once an eval is
-   saved. Should Claudio leave that to you (proposed), or add the folder to `.git/info/exclude`
-   until you choose to commit it?
-3. **Gate thresholds:** are four weeks and the thresholds in the
-   [success criterion](#phase-1-success-criterion-the-gate-to-phase-2) (3 evals, 2 projects,
-   10 runs; 20 % flaky; 3 non-deterministic expectations) the bar you want for Phase 2?
-4. **Judge model (Phase 2):** should the default judge be `haiku` (cheap, the decision engine's
-   default) or `sonnet` (closer to the agents it judges)?
+Answered by the integrator on the owner's behalf. Where an answer differs from a section above,
+the answer wins, and the task that builds the affected part follows it.
+
+1. **Defaults kept: k = 2, 0.50 USD per sample, concurrency 2.** k = 1 cannot detect flaky cases,
+   and the Phase 2 gate measures exactly that. The total cap is shown before every start, and the
+   person can lower k per eval.
+2. **Claudio never touches the repository's git config.** Eval files stay untracked until the
+   person commits them; the Evals tab shows "Not committed" next to such a file. Nothing is written
+   to `.git/info/exclude`.
+3. **Gate accepted as written** (four weeks; 3 evals, 2 projects, 10 runs; plus one of the three
+   signals). The owner checks it; nothing starts Phase 2 automatically.
+4. **Judge: `sonnet` by default**, editable per eval (`haiku` allowed). A judge must be at least as
+   capable as what it grades; the cost is bounded by the eval's cap.
 
 ## Related
 
