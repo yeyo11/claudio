@@ -65,14 +65,17 @@
       "tipAge": "read {{age}}",
       "unknown": "Its last reading is out of date, so its limit is not known",
       "none": "{{provider}} does not report its limit"
-    }
+    },
+    "account": "Account new chats start on"
   },
   "account": {
     "card": "Agents and limits",
     "version": "version {{version}}",
     "none": "No agent detected",
     "limitUnknown": "Limit not known",
-    "limitNone": "Does not report its limit"
+    "limitNone": "Does not report its limit",
+    "ready": "Ready",
+    "ofTotal": "{{ready}} of {{total}} ready"
   },
   "notFound": {
     "body": "The address may be mistyped, or the page is no longer there.",

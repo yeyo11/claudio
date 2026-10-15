@@ -116,7 +116,7 @@ test('waiting is the person\'s click: a wait row opens, a second is refused, and
 });
 
 test("the removed routes are gone, and a chat's token cannot wait or cancel a wait", async () => {
-  for (const url of ['/api/accounts', '/api/accounts/policies', '/api/accounts/usage', '/api/providers/candidates', '/api/providers/moves', '/api/providers/model-map/suggestions', '/api/providers/cswap-retirement']) assert.equal((await app.inject(url)).statusCode, 404, url);
+  for (const url of ['/api/accounts/usage', '/api/providers/candidates', '/api/providers/moves', '/api/providers/model-map/suggestions', '/api/providers/cswap-retirement']) assert.equal((await app.inject(url)).statusCode, 404, url);
 
   const id = await chatAtLimit();
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
@@ -168,5 +168,4 @@ test('the routes of a limit are documented with a summary and a tag', async () =
     assert.ok(op?.summary, `${method} ${path} has no summary`);
     assert.deepEqual(op.tags, [tag], `${method} ${path}`);
   }
-  assert.equal(Object.keys(spec.paths).some((path) => path.startsWith('/api/accounts')), false, 'the accounts routes are not documented any more');
 });

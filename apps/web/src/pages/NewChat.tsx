@@ -4,11 +4,12 @@ import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search,
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, keys, useOverview, useProjects } from '../api';
+import { api, keys, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '@agentry/chat-ui/components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { NEW_ORCHESTRATION_PATH } from '../components/CommandPalette';
 import { Combobox, Select, Switch } from '@agentry/ui/components/controls';
+import { accountName } from '../lib/accounts';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { Illustration } from '@agentry/ui/components/illustrations';
@@ -58,6 +59,9 @@ export function NewChat() {
   const [cwd, setCwd] = useState(params.get('cwd') ?? scope.project?.path ?? '');
   const [model, setModel] = useState('');
   const [effort, setEffort] = useState<Effort | ''>('');
+  // '' lets the rotation policy choose; only offered once there is more than one account to choose between
+  const [account, setAccount] = useState('');
+  const accounts = useAccounts().data ?? [];
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [askHere, setAskHere] = useState(true);
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
@@ -81,6 +85,7 @@ export function NewChat() {
       if (cwd.trim()) opts.cwd = cwd.trim();
       if (model.trim()) opts.model = model.trim();
       if (effort && !effortUnavailable) opts.effort = effort;
+      if (account) opts.account = account;
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
@@ -162,6 +167,16 @@ export function NewChat() {
             <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
           </Field>
           <EffortField value={effort} onChange={setEffort} model={model} use="chat" unavailable={effortUnavailable} />
+          {accounts.length > 1 && (
+            <Field label={t('new.account')} hint={t('new.accountHint')}>
+              <Select<string>
+                aria-label={t('new.account')}
+                value={account}
+                onChange={setAccount}
+                options={[{ value: '', label: t('new.accountAuto') }, ...accounts.filter((a) => a.enabled && a.signedIn).map((a) => ({ value: a.id, label: accountName(a) }))]}
+              />
+            </Field>
+          )}
           <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>
             <Select<PermissionMode | ''>
               aria-label={t('new.permissionMode')}

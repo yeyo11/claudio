@@ -25,6 +25,7 @@ import type {
   MemoryFile,
   MemoryProjectSummary,
   Overview,
+  AccountsSnapshot,
   PermissionDecision,
   PermissionRequest,
   Project,
@@ -72,6 +73,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
+import { AccountStore, DEFAULT_ID, readCache } from '@agentry/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -338,6 +340,8 @@ export {
 // package.json files, and never has to rewrite source to bump a version.
 const AGENTRY_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
+/** How often an idle account's usage cache is read again */
+const ACCOUNTS_CACHE_MS = 5 * 60_000;
 
 /** A session's directory: the worktree the CLI recorded when it ran in one, else where it started. */
 const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ?? s.projectPath, updatedAt: s.updatedAt });
@@ -418,8 +422,11 @@ export class Core {
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
-  /** What happens when Claude reaches its limit: the waits and the timers behind them */
+  /** What happens when Claude reaches its limit: the account to move to, else the waits and the timers behind them */
   readonly rotation: ProviderRotation;
+  /** The Claude accounts of this machine: one config dir each, chosen per process */
+  readonly accounts: AccountStore;
+  private accountsTimer: NodeJS.Timeout | null = null;
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Agentry has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
@@ -491,8 +498,10 @@ export class Core {
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
     const drivers = this.sessionDrivers(config);
+    this.accounts = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: config.claudeBin });
     this.providers = new ProviderDetector({
       config,
+      otherAccount: () => this.readyAccountLabel(),
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
@@ -587,6 +596,9 @@ export class Core {
     this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
+    this.runtime.accounts = this.accounts;
+    this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
+    this.watchAccounts();
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
@@ -2566,6 +2578,7 @@ export class Core {
     return {
       system,
       limits: this.limitReadings(),
+      accounts: this.accountsSnapshot(),
       counts: {
         projects: this.projectStore.list().length,
         chats: chats.length,
@@ -2578,6 +2591,49 @@ export class Core {
       },
       recentChats: chats.slice(0, 10),
     };
+  }
+
+  /** What the dashboard shows of the accounts: how many can take work, and the one new work would start on. */
+  private accountsSnapshot(): AccountsSnapshot {
+    const list = this.accounts.list();
+    const ready = list.filter((a) => a.enabled && a.signedIn);
+    return { total: list.length, ready: ready.length, current: this.accounts.pick({ current: null }).account };
+  }
+
+  /** A signed-in account other than the CLI's own login, when there is one: Claude can run on it though the CLI itself is signed out. */
+  private readyAccountLabel(): string | null {
+    const found = this.accounts.list().find((a) => a.id !== DEFAULT_ID && a.enabled && a.signedIn);
+    return found ? (found.alias ?? found.email ?? found.id) : null;
+  }
+
+  /**
+   * Idle accounts have no stream: the CLI's own usage cache in each account dir is their last-known
+   * reading, taken now and every few minutes. Best-effort, and a fresher stream reading always wins.
+   */
+  private watchAccounts(): void {
+    const refresh = (): void => {
+      for (const account of this.accounts.list()) {
+        const reading = readCache(this.accounts.ref(account.id).dir);
+        if (reading) void this.runtime.noteAccountReading(account.id, reading).catch(() => undefined);
+      }
+    };
+    // An account whose sign-in was never read is skipped by `choose`: ask the CLI who it is
+    const identify = (): void => {
+      for (const account of this.accounts.list()) {
+        if (account.kind === 'login' && !account.signedIn) void this.accounts.refresh(account.id).catch(() => undefined);
+      }
+    };
+    const pass = (): void => {
+      try {
+        refresh();
+        identify();
+      } catch {
+        // No cache is no reading, and an account that cannot be read stays as it was
+      }
+    };
+    pass();
+    this.accountsTimer = setInterval(pass, ACCOUNTS_CACHE_MS);
+    this.accountsTimer.unref();
   }
 
   /** One reading per provider that has one, for the overview and the status bar. */
@@ -2608,6 +2664,7 @@ export class Core {
     this.changeWatcher.close();
     this.permissions.close();
     this.push.close();
+    if (this.accountsTimer) clearInterval(this.accountsTimer);
     this.rotation.close();
     this.runtime.stopAll();
     this.db.close();

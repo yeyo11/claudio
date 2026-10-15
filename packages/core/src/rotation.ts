@@ -12,9 +12,13 @@ import { defaultRotationSettings } from './providers/settings.ts';
  * What happens when Claude Code reaches its usage limit. The chat manager announces `limit-hit` once
  * per attempt; this decides.
  *
- * - A person's chat is left alone: it gets a banner, and `waitFor` and `cancel` are what a click on
- *   it calls.
- * - Automated work waits for the reset on its own (the only action, plan decision 4 of
+ * - With several accounts the limited account is marked out until its reset (the chat manager does
+ *   it as the limit is read), the next one is chosen, and the turn is replayed in the same chat,
+ *   resumed on it. Automated work always does; a person's chat does when `rotateOnLimit` is on.
+ *   A pinned chat moves only within its policy.
+ * - With no account left, a person's chat is left alone: it gets a banner, and `waitFor` and
+ *   `cancel` are what a click on it calls.
+ * - Automated work then waits for the earliest reset on its own (plan decision 4 of
  *   docs/plans/claude-only-fork.md), and gives up after the effective `maxWaitHours` (the project's,
  *   else the global one) when no reset is known.
  * - A wait is a row in `provider_moves`. A timer in the process that owns the chat claims it at the
@@ -38,8 +42,8 @@ const CONTINUE_TEXT = "The provider's usage limit has reset. Continue the work y
 export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 
 export interface RotationDeps {
-  db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves'>;
-  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing'>;
+  db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent'>;
+  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'accountOf' | 'rotatesOnLimit'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
@@ -144,25 +148,31 @@ export class ProviderRotation {
     const provider = run.provider ?? LEGACY_PROVIDER;
     this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limit?.resetsAt ?? null });
     const work = this.deps.work?.(run.id) ?? null;
-    if (!this.isAutomated(run, work)) return;
+    const automated = this.isAutomated(run, work);
+    // A person's chat moves to another account only when they asked for it; otherwise it has its banner
+    if (!automated && !this.deps.runtime.rotatesOnLimit()) return;
     this.handling.add(run.id);
     try {
       // A run held to a schema that nobody waits for already handed its result over: replaying the
       // turn would spend for nobody. The flow registers its wait just after the limit is announced.
-      if (!work && (run.orchestrationId || this.deps.runtime.heldToSchema(run.id))) {
+      if (automated && !work && (run.orchestrationId || this.deps.runtime.heldToSchema(run.id))) {
         await new Promise<void>((resolve) => setImmediate(resolve));
         if (run.orchestrationId || !this.deps.awaiting?.(run.id)) {
           this.deps.runtime.notice(run.id, `${provider} reached its usage limit; this turn is not replayed.`);
           return;
         }
       }
-      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: null, resetsAt: limit?.resetsAt ?? null, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
+      const moved = await this.moveToAccount(run);
+      if (moved.moved || !automated) return;
+      // The accounts know when the first of them is back; the provider's reading is whichever ran last
+      const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : (limit?.resetsAt ?? null);
+      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       this.deps.runtime.notice(run.id, `Handling the usage limit failed: ${why}`);
       // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
       // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
-      if (!this.waits.has(run.id)) {
+      if (automated && !this.waits.has(run.id)) {
         try {
           this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: `handling the limit failed: ${why}`, resetsAt: limit?.resetsAt ?? null, projectId: null });
         } catch {
@@ -171,6 +181,38 @@ export class ProviderRotation {
       }
     } finally {
       this.handling.delete(run.id);
+    }
+  }
+
+  // ---------- another account ----------
+
+  /**
+   * Chooses the account the limited chat goes on with and replays its turn there. False, with the
+   * earliest reset among the accounts when it is known, when the chat runs on no account or none
+   * other can take it.
+   */
+  private async moveToAccount(run: ChatRuntime): Promise<{ moved: boolean; waitUntil: number | null }> {
+    const from = this.deps.runtime.accountOf(run.id);
+    const choice = this.deps.runtime.chooseNext(run.id);
+    if (!from || !choice) return { moved: false, waitUntil: null };
+    const to = choice.account;
+    if (!to || to === from) {
+      this.record('wait', from, null, 'limit', run, { waitUntil: choice.waitUntil });
+      return { moved: false, waitUntil: choice.waitUntil };
+    }
+    const resumed = await this.deps.runtime.replayLastTurn(run.id, to);
+    if (!resumed) return { moved: false, waitUntil: choice.waitUntil };
+    this.record('switch', from, to, choice.reason ?? 'limit', run, null);
+    this.deps.runtime.notice(run.id, `Account ${from} reached its usage limit; the turn goes on with account ${to}.`);
+    this.deps.emit({ type: 'run.accountRotated', title: `${run.name} moved from account ${from} to ${to}`, ...runRef(run), from, to, resumed });
+    return { moved: true, waitUntil: null };
+  }
+
+  private record(event: 'switch' | 'wait', from: string, to: string | null, reason: string, run: ChatRuntime, data: Record<string, unknown> | null): void {
+    try {
+      this.deps.db.appendRotationEvent({ ts: new Date(this.now()).toISOString(), event, from, to, reason, detail: run.name, data: { chatId: run.id, ...(data ?? {}) } });
+    } catch {
+      // A closed database (shutting down) is not the rotation's to report
     }
   }
 

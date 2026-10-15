@@ -1,0 +1,22 @@
+{
+  "name": "@agentry/accounts",
+  "version": "0.37.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "claudio-accounts": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
+  },
+  "dependencies": {
+    "@agentry/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}

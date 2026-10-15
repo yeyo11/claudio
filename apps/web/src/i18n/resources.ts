@@ -21,6 +21,7 @@ import enIntegrations from './locales/en/integrations.json';
 import enIssues from './locales/en/issues.json';
 import enMerge from './locales/en/merge.json';
 import enProviders from './locales/en/providers.json';
+import enAccountsConfig from './locales/en/accountsConfig.json';
 import enReviews from './locales/en/reviews.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
@@ -52,6 +53,7 @@ import esIntegrations from './locales/es/integrations.json';
 import esIssues from './locales/es/issues.json';
 import esMerge from './locales/es/merge.json';
 import esProviders from './locales/es/providers.json';
+import esAccountsConfig from './locales/es/accountsConfig.json';
 import esReviews from './locales/es/reviews.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
@@ -78,6 +80,7 @@ export const en = {
   home: enHome,
   projects: enProjects,
   providers: enProviders,
+  accountsConfig: enAccountsConfig,
   reviews: enReviews,
   integrations: enIntegrations,
   issues: enIssues,
@@ -119,6 +122,7 @@ export const es = {
   home: esHome,
   projects: esProjects,
   providers: esProviders,
+  accountsConfig: esAccountsConfig,
   reviews: esReviews,
   integrations: esIntegrations,
   issues: esIssues,

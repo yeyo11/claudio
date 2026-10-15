@@ -199,6 +199,10 @@
         },
         "description": "One reading per provider that has one"
       },
+      "accounts": {
+        "$ref": "#/components/schemas/AccountsSnapshot",
+        "description": "The accounts, without the full list: what the dashboard shows; absent until the server runs the accounts package"
+      },
       "counts": {
         "type": "object",
         "properties": {
@@ -344,6 +348,31 @@
       "utilization",
       "resetsAt"
     ]
+  },
+  "AccountsSnapshot": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number"
+      },
+      "ready": {
+        "type": "number",
+        "description": "Accounts that are enabled and signed in"
+      },
+      "current": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the account new work would start on; null when none is ready"
+      }
+    },
+    "required": [
+      "total",
+      "ready",
+      "current"
+    ],
+    "description": "What the dashboard needs about accounts, without the full list."
   },
   "ChatSummary": {
     "type": "object",
@@ -776,6 +805,13 @@
           "string",
           "null"
         ]
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the  {@link  Account }  its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login"
       },
       "effort": {
         "anyOf": [
@@ -5496,6 +5532,12 @@
         "$ref": "#/components/schemas/RunLimitWaitingEvent"
       },
       {
+        "$ref": "#/components/schemas/RunAccountRotatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AccountSwitchedEvent"
+      },
+      {
         "$ref": "#/components/schemas/TaskStartedEvent"
       },
       {
@@ -6245,6 +6287,139 @@
       "type"
     ],
     "description": "Work stopped to wait for its provider's limit to reset."
+  },
+  "RunAccountRotatedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.accountRotated"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Account ids; null when the run was on the CLI's own default login"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "resumed": {
+        "type": "boolean",
+        "description": "The interrupted turn was replayed on the new account"
+      }
+    },
+    "required": [
+      "at",
+      "from",
+      "id",
+      "internal",
+      "orchestrationId",
+      "resumed",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "to",
+      "type"
+    ],
+    "description": "A run hit its account's limit and its process was started again on another account."
+  },
+  "AccountSwitchedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "account.switched"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Account ids; null when there was no previous choice"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "reason": {
+        "$ref": "#/components/schemas/AccountSwitchReason"
+      }
+    },
+    "required": [
+      "at",
+      "from",
+      "id",
+      "reason",
+      "title",
+      "to",
+      "type"
+    ],
+    "description": "New work will start on another account: the rotation chose it, or a person did."
+  },
+  "AccountSwitchReason": {
+    "type": "string",
+    "enum": [
+      "limit",
+      "threshold",
+      "person",
+      "disabled",
+      "signed-out"
+    ],
+    "description": "Why the chosen account changed."
   },
   "TaskStartedEvent": {
     "type": "object",
@@ -11034,6 +11209,10 @@
   "NewChatRequest": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -11123,6 +11302,10 @@
   "ResumeChatRequest": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -11200,6 +11383,10 @@
   "ForkChatRequest": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -16490,6 +16677,10 @@
   "ChatStartOptions": {
     "type": "object",
     "properties": {
+      "account": {
+        "type": "string",
+        "description": "Id of the  {@link  Account }  to run on. Absent keeps the last execution's on a resume or a fork and lets the rotation policy choose on a new chat; it cannot change on a live chat, so a new value applies from the next process."
+      },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider to run on; the first one in the person's order that can run chats when absent"
@@ -19556,6 +19747,464 @@
       "decision"
     ],
     "description": "Who chose a move: the person, the settings, or a decision point."
+  },
+  "Account": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AccountKind"
+      },
+      "alias": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Shown instead of the email; required for `token` and `api-key`, which have no identity"
+      },
+      "email": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "From `claude auth status`; null for `token` and `api-key`"
+      },
+      "organization": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "plan": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Subscription type (`max`, `pro`, ...); null when the CLI reports none"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "A disabled account is never chosen for new work"
+      },
+      "signedIn": {
+        "type": "boolean",
+        "description": "`claude auth status` says it is logged in"
+      },
+      "limits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountLimit"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null until something was read"
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "alias",
+      "email",
+      "organization",
+      "plan",
+      "enabled",
+      "signedIn",
+      "limits"
+    ],
+    "description": "One Claude account: a config directory of its own, chosen per process."
+  },
+  "AccountKind": {
+    "type": "string",
+    "enum": [
+      "login",
+      "token",
+      "api-key"
+    ],
+    "description": "How an account signs in: `login` is `claude auth login` in the account's own config dir (it has an email, an organization and a plan); `token` is a `claude setup-token` and `api-key` an API key, which have no identity of their own, so they need an alias."
+  },
+  "AccountLimit": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/ProviderLimitState"
+      },
+      "window": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The window that binds (`five_hour`, `seven_day`), when it is known"
+      },
+      "utilization": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Use of that window, 0..1; null when nothing was read"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the binding window resets; null when unknown"
+      },
+      "windows": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/RateLimitWindow"
+        }
+      },
+      "observedAt": {
+        "type": "string",
+        "description": "When the reading was taken: the cache can be days old, so the UI says how old"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "stream",
+          "cache",
+          "failure"
+        ],
+        "description": "`stream`: a run reported it; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it"
+      }
+    },
+    "required": [
+      "state",
+      "window",
+      "utilization",
+      "resetsAt",
+      "windows",
+      "observedAt",
+      "source"
+    ],
+    "description": "One account's usage, folded from its stream events and, when idle, the CLI's cache."
+  },
+  "AccountsSettings": {
+    "type": "object",
+    "properties": {
+      "rotateOnLimit": {
+        "type": "boolean",
+        "description": "Switch account at a limit; off waits for the reset instead"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Utilization (0-100) of an account's binding window from which it counts as at its limit"
+      },
+      "hysteresis": {
+        "type": "number",
+        "description": "Points (0-100) below the threshold an account must fall before it is chosen again"
+      },
+      "cooldownSeconds": {
+        "type": "number",
+        "description": "Seconds an account that hit a limit is left alone, when its reset is unknown"
+      },
+      "strategy": {
+        "$ref": "#/components/schemas/AccountStrategy"
+      }
+    },
+    "required": [
+      "rotateOnLimit",
+      "threshold",
+      "hysteresis",
+      "cooldownSeconds",
+      "strategy"
+    ],
+    "description": "`accounts.json`: when and how work moves to another account."
+  },
+  "AccountStrategy": {
+    "type": "string",
+    "enum": [
+      "order",
+      "least-used"
+    ],
+    "description": "Which account new work takes among the eligible ones."
+  },
+  "RotationPolicy": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Utilization (0-100) past which the next account in `order` is taken; the global one when absent"
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Account ids a chat of these projects may use, in order of preference; every account when absent"
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Project ids this policy governs; at most one policy governs a project"
+      },
+      "looseChats": {
+        "type": "boolean",
+        "description": "It also governs the chats that belong to no project; at most one policy does"
+      }
+    },
+    "required": [
+      "id",
+      "projects"
+    ],
+    "description": "Which accounts the chats of some projects may use, in what order, and when to move on. A project with no policy takes the global  {@link  AccountsSettings } ."
+  },
+  "RotationPolicyRequest": {
+    "type": "object",
+    "properties": {
+      "threshold": {
+        "type": "number"
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "looseChats": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "projects"
+    ]
+  },
+  "UsageHistoryPoint": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string"
+      },
+      "pct": {
+        "type": "number",
+        "description": "Share of the window consumed (0-100)"
+      },
+      "window": {
+        "type": "string",
+        "enum": [
+          "five_hour",
+          "seven_day"
+        ]
+      },
+      "account": {
+        "type": "string",
+        "description": "Account id"
+      }
+    },
+    "required": [
+      "at",
+      "pct",
+      "window",
+      "account"
+    ],
+    "description": "One reading of an account's usage, kept as a row so the panel can draw a line."
+  },
+  "RotationEvent": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "number"
+      },
+      "ts": {
+        "type": "string"
+      },
+      "event": {
+        "type": "string",
+        "description": "`switch` when a chat moved to another account, `wait` when none was left"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Account ids; null when there was no previous account"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "detail": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "data": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "seq",
+      "ts",
+      "event",
+      "from",
+      "to",
+      "reason",
+      "detail",
+      "data"
+    ],
+    "description": "One account switch or wait, as `rotation_events` keeps it."
+  },
+  "AddLoginAccountRequest": {
+    "type": "object",
+    "properties": {
+      "alias": {
+        "type": "string",
+        "description": "Shown instead of the email; optional, since the CLI reports an identity"
+      },
+      "email": {
+        "type": "string",
+        "description": "Pre-fills the email the CLI asks for"
+      }
+    },
+    "description": "`POST /accounts`: a `login` account, signed in by the CLI itself."
+  },
+  "AddTokenAccountRequest": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "token",
+          "api-key"
+        ]
+      },
+      "alias": {
+        "type": "string",
+        "description": "Required: these have no identity of their own"
+      },
+      "secret": {
+        "type": "string",
+        "description": "The token or key; kept in a 0600 file of the account's dir and never answered back"
+      }
+    },
+    "required": [
+      "kind",
+      "alias",
+      "secret"
+    ],
+    "description": "`POST /accounts/token`: a `token` (`claude setup-token`) or `api-key` account. Write-only secret."
+  },
+  "UpdateAccountRequest": {
+    "type": "object",
+    "properties": {
+      "alias": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "description": "`PATCH /accounts/:id`"
+  },
+  "AccountLoginSession": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "accountId": {
+        "type": "string",
+        "description": "The account the sign-in is for; removed again when the sign-in fails or is cancelled and it never signed in"
+      },
+      "state": {
+        "$ref": "#/components/schemas/AccountLoginState"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The page the person opens, once the CLI printed it"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "account": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Account"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The account once the sign-in succeeded"
+      }
+    },
+    "required": [
+      "id",
+      "accountId",
+      "state",
+      "url",
+      "startedAt",
+      "endedAt",
+      "account"
+    ],
+    "description": "The sign-in of a `login` account, as `POST /accounts` started it. Carries the URL the CLI printed and nothing else it said."
+  },
+  "AccountLoginState": {
+    "type": "string",
+    "enum": [
+      "starting",
+      "waiting-for-person",
+      "succeeded",
+      "failed",
+      "cancelled"
+    ]
+  },
+  "AccountLoginCodeRequest": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "code"
+    ],
+    "description": "`POST /accounts/logins/:id/code`: the code the page showed, when the CLI's browser could not open. Write-only."
   },
   "CodeHostsSettings": {
     "type": "object",

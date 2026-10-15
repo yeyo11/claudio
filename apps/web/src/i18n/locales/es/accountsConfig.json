@@ -1,0 +1,193 @@
+{
+  "policies": {
+    "title": "Políticas de rotación",
+    "intro": "Qué cuentas pueden usar los chats de un proyecto, en qué orden y con qué uso pasar a la siguiente. Un proyecto sin política sigue los ajustes de rotación globales.",
+    "new": "Nueva política",
+    "none": "No hay políticas",
+    "noneHint": "Todos los proyectos siguen los ajustes de rotación globales.",
+    "projects": "Proyectos",
+    "noProjects": "Aún no has importado ningún proyecto.",
+    "alreadyGoverned": "(ya lo gobierna otra política)",
+    "projectsHint": "Un proyecto tiene como máximo una política.",
+    "threshold": "Umbral de rotación",
+    "thresholdValue": "Pasar a la siguiente al {{pct}}% de uso",
+    "thresholdHint": "Un chat se queda en su cuenta hasta que la ventana que manda de esa cuenta supera este valor.",
+    "order": "Cuentas, por orden de preferencia",
+    "orderEmpty": "Se puede usar cualquier cuenta.",
+    "orderHint": "Añade cuentas para limitar la política a ellas y ordénalas. Un chat toma la primera que tenga margen.",
+    "addAccount": "Añadir una cuenta al orden",
+    "moveEarlier": "Subir {{name}} en el orden",
+    "moveLater": "Bajar {{name}} en el orden",
+    "removeAccount": "Quitar {{name}} del orden",
+    "create": "Crear la política",
+    "update": "Actualizar la política",
+    "saving": "Guardando…",
+    "created": "Política creada",
+    "updated": "Política actualizada",
+    "deleted": "Política eliminada",
+    "saveFailed": "No se ha podido guardar la política",
+    "edit": "Editar",
+    "editNamed": "Editar la política de {{projects}}",
+    "deleteNamed": "Eliminar la política de {{projects}}",
+    "deleteTitle": "¿Eliminar esta política?",
+    "deleteBody": "Sus proyectos vuelven a los ajustes de rotación globales. Los chats en marcha se quedan en su cuenta.",
+    "rotateAt": "pasa a la siguiente al {{pct}}%",
+    "inOrder": "cuentas {{accounts}}",
+    "anyAccount": "cualquier cuenta",
+    "looseChats": "Chats sin proyecto",
+    "looseChatsName": "chats sin proyecto",
+    "looseChatsHint": "Gobierna también los chats iniciados en un directorio que no está en ningún proyecto importado. Sin esto, siguen los ajustes de rotación globales.",
+    "looseChatsTaken": "Otra política ya gobierna los chats sin proyecto: solo puede hacerlo una.",
+    "globalThreshold": "umbral global"
+  },
+  "history": {
+    "title": "Historial de uso",
+    "intro": "Cuánto usó cada cuenta de cada ventana de límite, según lo que Claude informa mientras trabaja y la caché del CLI cuando la cuenta está en reposo.",
+    "window": "Ventana",
+    "range": "Intervalo",
+    "account": "Cuenta",
+    "allAccounts": "Todas las cuentas",
+    "removedAccount": "cuenta eliminada",
+    "ranges": {
+      "24h": "24 horas",
+      "7d": "7 días",
+      "30d": "30 días"
+    },
+    "none": "No hay lecturas en este intervalo",
+    "noneHint": "Las lecturas llegan cuando las ejecuciones las informan. Un intervalo anterior a la primera ejecución no tiene ninguna.",
+    "chartTitle": "Porcentaje de la ventana de límite usado a lo largo del tiempo",
+    "describeSeries": "{{account}}: {{latest}}% ahora, como máximo {{peak}}% en el intervalo.",
+    "threshold": "cambio automático {{pct}}%",
+    "table": "Mostrar las cifras como tabla",
+    "tableCaption": "Lecturas de uso por cuenta en la ventana y el intervalo elegidos",
+    "latest": "Última",
+    "peak": "Máximo",
+    "readings": "Lecturas",
+    "lastReading": "Última lectura"
+  },
+  "reset": {
+    "in": "en {{duration}}",
+    "back": "vuelve en {{duration}}",
+    "now": "se reinicia ya"
+  },
+  "page": {
+    "title": "Cuentas",
+    "add": "Añadir cuenta",
+    "count_one": "{{count}} cuenta",
+    "count_other": "{{count}} cuentas",
+    "usageRead": "uso leído {{ago}}",
+    "refresh": "Actualizar",
+    "none": "Sin cuentas",
+    "noneHint": "Claude Code usa su propio directorio de configuración hasta que añadas cuentas. Añade una para pasar a ella al llegar a un límite."
+  },
+  "kind": {
+    "login": "Inicio de sesión",
+    "token": "Token",
+    "api-key": "Clave de API"
+  },
+  "window": {
+    "fiveHour": "5 horas",
+    "sevenDay": "7 días"
+  },
+  "card": {
+    "inUse": "en uso",
+    "default": "predeterminada",
+    "free": "libre",
+    "exhausted": "agotada",
+    "runningHigh": "casi al límite",
+    "used": "usado",
+    "outOfRotation": "fuera de rotación",
+    "signedOut": "sin sesión",
+    "holdOut": "Apartar",
+    "returnToRotation": "Volver a la rotación",
+    "remove": "Quitar cuenta",
+    "more": "Más acciones de {{name}}",
+    "noUsage": "Aún no se ha leído el uso.",
+    "noLimitsApiKey": "Una clave de API no tiene límites de uso que leer.",
+    "source": {
+      "stream": "leído de una ejecución {{ago}}",
+      "cache": "leído de la caché del CLI {{ago}}",
+      "failure": "llegó a un límite {{ago}}"
+    }
+  },
+  "toast": {
+    "heldOut": "{{name}} queda fuera de rotación",
+    "heldOutFailed": "No se ha podido apartar {{name}}",
+    "backInRotation": "{{name}} vuelve a la rotación",
+    "backInRotationFailed": "No se ha podido devolver {{name}} a la rotación",
+    "removed": "{{name}} quitada",
+    "removeFailed": "No se ha podido quitar {{name}}"
+  },
+  "remove": {
+    "title": "¿Quitar {{name}}?",
+    "body": "Agentry olvida la cuenta y borra su directorio de configuración. Los chats iniciados en ella conservan sus transcripciones."
+  },
+  "dialog": {
+    "title": "Añadir una cuenta",
+    "kind": "Tipo",
+    "hint": {
+      "login": "Inicia sesión con Claude Code en un directorio de configuración propio. Agentry nunca lee las credenciales.",
+      "token": "Un token de claude setup-token. No tiene identidad propia, así que necesita un alias.",
+      "api-key": "Una clave de API. No tiene identidad ni límites de uso que leer, así que necesita un alias."
+    },
+    "alias": "Alias",
+    "aliasOptional": "Opcional: se muestra en lugar del correo.",
+    "aliasRequired": "Obligatorio: se muestra donde se nombra la cuenta.",
+    "aliasPlaceholder": "trabajo",
+    "email": "Correo",
+    "emailHint": "Opcional: rellena el correo que pide el inicio de sesión.",
+    "token": "Token",
+    "apiKey": "Clave de API",
+    "secretHint": "Solo de escritura: se guarda en un archivo privado de la cuenta y no se vuelve a mostrar.",
+    "signIn": "Iniciar sesión",
+    "starting": "Iniciando…",
+    "add": "Añadir cuenta",
+    "adding": "Añadiendo…",
+    "added": "Cuenta añadida",
+    "addFailed": "No se ha podido añadir la cuenta",
+    "signedIn": "Sesión iniciada",
+    "startFailed": "No se ha podido iniciar el inicio de sesión"
+  },
+  "signIn": {
+    "title": "Iniciar sesión en la cuenta",
+    "open": "Abre esta página e inicia sesión",
+    "approve": "Aprueba el acceso para Claude Code",
+    "opensNewTab": "se abre en una pestaña nueva",
+    "copyLink": "Copiar enlace",
+    "codeLabel": "Código",
+    "codeHint": "Solo si la página muestra un código porque el navegador no pudo abrirse solo.",
+    "sendCode": "Enviar código",
+    "codeFailed": "No se aceptó el código",
+    "waiting": "Esperando a que apruebes",
+    "starting": "Pidiendo a Claude Code la página de inicio de sesión…",
+    "failed": "Ha fallado el inicio de sesión. Cierra este diálogo e inténtalo de nuevo.",
+    "cancelled": "Se canceló el inicio de sesión."
+  },
+  "rotation": {
+    "title": "Cambio de cuenta",
+    "subtitle": "Qué hace el trabajo cuando una cuenta llega a su límite.",
+    "rotateOnLimit": "Cambiar al llegar al límite",
+    "rotateHint": "Apagado: el chat espera a que su cuenta se reinicie en lugar de pasar a otra.",
+    "threshold": "Umbral",
+    "thresholdAt": "cuenta como en su límite desde el {{pct}}% de 5 h o 7 días",
+    "strategy": "Qué cuenta primero",
+    "strategies": {
+      "order": "En orden",
+      "least-used": "La menos usada"
+    },
+    "hysteresis": "Histéresis (puntos)",
+    "hysteresisHint": "Puntos por debajo del umbral que debe bajar una cuenta antes de volver a elegirse.",
+    "cooldown": "Enfriamiento (segundos)",
+    "cooldownHint": "Cuánto se deja en paz a una cuenta que llegó a un límite si no se conoce su reinicio.",
+    "offHint": "Nada se aplica hasta que guardes.",
+    "updated": "Ajustes guardados",
+    "updateFailed": "No se han podido guardar los ajustes"
+  },
+  "log": {
+    "title": "Cambios y esperas",
+    "recentOnly": "Solo recientes",
+    "fullHistory": "Historial completo",
+    "nothingYet": "Aún nada",
+    "hint": "Aquí aparece un chat que pasa a otra cuenta o espera a un reinicio."
+  }
+}

@@ -155,14 +155,6 @@ export class EffortRefusal extends Error {
   }
 }
 
-/** A request that still pins a chat to an account: they went away with claude-swap. */
-export class AccountsRetired extends Error {
-  readonly statusCode = 400;
-  constructor() {
-    super('accounts were retired; see Settings → Providers');
-  }
-}
-
 /** What a chat does for its graph, from the task id its record carries. */
 export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
   switch (orchestrationTaskId) {
@@ -624,10 +616,9 @@ export class ChatService {
    */
   private gate(
     requested: ProviderId | undefined,
-    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort'> & { account?: unknown },
+    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort'>,
     asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
   ): ProviderId {
-    if (options.account !== undefined) throw new AccountsRetired();
     if (options.effort !== undefined && options.effort !== null && !isEffort(options.effort)) throw new EffortRefusal();
     const provider = this.deps.runtime.driverFor(requested).manifest.id;
     const has = new Set(this.deps.runtime.providers.capabilities(provider));

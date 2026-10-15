@@ -1,7 +1,7 @@
 import type { ApiClient, Query } from './client.ts';
 import { ApiError } from './client.ts';
 import type { AgentryMcpToolName } from './names.ts';
-import { boardRows, chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, projectRows, providerRows, teamRows } from './fields.ts';
+import { accountRows, boardRows, chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, projectRows, providerRows, teamRows } from './fields.ts';
 import type { Property, Schema } from './schema.ts';
 
 export interface Tool {
@@ -200,5 +200,11 @@ export const TOOLS: readonly Tool[] = [
     inputSchema: schema({}),
     // What the detector last read, never a new detection: refreshing runs every installed CLI
     run: async (_args, api) => providerRows(await api.get('/providers')),
+  },
+  {
+    name: 'list_accounts',
+    description: "The Claude accounts: kind, alias or email, plan, whether each is enabled and signed in, and its usage limit (binding window, utilization 0-1, reset, how old the reading is). Use it for 'which account has room' and 'how close is each account to its limit'.",
+    inputSchema: schema({}),
+    run: async (_args, api) => accountRows(await api.get('/accounts')),
   },
 ];

@@ -92,6 +92,9 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 - `FAKE-LIMIT` (a line of its own) — the account's usage limit: a `rate_limit_event` with status
   `rejected` and `resetsAt` an hour ahead, then a failed `result` with `api_error_status: 429`. It
   fails every time it is sent.
+- `FAKE-LIMIT-ACCOUNT` (a line of its own) — the same limit, but only on the account whose
+  `CLAUDE_CODE_OAUTH_TOKEN` starts with `fake-limited`; on any other account it is an ordinary prompt.
+  It is how a spec sees a chat leave a limited account and replay on another.
 - `hold: <path>` — waits until `<path>` (against the working directory) exists before the next step.
 - `ask: <command>` — a Bash call the CLI asks permission for: the `tool_use`, then a `can_use_tool`
   control request; the turn waits for the `control_response`. Allowed, the call answers

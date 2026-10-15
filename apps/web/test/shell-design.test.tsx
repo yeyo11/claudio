@@ -38,7 +38,7 @@ test('every phone detail screen heads itself, marked by route, and the tab roots
     '/chats/c1', '/chats/c1/', '/chats/new', '/orchestration/o1', '/orchestration/o1/',
     '/chats/c1/changes', '/tasks/AGN-26/changes', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes',
     '/projects', '/projects/', '/schedules', '/schedules/new', '/schedules/s1/edit', '/schedules/s1/edit/',
-    '/usage', '/connectors', '/settings', '/settings/',
+    '/accounts', '/usage', '/connectors', '/settings', '/settings/',
   ];
   for (const path of detail) assert.equal(phoneHeaderOf(path), 'page', path);
   // The tab roots and a page that does not exist keep the app's top bar

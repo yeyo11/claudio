@@ -287,7 +287,11 @@ function startTurn(message, uuid = null) {
   // A line `FAKE-LIMIT` is the account's usage limit, as the CLI's stream-json reports it: a rejected
   // `rate_limit_event` whose window resets in an hour, then a result that failed with a 429. The same
   // prompt sent again fails again, so a spec can tell a rotation that moved the chat from one that retried
-  if (/^FAKE-LIMIT\s*$/m.test(text)) {
+  // `FAKE-LIMIT-ACCOUNT` is the same, but only on the account whose token starts with `fake-limited`
+  // (`CLAUDE_CODE_OAUTH_TOKEN`): on any other account the line is an ordinary prompt, so a spec can see
+  // a chat leave the limited account and be replayed on one with room
+  const limitedHere = /^FAKE-LIMIT\s*$/m.test(text) || (/^FAKE-LIMIT-ACCOUNT\s*$/m.test(text) && (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-limited'));
+  if (limitedHere) {
     emit({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, unifiedWindows: { '5h': { utilization: 1 } } } });
     turn = null;
     turns++;

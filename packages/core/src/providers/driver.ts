@@ -1,3 +1,4 @@
+import type { AccountRef } from '@agentry/accounts';
 import type {
   Attachment,
   EffectiveEnvironment,
@@ -113,6 +114,8 @@ export interface SessionLaunch {
   agentsFile?: string;
   /** Agentry's policy for this run; the driver applies the settings part, the judge the host part */
   policy: ToolPolicy | null;
+  /** The Claude account this process runs on; absent leaves the environment as the CLI's own login */
+  account?: AccountRef;
 }
 
 /** The process to start. `ChatManager` adds `AGENTRY_CHAT_ID`, `AGENTRY_API_URL` and the minted token itself. */

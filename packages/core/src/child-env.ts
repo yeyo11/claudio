@@ -1,3 +1,4 @@
+import { envFor, type AccountRef } from '@agentry/accounts';
 import type { SecretVault } from './secret-vault.ts';
 import { exclusiveVariables } from './setup/methods.ts';
 
@@ -28,8 +29,13 @@ const TOOL_OF: Readonly<Record<string, string>> = { 'youtrack-app': 'youtrack' }
  *
  * Every spawn of an agent, a host CLI or `youtrack-app` builds its environment here, so a secret
  * reaches only the tool it belongs to and never argv.
+ *
+ * With an `account` the process is that account's and no other's: `envFor` strips every account
+ * variable of the base and sets only its own, and the vault is not consulted, so a token saved in
+ * setup can never ride along with another account's config dir.
  */
-export function childEnv(tool: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export function childEnv(tool: string, base: NodeJS.ProcessEnv = process.env, account?: AccountRef | null): NodeJS.ProcessEnv {
+  if (account) return envFor(account, base);
   const env: NodeJS.ProcessEnv = { ...base };
   const name = TOOL_OF[tool] ?? tool;
   const kept = current?.get(name) ?? {};

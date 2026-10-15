@@ -65,14 +65,17 @@
       "tipAge": "lectura {{age}}",
       "unknown": "Su última lectura está desfasada, así que no se conoce su límite",
       "none": "{{provider}} no informa de su límite"
-    }
+    },
+    "account": "Cuenta en la que empiezan los chats nuevos"
   },
   "account": {
     "card": "Agentes y límites",
     "version": "versión {{version}}",
     "none": "Ningún agente detectado",
     "limitUnknown": "Límite desconocido",
-    "limitNone": "No informa de su límite"
+    "limitNone": "No informa de su límite",
+    "ready": "Lista",
+    "ofTotal": "{{ready}} de {{total}} listas"
   },
   "notFound": {
     "body": "La dirección puede estar mal escrita, o la página ya no existe.",

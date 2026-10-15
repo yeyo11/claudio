@@ -242,12 +242,12 @@ Only one instance runs at a time: opening the app again focuses the existing win
 
 ## Accounts
 
-Agentry does not switch Claude accounts. It runs the CLI with whatever account `~/.claude` is signed
-in to, and at a limit it can move work to another provider (see [[providers.md]]). If an earlier
-version installed claude-swap for you, the account it left active is still the one in use, and
-Settings → Providers shows a one-time notice that names it. The notice offers to remove the copy the
-app had installed in `~/.config/Agentry/data/tools`; the accounts in `~/.local/share/claude-swap`
-are never touched, so any `cswap` of your own keeps working.
+The app runs the CLI on the account you choose for each chat. The default account is whatever
+`~/.claude` is signed in to; more accounts are added on the Accounts page (a sign-in in the browser, or a
+token) and each one keeps its own config directory under `accounts/` in the app's data folder, which
+the **File** menu opens. At a limit, work moves to another account and the turn is replayed in the
+same chat; with none left it waits for the reset. See [[accounts.md]]. The app never calls claude-swap,
+and the accounts in `~/.local/share/claude-swap` are never touched.
 
 ## Reaching it from a phone
 
