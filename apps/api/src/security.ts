@@ -153,13 +153,17 @@ export function forwardingOf(req: FastifyRequest): Forwarding {
   if (headers.forwarded === undefined && forwardedFor === undefined && forwardedHost === undefined) return 'direct';
   const peer = req.socket.remoteAddress;
   const host = headers.host;
-  if (headers.forwarded !== undefined || forwardedFor === undefined || typeof forwardedHost !== 'string') return 'untrusted';
+  if (headers.forwarded !== undefined || forwardedFor === undefined || (forwardedHost !== undefined && typeof forwardedHost !== 'string')) return 'untrusted';
   if (peer === undefined || !LOOPBACK.test(peer) || host === undefined || !LOOPBACK.test(hostNameOf(host))) return 'untrusted';
+  // A WebSocket upgrade through the dev server's proxy carries X-Forwarded-For but no X-Forwarded-Host
+  // (its ws path adds for/port/proto only) and keeps the page's Host (`changeOrigin: false`), so the
+  // Host, already checked to be loopback, is the name the page was dialled by
+  const pageHost = forwardedHost ?? host;
   const hops = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor).split(',').map((hop) => hop.trim());
   if (hops.some((hop) => !LOOPBACK.test(hop.toLowerCase()))) return 'untrusted';
   // A list of hosts is a chain of proxies; one is all the dev server ever writes
-  if (forwardedHost.includes(',') || !LOOPBACK.test(hostNameOf(forwardedHost))) return 'untrusted';
-  return { host: forwardedHost };
+  if (pageHost.includes(',') || !LOOPBACK.test(hostNameOf(pageHost))) return 'untrusted';
+  return { host: pageHost };
 }
 
 /**

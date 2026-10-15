@@ -169,6 +169,15 @@ test('behind the dev proxy, a LAN client is refused and a client on this machine
   for (const [client, page] of [['127.0.0.1', 'localhost:5180'], ['::1', '127.0.0.1:5180'], ['::ffff:127.0.0.1', '[::1]:5180']] as const) {
     assert.equal((await app.inject({ url: '/api/terminals', ...proxied(client, page) })).statusCode, 200, `${client} on ${page}`);
   }
+  // The socket's upgrade: the dev proxy's ws path writes X-Forwarded-For but no X-Forwarded-Host and keeps
+  // the page's Host, so a loopback client on a loopback page is the person, and anyone else is relayed
+  const upgrade = (client: string, page: string) => ({ headers: { host: page, 'x-forwarded-for': client, origin: `http://${page}` } });
+  assert.equal((await app.inject({ url: '/api/terminals', ...upgrade('127.0.0.1', 'localhost:5180') })).statusCode, 200);
+  await refused(upgrade('192.168.1.50', 'localhost:5180'));
+  // A LAN name as the Host never reaches the gate: the host check turns it away first (421)
+  for (const client of ['192.168.1.50', '127.0.0.1']) {
+    assert.equal((await app.inject({ url: '/api/terminals', ...upgrade(client, '192.168.1.184:5180') })).statusCode, 421, client);
+  }
   if (!terminal) return;
   // The ticket compares the Origin with the page's authority the proxy forwarded, not with the Host it rewrote
   const ticket = await app.inject({ method: 'POST', url: `/api/terminals/${terminal.id}/ticket`, ...proxied('127.0.0.1', 'localhost:5180') });
