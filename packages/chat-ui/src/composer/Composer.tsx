@@ -162,6 +162,7 @@ export function Composer({
   interrupt,
   restore,
   history = [],
+  onSending,
 }: {
   chat: Chat;
   kind: ComposerKind;
@@ -173,6 +174,11 @@ export function Composer({
   restore?: { text: string; attachments: ChatPendingAttachment[]; at: number } | null;
   /** What the person already sent in this chat, oldest first: ArrowUp brings it back */
   history?: readonly string[];
+  /**
+   * The moment a message to an idle chat leaves, before the server answers: the page draws it in the
+   * conversation. `id` is null for a resume, which has none to send. Returns the undo, run if the send fails.
+   */
+  onSending?: (message: { id: string | null; text: string; attachments: ChatPendingAttachment[] }) => (() => void) | void;
 }) {
   const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
@@ -207,6 +213,8 @@ export function Composer({
   // The message last sent that did not get through: sent again unchanged, it keeps its id, so a send
   // that timed out after the server took it still reaches the agent once
   const attempt = useRef<{ id: string; text: string; files: string } | null>(null);
+  // What the box gave up on Send, so a failure can hand it back; null when the send left the box alone
+  const sending = useRef<{ undo: (() => void) | null; text: string } | null>(null);
   const submit = useMutation({
     mutationFn: async ({ message, attachments: sent, id }: Outgoing) => {
       const attachments = sent.length ? { attachments: sent.map((a) => a.id) } : {};
@@ -220,7 +228,9 @@ export function Composer({
       attempt.current = null;
       // Only what went: whatever was typed or attached while the request was out stays in the box
       const held = editor.current?.getText() ?? '';
-      if (held.startsWith(sent.typed)) {
+      const clearedAtSend = sending.current !== null;
+      sending.current = null;
+      if (!clearedAtSend && held.startsWith(sent.typed)) {
         const rest = held.slice(sent.typed.length).replace(/^\s+/, '');
         editor.current?.setText(rest);
         writeDraft(draft, rest);
@@ -231,6 +241,16 @@ export function Composer({
       void queryClient.invalidateQueries({ queryKey: chatKeys.chats });
       void queryClient.invalidateQueries({ queryKey: chatKeys.chatScope(chat.id) });
       if (kind === 'fork') navigate(paths.chat(chatId));
+    },
+    onError: () => {
+      const gave = sending.current;
+      sending.current = null;
+      if (!gave) return;
+      gave.undo?.();
+      // Back after whatever is half-typed, the way a message the agent never read comes back
+      const held = editor.current?.getText() ?? '';
+      editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${gave.text}` : gave.text);
+      editor.current?.focus();
     },
   });
 
@@ -263,6 +283,14 @@ export function Composer({
       const last = attempt.current;
       id = last && last.text === message && last.files === fileKey ? last.id : messageId();
       attempt.current = { id, text: message, files: fileKey };
+    }
+    // A message to a working chat becomes a card over the box once the server says so, not a row
+    if (onSending && kind !== 'fork' && !working) {
+      const undo = onSending({ id: id ?? null, text: message, attachments });
+      sending.current = { undo: undo ?? null, text: typed };
+      editor.current?.setText('');
+      writeDraft(draft, '');
+      setRecalled(null);
     }
     submit.mutate({ message, typed, attachments, ...(id ? { id } : {}) });
   };
