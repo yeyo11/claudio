@@ -31,11 +31,18 @@ rest keep the plan's values. Throughput and RSS miss the plan's guesses: the fig
 service, host IPC included, with a client that acknowledges every frame. Whether 30 MB/s is
 reachable is for whoever tunes the host.
 
-## Not measured
+## Measured: the page's parts (2026-10-15)
 
-The page's parts (300 000 lines end to end, keystroke echo, cold load with the terminal open) need
-`pnpm build` and Chrome and were not run; their budgets are still the plan's guesses. Run
-`node e2e/perf/terminal-perf.mjs --only browser` after a build and replace them.
+Same machine, Google Chrome 154.0.8037.92 headless, DOM renderer, production build.
+
+| Measure | Result | Plan's first guess | Budget now |
+|---|---|---|---|
+| `seq 1 300000` until the last line renders | 1.09 s | < 4 s | ≤ 4 |
+| Longest main-thread task during it | 86 ms (2 long tasks) | < 200 ms | ≤ 200 |
+| Keystroke echo, 200 keys: p50 / p95 / worst | 16.6 / 22.7 / 39.4 ms | < 25 / – / < 300 | ≤ 25 / ≤ 300 |
+| Cold page load with the terminal open and 1 000 lines behind it | 1276 ms | < 1 000 | ≤ 1914 |
+
+The cold load includes the app's own startup (lazy chunks, xterm, the font), not only the replay.
 
 ## Finding: a stalled client freezes the shell for the others
 

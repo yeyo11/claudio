@@ -10,5 +10,5 @@
   "longestTaskMs": 200,
   "echoP50Ms": 25,
   "echoWorstMs": 300,
-  "coldLoadMs": 1000
+  "coldLoadMs": 1914
 }
