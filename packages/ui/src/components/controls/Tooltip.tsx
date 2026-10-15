@@ -1,5 +1,5 @@
 import * as RadixTooltip from '@radix-ui/react-tooltip';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
@@ -7,6 +7,16 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
       {children}
     </RadixTooltip.Provider>
   );
+}
+
+/**
+ * The open state after Radix asks for `next`. A tooltip with nothing to show never opens: Radix asks
+ * to open on hover even then, and it never asks to close a tooltip whose `open` prop is already
+ * false, so an `open` accepted while empty stayed true. The collapsed sidebar's rail then showed
+ * every tooltip hovered while it was expanded (their content is empty there) the moment it folded.
+ */
+export function nextTooltipOpen(next: boolean, empty: boolean): boolean {
+  return next && !empty;
 }
 
 /**
@@ -25,8 +35,12 @@ export function Tooltip({
 }) {
   const [open, setOpen] = useState(false);
   const empty = content === undefined || content === null || content === false || content === '';
+  // Content that goes away closes the tooltip, so it does not reopen when the content comes back
+  useEffect(() => {
+    if (empty) setOpen(false);
+  }, [empty]);
   return (
-    <RadixTooltip.Root open={open && !empty} onOpenChange={setOpen}>
+    <RadixTooltip.Root open={open && !empty} onOpenChange={(next) => setOpen(nextTooltipOpen(next, empty))}>
       <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
       <RadixTooltip.Portal>
         <RadixTooltip.Content className="tooltip" side={side} sideOffset={6} collisionPadding={8}>
