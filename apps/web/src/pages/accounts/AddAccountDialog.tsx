@@ -49,8 +49,8 @@ function SignInSession({ session, onCode, sending, error }: { session: AccountLo
             </li>
           </ol>
           <div className="signin-code-box">
-            <a className="c-accent signin-link signin-url" href={url} target="_blank" rel="noopener noreferrer">
-              {url.replace(/^https:\/\//, '')}
+            <a className="c-accent signin-link signin-url" href={url} target="_blank" rel="noopener noreferrer" title={url}>
+              <span className="signin-url-text">{url.replace(/^https:\/\//, '')}</span>
               <ExternalLink {...ICON_SM} />
               <span className="sr-only"> ({t('signIn.opensNewTab')})</span>
             </a>
