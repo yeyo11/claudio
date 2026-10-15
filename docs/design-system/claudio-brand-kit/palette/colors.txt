@@ -1,0 +1,10 @@
+# CLAUDIO — Color tokens
+# Primary brand
+brand-blue: #246BFD
+# Accent
+brand-cyan: #00E5FF
+brand-violet: #A78BFA
+# Surfaces and text
+space-background: #0B1020
+slate-navy: #17233D
+ice-white: #F4F7FF
