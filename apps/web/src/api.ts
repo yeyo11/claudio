@@ -73,6 +73,7 @@ import type {
   ConfigFileRoot,
   ConfigFileVariant,
   ConfigResource,
+  ConnectorAuthorisation,
   ConnectorsOverview,
   CreateJournalEntryRequest,
   CreateMilestoneRequest,
@@ -751,6 +752,8 @@ export const api = {
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
   connectors: (refresh = false) => request<ConnectorsOverview>(`/connectors${qs({ refresh: refresh ? 'true' : '' })}`, { timeoutMs: 100_000 }),
+  /** Starts the CLI's sign-in for a connector; the id has spaces (`claude.ai Gmail`), so it is encoded */
+  authoriseConnector: (id: string) => request<ConnectorAuthorisation>(`/connectors/${encodeURIComponent(id)}/authorise`, { method: 'POST', timeoutMs: 100_000 }),
   plugins: (o: ReadOptions = {}) => request<PluginsOverview>('/plugins', o),
   availablePlugins: (q: string) => request<AvailablePlugin[]>(`/plugins/available${qs({ q })}`),
   pluginAction: (action: 'install' | 'uninstall' | 'enable' | 'disable', req: PluginActionRequest) =>

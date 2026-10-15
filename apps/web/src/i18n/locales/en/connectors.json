@@ -3,7 +3,7 @@
   "title": "Connectors",
   "subtitle": "checked {{when}}",
   "subtitleLoading": "Asking the CLI…",
-  "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Claudio only reads this list: it cannot authorise, change or call a connector itself.",
+  "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Claudio can start a connector's sign-in through the CLI, and the person finishes it in their browser.",
   "refresh": "Ask the CLI again",
   "refreshing": "Asking…",
   "cliFailed": "The CLI could not list its connectors",
@@ -37,7 +37,13 @@
     "none": "No prepared prompts for this connector."
   },
   "authorise": {
-    "title": "How to authorise a connector"
+    "title": "How to authorise a connector",
+    "action": "Authorise",
+    "starting": "Starting…",
+    "named": "Authorise {{connector}} in your browser",
+    "waiting": "Waiting for you to finish signing in…",
+    "again": "Open the sign-in again",
+    "timedOut": "{{connector}} is still not connected after two minutes. Authorise it again, or ask the CLI again once you have signed in."
   },
   "unavailable": {
     "title": "Out of reach",

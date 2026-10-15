@@ -350,6 +350,18 @@
   flex: none;
   justify-content: flex-end;
 }
+/* Waiting for the sign-in to finish in the browser: live, so the spinner moves beside the verb */
+.connector-waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 58px;
+  color: var(--live);
+}
+.connector-waiting .meta-icon {
+  color: var(--fg-2);
+}
 /* The steps sit under the name, not under the icon */
 .connector-body {
   margin: 0 0 0 58px;
@@ -443,7 +455,8 @@
     flex: 1;
     min-height: 44px;
   }
-  .connector-body {
+  .connector-body,
+  .connector-waiting {
     margin-left: 0;
   }
   .connectors-refresh {
