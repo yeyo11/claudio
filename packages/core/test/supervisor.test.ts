@@ -325,7 +325,9 @@ test('a worker that turns bad gets a proposal from a read-only housekeeping chat
     assert.equal(flag('--model'), 'haiku');
     assert.equal(flag('--max-budget-usd'), '0.03');
     assert.ok(argv.some((a) => a.startsWith('--allowedTools=Read,Glob,Grep,')), argv.join(' '));
-    assert.ok(argv.includes('--disallowedTools=Edit,Write,MultiEdit,NotebookEdit'), argv.join(' '));
+    // Read-only, and like every run Claudio starts for a graph it may never push
+    // The log splits argv on spaces, so the rule `Bash(git push *)` is read on the whole line
+    assert.ok(housekeeping[0]?.includes(' --disallowedTools=Edit,Write,MultiEdit,NotebookEdit,Bash(git push),Bash(git push *) '), argv.join(' '));
     // It is gone once it answered: the proposal is its record
     await until(() => !core.runtime.list().some((r) => r.origin === 'internal'), 'the housekeeping chat to be removed');
 

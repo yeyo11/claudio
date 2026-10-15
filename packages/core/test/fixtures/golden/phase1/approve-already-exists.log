@@ -48,10 +48,10 @@ git -C <root>/project rev-parse --show-toplevel
 git -C <root>/project worktree list --porcelain
 git -C <root>/project worktree lock --reason agentry work item CW-1 of project p1 <root>/project/.claude/worktrees/task-cw-1
 git -C <root>/project/.claude/worktrees/task-cw-1 rev-parse --verify --quiet refs/remotes/origin/main^{commit}
-git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --name-status -z HEAD --
-git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --numstat -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff -M --name-status -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff -M --numstat -z HEAD --
 git -C <root>/project/.claude/worktrees/task-cw-1 ls-files --others --exclude-standard -z
-git -C <root>/project/.claude/worktrees/task-cw-1 diff --name-only --diff-filter=U
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff --name-only --diff-filter=U
 git -C <root>/project/.claude/worktrees/task-cw-1 rev-list --count origin/main..HEAD
 git -C <root>/project rev-parse --git-dir
 git -C <root>/project rev-parse HEAD
@@ -61,9 +61,9 @@ git -C <root>/project rev-parse --absolute-git-dir
 git -C <root>/project rev-parse --show-toplevel
 git -C <root>/project worktree list --porcelain
 git -C <root>/project worktree lock --reason agentry work item CW-1 of project p1 <root>/project/.claude/worktrees/task-cw-1
-git -C <root>/project/.claude/worktrees/task-cw-1 diff --name-only --diff-filter=U
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff --name-only --diff-filter=U
 git -C <root>/project/.claude/worktrees/task-cw-1 add -A
-git -C <root>/project/.claude/worktrees/task-cw-1 diff --cached --quiet
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff --cached --quiet
 git -C <root>/project/.claude/worktrees/task-cw-1 fetch origin main
 git -C <root>/project/.claude/worktrees/task-cw-1 config user.email
 git -C <root>/project/.claude/worktrees/task-cw-1 merge --no-edit origin/main
