@@ -170,6 +170,21 @@
       "tier": {
         "$ref": "#/components/schemas/ModelTier",
         "description": "How capable it is among its provider's models, where the provider says; a model with no rank has none"
+      },
+      "resolvedModel": {
+        "type": "string",
+        "description": "The concrete model id behind `value` (`claude-opus-5-5` for `opus`), as the CLI's `initialize` reports it"
+      },
+      "supportsEffort": {
+        "type": "boolean",
+        "description": "Whether the model takes an effort level at all"
+      },
+      "supportedEffortLevels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The effort levels it takes (`low`, `medium`, `high`, `xhigh`, `max`); only these are offered for it"
       }
     },
     "required": [
