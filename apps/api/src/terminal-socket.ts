@@ -31,6 +31,8 @@ interface Held {
  */
 export class TerminalTickets {
   private readonly held = new Map<string, Held>();
+  /** The sockets these tickets opened, which a change of who may get in has to end */
+  private readonly sockets = new Set<WebSocket>();
 
   /** The clock is a parameter so a test can let a ticket expire */
   constructor(private readonly now: () => number = Date.now) {}
@@ -58,6 +60,27 @@ export class TerminalTickets {
     return held.actor;
   }
 
+  /** Keeps an accepted socket until it closes, so {@link revoke} can reach it */
+  track(socket: WebSocket): void {
+    this.sockets.add(socket);
+    socket.once('close', () => this.sockets.delete(socket));
+  }
+
+  /**
+   * Who may get in changed (a new or cleared token, another auth mode, a narrower `remote`): every
+   * ticket is spent and every socket closed. Each was let in by the gate under the old rules, and a
+   * ticket names an actor the socket never checks again. The shells keep running; the person's
+   * view reconnects with a new ticket, through the gate as it is now.
+   */
+  revoke(): void {
+    this.held.clear();
+    for (const socket of this.sockets) {
+      socket.close(4001, 'terminal.reauthenticate');
+      setTimeout(() => socket.terminate(), CLOSE_GRACE_MS).unref();
+    }
+    this.sockets.clear();
+  }
+
   /** Tickets held now, which is what a test checks the bound by */
   get size(): number {
     return this.held.size;
@@ -70,6 +93,14 @@ export class TerminalTickets {
 }
 
 const hash = (ticket: string): string => createHash('sha256').update(ticket).digest('hex');
+
+/** Each wrapper's tickets, for the routes outside the terminal's that change who may get in */
+const ticketsOf = new WeakMap<Core, TerminalTickets>();
+
+/** Ends every terminal socket and spends every ticket: called when who may get in has changed */
+export function revokeTerminalAccess(core: Core): void {
+  ticketsOf.get(core)?.revoke();
+}
 
 /**
  * Whether a socket (or the request that mints its ticket) comes from the page this wrapper served.
@@ -186,6 +217,7 @@ async function serve(core: Core, socket: WebSocket, id: string, who: Pick<Termin
  * once everything else has agreed.
  */
 export const terminalSocketRoute: FastifyPluginAsync<{ core: Core; guard: Guard; tickets: TerminalTickets }> = async (app, { core, guard, tickets }) => {
+  ticketsOf.set(core, tickets);
   const turnAway = (req: FastifyRequest, reply: FastifyReply, status: number, body: { error: string; code: string; reason?: string }, terminalId: string, why: string): FastifyReply => {
     // The gate's own attempts are written by the caller; these are the socket's
     core.terminals.recordRefusal({ terminalId: core.terminals.get(terminalId) ? terminalId : null, actor: req.actor ?? 'anonymous', client: clientOf(core, req), origin: req.headers.origin ?? null, reason: why });
@@ -254,6 +286,7 @@ export const terminalSocketRoute: FastifyPluginAsync<{ core: Core; guard: Guard;
       },
     },
     (socket, req) => {
+      tickets.track(socket);
       void serve(core, socket, req.params.id, { actor: req.actor ?? 'local', client: clientOf(core, req), origin: req.headers.origin ?? null }).catch((err: unknown) => {
         req.log.error({ err }, 'terminal socket failed');
         socket.terminate();
