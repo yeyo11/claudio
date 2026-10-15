@@ -23,7 +23,8 @@ export default async ({ page, api, check, dirs }) => {
 
   const screen = () => page.eval(`return ${SCREEN}`);
   const onScreen = (text, label = text) => page.waitFor(`return (${SCREEN}).includes(${JSON.stringify(text)})`, { label: `"${label}" on the terminal's screen`, timeout: 30_000 });
-  const ready = () => page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea') && !!document.querySelector('.term-status')`, { label: 'a terminal with its status', timeout: 30_000 });
+  // Ready is the shell's prompt on the screen: input typed while the socket is still attaching is dropped
+  const ready = () => page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea') && !!document.querySelector('.term-status') && (${SCREEN}).trim().length > 0`, { label: 'a terminal with its status and a prompt', timeout: 30_000 });
   /** Types a line into the shell as a person does: into xterm's own textarea, then Enter */
   const run = async (line) => {
     await page.focus('.term .xterm-helper-textarea');
@@ -66,6 +67,8 @@ export default async ({ page, api, check, dirs }) => {
     await ready();
     check((await item()).expanded === 'true', 'the item says the panel is expanded');
     check(await page.eval(`return !!document.querySelector('section.term-dock[aria-label]')`), 'the panel is a labelled region');
+    // Opening the panel is the person's doing, so the keyboard is in the shell once it has attached
+    check(await page.eval(`return document.activeElement?.classList.contains('xterm-helper-textarea') === true`), 'the opened panel gave the keyboard to its terminal');
     await run('echo m$((6*7))');
     await onScreen('m42');
     check(true, 'a typed command ran in the shell and its output reached the screen');

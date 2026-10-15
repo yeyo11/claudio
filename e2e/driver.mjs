@@ -284,6 +284,10 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
       await sleep(250);
     },
+    /** A headless page is never the focused one, and xterm draws its cursor only on a focused screen. */
+    async emulateFocus(on = true) {
+      await send('Emulation.setFocusEmulationEnabled', { enabled: on });
+    },
     /** Animations and transitions collapse to nothing, so a scan never sees a page half faded in. */
     async reduceMotion(on = true) {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: on ? 'reduce' : 'no-preference' }] });

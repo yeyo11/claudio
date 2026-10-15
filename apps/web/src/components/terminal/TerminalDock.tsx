@@ -71,6 +71,8 @@ export function TerminalDock() {
         labels={labels}
         autoOpen={bar.wantsShell && project !== null}
         onAutoOpened={bar.shellOpened}
+        focusFront={bar.wantsFocus}
+        onFocused={bar.focused}
         request={project ? () => ({ projectId: project.id }) : undefined}
         emptyText={project ? undefined : t('bar.empty')}
         selectedId={bar.selectedId}

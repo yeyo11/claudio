@@ -38,6 +38,9 @@ export interface TerminalBar {
   /** Set when the person opened the panel: with a project chosen and nothing running, the panel opens a shell once */
   wantsShell: boolean;
   shellOpened: () => void;
+  /** Set when the person opened the panel: the terminal in front takes the keyboard once it is attached */
+  wantsFocus: boolean;
+  focused: () => void;
 }
 
 const Context = createContext<TerminalBar | null>(null);
@@ -49,11 +52,15 @@ export function TerminalBarProvider({ children }: { children: ReactNode }) {
   const [height, setHeightState] = useState(storedHeight);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [wantsShell, setWantsShell] = useState(false);
+  const [wantsFocus, setWantsFocus] = useState(false);
 
   const setOpen = useCallback((next: boolean, fresh = false) => {
     setWanted(next);
     writePref(BAR_OPEN_KEY, next ? '1' : '0');
-    if (next && fresh) setWantsShell(true);
+    if (next && fresh) {
+      setWantsShell(true);
+      setWantsFocus(true);
+    }
   }, []);
   const toggle = useCallback(() => setOpen(!wanted, true), [wanted, setOpen]);
   const show = useCallback(() => setOpen(true, true), [setOpen]);
@@ -64,6 +71,7 @@ export function TerminalBarProvider({ children }: { children: ReactNode }) {
     writePref(DOCK_KEY, String(clamped));
   }, []);
   const shellOpened = useCallback(() => setWantsShell(false), []);
+  const focused = useCallback(() => setWantsFocus(false), []);
 
   // A window that shrinks must not leave a panel taller than the room
   useEffect(() => {
@@ -88,8 +96,8 @@ export function TerminalBarProvider({ children }: { children: ReactNode }) {
   }, [usable, toggle]);
 
   const value = useMemo<TerminalBar>(
-    () => ({ available, open: wanted && usable, height, setHeight, selectedId, select: setSelectedId, toggle, show, hide, wantsShell, shellOpened }),
-    [available, wanted, usable, height, setHeight, selectedId, toggle, show, hide, wantsShell, shellOpened],
+    () => ({ available, open: wanted && usable, height, setHeight, selectedId, select: setSelectedId, toggle, show, hide, wantsShell, shellOpened, wantsFocus, focused }),
+    [available, wanted, usable, height, setHeight, selectedId, toggle, show, hide, wantsShell, shellOpened, wantsFocus, focused],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

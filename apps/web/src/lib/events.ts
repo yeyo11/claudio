@@ -457,12 +457,13 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
   // A team member at work shows its chat's line, as the Flow screen does for each running run
   const patchRuns = (runs: FlowRun[]): FlowRun[] => (runs.some((run) => run.chatId === chatId) ? runs.map((run) => (run.chatId === chatId ? { ...run, activity } : run)) : runs);
   client.setQueriesData<Team>({ queryKey: ['team'] }, (team) =>
-    team?.members.some((member) => member.running.some((run) => run.chatId === chatId))
+    team?.members?.some((member) => member.running.some((run) => run.chatId === chatId))
       ? { ...team, members: team.members.map((member) => ({ ...member, running: patchRuns(member.running) })) }
       : team,
   );
+  // ['flow', id, 'waiting'] shares the prefix and holds an array, which has no `running`
   client.setQueriesData<ProjectFlow>({ queryKey: ['flow'] }, (flow) =>
-    flow?.running.some((run) => run.chatId === chatId) ? { ...flow, running: patchRuns(flow.running) } : flow,
+    flow?.running?.some((run) => run.chatId === chatId) ? { ...flow, running: patchRuns(flow.running) } : flow,
   );
   // A running assistant shows its chat's line ("Reading src/webhooks/stripe.ts")
   const patchAssistant = <R extends AssistantRun>(run: R): R => (run.chatId === chatId ? { ...run, activity } : run);

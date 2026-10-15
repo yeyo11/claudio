@@ -1,5 +1,5 @@
 import { CaseSensitive, ChevronDown, ChevronUp, ClipboardPaste, Copy, Minus, Plus, Regex, RotateCcw, Search, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@claudio/shared';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
@@ -26,6 +26,8 @@ export function TerminalPanel({
   onToggle,
   onLink,
   onEnded,
+  autoFocus = false,
+  onFocused,
 }: {
   terminal: Terminal;
   compact: boolean;
@@ -34,6 +36,9 @@ export function TerminalPanel({
   /** The dock's `Ctrl+\`` */
   onToggle?: () => void;
   onLink?: (link: LinkState) => void;
+  /** Takes the keyboard once attached: the person just opened this terminal */
+  autoFocus?: boolean;
+  onFocused?: () => void;
   /** The shell ended or the server closed it: the lists should be read again */
   onEnded: () => void;
 }) {
@@ -54,6 +59,14 @@ export function TerminalPanel({
   const wasLive = useRef(terminal.state === 'running');
   if (terminal.state === 'running') wasLive.current = true;
   const running = terminal.state === 'running';
+
+  // Once attached, so the first keys land in the shell; never on a page load, which is not the person's doing
+  useEffect(() => {
+    if (!autoFocus || link !== 'open') return;
+    view.current?.focus();
+    onFocused?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocus, link]);
 
   const setLinkState = (next: LinkState) => {
     setLink(next);

@@ -212,6 +212,10 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
       // The panel is the only desktop surface of a terminal: the status bar's item opens it
       await open(`/?project=${projectId}`, '.statusbar-btn');
       if (!(await page.eval(`return !!document.querySelector('.term-dock')`))) await page.click('.statusbar-btn', undefined, 800);
+      // xterm draws the cursor of a focused screen only, and a reloaded panel does not take the keyboard
+      await page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea')`, { label: 'the panel attaches a terminal' });
+      await page.emulateFocus();
+      await page.focus('.term .xterm-helper-textarea');
       await page.waitFor(`return !!document.querySelector('.term .xterm-rows .xterm-cursor')`, { label: 'the panel draws the cursor' });
       const seen = await page.eval(cursor);
       check(seen.cursor, `the terminal draws its cursor at ${level}`);
@@ -224,6 +228,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
       }
     }
   } finally {
+    await page.emulateFocus(false).catch(() => {});
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('claudio-motion');`).catch(() => {});

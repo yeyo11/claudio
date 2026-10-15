@@ -38,6 +38,8 @@ export function TerminalWorkspace({
   emptyText,
   autoOpen = false,
   onAutoOpened,
+  focusFront = false,
+  onFocused,
   onToggle,
   selectedId,
   onSelect,
@@ -55,6 +57,9 @@ export function TerminalWorkspace({
   /** Opens one when the scope has none running: the panel does after the person opened it */
   autoOpen?: boolean;
   onAutoOpened?: () => void;
+  /** The person just opened the panel: the terminal in front takes the keyboard when it attaches */
+  focusFront?: boolean;
+  onFocused?: () => void;
   onToggle?: () => void;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
@@ -67,7 +72,12 @@ export function TerminalWorkspace({
   const choice = selectedId !== undefined ? selectedId : picked;
   const current = terminals.find((terminal) => terminal.id === choice) ?? terminals[0] ?? null;
   const select = (id: string) => (onSelect ? onSelect(id) : setPicked(id));
-  const open = useOpenTerminal((terminal) => select(terminal.id));
+  // A terminal the person just opened takes the keyboard; switching tabs does not, so the arrows keep moving along them
+  const [fresh, setFresh] = useState<string | null>(null);
+  const open = useOpenTerminal((terminal) => {
+    setFresh(terminal.id);
+    select(terminal.id);
+  });
   const close = useCloseTerminal();
   const names = (labels ?? tabNames)(terminals);
 
@@ -142,6 +152,11 @@ export function TerminalWorkspace({
           terminal={current}
           compact={false}
           onToggle={onToggle}
+          autoFocus={focusFront || fresh === current.id}
+          onFocused={() => {
+            setFresh(null);
+            onFocused?.();
+          }}
           onLink={(link) => setLinks((all) => ({ ...all, [current.id]: link }))}
           onEnded={refresh}
           onReopen={() => reopen(current)}
