@@ -2,7 +2,7 @@ import { hostErrorFields, reasonOf } from './classify.ts';
 import type { HostCall, HostResult } from './exec.ts';
 import { retryAfterMs } from './rate-limit.ts';
 
-// Reads only. A write is never retried by Agentry: it is re-read, and the person is told when the
+// Reads only. A write is never retried by Claudio: it is re-read, and the person is told when the
 // effect could not be found (see "After every write, re-read" in docs/plans/code-hosts.md).
 
 /** Waits before the second and the third attempt */

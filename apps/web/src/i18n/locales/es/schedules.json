@@ -14,7 +14,7 @@
     "title": "Programaciones",
     "subtitle": "Chats y orquestaciones que arrancan según un horario",
     "new": "Nueva programación",
-    "missedTitle": "Una franja perdida mientras Agentry estaba apagado se omite, no se repite",
+    "missedTitle": "Una franja perdida mientras Claudio estaba apagado se omite, no se repite",
     "missedBody": "Si el wrapper no está en marcha cuando le toca a una franja, esa franja queda registrada como omitida y no se lanza nada tarde.",
     "permissionsTitle": "Nadie aprueba permisos",
     "permissionsBody": "Nadie está delante del teclado cuando se dispara una programación, así que se deniega cualquier permiso que su modo no permita ya.",
@@ -138,7 +138,7 @@
     "invalidCron": "Esto no es una expresión cron válida",
     "zoneNote": "Leída en {{zone}}",
     "previewLoading": "Comprobando la expresión…",
-    "missedNote": "Si Agentry no está en marcha cuando le toca a una franja, esa franja se omite, no se repite.",
+    "missedNote": "Si Claudio no está en marcha cuando le toca a una franja, esa franja se omite, no se repite.",
     "what": "Qué lanzar",
     "kinds": {
       "chat": "Un chat",

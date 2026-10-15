@@ -517,9 +517,9 @@ export class ReviewsService {
   submit(id: string, req: ReviewSubmitRequest): Promise<ReviewPost> {
     return this.serial(id, async () => {
       const target = await this.target(id);
-      if (req.event === 'request-changes') throw new HostActionNotOffered('Agentry does not request changes; the host does');
+      if (req.event === 'request-changes') throw new HostActionNotOffered('Claudio does not request changes; the host does');
       // The call is built only to learn whether the host has one
-      if (req.event === 'approve' && !target.adapter.approve(target.repo, target.number, '0000000')) throw new HostActionNotOffered('Agentry does not approve on this host');
+      if (req.event === 'approve' && !target.adapter.approve(target.repo, target.number, '0000000')) throw new HostActionNotOffered('Claudio does not approve on this host');
       // The head the person looked at: a review is posted on it and an approval given on it, or neither happens
       const looked = typeof req.headSha === 'string' && req.headSha !== '' ? await this.readHead(target) : null;
       if (looked && looked.headSha !== null && looked.headSha !== req.headSha) throw new ReviewsError('the change request has a newer commit than the one you looked at', 'head-moved');
@@ -655,12 +655,12 @@ export class ReviewsService {
       const call = target.adapter.publishSaved(target.repo, target.number);
       if (row.state !== 'partly' || !call) throw new HostActionNotOffered('there is nothing saved to publish');
       // `glab mr note publish` has no way to pick notes: it publishes every draft of the viewer. So it runs only
-      // when every draft there is one Agentry saved for this post, and the person's own are never published
+      // when every draft there is one Claudio saved for this post, and the person's own are never published
       const recorded = new Set(reviewPostOf(row).detail?.draftIds ?? []);
       const pending = await this.pendingIn(target);
       const ours = pending.filter((e) => recorded.has(e.id) || e.body.includes(row.marker));
       const foreign = pending.length - ours.length;
-      if (foreign > 0) throw new ReviewsError('draft notes of yours that Agentry did not save are waiting, and publishing would send them too', 'pending-review-exists', `${String(foreign)} draft note of yours on GitLab`);
+      if (foreign > 0) throw new ReviewsError('draft notes of yours that Claudio did not save are waiting, and publishing would send them too', 'pending-review-exists', `${String(foreign)} draft note of yours on GitLab`);
       const result = await target.run(call);
       if (failed(result) && !(await this.landed(target, row.marker)).found) throw this.failure('publishing the saved notes', 'submit', target, call, result);
       // Only the rows whose note was saved went out; the rest are still the person's to post
@@ -678,7 +678,7 @@ export class ReviewsService {
       const row = this.postRow(id, postId);
       if (!row) throw new ReviewsError('that review is not recorded', 'not-found');
       if (row.state !== 'partly' || !target.adapter.discardDraft(target.repo, target.number, '0')) throw new HostActionNotOffered('there is nothing saved to discard');
-      // The viewer's other draft notes are the person's own, never Agentry's to delete: only the ids this post
+      // The viewer's other draft notes are the person's own, never Claudio's to delete: only the ids this post
       // recorded, and the note that carries its marker
       const recorded = new Set(row.detail ? (reviewPostOf(row).detail?.draftIds ?? []) : []);
       for (const entry of (await this.pendingIn(target)).filter((e) => recorded.has(e.id) || e.body.includes(row.marker))) {
@@ -761,7 +761,7 @@ export class ReviewsService {
 
   // ---------- approval ----------
 
-  /** The viewer's approval and the rule's count; GitHub has none to read, so it answers that Agentry does not approve */
+  /** The viewer's approval and the rule's count; GitHub has none to read, so it answers that Claudio does not approve */
   async approval(id: string): Promise<ApprovalState> {
     const target = await this.target(id);
     const headSha = (await this.readHead(target)).headSha;
@@ -784,7 +784,7 @@ export class ReviewsService {
     const head = (await this.readHead(target)).headSha;
     if (head !== null && head !== sha) throw new ReviewsError('the change request has a newer commit than the one you looked at', 'head-moved');
     const call = target.adapter.approve(target.repo, target.number, sha);
-    if (!call) throw new HostActionNotOffered('Agentry does not approve on this host');
+    if (!call) throw new HostActionNotOffered('Claudio does not approve on this host');
     const result = await target.run(call);
     const state = await this.readApproval(target, head).catch((error: unknown) => {
       if (!failed(result)) throw error;
@@ -814,7 +814,7 @@ export class ReviewsService {
     return this.serial(id, async () => {
       const target = await this.target(id);
       const call = target.adapter.revoke(target.repo, target.number);
-      if (!call) throw new HostActionNotOffered('Agentry does not revoke on this host');
+      if (!call) throw new HostActionNotOffered('Claudio does not revoke on this host');
       const result = await target.run(call);
       const head = (await this.readHead(target).catch(() => null))?.headSha ?? null;
       const state = await this.readApproval(target, head).catch((error: unknown) => {

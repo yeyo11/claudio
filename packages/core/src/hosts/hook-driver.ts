@@ -1,7 +1,7 @@
 import type { WebhookLastResponse } from '@claudio/shared';
 import type { HostCall, HostRepo } from './code-host.ts';
 
-/** A hook as a host reports it: what Agentry reads of a listing and of a single hook, in one shape for every host. */
+/** A hook as a host reports it: what Claudio reads of a listing and of a single hook, in one shape for every host. */
 export interface RemoteHook {
   /** As text: a 64-bit id must never pass through a double */
   id: string;

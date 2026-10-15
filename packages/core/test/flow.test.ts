@@ -588,7 +588,7 @@ test('a restart puts cut-off runs back in the queue on their chat, and starts no
   const resumed = second.launches[0];
   assert.equal(resumed?.run.itemId, a.id);
   assert.equal(resumed?.resumeChatId, chat);
-  assert.match(resumed?.prompt ?? '', /Agentry restarted/);
+  assert.match(resumed?.prompt ?? '', /Claudio restarted/);
   assert.deepEqual(queued(second).map((r) => r.itemId), [b.id]);
   await second.answer(a.id, ok());
   assert.equal(second.items.find(a.id)?.status, 'in_review');
@@ -1460,7 +1460,7 @@ test('a run ended before causes were kept reads its cause from its error, after 
   const rows: Array<[string, string, string | null]> = [
     ['budget', 'failed', 'it reached its budget of 1 USD (flow.maxCostUsd)'],
     ['account', 'failed', 'the account hit its rate limit and no other account could take the run over'],
-    ['restarts', 'failed', 'Agentry restarted 3 times while this run worked; move the item again to start it over'],
+    ['restarts', 'failed', 'Claudio restarted 3 times while this run worked; move the item again to start it over'],
     ['unreadable', 'failed', 'the run ended without a readable structured result'],
     ['cli', 'failed', 'Error: something the CLI said'],
     ['removed', 'cancelled', 'the item was removed'],

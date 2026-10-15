@@ -11,7 +11,7 @@ import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 export type TrackerReasonText = (status: TrackerStatus, host: string) => string;
 
 /**
- * The address and permanent token Agentry hands `youtrack-app` (code hosts decision 3). The token
+ * The address and permanent token Claudio hands `youtrack-app` (code hosts decision 3). The token
  * is write-only: the field never shows the saved one, and left empty it keeps it. "Check and save"
  * waits for the server to probe the instance, so the person learns at once whether it took the
  * token. On desktop it opens under the row; on a phone it fills a sheet.

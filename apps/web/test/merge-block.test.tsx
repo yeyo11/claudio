@@ -189,9 +189,9 @@ test('a code this version does not know reads as the policy block', () => {
   assert.match(text(html), /GitHub&#x27;s rules for main do not allow this merge yet/);
 });
 
-test('the person is told when Agentry turned auto-merge off for a push, and why a host rebase is not offered', () => {
+test('the person is told when Claudio turned auto-merge off for a push, and why a host rebase is not offered', () => {
   const off = text(render(state({ autoMergeOff: { by: 'claudio', at: '2026-10-01T09:30:00Z', why: 'push', pushing: false } })));
-  assert.match(off, /Agentry turned auto-merge off .* because it pushed to the branch/);
+  assert.match(off, /Claudio turned auto-merge off .* because it pushed to the branch/);
   const pushing = text(render(state({ autoMergeOff: { by: 'claudio', at: '2026-10-01T09:30:00Z', why: 'push', pushing: true } })));
   assert.match(pushing, /is pushing to the branch/);
   const update = text(render(state({ autoMergeOff: { by: 'marta', at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
@@ -282,10 +282,10 @@ test('a request the host merged or closed says so in words, with no raw host wor
   assert.match(text(render(blocked('not-open', null, null))), /Esta PR ya no está abierta\./);
 });
 
-test('who turned auto-merge off for an update reads as you or Agentry, never as local', () => {
+test('who turned auto-merge off for an update reads as you or Claudio, never as local', () => {
   const off = (by: string) => text(render(state({ autoMergeOff: { by, at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
   assert.match(off('local'), /You turned auto-merge off .* for Update from base/);
-  assert.match(off('claudio'), /Agentry turned auto-merge off .* for Update from base/);
+  assert.match(off('claudio'), /Claudio turned auto-merge off .* for Update from base/);
   assert.doesNotMatch(off('local'), /local turned|by local/);
 });
 
@@ -297,7 +297,7 @@ test('Update from base and arming have their own words for every refusal, and on
       assert.doesNotMatch(resource.update[refusal], /Developer|desarrollador/, refusal);
       assert.doesNotMatch(resource.update[refusal], /conflict/i, refusal);
     }
-    // Arming while Agentry is still pushing is not the host rejecting the merge
+    // Arming while Claudio is still pushing is not the host rejecting the merge
     assert.doesNotMatch(resource.failure.busy, /refused|rechazado/);
     assert.notEqual(resource.failure.busy, resource.failure['merge-failed']);
   }

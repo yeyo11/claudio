@@ -173,7 +173,7 @@
   z-index: 1;
 }
 
-/* "Something here wants a look" (a newer Agentry): a dot, not a count, and the brand colour because
+/* "Something here wants a look" (a newer Claudio): a dot, not a count, and the brand colour because
    it leads somewhere to press. Its words are for the screen reader, inside it. */
 .nav-dot {
   flex: none;

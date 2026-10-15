@@ -26,7 +26,7 @@ function useNow(): number {
 
 /**
  * How fresh a change request is, in words (DSWebhooks): "Instant" only while the repository's hook is
- * healthy, otherwise when it was last read and when it is read next. A webhook only makes Agentry read
+ * healthy, otherwise when it was last read and when it is read next. A webhook only makes Claudio read
  * sooner; it changes nothing, and the line says so. Nothing moves except the spinner of a read in flight.
  *
  * `changeRequestId` is the pull request row's id. `onRefresh` is the person's "read it now"; a page whose

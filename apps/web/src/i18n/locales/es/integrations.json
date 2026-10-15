@@ -1,6 +1,6 @@
 {
   "tab": "Integraciones",
-  "intro": "Agentry abre y sigue las PR de GitHub (#12) y las MR de GitLab (!12) con los programas gh y glab de este equipo. No guarda ninguna clave: usa la sesión que ya tiene cada programa.",
+  "intro": "Claudio abre y sigue las PR de GitHub (#12) y las MR de GitLab (!12) con los programas gh y glab de este equipo. No guarda ninguna clave: usa la sesión que ya tiene cada programa.",
   "checkedAgo": "Comprobado {{time}}",
   "notChecked": "Sin comprobar todavía",
   "refresh": "Volver a comprobar",
@@ -27,15 +27,15 @@
   },
   "reason": {
     "ready": "Instalado, con sesión iniciada y respondiendo.",
-    "version-untested": "Funciona, pero la {{version}} es más nueva que la {{recorded}}, la última con la que se ha probado Agentry.",
-    "below-minimum": "La {{version}} es anterior a la {{minimum}}, la más antigua con la que funciona Agentry.",
+    "version-untested": "Funciona, pero la {{version}} es más nueva que la {{recorded}}, la última con la que se ha probado Claudio.",
+    "below-minimum": "La {{version}} es anterior a la {{minimum}}, la más antigua con la que funciona Claudio.",
     "no-hosts": "{{cli}} está instalado, pero no tiene la sesión iniciada en ningún host.",
     "signed-out": "{{cli}} está instalado, pero no tiene la sesión iniciada en ningún host.",
-    "not-installed": "{{cli}} no está instalado, o Agentry no lo encuentra.",
-    "probe-failed": "{{cli}} no ha respondido como Agentry espera.",
-    "timeout": "{{cli}} no ha respondido a tiempo, así que Agentry lo ha detenido.",
-    "unknown": "Agentry todavía no ha comprobado {{cli}}.",
-    "disabled": "Agentry no lo usa mientras esté desactivado. Los proyectos de sus hosts no pueden abrir solicitudes."
+    "not-installed": "{{cli}} no está instalado, o Claudio no lo encuentra.",
+    "probe-failed": "{{cli}} no ha respondido como Claudio espera.",
+    "timeout": "{{cli}} no ha respondido a tiempo, así que Claudio lo ha detenido.",
+    "unknown": "Claudio todavía no ha comprobado {{cli}}.",
+    "disabled": "Claudio no lo usa mientras esté desactivado. Los proyectos de sus hosts no pueden abrir solicitudes."
   },
   "hosts": {
     "group": "Hosts que conoce {{cli}}",
@@ -45,7 +45,7 @@
     "title": "Binario de {{cli}}",
     "path": "Ruta del binario de {{cli}}",
     "placeholder": "/ruta/a/{{cli}}",
-    "hint": "Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la {{minimum}}.",
+    "hint": "Claudio usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la {{minimum}}.",
     "absolute": "Escribe una ruta absoluta, que empiece por /.",
     "check": "Comprobar y guardar",
     "checking": "Comprobando…",
@@ -56,7 +56,7 @@
     "cleared": "{{cli}} vuelve a usar el del PATH"
   },
   "empty": {
-    "title": "Agentry no encuentra gh ni glab",
+    "title": "Claudio no encuentra gh ni glab",
     "body": "Sin uno de los dos no puede abrir PR ni MR. Instálalo y aparecerá aquí solo, sin volver a comprobar.",
     "install": "Ver cómo instalar gh",
     "also": "O también",
@@ -71,28 +71,28 @@
     "title": "Gestores de incidencias",
     "total_one": "{{count}} gestor",
     "total_other": "{{count}} gestores",
-    "note": "Agentry importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR, y de YouTrack (PROJ-12) con youtrack-app, el programa de JetBrains, y la dirección y el token que le des aquí abajo.",
+    "note": "Claudio importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR, y de YouTrack (PROJ-12) con youtrack-app, el programa de JetBrains, y la dirección y el token que le des aquí abajo.",
     "notAvailable": "Aún no disponible",
     "reason": {
       "ready": "Lee y escribe incidencias con {{cli}}, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en {{host}}.",
-      "disabled": "Agentry no usa {{tracker}} mientras esté desactivado.",
-      "not-recorded": "{{tracker}} todavía no está disponible: Agentry aún no ha visto cómo responde {{cli}} y no construye nada sobre algo que no ha visto.",
+      "disabled": "Claudio no usa {{tracker}} mientras esté desactivado.",
+      "not-recorded": "{{tracker}} todavía no está disponible: Claudio aún no ha visto cómo responde {{cli}} y no construye nada sobre algo que no ha visto.",
       "readyOwn": "Lee y escribe incidencias en {{host}} con {{cli}}, como {{user}}. Sirve en cualquier proyecto, esté donde esté su código.",
-      "no-credentials": "Indica a Agentry la dirección de tu YouTrack y un token permanente para usarlo.",
+      "no-credentials": "Indica a Claudio la dirección de tu YouTrack y un token permanente para usarlo.",
       "token-rejected": "{{host}} no ha aceptado el token. Crea otro en tu perfil de YouTrack, en Seguridad de la cuenta.",
       "host-unreachable": "{{host}} no ha respondido. Revisa la dirección y que este equipo pueda llegar a ella.",
-      "notInstalledOwn": "{{cli}} no está instalado, o Agentry no lo encuentra. Es el programa de JetBrains para YouTrack y se instala con npm."
+      "notInstalledOwn": "{{cli}} no está instalado, o Claudio no lo encuentra. Es el programa de JetBrains para YouTrack y se instala con npm."
     },
     "bin": {
       "title": "Binario de {{cli}} para {{tracker}}",
       "placeholder": "El mismo que usa {{host}}",
-      "hint": "Vacío, {{tracker}} usa el mismo programa que {{host}}. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
+      "hint": "Vacío, {{tracker}} usa el mismo programa que {{host}}. Si eliges otro, Claudio lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
       "usePath": "Usar el del host",
       "cleared": "{{tracker}} vuelve a usar el programa de {{host}}"
     },
     "binOwn": {
       "placeholder": "{{cli}} del PATH",
-      "hint": "Vacío, Agentry busca {{cli}} en el PATH. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
+      "hint": "Vacío, Claudio busca {{cli}} en el PATH. Si eliges otro, Claudio lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
       "usePath": "Buscar en el PATH",
       "cleared": "{{tracker}} vuelve a usar {{cli}} del PATH"
     },
@@ -101,7 +101,7 @@
       "host": "Dirección",
       "hostHint": "La dirección de tu instancia, como https://acme.youtrack.cloud, o https://example.com/youtrack si está bajo una ruta.",
       "token": "Token permanente",
-      "tokenHint": "Créalo en YouTrack, en tu perfil, en Seguridad de la cuenta, con el ámbito YouTrack. Agentry se lo pasa a youtrack-app solo por su entorno y no vuelve a mostrarlo.",
+      "tokenHint": "Créalo en YouTrack, en tu perfil, en Seguridad de la cuenta, con el ámbito YouTrack. Claudio se lo pasa a youtrack-app solo por su entorno y no vuelve a mostrarlo.",
       "tokenSaved": "Guardado · déjalo vacío para conservarlo",
       "encrypted": "Se guarda cifrado con el llavero de este equipo.",
       "plain": "Se guarda en un archivo que solo puede leer el usuario de este servidor.",
@@ -109,7 +109,7 @@
       "forget": "Olvidar acceso",
       "connected": "YouTrack conectado como {{user}}",
       "savedNotReady": "Guardado, pero YouTrack no está listo: {{reason}}",
-      "forgotten": "Agentry ha olvidado el acceso a YouTrack",
+      "forgotten": "Claudio ha olvidado el acceso a YouTrack",
       "failed": "No se ha podido guardar el acceso a YouTrack",
       "loadFailed": "No se ha podido leer el acceso a YouTrack"
     }

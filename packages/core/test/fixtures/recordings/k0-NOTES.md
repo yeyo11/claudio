@@ -246,7 +246,7 @@ the status line alone does not say it failed, the `errors[].type` does.
    200 with exit 1 and `errors[]` in the body.
 10. A child config needs its own `workflow:rules` (or job rules) to run under a merge request
     pipeline; with none, the bridge fails as in 2. This is a fact about the project's CI that
-    Agentry will see in other people's projects, not something to fix.
+    Claudio will see in other people's projects, not something to fix.
 
 Not recorded in k0: read-only tokens (the plan's "What is still not recorded" assigns a gh
 fine-grained token on the probe repository to k0; it was not in this task's brief, so it stays

@@ -2,7 +2,7 @@
   "title": "Revisión",
   "sub": "{{noun}} {{ref}}",
   "loading": "Leyendo la revisión…",
-  "failed": "Agentry no ha podido leer la revisión de {{host}}.",
+  "failed": "Claudio no ha podido leer la revisión de {{host}}.",
   "retry": "Reintentar",
   "row": {
     "decision": "Decisión",

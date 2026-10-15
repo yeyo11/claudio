@@ -141,7 +141,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       error: status >= 500 && !exposed ? 'internal error' : err.message,
       ...(typeof reason === 'string' ? { code: reason } : {}),
       ...(typeof postId === 'string' ? { postId } : {}),
-      // The first line the tracker's CLI answered with (redacted in core), shown under Agentry's sentence
+      // The first line the tracker's CLI answered with (redacted in core), shown under Claudio's sentence
       ...(refusal && status < 500 && typeof (err as { detail?: unknown }).detail === 'string' ? { detail: String((err as { detail?: unknown }).detail) } : {}),
     });
   });
@@ -160,7 +160,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   await app.register(etag, { weak: true });
   await app.register(compress);
 
-  // The panel sends the person's language with every request: the chats Agentry starts on its own
+  // The panel sends the person's language with every request: the chats Claudio starts on its own
   // later, with no request behind them (the flow's runs), are titled in it. After the guard, so only
   // an allowed caller sets it
   app.addHook('onRequest', async (req) => core.noteLanguage(req.headers['accept-language']));

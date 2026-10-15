@@ -280,7 +280,7 @@ test('the keyboard cursor starts at an end and stops at either end', () => {
   assert.equal(stepCursor(2, 5, 1), 0);
 });
 
-test('a chat reads as its first prompt, not as the name Agentry gave the CLI', () => {
+test('a chat reads as its first prompt, not as the name Claudio gave the CLI', () => {
   const id = 'e2b36e71-d31d-460b-a378-201035a99b74';
   assert.equal(displayTitle(chat({ id, title: 'workspace-e2b36e', firstPrompt: 'Fix the login bug\nand test it' })), 'Fix the login bug');
   assert.equal(displayTitle(chat({ id, title: id, firstPrompt: 'Fix the login bug' })), 'Fix the login bug');

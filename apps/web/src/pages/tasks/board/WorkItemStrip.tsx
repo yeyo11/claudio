@@ -115,7 +115,7 @@ export function RunWaitWords({ wait }: { wait: Pick<LimitWait, 'provider' | 'res
  * What happens to an item now, at the foot of its card or phone row (`.wi-strip`): one state, led by
  * who acts, and nothing when nothing is going on. Live strips move and take the live tint; a card
  * that waits for the person takes the idle one; a failure the bad one with its word and its reason;
- * a conflict the warn one; QA's words on a card it sent back, a place in the queue and Agentry
+ * a conflict the warn one; QA's words on a card it sent back, a place in the queue and Claudio
  * preparing a pull request stay neutral, and still: no agent works on a PR.
  */
 export function WorkItemStrip({

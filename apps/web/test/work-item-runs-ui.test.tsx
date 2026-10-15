@@ -111,7 +111,7 @@ test("a failed run's chat leads with why in the person's words, the raw error un
   assert.match(html, /chat-run-failed/);
   const said = text(html);
   assert.match(said, /This verification failed and did not move the task\./);
-  assert.match(said, /It was cut off 3 times: Agentry restarted while it verified it\./);
+  assert.match(said, /It was cut off 3 times: Claudio restarted while it verified it\./);
   assert.match(said, /QA said so on AGN-26\./);
   assert.match(html, /class="run-raw mono">cut off by a restart \(restarts: 2 of 2\)</, 'the raw text, in mono');
   assert.match(said, /Retried: passed/);
@@ -135,7 +135,7 @@ test('in Spanish the banner uses the glossary: fallida, pasó, Reintentar', asyn
   try {
     const said = text(render(<FailedFlowRunNote item={item} run={{ ...failed, retryable: true }} />));
     assert.match(said, /Esta verificación falló y no movió la tarea\./);
-    assert.match(said, /Se cortó 3 veces: Agentry se reinició mientras verificaba\./);
+    assert.match(said, /Se cortó 3 veces: Claudio se reinició mientras verificaba\./);
     assert.match(said, /Reintentar/);
   } finally {
     await i18n.changeLanguage('en');
@@ -232,7 +232,7 @@ test("the activity draws a failed run's comment from the run, names each flow co
   const html = render(<Activity item={item} actions={noActions} person="yeyo" />);
   const said = text(html);
   assert.doesNotMatch(said, /moved nothing/, "the core's English comment is not printed");
-  assert.match(said, /This verification failed and did not move the task\. It was cut off 3 times: Agentry restarted while it verified it\. The task stays in In review\./);
+  assert.match(said, /This verification failed and did not move the task\. It was cut off 3 times: Claudio restarted while it verified it\. The task stays in In review\./);
   assert.match(html, /class="comment-run-chat" href="\/chats\/c-old"/);
   assert.match(said, /flow run · chat c-old/);
   assert.match(said, /Verification retried/);

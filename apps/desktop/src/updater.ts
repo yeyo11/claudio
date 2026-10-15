@@ -99,7 +99,7 @@ export function updateSupport(facts: SupportFacts): Support {
     return {
       status: 'unsupported',
       reason: 'unknown-package',
-      message: 'This copy of Agentry was not installed from an AppImage or a .deb, so it cannot update itself.',
+      message: 'This copy of Claudio was not installed from an AppImage or a .deb, so it cannot update itself.',
     };
   }
   if (distribution === 'appimage' && facts.appImage && !facts.appImageWritable(facts.appImage)) {

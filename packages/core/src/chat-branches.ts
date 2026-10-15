@@ -11,7 +11,7 @@ import type {
 } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
 
-// What a chat delegated, in Agentry's words. The CLI reports the same work three ways (its stream,
+// What a chat delegated, in Claudio's words. The CLI reports the same work three ways (its stream,
 // the files beside the transcript, its task notifications) and names the states differently in each;
 // this is where they become one vocabulary, so nothing above it needs to know which pipe a record
 // came through.

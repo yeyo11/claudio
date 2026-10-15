@@ -269,7 +269,7 @@ test('a code that waits is the one live surface: the link, the code with Copy, t
 
 // ---------- Tailscale ----------
 
-test('Tailscale is signed in and out only where Agentry runs it, and Sign in also reconnects a stopped node', () => {
+test('Tailscale is signed in and out only where Claudio runs it, and Sign in also reconnects a stopped node', () => {
   assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'loggedOut' }), { signIn: true, signOut: false });
   assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'stopped' }), { signIn: true, signOut: false });
   assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'ready' }), { signIn: false, signOut: true });

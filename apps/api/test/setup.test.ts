@@ -52,7 +52,7 @@ test('the setup state says what is done: access, agents, hosts, YouTrack, the me
   assert.deepEqual(state.hosts.map((h) => [h.id, h.cli]), [['github', 'gh'], ['gitlab', 'glab']]);
   assert.equal(state.youtrack.configured, false);
   assert.deepEqual(state.methods.map((m) => m.tool), ['claude-code', 'gh', 'glab', 'youtrack', 'tailscale']);
-  // A source install's Tailscale is the machine's: its state shows, and it is not Agentry's to sign in
+  // A source install's Tailscale is the machine's: its state shows, and it is not Claudio's to sign in
   assert.deepEqual(state.tailscale, { enabled: true, managed: false, state: 'ready', host: 'agentry-test.tail0000.ts.net' });
   // A source install without CLAUDIO_SECRET_KEY keeps plain values, as before
   assert.deepEqual(state.secrets, { sealed: false, keyBeside: false });

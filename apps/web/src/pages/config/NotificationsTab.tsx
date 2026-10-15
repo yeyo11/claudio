@@ -35,7 +35,7 @@ export function NotificationsTab() {
 
 /**
  * Every install registered for push. A subscription belongs to an install and not to a person —
- * Agentry has one credential for everyone who holds it — so this list is shared, and removing a
+ * Claudio has one credential for everyone who holds it — so this list is shared, and removing a
  * row silences that device for everybody.
  */
 function DevicesCard() {

@@ -4,7 +4,7 @@ import type { AuthMode } from '@claudio/shared';
 /*
  * The credential this browser sends, and what happens when the API refuses it.
  *
- * Agentry is unguarded by default, so nothing here runs for a local install: the token is only
+ * Claudio is unguarded by default, so nothing here runs for a local install: the token is only
  * read from storage, and the challenge state only appears once a route has answered 401. The
  * 401's body carries the mode, which is how the UI knows what to ask for without an open route
  * to ask first.

@@ -74,7 +74,7 @@ const messageOf = (subject: string | undefined, body: string | undefined): strin
 const CLIENT_REFUSALS: ReadonlyArray<[RegExp, string]> = [
   [/^This merge request requires a passing pipeline before merging\.?$/, 'a passing pipeline is required before merging'],
   [/^Merge conflicts exist;/, 'the merge request has conflicts'],
-  // glab hands out a command here: Agentry words its own
+  // glab hands out a command here: Claudio words its own
   [/^This merge request is still a draft;/, 'the merge request is a draft'],
 ];
 

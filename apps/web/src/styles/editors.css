@@ -1147,7 +1147,7 @@ button.master-item-on:hover {
   margin: 0;
 }
 
-/* The node's name, with Sign out beside it where Agentry runs the Tailscale (the Docker image) */
+/* The node's name, with Sign out beside it where Claudio runs the Tailscale (the Docker image) */
 .tunnel-node {
   display: flex;
   flex-wrap: wrap;

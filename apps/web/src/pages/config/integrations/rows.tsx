@@ -75,7 +75,7 @@ const ACTIONS: Record<CodeHostStatus['state'], ActionKind[]> = {
 /** How each tracker writes an issue's number, as an example beside its name. */
 const NUMBERING: Record<TrackerId, string> = { 'github-issues': '#12', 'gitlab-issues': '#12', youtrack: 'PROJ-12' };
 
-/** What a person typed is a path Agentry can run: the server refuses anything that is not absolute. */
+/** What a person typed is a path Claudio can run: the server refuses anything that is not absolute. */
 const isAbsolutePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
 
 export function ExternalLinkText({ href, label }: { href: string; label: string }) {
@@ -139,7 +139,7 @@ export function HostRow({
   onChooseBinary?: () => void;
   /**
    * Opens the sign-in panel for a host (null: the CLI's default, '': one the person names). With it,
-   * Sign in stays in Agentry, a ready row offers another host, and each known host signs in or out.
+   * Sign in stays in Claudio, a ready row offers another host, and each known host signs in or out.
    */
   onSignIn?: (host: string | null) => void;
 }) {
@@ -296,7 +296,7 @@ export function HostRow({
 }
 
 /**
- * The binary override: the path Agentry runs instead of searching the PATH. On desktop it opens
+ * The binary override: the path Claudio runs instead of searching the PATH. On desktop it opens
  * under the row; on a phone it fills a sheet.
  */
 export function BinaryEditor({

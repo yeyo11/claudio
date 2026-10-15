@@ -59,7 +59,7 @@ function transcript(sessionId: string, cwd: string, turns: Turn[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
 }
 
-/** Writes a chat a terminal started: a transcript and nothing Agentry knows. */
+/** Writes a chat a terminal started: a transcript and nothing Claudio knows. */
 function terminalChat(config: ReturnType<typeof tempConfig>, sessionId: string, turns: Turn[], project = 'terminal-project'): string {
   const cwd = join(config.workspaceDir, project);
   mkdirSync(cwd, { recursive: true });
@@ -157,7 +157,7 @@ test('the window of a model is what the CLI last reported for that exact id', as
     terminalChat(config, 'window-2', [{ id: 'm1', model: 'claude-opus-5', at: DAY, in: 5, out: 5, read: 100_000 }]);
     assert.equal((await core.chats.get('window-1'))?.context?.window, null, 'nothing has reported it yet');
 
-    // An execution Agentry runs ends with a result that carries the window of the model that answered
+    // An execution Claudio runs ends with a result that carries the window of the model that answered
     const started = core.runtime.start({ prompt: 'work', keepAlive: false });
     const until = Date.now() + 8_000;
     while (core.runtime.get(started.id)?.executions.every((e) => e.endedAt === null) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));

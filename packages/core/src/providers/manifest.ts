@@ -63,7 +63,7 @@ export interface ProviderManifest {
     range: string | null;
   };
   install: {
-    /** The vendor's install page: Agentry links to it and never runs an install */
+    /** The vendor's install page: Claudio links to it and never runs an install */
     url: string;
   };
   auth: {

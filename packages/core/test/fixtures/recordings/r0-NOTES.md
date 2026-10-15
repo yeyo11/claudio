@@ -280,7 +280,7 @@ stderr `gh: Could not resolve to a node with the global id of 'PRRT_doesnotexist
 1. **D8 GitLab, failure handling.** The plan says "a failed note stops the batch →
    `review-partly-posted`". A draft on a line outside the diff is **accepted** at create
    (`line_code:null`, exit 0) and **dropped silently** by `glab mr note publish -y` (exit 0,
-   "Published 4" for 3 notes). Nothing fails, so nothing stops. Agentry must validate each line
+   "Published 4" for 3 notes). Nothing fails, so nothing stops. Claudio must validate each line
    against the diff before creating the draft (a draft with `line_code: null` and a `position.new_line`
    is the tell, visible in the create response and in D12 list), and/or count the published notes
    against the drafts by re-reading D1.
@@ -302,7 +302,7 @@ stderr `gh: Could not resolve to a node with the global id of 'PRRT_doesnotexist
 6. **D11 GitHub.** Besides the recorded 422 for the author, an unknown login returns **exit 0** with
    the reviewer silently absent; the plan's re-read of `reviewRequests` is required, not optional.
 7. **D9 GitLab.** `user_can_approve` is `false` for the author even though `glab mr approve`
-   succeeds; Agentry must not use it to decide whether Approve is possible. (The plan hides Approve
+   succeeds; Claudio must not use it to decide whether Approve is possible. (The plan hides Approve
    when the viewer is the author; the host does not require that on this Free project.)
 8. **D12 GitHub.** Each D4 reply creates a separate submitted review, so `reviews?per_page=100`
    overflows quickly; the D12 read needs `--paginate` (only `PENDING` ones matter).

@@ -85,8 +85,8 @@ import { rulesFor } from './tool-policy.ts';
  * - A run writes nothing. Its chat has three tools at all (`Read`, `Grep`, `Glob`), confined to the
  *   project's directory, with no shell, no MCP server, no settings file of the person's (whose rules
  *   would add to its own) and no uploads directory, in `dontAsk`, which denies whatever is not
- *   allowed. Secrets are denied even inside the project. What it would have run git for, Agentry
- *   reads and hands it in the prompt. Everything it proposes is written by Agentry, through the
+ *   allowed. Secrets are denied even inside the project. What it would have run git for, Claudio
+ *   reads and hands it in the prompt. Everything it proposes is written by Claudio, through the
  *   service that owns it, when the person accepts that one proposal.
  * - It runs on demand only, never on a schedule, and one run at a time per project and kind.
  * - A new run leaves the previous one's pending proposals alone unless the person asks to suggest
@@ -113,7 +113,7 @@ export interface AssistantProject {
   settings: ProjectSettings;
 }
 
-/** What Agentry hands a run beside the directory: counted for "what it read", listed in its prompt. */
+/** What Claudio hands a run beside the directory: counted for "what it read", listed in its prompt. */
 export interface AssistantKnown {
   facts: AssistantFacts;
   /** The journal as a flow run is handed it, for `--append-system-prompt` */
@@ -139,7 +139,7 @@ export interface AssistantLaunch {
   appendSystemPrompt: string;
   jsonSchema: Record<string, unknown>;
   permissionMode: PermissionMode;
-  /** What the chat may do, in Agentry's words; the lists below are this policy as the provider's rules */
+  /** What the chat may do, in Claudio's words; the lists below are this policy as the provider's rules */
   policy: ToolPolicy;
   /** The only tools the chat has (`--tools`); it loads no settings source and no uploads directory */
   tools: string[];
@@ -753,7 +753,7 @@ export class AssistantService {
       const row = this.sql.prepare("SELECT * FROM assistant_runs WHERE chat_id = ? AND status = 'running'").get(move.fromChat) as RunRow | undefined;
       if (!row) return;
       if (end === 'cancelled') this.end(row.id, 'stopped', null);
-      else this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.chat, reason === 'limit-wait-expired' ? "The usage limit did not reset within the time Agentry waits for it." : `The usage limit reset, but the assistant's chat could not go on${reason ? ` (${reason})` : ''}.`));
+      else this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.chat, reason === 'limit-wait-expired' ? "The usage limit did not reset within the time Claudio waits for it." : `The usage limit reset, but the assistant's chat could not go on${reason ? ` (${reason})` : ''}.`));
     } catch {
       // heard from the core's rotation: a closed database (shutting down) must not become its error
     }
@@ -975,7 +975,7 @@ export class AssistantService {
       // Waiting for a limit to reset: the rotation re-arms the wait and replays the turn
       if (openWaitOf(this.deps.db, row.chat_id)) continue;
       if (row.restarts > 0) {
-        this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, 'Agentry restarted twice while the assistant worked; start it again.'));
+        this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, 'Claudio restarted twice while the assistant worked; start it again.'));
         continue;
       }
       this.sql.prepare('UPDATE assistant_runs SET restarts = restarts + 1 WHERE id = ?').run(row.id);

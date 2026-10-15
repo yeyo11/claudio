@@ -32,7 +32,7 @@ export const TAB_LABELS = {
 export type TabId = keyof typeof TAB_LABELS;
 
 /**
- * Twenty-two tabs read as four questions: how Agentry itself behaves, what Claude Code is told, what it
+ * Twenty-two tabs read as four questions: how Claudio itself behaves, what Claude Code is told, what it
  * is extended with, and the machine it runs on. The `?tab=` ids are the old flat ones, so every
  * deep link (the palette, the update dot, the docs) still lands where it did.
  */

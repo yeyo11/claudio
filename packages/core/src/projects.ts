@@ -8,7 +8,7 @@ import { writeAtomic } from './config/files.ts';
 import type { WorktreeFacts } from './locations.ts';
 import type { CoreConfig } from './paths.ts';
 
-/** What Agentry keeps about a project: an id of its own, a name and where it lives. */
+/** What Claudio keeps about a project: an id of its own, a name and where it lives. */
 export interface ProjectRecord {
   id: string;
   name: string;
@@ -159,7 +159,7 @@ export class ProjectStore {
    * directory is refused too: its project root would be the real `~/.claude`, whose credentials and
    * transcripts the config explorer hides for exactly that reason.
    *
-   * `idFor` hands back the id the directory had when it was last a project, so what Agentry keeps
+   * `idFor` hands back the id the directory had when it was last a project, so what Claudio keeps
    * under that id (its settings, its work items) comes back with it.
    */
   async add(

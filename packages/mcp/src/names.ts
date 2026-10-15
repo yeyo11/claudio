@@ -1,5 +1,5 @@
 /**
- * The tools of Agentry's own MCP server, by name. A file of its own, with no import, so the core can
+ * The tools of Claudio's own MCP server, by name. A file of its own, with no import, so the core can
  * build an allow list from it without loading the server: a test checks the catalogue in tools.ts
  * against this list, which keeps the two the same.
  */
@@ -50,5 +50,5 @@ export type AgentryMcpToolName = AgentryMcpReadToolName | AgentryMcpWriteToolNam
 
 export const CLAUDIO_MCP_WRITE_TOOLS: readonly string[] = CLAUDIO_MCP_WRITE_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 
-/** Whether the CLI's name for a tool is one of Agentry's write tools */
+/** Whether the CLI's name for a tool is one of Claudio's write tools */
 export const isAgentryMcpWriteTool = (toolName: string): boolean => CLAUDIO_MCP_WRITE_TOOLS.includes(toolName);

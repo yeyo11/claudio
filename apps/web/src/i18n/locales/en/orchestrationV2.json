@@ -4,7 +4,7 @@
     "maxMinutesOf": "Time limit in minutes for task {{id}}",
     "maxCost": "Cost limit (USD)",
     "maxCostOf": "Cost limit in dollars for task {{id}}",
-    "taskHint": "Agentry warns before it stops the task at this time. The cost limit is enforced by the CLI itself.",
+    "taskHint": "Claudio warns before it stops the task at this time. The cost limit is enforced by the CLI itself.",
     "default": "graph default",
     "none": "no limit",
     "graphTitle": "Default limits for every task",
@@ -160,7 +160,7 @@
       "skipped": "Skipped"
     },
     "none": "The host has not reported any check for this commit yet.",
-    "limited": "The host's rate limit is used up. Showing the last list; Agentry reads again at {{time}}.",
+    "limited": "The host's rate limit is used up. Showing the last list; Claudio reads again at {{time}}.",
     "unavailable": "The checks could not be read.",
     "rerunFailed": "Re-run failed",
     "cancel": "Cancel",
@@ -191,7 +191,7 @@
     "push": {
       "title": "Fix ready to push",
       "waiting": "waits for you",
-      "body": "Agentry fixed what it could and committed it on the integration branch. It pushes nothing until you press “Push the fix”.",
+      "body": "Claudio fixed what it could and committed it on the integration branch. It pushes nothing until you press “Push the fix”.",
       "facts": "on {{branch}}",
       "head": "{{noun}} {{ref}} stays on commit {{sha}} until you push it.",
       "button": "Push the fix",

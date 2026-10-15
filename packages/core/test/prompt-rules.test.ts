@@ -25,7 +25,7 @@ import {
 } from '../src/prompt-rules.ts';
 import { fixerPrompt, workerChecks, type FixerContext } from '../src/verification.ts';
 
-// The shared texts every prompt Agentry builds carries (docs/prompts.md). A paid run reads these
+// The shared texts every prompt Claudio builds carries (docs/prompts.md). A paid run reads these
 // words unattended, so what each one must say is pinned here, and the builders' tests pin that they
 // carry them.
 

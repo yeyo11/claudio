@@ -60,7 +60,7 @@ function header(chat: Chat, entries: TranscriptEntry[], hidden: number, depth: n
   fact('Started', chat.startedAt);
   fact('Last activity', chat.updatedAt);
   // The CLI's own figure, or none: a chat started from a terminal has no cost to show and none is worked out
-  fact('Cost', chat.cost.usd !== null ? `${usd(chat.cost.usd)} (as reported by the CLI)` : 'not reported: the CLI only reports a cost for chats Agentry started');
+  fact('Cost', chat.cost.usd !== null ? `${usd(chat.cost.usd)} (as reported by the CLI)` : 'not reported: the CLI only reports a cost for chats Claudio started');
   const total = chat.cost.total;
   if (total.total > 0) {
     fact('Tokens', `${count(total.total)} (${count(total.input)} input, ${count(total.output)} output, ${count(total.cacheRead)} cache read, ${count(total.cacheCreation)} cache write)`);

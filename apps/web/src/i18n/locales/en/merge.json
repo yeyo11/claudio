@@ -2,9 +2,9 @@
   "title": "Merge",
   "sub": "{{ref}} · {{head}} → {{base}} · {{sha}}",
   "loading": "Reading what blocks the merge…",
-  "failed": "Agentry could not read the merge state from {{host}}.",
+  "failed": "Claudio could not read the merge state from {{host}}.",
   "retry": "Try again",
-  "limited": "{{host}} is limiting reads. This is the last state Agentry had; it reads again at {{time}}.",
+  "limited": "{{host}} is limiting reads. This is the last state Claudio had; it reads again at {{time}}.",
   "badge": {
     "ready": "ready to merge",
     "warning": "can merge, with a warning",
@@ -55,8 +55,8 @@
   },
   "note": {
     "done": "When it merges, the item moves to Done on its own.",
-    "arm": "{{host}} will merge the {{noun}} when the checks finish, even if Agentry is closed.",
-    "armed": "If Agentry pushes to the branch it turns this off first and tells you, so you can turn it on again.",
+    "arm": "{{host}} will merge the {{noun}} when the checks finish, even if Claudio is closed.",
+    "armed": "If Claudio pushes to the branch it turns this off first and tells you, so you can turn it on again.",
     "pipelineWait": "Merging now could skip the pipeline of the commit you just pushed.",
     "merging": "Sending the merge to {{host}}…"
   },
@@ -73,7 +73,7 @@
   },
   "headMoved": {
     "title": "The branch changed while you were looking, and nothing was merged.",
-    "text": "Read the new changes and merge again: Agentry never merges a commit you have not seen.",
+    "text": "Read the new changes and merge again: Claudio never merges a commit you have not seen.",
     "seen": "the one you saw",
     "now": "the branch’s head now",
     "changes": "See the changes"
@@ -99,7 +99,7 @@
   },
   "update": {
     "busy": "Nothing was updated: a chat, a run or another action is working in this branch. Try again when it ends.",
-    "not-offered": "Agentry cannot update this branch: this {{noun}} has no checkout here. Update it on {{host}}.",
+    "not-offered": "Claudio cannot update this branch: this {{noun}} has no checkout here. Update it on {{host}}.",
     "not-open": "Nothing was updated: this {{noun}} is not open any more.",
     "merge-failed": "The branch could not be updated from {{base}}. Nothing was pushed."
   },
@@ -111,7 +111,7 @@
     "waiting-for-pipeline": "{{host}} has not attached the pipeline of this commit yet. Try again in a moment.",
     "rate-limited": "{{host}} is limiting requests. Try again later.",
     "forbidden": "Only a person can merge, and this account may not.",
-    "busy": "Agentry is still working on this branch: a push or another merge action is running. Try again when it ends.",
+    "busy": "Claudio is still working on this branch: a push or another merge action is running. Try again when it ends.",
     "merge-failed": "{{host}} refused the merge."
   },
   "blocker": {
@@ -223,11 +223,11 @@
     "refresh": "Check again"
   },
   "autoMergeOff": {
-    "pushing": "Agentry turned auto-merge off and is pushing to the branch. Turn it on again when the push is done.",
-    "push": "Agentry turned auto-merge off {{when}} because it pushed to the branch. Turn it on again if you still want it.",
+    "pushing": "Claudio turned auto-merge off and is pushing to the branch. Turn it on again when the push is done.",
+    "push": "Claudio turned auto-merge off {{when}} because it pushed to the branch. Turn it on again if you still want it.",
     "update": "Auto-merge was turned off {{when}} by {{who}} for Update from base. Turn it on again if you still want it.",
     "updateYou": "You turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it.",
-    "updateAgentry": "Agentry turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it."
+    "updateAgentry": "Claudio turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it."
   },
   "rebaseOnHostWhy": {
     "uncommitted-changes": "Rebase on {{host}} is not offered: the checkout has changes that are not committed, and the rebase would leave it behind.",

@@ -24,7 +24,7 @@ export interface ReleaseWatchOptions extends VersionCheckOptions {
 }
 
 /**
- * Whether a newer Agentry than this one has been released, for every client of this server: the
+ * Whether a newer Claudio than this one has been released, for every client of this server: the
  * one check a deployment runs, so a desktop window, a browser tab and a phone all agree. GitHub is
  * asked on demand or once a day, and what it said is kept in `release.json`.
  */
@@ -99,6 +99,6 @@ export class ReleaseWatch extends VersionCheck<Stored> {
     if (latest === null || !release.updateAvailable) return;
     if (this.announced !== null && compareVersions(latest, this.announced) <= 0) return;
     this.announced = latest;
-    this.events?.emit({ type: 'system.release', title: `Agentry ${latest} is available`, release });
+    this.events?.emit({ type: 'system.release', title: `Claudio ${latest} is available`, release });
   }
 }

@@ -283,7 +283,7 @@ test('the test notification names its target, counts what happened and prunes wh
   push.register({ endpoint: OTHER, keys, label: 'old phone' });
 
   assert.deepEqual(await push.test({ endpoint: ENDPOINT }), { sent: 1, removed: 0, failed: 0 });
-  assert.equal(sent.at(-1)?.payload.title, 'Agentry push works');
+  assert.equal(sent.at(-1)?.payload.title, 'Claudio push works');
 
   assert.deepEqual(await push.test(undefined), { sent: 1, removed: 1, failed: 0 });
   assert.deepEqual(

@@ -159,7 +159,7 @@ test('the tunnel is offered by default, and in the Docker image only once its en
   }
 });
 
-test('only the tailscaled the image started is Agentry\'s to sign in, and its node name is a host name', () => {
+test('only the tailscaled the image started is Claudio\'s to sign in, and its node name is a host name', () => {
   const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-managed', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-managed', 'workspace') };
   const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
   const managed = { ...docker, CLAUDIO_TAILSCALE_MANAGED: '1' };
@@ -173,7 +173,7 @@ test('only the tailscaled the image started is Agentry\'s to sign in, and its no
   assert.equal(loadConfig({ ...docker, CLAUDIO_TAILSCALE_MANAGED: '0' }).tailscaleManaged, false);
 
   assert.equal(loadConfig(base).tailscaleHostname, 'claudio');
-  assert.equal(loadConfig({ ...base, CLAUDIO_TAILSCALE_HOSTNAME: ' Agentry-Lab ' }).tailscaleHostname, 'agentry-lab');
+  assert.equal(loadConfig({ ...base, CLAUDIO_TAILSCALE_HOSTNAME: ' Claudio-Lab ' }).tailscaleHostname, 'claudio-lab');
   // It goes to the CLI's argv: nothing that could read as a flag or leave the label
   for (const value of ['-x', 'a b', 'a.b', 'x-', 'a'.repeat(64)]) {
     assert.throws(() => loadConfig({ ...base, CLAUDIO_TAILSCALE_HOSTNAME: value }), /CLAUDIO_TAILSCALE_HOSTNAME/, value);

@@ -79,7 +79,7 @@ interface Fixture {
   item: WorkItem;
   notices: ChecksFailingNotice[];
   remoteHead: () => string;
-  /** The change requests Agentry asked to turn auto-merge off for before it pushed */
+  /** The change requests Claudio asked to turn auto-merge off for before it pushed */
   disarmed: string[];
 }
 

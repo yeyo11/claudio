@@ -146,7 +146,7 @@ export interface WorkItemServiceDeps {
   db: Db;
   /**
    * The project's key prefix and column limits; null for an id that names no project. Settings
-   * outlive a project removed from Agentry, so its items keep reading with their own keys.
+   * outlive a project removed from Claudio, so its items keep reading with their own keys.
    */
   project: (projectId: string) => WorkItemProject | null;
   /** Told of every change once it is committed, never before */
@@ -200,7 +200,7 @@ export interface WorkItemCommentContext extends WorkItemContext {
   source?: WorkItemSource | null;
 }
 
-/** Agentry recording a fact about an item (its worktree, a link's chat), not anyone editing it */
+/** Claudio recording a fact about an item (its worktree, a link's chat), not anyone editing it */
 const SYSTEM: WorkItemActor = { kind: 'system', role: null };
 
 /** The prefix a key is composed with when the project's settings cannot be read at all. */

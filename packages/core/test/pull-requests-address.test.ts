@@ -129,7 +129,7 @@ test("a person's address hands the chosen thread to the Developer, and QA's pass
     assert.notEqual(f.remoteHead(), before);
     assert.equal(f.remoteHead(), sh(f.item.worktree ?? '', 'rev-parse', 'HEAD'));
     assert.match(sh(f.item.worktree ?? '', 'log', '-1', '--format=%s'), /^round the total$/);
-    assert.deepEqual(f.stub.writes, [], 'a thread is never replied to or resolved by Agentry itself');
+    assert.deepEqual(f.stub.writes, [], 'a thread is never replied to or resolved by Claudio itself');
   } finally {
     cleanup(f.s);
   }

@@ -39,7 +39,7 @@ function setup() {
   return { config, core };
 }
 
-/** A transcript the CLI wrote for a chat Agentry never drove, e.g. one started in a terminal. */
+/** A transcript the CLI wrote for a chat Claudio never drove, e.g. one started in a terminal. */
 function terminalChat(config: ReturnType<typeof tempConfig>, sessionId: string): string {
   // A real directory, since resuming the chat starts a process in it
   const cwd = join(config.workspaceDir, 'terminal-project');

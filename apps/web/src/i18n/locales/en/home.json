@@ -78,7 +78,7 @@
     "resets": "resets {{when}}",
     "allChats": "All chats",
     "noAgent": "No agent found",
-    "noAgentHint": "Agentry looks for Claude Code on your terminal's PATH. Install it and it will pick it up by itself, without pressing Refresh.",
+    "noAgentHint": "Claudio looks for Claude Code on your terminal's PATH. Install it and it will pick it up by itself, without pressing Refresh.",
     "seeProviders": "See providers",
     "signedOut": "{{label}} is signed out",
     "needsAttention": "{{label}} · {{state}}",
@@ -102,7 +102,7 @@
       "noActivity": "Working",
       "live": "live",
       "all": "See all",
-      "offline": "Agentry is not answering",
+      "offline": "Claudio is not answering",
       "offlineHint": "The page cannot reach the wrapper. Check that it is running, then try again.",
       "retry": "Try again",
       "about": "What is working now and what waits for you first."

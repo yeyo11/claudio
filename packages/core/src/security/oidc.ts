@@ -6,7 +6,7 @@ import type { OidcConfig } from '@claudio/shared';
  * JWK and verify with it, which is the whole of what checking a signed token needs.
  *
  * Only the signature, the issuer, the audience, the authorised party and the lifetime are checked.
- * Agentry never starts an authorisation code flow and never talks to the token endpoint: whoever
+ * Claudio never starts an authorisation code flow and never talks to the token endpoint: whoever
  * puts the panel behind an identity provider brings the token, from a proxy or from their own
  * client.
  */

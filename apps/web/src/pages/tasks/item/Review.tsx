@@ -379,7 +379,7 @@ export function Review({ pr, itemId, changesPath, lead }: { pr: WorkItemPullRequ
     enabled: !!id,
     retry: false,
   });
-  // GitLab only: GitHub has no approval of Agentry's to read, and its approve is a link
+  // GitLab only: GitHub has no approval of Claudio's to read, and its approve is a link
   const approval = useQuery({
     queryKey: keys.changeRequestApproval(id ?? ''),
     queryFn: ({ signal }) => api.changeRequestApproval(id ?? '', { signal }),

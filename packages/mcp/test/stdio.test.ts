@@ -7,7 +7,7 @@ import { after, before, test } from 'node:test';
 import { seed, type Seeded } from './fixture.ts';
 
 const MAIN = fileURLToPath(new URL('../src/main.ts', import.meta.url));
-const NO_URL = 'agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Agentry that started the chat\n';
+const NO_URL = 'agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat\n';
 
 let s: Seeded;
 let url: string;

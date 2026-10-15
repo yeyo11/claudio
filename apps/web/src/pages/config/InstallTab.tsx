@@ -7,7 +7,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useInstallState } from '../../lib/pwa';
 
 /**
- * Installing Agentry on the device that is reading this.
+ * Installing Claudio on the device that is reading this.
  *
  * Android and the desktop hand the page their own install prompt, which may only be shown from a
  * click — so it is held and offered as a button here. iOS has no such API and never will: the only

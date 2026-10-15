@@ -96,7 +96,7 @@ export class AuthStore {
    */
   private readonly desktopHash: string | null;
   /**
-   * The tokens minted for the CLI processes Agentry spawns. Held here, beside the guard that reads
+   * The tokens minted for the CLI processes Claudio spawns. Held here, beside the guard that reads
    * them, and never in `StoredAuth`: they live exactly as long as this process does.
    */
   readonly chatTokens: ChatTokenStore;
@@ -198,7 +198,7 @@ export class AuthStore {
 
   /**
    * Sets or rotates the bearer token and returns it once, which is the only time it exists outside
-   * the caller. A token Agentry generates is 32 random bytes: long enough that guessing it is not
+   * the caller. A token Claudio generates is 32 random bytes: long enough that guessing it is not
    * a strategy, short enough to paste.
    */
   async setToken(request: SetAuthTokenRequest = {}): Promise<AuthTokenResult> {

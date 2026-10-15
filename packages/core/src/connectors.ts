@@ -9,7 +9,7 @@ const HEALTH_TIMEOUT_MS = 90_000;
 const TTL_MS = 60_000;
 const CLAUDE_AI_PREFIX = 'claude.ai ';
 
-/** The kinds Agentry has prepared actions for; anything else claude.ai offers is listed as `other`. */
+/** The kinds Claudio has prepared actions for; anything else claude.ai offers is listed as `other`. */
 const KNOWN_KINDS: ConnectorKind[] = ['docs', 'gmail', 'calendar'];
 
 const ACTIONS: Record<Exclude<ConnectorKind, 'other'>, ConnectorAction[]> = {
@@ -53,7 +53,7 @@ export const CONNECTOR_GUIDE: ConnectorGuide = {
     },
     {
       code: 'connectors.authorise.refresh',
-      text: 'Then refresh this page: Agentry only reads the state the CLI reports and cannot authorise a connector for you.',
+      text: 'Then refresh this page: Claudio only reads the state the CLI reports and cannot authorise a connector for you.',
     },
   ],
   links: [
@@ -68,7 +68,7 @@ export const CONNECTOR_LIMITS: ConnectorLimit[] = [
     name: 'Web artifacts',
     reason: {
       code: 'connectors.unavailable.webArtifacts',
-      text: 'The artifacts made in claude.ai have no public API and no CLI command, so Agentry cannot list, read or create them.',
+      text: 'The artifacts made in claude.ai have no public API and no CLI command, so Claudio cannot list, read or create them.',
     },
   },
   {

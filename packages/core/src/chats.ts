@@ -105,7 +105,7 @@ const STOPPED = 'the chat was stopped before the agent read it';
 /** ...and when its process ended for another reason, with nothing better to say */
 const ENDED = 'the process ended before the agent read it';
 
-/** A message Agentry sends of its own accord (a first prompt, a resume): an id of its own, now. */
+/** A message Claudio sends of its own accord (a first prompt, a resume): an id of its own, now. */
 const sent = (text: string, attachments: Attachment[] = []): SentMessage => ({ id: randomUUID(), text, attachments, sentAt: now() });
 
 /** The person's entry for a message, under the message's id: the id the agent's transcript gives it too. */
@@ -162,7 +162,7 @@ export class ChatManager extends EventEmitter {
    */
   chatTokens = new ChatTokenStore();
   /**
-   * What an Agentry assistant chat runs with, from the marker it stores. Core sets it; without it
+   * What an Claudio assistant chat runs with, from the marker it stores. Core sets it; without it
    * such a chat is refused rather than started unconfined.
    */
   assistantLaunch: ((marker: AgentryAssistantMarker) => AssistantChatOptions) | null = null;
@@ -436,7 +436,7 @@ export class ChatManager extends EventEmitter {
   /**
    * What the process working on a chat is doing right now, read from the events it streamed: when
    * it last did anything, and the shell commands it started and has not had an answer to. Null
-   * when Agentry has no process on the chat, which is when there is nothing to watch. Only the
+   * when Claudio has no process on the chat, which is when there is nothing to watch. Only the
    * live execution counts: a command a previous wrapper left unanswered is not running.
    */
   pulse(id: string): ChatPulse | null {
@@ -459,7 +459,7 @@ export class ChatManager extends EventEmitter {
   /**
    * Every tool call the live execution has made and what came back, with the CLI's heartbeats for
    * the ones still running: what the signals of a worker that is busy and getting nowhere are read
-   * from. Null when Agentry has no process on the chat. A turn that ended closes whatever was still
+   * from. Null when Claudio has no process on the chat. A turn that ended closes whatever was still
    * open in it, so a call an interrupt left without an answer is not a command running for ever.
    */
   trace(id: string): Trace | null {
@@ -539,7 +539,7 @@ export class ChatManager extends EventEmitter {
   /**
    * The messages a chat's process streamed, oldest first: what its transcript would hold, for a
    * chat that keeps none (housekeeping ones run without persistence, and a new one has written
-   * nothing yet). Null when Agentry has no such chat.
+   * nothing yet). Null when Claudio has no such chat.
    */
   messages(id: string): TranscriptEntry[] | null {
     const chat = this.chats.get(id);
@@ -566,7 +566,7 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * Starts a new chat: a new session, under an id Agentry chooses and imposes on the CLI. Continuing
+   * Starts a new chat: a new session, under an id Claudio chooses and imposes on the CLI. Continuing
    * a conversation that exists is `resume` (the same chat) or `fork` (a new one), never this.
    */
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
@@ -1052,15 +1052,15 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * An Agentry assistant chat gets its tools, mode, prompt and confinement set again before every
+   * An Claudio assistant chat gets its tools, mode, prompt and confinement set again before every
    * process, over what the request or an earlier execution put in its options: nothing a request can
    * say widens it, and a restart, a resume or a fork cannot lose it.
    */
   private confineAssistant(chat: LiveChat): void {
     const marker = chat.opts.agentryAssistant;
     if (!marker) return;
-    if (!this.assistantLaunch) throw new ChatRefusal('the Agentry assistant is not available here');
-    if (chat.provider !== LEGACY_PROVIDER) throw new ChatRefusal('the Agentry assistant runs on Claude Code only');
+    if (!this.assistantLaunch) throw new ChatRefusal('the Claudio assistant is not available here');
+    if (chat.provider !== LEGACY_PROVIDER) throw new ChatRefusal('the Claudio assistant runs on Claude Code only');
     const { opts } = chat;
     const launch = this.assistantLaunch(marker);
     for (const key of ['agent', 'agentsFile', 'toolPreset', 'worktree', 'jsonSchema', 'maxBudgetUsd', 'systemPromptSnapshot', 'internal', 'api'] as const) delete opts[key];
@@ -1349,7 +1349,7 @@ export class ChatManager extends EventEmitter {
     const uploads = this.uploads;
     const shown = chat.session?.send({ id: message.id, text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
     const entry = userEntry(message, shown);
-    // A provider whose transcript Agentry keeps itself has no other record of what the person said
+    // A provider whose transcript Claudio keeps itself has no other record of what the person said
     recordEntry(this.host, chat, entry);
     if (announce) chat.push({ kind: 'message', entry });
     chat.setStatus('busy');
@@ -1404,7 +1404,7 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * The chat's turns are held to a structured result, which only a run Agentry started on its own
+   * The chat's turns are held to a structured result, which only a run Claudio started on its own
    * asks for (a flow run, the assistant): whoever started it heard its result already.
    */
   heldToSchema(id: string): boolean {
@@ -1425,7 +1425,7 @@ export class ChatManager extends EventEmitter {
     return this.chats.get(id)?.rateLimited === true;
   }
 
-  /** The provider's reading as it stands for the chat's provider; null for a chat Agentry does not drive. */
+  /** The provider's reading as it stands for the chat's provider; null for a chat Claudio does not drive. */
   limitOf(id: string): ProviderLimit | null {
     const chat = this.chats.get(id);
     return chat ? this.limits.get(chat.provider) : null;

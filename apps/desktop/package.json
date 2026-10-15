@@ -2,7 +2,7 @@
   "name": "@claudio/desktop",
   "version": "0.37.1",
   "private": true,
-  "description": "Electron desktop shell for Agentry",
+  "description": "Electron desktop shell for Claudio",
   "homepage": "https://github.com/yeyo11/claudio",
   "license": "MIT",
   "author": {

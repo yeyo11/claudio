@@ -182,7 +182,7 @@ function load(shell: readonly string[] = SHELL, options: WorkerOptions = {}): Wo
   const fakeCaches = new FakeCaches(broken);
   for (const name of seeded) void fakeCaches.open(name);
   if (pushState) {
-    void fakeCaches.open('agentry-push').then((cache) => cache.entries.set('/__agentry-push-state', { json: () => Promise.resolve(pushState) }));
+    void fakeCaches.open('claudio-push').then((cache) => cache.entries.set('/__claudio-push-state', { json: () => Promise.resolve(pushState) }));
   }
   const fetched: string[] = [];
   const sent: Sent[] = [];
@@ -389,7 +389,7 @@ test('the manifest describes an installable, standalone app at the root', () => 
   assert.equal(app['scope'], '/');
   assert.equal(app['display'], 'standalone');
   assert.equal(app['orientation'], 'any');
-  assert.equal(app['name'], 'Agentry');
+  assert.equal(app['name'], 'Claudio');
 
   const icons = app['icons'] as Array<Record<string, string>>;
   const sizes = icons.map((icon) => `${icon['sizes']} ${icon['purpose']}`);
@@ -439,7 +439,7 @@ const WAITING = {
   orchestrationId: null,
 };
 
-const FALLBACK = { title: 'Agentry', body: 'Something is waiting for you.' };
+const FALLBACK = { title: 'Claudio', body: 'Something is waiting for you.' };
 // `QUJD` is `ABC`: enough to prove the key reaches `subscribe` as the bytes it was stored as
 const STATE = { applicationServerKey: 'QUJD', kinds: ['waiting', 'limit'], label: 'Android · Chrome · PWA', fallback: FALLBACK };
 
@@ -607,7 +607,7 @@ test('the worker and the page name the same cache for the state they share', () 
 
 // ---------- After the tunnel's address changed ----------
 //
-// The tunnel's tailnet address can move (a renamed node, another port), and a phone that installed Agentry on one keeps its worker
+// The tunnel's tailnet address can move (a renamed node, another port), and a phone that installed Claudio on one keeps its worker
 // and its push subscription: both belong to the registration of the old origin, and the push service
 // delivers by endpoint, whatever that origin now answers. The server puts its current address in
 // every push; these are the rules the old worker follows with it.

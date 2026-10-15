@@ -156,7 +156,7 @@ export function NotReadyNote({ readiness, className = '' }: { readiness: PullReq
 
 /**
  * One quiet line under the board's toolbar while the project's checkout is behind its default branch,
- * with the reason Agentry did not bring it forward. Never a command to copy.
+ * with the reason Claudio did not bring it forward. Never a command to copy.
  */
 export function CheckoutLine({ checkout }: { checkout: BoardCheckout | null | undefined }) {
   const { t } = useTranslation('tasks');

@@ -28,7 +28,7 @@ import {
 import { RESOLVE_MUTATION, THREAD_COMMENTS_QUERY, THREADS_QUERY, UNRESOLVE_MUTATION } from './queries/threads.ts';
 
 // Arguments and fields are what gh 2.92.0 and 2.102.0 were recorded to take and print for reviews
-// (r0-NOTES.md, docs/plans/code-hosts.md matrix D). Agentry posts a comment review only: approving
+// (r0-NOTES.md, docs/plans/code-hosts.md matrix D). Claudio posts a comment review only: approving
 // and requesting changes stay on GitHub (owner decision 1), so those calls are not built.
 
 const scope = (repo: HostRepo): string => `repos/${repo.owner}/${repo.name}`;
@@ -286,7 +286,7 @@ export const githubReviews: ReviewsAdapter = {
   approvals: () => null,
 
   parseApprovals(): ApprovalState {
-    // Agentry does not approve on GitHub: the decision is `reviewers`'s
+    // Claudio does not approve on GitHub: the decision is `reviewers`'s
     return { approved: false, approvalsRequired: null, approvalsLeft: null, viewerHasApproved: false, canApprove: false, canRevoke: false, approvedBy: [], headSha: null };
   },
 

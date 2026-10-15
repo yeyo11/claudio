@@ -110,7 +110,7 @@ test('the tracker issues and the import are refused with a reason when they cann
   assert.equal((await app.inject(issues)).statusCode, 409);
   assert.equal((await app.inject({ method: 'POST', url: importUrl, ...json({ keys: ['1'] }) })).statusCode, 409);
 
-  // Jira is not a tracker Agentry supports
+  // Jira is not a tracker Claudio supports
   const jira = { id: 'jira', scope: 'PROJ', query: '', statusMap: {} };
   assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/tracker`, ...json(jira) })).statusCode, 400);
 

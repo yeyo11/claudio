@@ -8,7 +8,7 @@ export interface ChatSpend {
   orchestration: { id: string; name: string } | null;
   /** From the transcript: tokens per day and model, sidechains included */
   days: DayTokens[];
-  /** What the CLI reported, per day it was spent: only chats Agentry launched have any */
+  /** What the CLI reported, per day it was spent: only chats Claudio launched have any */
   costs: Array<{ day: string; usd: number }>;
   /**
    * The same money split by model, as the CLI reported it per model; a cost with no split (an
@@ -72,7 +72,7 @@ const bySpent = (a: { totals: UsageTotals }, b: { totals: UsageTotals }): number
 
 /**
  * Sums what the chats spent per day, per project and per orchestration, over the days asked for.
- * Tokens come from transcripts, so they cover every chat; cost only exists for what Agentry
+ * Tokens come from transcripts, so they cover every chat; cost only exists for what Claudio
  * launched, so it is summed where there is one and each total says how many chats it leaves out.
  * Nothing here is estimated.
  */

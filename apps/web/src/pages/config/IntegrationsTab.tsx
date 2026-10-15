@@ -24,7 +24,7 @@ const latestCheck = (list: Array<{ checkedAt: string }>): string | null =>
   list.reduce<string | null>((latest, s) => (latest === null || s.checkedAt > latest ? s.checkedAt : latest), null);
 
 /**
- * The code host CLIs Agentry reaches (gh, glab): each one's state in words, the host names it knows
+ * The code host CLIs Claudio reaches (gh, glab): each one's state in words, the host names it knows
  * with their accounts, and a binary of the person's own when the search cannot find one. Nothing is
  * stored but that path; the sessions are the programs' own.
  */

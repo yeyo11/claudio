@@ -181,7 +181,7 @@ test('the notices of the item page show on the orchestration block too', () => {
       limitedUntil: '2026-10-01T10:30:00Z',
     }),
   );
-  assert.match(html, /Agentry turned auto-merge off and is pushing to the branch/);
+  assert.match(html, /Claudio turned auto-merge off and is pushing to the branch/);
   assert.match(html, /commits that were never pushed/);
   assert.match(html, /GitLab is limiting reads/);
 });

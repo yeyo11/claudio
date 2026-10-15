@@ -3,7 +3,7 @@
   "title": "Conectores",
   "subtitle": "consultado {{when}}",
   "subtitleLoading": "Preguntando al CLI…",
-  "intro": "Los conectores de claude.ai de la cuenta con la sesión iniciada, tal como los lista Claude Code. Agentry solo lee esta lista: no puede autorizar, cambiar ni llamar a un conector por sí mismo.",
+  "intro": "Los conectores de claude.ai de la cuenta con la sesión iniciada, tal como los lista Claude Code. Claudio solo lee esta lista: no puede autorizar, cambiar ni llamar a un conector por sí mismo.",
   "refresh": "Preguntar al CLI otra vez",
   "refreshing": "Preguntando…",
   "cliFailed": "El CLI no ha podido listar sus conectores",
@@ -39,7 +39,7 @@
   },
   "unavailable": {
     "title": "Fuera de alcance",
-    "intro": "Agentry habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:",
-    "short": "{{items}} quedan fuera del alcance de Agentry."
+    "intro": "Claudio habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:",
+    "short": "{{items}} quedan fuera del alcance de Claudio."
   }
 }

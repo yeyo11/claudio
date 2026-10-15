@@ -7,7 +7,7 @@ import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, type CoreCon
 
 /*
  * Settings that used to be read from the environment once, at startup, and can now change while
- * Agentry runs. Each is read from three layers in a fixed order: the environment, then
+ * Claudio runs. Each is read from three layers in a fixed order: the environment, then
  * `app-settings.json` in the data directory, then the default. The environment wins because it is
  * what whoever deployed the install decided, and the UI must not quietly override a deploy; it
  * shows such a value read-only instead, the way `CLAUDIO_AUTH_TOKEN` already works for the guard.
@@ -181,7 +181,7 @@ export class AppSettingsStore implements RunDefaults {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));
       } catch {
         // Not thrown: the defaults are what an install that never wrote the file runs on, so they
-        // are safe to start with, and a broken settings file must not keep Agentry from starting.
+        // are safe to start with, and a broken settings file must not keep Claudio from starting.
         // Writes are refused, or the next one would overwrite whatever the person meant to keep.
         this.broken = `${this.file} is not valid JSON; fix or remove it`;
       }

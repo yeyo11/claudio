@@ -88,10 +88,10 @@ test("hosts added in the UI add to the environment's, which stay fixed", async (
   assert.equal(store.get().sources.allowedHosts, 'env');
 
   // Sending back the whole list read stores only the UI's part; an environment host cannot be dropped
-  const changed = await store.update({ allowedHosts: ['192.168.1.184', 'agentry.example.com'] });
-  assert.deepEqual(changed.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'agentry.example.com']);
-  assert.deepEqual(changed.allowedHostLayers.file, ['agentry.example.com']);
-  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { allowedHosts: ['agentry.example.com'] });
+  const changed = await store.update({ allowedHosts: ['192.168.1.184', 'claudio.example.com'] });
+  assert.deepEqual(changed.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'claudio.example.com']);
+  assert.deepEqual(changed.allowedHostLayers.file, ['claudio.example.com']);
+  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { allowedHosts: ['claudio.example.com'] });
   // A new array, so the guard knows to rebuild its allowlist
   assert.notEqual(store.allowedHosts, guardList);
 
@@ -123,11 +123,11 @@ test('a change is written to the file, survives a restart, and goes out on the e
   const events: AgentryEvent[] = [];
   const store = new AppSettingsStore(c, { emit: (event) => events.push({ ...event, id: events.length + 1, at: '' } as AgentryEvent) });
 
-  const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Agentry.Example.com ', '*.preview.example.com', 'agentry.example.com'] });
-  assert.deepEqual(changed.allowedHosts, ['agentry.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
+  const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Claudio.Example.com ', '*.preview.example.com', 'claudio.example.com'] });
+  assert.deepEqual(changed.allowedHosts, ['claudio.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
   assert.deepEqual(changed.sources, { allowedHosts: 'file', maxConcurrentRuns: 'file', defaultPermissionMode: 'default', setupSeen: 'default' });
   // Only what was set is stored: a default the person never chose keeps following the default
-  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { maxConcurrentRuns: 2, allowedHosts: ['agentry.example.com', '*.preview.example.com'] });
+  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { maxConcurrentRuns: 2, allowedHosts: ['claudio.example.com', '*.preview.example.com'] });
 
   const [event] = events;
   assert.equal(event?.type, 'settings.changed');
@@ -139,7 +139,7 @@ test('a change is written to the file, survives a restart, and goes out on the e
 test('what the environment refuses is refused from the file too, whichever way it gets there', async () => {
   const c = config();
   const store = new AppSettingsStore(c);
-  for (const host of ['*.com', '*', 'a.*.example.com', 'ex*mple.com', 'agentry.example.com:8787', 'has space.example.com', 'http://x.example.com', '']) {
+  for (const host of ['*.com', '*', 'a.*.example.com', 'ex*mple.com', 'claudio.example.com:8787', 'has space.example.com', 'http://x.example.com', '']) {
     await assert.rejects(store.update({ allowedHosts: [host] }), /allowedHosts/, JSON.stringify(host));
   }
   for (const value of [0, 1.5, 65, '4', null]) {

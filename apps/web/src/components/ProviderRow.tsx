@@ -183,7 +183,7 @@ function ActionButton({
   );
   switch (action.kind) {
     case 'sign-in': {
-      // The panel signs in inside Agentry, with nothing that opens elsewhere; without one, Claude
+      // The panel signs in inside Claudio, with nothing that opens elsewhere; without one, Claude
       // Code goes to Settings → Account and the others to their vendor's page
       if (onSignIn) {
         return (

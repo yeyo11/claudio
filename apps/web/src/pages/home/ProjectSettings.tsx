@@ -19,7 +19,7 @@ const SECTIONS = ['instructions', 'settings', 'mcp', 'files'] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 /**
- * A project's settings: Agentry's own first (name, key prefix, modules, board limits), then the
+ * A project's settings: Claudio's own first (name, key prefix, modules, board limits), then the
  * Claude Code configuration that lives in the project: CLAUDE.md, settings, MCP servers and files.
  */
 export function ProjectSettings({ project }: { project: Project }) {

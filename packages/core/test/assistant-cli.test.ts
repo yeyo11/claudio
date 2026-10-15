@@ -225,7 +225,7 @@ async function spawned(file: string, match: (argv: string) => boolean, what: str
 }
 
 // The flow's hand-back and the assistant's confinement meet in ChatService.resume: an assistant
-// chat is one of Agentry's runs, so a person continuing it is handed it back, and the run's own
+// chat is one of Claudio's runs, so a person continuing it is handed it back, and the run's own
 // continuation after a restart must still come back confined through that same path.
 test('a person who continues an assistant chat through the core gets an ordinary chat, with no rule or recorded prompt of the run', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };

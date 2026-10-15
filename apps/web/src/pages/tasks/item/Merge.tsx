@@ -196,7 +196,7 @@ export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPull
   const primaryClass = (lead: boolean) => `btn btn-small ${lead ? 'btn-primary' : ''}`.trim();
   const lead = leading === 'merge';
 
-  /** A remedy: an Agentry call, a link to the host, or a move inside the page. */
+  /** A remedy: an Claudio call, a link to the host, or a move inside the page. */
   const remedyButton = (blocker: MergeBlocker): ReactNode => {
     const action = blocker.action;
     if (!action) return null;

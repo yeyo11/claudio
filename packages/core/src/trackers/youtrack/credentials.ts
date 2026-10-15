@@ -37,7 +37,7 @@ const HOST = 'YOUTRACK_HOST';
 const TOKEN = 'YOUTRACK_TOKEN';
 
 /**
- * The one secret Agentry keeps for a tracker (code hosts decision 3): YouTrack's address and
+ * The one secret Claudio keeps for a tracker (code hosts decision 3): YouTrack's address and
  * permanent token, in the secret vault under `youtrack`, as the two variables `youtrack-app` reads.
  * The token is never returned by a route and never put in argv: it reaches `youtrack-app` only
  * through the child's environment (`childEnv`, by way of `hosts/env.ts`).

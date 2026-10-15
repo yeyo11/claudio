@@ -30,7 +30,7 @@ import type { CoreConfig } from './paths.ts';
 /*
  * Web Push, served by this wrapper and nobody else. The server signs a VAPID JWT with its own
  * keypair and posts the encrypted payload to whatever endpoint the browser handed us, so a
- * self-hosted Agentry behind a NAT still reaches a phone: the connection is outbound.
+ * self-hosted Claudio behind a NAT still reaches a phone: the connection is outbound.
  *
  * What is worth a notification is not decided here. `notificationsFor` in `@claudio/shared` is the
  * same function the browser runs on the same event, which is the only way the in-page toast and the
@@ -222,7 +222,7 @@ export class PushService {
   /**
    * The tunnel's public address while it is active, followed on the bus rather than asked of the
    * tunnel, so the sender needs nothing wired to it. Every push carries it, and a phone that
-   * installed Agentry on an earlier address opens this one instead of its own.
+   * installed Claudio on an earlier address opens this one instead of its own.
    */
   private publicUrl: string | null = null;
   /** In flight while the keypair is being made, so a burst of events cannot each make their own */
@@ -307,7 +307,7 @@ export class PushService {
     return this.deliver(targets, {
       kind: 'activity',
       key: `${TEST_PUSH_KEY_PREFIX}${at}`,
-      title: 'Agentry push works',
+      title: 'Claudio push works',
       body: 'This is the test notification you asked for.',
       href: null,
       url: absoluteOn(this.publicUrl, null),

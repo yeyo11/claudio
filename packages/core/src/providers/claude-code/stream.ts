@@ -261,7 +261,7 @@ export class ClaudeStream {
       return;
     }
 
-    // Any other protocol event is one Agentry has no use for
+    // Any other protocol event is one Claudio has no use for
   }
 
   /** What a `task_*` event says, in the neutral words. A task's kind is told once, by its `task_started`. */

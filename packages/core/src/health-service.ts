@@ -26,7 +26,7 @@ export interface HealthBase {
 const FINGERPRINT_TTL_MS = 10_000;
 
 /**
- * The health of chats that have a process of Agentry's: the signals of `chat-model.ts` and
+ * The health of chats that have a process of Claudio's: the signals of `chat-model.ts` and
  * `health.ts`, fed with what the runtime has seen (the calls, the heartbeats), the history of how
  * long commands take, and what the worktree shows. Reading it changes nothing beyond a small cache,
  * so a UI polling for it and the monitor watching for it agree.

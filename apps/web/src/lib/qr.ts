@@ -1,5 +1,5 @@
 /*
- * A QR code encoder (ISO/IEC 18004) for the one thing Agentry draws as a QR: a tunnel's address,
+ * A QR code encoder (ISO/IEC 18004) for the one thing Claudio draws as a QR: a tunnel's address,
  * for a phone to scan off the screen. Byte mode, error correction level M, versions 1 to 10, which
  * holds 213 bytes; an `https://<id>.lhr.life` address is about 30. Written here rather than taken
  * from a package: this subset is small, and a dependency would ship every mode and version for it.

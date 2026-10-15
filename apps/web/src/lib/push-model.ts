@@ -18,8 +18,8 @@ import type { NotificationKind } from '@claudio/shared';
  * kinds this install asked for, or what language to fall back to. The same two names are written
  * into `public/sw.js`, and a test asserts they still match.
  */
-export const PUSH_STATE_CACHE = 'agentry-push';
-export const PUSH_STATE_KEY = '/__agentry-push-state';
+export const PUSH_STATE_CACHE = 'claudio-push';
+export const PUSH_STATE_KEY = '/__claudio-push-state';
 
 export interface PushFallbackText {
   title: string;
@@ -41,7 +41,7 @@ export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported';
 
 /** What the page can see about this browser, gathered once so the decision below stays pure. */
 export interface PushEnvironment {
-  /** `window.isSecureContext`: false for `http://192.168.1.10:8797`, which is how most run Agentry */
+  /** `window.isSecureContext`: false for `http://192.168.1.10:8797`, which is how most run Claudio */
   secure: boolean;
   serviceWorker: boolean;
   pushManager: boolean;

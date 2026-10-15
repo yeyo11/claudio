@@ -19,7 +19,7 @@ import { useProviders, useRefreshProviders } from '../../lib/providers';
 import { LimitBars } from './providers/LimitBars';
 
 /**
- * Claude Code: its state, the account it signs in with, the binary Agentry runs and the usage
+ * Claude Code: its state, the account it signs in with, the binary Claudio runs and the usage
  * limit. A change of binary is one PUT of the whole document; the status comes from the detector
  * and is read again when `providers.changed` arrives.
  */
@@ -156,7 +156,7 @@ export function ProvidersTab() {
 const WORKS: ReadonlySet<ProviderStatus['state']> = new Set(['ready', 'degraded', 'signed-out']);
 
 /**
- * The binary override: the path Agentry runs instead of searching the PATH. On desktop it opens
+ * The binary override: the path Claudio runs instead of searching the PATH. On desktop it opens
  * under the row; on a phone it fills a sheet.
  */
 function BinaryEditor({

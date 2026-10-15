@@ -10,7 +10,7 @@ export interface NavItem {
   icon: LucideIcon;
   /** What the badge counts, for the screen reader */
   count?: { value: number | undefined; what: string; live?: boolean };
-  /** Something here wants a look (a newer Agentry): shown as a dot, and this is what it says to a screen reader */
+  /** Something here wants a look (a newer Claudio): shown as a dot, and this is what it says to a screen reader */
   dot?: string;
   /** Where the link lands inside the page, e.g. the settings tab the dot is about */
   search?: string;

@@ -48,7 +48,7 @@ export function mergeTargetOf(base: ChecksTarget, host: CodeHostId, adapter: Mer
   if (!place) return target;
   const { home, worktree } = place;
 
-  // `git cat-file -e <sha>:<path>`: the commit is local when Agentry pushed it; another person's push is fetched first
+  // `git cat-file -e <sha>:<path>`: the commit is local when Claudio pushed it; another person's push is fetched first
   target.fileAt = async (sha, path) => {
     const exists = async (): Promise<boolean | null> => {
       try {

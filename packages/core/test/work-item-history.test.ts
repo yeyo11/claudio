@@ -16,7 +16,7 @@ const labels = (history: WorkItemHistoryEntry[]) =>
     .filter((e) => e.change === 'link')
     .map((e) => [e.from && typeof e.from === 'object' && 'label' in e.from ? e.from.label : null, e.to && typeof e.to === 'object' && 'label' in e.to ? e.to.label : null]);
 
-test("a chat Agentry does not run is named in an item's history by its title, not its id", async () => {
+test("a chat Claudio does not run is named in an item's history by its title, not its id", async () => {
   const config = tempConfig();
   const dir = mkdtempSync(join(tmpdir(), 'agentry-history-'));
   const transcripts = join(config.projectsDir, encodeProjectId(dir));

@@ -5,7 +5,7 @@ import type { ModelOption, ProviderMove, ProviderMoveState, ProviderStatus, Prov
 /**
  * Claude Code's detection (served from the detector's cache), a re-detection on demand and the
  * settings document; and what happens at its usage limit: the waits so far and stopping one.
- * Validation lives in core. The writes that name a binary Agentry runs are refused to a chat's token
+ * Validation lives in core. The writes that name a binary Claudio runs are refused to a chat's token
  * in `security.ts`.
  */
 

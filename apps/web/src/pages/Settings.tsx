@@ -148,7 +148,7 @@ function useTabSubtitle(tab: TabId): string | null {
   if (tab === 'appearance') return t('shell:appearance.intro');
   if (tab === 'providers') return t('providers:intro');
   if (tab === 'integrations') return t('integrations:intro');
-  // Tool presets are Agentry's own, kept by the server and not in ~/.claude
+  // Tool presets are Claudio's own, kept by the server and not in ~/.claude
   if (CLAUDE_GROUPS.has(groupOf(tab)) && tab !== 'tools') return t('config.userScope');
   return null;
 }

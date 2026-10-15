@@ -35,7 +35,7 @@ const VISIBLE_PROPS = new Set(['body', 'cancelLabel', 'confirmLabel', 'descripti
 const ALLOWED: ReadonlyArray<{ text: string; why: string }> = [
   { text: 'command not found', why: "the shell's own error, drawn in the cli-missing illustration's terminal" },
   { text: '19 min', why: 'a sample reset time in the quota illustration, written the same in every language' },
-  { text: 'Agentry', why: 'the product name, the same in every language' },
+  { text: 'Claudio', why: 'the product name, the same in every language' },
   { text: 'GitHub Issues', why: "a tracker's own name, a proper noun that is never translated" },
   { text: 'GitLab Issues', why: "a tracker's own name, a proper noun that is never translated" },
   { text: 'Tailscale', why: "the network's own name, a proper noun that is never translated" },

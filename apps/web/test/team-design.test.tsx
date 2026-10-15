@@ -255,7 +255,7 @@ test("a failed run says why in the person's language, keeps the raw error, and o
   assert.match(html, /flow-run-retry/);
   assert.match(words, /Reintentar/);
   // Retried: what the retry did, leading to its chat, and no second "Reintentar"
-  assert.match(words, /Se cortó 3 veces\. Agentry se reinició mientras QA trabajaba/);
+  assert.match(words, /Se cortó 3 veces\. Claudio se reinició mientras QA trabajaba/);
   assert.match(html, /href="\/chats\/chat-r"[^>]*>Reintentada: pasó hace 12 min</);
   assert.equal((html.match(/flow-run-retry/g) ?? []).length, 1);
   // A run whose item was deleted: said as gone, and why the run never started

@@ -109,7 +109,7 @@ test('the version and the readiness come from the CLI output as measured on 1.10
   assert.equal(readinessFromStatus({ ...running, CertDomains: null }, '1.102.4').reason?.code, 'tunnel.httpsOff');
 });
 
-test("only an HTTPS listener with one `/` proxy to this server is Agentry's; anything else on the port is the person's", () => {
+test("only an HTTPS listener with one `/` proxy to this server is Claudio's; anything else on the port is the person's", () => {
   assert.equal(servePortUse({}, 8444, NODE, TARGET), 'free');
   assert.equal(servePortUse({ TCP: { '443': { HTTPS: true } }, Web: { [`${NODE}:443`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:3000' } } } } }, 8444, NODE, TARGET), 'free');
   assert.equal(servePortUse(ours(), 8444, NODE, TARGET), 'match');
@@ -137,7 +137,7 @@ test('where the deploy does not offer the tunnel, start is refused and the CLI i
   assert.deepEqual(r.calls(), []);
 });
 
-test('start with Agentry, saved before the operator turned the tunnel off, does not open it', async (t) => {
+test('start with Claudio, saved before the operator turned the tunnel off, does not open it', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-'));
   const first = rig(t, { root, attach: false });
   await first.manager.updateSettings({ startWithAgentry: true });
@@ -175,7 +175,7 @@ test('each way Tailscale is not ready is a state of its own, and start fails wit
   }
 });
 
-test('the daemon Agentry runs sends the person to its sign-in, never to a terminal they do not have', async (t) => {
+test('the daemon Claudio runs sends the person to its sign-in, never to a terminal they do not have', async (t) => {
   const cases: { node: FakeNode; state: string; code: string }[] = [
     { node: { daemon: false }, state: 'daemonDown', code: 'tunnel.managedDaemonDown' },
     { node: { backendState: 'NeedsLogin' }, state: 'loggedOut', code: 'tunnel.managedLoggedOut' },
@@ -234,12 +234,12 @@ test('a port that already serves something else is left alone, and the tunnel sa
   assert.deepEqual(r.hosts.list(), []);
 });
 
-test('the same rule with no record of Agentry adding it is not adopted', async (t) => {
+test('the same rule with no record of Claudio adding it is not adopted', async (t) => {
   const r = rig(t, { node: { serve: ours() } });
   const status = await openTunnel(r);
   assert.equal(status.reason?.code, 'tunnel.portTaken');
   await r.manager.stop();
-  assert.deepEqual(r.node().serve, ours(), 'a rule Agentry did not add is never removed');
+  assert.deepEqual(r.node().serve, ours(), 'a rule Claudio did not add is never removed');
 });
 
 test('a user who is not the node operator gets the command that fixes it, and nothing is left behind', async (t) => {
@@ -313,7 +313,7 @@ test('a node renamed while the tunnel is open moves the allowed host with it', a
   assert.deepEqual(r.node().serve, {});
 });
 
-test('start with Agentry is off by default, is kept, and opens the tunnel on the next attach', async (t) => {
+test('start with Claudio is off by default, is kept, and opens the tunnel on the next attach', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-settings-'));
   const first = rig(t, { root });
   assert.equal(first.manager.status().settings.startWithAgentry, false);
@@ -332,7 +332,7 @@ test('start with Agentry is off by default, is kept, and opens the tunnel on the
   second.manager.shutdown();
   assert.deepEqual(second.node().serve, {});
 
-  // Asked to start with Agentry on a wrapper without authentication: says why instead of opening
+  // Asked to start with Claudio on a wrapper without authentication: says why instead of opening
   const third = rig(t, { root, mode: 'none' });
   await until(() => third.manager.status().state === 'failed', 'failed');
   assert.equal(third.manager.status().reason?.code, 'tunnel.authRequired');

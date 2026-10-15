@@ -27,7 +27,7 @@
     "workers": "Workers de orquestación",
     "workersHint": "Los chats que llevan a cabo las tareas de una orquestación: su sitio es el tablero de la orquestación",
     "internal": "Internos",
-    "internalHint": "Chats de mantenimiento del propio Agentry (el planificador, la comprobación de la autenticación)",
+    "internalHint": "Chats de mantenimiento del propio Claudio (el planificador, la comprobación de la autenticación)",
     "emptyFiltered": "Ningún chat coincide",
     "empty": "Aún no hay chats",
     "emptyFilteredBody": "Nada de esta lista coincide con la búsqueda ni con los filtros aplicados.",
@@ -103,7 +103,7 @@
   },
   "new": {
     "title": "Nuevo chat",
-    "subtitle": "Inicia una conversación con {{agent}} que Agentry conserva",
+    "subtitle": "Inicia una conversación con {{agent}} que Claudio conserva",
     "prompt": "Prompt",
     "promptHint": "Suelta o pega archivos sobre el prompt para adjuntarlos.",
     "promptPlaceholder": "¿Qué debería hacer {{agent}}?",

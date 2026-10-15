@@ -6,12 +6,12 @@ import { BrandMark, ProgramMark, brandOf } from '@claudio/ui/components/BrandMar
 import { ProviderMark } from '@claudio/ui/components/ProviderMark';
 import { BRAND_ART } from '../../../packages/ui/src/components/brand-art';
 
-// The official marks of the programs Agentry names (design system, "Brand marks"): every program
+// The official marks of the programs Claudio names (design system, "Brand marks"): every program
 // it knows has one, a tracker on a host wears its host's, and one it does not know keeps its monogram.
 
 const PROGRAMS = ['github', 'gitlab', 'youtrack', 'claude-code'];
 
-test('every program Agentry names has an official mark, with real art', () => {
+test('every program Claudio names has an official mark, with real art', () => {
   for (const id of PROGRAMS) {
     assert.ok(brandOf(id), `${id} has a mark`);
     const art = BRAND_ART[brandOf(id) ?? ''];

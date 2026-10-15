@@ -80,7 +80,7 @@ function setup(support: Support = SUPPORTED) {
 }
 
 test('the package is told apart the way electron-updater does: APPIMAGE first, then package-type', () => {
-  assert.equal(distributionOf({ appImage: '/home/me/Agentry.AppImage', packageType: undefined }), 'appimage');
+  assert.equal(distributionOf({ appImage: '/home/me/Claudio.AppImage', packageType: undefined }), 'appimage');
   assert.equal(distributionOf({ appImage: undefined, packageType: 'deb\n' }), 'deb');
   assert.equal(distributionOf({ appImage: undefined, packageType: 'rpm' }), undefined);
   assert.equal(distributionOf({ appImage: undefined, packageType: undefined }), undefined);
@@ -88,11 +88,11 @@ test('the package is told apart the way electron-updater does: APPIMAGE first, t
 
 test('a dev build, an unknown package and a read-only AppImage cannot update', () => {
   const writable = () => true;
-  const dev = updateSupport({ dev: true, appImage: '/a/Agentry.AppImage', packageType: undefined, appImageWritable: writable, debCanElevate: () => true });
+  const dev = updateSupport({ dev: true, appImage: '/a/Claudio.AppImage', packageType: undefined, appImageWritable: writable, debCanElevate: () => true });
   assert.equal('reason' in dev && dev.reason, 'development');
   const unknown = updateSupport({ dev: false, appImage: undefined, packageType: undefined, appImageWritable: writable, debCanElevate: () => true });
   assert.equal('reason' in unknown && unknown.reason, 'unknown-package');
-  const readOnly = updateSupport({ dev: false, appImage: '/opt/Agentry.AppImage', packageType: undefined, appImageWritable: () => false, debCanElevate: () => true });
+  const readOnly = updateSupport({ dev: false, appImage: '/opt/Claudio.AppImage', packageType: undefined, appImageWritable: () => false, debCanElevate: () => true });
   assert.equal('reason' in readOnly && readOnly.reason, 'read-only');
   assert.deepEqual(updateSupport({ dev: false, appImage: undefined, packageType: 'deb', appImageWritable: () => false, debCanElevate: () => true }), {
     supported: true,
@@ -106,7 +106,7 @@ test('a .deb with no graphical password prompt cannot update', () => {
   assert.equal('reason' in blocked && blocked.reason, 'no-elevation');
   assert.match('message' in blocked ? blocked.message : '', /pkexec/);
   // Only a .deb goes through sudo: an AppImage never asks
-  assert.deepEqual(updateSupport({ ...facts, appImage: '/a/Agentry.AppImage', packageType: undefined, debCanElevate: () => false }), {
+  assert.deepEqual(updateSupport({ ...facts, appImage: '/a/Claudio.AppImage', packageType: undefined, debCanElevate: () => false }), {
     supported: true,
     distribution: 'appimage',
   });
@@ -204,8 +204,8 @@ test('install on quit is only armed with a download ready', async () => {
 test('a renamed AppImage is remembered for the relaunch', async () => {
   const { engine, updater } = setup();
   await updater.check();
-  engine.emit('appimage-filename-updated', '/home/me/Agentry-0.18.0-x86_64.AppImage');
-  assert.equal(updater.installedAppImage, '/home/me/Agentry-0.18.0-x86_64.AppImage');
+  engine.emit('appimage-filename-updated', '/home/me/Claudio-0.18.0-x86_64.AppImage');
+  assert.equal(updater.installedAppImage, '/home/me/Claudio-0.18.0-x86_64.AppImage');
 });
 
 const busy: LiveSnapshot = { ...EMPTY_SNAPSHOT, working: 2, running: 1 };
@@ -242,13 +242,13 @@ test('the tray offers the restart above Quit once a download is ready', () => {
   const items = withUpdate.flatMap((e) => (e.type === 'item' ? [e] : []));
   assert.deepEqual(items.slice(-2), [
     { type: 'item', label: 'Restart to update to 0.18.0', action: { kind: 'update' } },
-    { type: 'item', label: 'Quit Agentry', action: { kind: 'quit' } },
+    { type: 'item', label: 'Quit Claudio', action: { kind: 'quit' } },
   ]);
 });
 
 test('the AppImage relaunch waits for the old process to exit, then runs the new file with its arguments and no inherited descriptors', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-relaunch-'));
-  const appImage = join(dir, 'Agentry.AppImage');
+  const appImage = join(dir, 'Claudio.AppImage');
   const ran = join(dir, 'ran');
   const fds = join(dir, 'fds');
   writeFileSync(appImage, `#!/bin/sh\nls /proc/$$/fd > ${JSON.stringify(fds)}\necho "$@" > ${JSON.stringify(ran)}\n`);

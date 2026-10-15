@@ -30,7 +30,7 @@ export class LoginInputError extends Error {
   readonly statusCode = 400;
 }
 
-/** A sign-in this Agentry does not offer here: the request was understood, the deploy forbids it */
+/** A sign-in this Claudio does not offer here: the request was understood, the deploy forbids it */
 export class LoginRefusedError extends Error {
   readonly statusCode = 409;
 }
@@ -51,7 +51,7 @@ export interface LoginServiceDeps {
   readiness: (tool: SetupTool, host: string | null) => Promise<boolean | null>;
   /**
    * Why this deploy does not sign a tool in or out, or null when it does (every tool by default).
-   * Tailscale is signed in only where Agentry runs its daemon: a machine's own is the person's.
+   * Tailscale is signed in only where Claudio runs its daemon: a machine's own is the person's.
    */
   refusal?: (tool: SetupTool) => string | null;
   /** Runs before a sign-out command: Tailscale's closes the tunnel first, while the daemon can still take its rule away */

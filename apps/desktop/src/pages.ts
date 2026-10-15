@@ -113,7 +113,7 @@ const toDataUrl = (html: string) => `data:text/html;charset=utf-8,${encodeURICom
 export function splashUrl(): string {
   // A ring in the brand gradient: a conic gradient masked to its outer band. Reduced motion keeps
   // the ring and stops the turn; "Starting…" says the rest.
-  return toDataUrl(`<!doctype html><meta charset="utf-8"><title>Agentry</title><style>${BASE_STYLE}
+  return toDataUrl(`<!doctype html><meta charset="utf-8"><title>Claudio</title><style>${BASE_STYLE}
     .spin { width: 28px; height: 28px; border-radius: 50%;
             background: conic-gradient(from 0deg, rgba(110, 155, 255, 0) 0deg, #6e9bff 200deg, #a78bfa 360deg);
             -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
@@ -121,11 +121,11 @@ export function splashUrl(): string {
             animation: s 0.8s linear infinite; }
     @keyframes s { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-  </style><div class="spin"></div><h1>Agentry</h1><p>Starting…</p>`);
+  </style><div class="spin"></div><h1>Claudio</h1><p>Starting…</p>`);
 }
 
 export function errorUrl(title: string, detail: string, logPath: string): string {
-  return toDataUrl(`<!doctype html><meta charset="utf-8"><title>Agentry</title><style>${BASE_STYLE}</style>
+  return toDataUrl(`<!doctype html><meta charset="utf-8"><title>Claudio</title><style>${BASE_STYLE}</style>
     ${OFFLINE_ILLUSTRATION}
     <h1>${escapeHtml(title)}</h1>
     <pre>${escapeHtml(detail)}</pre>

@@ -16,7 +16,7 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   // Reading is free; the registry is only asked by the POST (and once a day by the server itself)
   app.get('/system/cli-version', () => core.cliVersionInfo());
   app.post('/system/cli-version/check', () => core.checkCliVersion());
-  // The same for Agentry itself, against its GitHub releases
+  // The same for Claudio itself, against its GitHub releases
   app.get('/system/release', () => core.releaseInfo());
   app.post('/system/release/check', () => core.checkRelease());
 

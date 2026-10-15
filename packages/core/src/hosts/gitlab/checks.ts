@@ -50,7 +50,7 @@ function write(repo: HostRepo, args: string[]): HostCall {
   return { cli: 'glab', args, kind: 'write', class: 'write', host: repo.host };
 }
 
-/** GitLab's job and pipeline statuses in Agentry's words; an unknown one waits rather than passes. */
+/** GitLab's job and pipeline statuses in Claudio's words; an unknown one waits rather than passes. */
 function stateOf(status: unknown): CheckState {
   switch (status) {
     case 'success':

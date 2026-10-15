@@ -3,7 +3,7 @@ import { BRAND_ART } from './brand-art';
 import { Monogram } from './icons';
 
 /*
- * The official mark of a program Agentry names: the code hosts, the issue trackers and the agent it
+ * The official mark of a program Claudio names: the code hosts, the issue trackers and the agent it
  * drives. The art is the brand's own file (brand-art.ts), drawn in its own colour on a light tile
  * that is the same in both themes, so a mark reads as the brand draws it and not as a theme's
  * recolouring (design system, "Brand marks"). A name with no mark here keeps its monogram.

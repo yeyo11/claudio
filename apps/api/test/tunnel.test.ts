@@ -91,7 +91,7 @@ async function openTunnel(w: Wrapper, token: string): Promise<TunnelStatus> {
   return tunnel(w.app, token);
 }
 
-test('the tunnel starts stopped, with a ready Tailscale read from its CLI and start with Agentry off', async (t) => {
+test('the tunnel starts stopped, with a ready Tailscale read from its CLI and start with Claudio off', async (t) => {
   const { app } = await wrapper(t);
   const status = await tunnel(app);
   assert.deepEqual(status, {
@@ -100,7 +100,7 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     since: null,
     reason: null,
     enabled: true,
-    // A source install's Tailscale is the machine's, never signed in by Agentry
+    // A source install's Tailscale is the machine's, never signed in by Claudio
     managed: false,
     tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
     port: 8444,

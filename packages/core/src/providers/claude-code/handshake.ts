@@ -4,7 +4,7 @@ import type { CapabilityConfirmation, SessionInit } from '../driver.ts';
 import { claudeCodeManifest } from './manifest.ts';
 
 /**
- * What `system/init` of a session Agentry was starting anyway says about the installed CLI. A
+ * What `system/init` of a session Claudio was starting anyway says about the installed CLI. A
  * handshake of its own would spend tokens, so this is the only one. The capabilities nobody can
  * read off the init (interrupt, fork, effort...) stay declared until a run exercises them.
  *

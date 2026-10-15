@@ -35,7 +35,7 @@ test('a blocker this version does not know reads as the policy block', () => {
   assert.deepEqual(blockerMark('something-new'), blockerMark('blocked-by-policy'));
 });
 
-test('a remedy is an Agentry call, a link to the host or a move in the page, never a command', () => {
+test('a remedy is an Claudio call, a link to the host or a move in the page, never a command', () => {
   assert.equal(blockerActionKind('open-on-host'), 'link');
   assert.equal(blockerActionKind('update-from-base'), 'call');
   assert.equal(blockerActionKind('edit-title'), 'page');
@@ -78,7 +78,7 @@ test('the message is sent exactly as typed, and only a blank field is left to th
   assert.equal('body' in blank, false);
 });
 
-test('a request that is not open says merged or closed by the host\'s own state, never Agentry\'s phase', () => {
+test('a request that is not open says merged or closed by the host\'s own state, never Claudio\'s phase', () => {
   const cr = { host: 'github', branch: 'claudio-task/agn-26', base: 'main', phase: 'open' } as const;
   const merged = blockerSentence({ code: 'not-open', detail: 'merged' }, cr, 'PR');
   assert.deepEqual([merged.tone, merged.word, merged.text], ['ok', 'blocker.not-open.merged.word', 'blocker.not-open.merged.text']);
@@ -106,11 +106,11 @@ test('Update from base tells conflicts from the other 409 refusals', () => {
   assert.equal(updateFailure({ code: 'not-open' }), 'not-open');
   assert.equal(updateFailure({}), 'merge-failed');
   assert.equal(updateFailure(null), 'merge-failed');
-  // Arming while Agentry pushes is its own refusal, not the host's
+  // Arming while Claudio pushes is its own refusal, not the host's
   assert.equal(mergeFailure('busy'), 'busy');
 });
 
-test('who turned auto-merge off for an update: a person, Agentry, or you when authentication is off', () => {
+test('who turned auto-merge off for an update: a person, Claudio, or you when authentication is off', () => {
   assert.equal(autoMergeOffKey('update', 'local'), 'autoMergeOff.updateYou');
   assert.equal(autoMergeOffKey('update', 'claudio'), 'autoMergeOff.updateAgentry');
   assert.equal(autoMergeOffKey('update', 'marta'), 'autoMergeOff.update');

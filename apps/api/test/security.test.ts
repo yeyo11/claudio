@@ -232,7 +232,7 @@ test('every write leaves an audit row, with who and what but never the body', as
   assert.equal(newest.actor, 'local');
   assert.equal(newest.status, 200);
   // The summary comes from the route's own documentation, not from anything the caller sent
-  assert.equal(newest.summary, 'Remove a project from Agentry');
+  assert.equal(newest.summary, 'Remove a project from Claudio');
   assert.equal(page.entries.some((entry: { summary: string }) => entry.summary === 'Create a project in the workspace'), true);
   assert.equal((await app.inject('/api/audit')).payload.includes('audited'), false, 'no body, and no name from one, is ever recorded');
 

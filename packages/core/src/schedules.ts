@@ -474,7 +474,7 @@ export class Scheduler {
     const titles: Record<ScheduleRunStatus, string> = {
       started: `Schedule ${stored.name} started its ${stored.target.kind}`,
       failed: `Schedule ${stored.name} could not start: ${run.error ?? 'unknown error'}`,
-      skipped: `Schedule ${stored.name} skipped slots missed while Agentry was down`,
+      skipped: `Schedule ${stored.name} skipped slots missed while Claudio was down`,
       overlapped: `Schedule ${stored.name} did not start a slot: ${run.error ?? 'the last run was still going'}`,
       queued: `Schedule ${stored.name} will start when its last run ends`,
     };
@@ -624,8 +624,8 @@ export class Scheduler {
       status: 'skipped',
       error:
         slots.length === 1
-          ? `The ${first} slot passed while Agentry was not running, so it was skipped, not run late.`
-          : `${slots.length} slots between ${first} and ${last} passed while Agentry was not running, so they were skipped, not run late.`,
+          ? `The ${first} slot passed while Claudio was not running, so it was skipped, not run late.`
+          : `${slots.length} slots between ${first} and ${last} passed while Claudio was not running, so they were skipped, not run late.`,
     };
     if (this.runs.claim(run)) this.fired(stored, run);
   }

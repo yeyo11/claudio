@@ -43,7 +43,7 @@ const latest = (a: string | null, b: string | null): string | null => (a === nul
 
 /**
  * Where a graph's time went, computed from the stored orchestration and the executions of the chats
- * Agentry started for it. Nothing is stored for it: every figure is read from what the graph and
+ * Claudio started for it. Nothing is stored for it: every figure is read from what the graph and
  * its chats already recorded, so a graph stored before a field existed answers without that figure
  * and names it in `missing`. What is still running counts up to `at`.
  */

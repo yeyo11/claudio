@@ -98,7 +98,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   const bundledMcp = fileURLToPath(new URL('./mcp.mjs', import.meta.url));
   if (!process.env[MCP_ENTRY_ENV] && existsSync(bundledMcp)) process.env[MCP_ENTRY_ENV] = bundledMcp;
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
-  // when "start with Agentry" is on
+  // when "start with Claudio" is on
   core.tunnel.attach(port, urlHost);
   let closing: Promise<void> | undefined;
   return {

@@ -23,7 +23,7 @@ function HowLink() {
 }
 
 /**
- * Settings → Security's first card: how the keys and tokens Agentry hands a CLI are kept
+ * Settings → Security's first card: how the keys and tokens Claudio hands a CLI are kept
  * (`SecretStorageStatus` in `GET /setup`). Sealed is ok; a key beside the data it seals is a warning
  * that recommends the environment; no key at all is a warning that values are plain.
  */

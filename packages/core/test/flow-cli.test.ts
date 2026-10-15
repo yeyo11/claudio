@@ -324,7 +324,7 @@ test('a run a restart cut off brings the newer spec into its worktree before its
     const [first, again] = readFileSync(prompts, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { resume: string | null; prompt: string });
     assert.match(first?.prompt ?? '', /specification is in this worktree: `docs\/plans\/hang\.md`/);
     assert.ok(again?.resume);
-    assert.match(again?.prompt ?? '', /^Agentry restarted while you were on this run\./);
+    assert.match(again?.prompt ?? '', /^Claudio restarted while you were on this run\./);
     assert.doesNotMatch(again?.prompt ?? '', /specification is in this worktree/);
   } finally {
     core.shutdown();

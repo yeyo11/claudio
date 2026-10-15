@@ -1,7 +1,7 @@
 {
   "title": "Comprobaciones",
   "loading": "Leyendo las comprobaciones…",
-  "failed": "Agentry no ha podido leer las comprobaciones de {{host}}.",
+  "failed": "Claudio no ha podido leer las comprobaciones de {{host}}.",
   "retry": "Reintentar",
   "truncated": "La lista se corta en las primeras 1000 comprobaciones.",
   "openOn": "Abrir en {{host}}",
@@ -57,7 +57,7 @@
   },
   "limited": {
     "badge": "límite de la API",
-    "body": "El límite de la API de {{host}} para tu cuenta está agotado hasta las {{time}}. Agentry espera hasta entonces.",
+    "body": "El límite de la API de {{host}} para tu cuenta está agotado hasta las {{time}}. Claudio espera hasta entonces.",
     "asOf": "Lista leída a las {{time}}"
   },
   "fix": {
@@ -101,8 +101,8 @@
     "empty": "Este registro está vacío.",
     "tail": "Final del registro",
     "gap": "⋯ líneas omitidas",
-    "foot": "Agentry oculta los posibles secretos",
-    "footTruncated": "El final del registro · 16 KiB como máximo · Agentry oculta los posibles secretos",
+    "foot": "Claudio oculta los posibles secretos",
+    "footTruncated": "El final del registro · 16 KiB como máximo · Claudio oculta los posibles secretos",
     "of": "Registro de {{name}}",
     "close": "Cerrar el registro",
     "level": {

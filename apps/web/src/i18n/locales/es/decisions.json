@@ -1,6 +1,6 @@
 {
   "tab": "Decisiones",
-  "intro": "Preguntas cortas con respuesta tipada que Agentry resuelve por ti, con el CLI o con Jev. Cada punto empieza apagado y tú decides cuándo pasa a sombra o a activo.",
+  "intro": "Preguntas cortas con respuesta tipada que Claudio resuelve por ti, con el CLI o con Jev. Cada punto empieza apagado y tú decides cuándo pasa a sombra o a activo.",
   "nav": "Secciones de Decisiones",
   "engine": {
     "title": "Motor",
@@ -41,7 +41,7 @@
     "historyDays": "Historial que se conserva (días)",
     "historyDaysHint": "Las decisiones más antiguas se eliminan solas.",
     "unavailableTitle": "Jev no disponible",
-    "unavailableBody": "{{failed}} de las últimas {{total}} peticiones no han llegado ({{reasons}}). La última fue {{when}}. Agentry sigue con su comportamiento de siempre y no espera a Jev.",
+    "unavailableBody": "{{failed}} de las últimas {{total}} peticiones no han llegado ({{reasons}}). La última fue {{when}}. Claudio sigue con su comportamiento de siempre y no espera a Jev.",
     "reason": {
       "no-key": "sin clave",
       "timeout": "tiempo agotado",
@@ -152,7 +152,7 @@
   "consent": {
     "title": "Antes de pasar a {{mode}}",
     "leavesTitle": "Este contenido sale de tu equipo",
-    "leavesBody": "Se envía a un servicio externo de TypeSafe ({{host}}) con tu clave. Jev no guarda nada solo en el plan enterprise. Si la forma del estado cambia, Agentry te lo volverá a preguntar.",
+    "leavesBody": "Se envía a un servicio externo de TypeSafe ({{host}}) con tu clave. Jev no guarda nada solo en el plan enterprise. Si la forma del estado cambia, Claudio te lo volverá a preguntar.",
     "staysTitle": "Nada sale de tu equipo",
     "staysBody": "Con Claude Code CLI la pregunta se hace en un chat interno con tu cuenta, igual que el resto de tus chats. Lo que ves abajo es lo que lee ese chat.",
     "stateLast": "Estado exacto de la última petición",
@@ -272,9 +272,9 @@
   "mark": {
     "decided": "decidido · {{confidence}}",
     "suggested": "sugerido",
-    "labelDecided": "Decidido por Agentry, confianza {{confidence}}: {{answer}}. Ver la respuesta",
-    "labelSuggested": "Sugerido por Agentry: {{answer}}. Ver la respuesta",
-    "popoverLabel": "Respuesta de Agentry",
+    "labelDecided": "Decidido por Claudio, confianza {{confidence}}: {{answer}}. Ver la respuesta",
+    "labelSuggested": "Sugerido por Claudio: {{answer}}. Ver la respuesta",
+    "popoverLabel": "Respuesta de Claudio",
     "close": "Cerrar",
     "answer": "Respuesta",
     "modeThreshold": "{{mode}} · umbral {{threshold}}",

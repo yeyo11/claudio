@@ -41,7 +41,7 @@ can search for it.
   (`/compact`), flags (`--model`), setting keys (including `matcher` and `outputStyle` in
   `settings.json`), permission mode values (`acceptEdits`, `plan`), model names, file and directory
   names (`CLAUDE.md`, `settings.json`, `.claude/workflows/`), environment variables, product names
-  (Claude Code, Agentry).
+  (Claude Code, Claudio).
 
 ## Kept as in the CLI
 
@@ -57,7 +57,7 @@ mistake even though their own rows already gave them a Spanish word.
 | prompt | el prompt, los prompts |
 | system prompt | el system prompt |
 | hook | el hook, los hooks |
-| webhook | el webhook, los webhooks (a host's notification to Agentry; never "gancho web") |
+| webhook | el webhook, los webhooks (a host's notification to Claudio; never "gancho web") |
 | MCP, MCP server | el servidor MCP, los servidores MCP |
 | skill | la skill, las skills |
 | plugin | el plugin, los plugins |
@@ -70,9 +70,9 @@ mistake even though their own rows already gave them a Spanish word.
 | pull request, PR | la pull request, la PR |
 | CLI | **el** CLI, never "la CLI": "el CLI no la valida" (`server.json`'s `connectors.authorise.cli`
   currently says "La CLI abre el navegador" — that is the bug this row exists to catch) |
-| wrapper | el wrapper — Agentry's own name for its server, the same word CONTRIBUTING.md and
+| wrapper | el wrapper — Claudio's own name for its server, the same word CONTRIBUTING.md and
   CLAUDE.md use; no single Spanish word carries it without sounding like a mistranslation |
-| worker | el worker, los workers (the runs an orchestration launches; Agentry's own term, kept short) |
+| worker | el worker, los workers (the runs an orchestration launches; Claudio's own term, kept short) |
 | stream | el stream (a run's live event feed): "Stream conectado" |
 | preset, tool preset | el preset, los presets (de herramientas) — as assimilated in Spanish
   software as in English, across audio, camera and design tools alike |
@@ -276,7 +276,7 @@ brought a board, a team and an assistant. Its words:
 ## Status names
 
 Statuses live in `common:status.*` and every badge goes through `statusText()` in
-`components/ui.tsx`; a status Agentry does not know is shown as it came. MCP server states
+`components/ui.tsx`; a status Claudio does not know is shown as it came. MCP server states
 (`connected`, `needs-auth`…) come from the CLI and stay untranslated.
 
 The previous revision made these adjectives agree with "el run" (masculine). Now that `run` is

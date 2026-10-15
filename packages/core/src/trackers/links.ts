@@ -73,7 +73,7 @@ const EACH_REFERENCE = new RegExp(REFERENCE, 'g');
  * Text that came from an issue, made unable to close anything. A title or a body written by
  * another person says `Closes #99`; squash-merged into the default branch, the title becomes the
  * commit message and the host closes #99, an issue nobody linked. The reference after a closing
- * word goes in backticks, which neither host reads as one; the words stay readable. Agentry's own
+ * word goes in backticks, which neither host reads as one; the words stay readable. Claudio's own
  * `Closes` line is written elsewhere and never passes through here.
  */
 export function neutralizeClosing(text: string): string {

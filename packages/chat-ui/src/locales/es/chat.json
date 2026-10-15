@@ -156,20 +156,20 @@
       "interrupted": "Interrumpida"
     },
     "origin": {
-      "claudio": "Agentry",
+      "claudio": "Claudio",
       "external": "Terminal",
       "orchestration": "Orquestación",
       "internal": "Interno"
     },
     "originHint": {
-      "claudio": "Iniciado desde Agentry",
+      "claudio": "Iniciado desde Claudio",
       "external": "Iniciado en una terminal con {{agent}}",
       "orchestration": "Trabaja para una orquestación",
-      "internal": "Tareas internas del propio Agentry"
+      "internal": "Tareas internas del propio Claudio"
     },
     "control": {
       "interactive": "Interactivo",
-      "interactiveHint": "Agentry controla este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
+      "interactiveHint": "Claudio controla este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
       "resumable": "Reanudable",
       "resumableHint": "Nada retiene este chat: al enviar un mensaje se reanuda",
       "readOnly": "Solo lectura"
@@ -188,7 +188,7 @@
     "notAvailable": "no disponible",
     "usage": {
       "title": "Contexto y coste",
-      "costNotReported": "{{agent}} solo informa del coste de lo que lanzó Agentry.",
+      "costNotReported": "{{agent}} solo informa del coste de lo que lanzó Claudio.",
       "tokensCaption": "Tokens gastados, por modelo",
       "input": "Entrada",
       "output": "Salida",
@@ -200,7 +200,7 @@
     },
     "executions": {
       "title": "Ejecuciones ({{n}})",
-      "empty": "Agentry no ha ejecutado este chat: se escribió en una terminal.",
+      "empty": "Claudio no ha ejecutado este chat: se escribió en una terminal.",
       "lasted": "duró {{duration}}",
       "up": "lleva {{duration}} en marcha",
       "turns_one": "{{count}} turno",
@@ -268,9 +268,9 @@
       "readOnly": "solo lectura"
     },
     "hint": {
-      "live": "Agentry lleva este chat y su stream está conectado",
+      "live": "Claudio lleva este chat y su stream está conectado",
       "reconnecting": "El stream se cortó hace unos segundos; el navegador está reconectando",
-      "interactive": "Agentry lleva este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
+      "interactive": "Claudio lleva este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
       "resumable": "Nada retiene este chat: enviar un mensaje lo reanuda",
       "readOnly": "Otra cosa retiene este chat"
     }
@@ -549,7 +549,7 @@
       "idle": "Inactivo"
     },
     "origin": {
-      "claudio": "Agentry",
+      "claudio": "Claudio",
       "external": "Terminal",
       "orchestration": "Orquestación",
       "internal": "Interno"

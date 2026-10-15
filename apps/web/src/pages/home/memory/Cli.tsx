@@ -45,7 +45,7 @@ function FileRow({ file, href }: { file: MemoryFile; href: string }) {
 }
 
 /**
- * The CLI's own memory beside Agentry's: `CLAUDE.md` and the memory directory, which terminal chats
+ * The CLI's own memory beside Claudio's: `CLAUDE.md` and the memory directory, which terminal chats
  * read too and where approved proposals are written. Each file opens in the editor.
  */
 export function CliMemoryCard({ cli, editorHref }: { cli: CliMemory; editorHref: (file?: string) => string }) {

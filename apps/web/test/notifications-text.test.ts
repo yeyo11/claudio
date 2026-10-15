@@ -40,7 +40,7 @@ const conflict = (paths: string[], resolving: boolean): AgentryEvent => ({
 });
 
 // One event per sentence, including both halves of every plural and the fallbacks for an account
-// or an error Agentry cannot name.
+// or an error Claudio cannot name.
 const EVENTS: AgentryEvent[] = [
   { type: 'run.waiting', ...base('waiting'), ...run, reason: 'permission', permissionId: 'p1', toolName: 'Bash' },
   { type: 'run.waiting', ...base('waiting'), ...run, reason: 'question', permissionId: 'p2', toolName: 'AskUserQuestion' },

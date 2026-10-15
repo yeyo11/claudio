@@ -23,7 +23,7 @@ export interface CodeHostManifest {
   versions: {
     /** Arguments that print the version */
     args: string[];
-    /** The oldest release Agentry works with: below it a project cannot open change requests */
+    /** The oldest release Claudio works with: below it a project cannot open change requests */
     minimum: string;
     /** The releases every fact in the adapter was recorded on */
     recorded: string[];

@@ -252,7 +252,7 @@ export const BOARD_DONE_PAGE = 20;
 export const CLAUDIO_LANGUAGES = valuesOf<AgentryLanguage>()(['en', 'es']);
 
 /**
- * The language of an `Accept-Language` header, or of a stored choice: the first of Agentry's
+ * The language of an `Accept-Language` header, or of a stored choice: the first of Claudio's
  * languages it names, English when it names none. Weights are not read: browsers list the
  * preferred language first.
  */

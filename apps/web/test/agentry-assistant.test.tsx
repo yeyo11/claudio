@@ -42,7 +42,7 @@ for (const language of ['en', 'es'] as const) {
     await i18n.changeLanguage(language);
     const html = wrap(<AgentryAssistant />);
     const words = text(html);
-    assert.match(words, language === 'es' ? /Hola, soy el asistente de Agentry/ : /Hi, I'm the Agentry assistant/);
+    assert.match(words, language === 'es' ? /Hola, soy el asistente de Claudio/ : /Hi, I'm the Claudio assistant/);
     assert.equal((html.match(/class="as-starter"/g) ?? []).length, STARTERS.length);
     for (const { key } of STARTERS) {
       assert.ok(words.includes(i18n.t(`assistant:agentry.starter.${key}.title`)), key);

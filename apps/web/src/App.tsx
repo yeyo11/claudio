@@ -263,10 +263,10 @@ function Shell() {
 
       <aside id="sidebar" className="sidebar" aria-label={t('shell.sidebar')}>
         <div className="sidebar-head">
-          <Tooltip content={railTip('Agentry')} side="right">
-            <NavLink to="/" className="brand" aria-label="Agentry">
+          <Tooltip content={railTip('Claudio')} side="right">
+            <NavLink to="/" className="brand" aria-label="Claudio">
               <BrandMark />
-              <span className="brand-name">Agentry</span>
+              <span className="brand-name">Claudio</span>
             </NavLink>
           </Tooltip>
           <Tooltip content={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')} side="right">

@@ -266,7 +266,7 @@ test("the person's language is the one the panel last named, and a request namin
   const say = (language: string) => app.inject({ url: '/api/projects', headers: { 'accept-language': language } });
   await say('es-ES,es;q=0.9,en;q=0.8');
   assert.equal(core.personLanguage(), 'es');
-  // What a script's fetch sends, and a language Agentry does not speak
+  // What a script's fetch sends, and a language Claudio does not speak
   await say('*');
   await say('fr-FR');
   await app.inject('/api/projects');

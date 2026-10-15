@@ -35,7 +35,7 @@ function parseObject(stdout: string, what: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-/** An account entry of `auth status --json hosts`; only the fields Agentry reads, never a token source or scope. */
+/** An account entry of `auth status --json hosts`; only the fields Claudio reads, never a token source or scope. */
 interface AuthAccount {
   active: boolean;
   state: string;
@@ -127,7 +127,7 @@ export const githubAdapter: MergeCodeHostAdapter = {
       const e = entry as Record<string, unknown>;
       const state = typeof e.state === 'string' ? STATES[e.state.toUpperCase()] : undefined;
       if (typeof e.number !== 'number' || typeof e.url !== 'string' || !state) throw new HostParseError('pr list entry lacks number, url or state');
-      // Agentry pushes to origin and never opens a fork's pull request, so one is never adopted
+      // Claudio pushes to origin and never opens a fork's pull request, so one is never adopted
       return e.isCrossRepository === true ? [] : [{ number: e.number, url: e.url, state }];
     });
   },

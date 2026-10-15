@@ -1,6 +1,6 @@
 {
   "id": 87089091,
-  "description": "Agentry: REST API, web UI and multi-agent orchestration around coding agents (mirror of github.com/yeyo11/agentry)",
+  "description": "Claudio: REST API, web UI and multi-agent orchestration around coding agents (mirror of github.com/yeyo11/agentry)",
   "default_branch": "main",
   "visibility": "private",
   "ssh_url_to_repo": "git@gitlab.com:yeyo11/agentry.git",

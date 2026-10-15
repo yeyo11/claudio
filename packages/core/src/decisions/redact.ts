@@ -25,10 +25,10 @@ const SECRET_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * Secrets Agentry itself holds, which no pattern can tell from other text: the owner's API token
+ * Secrets Claudio itself holds, which no pattern can tell from other text: the owner's API token
  * written as `T="…"` looks like any long word (seen leaving the machine in a decision's state on
  * 2026-10-02). `values` are the ones kept in plain (the Jev key, the webhook secrets), masked
- * wherever they appear; `isSecret` answers for one Agentry keeps only as a hash (the owner's and the
+ * wherever they appear; `isSecret` answers for one Claudio keeps only as a hash (the owner's and the
  * desktop's token, the live chat tokens), asked about every word long enough to be one.
  */
 export interface SecretRecognizer {
@@ -38,14 +38,14 @@ export interface SecretRecognizer {
 
 const recognizers = new Set<SecretRecognizer>();
 
-/** Registers what Agentry's own secrets are; the returned function takes it back (a test, a shutdown). */
+/** Registers what Claudio's own secrets are; the returned function takes it back (a test, a shutdown). */
 export function recognizeSecrets(recognizer: SecretRecognizer): () => void {
   recognizers.add(recognizer);
   return () => recognizers.delete(recognizer);
 }
 
 /**
- * A word that could be a generated token or key: no shorter than the shortest Agentry accepts, and
+ * A word that could be a generated token or key: no shorter than the shortest Claudio accepts, and
  * not starting or ending with a dot, so the full stop after a token in a sentence is not part of it
  */
 const TOKEN_WORD = /[A-Za-z0-9_~+/=-][A-Za-z0-9._~+/=-]{22,}[A-Za-z0-9_~+/=-]/g;

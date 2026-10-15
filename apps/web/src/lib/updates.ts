@@ -2,7 +2,7 @@ import type { AgentryDistribution } from '@claudio/shared';
 
 /**
  * What the Updates card offers, decided from what kind of install the server is and from where the
- * page runs. The server's release check says whether a newer Agentry exists; only the desktop
+ * page runs. The server's release check says whether a newer Claudio exists; only the desktop
  * window can act on it itself, every other surface gets the steps to take it.
  */
 
@@ -113,7 +113,7 @@ export const DOCKER_UPDATE_WAYS = [
   { way: 'checkout', command: 'git pull && docker compose up -d --build' },
 ] as const;
 /**
- * Starts Agentry with all three folders on a volume with a name. The image declares `VOLUME` for
+ * Starts Claudio with all three folders on a volume with a name. The image declares `VOLUME` for
  * each, so a command that names fewer still starts, with the rest on volumes Docker makes on its own
  * and the next command does not reattach: replacing the container then loses the sign-in, the
  * transcripts and the projects. The workspace is a named volume too, not `$PWD/workspace`, which

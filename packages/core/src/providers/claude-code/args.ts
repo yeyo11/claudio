@@ -18,7 +18,7 @@ export function buildArgs(spec: SessionLaunch): string[] {
   // A confined chat is never to be switched there, and `--restricted` refuses the flag outright.
   if (!spec.confine) args.push('--allow-dangerously-skip-permissions');
   if (spec.forkFrom) {
-    // The copy is created under the id Agentry chose; until the CLI confirms it, a respawn forks again
+    // The copy is created under the id Claudio chose; until the CLI confirms it, a respawn forks again
     args.push('--resume', spec.forkFrom, '--fork-session', '--session-id', spec.id, '--name', spec.name);
   } else if (spec.created) {
     args.push('--resume', spec.id);

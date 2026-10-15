@@ -22,7 +22,7 @@ export interface TrackerManifest {
    * `not-recorded`, and has no adapter and no action.
    */
   recording: 'host' | 'own' | null;
-  /** For `own`: the oldest release Agentry works with, the one recorded */
+  /** For `own`: the oldest release Claudio works with, the one recorded */
   minimum?: string;
   /** For `own`: the releases the CLI facts were recorded on */
   recorded?: readonly string[];

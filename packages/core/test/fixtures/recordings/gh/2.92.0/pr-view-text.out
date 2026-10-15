@@ -14,7 +14,7 @@ auto-merge:	disabled
 --
 ## What
 
-This is phase 1 of `docs/plans/multi-provider.md`. Agentry now finds the coding agents on the machine by itself and says whether each one is ready. Claude Code is still the only provider that runs work. Nothing changes for chats, flows or orchestrations.
+This is phase 1 of `docs/plans/multi-provider.md`. Claudio now finds the coding agents on the machine by itself and says whether each one is ready. Claude Code is still the only provider that runs work. Nothing changes for chats, flows or orchestrations.
 
 - **Core** (`packages/core/src/providers/`)
   - One manifest per provider: Claude Code, Codex, Gemini CLI, GitHub Copilot and OpenCode. Every fact about another vendor's CLI cites its source.

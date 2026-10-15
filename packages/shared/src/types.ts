@@ -33,7 +33,7 @@ export interface CliVersionInfo {
 }
 
 /**
- * How this Agentry was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it
+ * How this Claudio was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it
  * a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name.
  */
 export type AgentryDistribution = 'docker' | 'appimage' | 'deb' | 'source';
@@ -110,7 +110,7 @@ export interface SystemInfo {
   defaultPermissionMode: PermissionMode;
   /** What `--model` may be given, as the CLI offers it to the account in use */
   models: ModelOption[];
-  /** Agentry's own version */
+  /** Claudio's own version */
   version: string;
   uptimeSec: number;
 }
@@ -406,7 +406,7 @@ export interface RunEvent {
   outcome?: RunOutcome;
   /** For `task` events */
   task?: RunTaskChange;
-  /** For `notice` events only: Agentry's own words, never a provider's */
+  /** For `notice` events only: Claudio's own words, never a provider's */
   data?: Record<string, unknown>;
   /** For `delivery` events: what became of one message the person sent */
   delivery?: MessageDelivery;
@@ -481,7 +481,7 @@ export interface RunTaskChange {
   summary?: string;
 }
 
-// ---------- Chats, executions and projects (Agentry's own model) ----------
+// ---------- Chats, executions and projects (Claudio's own model) ----------
 //
 // What the web and the API speak. Nothing here exists because the Claude Code CLI happens to write
 // it that way: the CLI's facts are translated in `packages/core` (`chat-model.ts`, `usage.ts`) and
@@ -515,7 +515,7 @@ export interface ChatModelTokens extends TokenUsage {
   model: string | null;
 }
 
-/** One stretch of a chat during which Agentry had a process working on it; a chat has several and at most one is live. */
+/** One stretch of a chat during which Claudio had a process working on it; a chat has several and at most one is live. */
 export interface Execution {
   id: string;
   startedAt: string;
@@ -533,11 +533,11 @@ export interface Execution {
   effort?: Effort | null;
   /** Ceiling on what it could spend */
   maxBudgetUsd: number | null;
-  /** Null when the CLI reported none: cost is only known for what Agentry launched */
+  /** Null when the CLI reported none: cost is only known for what Claudio launched */
   costUsd: number | null;
   /**
    * What the CLI reported per model (`modelUsage[model].costUSD`), the only honest split of
-   * `costUsd`: absent on an execution recorded before Agentry kept it or one the CLI reported none for.
+   * `costUsd`: absent on an execution recorded before Claudio kept it or one the CLI reported none for.
    */
   modelCosts?: Record<string, number>;
   tokens: TokenUsage;
@@ -560,7 +560,7 @@ export interface ChatContext {
 export type HealthLevel = 'ok' | 'warn' | 'bad';
 
 /**
- * What a signal noticed. Only what Agentry can tell from what it already receives is here: a command
+ * What a signal noticed. Only what Claudio can tell from what it already receives is here: a command
  * that runs far longer than it should, a chat that has gone quiet while it should be working, and
  * facts of the chat itself (how its last execution ended, that it waits for a person, that its
  * context is nearly full, that a branch failed).
@@ -604,7 +604,7 @@ export interface HealthSignal {
   /** What made it fire, when the line is not enough: the command, the file, the figures */
   detail?: string;
   /**
-   * Text the panel prefills the hint box with. Agentry writes it, not the model: a suggestion per
+   * Text the panel prefills the hint box with. Claudio writes it, not the model: a suggestion per
    * signal is worth more than an empty box to someone who has just been told a worker is stuck.
    */
   hint?: string;
@@ -629,9 +629,9 @@ export interface ChatHealth {
 /** The same verdict on anything that works: a chat, or an orchestration task. */
 export type Health = ChatHealth;
 
-/** What a task may spend before Agentry stops it. */
+/** What a task may spend before Claudio stops it. */
 export interface TaskLimits {
-  /** Wall-clock ceiling, enforced by Agentry: the CLI has no flag for it */
+  /** Wall-clock ceiling, enforced by Claudio: the CLI has no flag for it */
   maxMinutes?: number;
   /** Passed to the CLI as `--max-budget-usd`, so the CLI itself ends the turn */
   maxCostUsd?: number;
@@ -915,7 +915,7 @@ export interface Chat {
   atLimit?: boolean;
   state: ChatState;
   control: ChatControl;
-  /** The live execution, when Agentry has a process on the chat; also the last of `executions` */
+  /** The live execution, when Claudio has a process on the chat; also the last of `executions` */
   execution: Execution | null;
   /** What that execution is doing right now; `null` whenever none is live */
   activity?: ChatActivity | null;
@@ -928,19 +928,19 @@ export interface Chat {
   /** Null when nothing has reported it yet */
   environment: ChatEnvironment | null;
   health: ChatHealth;
-  /** What it was started with, when Agentry started it: absent for a chat born in a terminal */
+  /** What it was started with, when Claudio started it: absent for a chat born in a terminal */
   tools?: ChatToolConfig | null;
   /**
    * Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way
-   * since; only while Agentry has a record of the chat (docs/chat-delivery.md)
+   * since; only while Claudio has a record of the chat (docs/chat-delivery.md)
    */
   pending?: ChatPendingMessage[];
-  /** Set on a chat of the Agentry assistant: it keeps its confinement whenever it is continued, resumed or forked */
+  /** Set on a chat of the Claudio assistant: it keeps its confinement whenever it is continued, resumed or forked */
   agentryAssistant?: AgentryAssistantMarker | null;
 }
 
 /**
- * What an Agentry assistant chat remembers about what it is, so the core re-applies its confinement
+ * What an Claudio assistant chat remembers about what it is, so the core re-applies its confinement
  * and its guide on every process, whatever a request asks.
  */
 export interface AgentryAssistantMarker {
@@ -950,7 +950,7 @@ export interface AgentryAssistantMarker {
   language: AgentryLanguage;
 }
 
-/** Starts a chat with the Agentry assistant; nothing else about the chat can be chosen. */
+/** Starts a chat with the Claudio assistant; nothing else about the chat can be chosen. */
 export interface StartAgentryAssistantChatRequest {
   prompt: string;
   /** The project to take as context; the chat starts with none when absent or null */
@@ -1002,17 +1002,17 @@ export type ChatSubagentEntry = ChatSubagent & { chat: ChatRef };
 export type ChatWorkflowEntry = ChatWorkflow & { chat: ChatRef };
 
 /**
- * Which of the configured MCP servers a chat starts with. Agentry writes the file the CLI reads and
+ * Which of the configured MCP servers a chat starts with. Claudio writes the file the CLI reads and
  * passes it as `--mcp-config` / `--strict-mcp-config`; there is no other way in.
  */
 export interface McpSelection {
   /** Names of configured servers, as `GET /config/mcp` lists them; empty starts the chat with none */
   servers: string[];
-  /** Path of the config file Agentry wrote for the CLI, reported back so a chat can be explained */
+  /** Path of the config file Claudio wrote for the CLI, reported back so a chat can be explained */
   config?: string;
 }
 
-/** A shell command a policy allows or denies, in Agentry's words. */
+/** A shell command a policy allows or denies, in Claudio's words. */
 export type CommandRule =
   /** Exactly this command, no arguments */
   | { command: string; args: 'none' }
@@ -1024,7 +1024,7 @@ export type CommandRule =
   | { pattern: string };
 
 /**
- * What a session may do, in Agentry's words. Each provider's driver translates it into its own
+ * What a session may do, in Claudio's words. Each provider's driver translates it into its own
  * rules and lists the parts it cannot enforce.
  */
 export interface ToolPolicy {
@@ -1060,7 +1060,7 @@ export interface PolicyTranslation {
   rules: { allowedTools: string[]; disallowedTools: string[]; tools?: string[] };
   /** Native settings the launch applies (a sandbox mode, inline config, a policy file), each with the part it enforces */
   settings?: Array<{ part: PolicyPart; key: string; value: unknown }>;
-  /** Parts Agentry enforces by answering the agent's permission requests itself, through the policy judge */
+  /** Parts Claudio enforces by answering the agent's permission requests itself, through the policy judge */
   host?: PolicyPart[];
   /** The policy parts the provider cannot enforce, by field (`gitPush`, `commands`…) */
   unsupported: string[];
@@ -1074,9 +1074,9 @@ export interface ToolPreset {
   description?: string;
   allowedTools: string[];
   disallowedTools?: string[];
-  /** What a shipped preset states in Agentry's words; each provider translates it into its own rules */
+  /** What a shipped preset states in Claudio's words; each provider translates it into its own rules */
   policy?: ToolPolicy;
-  /** Shipped with Agentry. Editable like any other, but a fresh install has it again. */
+  /** Shipped with Claudio. Editable like any other, but a fresh install has it again. */
   builtIn?: boolean;
 }
 
@@ -1350,7 +1350,7 @@ export interface ProjectTeamRole {
 
 /**
  * The Team module's metadata. A member is a CLI agent file in the project's `.claude/agents/`, so it
- * also works from a terminal; this is what Agentry keeps beside it. `GET /projects/:id/team` serves
+ * also works from a terminal; this is what Claudio keeps beside it. `GET /projects/:id/team` serves
  * each member with the state of its file ({@link TeamMember}).
  */
 export interface ProjectTeamSettings {
@@ -1362,7 +1362,7 @@ export interface ProjectTeamMember extends ProjectTeamRole {
   agent: string;
   /**
    * Paths or globs, relative to the project, the member may write; absent means no restriction of
-   * Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules;
+   * Claudio's own. Enforced on the chats Claudio starts for it through the CLI's permission rules;
    * from a terminal it is only what the agent file says.
    */
   writes?: string[];
@@ -1394,11 +1394,11 @@ export interface ProjectFlowSettings {
   maxParallel?: number;
   /**
    * What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run
-   * once it is reached. Absent (the default) means no limit of Agentry's own.
+   * once it is reached. Absent (the default) means no limit of Claudio's own.
    */
   maxCostUsd?: number;
   /**
-   * Fixes of failing checks Agentry may start on its own for one head commit (`checks.fix`). Absent
+   * Fixes of failing checks Claudio may start on its own for one head commit (`checks.fix`). Absent
    * reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it.
    */
   checksFixAttempts?: number;
@@ -1486,7 +1486,7 @@ export type WorkItemPriority = 'low' | 'medium' | 'high' | 'urgent';
  */
 export type WorkItemAssignee = { kind: 'person' } | { kind: 'role'; role: string };
 
-/** `system` is Agentry itself acting on a chat's or a node's behalf; the cause beside it says which. */
+/** `system` is Claudio itself acting on a chat's or a node's behalf; the cause beside it says which. */
 export type WorkItemActorKind = 'person' | 'agent' | 'system';
 
 /** Who did something to a work item: made a change, wrote a comment, checked a criterion. */
@@ -1709,7 +1709,7 @@ export type WorkItemWaitReason = 'approval' | 'bounces' | 'merge';
 /**
  * Where an item's pull request stands (docs/plans/work-item-pull-requests.md):
  *
- * - `preparing`: approved, and Agentry is committing, updating, pushing and opening it;
+ * - `preparing`: approved, and Claudio is committing, updating, pushing and opening it;
  * - `conflict`: updating the branch with the default branch conflicted, and the merge waits in the
  *   item's worktree for the Developer (or the person) to resolve it;
  * - `awaiting-verify`: the conflict was handed to the Developer, and QA's next pass opens the PR
@@ -2338,7 +2338,7 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
  * - `no-account`: the account hit its rate limit and no other account could take the run over;
  * - `rate-limit`: the account hit its rate limit and the rotation was off;
  * - `stopped`: its chat was stopped;
- * - `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;
+ * - `restarts`: Claudio restarted past `MAX_FLOW_RESTARTS` times while it worked;
  * - `unreadable`: it ended without a readable structured result;
  * - `no-verdict`: a verification ended without a verdict;
  * - `max-tokens`: its last turn stopped on the output token limit, so its result is cut short even when it parses;
@@ -2587,7 +2587,7 @@ export interface FlowMemoryProposal {
   reason: string;
 }
 
-/** A document a flow run wrote in the item's worktree, reported so Agentry ties it to the item. */
+/** A document a flow run wrote in the item's worktree, reported so Claudio ties it to the item. */
 export interface FlowRunDocument {
   /** Relative to the project, inside the documents folder (`docs/specs/agn-28-board.md`) */
   path: string;
@@ -2615,7 +2615,7 @@ export interface FlowRunResult {
 export type JournalEntryKind = 'closed' | 'decision' | 'memory' | 'note';
 
 /**
- * One entry of a project's journal, Agentry's own record of decisions and closed items. The newest
+ * One entry of a project's journal, Claudio's own record of decisions and closed items. The newest
  * are handed to every flow run with `--append-system-prompt`.
  */
 export interface JournalEntry {
@@ -2651,7 +2651,7 @@ export interface JournalPage {
   nextBefore: string | null;
 }
 
-/** An entry written by hand. `closed` and `memory` are Agentry's to write. */
+/** An entry written by hand. `closed` and `memory` are Claudio's to write. */
 export interface CreateJournalEntryRequest {
   text: string;
   /** Default `note` */
@@ -2802,7 +2802,7 @@ export interface TieDocumentRequest {
 // Orchestration 4 of docs/plans/project-ecosystem.md (decisions 35 to 37). An assistant run is a chat
 // through the CLI in the project's directory, read-only (the read tools, and `Bash` limited to
 // `git log`, `git status` and `ls`), that answers through `--json-schema`. It never writes a file:
-// each proposal is accepted or discarded on its own, and only an accept makes Agentry write
+// each proposal is accepted or discarded on its own, and only an accept makes Claudio write
 // something, through the service that owns it (the team, the work items, the resources). It runs on
 // demand or when a project is created, never on a schedule.
 
@@ -2826,7 +2826,7 @@ export type AssistantResourceKind = Extract<ResourceKind, 'agents' | 'skills' | 
 
 /**
  * What an entry of "what it read" is: the project's files (`file`, `dir`), the CLI's `instructions`
- * (`CLAUDE.md`) and `memory`, Agentry's `journal`, `work-items` and `milestones` (so it does not
+ * (`CLAUDE.md`) and `memory`, Claudio's `journal`, `work-items` and `milestones` (so it does not
  * propose them again), the `team`, the `resources`, the CLI's `chats` in the directory and the `git`
  * history.
  */
@@ -2854,7 +2854,7 @@ export type AssistantSourceUnit = 'lines' | 'files' | 'documents' | 'chats' | 'c
 
 /**
  * One entry of what a run read ("See what it read"): kept on the run, filled in from the chat's tool
- * calls and from what Agentry handed it (its journal, its work items, its team, its resources).
+ * calls and from what Claudio handed it (its journal, its work items, its team, its resources).
  */
 export interface AssistantSource {
   kind: AssistantSourceKind;
@@ -3265,7 +3265,7 @@ export interface Localized {
 }
 
 /**
- * The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its
+ * The languages Claudio speaks. A chat Claudio starts on its own is listed by the first line of its
  * prompt, so that line is written in the person's language, read from the request's
  * `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a
  * flow run); the instructions for Claude after it may stay in English.
@@ -3283,7 +3283,7 @@ export interface OrchestrationTaskSpec {
   model?: string;
   /** Takes the orchestration's, then the recommendation for the model (`worker`); ignored on the `workflow` engine */
   effort?: Effort;
-  /** What this worker may spend before Agentry stops it; the graph's default when absent */
+  /** What this worker may spend before Claudio stops it; the graph's default when absent */
   limits?: TaskLimits;
   /**
    * The work item this node works on, as a draft built from a selection names it. Launching links
@@ -3298,7 +3298,7 @@ export interface OrchestrationTaskSpec {
  *   graph     every task is its own `claude -p` process, optionally in its own worktree and branch,
  *             merged into one integration branch at the end
  *   workflow  every task is a subagent of one Claude Code session, driven by a workflow script
- *             Agentry generates from the graph: cheaper and resumable from cache, but in the
+ *             Claudio generates from the graph: cheaper and resumable from cache, but in the
  *             project directory, so for work that does not change files in parallel
  */
 export type OrchestrationEngine = 'graph' | 'workflow';
@@ -3365,7 +3365,7 @@ export interface LimitWait {
 
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
-  /** A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again */
+  /** A task Claudio added to the graph itself, not one the person or the planner wrote; a relaunch adds it again */
   builtIn?: 'e2e-specs';
   /** Git worktree this task works in, when the orchestration isolates its workers */
   worktree?: string | null;
@@ -4014,7 +4014,7 @@ export interface UpdateAuthConfigRequest {
   readOnly?: boolean;
 }
 
-/** Sets or rotates the bearer token. Omit it to have Agentry generate one. */
+/** Sets or rotates the bearer token. Omit it to have Claudio generate one. */
 export interface SetAuthTokenRequest {
   token?: string;
 }
@@ -4141,14 +4141,14 @@ export type SaveDashboardLayoutRequest = DashboardLayout;
 
 // ---------- Tunnel ----------
 
-// Reaching Agentry from a phone or another computer on the person's tailnet, through the Tailscale
+// Reaching Claudio from a phone or another computer on the person's tailnet, through the Tailscale
 // CLI (`tailscale serve`, tailnet-only, never Funnel): one provider, the person's own Tailscale
 // session, reached only through its CLI flags and `--json` output (docs/plans/tunnel.md). The
 // tunnel only exists while the guard asks for authentication, and only its exact host joins the
 // allowlist.
 
 /**
- * `starting`: Agentry is adding its Serve rule. `verifying`: the rule was sent, and Agentry reads
+ * `starting`: Claudio is adding its Serve rule. `verifying`: the rule was sent, and Claudio reads
  * the node's Serve config back to make sure it holds and points at this server before showing the
  * address.
  */
@@ -4168,8 +4168,8 @@ export type TunnelState = 'stopped' | 'starting' | 'verifying' | 'active' | 'sto
  * - `ready`: Serve can be used.
  *
  * A Tailscale that belongs to the machine (a source checkout, the desktop app) is never signed in,
- * started or configured by Agentry: it says what to run. Only the `tailscaled` the Docker image
- * starts for Agentry (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md).
+ * started or configured by Claudio: it says what to run. Only the `tailscaled` the Docker image
+ * starts for Claudio (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md).
  */
 export type TailscaleReadinessState = 'missing' | 'unsupported' | 'daemonDown' | 'loggedOut' | 'stopped' | 'httpsDisabled' | 'ready';
 
@@ -4185,7 +4185,7 @@ export interface TailscaleReadiness {
 
 /** What the tunnel may be told to do beside starting and stopping it. */
 export interface TunnelSettings {
-  /** Open the tunnel whenever Agentry starts; off unless the person turns it on */
+  /** Open the tunnel whenever Claudio starts; off unless the person turns it on */
   startWithAgentry: boolean;
 }
 
@@ -4211,7 +4211,7 @@ export interface TunnelStatus {
    */
   enabled: boolean;
   /**
-   * Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in
+   * Whether the `tailscaled` behind the CLI is Claudio's own: the one the Docker image starts in
    * userspace networking, with its state on the data volume (`CLAUDIO_TAILSCALE_MANAGED`). Only
    * then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a
    * machine's own Tailscale is the person's, and the UI says what to run instead
@@ -4219,7 +4219,7 @@ export interface TunnelStatus {
   managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
-  /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default) */
+  /** The HTTPS port on the tailnet name that Claudio's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default) */
   port: number;
   settings: TunnelSettings;
 }
@@ -4228,7 +4228,7 @@ export interface TunnelStatus {
 
 /**
  * What Claude Code actually loaded for a directory, taken from the `init` event of the most
- * recent chat Agentry started there (the CLI only reports it when a session starts).
+ * recent chat Claudio started there (the CLI only reports it when a session starts).
  */
 export interface EffectiveEnvironment {
   cwd: string;
@@ -4359,7 +4359,7 @@ export interface ConnectorLimit {
   reason: Localized;
 }
 
-/** What a person has to do: Agentry cannot authorise a connector on anyone's behalf. */
+/** What a person has to do: Claudio cannot authorise a connector on anyone's behalf. */
 export interface ConnectorGuide {
   steps: Localized[];
   links: Array<{ label: Localized; url: string }>;
@@ -4368,7 +4368,7 @@ export interface ConnectorGuide {
 export interface ConnectorsOverview {
   /** The claude.ai connectors `claude mcp list` reports, in the CLI's order */
   connectors: Connector[];
-  /** Docs, Gmail and Calendar are the kinds Agentry has prepared actions for: those not listed at all */
+  /** Docs, Gmail and Calendar are the kinds Claudio has prepared actions for: those not listed at all */
   notListed: ConnectorKind[];
   authorisation: ConnectorGuide;
   unavailable: ConnectorLimit[];
@@ -5182,7 +5182,7 @@ export interface SessionsChangedEvent extends AgentryEventBase {
  */
 export type ProviderId = string;
 
-/** How Agentry talks to a provider's CLI: each one needs its own driver to read events and send input. */
+/** How Claudio talks to a provider's CLI: each one needs its own driver to read events and send input. */
 export type ProviderTransport = 'stream-json';
 
 /**
@@ -5256,7 +5256,7 @@ export type ProviderReasonCode =
   /** The provider's binding window is above 60 % */
   | 'limit-near';
 
-/** The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change. */
+/** The code hosts Claudio reaches through their own CLI. Closed: adding one is a code change. */
 export type CodeHostId = 'github' | 'gitlab';
 
 /** `degraded`: installed and signed in, but on a release the facts were not recorded on. */
@@ -5282,7 +5282,7 @@ export interface CodeHostStatus {
   /** The binary that was resolved: the override, or the first match on the PATH or an install directory */
   binaryPath: string | null;
   version: string | null;
-  /** The oldest release Agentry works with */
+  /** The oldest release Claudio works with */
   minimum: string;
   /** The releases the CLI facts were recorded on */
   recorded: string[];
@@ -5306,7 +5306,7 @@ export interface CodeHostsSettings {
   hosts: Record<CodeHostId, CodeHostSettingsEntry>;
 }
 
-/** A project's remote as Agentry parsed it: never the URL, which can carry a user and a secret. */
+/** A project's remote as Claudio parsed it: never the URL, which can carry a user and a secret. */
 export interface ProjectCodeHostRemote {
   hostname: string;
   path: string;
@@ -5383,7 +5383,7 @@ export interface HostsChangedEvent extends AgentryEventBase {
 
 // ---------- Issue trackers (code hosts, phase 5) ----------
 
-/** The issue trackers Agentry knows. Closed: adding one is a code change. */
+/** The issue trackers Claudio knows. Closed: adding one is a code change. */
 export type TrackerId = 'github-issues' | 'gitlab-issues' | 'youtrack';
 
 /** Readiness of a tracker; `unknown` is a tracker nobody recorded the CLI of, or one not probed yet. */
@@ -5406,7 +5406,7 @@ export interface TrackerStatus {
   host: CodeHostId | null;
   binaryPath: string | null;
   version: string | null;
-  /** The oldest release Agentry works with; null while the CLI is not recorded */
+  /** The oldest release Claudio works with; null while the CLI is not recorded */
   minimum: string | null;
   /** The releases the CLI facts were recorded on; empty while not recorded */
   recorded: string[];
@@ -5474,7 +5474,7 @@ export interface IssueRef {
   /**
    * The tracker scope (the repository, for GitHub and GitLab) the issue was imported from. Every
    * call and every closing word about this issue uses it, whatever the project's scope is now; null
-   * when it was never recorded, and Agentry then writes nothing to the issue.
+   * when it was never recorded, and Claudio then writes nothing to the issue.
    */
   scope: string | null;
   /** The tracker's own id, when it differs from the key */
@@ -5649,7 +5649,7 @@ export interface Check {
   finishedAt: string | null;
   /** Its page on the host */
   url: string | null;
-  /** Agentry can ask the host to run it again: false for a commit status, another app's check or a bridge */
+  /** Claudio can ask the host to run it again: false for a commit status, another app's check or a bridge */
   rerunnable: boolean;
   /** A log can be read: false for a bridge, a commit status and another app's check */
   hasLog: boolean;
@@ -5664,7 +5664,7 @@ export interface ChangeRequestChecks {
   /** The list reached its ceiling (1 000): the first ones are shown */
   truncated: boolean;
   checkedAt: string;
-  /** While the host's rate limit is used up: when Agentry may read again; the list is the last one it had */
+  /** While the host's rate limit is used up: when Claudio may read again; the list is the last one it had */
   limitedUntil?: string | null;
 }
 
@@ -5832,7 +5832,7 @@ export interface ReviewPost {
   remoteId: string | null;
   /**
    * Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly`,
-   * with the ids of the draft notes Agentry saved (GitLab), the only ones a discard deletes
+   * with the ids of the draft notes Claudio saved (GitLab), the only ones a discard deletes
    */
   detail: { code: HostReason; detail: string; saved?: number; total?: number; draftIds?: string[] } | null;
   createdAt: string;
@@ -5846,7 +5846,7 @@ export interface ReviewPost {
 export interface ChangeRequestReviewPosts {
   posts: ReviewPost[];
   /**
-   * For each `partly` post, how many of the draft notes Agentry saved are still waiting on the host
+   * For each `partly` post, how many of the draft notes Claudio saved are still waiting on the host
    * (GitLab); empty when no post is partly posted, null when the host could not be read
    */
   savedOnHost: Record<string, number> | null;
@@ -5861,21 +5861,21 @@ export interface ChangeRequestReviewer {
 
 /** Where the review stands, re-read after every write. */
 export interface ChangeRequestReviewers {
-  /** The host's decision in Agentry's words; null when no rule asks for one */
+  /** The host's decision in Claudio's words; null when no rule asks for one */
   decision: 'approved' | 'changes-requested' | 'review-required' | null;
   reviewers: ChangeRequestReviewer[];
   unresolvedThreads: number;
 }
 
-/** `POST /change-requests/:id/reviewers`. Agentry adds and removes; it never replaces the list. */
+/** `POST /change-requests/:id/reviewers`. Claudio adds and removes; it never replaces the list. */
 export interface ReviewersRequest {
   add: string[];
   remove?: string[];
 }
 
 /**
- * Whether the viewer approved. `canApprove` is Agentry's rule, never the host's `user_can_approve`
- * (false for an author whose approval succeeds, recorded); it is false on GitHub, where Agentry
+ * Whether the viewer approved. `canApprove` is Claudio's rule, never the host's `user_can_approve`
+ * (false for an author whose approval succeeds, recorded); it is false on GitHub, where Claudio
  * does not approve.
  */
 export interface ApprovalState {
@@ -5917,7 +5917,7 @@ export interface ChangeRequestReviewEvent extends AgentryEventBase {
 
 // ---------- Merging (code hosts, phase 4) ----------
 
-/** Agentry turned a change request's auto-merge off before a push of its own: the person arms it again afterwards. */
+/** Claudio turned a change request's auto-merge off before a push of its own: the person arms it again afterwards. */
 export interface ChangeRequestAutoMergeOffEvent extends AgentryEventBase {
   type: 'change-request.auto-merge-off';
   /** The change request's row id; `id` is the feed's sequence number */
@@ -5925,7 +5925,7 @@ export interface ChangeRequestAutoMergeOffEvent extends AgentryEventBase {
   why: AutoMergeOffWhy;
 }
 
-/** How a change request is merged. The host's own words differ (`rebase_merge`, `ff`); this is Agentry's. */
+/** How a change request is merged. The host's own words differ (`rebase_merge`, `ff`); this is Claudio's. */
 export type MergeMethod = 'squash' | 'merge' | 'rebase';
 
 /**
@@ -5956,8 +5956,8 @@ export type MergeBlockerCode =
   | 'blocked-by-policy';
 
 /**
- * The one thing the person can do about a blocker. Each is an Agentry action or a link, never a
- * command to copy: `update-from-base` is Agentry's own merge of the base into the branch,
+ * The one thing the person can do about a blocker. Each is an Claudio action or a link, never a
+ * command to copy: `update-from-base` is Claudio's own merge of the base into the branch,
  * `rebase-on-host` a host-side rebase (GitLab `ff` projects only).
  */
 export type MergeBlockerAction =
@@ -5985,7 +5985,7 @@ export interface MergeBlocker {
 /** Whether an auto-merge may be armed, and whether one is. */
 export interface AutoMergeState {
   /**
-   * Agentry may arm one now: the repository allows it (GitHub `allow_auto_merge`; GitLab always)
+   * Claudio may arm one now: the repository allows it (GitHub `allow_auto_merge`; GitLab always)
    * and something is left to wait for. When false, `reason` says why.
    */
   available: boolean;
@@ -5998,10 +5998,10 @@ export interface AutoMergeState {
   armedAt: string | null;
 }
 
-/** Why Agentry turned auto-merge off: before it pushed to the branch (a fix, an address, the first push), or to update it from its base */
+/** Why Claudio turned auto-merge off: before it pushed to the branch (a fix, an address, the first push), or to update it from its base */
 export type AutoMergeOffWhy = 'push' | 'update';
 
-/** The fact that Agentry turned auto-merge off, until the person arms it again */
+/** The fact that Claudio turned auto-merge off, until the person arms it again */
 export interface AutoMergeOff {
   /** Who: `agentry` for its own push, the person who clicked for Update from base */
   by: string;
@@ -6017,7 +6017,7 @@ export interface MergeState {
   host: CodeHostId;
   /** The head commit (full id) this state was read at; a merge carries it back as `expectedHead` */
   headSha: string | null;
-  /** What the repository's settings and rules allow, in the order Agentry offers them; empty when none is allowed */
+  /** What the repository's settings and rules allow, in the order Claudio offers them; empty when none is allowed */
   methods: MergeMethod[];
   /** The method to preselect: the first of `methods`; null when there is none */
   defaultMethod: MergeMethod | null;
@@ -6032,16 +6032,16 @@ export interface MergeState {
   /** `UNSTABLE` on GitHub: a check that is not required failed; Merge stays on */
   warning: 'optional-checks-failing' | null;
   autoMerge: AutoMergeState;
-  /** Agentry turned auto-merge off for a push; null once the person arms it again (or turns it off themselves) */
+  /** Claudio turned auto-merge off for a push; null once the person arms it again (or turns it off themselves) */
   autoMergeOff: AutoMergeOff | null;
-  /** GitLab: the head's pipeline has not appeared yet; Agentry re-reads every 10 s */
+  /** GitLab: the head's pipeline has not appeared yet; Claudio re-reads every 10 s */
   waitingForPipeline: boolean;
   /** GitLab `ff` project: Rebase on GitLab is an option for `behind` */
   canRebaseOnHost: boolean;
   /** Rebase on GitLab would apply but is not offered: it would drop what is only in the checkout (uncommitted changes, or commits never pushed) */
   rebaseOnHostWhy: 'uncommitted-changes' | 'unpushed-commits' | null;
   readAt: string;
-  /** While the host's rate limit is used up: when Agentry may read again; the state is the last one it had */
+  /** While the host's rate limit is used up: when Claudio may read again; the state is the last one it had */
   limitedUntil?: string | null;
 }
 
@@ -6075,7 +6075,7 @@ export interface UpdateBranchResult {
   state: MergeState;
   /** Empty: a conflicting update is a 409 that names the paths */
   conflicts: string[];
-  /** Agentry's own merge of the base into the branch, or a host-side rebase */
+  /** Claudio's own merge of the base into the branch, or a host-side rebase */
   via: 'merge' | 'rebase';
 }
 
@@ -6102,7 +6102,7 @@ export interface ChangeRequestMerge {
   expectedHead: string | null;
   deleteBranch: boolean;
   requestedAt: string;
-  /** The person who clicked; `agentry` for the disarm Agentry does before it pushes */
+  /** The person who clicked; `agentry` for the disarm Claudio does before it pushes */
   requestedBy: string;
   outcome: ChangeRequestMergeOutcome;
   /** Why it failed: a reason code, and the host's first line */
@@ -6251,7 +6251,7 @@ export interface ProvidersChangedEvent extends AgentryEventBase {
 }
 
 /**
- * A release check found a newer Agentry than the last one it announced. Sent once per version, and
+ * A release check found a newer Claudio than the last one it announced. Sent once per version, and
  * never a notification: a release is not worth waking a phone for.
  */
 export interface SystemReleaseEvent extends AgentryEventBase {
@@ -6355,7 +6355,7 @@ export interface ProjectCreatedEvent extends AgentryEventBase {
   projectName: string;
 }
 
-/** A project was removed from Agentry. Its directory, settings and work items are left where they are. */
+/** A project was removed from Claudio. Its directory, settings and work items are left where they are. */
 export interface ProjectRemovedEvent extends AgentryEventBase {
   type: 'project.removed';
   projectId: string;
@@ -6543,8 +6543,8 @@ export interface TunnelChangedEvent extends AgentryEventBase {
 
 /**
  * Where a registered hook stands. `active`: it delivers, or has not failed yet. `failing`: the host
- * reports its last delivery as refused or unanswered. `stale`: its URL is no longer Agentry's
- * public address and Agentry could not re-point it. `removed`: the person removed it.
+ * reports its last delivery as refused or unanswered. `stale`: its URL is no longer Claudio's
+ * public address and Claudio could not re-point it. `removed`: the person removed it.
  */
 export type WebhookState = 'active' | 'failing' | 'stale' | 'removed';
 
@@ -6562,11 +6562,11 @@ export interface WebhookLastResponse {
 }
 
 /**
- * A hook Agentry registered on a project's repository. The secret that signs its deliveries is kept
+ * A hook Claudio registered on a project's repository. The secret that signs its deliveries is kept
  * on the server and is never part of this document.
  */
 export interface WebhookRegistration {
-  /** Agentry's id for it; the receiver's address ends with it */
+  /** Claudio's id for it; the receiver's address ends with it */
   id: string;
   projectId: string;
   host: CodeHostId;
@@ -6585,7 +6585,7 @@ export interface WebhookRegistration {
   /** The host's own report of the last delivery; null until it said */
   lastResponse: WebhookLastResponse | null;
   /**
-   * Only in the answer that registered it, in words for the person: another Agentry install's hook
+   * Only in the answer that registered it, in words for the person: another Claudio install's hook
    * is on the repository and was left alone. Never stored.
    */
   notice?: string;
@@ -6631,14 +6631,14 @@ export interface WebhookChangedEvent extends AgentryEventBase {
 /**
  * What the setup signs in, by the name its CLI goes by: the five agents, the two code hosts' CLIs
  * (`gh` for GitHub, `glab` for GitLab), YouTrack, and the Tailscale that carries Remote access
- * (only where Agentry runs its daemon: `TunnelStatus.managed`).
+ * (only where Claudio runs its daemon: `TunnelStatus.managed`).
  */
 export const SETUP_TOOLS = ['claude-code', 'gh', 'glab', 'youtrack', 'tailscale'] as const;
 export type SetupTool = (typeof SETUP_TOOLS)[number];
 
 /**
  * `key`: a key or token the person pastes. `device`: the vendor's device-code sign-in, where the
- * person opens a URL on their own device and types the code Agentry shows.
+ * person opens a URL on their own device and types the code Claudio shows.
  */
 export type LoginMethod = 'key' | 'device';
 
@@ -6646,7 +6646,7 @@ export type LoginMethod = 'key' | 'device';
 export interface SetupToolMethods {
   tool: SetupTool;
   /**
-   * How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes
+   * How a key reaches the tool. `env`: Claudio keeps it sealed and hands it to that CLI's processes
    * in their environment. `stdin`: it is given once to the CLI's own login command, which stores it.
    * `file`: the same, through a file of mode 0600 the command is pointed at and that is removed once
    * it ended (Tailscale's `--auth-key=file:<path>`, the only way its CLI takes a key outside argv).
@@ -6656,7 +6656,7 @@ export interface SetupToolMethods {
   variables: string[];
   /** For `env`: only one of `variables` may be set at a time (Claude Code would otherwise pick for us) */
   exclusive: boolean;
-  /** Whether the vendor documents a device-code sign-in Agentry runs */
+  /** Whether the vendor documents a device-code sign-in Claudio runs */
   device: boolean;
   /**
    * The device sign-in is another tool's; `POST /setup/logins` with the tool's `device` starts that
@@ -6671,7 +6671,7 @@ export interface SetupToolMethods {
   /** False where there is no way to sign out from a program */
   signOut: boolean;
   /**
-   * Signing out only forgets the key Agentry keeps, so it is offered only while one is kept.
+   * Signing out only forgets the key Claudio keeps, so it is offered only while one is kept.
    */
   signOutKeyOnly: boolean;
 }
@@ -6736,7 +6736,7 @@ export interface SignOutResult {
   reason: 'unsupported' | 'cli-refused' | 'cli-missing' | null;
 }
 
-/** How Agentry keeps the secrets it hands a CLI through its environment. */
+/** How Claudio keeps the secrets it hands a CLI through its environment. */
 export interface SecretStorageStatus {
   /** Values are encrypted on disk; false only where there is no key (a desktop app without a keyring, or a source install) */
   sealed: boolean;
@@ -6755,7 +6755,7 @@ export interface SetupProviderSummary {
   state: ProviderReadinessState;
   reason: ProviderReasonCode | null;
   account: string | null;
-  /** A key Agentry keeps for it in the vault (Claude Code) */
+  /** A key Claudio keeps for it in the vault (Claude Code) */
   keyStored: boolean;
 }
 
@@ -6775,7 +6775,7 @@ export interface SetupHostSummary {
 export interface SetupTailscaleSummary {
   /** This deploy offers the tunnel (`CLAUDIO_TUNNEL`) */
   enabled: boolean;
-  /** Agentry runs this `tailscaled` (the Docker image), so it signs it in and out */
+  /** Claudio runs this `tailscaled` (the Docker image), so it signs it in and out */
   managed: boolean;
   state: TailscaleReadinessState;
   /** The node's MagicDNS name once it has one */
@@ -6873,7 +6873,7 @@ export interface StreamHelloEvent {
   /** Changes on every server start; ids restart from 1 with it, so a new one means a full resync */
   bootId: string;
   serverTime: string;
-  /** The Agentry version the server runs; a page built for another one is out of date */
+  /** The Claudio version the server runs; a page built for another one is out of date */
   version: string;
 }
 

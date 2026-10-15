@@ -18,7 +18,7 @@ export const claudeCodeManifest: ProviderManifest = {
   ],
   versions: {
     args: ['--version'],
-    // The range the plan gives for the driver Agentry runs today (docs/plans/multi-provider.md, section 1).
+    // The range the plan gives for the driver Claudio runs today (docs/plans/multi-provider.md, section 1).
     range: '>=2.1 <3',
   },
   install: { url: 'https://code.claude.com/docs/en/setup' },

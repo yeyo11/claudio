@@ -6,9 +6,9 @@ import { emptyTokenUsage } from './usage.ts';
 export const LEGACY_PROVIDER = 'claude-code';
 
 /**
- * What Agentry itself knows about a chat that the CLI's transcript does not say: where it came
+ * What Claudio itself knows about a chat that the CLI's transcript does not say: where it came
  * from, what it was called, how its executions were set up. One row per chat; the transcript stays
- * the CLI's, and a chat Agentry never drove has no record at all.
+ * the CLI's, and a chat Claudio never drove has no record at all.
  */
 export interface ChatRecord {
   /** The session id */
@@ -22,7 +22,7 @@ export interface ChatRecord {
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
   derivedFrom: ChatFork | null;
-  /** The first message Agentry sent, for a chat whose transcript has no readable one */
+  /** The first message Claudio sent, for a chat whose transcript has no readable one */
   prompt: string;
   lastText: string | null;
   model: string | null;
@@ -45,7 +45,7 @@ export interface ChatRecord {
    * of keeping it up idle
    */
   keepAlive?: false;
-  /** Set on a chat of the Agentry assistant: every process of it, after a restart too, is confined again */
+  /** Set on a chat of the Claudio assistant: every process of it, after a restart too, is confined again */
   agentryAssistant?: AgentryAssistantMarker | null;
   /** Messages the agent had not taken when this was written, and those lost before: a restart loses them, and says so */
   pending?: ChatPendingMessage[];

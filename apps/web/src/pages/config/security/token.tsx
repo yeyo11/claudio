@@ -79,7 +79,7 @@ export function useTokenActions(auth: AuthConfig) {
 }
 
 /**
- * The token Agentry just generated, shown once with Copy. `boxed` is the setup assistant's neutral
+ * The token Claudio just generated, shown once with Copy. `boxed` is the setup assistant's neutral
  * box; Settings keeps the warning it has always had, with "I have copied it".
  */
 export function RevealedToken({ boxed = false, body }: { boxed?: boolean; body?: string }) {

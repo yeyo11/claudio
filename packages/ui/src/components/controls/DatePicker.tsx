@@ -8,7 +8,7 @@ import { ICON_SM } from '../icons';
 import { LAYER_ATTR } from './layer';
 
 /**
- * A day, typed as `YYYY-MM-DD` or picked from a calendar of Agentry's own (a native date input
+ * A day, typed as `YYYY-MM-DD` or picked from a calendar of Claudio's own (a native date input
  * looks different in every browser and ignores the theme). The calendar is the WAI-ARIA date
  * picker dialog: a grid with one focusable day, moved with the arrows, Home/End and Page Up/Down.
  */

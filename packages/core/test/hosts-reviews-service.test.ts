@@ -285,7 +285,7 @@ test('GitLab: publish-saved publishes a partly posted review and drops the draft
   assert.deepEqual(h.service.listDrafts('cr-1').map((d) => d.body), ['a line note']);
 });
 
-test('GitLab: publish-saved is refused while a draft note Agentry did not save is waiting, since glab publishes them all', async () => {
+test('GitLab: publish-saved is refused while a draft note Claudio did not save is waiting, since glab publishes them all', async () => {
   const h = gitlab();
   h.sequence(/draft_notes -H/, [ok(gl('d8_draft_general')), failed(1, 'HTTP 500', { http: { status: 500, headers: {} } })]);
   await twoDrafts(h);
@@ -598,7 +598,7 @@ test('submit: the approval and the GitHub commit_id are the head the person look
 /** A draft note as the host lists it */
 const draftNote = (id: number, note: string): Record<string, unknown> => ({ id, author_id: 1, merge_request_id: 9, note, commit_id: null, line_code: null, position: null });
 
-test('GitLab discard saved deletes only the draft notes Agentry saved, never the persons others', async () => {
+test('GitLab discard saved deletes only the draft notes Claudio saved, never the persons others', async () => {
   const h = gitlab();
   h.sequence(/draft_notes -H/, [ok(gl('d8_draft_general')), failed(1, 'HTTP 500', { http: { status: 500, headers: {} } })]);
   await twoDrafts(h);

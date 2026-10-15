@@ -39,7 +39,7 @@ function shownKind(overview: ProjectWebhooks): WebhookRowKind {
 
 /**
  * Integrations → Webhooks: one row per project with a code host remote. A webhook only makes
- * Agentry read sooner; nothing here changes a pull request. The secret never reaches the page.
+ * Claudio read sooner; nothing here changes a pull request. The secret never reaches the page.
  */
 export function WebhooksSection({ projects }: { projects: Project[] }) {
   const { t } = useTranslation('webhooks');
@@ -278,7 +278,7 @@ function RegisterDialog({ project, overview, host, repo, hostname, onClose }: { 
     onSettled: () => queryClient.invalidateQueries({ queryKey: keys.projectWebhooks(project.id) }),
   });
 
-  // The receiver's path ends with an id Agentry only makes at registration, so the address is shown without it
+  // The receiver's path ends with an id Claudio only makes at registration, so the address is shown without it
   const address = `${overview.publicUrl ?? ''}/api/webhooks/${host}/`;
   const denied = error instanceof ApiRequestError && error.code === 'hook-no-permission';
   const subtitle = [repo, hostname, status?.version ? `${cli} ${status.version}` : cli].filter(Boolean).join(' · ');

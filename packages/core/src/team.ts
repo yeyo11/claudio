@@ -28,11 +28,11 @@ import { projectTemplate } from './project-templates.ts';
  * The Team module (decision 26 of docs/plans/project-ecosystem.md). A member is two things: a CLI
  * agent file in the project's `.claude/agents/<agent>.md`, which is what `claude --agent` reads and
  * so also works from a terminal, and the metadata in `settings.team` (role, model, responsibility,
- * what it may write), which is Agentry's.
+ * what it may write), which is Claudio's.
  *
- * The agent file belongs to the person as soon as they touch it. Agentry writes a starting file only
+ * The agent file belongs to the person as soon as they touch it. Claudio writes a starting file only
  * where there is none (`wx`, so not even a race overwrites one), and rewrites a file later only while
- * it is byte for byte what Agentry wrote: the hash of each file it wrote is kept in
+ * it is byte for byte what Claudio wrote: the hash of each file it wrote is kept in
  * `team-files/<projectId>.json` in the data directory. A file edited by hand, or one that was already
  * there, is never written again; where its frontmatter disagrees with the metadata the member is
  * served as `drifted`, and a deleted one as `missing`, for the person to decide.
@@ -45,7 +45,7 @@ export const MAX_TEXT = 500;
 export const MAX_WRITES = 50;
 
 /**
- * Told to every run Agentry starts that leaves records behind (flow stages, agent files, the
+ * Told to every run Claudio starts that leaves records behind (flow stages, agent files, the
  * assistant). A Spanish item or chat quoted into a prompt otherwise pulls the answer into Spanish,
  * and these records are state other agents read. See docs/decisions/english-technical-language.md.
  */
@@ -148,7 +148,7 @@ const ROLE_TITLES_ES: Readonly<Record<string, string>> = {
 };
 
 /**
- * A role as the person reads it, for the first line of a chat Agentry starts for a member: a
+ * A role as the person reads it, for the first line of a chat Claudio starts for a member: a
  * built-in role in their language, a role of their own as they wrote it.
  */
 export function roleTitleIn(role: string, language: AgentryLanguage): string {
@@ -218,19 +218,19 @@ export function agentFileContent(member: ProjectTeamMember): string {
   // `writes: []` is "nothing of the project", not "no limit": the flow allows no edit outside the
   // documents folder then, and the file has to say the same
   const writes = !member.writes
-    ? ['Agentry sets no limit of its own on what you write; keep to what your responsibility needs.']
+    ? ['Claudio sets no limit of its own on what you write; keep to what your responsibility needs.']
     : member.writes.length
       ? [
           'You may write only these paths, relative to the project, and the documents folder:',
           '',
           ...member.writes.map((w) => `- \`${w}\``),
           '',
-          "Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself. Read anything you need.",
+          "Claudio enforces this on the chats it starts for you; from a terminal, keep to it yourself. Read anything you need.",
         ]
       : [
           "You write none of the project's files: only documents in the documents folder. Read anything you need.",
           '',
-          'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
+          'Claudio enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
         ];
   // Only said when the member has a list: a file written before the list existed reads the same
   const commands = !member.commands
@@ -246,7 +246,7 @@ export function agentFileContent(member: ProjectTeamMember): string {
             ]
           : ['When you work on an item, you have no shell: read, edit and write files only.']),
         '',
-        'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
+        'Claudio enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
         '',
       ];
   return [
@@ -273,7 +273,7 @@ export function agentFileContent(member: ProjectTeamMember): string {
     ...commands,
     '## How a flow run ends',
     '',
-    "Agentry's flow starts you on a work item when its card enters a column you answer for. End every such run with the structured result it asks for:",
+    "Claudio's flow starts you on a work item when its card enters a column you answer for. End every such run with the structured result it asks for:",
     '',
     '- `summary`: what you did, which becomes your comment on the item;',
     '- `verdict`: `pass` or `fail`, only when you verify the item;',
@@ -344,7 +344,7 @@ export function templateTeam(settings: ProjectSettings): ProjectTeamRole[] {
   return own.length ? own : projectTemplate('custom').team;
 }
 
-/** Keeps, per project, the hash of each agent file Agentry wrote, so it knows which ones are still its own. */
+/** Keeps, per project, the hash of each agent file Claudio wrote, so it knows which ones are still its own. */
 class WrittenFiles {
   private readonly dir: string;
 
@@ -373,7 +373,7 @@ class WrittenFiles {
   }
 }
 
-/** What writing a member's file came to: `written`, a new file; `rewritten`, Agentry's own followed the metadata; `kept`, left as it was. */
+/** What writing a member's file came to: `written`, a new file; `rewritten`, Claudio's own followed the metadata; `kept`, left as it was. */
 type FileWrite = 'written' | 'rewritten' | 'kept';
 
 export class TeamService {
@@ -467,7 +467,7 @@ export class TeamService {
 
   /**
    * Writes the member's starting file where there is none; rewrites it to follow the metadata only
-   * while it is still exactly what Agentry last wrote. Anything else on disk is the person's.
+   * while it is still exactly what Claudio last wrote. Anything else on disk is the person's.
    */
   private async writeFile(project: TeamProject, member: ProjectTeamMember, create: boolean): Promise<FileWrite> {
     const full = this.agentPath(project, member.agent);
@@ -560,7 +560,7 @@ export class TeamService {
   }
 
   /**
-   * Creates or replaces a member's metadata. Its agent file follows only where Agentry still owns it
+   * Creates or replaces a member's metadata. Its agent file follows only where Claudio still owns it
    * (see `writeFile`); `createFile` writes a starting one where there is none, a new member's or a
    * deleted one's. Two members may not share a role: the flow hands a column to a role, and needs to
    * know whose it is.
