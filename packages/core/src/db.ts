@@ -802,6 +802,8 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // The effort a run started with (null: none was passed). Chats keep theirs in each execution's JSON.
   `ALTER TABLE flow_runs ADD COLUMN effort TEXT;
    ALTER TABLE assistant_runs ADD COLUMN effort TEXT;`,
+  // Overage state of a limit reading, as JSON (null: the event said nothing about it)
+  `ALTER TABLE provider_limits ADD COLUMN overage TEXT;`,
 ];
 
 /**
@@ -979,6 +981,7 @@ interface ProviderLimitRow {
   utilization: number | null;
   resets_at: string | null;
   windows: string;
+  overage: string | null;
   observed_at: string;
   source: string;
 }
@@ -990,6 +993,12 @@ function toProviderLimit(row: ProviderLimitRow): ProviderLimit {
   } catch {
     // an unreadable windows column leaves the summary fields, which is what the banner reads
   }
+  let overage: ProviderLimit['overage'];
+  try {
+    if (row.overage) overage = JSON.parse(row.overage) as ProviderLimit['overage'];
+  } catch {
+    // an unreadable overage column reads as no overage news
+  }
   return {
     provider: row.provider,
     state: row.state as ProviderLimit['state'],
@@ -997,6 +1006,7 @@ function toProviderLimit(row: ProviderLimitRow): ProviderLimit {
     utilization: row.utilization,
     resetsAt: row.resets_at,
     windows,
+    ...(overage ? { overage } : {}),
     observedAt: row.observed_at,
     source: row.source as ProviderLimit['source'],
   };
@@ -1338,14 +1348,14 @@ export class Db {
   upsertProviderLimit(limit: ProviderLimit): boolean {
     const result = this.db
       .prepare(
-        `INSERT INTO provider_limits (provider, state, binding_window, utilization, resets_at, windows, observed_at, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO provider_limits (provider, state, binding_window, utilization, resets_at, windows, overage, observed_at, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (provider) DO UPDATE SET
            state = excluded.state, binding_window = excluded.binding_window, utilization = excluded.utilization,
-           resets_at = excluded.resets_at, windows = excluded.windows, observed_at = excluded.observed_at, source = excluded.source
+           resets_at = excluded.resets_at, windows = excluded.windows, overage = excluded.overage, observed_at = excluded.observed_at, source = excluded.source
          WHERE excluded.observed_at >= provider_limits.observed_at`,
       )
-      .run(limit.provider, limit.state, limit.window, limit.utilization, limit.resetsAt, JSON.stringify(limit.windows), limit.observedAt, limit.source);
+      .run(limit.provider, limit.state, limit.window, limit.utilization, limit.resetsAt, JSON.stringify(limit.windows), limit.overage ? JSON.stringify(limit.overage) : null, limit.observedAt, limit.source);
     return Number(result.changes) > 0;
   }
 

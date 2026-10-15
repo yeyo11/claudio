@@ -154,6 +154,8 @@ export interface DriverSession {
   setOption(option: { permissionMode: PermissionMode } | { model: string }): Promise<void>;
   /** The MCP servers the process has, as it reports them now; a driver that cannot say leaves it out */
   mcpStatus?(): Promise<LiveMcpServer[]>;
+  /** The context window's use as the process reports it now, between turns; a driver that cannot say leaves it out */
+  contextUsage?(): Promise<Record<string, unknown>>;
   /** Switches one MCP server of the process on or off; the agent may keep the choice beyond the process */
   mcpToggle?(name: string, enabled: boolean): Promise<void>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
@@ -223,6 +225,12 @@ export interface ModelUsage {
   model: string;
   costUsd?: number;
   contextWindow?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  webSearchRequests?: number;
+  maxOutputTokens?: number;
 }
 
 /**

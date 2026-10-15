@@ -72,6 +72,10 @@ class ClaudeCodeSession implements DriverSession {
     return liveMcpServers(await this.control.request({ subtype: 'mcp_status' }));
   }
 
+  async contextUsage(): Promise<Record<string, unknown>> {
+    return await this.control.request({ subtype: 'get_context_usage' });
+  }
+
   async mcpToggle(name: string, enabled: boolean): Promise<void> {
     // The CLI writes the choice to the folder's `disabledMcpServers`, as `/mcp` does in a terminal
     await this.control.request({ subtype: 'mcp_toggle', serverName: name, enabled });
