@@ -428,6 +428,17 @@ test('the ninth terminal is refused, and so is the fifth client on one', async (
   assert.equal(await outcome(fifth), 409);
 });
 
+test('DELETE removes a terminal from the list and from every route, and a second DELETE finds nothing', async (t) => {
+  const w = await wrapper(t);
+  const terminal = await openTerminal(t, w);
+  if (!terminal) return;
+  assert.deepEqual((await w.app.inject('/api/terminals')).json<Terminal[]>().map((x) => x.id), [terminal.id]);
+  assert.equal((await w.app.inject({ method: 'DELETE', url: `/api/terminals/${terminal.id}` })).statusCode, 200);
+  assert.deepEqual((await w.app.inject('/api/terminals')).json<Terminal[]>(), []);
+  assert.equal((await w.app.inject(`/api/terminals/${terminal.id}`)).statusCode, 404);
+  assert.equal((await w.app.inject({ method: 'DELETE', url: `/api/terminals/${terminal.id}` })).statusCode, 404);
+});
+
 test('create, ticket and close are audited, and the rows hold counts and never content', async (t) => {
   const w = await wrapper(t);
   const open = await listen(t, w.app);

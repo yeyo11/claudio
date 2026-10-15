@@ -139,7 +139,7 @@ test('closing a terminal ends the shell and a background job it started', real, 
   const [job] = jobsOf(pid, 'sleep 1000') as [number];
   ctx.service.close(terminal.id);
   await until('the shell and the job to be gone', () => !alive(pid) && !alive(job), 6000);
-  assert.equal(ctx.service.get(terminal.id)?.state, 'closed');
+  assert.equal(ctx.service.get(terminal.id), null, 'a terminal the person closed is no longer listed');
   await ctx.service.shutdown();
 });
 

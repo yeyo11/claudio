@@ -398,11 +398,35 @@ test('closing a terminal tells its clients, asks the host to end the shell, and 
   assert.equal(closed?.state, 'closed');
   assert.deepEqual(client.of('closed'), [{ type: 'closed', reason: 'closed' }]);
   assert.equal(client.closed, true);
-  await assert.rejects(ctx.service.attach(terminal.id, new FakeClient()), (e) => e instanceof TerminalError && e.code === 'terminal.ended');
+  await assert.rejects(ctx.service.attach(terminal.id, new FakeClient()), (e) => e instanceof TerminalError && e.code === 'terminal.not-found');
   const row = ctx.service.history().entries[0];
   assert.equal(row?.endReason, 'closed');
   assert.equal(row?.attachments[0]?.detachedAt === null, false);
   assert.equal(ctx.service.close('term_nope'), null);
+  await stop(ctx);
+});
+
+test('a terminal the person closed leaves the list at once, and the history still records it', async () => {
+  const ctx = setup();
+  const kept = await opened(ctx);
+  const closing = await ctx.service.create({ projectId: 'p1' }, who);
+  ctx.service.close(closing.id);
+  assert.deepEqual(ctx.service.list().map((t) => t.id), [kept.id]);
+  assert.equal(ctx.service.get(closing.id), null);
+  assert.equal(ctx.service.close(closing.id), null, 'closing it again finds nothing');
+  assert.equal(ctx.service.history().entries.find((e) => e.id === closing.id)?.endReason, 'closed');
+  await stop(ctx);
+});
+
+test('X on a terminal that ended by itself forgets it, while an ended one nobody dismissed stays listed', async () => {
+  const ctx = setup();
+  const terminal = await opened(ctx);
+  ctx.backend.last.exit(0);
+  await settle();
+  assert.equal(ctx.service.list()[0]?.state, 'exited');
+  assert.equal(ctx.service.close(terminal.id)?.state, 'exited');
+  assert.deepEqual(ctx.service.list(), []);
+  await assert.rejects(ctx.service.attach(terminal.id, new FakeClient()), (e) => e instanceof TerminalError && e.code === 'terminal.not-found');
   await stop(ctx);
 });
 

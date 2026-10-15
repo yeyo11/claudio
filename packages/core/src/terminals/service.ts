@@ -119,6 +119,8 @@ interface Live {
   /** The host has not yet said the shell is gone */
   killing: boolean;
   spawning: boolean;
+  /** The person closed it (X): it is no longer listed or reachable, and is dropped as soon as its shell is gone */
+  dismissed: boolean;
 }
 
 const clamp = (value: number, [min, max]: readonly [number, number]): number => Math.min(max, Math.max(min, Math.trunc(value)));
@@ -237,6 +239,7 @@ export class TerminalService {
 
   list(filter: { project?: string; chat?: string } = {}): Terminal[] {
     return [...this.terminals.values()]
+      .filter((t) => !t.dismissed)
       .map((t) => this.snapshotOf(t))
       .filter((t) => {
         if (filter.project !== undefined && !(t.scope.kind === 'project' && t.scope.projectId === filter.project)) return false;
@@ -248,7 +251,7 @@ export class TerminalService {
 
   get(id: string): Terminal | null {
     const live = this.terminals.get(id);
-    return live ? this.snapshotOf(live) : null;
+    return live && !live.dismissed ? this.snapshotOf(live) : null;
   }
 
   running(): number {
@@ -284,6 +287,7 @@ export class TerminalService {
       endedAt: null,
       killing: false,
       spawning: true,
+      dismissed: false,
     };
     // Held while the host spawns, so a second request cannot slip past the cap in the meantime
     this.terminals.set(id, live);
@@ -313,12 +317,29 @@ export class TerminalService {
     return this.snapshotOf(live);
   }
 
-  /** Ends a terminal: SIGHUP, SIGTERM, then SIGKILL after 3 s to the shell's process group and what descends from it */
+  /**
+   * What the person's X does. A running terminal ends (SIGHUP, SIGTERM, then SIGKILL after 3 s to the
+   * shell's process group and what descends from it); one that already ended by itself (the shell
+   * exited, the server restarted, idle) is only forgotten. Either way it leaves the list at once:
+   * a closed tab that stayed listed made the X look dead.
+   */
   close(id: string, reason: TerminalEndReason = 'closed'): Terminal | null {
     const live = this.terminals.get(id);
-    if (!live) return null;
-    if (live.info.state === 'running') this.finish(live, reason, null, null);
-    return this.snapshotOf(live);
+    if (!live || live.dismissed) return null;
+    const wasRunning = live.info.state === 'running';
+    if (wasRunning) this.finish(live, reason, null, null, false);
+    live.dismissed = true;
+    const result = this.snapshotOf(live);
+    this.forgetIfGone(live);
+    this.changed();
+    return result;
+  }
+
+  /** A dismissed terminal is dropped once nothing waits for its shell; `tick` retries for the ones that still do */
+  private forgetIfGone(live: Live): void {
+    if (!live.dismissed || live.killing || live.spawning) return;
+    this.terminals.delete(live.info.id);
+    this.host?.forget(live.info.id);
   }
 
   /** Ends every running terminal, and resolves once the host has said they are gone (or the grace has passed) */
@@ -381,7 +402,7 @@ export class TerminalService {
    */
   async attach(id: string, client: TerminalClient): Promise<TerminalConnection> {
     const live = this.terminals.get(id);
-    if (!live) throw new TerminalError('terminal.not-found', 'No such terminal', 404);
+    if (!live || live.dismissed) throw new TerminalError('terminal.not-found', 'No such terminal', 404);
     if (live.info.state === 'closed') throw new TerminalError('terminal.ended', 'The terminal was closed', 409);
     if (live.clients.size >= MAX_CLIENTS) throw new TerminalError('terminal.clients', `At most ${String(MAX_CLIENTS)} clients can attach to one terminal`, 409);
 
@@ -509,7 +530,10 @@ export class TerminalService {
     if (!live) return;
     live.killing = false;
     if (live.info.state === 'running') this.finish(live, 'exit', code, signal);
-    else if (!this.stopped) this.host?.forget(id);
+    else if (!this.stopped) {
+      if (live.dismissed) this.forgetIfGone(live);
+      else this.host?.forget(id);
+    }
     this.notifySettled();
   }
 
@@ -593,6 +617,8 @@ export class TerminalService {
       if (live.info.state === 'running') {
         if (live.flow.isPaused) this.apply(live, live.flow.recheck());
         if (live.clients.size === 0 && !live.spawning && now - live.idleSince >= idleMs) this.finish(live, 'idle', null, null);
+      } else if (live.dismissed) {
+        this.forgetIfGone(live);
       } else if (live.endedAt !== null && now - live.endedAt >= ENDED_KEPT_MS) {
         this.terminals.delete(live.info.id);
         this.host?.forget(live.info.id);
