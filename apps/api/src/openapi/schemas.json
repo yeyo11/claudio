@@ -18119,6 +18119,112 @@
       }
     }
   },
+  "ProjectDoc": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The document's id on claude.ai"
+      },
+      "url": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "The title as last read; the one it was added with until the first refresh"
+      },
+      "kind": {
+        "type": "string",
+        "const": "doc"
+      },
+      "createdBy": {
+        "type": "string",
+        "enum": [
+          "claudio",
+          "person"
+        ]
+      },
+      "addedAt": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ProjectDocStatus"
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the document was last read through the connector; null before any read"
+      }
+    },
+    "required": [
+      "id",
+      "url",
+      "title",
+      "kind",
+      "createdBy",
+      "addedAt",
+      "status",
+      "checkedAt"
+    ],
+    "description": "A Claude Doc a project knows. The Docs connector cannot list an account's documents, so this registry (ids and links Claudio created or a person pasted) is the list."
+  },
+  "ProjectDocStatus": {
+    "type": "string",
+    "enum": [
+      "unread",
+      "ok",
+      "unavailable"
+    ],
+    "description": "What the last read of a document found: `unread` before any, `unavailable` when it no longer resolves."
+  },
+  "ProjectDocsOverview": {
+    "type": "object",
+    "properties": {
+      "docs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectDoc"
+        }
+      },
+      "refreshedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When a refresh last ran for the project; null if never"
+      }
+    },
+    "required": [
+      "docs",
+      "refreshedAt"
+    ]
+  },
+  "AddProjectDocRequest": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "create": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "body"
+        ]
+      }
+    },
+    "description": "Adds a document to a project: by link (a person pastes one), or by creating a new one. Exactly one of the two."
+  },
   "ProjectDocuments": {
     "type": "object",
     "properties": {

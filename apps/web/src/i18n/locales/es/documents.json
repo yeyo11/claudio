@@ -52,10 +52,22 @@
     "chat": "chat {{id}}"
   },
   "kinds": {
-    "spec": { "name": "Especificación", "tag": "SPEC" },
-    "adr": { "name": "Decisión de arquitectura", "tag": "ADR" },
-    "report": { "name": "Informe", "tag": "INFO" },
-    "doc": { "name": "Documento", "tag": "DOC" }
+    "spec": {
+      "name": "Especificación",
+      "tag": "SPEC"
+    },
+    "adr": {
+      "name": "Decisión de arquitectura",
+      "tag": "ADR"
+    },
+    "report": {
+      "name": "Informe",
+      "tag": "INFO"
+    },
+    "doc": {
+      "name": "Documento",
+      "tag": "DOC"
+    }
   },
   "tied": {
     "title": "Ligados a tareas",
@@ -124,5 +136,55 @@
     "untie": "Desligar {{path}} de la tarea",
     "untied": "{{path}} ya no está ligado a la tarea. El archivo sigue en la carpeta.",
     "untieFailed": "No se ha podido desligar el documento"
+  },
+  "claudeDocs": {
+    "title": "Claude Docs",
+    "count_one": "{{n}} documento",
+    "count_other": "{{n}} documentos",
+    "hint": "Los Claude Docs que conoce este proyecto. Claude Docs no permite listar una cuenta: añade por enlace los que uses, o crea uno aquí.",
+    "connect": "Conectar Claude Docs",
+    "connectHint": "Claude Docs no está conectado, así que no se pueden leer ni escribir sus documentos. Conéctalo en Conectores.",
+    "connectLink": "Abrir Conectores",
+    "loadFailed": "No se han podido leer los Claude Docs de este proyecto",
+    "emptyTitle": "Aún no hay Claude Docs",
+    "emptyHint": "Añade uno por su enlace, o pide a Claude que escriba uno nuevo.",
+    "add": "Añadir por enlace",
+    "new": "Nuevo documento",
+    "refresh": "Actualizar",
+    "refreshing": "Leyendo…",
+    "open": "Abrir en claude.ai",
+    "ask": "Preguntar a Claude",
+    "remove": "Quitar del proyecto",
+    "more": "Acciones del documento",
+    "status": {
+      "unread": "Sin leer",
+      "ok": "Leído",
+      "unavailable": "No disponible"
+    },
+    "by": {
+      "claudio": "Creado aquí",
+      "person": "Añadido por enlace"
+    },
+    "checked": "Leído {{when}}",
+    "addTitle": "Añadir un Claude Doc",
+    "urlLabel": "Enlace o id",
+    "urlPlaceholder": "https://claude.ai/…",
+    "addHint": "Pega el enlace del documento. Solo se añade a la lista de este proyecto; el documento no cambia.",
+    "adding": "Añadiendo…",
+    "addSubmit": "Añadir",
+    "newTitle": "Nuevo Claude Doc",
+    "titleLabel": "Título",
+    "bodyLabel": "Primer contenido",
+    "bodyHint": "Lo que Claude debe escribir en él. Claude crea el documento a través del conector.",
+    "creating": "Creando…",
+    "create": "Crear",
+    "addFailed": "No se ha podido añadir el documento",
+    "refreshFailed": "No se han podido actualizar los documentos",
+    "removeFailed": "No se ha podido quitar el documento",
+    "askFailed": "No se ha podido abrir un chat sobre el documento",
+    "removed": "Se quitó «{{title}}» de este proyecto",
+    "removeTitle": "¿Quitar «{{title}}»?",
+    "removeBody": "Sale de la lista de este proyecto. El documento sigue en claude.ai.",
+    "removeConfirm": "Quitar"
   }
 }

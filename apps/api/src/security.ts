@@ -249,6 +249,18 @@ const CHAT_FORBIDDEN_TRACKERS = new Set([
 ]);
 
 /**
+ * Adding, creating, refreshing, removing and asking about a project's Claude Docs spends the
+ * person's account on the Docs connector, and a document's text is untrusted: a chat's token
+ * cannot reach the connector through these. Reading the registry stays open.
+ */
+const CHAT_FORBIDDEN_PROJECT_DOCS = new Set([
+  `POST ${API_PREFIX}/projects/:id/docs`,
+  `POST ${API_PREFIX}/projects/:id/docs/refresh`,
+  `DELETE ${API_PREFIX}/projects/:id/docs/:docId`,
+  `POST ${API_PREFIX}/projects/:id/docs/:docId/ask`,
+]);
+
+/**
  * A re-run, a cancel or a fix spends the person's CI minutes or pushes their branch, and log text
  * is untrusted: an injection in a job's output must not be able to ask for any of them through a
  * chat's token. Reading the checks and their logs stays open.
@@ -551,6 +563,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_ACCOUNTS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot add, sign in, change or remove an account, or change how work moves between them: that is the person's" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_PROJECT_DOCS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot add, create, refresh, remove or ask about a project's Claude Docs: that is the person's click" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

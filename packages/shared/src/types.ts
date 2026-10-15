@@ -4304,6 +4304,41 @@ export interface ConnectorsOverview {
   error?: string;
 }
 
+// ---------- Project documents (Claude Docs) ----------
+
+/** What the last read of a document found: `unread` before any, `unavailable` when it no longer resolves. */
+export type ProjectDocStatus = 'unread' | 'ok' | 'unavailable';
+
+/**
+ * A Claude Doc a project knows. The Docs connector cannot list an account's documents, so this
+ * registry (ids and links Claudio created or a person pasted) is the list.
+ */
+export interface ProjectDoc {
+  /** The document's id on claude.ai */
+  id: string;
+  url: string;
+  /** The title as last read; the one it was added with until the first refresh */
+  title: string;
+  kind: 'doc';
+  createdBy: 'claudio' | 'person';
+  addedAt: string;
+  status: ProjectDocStatus;
+  /** When the document was last read through the connector; null before any read */
+  checkedAt: string | null;
+}
+
+export interface ProjectDocsOverview {
+  docs: ProjectDoc[];
+  /** When a refresh last ran for the project; null if never */
+  refreshedAt: string | null;
+}
+
+/** Adds a document to a project: by link (a person pastes one), or by creating a new one. Exactly one of the two. */
+export interface AddProjectDocRequest {
+  url?: string;
+  create?: { title: string; body: string };
+}
+
 // ---------- Scheduling ----------
 
 /** What a schedule starts when it fires. */

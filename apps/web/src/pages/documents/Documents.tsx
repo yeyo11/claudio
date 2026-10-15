@@ -14,6 +14,7 @@ import { ancestorsOf, baseName, filterTree, findFile, mainTie, tiedDocuments } f
 import { DocumentPane, type PaneMode } from './Pane';
 import { NewDocumentDialog, NewDocumentCard, TiedList } from './Tied';
 import { DocumentTree } from './DocumentTree';
+import { ClaudeDocsCard } from './ClaudeDocs';
 
 /** What the address holds of the tab: the open file, whether it is being edited, a phone's folder. */
 function useDocumentsAddress() {
@@ -85,6 +86,7 @@ export function ProjectDocuments({ project }: { project: Project }) {
   if (data.fileCount === 0 && !address.path) {
     return (
       <>
+        <ClaudeDocsCard project={project} />
         <Empty
           illustration="not-found"
           title={data.exists ? t('empty.title', { root: data.root }) : t('empty.missing', { root: data.root })}
@@ -103,6 +105,7 @@ export function ProjectDocuments({ project }: { project: Project }) {
 
   return (
     <>
+      {!address.path && <ClaudeDocsCard project={project} />}
       {narrow ? (
         <PhoneDocuments project={project} tree={data.tree} root={data.root} fileCount={data.fileCount} tied={tied} address={address} />
       ) : (

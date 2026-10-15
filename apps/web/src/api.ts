@@ -155,6 +155,9 @@ import type {
   ProjectCandidate,
   ProjectCodeHost,
   ProjectDocuments,
+  ProjectDoc,
+  ProjectDocsOverview,
+  AddProjectDocRequest,
   ProjectFlow,
   ProjectSettings,
   ProjectTemplate,
@@ -922,6 +925,11 @@ export const api = {
     request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/approve`, { method: 'POST', body: req }),
   rejectMemoryProposal: (proposalId: string, req: RejectMemoryProposalRequest = {}) =>
     request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/reject`, { method: 'POST', body: req }),
+  projectDocs: (projectId: string, o?: ReadOptions) => request<ProjectDocsOverview>(`/projects/${enc(projectId)}/docs`, o),
+  addProjectDoc: (projectId: string, body: AddProjectDocRequest) => request<ProjectDoc>(`/projects/${enc(projectId)}/docs`, { method: 'POST', body, timeoutMs: 300_000 }),
+  refreshProjectDocs: (projectId: string) => request<ProjectDocsOverview>(`/projects/${enc(projectId)}/docs/refresh`, { method: 'POST', timeoutMs: 300_000 }),
+  removeProjectDoc: (projectId: string, docId: string) => request<void>(`/projects/${enc(projectId)}/docs/${enc(docId)}`, { method: 'DELETE' }),
+  askProjectDoc: (projectId: string, docId: string) => request<ChatSummary>(`/projects/${enc(projectId)}/docs/${enc(docId)}/ask`, { method: 'POST' }),
   documents: (projectId: string, o?: ReadOptions) => request<ProjectDocuments>(`/projects/${enc(projectId)}/documents`, o),
   /** `path` is relative to the project, as the tree gives it */
   documentFile: (projectId: string, path: string, o?: ReadOptions) =>
@@ -1240,6 +1248,7 @@ export const keys = {
   memoryProposals: (projectId: string, status?: MemoryProposalStatus) => ['memory-proposals', projectId, status ?? 'all'] as const,
   /** A project's tree and every file read of it */
   documentsOf: (projectId: string) => ['documents', projectId] as const,
+  projectDocs: (projectId: string) => ['project-docs', projectId] as const,
   documentTree: (projectId: string) => ['documents', projectId, 'tree'] as const,
   documentFile: (projectId: string, path: string) => ['documents', projectId, 'file', path] as const,
   // ---- the project assistant. A project's lists under one prefix, so a run of any kind reaches the
@@ -1624,3 +1633,7 @@ export function useOpenTaskCount(project: Project | null, settled: boolean): num
   // The previous scope's board stands in while the new one loads: its figure would be wrong
   return counted && !board.isPlaceholderData ? openCount(board.data) : undefined;
 }
+
+/** The project's Claude Docs registry. It is read from the store, so reading it never starts a session. */
+export const useProjectDocs = (projectId: string, enabled = true) =>
+  useQuery({ queryKey: keys.projectDocs(projectId), queryFn: ({ signal }) => api.projectDocs(projectId, { signal }), enabled });
