@@ -3,12 +3,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountKind, AccountsSettings, RotationPolicy, RotationPolicyRequest } from '@agentry/shared';
+import type { Account, AccountKind, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@agentry/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { identify, type Identity } from './identify.ts';
+import { ModelCache } from './models.ts';
 import { readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
@@ -108,6 +109,7 @@ function parse(doc: Record<string, unknown>): Stored {
 export class AccountStore {
   readonly defaultDir: string;
   readonly readings: Readings;
+  private readonly modelCache: ModelCache;
   private readonly file: string;
   private readonly claude: string;
   private readonly env: NodeJS.ProcessEnv;
@@ -119,6 +121,7 @@ export class AccountStore {
     this.claude = opts.claude ?? 'claude';
     this.file = join(opts.dataDir, 'accounts.json');
     this.readings = new Readings(join(opts.dataDir, 'accounts', 'limits.json'));
+    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), { claude: this.claude, env: this.env });
     this.reload();
   }
 
@@ -246,6 +249,14 @@ export class AccountStore {
     else this.find(id).identity = identity;
     await this.save();
     return this.get(id);
+  }
+
+  /**
+   * The models an account can run, from the CLI's `initialize` (no turn, no tokens), cached under
+   * `<data>/accounts/models/`; refreshed when the CLI version or the account's plan moves.
+   */
+  models(id: string, opts: { refresh?: boolean } = {}): Promise<ModelOption[]> {
+    return this.modelCache.models(this.ref(id), { plan: this.get(id).plan, ...opts });
   }
 
   /** Records a reading from a run's stream or a failed turn. */
