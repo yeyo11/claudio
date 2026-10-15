@@ -574,7 +574,7 @@ puts everything back with the error box.
 
 ### CHAT-2 — Open the stream where the read ends
 
-Status: proposed.
+Status: **built** on 2026-10-15 (`streamPosition`, `ChatDetail.stream`, `streamSince` in `packages/chat-ui/src/lib/chats.ts`; tests `live-chat-stream-position.test.ts`, `chat-stream-since.test.ts`).
 
 **Problem.** The first `EventSource` asks for `since = Number.MAX_SAFE_INTEGER` (B3), so anything
 pushed between the transcript read and the stream opening is lost until a later read; for a resume

@@ -185,12 +185,27 @@ export function useChatTranscript(id: string, sidechains: boolean) {
 
 // ---------- the live stream of a chat ----------
 
+/**
+ * Where a stream opens. A reconnect resumes after what it already saw; a first open starts where the
+ * transcript read ended, or, for an execution that began a moment ago, at its start, because the
+ * person's own message and the first blocks were pushed before this page could open the stream.
+ */
+export function streamSince(lastSeq: number, page: ChatDetail | undefined, now = Date.now()): number {
+  if (lastSeq) return lastSeq;
+  if (!page?.stream) return Number.MAX_SAFE_INTEGER;
+  const startedAt = page.chat.execution?.startedAt;
+  const recent = startedAt !== undefined && now - Date.parse(startedAt) < FRESH_EXECUTION_MS;
+  return recent ? page.stream.executionSeq : page.stream.seq;
+}
+
 /** A quiet spell after stored messages, after which what the stream put on the page is read back. */
 const CONFIRM_AFTER_MS = 1000;
 /** ...and the longest a busy stream goes without that. */
 const CONFIRM_AT_LEAST_EVERY_MS = 4000;
 /** A block stored while its page was not held shows until the page is read, or this long at most. */
 const SETTLE_FALLBACK_MS = 3000;
+/** A live execution that began this recently is replayed whole when its stream opens. */
+const FRESH_EXECUTION_MS = 120_000;
 /** Longest wait between attempts to open a stream the server refused. */
 const RECONNECT_MAX_MS = 30_000;
 /**
@@ -330,7 +345,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
 
     const connect = () => {
       retry = undefined;
-      const es = new EventSource(server.streamUrl(id, lastSeq || Number.MAX_SAFE_INTEGER));
+      const es = new EventSource(server.streamUrl(id, streamSince(lastSeq, client.getQueryData<ChatDetail>(keys.chat(id, false)))));
       source = es;
       es.onopen = () => {
         attempts = 0;

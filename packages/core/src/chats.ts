@@ -523,6 +523,12 @@ export class ChatManager extends EventEmitter {
     return this.chats.get(id)?.events.filter((e) => e.seq > sinceSeq) ?? [];
   }
 
+  /** Where a chat's event buffer stands, for a page that reads the transcript and then opens the stream. */
+  streamPosition(id: string): { seq: number; executionSeq: number } | null {
+    const chat = this.chats.get(id);
+    return chat ? { seq: chat.seq, executionSeq: chat.executionSeq } : null;
+  }
+
   /**
    * The messages a chat's process streamed, oldest first: what its transcript would hold, for a
    * chat that keeps none (housekeeping ones run without persistence, and a new one has written
