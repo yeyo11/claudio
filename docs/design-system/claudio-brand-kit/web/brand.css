@@ -1,0 +1,12 @@
+:root {
+  color-scheme: dark;
+  --color-brand: #246BFD;
+  --color-accent: #00E5FF;
+  --color-accent-violet: #A78BFA;
+  --color-bg: #0B1020;
+  --color-surface: #17233D;
+  --color-text: #F4F7FF;
+}
+html, body { background: var(--color-bg); color: var(--color-text); }
+a, .button-primary { color: var(--color-text); background: var(--color-brand); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }

@@ -39,7 +39,7 @@
   --series: var(--info);
 }
 .usage-series-2 {
-  --series: var(--accent-rose);
+  --series: var(--accent-2nd);
 }
 .usage-series-3 {
   --series: var(--accent-2);

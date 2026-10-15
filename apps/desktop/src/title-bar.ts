@@ -16,7 +16,7 @@ export interface TitleBarTheme {
 }
 
 /** The splash and error pages' colours (src/pages.ts), used until the UI says which theme it shows */
-export const SPLASH_TITLE_BAR: TitleBarTheme = { color: '#09090b', symbolColor: '#f4f4f5' };
+export const SPLASH_TITLE_BAR: TitleBarTheme = { color: '#0b1020', symbolColor: '#f4f7ff' };
 
 export interface TitleBarOptions {
   titleBarStyle: 'hidden';

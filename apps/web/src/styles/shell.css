@@ -63,14 +63,12 @@
   text-decoration: none;
 }
 
-.brand-mark {
+.logo-mark {
   flex: none;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-primary);
   transition: transform var(--dur-slow) var(--ease-spring);
 }
 
-.brand:hover .brand-mark {
+.brand:hover .logo-mark {
   transform: rotate(-8deg) scale(1.05);
 }
 

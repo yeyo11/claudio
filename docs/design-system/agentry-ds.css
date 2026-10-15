@@ -1,40 +1,42 @@
 /* ==========================================================================
-   Agentry Design System · v2 "Night Shift"
-   Oscuro por defecto, claro con [data-theme="light"].
-   Conserva la esencia de Agentry: degradado terracota→rosa, borde "energía"
-   que gira en lo que está vivo, spinner braille, raíl que respira.
+   Claudio Design System · Night Shift, in Claudio's colours
+   Dark by default, light with [data-theme="light"].
+   Navy surfaces, the brand's blue→violet gradient, the energy border that
+   turns on what is alive, the braille spinner, the rail that breathes.
    ========================================================================== */
 
 /* ---------- 1. Tokens ---------- */
 .app, [data-theme="dark"] {
   color-scheme: dark;
   /* superficies: de más hundida a más elevada */
-  --bg: #09090b;
-  --bg-1: #0f0f12;          /* sidebar, paneles */
-  --bg-2: #151518;          /* tarjetas */
-  --bg-3: #1c1c21;          /* hover, controles */
-  --bg-4: #26262c;          /* seleccionado, pistas de barra */
+  --bg: #0b1020;
+  --bg-1: #0e1427;          /* sidebar, paneles */
+  --bg-2: #121a30;          /* tarjetas */
+  --bg-3: #17233d;          /* hover, controles */
+  --bg-4: #1f2d4d;          /* seleccionado, pistas de barra */
   --line: rgba(255, 255, 255, 0.07);
   --line-2: rgba(255, 255, 255, 0.12);
   --line-3: rgba(255, 255, 255, 0.2);
-  --fg: #f4f4f5;
-  --fg-2: #a1a1aa;
-  --fg-3: #8b8b95;
+  --fg: #f4f7ff;
+  --fg-2: #a7b1c9;
+  --fg-3: #8b96b1;
   /* marca */
-  --accent: #ec8a66;
-  --accent-2: #e0668f;
-  --accent-soft: rgba(236, 138, 102, 0.13);
-  --grad: linear-gradient(135deg, #b35a36 0%, #b04a5e 55%, #9c3f77 100%);
-  --grad-border: linear-gradient(135deg, rgba(236, 138, 102, 0.75), rgba(224, 102, 143, 0.35) 45%, rgba(255, 255, 255, 0.06) 75%);
-  --grad-text: linear-gradient(92deg, #f3a07c 0%, #e8708f 100%);
-  --glow: radial-gradient(60% 120% at 50% 0%, rgba(236, 138, 102, 0.16), transparent 70%);
+  --accent: #6e9bff;
+  --accent-2: #a78bfa;
+  --accent-soft: rgba(110, 155, 255, 0.13);
+  --grad: linear-gradient(135deg, #1f5fe8 0%, #3d57e0 55%, #6a4bd6 100%);
+  --grad-border: linear-gradient(135deg, rgba(110, 155, 255, 0.75), rgba(167, 139, 250, 0.35) 45%, rgba(255, 255, 255, 0.06) 75%);
+  --grad-text: linear-gradient(92deg, #7da4ff 0%, #b9a4ff 100%);
+  --glow: radial-gradient(60% 120% at 50% 0%, rgba(110, 155, 255, 0.16), transparent 70%);
   /* estado: reservados, nunca decorativos */
-  --live: #22d3ee;  --live-soft: rgba(34, 211, 238, 0.12);
+  --live: #00e5ff;  --live-soft: rgba(0, 229, 255, 0.12);
   --ok: #4ade9a;    --ok-soft: rgba(74, 222, 154, 0.12);
   --warn: #f0b95c;  --warn-soft: rgba(240, 185, 92, 0.13);
   --bad: #f87b7f;   --bad-soft: rgba(248, 123, 127, 0.13);
-  --info: #6cb6ff;  --info-soft: rgba(108, 182, 255, 0.12);
+  --info: #6e9bff;  --info-soft: rgba(110, 155, 255, 0.12);
   --idle: #a78bfa;  --idle-soft: rgba(167, 139, 250, 0.13);
+  /* Claudio's mark: the kit's blue and violet, and the spark, the one static cyan */
+  --logo-blue: #246bfd; --logo-violet: #a78bfa; --logo-spark: #00e5ff;
   /* Ink on a solid accent fill (a checked switch, checkbox or radio), as the app's --on-accent. The
      gradient keeps its #fff. */
   --on-accent: var(--bg);
@@ -46,7 +48,7 @@
   /* diff: solo lo que cambió lleva color; la sintaxis es tenue y nunca usa verde, rojo ni cian */
   --diff-add: var(--ok);  --diff-add-bg: rgba(74, 222, 154, 0.055); --diff-add-word: rgba(74, 222, 154, 0.2);
   --diff-del: var(--bad); --diff-del-bg: rgba(248, 123, 127, 0.06); --diff-del-word: rgba(248, 123, 127, 0.24);
-  --sx-kw: #b7a4d9; --sx-str: #d4bd8f; --sx-num: #93b4db; --sx-type: #e4e4e7; --sx-fn: #f4f4f5; --sx-com: var(--fg-3);
+  --sx-kw: #b7a4d9; --sx-str: #d4bd8f; --sx-num: #93b4db; --sx-type: #e4e4e7; --sx-fn: #f4f7ff; --sx-com: var(--fg-3);
   /* forma */
   --r-xs: 4px; --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
   /* One height for every control of a row (field, select, button, segmented); 44 under a finger */
@@ -65,35 +67,37 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #fafaf9;
-  --bg-1: #f3f2ef;
+  --bg: #f7f8fc;
+  --bg-1: #eef1f8;
   --bg-2: #ffffff;
-  --bg-3: #f0efeb;
-  --bg-4: #e6e4df;
-  --line: rgba(20, 16, 10, 0.08);
-  --line-2: rgba(20, 16, 10, 0.14);
-  --line-3: rgba(20, 16, 10, 0.24);
-  --fg: #0c0b0a;
-  --fg-2: #56534d;
-  --fg-3: #6b6760;
-  --accent: #9c4d32;
-  --accent-2: #a8406a;
-  --accent-soft: rgba(156, 77, 50, 0.1);
-  --grad-border: linear-gradient(135deg, rgba(179, 90, 54, 0.8), rgba(168, 64, 106, 0.35) 45%, rgba(20, 16, 10, 0.08) 75%);
-  --grad-text: linear-gradient(92deg, #a4502f 0%, #a8406a 100%);
-  --glow: radial-gradient(60% 120% at 50% 0%, rgba(179, 90, 54, 0.1), transparent 70%);
+  --bg-3: #e8ecf5;
+  --bg-4: #dae0ee;
+  --line: rgba(11, 16, 32, 0.08);
+  --line-2: rgba(11, 16, 32, 0.14);
+  --line-3: rgba(11, 16, 32, 0.24);
+  --fg: #0b1020;
+  --fg-2: #4a5470;
+  --fg-3: #5d6783;
+  --accent: #1d58db;
+  --accent-2: #6d28d9;
+  --accent-soft: rgba(29, 88, 219, 0.1);
+  --grad-border: linear-gradient(135deg, rgba(29, 88, 219, 0.8), rgba(109, 40, 217, 0.35) 45%, rgba(11, 16, 32, 0.08) 75%);
+  --grad-text: linear-gradient(92deg, #1d58db 0%, #6d28d9 100%);
+  --glow: radial-gradient(60% 120% at 50% 0%, rgba(29, 88, 219, 0.1), transparent 70%);
   /* Darker than the app's #0e7490: that one reads 4.2:1 on its own soft tint over --bg-1 */
   --live: #0b6680;  --live-soft: rgba(11, 102, 128, 0.1);
   --ok: #166534;    --ok-soft: rgba(21, 128, 61, 0.1);
   --warn: #854d0e;  --warn-soft: rgba(161, 98, 7, 0.11);
   --bad: #b91c1c;   --bad-soft: rgba(185, 28, 28, 0.09);
-  --info: #1d4ed8;  --info-soft: rgba(29, 78, 216, 0.09);
+  --info: #1d58db;  --info-soft: rgba(29, 88, 219, 0.09);
   --idle: #6d28d9;  --idle-soft: rgba(109, 40, 217, 0.09);
+  /* Cyan reads 1.3:1 on white: on light the spark takes the brand blue */
+  --logo-spark: #246bfd;
   --diff-add-bg: rgba(21, 128, 61, 0.06); --diff-add-word: rgba(21, 128, 61, 0.16);
   --diff-del-bg: rgba(185, 28, 28, 0.05); --diff-del-word: rgba(185, 28, 28, 0.15);
-  --sx-kw: #6a4a9e; --sx-str: #7c5a22; --sx-num: #2d5a93; --sx-type: #0c0b0a; --sx-fn: #0c0b0a;
-  --shadow: 0 1px 2px rgba(20, 16, 10, 0.06), 0 8px 24px -14px rgba(20, 16, 10, 0.18);
-  --shadow-pop: 0 18px 48px -12px rgba(20, 16, 10, 0.22), 0 0 0 1px var(--line-2);
+  --sx-kw: #6a4a9e; --sx-str: #7c5a22; --sx-num: #2d5a93; --sx-type: #0b1020; --sx-fn: #0b1020;
+  --shadow: 0 1px 2px rgba(11, 16, 32, 0.06), 0 8px 24px -14px rgba(11, 16, 32, 0.18);
+  --shadow-pop: 0 18px 48px -12px rgba(11, 16, 32, 0.22), 0 0 0 1px var(--line-2);
   --on-accent: var(--bg);
 }
 
@@ -160,9 +164,9 @@
 .btn:active { transform: translateY(1px); }
 .btn-primary {
   border: 0; color: #fff; background: var(--grad);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 6px 20px -6px rgba(176, 74, 94, 0.55);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 6px 20px -6px rgba(61, 87, 224, 0.55);
 }
-.btn-primary:hover { background: var(--grad); filter: brightness(1.08); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 8px 26px -6px rgba(176, 74, 94, 0.7); }
+.btn-primary:hover { background: var(--grad); filter: brightness(1.08); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 8px 26px -6px rgba(61, 87, 224, 0.7); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--fg-2); }
 .btn-ghost:hover { background: var(--bg-3); color: var(--fg); border-color: transparent; }
 .btn-danger { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
@@ -268,7 +272,7 @@ a.part-of { color: inherit; text-decoration: none; }
 .tunnel-node { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .qr { display: block; flex: none; width: 168px; height: 168px; border-radius: var(--r); }
 .qr .paper { fill: #ffffff; }
-.qr .ink { fill: #09090b; }
+.qr .ink { fill: #0b1020; }
 
 /* ---------- 10. Datos ---------- */
 .kpi { padding: 16px; display: flex; flex-direction: column; gap: 6px; }
@@ -369,7 +373,7 @@ a.part-of { color: inherit; text-decoration: none; }
 .tab-m.on { color: var(--fg); font-weight: 500; }
 .tab-m.on .pill { background: var(--bg-4); }
 .tab-m .count-pill { position: absolute; top: -2px; left: 54%; }
-.fab { position: absolute; right: 16px; bottom: 100px; height: 54px; min-width: 54px; padding: 0 18px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: #fff; font-weight: 600; font-size: 14px; background: var(--grad); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 12px 30px -8px rgba(176, 74, 94, 0.7); z-index: 5; }
+.fab { position: absolute; right: 16px; bottom: 100px; height: 54px; min-width: 54px; padding: 0 18px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: #fff; font-weight: 600; font-size: 14px; background: var(--grad); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 12px 30px -8px rgba(61, 87, 224, 0.7); z-index: 5; }
 /* A page header's button for what the FAB starts: hidden wherever the FAB shows, so the action is never offered twice */
 .has-fab .page-action-fab { display: none; }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg-2); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-pop); padding: 10px 16px 30px; }
@@ -471,16 +475,16 @@ a.part-of { color: inherit; text-decoration: none; }
    what sits on it is --on-accent, the page colour, as the app's controls.css draws it. */
 .switch { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; width: 34px; height: 20px; padding: 2px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-4); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
 .switch::after { content: ''; width: 14px; height: 14px; border-radius: var(--r-full); background: var(--fg-2); transition: transform var(--dur) var(--ease-out), background var(--dur-fast); }
-.switch.on { background: var(--accent-2); border-color: var(--accent-2); }
+.switch.on { background: var(--accent); border-color: var(--accent); }
 .switch.on::after { background: var(--on-accent); transform: translateX(14px); }
 .switch-lg { width: 44px; height: 26px; padding: 3px; }
 .switch-lg::after { width: 18px; height: 18px; }
 .switch-lg.on::after { transform: translateX(18px); }
 .checkbox { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--r-xs); border: 1.5px solid var(--line-3); background: var(--bg-2); color: var(--on-accent); }
-.checkbox.on { background: var(--accent-2); border-color: var(--accent-2); }
+.checkbox.on { background: var(--accent); border-color: var(--accent); }
 .checkbox.on::after { content: ''; width: 8px; height: 4px; border: solid currentColor; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
 .radio { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-3); background: var(--bg-2); }
-.radio.on { border-color: var(--accent-2); background: var(--accent-2); }
+.radio.on { border-color: var(--accent); background: var(--accent); }
 .radio.on::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--on-accent); }
 
 /* Dialog over a page (the app's .dialog, .dialog-head, .dialog-body, .dialog-foot). */
@@ -1495,8 +1499,8 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-order-row:last-child { border-bottom: 0; }
 .prov-order-row .prov-grip { width: 24px; }
 .prov-radio { flex-shrink: 0; width: 20px; height: 20px; border-radius: var(--r-full); border: 1.5px solid var(--line-3); display: grid; place-items: center; }
-.prov-radio.on { border-color: var(--accent-2); }
-.prov-radio.on::after { content: ''; width: 10px; height: 10px; border-radius: var(--r-full); background: var(--accent-2); }
+.prov-radio.on { border-color: var(--accent); }
+.prov-radio.on::after { content: ''; width: 10px; height: 10px; border-radius: var(--r-full); background: var(--accent); }
 /* First run: a full page with no shell, the list narrow and centred */
 .prov-first { width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 .prov-step-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-3); }
@@ -1508,6 +1512,10 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
    with the label as its name. Neither moves nor takes the gradient: the agent being live is the row's. ---------- */
 .prov-mark { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: var(--r-sm); background: var(--hue-fill); color: var(--hue-ink); font-family: var(--mono); font-size: 11px; font-weight: 600; line-height: 1; }
 /* Brand marks: the official art of a program on a light tile, the same in both themes */
+/* Claudio's own mark: no tile, so it reads on any surface (app: BrandMark, .logo-mark) */
+.logo-mark .logo-stop-a { stop-color: var(--logo-blue); }
+.logo-mark .logo-stop-b { stop-color: var(--logo-violet); }
+.logo-mark .logo-spark { fill: var(--logo-spark); }
 .brand-mark { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: var(--r-sm); background: var(--brand-tile, #fff); border: 1px solid var(--border); box-sizing: border-box; }
 .brand-mark svg { width: 62%; height: 62%; display: block; }
 .prov-mark.brand-mark { background: var(--brand-tile, #fff); color: inherit; }

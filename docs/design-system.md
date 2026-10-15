@@ -1,11 +1,12 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-08T23:59:30Z
+updated_at: 2026-10-15T13:30:00Z
 tags:
     - design-system
     - web
     - ui
     - convention
+    - branding
 ---
 # Agentry design system: Night Shift (v2)
 
@@ -20,6 +21,12 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
+| Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
+
+**Claudio's colours** (2026-10-15, [plans/claudio-rebrand.md](plans/claudio-rebrand.md)). Night
+Shift was drawn for Agentry, in terracotta and rose on warm neutrals. Claudio keeps every rule of
+it and changes the palette to the brand kit's: navy surfaces, the blue → violet gradient, the
+brand cyan as `--live`, and Claudio's mark. The values below are Claudio's.
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
 detail differently from what is written below, the [Landed](#landed) section at the end says so,
@@ -37,10 +44,10 @@ the package when a file is in one (see [plans/web-packages.md](plans/web-package
 
 ## Idea
 
-The base is near-black neutrals and IDE density. On top of it
-sits what makes Agentry recognisable, carried over from v1:
+The base is navy neutrals (Deep Space, `#0b1020`) and IDE density. On top of it sits what makes
+the app recognisable:
 
-- the terracotta → rose **gradient** on what matters,
+- the brand's blue → violet **gradient** on what matters,
 - the **energy border** that turns on whatever is alive,
 - the terminal's **braille spinner**, the **live rail** that breathes, and cyan reserved for live
   work.
@@ -62,17 +69,17 @@ sits on `[data-theme='light']`, and under `prefers-color-scheme: light` only whe
 
 | v2 token (alias) | v1 name kept | Dark | Light | Use |
 |---|---|---|---|---|
-| `--bg` | `--bg` | `#09090b` | `#fafaf9` | page |
-| `--bg-1` | `--bg-sunken` | `#0f0f12` | `#f3f2ef` | sidebar, panels, status bar, callouts |
-| `--bg-2` | `--bg-elev` | `#151518` | `#ffffff` | cards, menus, inputs |
-| `--bg-3` | `--bg-hover` | `#1c1c21` | `#f0efeb` | hover, secondary buttons, code |
-| `--bg-4` | new | `#26262c` | `#e6e4df` | selected, bar tracks |
-| `--line` | `--border` | white 7 % | ink 8 % | hairlines |
+| `--bg` | `--bg` | `#0b1020` | `#f7f8fc` | page |
+| `--bg-1` | `--bg-sunken` | `#0e1427` | `#eef1f8` | sidebar, panels, status bar, callouts |
+| `--bg-2` | `--bg-elev` | `#121a30` | `#ffffff` | cards, menus, inputs |
+| `--bg-3` | `--bg-hover` | `#17233d` | `#e8ecf5` | hover, secondary buttons, code |
+| `--bg-4` | new | `#1f2d4d` | `#dae0ee` | selected, bar tracks |
+| `--line` | `--border` | white 7 % | navy ink 8 % | hairlines |
 | `--line-2` | `--border-strong` | white 12 % | ink 14 % | control borders |
 | `--line-3` | new | white 20 % | ink 24 % | hover borders |
-| `--fg` | `--text` | `#f4f4f5` | `#0c0b0a` | primary text |
-| `--fg-2` | `--text-muted` | `#a1a1aa` | `#56534d` | secondary text |
-| `--fg-3` | `--text-faint` | `#8b8b95` | `#6b6760` | tertiary text and labels, still ≥ 4.5:1 on `--bg-2` |
+| `--fg` | `--text` | `#f4f7ff` | `#0b1020` | primary text |
+| `--fg-2` | `--text-muted` | `#a7b1c9` | `#4a5470` | secondary text |
+| `--fg-3` | `--text-faint` | `#8b96b1` | `#5d6783` | tertiary text and labels, still ≥ 4.5:1 on `--bg-2` |
 
 Keep both names during the migration: the v1 names hold the values, and the v2 names are
 `var()` aliases of them. There are 10 000 lines of CSS written against the v1 names, and renaming
@@ -82,25 +89,33 @@ them is not part of the redesign.
 
 | Token | Value | Use |
 |---|---|---|
-| `--grad` (alias of `--gradient-accent`) | `linear-gradient(135deg, #b35a36, #b04a5e 55%, #9c3f77)` | primary button, FAB, logo, active-account avatar. White text on it passes 4.5:1 |
-| `--grad-border` | accent 75 % → rose 35 % → line | `.grad-border`: the surface the screen is about |
-| `--grad-text` | `#f3a07c → #e8708f` (dark), `#a4502f → #a8406a` (light) | hero numbers, one word of a heading |
+| `--grad` (alias of `--gradient-accent`) | `linear-gradient(135deg, #1f5fe8, #3d57e0 55%, #6a4bd6)` | primary button, FAB, active-account avatar. White text on it passes 4.5:1 (5.4–5.9) |
+| `--grad-border` | accent 75 % → violet 35 % → line | `.grad-border`: the surface the screen is about |
+| `--grad-text` | `#7da4ff → #b9a4ff` (dark), `#1d58db → #6d28d9` (light) | hero numbers, one word of a heading |
 | `--glow-top` | radial accent 16 % from the top | the halo behind hero headers and featured cards |
-| `--accent` | `#ec8a66` (dark), `#9c4d32` (light) | links, focus ring, active indicators |
-| `--accent-rose` | `#e0668f` (dark), `#a8406a` (light) | the second stop of the brand gradient, the energy border |
+| `--accent` | `#6e9bff` (dark), `#1d58db` (light) | links, focus ring, active indicators |
+| `--accent-2nd` | `#a78bfa` (dark), `#6d28d9` (light) | the second stop of the brand gradient, the energy border. Only ever inside a gradient or beside `--accent`: solid violet is `--idle` |
+| `--logo-blue`, `--logo-violet`, `--logo-spark` | `#246bfd`, `#a78bfa`, `#00e5ff` (the spark is `#246bfd` in light) | Claudio's mark (`BrandMark`, `.logo-mark`), which stands on the page with no tile |
 
-`--accent-2` stays the violet it is in v1, because it is used as a tone. The rose has its own name.
+`--accent-2` is the tag and project tone, the same violet as `--idle`, as it was in Agentry. The
+gradient's second stop is `--accent-2nd` (it was `--accent-rose`; renamed when the rose became a
+violet). The brand blue `#246bfd` itself only appears in the mark: as text it reads 4.1:1 on
+`--bg`, so `--accent` is a lighter blue in dark and a darker one in light.
+
+**The logo is the one static cyan.** Its spark is the brand cyan, the same as `--live`; everywhere
+else cyan still means an agent is working now. In light the spark is blue, since cyan reads 1.3:1
+on white.
 
 ### Status (reserved)
 
 | Token | Dark | Light | Means |
 |---|---|---|---|
-| `--live` | `#22d3ee` | `#0e7490` | an agent is working **now**. Never an action colour |
+| `--live` | `#00e5ff` | `#0b6680` | an agent is working **now**. Never an action colour. The brand cyan |
 | `--ok` | `#4ade9a` | `#166534` | done, connected, healthy |
 | `--warn` | `#f0b95c` | `#854d0e` | near a limit, needs authorisation, stopped |
 | `--bad` | `#f87b7f` | `#b91c1c` | failed, interrupted, exhausted, destructive |
 | `--idle` | `#a78bfa` | `#6d28d9` | waiting for the user |
-| `--info` | `#6cb6ff` | `#1d4ed8` | neutral notices |
+| `--info` | `var(--accent)` | `var(--accent)` | neutral notices. An alias: beside a blue accent, a second blue only adds noise |
 
 Every status token has a `-soft` background at 9–13 %. Status colour always comes with a word or an
 icon.
@@ -174,7 +189,7 @@ use the app's.
 |---|---|
 | `--r-xs`, `--r-sm`, `--r`, `--r-lg`, `--r-xl` | `--radius-xs` … `--radius-xl` |
 | `--dur` | `--dur-base` |
-| `--accent-2` (rose) | `--accent-rose` (`--accent-2` stays violet) |
+| `--accent-2` (the gradient's second stop) | `--accent-2nd` (`--accent-2` is the violet tag tone) |
 | `--glow` (radial halo) | `--glow-top` (`--glow` stays the v1 accent tint) |
 | `.app`, `[data-theme]` on any element | `:root`, `:root[data-theme]` |
 
@@ -275,7 +290,7 @@ already belong to the orchestration board.
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.switch`, `.switch-lg`, `.checkbox`, `.radio` | `Toggle` in `components/controls` (`.switch`, `.checkbox`) | drawn so prototypes stop mocking native inputs. Checked is the rose, and what sits on it is `--on-accent` |
+| `.switch`, `.switch-lg`, `.checkbox`, `.radio` | `Toggle` in `components/controls` (`.switch`, `.checkbox`) | drawn so prototypes stop mocking native inputs. Checked is `--accent` (it was the rose; a solid violet would read as idle), and what sits on it is `--on-accent` |
 | `.btn[aria-pressed="true"]` | the pressed state of a toggle button | a view filter or "Seleccionar" while selection mode is on: the chosen segment's fill (`--bg-4`), never the accent or the gradient |
 | `.scrim`, `.dialog`, `.dialog-head`, `-body`, `-foot` | `.dialog*` (overlays.css) | New task is a dialog on a desktop and a full screen on a phone |
 | `.form-row`, `.form-hint`, `.field-area` | `.field` and the form rows of the editors | mono section label above the control, hint under it |

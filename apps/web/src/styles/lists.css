@@ -581,7 +581,7 @@ a.list-row:hover {
 
 .crow.is-selected {
   background: var(--bg-hover);
-  box-shadow: inset var(--rail-w) 0 0 var(--accent-rose);
+  box-shadow: inset var(--rail-w) 0 0 var(--accent);
 }
 
 .crow-link {

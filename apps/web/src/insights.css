@@ -1002,7 +1002,7 @@
   stop-color: var(--accent);
 }
 .chart-stop-foot {
-  stop-color: var(--accent-rose);
+  stop-color: var(--accent-2nd);
 }
 .chart-grid {
   stroke: var(--line);
@@ -1024,7 +1024,7 @@
 }
 .chart-bar.is-peak {
   opacity: 1;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent-rose) 55%, transparent));
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent-2nd) 55%, transparent));
 }
 .chart-bar.is-active {
   opacity: 1;

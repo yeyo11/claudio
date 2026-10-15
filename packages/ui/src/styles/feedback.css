@@ -203,7 +203,7 @@ a.badge:hover {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0 20%, var(--accent), var(--accent-rose));
+  background: conic-gradient(from 0deg, transparent 0 20%, var(--accent), var(--accent-2nd));
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--spinner-w)), var(--mask-ink) calc(100% - var(--spinner-w)));
   mask: radial-gradient(farthest-side, transparent calc(100% - var(--spinner-w)), var(--mask-ink) calc(100% - var(--spinner-w)));
   animation: spin var(--ring-spin-cycle) linear infinite;
@@ -285,7 +285,7 @@ a.badge:hover {
   display: inline-flex;
   flex: none;
   --ring-from: var(--accent);
-  --ring-to: var(--accent-rose);
+  --ring-to: var(--accent-2nd);
 }
 
 .ring-neutral {
