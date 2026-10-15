@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { EFFORT_LEVELS, isEffort, type Commit, type VerificationSpec } from '@claudio/shared';
 import { git } from './git.ts';
-import { processTable, terminateTree } from './processes.ts';
+import { AGENT_RUN_ENV, processTable, terminateTree } from './processes.ts';
 import { pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';
 
 export const DEFAULT_VERIFY_MINUTES = 20;
@@ -220,13 +220,21 @@ function terminate(child: ChildProcess): void {
   }, KILL_GRACE_MS).unref();
 }
 
+/** The environment with the agent-run marker set, or cleared: an inherited one must not label a command that is not for an agent */
+function agentRunEnv(env: NodeJS.ProcessEnv, runId: string | undefined): NodeJS.ProcessEnv {
+  if (runId) return { ...env, [AGENT_RUN_ENV]: runId };
+  const { [AGENT_RUN_ENV]: _inherited, ...rest } = env;
+  return rest;
+}
+
 /**
  * Runs one shell command in `cwd` under a time limit. The limit is Claudio's: when it passes, the
  * command's process tree is terminated (the descendants first, then what started them) and the
  * command counts as failed, so a hung suite ends instead of holding the graph. `onStart` gets a
- * handle to cancel it.
+ * handle to cancel it. `runId` marks the process with `CLAUDIO_AGENT_RUN`: the command runs code an
+ * agent wrote, outside any chat's tree, and the terminal must refuse it like a chat's process.
  */
-export function runCommand(command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void): Promise<CommandOutcome> {
+export function runCommand(command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void, runId?: string): Promise<CommandOutcome> {
   const started = Date.now();
   return new Promise((resolve) => {
     let output = '';
@@ -239,7 +247,7 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
       // Its own process group, so what it leaves behind is found from it and a signal never reaches the wrapper
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' },
+      env: agentRunEnv({ ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
     });
     const finish = (exitCode: number | null) => {
       if (settled) return;

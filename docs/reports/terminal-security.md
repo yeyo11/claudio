@@ -140,7 +140,10 @@ the same user. Options for the owner:
 The Settings card now says, beside the switch, that with auth off an agent that has a shell can
 reach it, and §3.11 no longer says "agents can never use it".
 
-### T8-2 — Processes Claudio starts outside a chat's tree are not checked (medium, open, core)
+### T8-2 — Processes Claudio starts outside a chat's tree are not checked (medium, fixed in core)
+
+**Fixed.** `runCommand` takes the orchestration's id and sets `CLAUDIO_AGENT_RUN=<id>` on the command (and clears an inherited one on any other). `PeerCheck` now roots its scan at those processes as well as at the chats' CLIs, so they and their descendants read `from-agent`. `buildTerminalEnv` drops the variable with every other `CLAUDIO_*`. `runCommand` is the only place Claudio runs a shell command an agent wrote; the other spawns are `git`, `gh`/`glab`, the CLI logins and the tunnel, none of which run an agent's code.
+
 
 `runCommand` in `packages/core/src/verification.ts` runs an orchestration's verification commands
 (`pnpm test`…) with `sh -c` in the worktree an agent just wrote. Its process is detached and carries

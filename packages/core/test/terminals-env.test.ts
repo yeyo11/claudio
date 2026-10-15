@@ -20,6 +20,7 @@ const SERVER_ENV: NodeJS.ProcessEnv = {
   CLAUDIO_SECRET_KEY: 'key',
   CLAUDIO_DATA_DIR: '/data',
   CLAUDIO_CHAT_ID: 'chat-1',
+  CLAUDIO_AGENT_RUN: 'orch-1',
   ELECTRON_RUN_AS_NODE: '1',
   NODE_ENV: 'production',
   CLAUDE_CODE_OAUTH_TOKEN: 'oauth',
@@ -49,6 +50,8 @@ test('no CLAUDIO_ variable survives into a shell, and CLAUDIO_CHAT_ID is never s
   const env = buildTerminalEnv({ base: SERVER_ENV, vault, cwd: '/work' });
   assert.deepEqual(Object.keys(env).filter((name) => name.startsWith('CLAUDIO_')), []);
   assert.equal('CLAUDIO_CHAT_ID' in env, false);
+  // The marker of a process started for an agent must not turn the person's shell into one the peer check refuses
+  assert.equal('CLAUDIO_AGENT_RUN' in env, false);
 });
 
 test("Claude's credentials are gone, from the server's environment and from the vault", () => {

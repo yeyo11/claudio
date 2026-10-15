@@ -1843,7 +1843,7 @@ ${quoted}
             control.commands.add(h);
             // A stop that came while its siblings were starting finds this one too
             if (control.cancelled) h.cancel();
-          });
+          }, orch.id);
           if (handle) control.commands.delete(handle);
           entry.output = outcome.output;
           entry.durationMs = outcome.durationMs;

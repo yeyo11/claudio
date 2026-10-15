@@ -312,6 +312,20 @@ test('a command that passes or fails reports its exit code and the end of its ou
   assert.match(failed.output, /why/);
 });
 
+test('a command started for an orchestration carries CLAUDIO_AGENT_RUN, and one that is not never inherits it', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const marked = await runCommand('echo "[$CLAUDIO_AGENT_RUN]"', dir, 10_000, undefined, 'orch-7');
+  assert.equal(marked.output, '[orch-7]');
+  const before = process.env.CLAUDIO_AGENT_RUN;
+  process.env.CLAUDIO_AGENT_RUN = 'leaked';
+  try {
+    assert.equal((await runCommand('echo "[$CLAUDIO_AGENT_RUN]"', dir, 10_000)).output, '[]');
+  } finally {
+    if (before === undefined) delete process.env.CLAUDIO_AGENT_RUN;
+    else process.env.CLAUDIO_AGENT_RUN = before;
+  }
+});
+
 test('a command past its time limit is killed with everything it started, and counts as failed', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
   const pids = join(dir, 'pids');
