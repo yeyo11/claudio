@@ -167,6 +167,7 @@ import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts';
+import { accountsAtLimit } from './accounts-at-limit.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
@@ -516,6 +517,7 @@ export class Core {
     this.providers = new ProviderDetector({
       config,
       otherAccount: () => this.readyAccountLabel(),
+      accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
@@ -681,8 +683,8 @@ export class Core {
       new CliDecisionProvider({
         runtime: this.runtime,
         settings: this.decisionSettings,
-        // A decision chat never waits: Claude Code answers, or says that it is at its limit
-        route: (cli) => decisionRoute(cli, this.runtime.limits.get('claude-code') ?? null),
+        // A decision chat never waits: Claude Code answers, or says that every account is at its limit
+        route: (cli) => decisionRoute(cli, this.accounts.list()),
       }),
     );
     // c6 left this wiring to the routes' worker: without it `jev` is never registered

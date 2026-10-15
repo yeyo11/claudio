@@ -39,7 +39,7 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
+function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => boolean; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
   const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDIO_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
@@ -50,6 +50,7 @@ function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettin
     settings: () => options.settings ?? null,
     emit: (event) => options.events?.push(event),
     limits: options.limits,
+    accountsAtLimit: options.accountsAtLimit,
     registry: options.registry,
     probeTimeoutMs: options.probeTimeoutMs ?? 5_000,
     debounceMs: 50,
@@ -328,6 +329,19 @@ describe('provider limits in the status', () => {
     const status = d.knownOne('claude-code');
     assert.deepEqual([status?.state, status?.reason], ['degraded', 'limit-reached']);
     assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1);
+  });
+
+  it('keeps Claude ready at its limit while another account has room, with the limit on the status', async () => {
+    await fake('claude', CLAUDE('2.1.285', true));
+    const limits = new ProviderLimits(memory());
+    let allOut = false;
+    const d = detector({ limits, accountsAtLimit: () => allOut });
+    await d.refresh();
+    limits.observeFailure('claude-code');
+    const status = d.knownOne('claude-code');
+    assert.deepEqual([status?.state, status?.limit?.state], ['ready', 'exhausted']);
+    allOut = true;
+    assert.deepEqual([d.knownOne('claude-code')?.state, d.knownOne('claude-code')?.reason], ['degraded', 'limit-reached']);
   });
 
   it('reads a provider whose limit was never reported as having none', async () => {

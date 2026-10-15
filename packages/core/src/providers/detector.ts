@@ -64,6 +64,12 @@ export interface ProviderDetectorDeps {
    * ready though the CLI's own login is signed out.
    */
   otherAccount?: () => string | null;
+  /**
+   * Whether every Claude account is at its limit. Claude's own limit is the reading of the account
+   * that ran last, so without this one exhausted account would read as Claude at its limit while
+   * another has room. Absent, the provider's limit is taken as it is.
+   */
+  accountsAtLimit?: () => boolean;
   /** Extra command names tried before a manifest's own, per provider (Claude Code's `CLAUDE_BIN`) */
   commandAliases?: Record<ProviderId, string[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
@@ -258,7 +264,11 @@ export class ProviderDetector {
     const limit = store.get(status.id);
     const next: ProviderStatus = { ...status, limit };
     if (status.state !== 'ready' || !limit) return next;
-    if (limit.state === 'exhausted') return { ...next, state: 'degraded', reason: 'limit-reached' };
+    if (limit.state === 'exhausted') {
+      // Another account takes the work: Claude is ready, and the limit stays on the status for its bars
+      if (status.id === 'claude-code' && this.deps.accountsAtLimit && !this.deps.accountsAtLimit()) return next;
+      return { ...next, state: 'degraded', reason: 'limit-reached' };
+    }
     if (limit.state === 'near') return { ...next, state: 'degraded', reason: 'limit-near' };
     return next;
   }
