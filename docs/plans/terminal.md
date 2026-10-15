@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T17:30:00Z
-updated_at: 2026-10-15T17:30:00Z
+updated_at: 2026-10-15T17:46:01Z
 tags:
     - plan
     - terminal
@@ -11,7 +11,8 @@ tags:
 # Plan: the person's own terminal in Claudio
 
 Status: **planned** (2026-10-15). Nothing is built. The owner reviews this plan, answers the open
-questions at the end, and then the orchestration in [§7](#7-orchestration) is launched.
+questions at the end, and then the orchestration in [§7](#7-orchestration) is launched. Its
+facts spike (t0) is done: [Facts from t0](#facts-from-t0-2026-10-15).
 
 Claudio (the Claude-Code-only fork, [plans/claude-only-fork.md](claude-only-fork.md)) gets a real
 interactive shell per project and per chat, opened in the project's directory or in the chat's
@@ -54,6 +55,37 @@ worktree gets a terminal in its project directory), Q7 (Docker with auth off: un
 secret key from its environment after start, but not the owner's auth token, so a deployment that
 seeds it through the environment (Docker, Compose, Helm) hands it to every chat process (§2.11, task
 t2a). Agentry has the same gap. Fix it first, even if the terminal waits.
+
+## Facts from t0 (2026-10-15)
+
+Measured in [reports/terminal-t0.md](../reports/terminal-t0.md), each with its command and output.
+They correct the sections below, which have been edited to match:
+
+- **PTY package: `node-pty` `1.2.0-beta.15`, exact pin** (Microsoft's `beta` dist-tag), not `1.1.0`.
+  `1.1.0` has no Linux prebuild, so pnpm 10 (which skips install scripts) would leave it with no
+  binary, and a copy compiled on a recent machine needs its glibc (2.42 here) and fails in the
+  bookworm image. The beta ships a Linux x64 prebuild (glibc ≥ 2.28) that loads unchanged on Node 22,
+  Electron 44's Node and the `node:26-bookworm-slim` image, from a read-only AppImage mount: no
+  compiler, no `@electron/rebuild`, `npmRebuild: false` stays.
+- **No `FD_CLOEXEC` patch.** With `1.1.0` a shell holds every other terminal's master; the beta's PTY
+  child closes inherited descriptors, so shells hold none. The masters are still inherited by a
+  `child_process` the host would start, so **the host never uses `child_process`**. (The patch for
+  `1.1.0` is in the report, should the pin ever fall back.)
+- **xterm 6.0.0** for the view and the headless screen (`@xterm/headless` 6.0.0,
+  `addon-serialize` 0.14.0, `-unicode11` 0.9.0, `-fit` 0.11.0, `-webgl` 0.19.0, `-search` 0.16.0,
+  `-web-links` 0.12.0). The serializer drops a half-written sequence, as §2.5 expects.
+- **A refused WebSocket upgrade must destroy its socket.** Node stops tracking a socket that asked to
+  upgrade, so `forceCloseConnections` never closes one that got an HTTP answer (401, 403, 405, 421…),
+  and `app.close()` then never resolves (§2.4).
+- **Vite: the socket's proxy entry needs `ws: true` and `changeOrigin: false`.** With
+  `changeOrigin: true` the API sees `Host: localhost:8797` beside the page's `Origin`, so the Origin
+  check refuses every dev socket, and a LAN device reaching a `--host` dev server would look local
+  (§2.4, §3.4).
+- **The peer lookup works** for IPv4, IPv6 and v4-mapped peers, on the host and in Docker, but the
+  `/proc/*/fd` scan costs 30–40 ms on a desktop; scan only the chats' process trees (§3.5).
+- `connect-src 'self'` allows same-origin `ws:` and `wss:` in Chrome 154, Firefox 158 and WebKit 27.2
+  and blocks other ports. iOS Safari on a device, `docker build` and `pnpm desktop:dist` are left
+  to the integrator, with the commands in the report.
 
 ## The rule this feature lives under
 
@@ -263,7 +295,8 @@ What its `node-pty` patch fixes is the most useful single list in the study:
 4. **Shell-integration wrappers** that inject scripts into the person's shell and parse prompt marks:
    not needed for v1, and parsing terminal output is exactly what Claudio must not grow into.
 5. **Tracking beta releases and patching xterm and its addons locally.** Claudio pins stable
-   releases and patches nothing in the view; `node-pty` gets at most the close-on-exec fix (t0).
+   releases and patches nothing in the view. `node-pty` is the one exception to "stable": t0 pinned
+   its `1.2.0-beta.15`, which ships a Linux prebuild and needs no patch.
 6. A plain `!==` for the daemon's token: Claudio's tickets compare hashes with `timingSafeEqual`.
 7. One socket multiplexing every terminal with its own credit ledger: right for 128 phone streams
    through a relay, more than Claudio's ≤ 32 terminals need.
@@ -299,11 +332,12 @@ browser (xterm.js) ──ws: binary out / binary in / JSON control──▶ apps
 **Why a host process and not node-pty in the server.** Three reasons, the first learned from the
 reference (§1.2):
 
-1. `node-pty` 1.1.0 does not mark the PTY master close-on-exec, so every process the server spawns
+1. `node-pty` does not mark the PTY master close-on-exec, so every process the server spawns
    after a terminal opened (every `claude` turn, every `git`, `gh`) would inherit the master of the
    person's shell: an agent process would hold a writable handle on it. The host spawns nothing but
-   shells, so the masters never reach a chat. (Shells still inherit each other's masters; t0
-   checks it and, if so, applies a small `pnpm patch` setting `FD_CLOEXEC`.)
+   shells, so the masters never reach a chat. (Shells do not inherit each other's masters: t0 found
+   that `1.1.0`'s do, while the pinned `1.2.0-beta.15` closes inherited descriptors in the PTY's
+   child. The host must still never use `child_process`, whose children would get every master.)
 2. A native fault in `node-pty` takes down the host, not the API: the terminals end, the chats and
    orchestrations go on.
 3. The headless screens' memory is off the API's heap, and the host's RSS is one number to watch.
@@ -340,10 +374,10 @@ Rejected: a **detached daemon** that survives the server (the reference's model;
 
 | Package | Where | Notes |
 |---|---|---|
-| `node-pty` `1.1.0` (Microsoft), exact pin | `packages/core` (external to esbuild, loaded only by the host) | the only native module Claudio would ship. N-API, so one binary should serve Node and Electron's Node; t0 verifies it (§7) |
-| `@xterm/headless`, `@xterm/addon-serialize`, `@xterm/addon-unicode11` | `packages/core` (host) | pure JS, bundled by esbuild; versions matched to the view's xterm major |
+| `node-pty` `1.2.0-beta.15` (Microsoft, its `beta` dist-tag), exact pin | `packages/core` (external to esbuild, loaded only by the host) | the only native module Claudio would ship. It carries a Linux x64 prebuild (glibc ≥ 2.28); N-API, so the one binary loads on Node 22, Electron 44's Node and Node 26 (t0). Its install script need not run: list it in `ignoredBuiltDependencies`. `onData` is typed `string` but hands `Buffer`s with `encoding: null` |
+| `@xterm/headless` `6.0.0`, `@xterm/addon-serialize` `0.14.0`, `@xterm/addon-unicode11` `0.9.0` | `packages/core` (host) | pure JS, bundled by esbuild (about 390 KB in the host bundle). The headless package's `module` field names a file it lacks, so only `platform: 'node'` bundling (which reads `main` first) works |
 | `@fastify/websocket` `^11` (wraps `ws` `^8`) | `apps/api` | pure JS; `bufferutil` / `utf-8-validate` stay uninstalled (optional) |
-| `@xterm/xterm` stable, `@xterm/addon-fit`, `-webgl`, `-search`, `-web-links`, `-unicode11` | `apps/web` | pin **stable** releases of one major for the view and the headless screen (t0 picks 5.5 or the 6.x stable, whichever has a stable headless + serialize to match), never the betas the reference tracks |
+| `@xterm/xterm` `6.0.0`, `@xterm/addon-fit` `0.11.0`, `-webgl` `0.19.0`, `-search` `0.16.0`, `-web-links` `0.12.0`, `-unicode11` `0.9.0` | `apps/web` | exact pins of the 6.0 release, the same major as the headless screen (t0: 6.0.0 has been stable since 2025-12-22; 5.5's `addon-serialize` peer-depends on `@xterm/xterm` 5), never the betas the reference tracks. 6.0 has no canvas addon; the fallback is the DOM renderer |
 
 Claudio has **no native module today**: the SQLite store is `node:sqlite`, the API ships as a
 single esbuild file, `electron-builder.yml` says `npmRebuild: false` and the Docker image carries no
@@ -352,16 +386,21 @@ single esbuild file, `electron-builder.yml` says `npmRebuild: false` and the Doc
 - Only the host loads it, with `createRequire(import.meta.url)`, and only once the first terminal is
   asked for, never at start-up. A missing or broken binary makes the host answer `pty-missing`; the
   feature reads **unavailable** with that reason and the loader's error in the server log; nothing
-  else in Claudio depends on it.
+  else in Claudio depends on it. `node-pty`'s own loader reports only the last path it tried, which
+  hides the real cause (a glibc mismatch, say), so on failure the host also `require()`s the `.node`
+  file it expects and logs that error.
 - esbuild bundles the host as a fourth entry point (`terminal-host.mjs`, beside `server.mjs`,
   `api.mjs` and `mcp.mjs` in `apps/api/scripts/bundle.mjs`) and marks `node-pty` external. Each
   distribution ships the module beside the bundles: the Docker image copies `node_modules/node-pty`
   next to `/app/api.mjs`; the desktop app puts it under `<resources>/server/node_modules/node-pty`
-  (`extraResources`), where Node's resolution from `terminal-host.mjs` finds it.
-- If t0 finds that `node-pty` has no prebuilt Linux x64 binary for the versions in use, the build
-  stage of the Dockerfile compiles it (`python3 make g++` in the **build** stage only), and the
-  desktop build compiles it once against Electron's headers (`@electron/rebuild`, in CI). The
-  alternative of a prebuilt fork (`@lydell/node-pty`) is t0's call, written down in its report.
+  (`extraResources`), where Node's resolution from `terminal-host.mjs` finds it. What ships is
+  `package.json`, `lib/` and `prebuilds/linux-x64/pty.node`, 172 KiB, copied with pnpm's symlinks
+  dereferenced: the bundle script stages them into `apps/api/dist/node_modules/node-pty`, where the
+  existing `from: ../api/dist` entry and the Dockerfile pick them up.
+- Nothing compiles: the pinned beta carries the Linux x64 binary (t0). Rejected: `1.1.0`, which
+  would need `python3 make g++` in the Docker build stage, `onlyBuiltDependencies`, and a desktop
+  build in an old-glibc container (a binary compiled on a recent machine refuses older glibcs);
+  `@lydell/node-pty`, a third party's repackaging of the same beta.
 
 ### 2.4 Transport: WebSocket, not POST + SSE
 
@@ -384,8 +423,21 @@ stall the others, and closing a tab could not simply close its socket).
 
 The `onRequest` hook in `security.ts` runs for the upgrade request (it is a GET through Fastify's
 lifecycle), so the host allowlist, read-only and actor resolution apply before the handshake; t0
-confirms it with a test. `forceCloseConnections: true` (already set in `app.ts`) closes open sockets
-when the server stops.
+confirmed it (Fastify 5.12.5, `@fastify/websocket` 11.3.4): the hook sees the full URL and a reply
+from it refuses the upgrade before the route's handler runs. An accepted socket is closed by
+`@fastify/websocket` on `app.close()`. **A refused one is not:** once a request has asked to
+upgrade, Node no longer tracks its socket, so `forceCloseConnections` does not reach it, and
+`app.close()` never resolves (t0 reproduced it). Every HTTP answer to an upgrade request (the
+guard's 401/405/421, the gate's 403/409, a 404) therefore destroys the socket once written
+(`reply.raw.once('finish', () => req.raw.socket.destroy())`), from one `onRequest` hook registered
+first; t3 tests it by closing the app after a refused upgrade.
+
+**Dev server.** Vite's proxy carries the upgrade only with `ws: true` (without it the client hangs).
+The existing `/api` entry has `changeOrigin: true`, which hands the API `Host: localhost:8797`
+beside the page's `Origin: http://localhost:5181`: the Origin check (§3.7) would refuse every dev
+socket, and a LAN device reaching a dev server started with `--host` would pass the loopback test
+(§3.4). The socket gets its own entry, before `/api`, with `ws: true` and `changeOrigin: false`, so
+the API sees the Host the browser dialled.
 
 **Framing.** One socket carries three kinds of frame:
 
@@ -593,12 +645,13 @@ This is worth fixing even if the terminal is never built.
 - The desktop server is `server.mjs` on Electron's Node (`ELECTRON_RUN_AS_NODE`, which
   `standalone.ts` deletes from `process.env` at start). The terminal host is forked from it with
   `process.execPath` and `ELECTRON_RUN_AS_NODE=1` set for the host alone (§2.5). `node-pty` is
-  N-API, so the same Linux x64 binary should load there; t0 proves it on the **packaged AppImage**,
-  not only in `desktop:dev` (the AppImage mounts read-only and node-pty also needs its
-  `spawn-helper` on macOS, not on Linux).
+  N-API, so the same Linux x64 binary loads there: t0 ran a bundled host on Electron 44.5.1 from an
+  AppImage stand-in (the real AppImage runtime, a read-only `nosuid,nodev` FUSE mount); the
+  integrator confirms it on the AppImage `desktop:dist` builds (report §9). node-pty needs its
+  `spawn-helper` on macOS only, not on Linux.
 - `electron-builder.yml`: add `terminal-host.mjs` and `node_modules/node-pty/**` to the `server`
-  extraResources; keep `npmRebuild: false` if the binary works, else build it in CI with
-  `@electron/rebuild` and say so in the file.
+  extraResources (staged into `apps/api/dist` by the bundle script, §2.3); `npmRebuild: false`
+  stays, since the prebuilt binary loads, and the file says why.
 - The window loads the UI from the local server, so the view and the socket are same-origin;
   nothing changes in `preload.ts`. Keyboard: Electron's menu accelerators must not swallow the
   terminal's keys — while a terminal has focus, the shell's `Ctrl+W`, `Ctrl+R` and `Ctrl+Shift+C/V`
@@ -609,7 +662,9 @@ This is worth fixing even if the terminal is never built.
 ### 2.13 Docker
 
 - The image gets `node_modules/node-pty` beside `api.mjs` (copied from the build stage).
-  `node:26-bookworm-slim` has `bash`; `procps` is already installed.
+  `node:26-bookworm-slim` has `bash`; `procps` is already installed. No compiler is added to either
+  stage: the prebuilt binary loads there as user `node` (t0). Inside the container a master reads
+  `/dev/pts/ptmx`, not `/dev/ptmx`.
 - `HOST=0.0.0.0` and auth `none` by default in the image means every request arrives from the
   bridge, not from loopback, so **with auth off the terminal is unavailable in Docker**
   (`reason: 'needs-auth'`) by construction (§3.4). With a token set it works, in the container as
@@ -736,8 +791,15 @@ attempt is written to the audit rows.
 
 - This closes the gap no credential can: under `mode: none`, an agent on the same machine that
   calls the API **without** a token looks exactly like the person's browser.
-- It costs a few `/proc` reads per request, so it runs only on the terminal routes and the upgrade,
-  and the table of chat pids is cached for 1 s.
+- It runs only on the terminal routes and the upgrade, and the table of chat pids is cached for 1 s.
+  Finding the holder of an inode by scanning every `/proc/*/fd` costs 30–40 ms on a desktop (t0), so
+  the check scans only the fds of the chat processes and their descendants: if one of them holds the
+  client's socket, refuse. That is the same answer as the ancestor walk, at a fraction of the cost.
+  A peer seen as `::ffff:127.0.0.1` is an IPv4 socket, found in `/proc/net/tcp`, not `tcp6`.
+- "Holder not found" is `unknown`, not "not a chat": a client running as another user has an `fd`
+  directory the server cannot read.
+- Behind Vite's dev proxy the peer is Vite's Node process: if a chat started the dev server, every
+  request through it reads as an agent's and is refused. Correct, and worth a line in Settings.
 - Where `/proc` cannot be read (macOS dev, a hardened container), the check reports `unknown` and
   the gate refuses under `mode: none` (fail closed) and allows under `token`/`oidc` (the credential
   already proves the person). Settings says which case applies.
@@ -769,8 +831,10 @@ takes a **ticket**:
 - The ticket is bound to the `Origin` of the `POST` that minted it, and must match on the socket.
 - The existing host allowlist (`421`) runs first, so a rebinding name never reaches the gate.
 - CSP: `connect-src 'self'` in `app.ts` covers same-origin `ws:`/`wss:` in current Chrome, Firefox
-  and Safari (CSP3). t0 checks Safari on the phone; if it fails, `connect-src` gains the exact
-  `ws(s)://<host>` of the request, computed per request, never a bare `ws:`.
+  and Safari (CSP3). t0 confirmed it for `ws:` from `http:` and `wss:` from `https:` in Chrome 154,
+  Firefox 158 and WebKit 27.2, relative URLs (`new WebSocket('/api/…')`) included, with other ports
+  still blocked. iOS Safari on the phone is the owner's check; if it fails, `connect-src` gains the
+  exact `ws(s)://<host>` of the request, computed per request, never a bare `ws:`.
 
 ### 3.8 Read-only mode
 
@@ -1012,8 +1076,9 @@ frames; the route's description links to them.
   `closeAll()` on stop; `reapStrays()` kills a tree recorded by a "previous server" row and leaves a
   reused pid alone.
 - **descriptors:** a `claude`-like child spawned by the service after a terminal opened holds no
-  `/dev/ptmx` or `/dev/pts/*` in `/proc/<pid>/fd` (the host keeps the masters); the host's own
-  environment holds no `CLAUDIO_*`.
+  `/dev/ptmx` or `/dev/pts/*` in `/proc/<pid>/fd` (the host keeps the masters; in Docker a master
+  reads `/dev/pts/ptmx`); a second shell holds no master of the first; the host's own environment
+  holds no `CLAUDIO_*`.
 - **isolation:** `TerminalService` is imported only by `core/index.ts` and the API's terminal
   routes: a test reads the import graph (no import from chats, orchestrator, flow, assistant,
   decisions, the MCP server).
@@ -1125,8 +1190,8 @@ in parallel; `t7`; `t8`; final full checks.
 
 | Risk | What holds it |
 |---|---|
-| `node-pty` does not load in one distribution (AppImage, Docker, a dev Node) | t0 proves all three before any code; the host degrades to `pty-missing` and the rest of Claudio does not depend on it |
-| The PTY master leaks into other processes (`node-pty` 1.1.0 does not set close-on-exec) | PTYs live in the terminal host, which spawns nothing but shells; t0 checks shells for each other's masters and adds a `FD_CLOEXEC` patch if they hold them |
+| `node-pty` does not load in one distribution (AppImage, Docker, a dev Node) | a prebuilt binary with a glibc 2.28 floor, which t0 loaded on all three (the AppImage through a stand-in; the integrator checks the real one); the host degrades to `pty-missing` and the rest of Claudio does not depend on it |
+| The PTY master leaks into other processes (`node-pty` does not set close-on-exec on it) | PTYs live in the terminal host, which spawns nothing but shells and never uses `child_process`; the pinned `1.2.0-beta.15` closes inherited descriptors in each shell, so shells hold no other terminal's master (t0) |
 | A native crash in `node-pty` | it takes down the host, not the API; three failures in 5 min turn the feature unavailable |
 | Keystrokes and the token read on the LAN | `remote: 'tunnel'` by default (§3.4.1) |
 | Replay types garbage into the shell (query replies), rewraps or loses a half sequence | replies muted during the snapshot, replay at the snapshot's size, the unfinished tail resent (§2.5) |
