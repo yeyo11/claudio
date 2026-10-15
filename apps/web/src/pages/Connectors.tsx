@@ -1,6 +1,6 @@
 import type { Connector, ConnectorAction, ConnectorKind, ConnectorsOverview } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, ExternalLink, FileText, Info, Mail, Plug, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
+import { CalendarDays, ExternalLink, FileText, Info, KeyRound, Mail, Plug, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useConnectors } from '../api';
@@ -27,7 +27,14 @@ function ConnectorStatus({ status }: { status: Connector['status'] }) {
       </span>
     );
   }
-  if (status === 'needs-auth') return <Tag tone="warn">{t('status.needsAuth')}</Tag>;
+  // Warn means a person has to act: the key says it next to the word, never colour alone
+  if (status === 'needs-auth') {
+    return (
+      <Tag tone="warn">
+        <KeyRound {...ICON_SM} aria-hidden /> {t('status.needsAuth')}
+      </Tag>
+    );
+  }
   // What the CLI does not say is shown as unknown, with the shape and the word of that status
   return <StatusBadge status="unknown" />;
 }
@@ -85,6 +92,7 @@ function ConnectorCard({
         <div className="connector-main">
           <h2 className="connector-name break">{connector.name}</h2>
           <ConnectorStatus status={connector.status} />
+          {connector.toolCount !== undefined && <span className="mono small muted connector-tools">{t('toolCount', { count: connector.toolCount })}</span>}
           {connector.detail && connector.status !== 'connected' && <span className="mono small muted break">{t('cliSays', { detail: connector.detail })}</span>}
         </div>
         {actions.length > 0 && (
