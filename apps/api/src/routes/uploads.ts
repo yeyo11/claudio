@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /** The largest file accepted, plus room; the store enforces the per-kind limits. */
 const BODY_LIMIT = 51 * 1024 * 1024;

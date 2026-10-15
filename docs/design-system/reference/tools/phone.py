@@ -198,7 +198,7 @@ def all_projects():
 <div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="wi-col-count"><b>{n}</b></span><span class="t-xs fg-3">en 2 proyectos</span></div>
 <div class="card" style="overflow: hidden">{''.join(arow(k, w) for k, w in items)}</div>
 </section>'''
-  # Por hacer: claude-wrapper's four and agentry-site's one; the counts are over every project shown
+  # Por hacer: claude-wrapper's four and claudio-site's one; the counts are over every project shown
   todo = [('GDM-7', OTHER['GDM-7'])] + [(k, W[k]) for k in by_col('todo')]
   prog = [('GDM-9', OTHER['GDM-9']), ('AGN-28', W['AGN-28'])]
   chip = f'<button type="button" class="chip project-selector" style="font-size: 14px">Todos los proyectos{ico("down", "ico ico-sm")}</button>'

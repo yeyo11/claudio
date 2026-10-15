@@ -9,7 +9,7 @@
  * the files back. Nothing here guesses from the words or from a clock: the server says which.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { Chat, ChatMessageReceipt, ChatPendingAttachment, ChatPendingMessage, MessageDelivery, TranscriptEntry } from '@agentry/shared';
+import type { Chat, ChatMessageReceipt, ChatPendingAttachment, ChatPendingMessage, MessageDelivery, TranscriptEntry } from '@claudio/shared';
 import { isStreamed, type ChatStreamStore } from '../lib/chat-stream';
 
 export interface QueuedMessage {

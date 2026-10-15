@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, TunnelStatus } from '@agentry/shared';
+import type { AgentryEvent, TunnelStatus } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { migrate } from '../src/db.ts';
 import type { HostCall } from '../src/hosts/code-host.ts';
@@ -194,7 +194,7 @@ test('registering twice is refused, and registering after a removal replaces the
 
 const OTHER = 'https://other777.lhr.life/api/webhooks/github/11111111-2222-3333-4444-555555555555';
 
-test("another install's Agentry hook is not adopted: it is left alone, its own is created, and the person is told", async () => {
+test("another install's Claudio hook is not adopted: it is left alone, its own is created, and the person is told", async () => {
   const f = fixture();
   f.answer((call) => (isList(call) ? pages([hookJson(OTHER, { code: 204, status: 'active' }, '42')]) : isCreate(call) ? result(recorded('hook_create')) : undefined));
 
@@ -202,7 +202,7 @@ test("another install's Agentry hook is not adopted: it is left alone, its own i
   assert.equal(registration.remoteHookId, HOOK, 'its own hook, not the one found');
   assert.ok(f.calls.some(isCreate));
   assert.ok(!f.calls.some((c) => argv(c).includes('/42')), 'the other hook is never read, patched or deleted');
-  assert.match(registration.notice ?? '', /another Agentry install .*other777\.lhr\.life.*left it alone/);
+  assert.match(registration.notice ?? '', /another Claudio install .*other777\.lhr\.life.*left it alone/);
   assert.equal(f.store.get(registration.id) && 'notice' in (f.store.get(registration.id) ?? {}), false, 'the notice is not kept');
 });
 
@@ -262,7 +262,7 @@ test('the listing reads every page, so a hook after the first thirty is found', 
   const f = fixture();
   f.answer((c) => (isList(c) ? pages(page(1, 30), [hookJson(OTHER, { code: 204, status: 'active' }, '77')]) : isCreate(c) ? result(recorded('hook_create')) : undefined));
   const registration = await f.service.register('p1');
-  assert.match(registration.notice ?? '', /another Agentry install/, 'the hook on the second page was seen');
+  assert.match(registration.notice ?? '', /another Claudio install/, 'the hook on the second page was seen');
 });
 
 test("someone else's hook is never touched", async () => {
@@ -425,7 +425,7 @@ test('a refused removal keeps the registration and its secret', async () => {
 
 // ---------- a new public address ----------
 
-test("a new public address re-points the hooks Agentry registered, by id, with the stored secret on stdin", async () => {
+test("a new public address re-points the hooks Claudio registered, by id, with the stored secret on stdin", async () => {
   const f = fixture();
   const a = f.store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
   f.store.create({ id: 'r2', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: 'yeyo11/gone', remoteHookId: '7', url: receiverUrl(ORIGIN, 'github', 'r2'), events: [] });
@@ -542,7 +542,7 @@ const glIs = {
   remove: (c: HostCall): boolean => glArgv(c) === `${GL} -X DELETE ${GL_HOOKS}/${GL_HOOK}`,
   put: (c: HostCall): boolean => glArgv(c) === `${GL} -X PUT ${GL_HOOKS}/${GL_HOOK} -H Content-Type: application/json --input -`,
 };
-const glHook = (url: string, alert = 'executable'): string => JSON.stringify({ id: Number(GL_HOOK), url, name: 'agentry', alert_status: alert, token_present: true });
+const glHook = (url: string, alert = 'executable'): string => JSON.stringify({ id: Number(GL_HOOK), url, name: 'claudio', alert_status: alert, token_present: true });
 const glEvents = (...codes: Array<number | string>): string => JSON.stringify(codes.map((c, i) => ({ id: 27604479645 + codes.length - i, trigger: 'push_hooks', response_status: c })));
 const glMine = (id: string, alert?: string): string => glHook(receiverUrl(ORIGIN, 'gitlab', id), alert);
 
@@ -556,7 +556,7 @@ test('the GitLab hook calls are the recorded ones, with the token and signing to
     token: 's3cret',
     signing_token: signingTokenOf('s3cret'),
     enable_ssl_verification: true,
-    name: 'agentry',
+    name: 'claudio',
     merge_requests_events: true,
     pipeline_events: true,
     note_events: true,
@@ -673,7 +673,7 @@ test('a new public address re-points a GitLab hook by id with a PUT, and a hook 
   const body = JSON.parse(put?.input ?? '') as { url: string; token: string; signing_token: string };
   assert.deepEqual([body.url, body.token, body.signing_token], ['https://new.lhr.life/api/webhooks/gitlab/r1', 'tok', signingTokenOf('tok')]);
   assert.equal(f.store.get('r1')?.url, 'https://new.lhr.life/api/webhooks/gitlab/r1');
-  // the person pointed it somewhere else on the host: it stays, and Agentry says it cannot follow
+  // the person pointed it somewhere else on the host: it stays, and Claudio says it cannot follow
   f.calls.length = 0;
   f.answer((c) => (glIs.get(c) ? ok(glHook('https://elsewhere.example/hook')) : glIs.events(c) ? ok('[]') : undefined));
   await f.service.follow('https://newer.lhr.life');

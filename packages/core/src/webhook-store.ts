@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import type { CodeHostId, WebhookLastResponse, WebhookRegistration, WebhookState } from '@agentry/shared';
+import type { CodeHostId, WebhookLastResponse, WebhookRegistration, WebhookState } from '@claudio/shared';
 
 /** How long a delivery id is remembered: a host retries within hours, never within a week. */
 export const WEBHOOK_DELIVERY_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
@@ -80,7 +80,7 @@ export function pruneWebhookDeliveries(sql: DatabaseSync, now = Date.now()): num
 }
 
 /**
- * The webhook tables: the hooks Agentry registered and the deliveries it has seen. The signing
+ * The webhook tables: the hooks Claudio registered and the deliveries it has seen. The signing
  * secret is not here (it lives in a 0600 file), so no row this store returns can leak it.
  */
 export class WebhookStore {

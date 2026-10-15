@@ -1,7 +1,7 @@
-import type { CodeHostId, IssueRef, ProjectTrackerSettings, TrackerId } from '@agentry/shared';
+import type { CodeHostId, IssueRef, ProjectTrackerSettings, TrackerId } from '@claudio/shared';
 
 // How a change request names the issues of its work item (docs/plans/code-hosts.md, phase 5 and
-// matrix F9). The item's branch stays `task/<key>`; the issue travels in the title and the body,
+// matrix F9). The item's branch stays `claudio-task/<key>`; the issue travels in the title and the body,
 // which is what each tracker's own integration links by.
 
 /** The host whose CLI and sign-in a tracker reuses; null for a tracker with its own CLI. */
@@ -73,7 +73,7 @@ const EACH_REFERENCE = new RegExp(REFERENCE, 'g');
  * Text that came from an issue, made unable to close anything. A title or a body written by
  * another person says `Closes #99`; squash-merged into the default branch, the title becomes the
  * commit message and the host closes #99, an issue nobody linked. The reference after a closing
- * word goes in backticks, which neither host reads as one; the words stay readable. Agentry's own
+ * word goes in backticks, which neither host reads as one; the words stay readable. Claudio's own
  * `Closes` line is written elsewhere and never passes through here.
  */
 export function neutralizeClosing(text: string): string {

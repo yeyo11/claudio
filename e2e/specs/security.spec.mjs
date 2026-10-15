@@ -1,7 +1,7 @@
 // Security tab: the token is shown once, read-only refuses writes, the access mode guards the API
 // and a 401 is a sign-in screen. The suite shares one wrapper, so whatever this turns on it turns
 // back off, even when an assertion fails half way.
-const TOKEN_KEY = 'agentry.token';
+const TOKEN_KEY = 'claudio.token';
 
 export default async ({ page, api, check }) => {
   const authed = (token) => async (method, path, body) => {
@@ -26,7 +26,7 @@ export default async ({ page, api, check }) => {
   const initial = await panelText();
   for (const heading of ['Read-only mode', 'Access', 'Token', 'Audit log']) check(initial.toLowerCase().includes(heading.toLowerCase()), `the security tab has a "${heading}" card`);
   check(initial.toLowerCase().includes('open'), 'the unguarded mode is said in words, not only shown');
-  check(initial.includes('AGENTRY_AUTH_TOKEN_RESET'), 'the token card names the recovery path for a lost token');
+  check(initial.includes('CLAUDIO_AUTH_TOKEN_RESET'), 'the token card names the recovery path for a lost token');
 
   // A mode that would lock everyone out is named before the click, not after it
   await page.click('[role=radio]', 'Token');

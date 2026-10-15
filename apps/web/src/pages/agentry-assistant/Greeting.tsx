@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { AssistantMark } from '../../components/assistant/run';
 
 /**
- * The first message of every chat of the Agentry assistant, drawn from i18n and not a model turn:
+ * The first message of every chat of the Claudio assistant, drawn from i18n and not a model turn:
  * it is instant, the same every time, and the chat's title stays the person's first prompt.
  */
 export function AssistantGreeting() {

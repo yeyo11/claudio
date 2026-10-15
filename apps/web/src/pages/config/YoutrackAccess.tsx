@@ -1,17 +1,17 @@
-import type { TrackerStatus } from '@agentry/shared';
+import type { TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 
 /** What the row says about a YouTrack that is not ready, for the toast after a save. */
 export type TrackerReasonText = (status: TrackerStatus, host: string) => string;
 
 /**
- * The address and permanent token Agentry hands `youtrack-app` (code hosts decision 3). The token
+ * The address and permanent token Claudio hands `youtrack-app` (code hosts decision 3). The token
  * is write-only: the field never shows the saved one, and left empty it keeps it. "Check and save"
  * waits for the server to probe the instance, so the person learns at once whether it took the
  * token. On desktop it opens under the row; on a phone it fills a sheet.

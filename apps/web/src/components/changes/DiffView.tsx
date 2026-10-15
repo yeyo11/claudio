@@ -1,4 +1,4 @@
-import type { DecisionRecord } from '@agentry/shared';
+import type { DecisionRecord } from '@claudio/shared';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronsUpDown } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -18,13 +18,13 @@ import {
   type SplitCell,
   type SplitRow,
 } from '../../lib/diff';
-import { useAgentName } from '@agentry/chat-ui/lib/agent';
-import { Lru } from '@agentry/ui/lib/lru';
+import { useAgentName } from '@claudio/chat-ui/lib/agent';
+import { Lru } from '@claudio/ui/lib/lru';
 import { wordDiff, type Range, type WordDiff } from '../../lib/word-diff';
-import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '@agentry/ui/components/highlight';
-import type { ReviewSide } from '@agentry/shared';
+import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '@claudio/ui/components/highlight';
+import type { ReviewSide } from '@claudio/shared';
 import { DecisionMarkOf } from '../DecisionMark';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 
 // One file's diff, drawn the three ways of design system §5: Reading (the file as it is now, what
 // was removed folded into pills), Unified and Side by side. Everything it draws comes from

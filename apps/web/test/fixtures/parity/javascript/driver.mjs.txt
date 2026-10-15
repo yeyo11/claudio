@@ -16,7 +16,7 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
   if (shotsDir) mkdirSync(shotsDir, { recursive: true });
   const chrome = spawn(
     findChrome(),
-    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'))}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
+    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'claudio-e2e-chrome-'))}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
     { stdio: 'ignore' },
   );
   let target;

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import type { CodeHostId, CodeHostsSettings, ProjectCodeHostRemote, PullRequestNotReadyReason, PullRequestReadiness, PullRequestRemedy } from '@agentry/shared';
+import type { CodeHostId, CodeHostsSettings, ProjectCodeHostRemote, PullRequestNotReadyReason, PullRequestReadiness, PullRequestRemedy } from '@claudio/shared';
 import { git, isGitRepo, mainCheckout } from '../git.ts';
 import { compareVersions } from '../version-check.ts';
 import type { CodeHostAdapter, HostRepo } from './code-host.ts';

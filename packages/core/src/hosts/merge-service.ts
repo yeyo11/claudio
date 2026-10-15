@@ -15,7 +15,7 @@ import type {
   MergeMethod,
   MergeRequestBody,
   MergeState,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import { changeRequestMergeOf, type ChangeRequestMergeRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';
@@ -56,12 +56,12 @@ const SETTLE_ROUNDS = 3;
 /** A host-side rebase is waited on this often, this many times */
 const REBASE_WAIT = 5_000;
 const REBASE_ROUNDS = 12;
-/** Who the disarm that precedes Agentry's own push is recorded as */
-const AGENTRY = 'agentry';
-/** What the audit row of a disarm Agentry did on its own account says, which is also how the state finds it again */
+/** Who the disarm that precedes Claudio's own push is recorded as */
+const AGENTRY = 'claudio';
+/** What the audit row of a disarm Claudio did on its own account says, which is also how the state finds it again */
 const OFF_DETAIL: Record<AutoMergeOffWhy, string> = {
-  push: 'turned off before Agentry pushed: arm it again afterwards',
-  update: 'turned off before Agentry updated the branch: arm it again afterwards',
+  push: 'turned off before Claudio pushed: arm it again afterwards',
+  update: 'turned off before Claudio updated the branch: arm it again afterwards',
 };
 
 /** A pipeline in one of these states will not change on its own: Merge no longer waits for it */
@@ -103,14 +103,14 @@ export interface MergeTarget {
   /** Whether `path` exists at commit `sha` in the local clone; null when git cannot say (the commit is not there) */
   fileAt?: (sha: string, path: string) => Promise<boolean | null>;
   /**
-   * Agentry's own update (E9): fetch the base, merge it into the branch and push. The conflicting
+   * Claudio's own update (E9): fetch the base, merge it into the branch and push. The conflicting
    * paths come back when it conflicted (nothing is pushed then); a failure throws. Absent when the
    * row has no checkout to do it in.
    */
   updateFromBase?: () => Promise<{ conflicts: string[] }>;
   /** After a host-side rebase: fetch the branch and `reset --keep` onto it in the clean checkout */
   syncAfterRebase?: () => Promise<void>;
-  /** A chat or a run is working in the branch's checkout: Agentry does not rewrite the branch under it */
+  /** A chat or a run is working in the branch's checkout: Claudio does not rewrite the branch under it */
   busy?: () => boolean;
   /**
    * What a host-side rebase would cost the checkout: `reset --keep` drops what is not committed, and
@@ -129,7 +129,7 @@ export interface MergeServiceDeps {
   unresolvedThreads?: (id: string) => Promise<number>;
   /** The host merged it: lets the owner of the row see that now, instead of at its next poll */
   merged?: (id: string) => Promise<void>;
-  /** The feed: Agentry turned auto-merge off, and the person is told */
+  /** The feed: Claudio turned auto-merge off, and the person is told */
   emit?: (event: AgentryEventInput) => void;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
@@ -154,7 +154,7 @@ export interface PushHold {
 export interface UpdateOutcome {
   state: MergeState;
   conflicts: string[];
-  /** The way it was done: Agentry's own merge, or a host-side rebase */
+  /** The way it was done: Claudio's own merge, or a host-side rebase */
   via: 'merge' | 'rebase';
 }
 
@@ -168,7 +168,7 @@ interface Cached {
 const isLimited = (reason: HostReason): boolean => reason === 'rate-limited' || reason === 'slowed-down';
 const failed = (result: HostResult): boolean => result.exitCode !== 0 || Boolean(result.reason);
 
-/** When Agentry may read again, from the headers the host sent; null without one */
+/** When Claudio may read again, from the headers the host sent; null without one */
 function resetOf(result: HostResult, now: number): string | null {
   const headers = result.http?.headers ?? {};
   const after = Number(headers['retry-after']);
@@ -197,11 +197,11 @@ export class MergeService {
   private readonly lastState = new Map<string, MergeState>();
   private readonly lastRead = new Map<string, MergeRead>();
   private readonly lastSettings = new Map<string, MergeSettings>();
-  /** The last time Agentry saw the branch move: a push of its own, or the first read of a head */
+  /** The last time Claudio saw the branch move: a push of its own, or the first read of a head */
   private readonly pushes = new Map<string, { sha: string | null; at: number }>();
   /** Writes to one change request, one at a time */
   private readonly writing = new Set<string>();
-  /** Change requests whose branch Agentry is pushing to right now, with auto-merge already off */
+  /** Change requests whose branch Claudio is pushing to right now, with auto-merge already off */
   private readonly pushing = new Set<string>();
 
   constructor(private readonly deps: MergeServiceDeps) {
@@ -243,7 +243,7 @@ export class MergeService {
     try {
       settings = adapter.parseMergeSettings(settingsResult.stdout);
     } catch (err) {
-      if (err instanceof HostParseError) throw new MergeError('the repository answered in a shape Agentry does not know', 'unexpected-output', firstLine(err.message));
+      if (err instanceof HostParseError) throw new MergeError('the repository answered in a shape Claudio does not know', 'unexpected-output', firstLine(err.message));
       throw err;
     }
     // A rule that could not be read is not a rule that does not exist: the merge is then up to the host's refusal
@@ -272,7 +272,7 @@ export class MergeService {
     try {
       return target.adapter.parseMergeRead(result);
     } catch (err) {
-      if (err instanceof HostParseError) throw new MergeError('the change request came back in a shape Agentry does not know', 'unexpected-output', firstLine(err.message));
+      if (err instanceof HostParseError) throw new MergeError('the change request came back in a shape Claudio does not know', 'unexpected-output', firstLine(err.message));
       throw err;
     }
   }
@@ -320,7 +320,7 @@ export class MergeService {
     const read = await this.readMerge(target);
     const head = read.headSha;
     const pushed = this.pushes.get(target.id);
-    // The first time this head is seen stands in for the push, when Agentry did not do the push itself
+    // The first time this head is seen stands in for the push, when Claudio did not do the push itself
     if (head && pushed?.sha === null) this.pushes.set(target.id, { sha: head, at: pushed.at });
     else if (head && pushed?.sha !== head) this.pushes.set(target.id, { sha: head, at: this.now() });
 
@@ -358,7 +358,7 @@ export class MergeService {
     const cost = offered ? await this.rebaseCost(target) : null;
     const methods = allowedMethods(settings, cached.rules);
     // A rebase on the host that would drop what is only in the checkout is not offered: the way out of `behind` is then
-    // Agentry's own update, which keeps it, and the notice says why
+    // Claudio's own update, which keeps it, and the notice says why
     const shown = cost === null ? blockers : blockers.map((b) => (b.code === 'behind' && b.action === 'rebase-on-host' ? { ...b, action: 'update-from-base' as const } : b));
     const [first, ...others] = shown;
     const canMerge = read.state === 'open' && blockers.length === 0 && !guard.waiting && !guard.running && methods.length > 0;
@@ -414,7 +414,7 @@ export class MergeService {
       const since = this.pushes.get(target.id)?.at ?? this.now();
       if (this.now() - since >= NO_PIPELINE_GRACE) return { waiting: false, running: false, blockers };
     }
-    // A pipeline is coming (or Agentry cannot tell): wait for it, never merge ahead of it
+    // A pipeline is coming (or Claudio cannot tell): wait for it, never merge ahead of it
     return { waiting: true, running: false, blockers };
   }
 
@@ -430,7 +430,7 @@ export class MergeService {
     }
   }
 
-  /** The newest arming or disarm on record is a disarm Agentry did for a push or an update: that is still what happened to it */
+  /** The newest arming or disarm on record is a disarm Claudio did for a push or an update: that is still what happened to it */
   private autoMergeOff(id: string): AutoMergeOff | null {
     const row = this.deps.db
       .prepare("SELECT action, requested_at, requested_by, detail FROM change_request_merges WHERE cr_id = ? AND action IN ('arm', 'disarm') AND outcome IN ('armed', 'disarmed') ORDER BY requested_at DESC, rowid DESC LIMIT 1")
@@ -554,7 +554,7 @@ export class MergeService {
           throw err;
         }
         if (err instanceof HostParseError) {
-          const wrong = new MergeError('the request is not one Agentry can send', 'merge-failed', firstLine(err.message));
+          const wrong = new MergeError('the request is not one Claudio can send', 'merge-failed', firstLine(err.message));
           this.settle(row, 'failed', wrong.reason, wrong.detail);
           throw wrong;
         }
@@ -670,7 +670,7 @@ export class MergeService {
         this.settle(row, 'armed');
         return await this.state(id, { refresh: true });
       } catch (err) {
-        const error = err instanceof HostParseError ? new MergeError('the request is not one Agentry can send', 'merge-failed', firstLine(err.message)) : err;
+        const error = err instanceof HostParseError ? new MergeError('the request is not one Claudio can send', 'merge-failed', firstLine(err.message)) : err;
         if (error instanceof MergeError) this.settle(row ?? this.record(id, 'arm', body.method, body.expectedHead, false, by), 'failed', error.reason, error.detail);
         throw error;
       }
@@ -707,7 +707,7 @@ export class MergeService {
   }
 
   /**
-   * Called before Agentry pushes to a change request's branch (a fix, an address, the push that opens
+   * Called before Claudio pushes to a change request's branch (a fix, an address, the push that opens
    * one): an armed auto-merge would merge what the push brings before anyone looked at it. It is turned
    * off and confirmed, the person is told (an event, and `autoMergeOff` in the state), and the push goes
    * on; the person arms it again. The change request stays held until `release()` (call it when the push
@@ -744,7 +744,7 @@ export class MergeService {
 
   /**
    * Brings the base into the branch (E9). On GitLab `ff` projects that is the host's rebase, then the
-   * checkout follows; everywhere else (and when the host's rebase conflicts) it is Agentry's own merge
+   * checkout follows; everywhere else (and when the host's rebase conflicts) it is Claudio's own merge
    * in the item's checkout, pushed after auto-merge is off. Nothing is done while a chat or a run works
    * in that checkout. A merge that conflicts pushes nothing and names the paths. `by` is the person who
    * clicked: the disarm that comes first is theirs, done for the update.
@@ -764,7 +764,7 @@ export class MergeService {
           this.pushes.set(id, { sha: null, at: this.now() });
           return { state: await this.state(id, { refresh: true }), conflicts: [], via: 'rebase' };
         } catch (err) {
-          // A conflict is the host's refusal about the content: Agentry's own update names the paths
+          // A conflict is the host's refusal about the content: Claudio's own update names the paths
           if (!(err instanceof MergeError && err.reason === 'merge-failed' && target.updateFromBase)) throw err;
         }
       }

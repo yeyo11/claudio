@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import type { Board, Project, WorkItem, WorkItemDetail, WorkItemPullRequestResult } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { Board, Project, WorkItem, WorkItemDetail, WorkItemPullRequestResult } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
 // The pull request routes over a real core, a real git project with a bare repository as its
@@ -54,7 +54,7 @@ async function createItem(projectId: string, body: Record<string, unknown>): Pro
 /** An item in review with one commit of work on its own branch and worktree, as "Work on it" leaves it. */
 async function reviewed(projectId: string, path: string): Promise<WorkItem> {
   const item = await createItem(projectId, { title: 'Fix the cart total', description: 'Off by one.', acceptanceCriteria: [{ text: 'The total adds up' }] });
-  const branch = `task/${item.key.toLowerCase()}`;
+  const branch = `claudio-task/${item.key.toLowerCase()}`;
   const worktree = join(path, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
   git(path, 'worktree', 'add', '-q', '-b', branch, worktree, 'HEAD');
   writeFileSync(join(worktree, 'cart.ts'), 'export const total = 2;\n');
@@ -78,8 +78,8 @@ before(async () => {
   chmodSync(join(bin, 'gh'), 0o755);
   // The bare origin has no host, and a project with none is not ready: the shim has `origin` say github.com
   symlinkSync(GIT_SHIM, join(bin, 'git'));
-  process.env.AGENTRY_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-  process.env.AGENTRY_ORIGIN_URL = 'https://github.com/acme/shop.git';
+  process.env.CLAUDIO_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  process.env.CLAUDIO_ORIGIN_URL = 'https://github.com/acme/shop.git';
   // Read by core whenever it runs gh: this test file runs in its own process
   process.env.PATH = `${bin}:${process.env.PATH ?? ''}`;
   process.env.FAKE_GH_STATE = state;
@@ -87,8 +87,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -117,7 +117,7 @@ test('approving an item in review answers 202, opens one PR, and a second call a
   assert.equal(detail.pullRequest?.number, 7);
   assert.equal(detail.pullRequest?.url, 'https://github.com/acme/shop/pull/7');
   assert.deepEqual(detail.pullRequestReadiness, { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null });
-  assert.equal(git(remote, 'rev-parse', `task/${item.key.toLowerCase()}`).length, 40, 'the branch was pushed');
+  assert.equal(git(remote, 'rev-parse', `claudio-task/${item.key.toLowerCase()}`).length, 40, 'the branch was pushed');
 
   const second = await approve(item.id);
   assert.equal(second.statusCode, 200, second.body);
@@ -213,7 +213,7 @@ test('an approval whose update conflicts answers 202, pushes nothing and sends t
   const moved = detail.history.filter((e) => e.change === 'status').pop();
   assert.equal(moved?.actor.kind, 'person');
   assert.equal(moved?.cause?.event, 'pr.conflict');
-  const branches = execFileSync('git', ['-C', remote, 'branch', '--list', `task/${item.key.toLowerCase()}`], { encoding: 'utf8' }).trim();
+  const branches = execFileSync('git', ['-C', remote, 'branch', '--list', `claudio-task/${item.key.toLowerCase()}`], { encoding: 'utf8' }).trim();
   assert.equal(branches, '', 'nothing was pushed');
 
   // Out of review now: a second approval is refused until it comes back

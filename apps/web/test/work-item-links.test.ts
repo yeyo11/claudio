@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AcceptanceCriterion, WorkItemLink, WorkItemLinkRole } from '@agentry/shared';
+import type { AcceptanceCriterion, WorkItemLink, WorkItemLinkRole } from '@claudio/shared';
 import { byChatRole, chatItemRole, criteriaProgress, movesToReviewOnEnd, withoutKey } from '../src/lib/work-item-links';
 
 const link = (chatId: string | null, role: WorkItemLinkRole, kind: WorkItemLink['kind'] = 'chat'): WorkItemLink => ({

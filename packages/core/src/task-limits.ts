@@ -1,8 +1,8 @@
-import type { OrchestrationTaskState, TaskLimits } from '@agentry/shared';
+import type { OrchestrationTaskState, TaskLimits } from '@claudio/shared';
 import { SOFT_LIMIT } from './health.ts';
 
 // What a task of an orchestration may spend. The cost ceiling is the CLI's (`--max-budget-usd` ends
-// the turn itself); the time ceiling is Agentry's, since the CLI has no flag for it, and is enforced
+// the turn itself); the time ceiling is Claudio's, since the CLI has no flag for it, and is enforced
 // by the orchestrator with a warning to the worker before the stop.
 
 /**
@@ -63,7 +63,7 @@ export function remainingUsd(limits: TaskLimits | null, task: OrchestrationTaskS
 export function timeWarning(elapsed: number, limits: TaskLimits): string {
   const used = Math.round(elapsed / 60_000);
   return (
-    `You have used ${String(used)} of the ${String(limits.maxMinutes)} minutes this task is allowed, and Agentry will stop it at the limit. ` +
+    `You have used ${String(used)} of the ${String(limits.maxMinutes)} minutes this task is allowed, and Claudio will stop it at the limit. ` +
     'Wrap up now: commit what works, and report what is done and what is left.'
   );
 }

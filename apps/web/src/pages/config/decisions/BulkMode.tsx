@@ -1,6 +1,6 @@
-import type { DecisionMode } from '@agentry/shared';
+import type { DecisionMode } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { MoreActions } from '@agentry/ui/components/controls';
+import { MoreActions } from '@claudio/ui/components/controls';
 
 const MODES: readonly DecisionMode[] = ['off', 'shadow', 'active'];
 

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { MemoryFile } from '@agentry/shared';
+import type { MemoryFile } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 

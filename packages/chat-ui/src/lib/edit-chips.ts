@@ -1,4 +1,4 @@
-import type { EditStep } from '@agentry/shared';
+import type { EditStep } from '@claudio/shared';
 import type { StepPart } from './chat-steps';
 
 /*

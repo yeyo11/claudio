@@ -1,4 +1,4 @@
-import type { ProviderStatus } from '@agentry/shared';
+import type { ProviderStatus } from '@claudio/shared';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,10 +12,10 @@ import {
   stateLabelKey,
   type ProviderAction,
 } from '../lib/provider-state';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { Tag } from '@agentry/ui/components/ui';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { Tag } from '@claudio/ui/components/ui';
 
 export interface ProviderRowProps {
   status: ProviderStatus;
@@ -183,7 +183,7 @@ function ActionButton({
   );
   switch (action.kind) {
     case 'sign-in': {
-      // The panel signs in inside Agentry, with nothing that opens elsewhere; without one, Claude
+      // The panel signs in inside Claudio, with nothing that opens elsewhere; without one, Claude
       // Code goes to Settings → Account and the others to their vendor's page
       if (onSignIn) {
         return (

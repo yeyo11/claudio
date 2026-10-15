@@ -1,24 +1,24 @@
 import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@agentry/shared';
+import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import type { RuntimeHostOptions } from './app-settings.ts';
 
 /*
- * Reaching Agentry from a phone or another computer on the person's tailnet, through the Tailscale
- * CLI (docs/plans/tunnel.md). Agentry adds one `tailscale serve` rule (tailnet-only, never Funnel)
+ * Reaching Claudio from a phone or another computer on the person's tailnet, through the Tailscale
+ * CLI (docs/plans/tunnel.md). Claudio adds one `tailscale serve` rule (tailnet-only, never Funnel)
  * on a port of its own, and takes exactly that rule away again. Tailscale is reached only through
  * its CLI's flags and `--json` output: no LocalAPI socket, no tsnet. A machine's own Tailscale is
  * used with the session the person gave it; only the `tailscaled` the Docker image starts for
- * Agentry (`managed`) is signed in from the app, through `tailscale up` (setup/logins.ts). What has to hold before a byte crosses: no tunnel without
+ * Claudio (`managed`) is signed in from the app, through `tailscale up` (setup/logins.ts). What has to hold before a byte crosses: no tunnel without
  * authentication, only the node's exact name joins the allowlist and only while the rule holds, and
- * nothing in the node's Serve config that Agentry did not add is ever changed.
+ * nothing in the node's Serve config that Claudio did not add is ever changed.
  */
 
-/** The HTTPS port of Agentry's Serve rule unless `AGENTRY_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
-export const DEFAULT_TUNNEL_PORT = 8443;
+/** The HTTPS port of Claudio's Serve rule unless `CLAUDIO_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
+export const DEFAULT_TUNNEL_PORT = 8444;
 
 /** `tailscale serve` took its current arguments (`--bg`, `--https=<port>`, `off`) in 1.52 */
 export const MIN_TAILSCALE_VERSION: readonly [number, number] = [1, 52];
@@ -58,11 +58,11 @@ export interface TunnelDeps {
   port?: number;
   /**
    * Whether this deploy offers the tunnel (`CoreConfig.tunnelEnabled`); true when left out. False
-   * refuses every start, "start with Agentry" included, and the status says so.
+   * refuses every start, "start with Claudio" included, and the status says so.
    */
   enabled?: boolean;
   /**
-   * Whether the daemon is Agentry's own (`CoreConfig.tailscaleManaged`): the reasons then send the
+   * Whether the daemon is Claudio's own (`CoreConfig.tailscaleManaged`): the reasons then send the
    * person to the app's sign-in instead of a terminal they do not have
    */
   managed?: boolean;
@@ -89,9 +89,9 @@ export class TunnelRefusedError extends Error {
 const reason = (code: string, text: string, params?: LocalizedParams): Localized => (params ? { code, params, text } : { code, text });
 
 const REASONS = {
-  disabled: () => reason('tunnel.disabled', 'This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.'),
+  disabled: () => reason('tunnel.disabled', 'This Claudio does not offer the tunnel. Whoever runs it can turn it on with CLAUDIO_TUNNEL=on.'),
   authRequired: () => reason('tunnel.authRequired', 'The tunnel needs authentication: turn on a token or OIDC in Security first.'),
-  noPort: () => reason('tunnel.noPort', 'Agentry is not listening yet, so there is nothing to open a tunnel to.'),
+  noPort: () => reason('tunnel.noPort', 'Claudio is not listening yet, so there is nothing to open a tunnel to.'),
   missing: () => reason('tunnel.tailscaleMissing', 'The Tailscale CLI (tailscale) was not found. Install Tailscale on this machine and sign in, then try again.'),
   unsupported: (version: string) =>
     reason('tunnel.tailscaleUnsupported', `Tailscale ${version} is too old: the tunnel needs 1.52 or later. Update Tailscale, then try again.`, { version }),
@@ -105,16 +105,16 @@ const REASONS = {
     reason('tunnel.servePermission', "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again."),
   // A string, so the page does not group its digits as it would a count
   portTaken: (port: number) =>
-    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name is already served by something else, and Agentry leaves it alone. Free it, or set AGENTRY_TUNNEL_PORT to another port.`, { port: String(port) }),
+    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name is already served by something else, and Claudio leaves it alone. Free it, or set CLAUDIO_TUNNEL_PORT to another port.`, { port: String(port) }),
   serveFailed: (detail: string) => reason('tunnel.serveFailed', `tailscale serve did not accept the rule: ${detail}`, { detail }),
-  unverified: () => reason('tunnel.unverified', "The Serve rule was sent, but this machine's Serve config does not show it pointing at Agentry."),
-  ruleRemoved: () => reason('tunnel.ruleRemoved', "Agentry's Serve rule was removed or changed outside Agentry, so the tunnel is closed."),
-  // Where Agentry runs tailscaled itself (the Docker image) there is no terminal to send anyone to
+  unverified: () => reason('tunnel.unverified', "The Serve rule was sent, but this machine's Serve config does not show it pointing at Claudio."),
+  ruleRemoved: () => reason('tunnel.ruleRemoved', "Claudio's Serve rule was removed or changed outside Claudio, so the tunnel is closed."),
+  // Where Claudio runs tailscaled itself (the Docker image) there is no terminal to send anyone to
   managedDaemonDown: () =>
-    reason('tunnel.managedDaemonDown', "The Tailscale service this container starts for Agentry is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder."),
-  managedLoggedOut: () => reason('tunnel.managedLoggedOut', "This Agentry's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access."),
+    reason('tunnel.managedDaemonDown', "The Tailscale service this container starts for Claudio is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder."),
+  managedLoggedOut: () => reason('tunnel.managedLoggedOut', "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access."),
   managedNotConnected: (state: string) =>
-    reason('tunnel.managedNotConnected', `This Agentry's Tailscale is not connected (${state}). Sign in again from Settings → Remote access.`, { state }),
+    reason('tunnel.managedNotConnected', `This Claudio's Tailscale is not connected (${state}). Sign in again from Settings → Remote access.`, { state }),
 };
 
 interface CliResult {
@@ -179,13 +179,13 @@ interface ServeConfigJson {
   Foreground?: Record<string, ServeConfigJson | null> | null;
 }
 
-/** Whether a port of the node's Serve config is free, holds exactly the rule Agentry would add, or holds anything else. */
+/** Whether a port of the node's Serve config is free, holds exactly the rule Claudio would add, or holds anything else. */
 export type ServePortUse = 'free' | 'match' | 'other';
 
 const sameTarget = (a: unknown, b: string): boolean => typeof a === 'string' && a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 
 /**
- * How `port` is used in a Serve config. Only one shape is Agentry's: an HTTPS listener on the port
+ * How `port` is used in a Serve config. Only one shape is Claudio's: an HTTPS listener on the port
  * with a single `/` handler that proxies to this server. A path the person added beside it, a TCP
  * forwarder, or a foreground `tailscale serve` on the port is theirs.
  */
@@ -203,7 +203,7 @@ export function servePortUse(config: ServeConfigJson, port: number, host: string
   return only && tcp?.HTTPS === true && sameTarget(handlers['/']?.Proxy, target) ? 'match' : 'other';
 }
 
-/** The rule Agentry added, kept on disk so a crash cannot leave it behind unnoticed. */
+/** The rule Claudio added, kept on disk so a crash cannot leave it behind unnoticed. */
 interface ServeRecord {
   port: number;
   host: string;
@@ -222,10 +222,10 @@ const versionAtLeast = (version: [number, number, number], min: readonly [number
  * The tunnel: one Serve rule at a time, its state, and the host it lends the guard.
  *
  * `stopped → starting → verifying → active`, with `failed` and `stopping`. Tailscale keeps a
- * background Serve rule in the node's own config, beyond Agentry's life, so the rule is recorded in
+ * background Serve rule in the node's own config, beyond Claudio's life, so the rule is recorded in
  * `<dataDir>/tunnel/serve-rule.json` before it is added, removed on stop and on shutdown, and a
- * rule a crash left behind is reconciled away when Agentry starts again. Removal only ever touches
- * a port that still holds exactly the rule Agentry added.
+ * rule a crash left behind is reconciled away when Claudio starts again. Removal only ever touches
+ * a port that still holds exactly the rule Claudio added.
  */
 export class TunnelManager {
   private readonly dir: string;
@@ -341,15 +341,15 @@ export class TunnelManager {
   /**
    * Where the tunnel forwards to: the port the server actually bound to, which is not always the
    * one it asked for. Takes away a rule a crash left behind, then opens the tunnel when "start with
-   * Agentry" is on.
+   * Claudio" is on.
    */
   attach(port: number, host = '127.0.0.1'): void {
     this.target = { host, port };
     if (existsSync(this.recordFile)) this.cleaning = this.removeRule().catch(() => undefined);
     // A setting saved before the operator turned the tunnel off is not a reason to open it
     if (!this.settings.startWithAgentry || !this.enabled) return;
-    this.start('agentry').catch((error: unknown) => {
-      // Not thrown at startup: a tunnel that cannot open must not keep Agentry from starting
+    this.start('claudio').catch((error: unknown) => {
+      // Not thrown at startup: a tunnel that cannot open must not keep Claudio from starting
       if (error instanceof TunnelRefusedError) this.fail(error.reason);
     });
   }
@@ -359,7 +359,7 @@ export class TunnelManager {
    * owns the machine" into "whoever on the tailnet has the URL does". Refused as well where the
    * deploy does not offer it. A Tailscale that is not ready is a state, not an error.
    */
-  async start(actor: 'request' | 'agentry' = 'request'): Promise<TunnelStatus> {
+  async start(actor: 'request' | 'claudio' = 'request'): Promise<TunnelStatus> {
     if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());
@@ -374,7 +374,7 @@ export class TunnelManager {
     this.wanted = true;
     this.misses = 0;
     this.run = new AbortController();
-    if (actor !== 'request') this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary: 'Start the tunnel with Agentry' });
+    if (actor !== 'request') this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary: 'Start the tunnel with Claudio' });
     this.set('starting');
     const run = this.run;
     this.opening = this.open(readiness.host, run).finally(() => {
@@ -383,7 +383,7 @@ export class TunnelManager {
     return this.status();
   }
 
-  /** Closes the tunnel: its host leaves the allowlist first, then Agentry's Serve rule goes. */
+  /** Closes the tunnel: its host leaves the allowlist first, then Claudio's Serve rule goes. */
   async stop(why: 'request' | 'unguarded' = 'request'): Promise<TunnelStatus> {
     if (!this.wanted && !this.opening && !this.stopping) {
       if (this.state === 'failed') this.set('stopped');
@@ -465,7 +465,7 @@ export class TunnelManager {
       const raw = JSON.parse(readFileSync(this.recordFile, 'utf8')) as Partial<ServeRecord>;
       if (typeof raw.port === 'number' && typeof raw.host === 'string' && typeof raw.target === 'string') return { port: raw.port, host: raw.host, target: raw.target };
     } catch {
-      // No record, or one nobody can read: nothing is known to be Agentry's
+      // No record, or one nobody can read: nothing is known to be Claudio's
     }
     return null;
   }
@@ -531,8 +531,8 @@ export class TunnelManager {
   }
 
   /**
-   * Takes Agentry's rule away, if the port still holds exactly it. A port that is free, or that
-   * someone else took over, is not Agentry's any more: the record goes and nothing is touched. When
+   * Takes Claudio's rule away, if the port still holds exactly it. A port that is free, or that
+   * someone else took over, is not Claudio's any more: the record goes and nothing is touched. When
    * Tailscale cannot be asked, the record stays for the next try.
    */
   private async removeRule(): Promise<void> {

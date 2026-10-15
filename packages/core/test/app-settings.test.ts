@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 import { AppSettingsStore, RuntimeHosts } from '../src/app-settings.ts';
 import { Core } from '../src/index.ts';
 import { loadConfig, type CoreConfig } from '../src/paths.ts';
@@ -17,8 +17,8 @@ function config(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), '
     CLAUDE_BIN: '/nonexistent/claude',
     CSWAP_BIN: '/nonexistent/cswap',
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
-    AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-    AGENTRY_DATA_DIR: join(root, 'data'),
+    CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+    CLAUDIO_DATA_DIR: join(root, 'data'),
     ...env,
   });
 }
@@ -44,7 +44,7 @@ test('an install that sets nothing runs on the defaults it always had, and write
 });
 
 test('an empty variable is not a setting, so a compose file passing VAR= through does not lock the UI', () => {
-  const c = config({ AGENTRY_ALLOWED_HOSTS: '', AGENTRY_MAX_CONCURRENT_RUNS: ' ', AGENTRY_DEFAULT_PERMISSION_MODE: '' });
+  const c = config({ CLAUDIO_ALLOWED_HOSTS: '', CLAUDIO_MAX_CONCURRENT_RUNS: ' ', CLAUDIO_DEFAULT_PERMISSION_MODE: '' });
   assert.equal(c.settingsFromEnv.size, 0);
   assert.deepEqual(new AppSettingsStore(c).get().sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default' });
   // An empty count used to become `Number('') === 0`, a wrapper that could start no run at all
@@ -53,7 +53,7 @@ test('an empty variable is not a setting, so a compose file passing VAR= through
 });
 
 test('a value in the environment beats the file, and the file cannot be written for it', async () => {
-  const c = config({ AGENTRY_MAX_CONCURRENT_RUNS: '3' });
+  const c = config({ CLAUDIO_MAX_CONCURRENT_RUNS: '3' });
   writeFileSync(fileOf(c), JSON.stringify({ maxConcurrentRuns: 20, defaultPermissionMode: 'plan' }));
   const store = new AppSettingsStore(c);
 
@@ -67,9 +67,9 @@ test('a value in the environment beats the file, and the file cannot be written 
   });
 
   const before = readFileSync(fileOf(c), 'utf8');
-  await assert.rejects(store.update({ maxConcurrentRuns: 4 }), /set by the environment \(AGENTRY_MAX_CONCURRENT_RUNS\)/);
+  await assert.rejects(store.update({ maxConcurrentRuns: 4 }), /set by the environment \(CLAUDIO_MAX_CONCURRENT_RUNS\)/);
   // Refused whole: the key the environment does not hold is not written either
-  await assert.rejects(store.update({ defaultPermissionMode: 'auto', maxConcurrentRuns: 4 }), /AGENTRY_MAX_CONCURRENT_RUNS/);
+  await assert.rejects(store.update({ defaultPermissionMode: 'auto', maxConcurrentRuns: 4 }), /CLAUDIO_MAX_CONCURRENT_RUNS/);
   assert.equal(readFileSync(fileOf(c), 'utf8'), before);
   assert.equal(store.defaultPermissionMode, 'plan');
 
@@ -77,7 +77,7 @@ test('a value in the environment beats the file, and the file cannot be written 
 });
 
 test("hosts added in the UI add to the environment's, which stay fixed", async () => {
-  const c = config({ AGENTRY_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
+  const c = config({ CLAUDIO_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
   // A file from before the variable was set still counts, minus what the variable names already
   writeFileSync(fileOf(c), JSON.stringify({ allowedHosts: ['file.example.com', '192.168.1.184'] }));
   const store = new AppSettingsStore(c);
@@ -88,10 +88,10 @@ test("hosts added in the UI add to the environment's, which stay fixed", async (
   assert.equal(store.get().sources.allowedHosts, 'env');
 
   // Sending back the whole list read stores only the UI's part; an environment host cannot be dropped
-  const changed = await store.update({ allowedHosts: ['192.168.1.184', 'agentry.example.com'] });
-  assert.deepEqual(changed.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'agentry.example.com']);
-  assert.deepEqual(changed.allowedHostLayers.file, ['agentry.example.com']);
-  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { allowedHosts: ['agentry.example.com'] });
+  const changed = await store.update({ allowedHosts: ['192.168.1.184', 'claudio.example.com'] });
+  assert.deepEqual(changed.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'claudio.example.com']);
+  assert.deepEqual(changed.allowedHostLayers.file, ['claudio.example.com']);
+  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { allowedHosts: ['claudio.example.com'] });
   // A new array, so the guard knows to rebuild its allowlist
   assert.notEqual(store.allowedHosts, guardList);
 
@@ -123,11 +123,11 @@ test('a change is written to the file, survives a restart, and goes out on the e
   const events: AgentryEvent[] = [];
   const store = new AppSettingsStore(c, { emit: (event) => events.push({ ...event, id: events.length + 1, at: '' } as AgentryEvent) });
 
-  const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Agentry.Example.com ', '*.preview.example.com', 'agentry.example.com'] });
-  assert.deepEqual(changed.allowedHosts, ['agentry.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
+  const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Claudio.Example.com ', '*.preview.example.com', 'claudio.example.com'] });
+  assert.deepEqual(changed.allowedHosts, ['claudio.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
   assert.deepEqual(changed.sources, { allowedHosts: 'file', maxConcurrentRuns: 'file', defaultPermissionMode: 'default', setupSeen: 'default' });
   // Only what was set is stored: a default the person never chose keeps following the default
-  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { maxConcurrentRuns: 2, allowedHosts: ['agentry.example.com', '*.preview.example.com'] });
+  assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { maxConcurrentRuns: 2, allowedHosts: ['claudio.example.com', '*.preview.example.com'] });
 
   const [event] = events;
   assert.equal(event?.type, 'settings.changed');
@@ -139,7 +139,7 @@ test('a change is written to the file, survives a restart, and goes out on the e
 test('what the environment refuses is refused from the file too, whichever way it gets there', async () => {
   const c = config();
   const store = new AppSettingsStore(c);
-  for (const host of ['*.com', '*', 'a.*.example.com', 'ex*mple.com', 'agentry.example.com:8787', 'has space.example.com', 'http://x.example.com', '']) {
+  for (const host of ['*.com', '*', 'a.*.example.com', 'ex*mple.com', 'claudio.example.com:8787', 'has space.example.com', 'http://x.example.com', '']) {
     await assert.rejects(store.update({ allowedHosts: [host] }), /allowedHosts/, JSON.stringify(host));
   }
   for (const value of [0, 1.5, 65, '4', null]) {
@@ -244,10 +244,10 @@ test('the setup assistant is remembered in the file, refused for a non-boolean, 
   assert.deepEqual([saved.setupSeen, saved.sources.setupSeen], [true, 'file']);
   assert.equal(new AppSettingsStore(c).get().setupSeen, true);
 
-  const owned = config({ AGENTRY_SETUP_SEEN: 'on' });
+  const owned = config({ CLAUDIO_SETUP_SEEN: 'on' });
   const ownedStore = new AppSettingsStore(owned);
   assert.deepEqual([ownedStore.get().setupSeen, ownedStore.get().sources.setupSeen], [true, 'env']);
-  await assert.rejects(ownedStore.update({ setupSeen: true }), /AGENTRY_SETUP_SEEN/);
+  await assert.rejects(ownedStore.update({ setupSeen: true }), /CLAUDIO_SETUP_SEEN/);
 });
 
 test('an install that saw the old first-run Providers step has seen the setup: its stored value and its variable both count', async () => {
@@ -255,8 +255,8 @@ test('an install that saw the old first-run Providers step has seen the setup: i
   writeFileSync(join(c.dataDir, 'app-settings.json'), JSON.stringify({ providersStepSeen: true }));
   assert.deepEqual([new AppSettingsStore(c).get().setupSeen, new AppSettingsStore(c).get().sources.setupSeen], [true, 'file']);
 
-  const old = new AppSettingsStore(config({ AGENTRY_PROVIDERS_STEP_SEEN: 'on' }));
+  const old = new AppSettingsStore(config({ CLAUDIO_PROVIDERS_STEP_SEEN: 'on' }));
   assert.deepEqual([old.get().setupSeen, old.get().sources.setupSeen], [true, 'env']);
   // The new variable wins over the old one
-  assert.equal(new AppSettingsStore(config({ AGENTRY_PROVIDERS_STEP_SEEN: 'on', AGENTRY_SETUP_SEEN: 'off' })).get().setupSeen, false);
+  assert.equal(new AppSettingsStore(config({ CLAUDIO_PROVIDERS_STEP_SEEN: 'on', CLAUDIO_SETUP_SEEN: 'off' })).get().setupSeen, false);
 });

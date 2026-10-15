@@ -2,8 +2,8 @@
  * The list view's rules, pure so they are tested without a browser (test/tasks-list-pages.test.ts):
  * how the rows read so far fall into the board's groups, and when the next page is worth asking for.
  */
-import type { BoardColumn, WorkItem } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import type { BoardColumn, WorkItem } from '@claudio/shared';
+import { WORK_ITEM_STATUSES } from '@claudio/shared';
 import { countsInColumn } from '../../lib/work-items';
 import { newestDoneFirst } from './board/model';
 

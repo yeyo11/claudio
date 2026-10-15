@@ -1,25 +1,25 @@
-import type { ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { ProviderStatus, ProvidersSettings } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { ProviderRow, useProviderReason } from '../../components/ProviderRow';
 import { useProviderSignIn } from '../../components/setup/provider-sign-in';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { CLAUDE_CODE_ID, providerLink, STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { entryOf, latestCheck, orderedIds, withEntry } from '../../lib/provider-settings';
 import { useProviders, useRefreshProviders } from '../../lib/providers';
 import { LimitBars } from './providers/LimitBars';
 
 /**
- * Claude Code: its state, the account it signs in with, the binary Agentry runs and the usage
+ * Claude Code: its state, the account it signs in with, the binary Claudio runs and the usage
  * limit. A change of binary is one PUT of the whole document; the status comes from the detector
  * and is read again when `providers.changed` arrives.
  */
@@ -156,7 +156,7 @@ export function ProvidersTab() {
 const WORKS: ReadonlySet<ProviderStatus['state']> = new Set(['ready', 'degraded', 'signed-out']);
 
 /**
- * The binary override: the path Agentry runs instead of searching the PATH. On desktop it opens
+ * The binary override: the path Claudio runs instead of searching the PATH. On desktop it opens
  * under the row; on a phone it fills a sheet.
  */
 function BinaryEditor({

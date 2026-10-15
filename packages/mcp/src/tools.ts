@@ -55,13 +55,13 @@ function pick(args: Record<string, unknown>, keys: readonly string[]): Query {
 export const TOOLS: readonly Tool[] = [
   {
     name: 'list_projects',
-    description: 'Every project Agentry knows, with its key prefix and modules. Use it first to find a project id.',
+    description: 'Every project Claudio knows, with its key prefix and modules. Use it first to find a project id.',
     inputSchema: schema({}),
     run: async (_args, api) => projectRows(await api.get('/projects')),
   },
   {
     name: 'get_overview',
-    description: "The dashboard in one call: what is running, waiting and failing across Agentry. Use it as the first look at 'how is everything'.",
+    description: "The dashboard in one call: what is running, waiting and failing across Claudio. Use it as the first look at 'how is everything'.",
     inputSchema: schema({}),
     run: (_args, api) => api.get('/overview'),
   },
@@ -164,7 +164,7 @@ export const TOOLS: readonly Tool[] = [
     inputSchema: schema({
       project: str('Only the chats of this project id'),
       state: str('Only chats in this state', { enum: ['working', 'waiting', 'idle'] }),
-      origin: str('Comma separated origins: agentry, external, orchestration, internal'),
+      origin: str('Comma separated origins: claudio, external, orchestration, internal'),
       limit: int('How many chats', 1, PAGE_MAX),
     }),
     run: async (args, api) => chatRows(await api.get('/chats', pick(args, ['project', 'state', 'origin', 'limit']))),

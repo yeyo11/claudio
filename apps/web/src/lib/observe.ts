@@ -1,4 +1,4 @@
-import type { ChangedFile, ChecklistItem, Health, HealthSignal, TranscriptEntry } from '@agentry/shared';
+import type { ChangedFile, ChecklistItem, Health, HealthSignal, TranscriptEntry } from '@claudio/shared';
 
 /*
  * What the panels that show an agent's real work read from the data: how big a change is,

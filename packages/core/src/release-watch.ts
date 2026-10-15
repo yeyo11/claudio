@@ -1,10 +1,10 @@
-import type { AgentryDistribution, AgentryReleaseInfo } from '@agentry/shared';
+import type { AgentryDistribution, AgentryReleaseInfo } from '@claudio/shared';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import { VERSION, VersionCheck, compareVersions, type VersionCheckOptions } from './version-check.ts';
 
 // `latest` never answers with a draft or a pre-release, so an edge build is never offered
-const RELEASES_URL = 'https://api.github.com/repos/yeyo11/agentry/releases/latest';
+const RELEASES_URL = 'https://api.github.com/repos/yeyo11/claudio/releases/latest';
 const DISTRIBUTIONS: readonly AgentryDistribution[] = ['docker', 'appimage', 'deb'];
 
 interface Stored {
@@ -24,7 +24,7 @@ export interface ReleaseWatchOptions extends VersionCheckOptions {
 }
 
 /**
- * Whether a newer Agentry than this one has been released, for every client of this server: the
+ * Whether a newer Claudio than this one has been released, for every client of this server: the
  * one check a deployment runs, so a desktop window, a browser tab and a phone all agree. GitHub is
  * asked on demand or once a day, and what it said is kept in `release.json`.
  */
@@ -39,7 +39,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
       config,
       {
         file: 'release.json',
-        offSwitch: 'AGENTRY_UPDATE_CHECK',
+        offSwitch: 'CLAUDIO_UPDATE_CHECK',
         empty: { latest: null, publishedAt: null, url: null, checkedAt: null },
         parse: (saved) => ({
           latest: text(saved.latest),
@@ -56,7 +56,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
   }
 
   get distribution(): AgentryDistribution {
-    const value = this.env.AGENTRY_DISTRIBUTION?.trim().toLowerCase();
+    const value = this.env.CLAUDIO_DISTRIBUTION?.trim().toLowerCase();
     return DISTRIBUTIONS.find((d) => d === value) ?? 'source';
   }
 
@@ -76,10 +76,10 @@ export class ReleaseWatch extends VersionCheck<Stored> {
   }
 
   protected async fetchLatest(): Promise<Stored> {
-    const url = this.env.AGENTRY_RELEASES_URL || RELEASES_URL;
+    const url = this.env.CLAUDIO_RELEASES_URL || RELEASES_URL;
     const res = await this.fetchFn(url, {
       // GitHub refuses a request without a user-agent
-      headers: { accept: 'application/vnd.github+json', 'user-agent': `agentry/${this.current}` },
+      headers: { accept: 'application/vnd.github+json', 'user-agent': `claudio/${this.current}` },
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
@@ -99,6 +99,6 @@ export class ReleaseWatch extends VersionCheck<Stored> {
     if (latest === null || !release.updateAvailable) return;
     if (this.announced !== null && compareVersions(latest, this.announced) <= 0) return;
     this.announced = latest;
-    this.events?.emit({ type: 'system.release', title: `Agentry ${latest} is available`, release });
+    this.events?.emit({ type: 'system.release', title: `Claudio ${latest} is available`, release });
   }
 }

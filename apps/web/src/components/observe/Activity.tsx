@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Terminal } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TranscriptEntry } from '@agentry/shared';
+import type { TranscriptEntry } from '@claudio/shared';
 import { api } from '../../api';
 import { currentActivity } from '../../lib/observe';
-import { formatDuration, toMs } from '@agentry/ui/lib/format';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { formatDuration, toMs } from '@claudio/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
 
 /** A clock that re-renders its reader every second while `on`: an age on screen has to move. */
 function useNow(on: boolean): number {

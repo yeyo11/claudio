@@ -1,4 +1,4 @@
-import { normalizeMessage, type PermissionMode, type PermissionUpdate, type RateLimitInfo, type RunOutcome, type RunTaskChange } from '@agentry/shared';
+import { normalizeMessage, type PermissionMode, type PermissionUpdate, type RateLimitInfo, type RunOutcome, type RunTaskChange } from '@claudio/shared';
 import { now } from '../../live-chat.ts';
 import type { BranchTracker, DriverEvent, EnvironmentDetails, ModelUsage } from '../driver.ts';
 import type { ControlChannel } from './control.ts';
@@ -261,7 +261,7 @@ export class ClaudeStream {
       return;
     }
 
-    // Any other protocol event is one Agentry has no use for
+    // Any other protocol event is one Claudio has no use for
   }
 
   /** What a `task_*` event says, in the neutral words. A task's kind is told once, by its `task_started`. */

@@ -19,7 +19,7 @@ import {
   type WorkItemOrchestrationDraft,
   type WorkItemRef,
   type WorkItemStatus,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { isFromIssue } from './trackers/links.ts';
 import { pasted,PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION } from './prompt-rules.ts';
 import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees } from './git.ts';
@@ -137,7 +137,7 @@ export function startOptions(request: ChatStartOptions | undefined): ChatStartOp
   if (mcp !== undefined) {
     const servers: unknown = mcp && typeof mcp === 'object' ? (mcp as { servers?: unknown }).servers : undefined;
     if (mcp !== null && !isStrings(servers)) throw new WorkItemError('mcp must name its servers in a list, or be null', 400);
-    // Only the names: the config file is the one Agentry writes for them
+    // Only the names: the config file is the one Claudio writes for them
     options.mcp = mcp === null ? null : { servers: servers as string[] };
   }
   if (maxBudgetUsd !== undefined) {
@@ -175,7 +175,7 @@ export interface ItemPlace {
 
 /** Whether a recorded place is the item's own, rather than the worktree of a node that worked on it. */
 export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
-  return !!item.branch?.startsWith('task/');
+  return !!item.branch?.startsWith('claudio-task/');
 }
 
 const LOCK_REASON = 'agentry work item ';
@@ -191,7 +191,7 @@ export function existingItemWorktree(projectPath: string, item: Pick<WorkItem, '
 }
 
 /**
- * The item's own worktree, on `task/<key>`, made the first time and found again after. It sits where
+ * The item's own worktree, on `claudio-task/<key>`, made the first time and found again after. It sits where
  * the CLI keeps the worktrees it makes, under the main checkout, so the chat that runs there is
  * attached to the project. Null when the project is not a git repository, or has no commit yet to
  * branch from: the work then happens in the project's directory.

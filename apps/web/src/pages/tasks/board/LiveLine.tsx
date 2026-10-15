@@ -1,4 +1,4 @@
-import type { OrchestrationTaskStatus, WorkItem } from '@agentry/shared';
+import type { OrchestrationTaskStatus, WorkItem } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, keys } from '../../../api';
 import { useFallbackInterval } from '../../../lib/feed';

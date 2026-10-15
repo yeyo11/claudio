@@ -35,10 +35,10 @@ where it always does (decision 4).
 
 **The key**, in this order:
 
-1. `AGENTRY_SECRET_KEY` (32 bytes as hex): the desktop app's, or one an operator passes. The server
+1. `CLAUDIO_SECRET_KEY` (32 bytes as hex): the desktop app's, or one an operator passes. The server
    drops it from `process.env` once read.
 2. `<dataDir>/secret.key`, when it already exists, wherever the install runs.
-3. In the Docker image only (`AGENTRY_DISTRIBUTION=docker`), a new `secret.key`, 32 random bytes as
+3. In the Docker image only (`CLAUDIO_DISTRIBUTION=docker`), a new `secret.key`, 32 random bytes as
    hex, mode 0600, made on the first write (`wx`, so two servers on one volume never seal with two
    keys).
 4. Otherwise none: a desktop app without a keyring or a source install keeps plain values at 0600,
@@ -50,7 +50,7 @@ volume. Both are in `GET /setup` as `secrets`, for Settings → Security to say 
 in the environment is the recommended setup. A value this key cannot open reads as absent.
 
 The file is read again before every write, so two stores on one data directory never undo each
-other. Every value kept is added to the redaction of Agentry's own secrets (`recognizeSecrets`).
+other. Every value kept is added to the redaction of Claudio's own secrets (`recognizeSecrets`).
 
 **Migration.** The Claude store (`credentials.ts`) read `credentials.json` and the YouTrack store
 (`trackers/youtrack/credentials.ts`) read `youtrack-credentials.json`. Each now reads its old file
@@ -127,21 +127,21 @@ what the fake CLI read on stdin, and that no event or answer carries the key.
 ## Tailscale
 
 Added 2026-10-08 (the plan's decision 6). Remote access goes through Tailscale, and in the Docker
-image Agentry runs the daemon itself ([deploy.md](deploy.md#the-tunnel-in-docker)), so a person with
+image Claudio runs the daemon itself ([deploy.md](deploy.md#the-tunnel-in-docker)), so a person with
 no shell on the machine signs it in here. Recorded on 1.102.4 against a throwaway userspace daemon
 (`packages/core/test/fixtures/logins/README.md`, `tailscale-up.*`).
 
-- **Only where Agentry runs the daemon.** `CoreConfig.tailscaleManaged` comes from
-  `AGENTRY_TAILSCALE_MANAGED`, which the image's entrypoint sets once it started `tailscaled`.
-  Anywhere else, and with `AGENTRY_TUNNEL=off`, `POST /setup/logins` and `DELETE
+- **Only where Claudio runs the daemon.** `CoreConfig.tailscaleManaged` comes from
+  `CLAUDIO_TAILSCALE_MANAGED`, which the image's entrypoint sets once it started `tailscaled`.
+  Anywhere else, and with `CLAUDIO_TUNNEL=off`, `POST /setup/logins` and `DELETE
   /setup/credentials/tailscale` answer `409` (`LoginRefusedError`): a machine's own Tailscale is the
   person's, and the UI shows its state and what to run.
-- **Login URL** (the `device` method, offered as **Link**). `tailscale up --reset --hostname=agentry`
+- **Login URL** (the `device` method, offered as **Link**). `tailscale up --reset --hostname=claudio`
   with no TTY prints, on stderr, `To authenticate, visit:` and the URL alone on a line
   (`https://login.tailscale.com/a/<id>`), then waits until the node is `Running`. There is no code: a
   device pattern's `code` may be null, the session is `waiting-for-person` once the URL is read, and
   `LoginSession.code` stays null. `--reset` because `up` refuses flags that differ from what the
-  daemon kept unless every one is named again, and Agentry is the daemon's only user. Nothing else
+  daemon kept unless every one is named again, and Claudio is the daemon's only user. Nothing else
   is passed: no routes, no exit node, no DNS change beyond Tailscale's defaults.
 - **Auth key.** `tailscale up` takes a key only in argv or as `--auth-key=file:<path>` (1.102 `up
   --help`; a bad key answers `backend error: invalid key: API key does not exist`). The key goes into
@@ -153,7 +153,7 @@ no shell on the machine signs it in here. Recorded on 1.102.4 against a throwawa
   setting, said by the tunnel's own reasons.
 - **Sign-out** closes the tunnel first (its Serve rule is taken away while the daemon can still do it),
   then runs `tailscale logout`, which expires the node key and takes the node off the tailnet.
-- **The node's name** is `AGENTRY_TAILSCALE_HOSTNAME`, `agentry` by default, checked as a DNS label at
+- **The node's name** is `CLAUDIO_TAILSCALE_HOSTNAME`, `claudio` by default, checked as a DNS label at
   startup.
 - **`GET /setup`** carries `tailscale: { enabled, managed, state, host }`, read through the tunnel
   (so a source install's state is the machine's own).
@@ -180,8 +180,8 @@ whether the vault keeps a key for it), each code host's CLI with its hosts, whet
 configured, the methods table, the vault's `secrets`, and `seen`.
 
 `setupSeen` replaces `providersStepSeen` in the layered app settings
-([layered-settings.md](layered-settings.md)). `AGENTRY_SETUP_SEEN` sets it from the environment;
-the old `AGENTRY_PROVIDERS_STEP_SEEN` still counts when the new one is not set, and a
+([layered-settings.md](layered-settings.md)). `CLAUDIO_SETUP_SEEN` sets it from the environment;
+the old `CLAUDIO_PROVIDERS_STEP_SEEN` still counts when the new one is not set, and a
 `providersStepSeen` stored in `app-settings.json` reads as `setupSeen`, so an install that saw the
 old step is not walked through the assistant again. `POST /setup/seen` records it, and answers 409
 when the environment sets it off.
@@ -221,7 +221,7 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
   `claude setup-token` inside the sentence, with no copy button.
 - **Sign out** (`SignOutButton`) asks first, as a destructive action, and calls
   `DELETE /setup/credentials/:tool` (per host for `gh` and `glab`). It is offered where the tool works,
-  or keeps only a key Agentry holds. Where it only forgets that key (`signOutKeyOnly`) it is offered only while one is kept, and the confirmation says the tool stops
+  or keeps only a key Claudio holds. Where it only forgets that key (`signOutKeyOnly`) it is offered only while one is kept, and the confirmation says the tool stops
   working only if it has no other sign-in.
 - **Where the panel is.** Settings → Providers (each signed-out row's Sign in, a ready row's Sign out;
   `useProviderSignIn`), Settings → Integrations (a signed-out CLI's Sign in, Add another host on a
@@ -231,7 +231,7 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
   assistant.
 - **Settings → Security** starts with the Secrets card (`SecretsCard`), from `GET /setup`'s
   `secrets`: encrypted or not, a warning when the key sits beside the data or when there is none,
-  with the link to how to pass `AGENTRY_SECRET_KEY`.
+  with the link to how to pass `CLAUDIO_SECRET_KEY`.
 - **The assistant** (`SetupAssistant`, lazy) replaces the first-run Providers step, which is gone.
   `lib/first-run.ts`'s `useSetupGate` shows it while `GET /setup` says `seen: false`; a failed read
   hides it. Steps: Access (None or Token, from the same pieces as Settings → Security's token card,

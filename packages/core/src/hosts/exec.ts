@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import type { HostReason } from '@agentry/shared';
+import type { HostReason } from '@claudio/shared';
 import { classifyCall, reasonOf } from './classify.ts';
 import { buildHostEnv } from './env.ts';
 import { HostBusyError, hostLimiter, type HostLimiter } from './limits.ts';
@@ -29,7 +29,7 @@ export interface HostCall {
 }
 
 export interface HostResult {
-  /** null when Agentry killed it, or the system did */
+  /** null when Claudio killed it, or the system did */
   exitCode: number | null;
   /** the data; parsed only when exitCode === 0 (the host's structured error fields excepted) */
   stdout: string;
@@ -41,7 +41,7 @@ export interface HostResult {
   http: { status: number; headers: Record<string, string> } | null;
   truncated: boolean;
   durationMs: number;
-  /** why Agentry itself stopped or refused the call; a reason from the host is `reasonOf`'s */
+  /** why Claudio itself stopped or refused the call; a reason from the host is `reasonOf`'s */
   reason?: HostReason | null;
 }
 
@@ -75,7 +75,7 @@ export interface SpawnOptions {
   cwd: string;
   /** the environment to start from; the CLI's variables are removed and set on a copy */
   baseEnv?: NodeJS.ProcessEnv;
-  /** credentials Agentry stores for this CLI, passed in the environment and never in argv */
+  /** credentials Claudio stores for this CLI, passed in the environment and never in argv */
   secretEnv?: Record<string, string>;
   /** replaces the class's timeout, for tests */
   timeoutMs?: number;
@@ -259,7 +259,7 @@ export function spawnHostCall(call: HostCall, options: SpawnOptions): Promise<Ho
       errChunks.push(piece);
       errHeld += piece.length;
     });
-    // A CLI that exits before reading its stdin must not take Agentry down with EPIPE
+    // A CLI that exits before reading its stdin must not take Claudio down with EPIPE
     child.stdin?.on('error', () => {});
     // stdin is always given and closed, so no CLI ever waits on a terminal
     child.stdin?.end(call.input ?? '');

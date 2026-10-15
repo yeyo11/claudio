@@ -8,7 +8,7 @@ import type {
   AssistantTeamMemberProposal,
   AssistantWorkItemProposal,
   ProjectTemplateId,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /** The project assistant's page, by project id: the wizard and the empty Team screen hand off to it. */
 export const assistantPath = (projectId: string): string => `/projects/${encodeURIComponent(projectId)}/assistant`;

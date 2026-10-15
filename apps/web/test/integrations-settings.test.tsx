@@ -2,14 +2,14 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CodeHostStatus, CodeHostsSettings, TrackerId, TrackerStatus, TrackersSettings } from '@agentry/shared';
+import type { CodeHostStatus, CodeHostsSettings, TrackerId, TrackerStatus, TrackersSettings } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
-import { TooltipProvider } from '@agentry/ui/components/controls';
-import { ToastProvider } from '@agentry/ui/components/Toast';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
+import { TooltipProvider } from '@claudio/ui/components/controls';
+import { ToastProvider } from '@claudio/ui/components/Toast';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { IntegrationsTab } from '../src/pages/config/IntegrationsTab';
@@ -94,9 +94,9 @@ async function render(list: CodeHostStatus[], trackers: TrackerStatus[] = defaul
 
 const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-test('Integrations is a tab of the Agentry group, right after Providers', () => {
+test('Integrations is a tab of the Claudio group, right after Providers', () => {
   assert.ok(isTab('integrations'));
-  const agentry = GROUPS.find((g) => g.id === 'agentry')?.tabs ?? [];
+  const agentry = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
   assert.equal(agentry.indexOf('integrations'), agentry.indexOf('providers') + 1);
   assert.equal(TAB_LABELS.integrations, 'integrations:tab');
 });
@@ -130,7 +130,7 @@ test('each program shows its state in words, its hosts with their account, and t
   assert.match(text, /GitLab MR !12/);
   assert.match(text, /gh 2\.92\.0 · \/usr\/bin\/gh/);
   assert.match(text, /Installed, signed in and answering\./);
-  assert.match(text, /1\.134\.0 is newer than 1\.120\.0, the latest Agentry has been tested with\./);
+  assert.match(text, /1\.134\.0 is newer than 1\.120\.0, the latest Claudio has been tested with\./);
   assert.match(text, /Hosts gh knows github\.com yeyo-dev/);
   assert.match(html, /data-host="gitlab"[^>]*data-state="degraded"/);
   assert.match(html, /data-action="choose-binary"/);
@@ -143,7 +143,7 @@ test('a signed-out host is a word beside its name, and a missing program offers 
   ]);
   const text = words(html);
   assert.match(text, /git\.acme\.io\s+Signed out/);
-  assert.match(text, /glab is not installed, or Agentry cannot find it\./);
+  assert.match(text, /glab is not installed, or Claudio cannot find it\./);
   assert.match(html, /data-action="sign-in"/);
   assert.match(html, /data-action="install"/);
 });
@@ -153,7 +153,7 @@ test('with neither program found the page is the one empty state', async () => {
     host({ state: 'not-installed', binaryPath: null, version: null, hosts: [] }),
     gitlab({ binaryPath: null, version: null, state: 'not-installed', hosts: [] }),
   ]);
-  assert.match(words(html), /Agentry cannot find gh or glab/);
+  assert.match(words(html), /Claudio cannot find gh or glab/);
   assert.equal((html.match(/data-illustration=/g) ?? []).length, 1);
 });
 
@@ -166,7 +166,7 @@ test('the trackers section lists the three trackers', async () => {
   const row = (id: string) => html.split(`data-tracker="${id}"`)[1]?.split('data-tracker=')[0] ?? '';
   assert.doesNotMatch(html, /jira/i);
   // YouTrack has no access yet: Connect comes first, then its binary
-  assert.match(words(row('youtrack')), /Give Agentry the address of your YouTrack and a permanent token/);
+  assert.match(words(row('youtrack')), /Give Claudio the address of your YouTrack and a permanent token/);
   assert.deepEqual([...row('youtrack').matchAll(/data-action="([a-z-]+)"/g)].map((m) => m[1]), ['connect', 'choose-binary']);
   assert.match(row('github-issues'), /data-action="choose-binary"/);
   assert.equal((html.match(/grad-border/g) ?? []).length, 1, 'the trackers are the one gradient surface');

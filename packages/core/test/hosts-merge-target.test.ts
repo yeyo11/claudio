@@ -14,7 +14,7 @@ test('the checkout of a pushed branch loses nothing; an uncommitted file, or a c
     const item = reviewed(s);
     await opened(s, item);
     const worktree = item.worktree ?? '';
-    const base = { id: 'cr-1', kind: 'work-item', repo: { host: 'github.com', path: 'acme/shop', owner: 'acme', name: 'shop' }, number: 7, branch: 'task/cw-1', base: 'main', run: async () => Promise.reject(new Error('unused')) } as unknown as ChecksTarget;
+    const base = { id: 'cr-1', kind: 'work-item', repo: { host: 'github.com', path: 'acme/shop', owner: 'acme', name: 'shop' }, number: 7, branch: 'claudio-task/cw-1', base: 'main', run: async () => Promise.reject(new Error('unused')) } as unknown as ChecksTarget;
     const target = mergeTargetOf(base, 'github', githubAdapter, { home: s.r.project, worktree });
     assert.deepEqual(await target.checkout?.(), { uncommitted: false, unpushed: false });
 

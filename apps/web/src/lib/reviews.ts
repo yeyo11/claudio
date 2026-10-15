@@ -6,7 +6,7 @@
  *
  * Label keys are in the `reviews` namespace: `t(label)` with `useTranslation('reviews')`.
  */
-import type { ApprovalState, ChangeRequest, ChangeRequestReviewers, CodeHostId, ReviewDraft, ReviewEvent, ReviewPost, ReviewSide, ReviewThread, ReviewerState, WorkItemPullRequest } from '@agentry/shared';
+import type { ApprovalState, ChangeRequest, ChangeRequestReviewers, CodeHostId, ReviewDraft, ReviewEvent, ReviewPost, ReviewSide, ReviewThread, ReviewerState, WorkItemPullRequest } from '@claudio/shared';
 
 /** The status colour of a mark: ok, warn, bad or idle. Reviews have nothing running, so never `live`. */
 export type ReviewTone = 'ok' | 'warn' | 'bad' | 'idle';
@@ -103,7 +103,7 @@ export interface DecisionMark {
   label: `decision.${'approved' | 'changes-requested' | 'review-required' | 'none'}`;
 }
 
-/** The host's decision in Agentry's words: approved is ok, changes asked is bad, a review that is missing waits (idle). */
+/** The host's decision in Claudio's words: approved is ok, changes asked is bad, a review that is missing waits (idle). */
 export function decisionMark(decision: ChangeRequestReviewers['decision'] | undefined): DecisionMark {
   switch (decision) {
     case 'approved':
@@ -180,7 +180,7 @@ export function sortDrafts(drafts: readonly ReviewDraft[]): ReviewDraft[] {
 // ---------- submitting ----------
 
 export interface SubmitOffer {
-  /** The events Agentry posts itself, `comment` first */
+  /** The events Claudio posts itself, `comment` first */
   events: ReviewEvent[];
   /** Approve and request changes happen on the host: the sheet links them instead (GitHub; its success path was never recorded) */
   openOnHost: boolean;
@@ -190,8 +190,8 @@ export interface SubmitOffer {
 
 /**
  * What the submit sheet offers. Comment always; Approve only on GitLab and only when the approval
- * state says the viewer can (Agentry's rule, never the host's `user_can_approve`). Request changes
- * is never offered by Agentry.
+ * state says the viewer can (Claudio's rule, never the host's `user_can_approve`). Request changes
+ * is never offered by Claudio.
  */
 export function submitOffer(host: CodeHostId, approval: Pick<ApprovalState, 'canApprove'> | undefined, own = false): SubmitOffer {
   const events: ReviewEvent[] = ['comment'];

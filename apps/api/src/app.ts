@@ -7,7 +7,7 @@ import cors from '@fastify/cors';
 import etag from '@fastify/etag';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
@@ -121,7 +121,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // The UI never needs CORS: in dev it goes through the Vite proxy and in production it is served
   // from this same origin. Enable it only for external browser clients, and from the same list
   // the hijacked streams read, so there is one answer to who may read this API.
-  if (process.env.AGENTRY_CORS_ORIGIN) {
+  if (process.env.CLAUDIO_CORS_ORIGIN) {
     await app.register(cors, { origin: (origin, cb) => cb(null, allowedOrigin(origin) !== null) });
   }
 
@@ -141,7 +141,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       error: status >= 500 && !exposed ? 'internal error' : err.message,
       ...(typeof reason === 'string' ? { code: reason } : {}),
       ...(typeof postId === 'string' ? { postId } : {}),
-      // The first line the tracker's CLI answered with (redacted in core), shown under Agentry's sentence
+      // The first line the tracker's CLI answered with (redacted in core), shown under Claudio's sentence
       ...(refusal && status < 500 && typeof (err as { detail?: unknown }).detail === 'string' ? { detail: String((err as { detail?: unknown }).detail) } : {}),
     });
   });
@@ -160,7 +160,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   await app.register(etag, { weak: true });
   await app.register(compress);
 
-  // The panel sends the person's language with every request: the chats Agentry starts on its own
+  // The panel sends the person's language with every request: the chats Claudio starts on its own
   // later, with no request behind them (the flow's runs), are titled in it. After the guard, so only
   // an allowed caller sets it
   app.addHook('onRequest', async (req) => core.noteLanguage(req.headers['accept-language']));
@@ -213,7 +213,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   );
 
   // In production the API also serves the built UI (single container, single port).
-  const webDist = resolve(options.webDist ?? process.env.AGENTRY_WEB_DIST ?? resolve(here, '../../web/dist'));
+  const webDist = resolve(options.webDist ?? process.env.CLAUDIO_WEB_DIST ?? resolve(here, '../../web/dist'));
   if (existsSync(webDist)) {
     const headers = Object.entries(uiHeaders(webDist));
     await app.register(fastifyStatic, {

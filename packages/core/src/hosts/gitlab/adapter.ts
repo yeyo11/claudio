@@ -1,4 +1,4 @@
-import type { WorkItemPullRequestCi } from '@agentry/shared';
+import type { WorkItemPullRequestCi } from '@claudio/shared';
 import {
   HostParseError,
   type ChangeRequestState,
@@ -22,7 +22,7 @@ import { parseJson } from '../json.ts';
 /** `-R` takes the URL form: `group/sub/project` is ambiguous with a host prefix, and a self-managed host is pinned too */
 const projectUrl = (repo: HostRepo): string => `https://${repo.host}/${repo.path}`;
 
-/** glab's merge request states, in Agentry's words; `locked` is a merge in flight, still open */
+/** glab's merge request states, in Claudio's words; `locked` is a merge in flight, still open */
 const STATES: Readonly<Record<string, ChangeRequestState>> = { opened: 'open', locked: 'open', merged: 'merged', closed: 'closed' };
 
 const FAILING = new Set(['failed', 'canceled', 'canceling']);

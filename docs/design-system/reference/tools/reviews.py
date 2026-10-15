@@ -133,13 +133,13 @@ def gap(text, where, mobile=False):
 # The code the screens draw: packages/core/src/project-settings.ts, new side, in Reading
 L1 = "import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';"
 L5 = "/** The project's settings live in one JSON file at its root. */"
-L6 = "const SETTINGS_FILE = '.agentry/settings.json';"
+L6 = "const SETTINGS_FILE = '.claudio/settings.json';"
 L8 = 'export function readSettings(dir: string): ProjectSettings {'
 L9 = "  const raw = readFileSync(join(dir, SETTINGS_FILE), 'utf8');"
 L10 = '  return JSON.parse(raw) as ProjectSettings;'
 L10_FIX = '  return parseSettings(raw, dir);'
 L36 = 'export function writeSettings(dir: string, next: ProjectSettings): void {'
-L37 = "  mkdirSync(join(dir, '.agentry'), { recursive: true });"
+L37 = "  mkdirSync(join(dir, '.claudio'), { recursive: true });"
 L38 = "  writeFileSync(join(dir, SETTINGS_FILE), JSON.stringify(next, null, 2) + '\\n');"
 
 RESOLVED = lambda mobile: comment('marta', 'hace 1 d', '¿Por qué una ruta fija y no un ajuste del proyecto?') + comment('yeyo', 'hace 1 d', 'Es el fichero donde viven los ajustes; no hay otro sitio donde guardarlo.')
@@ -546,7 +546,7 @@ def item_desktop(name, title, s, overlay=''):
   h = _swap(h, diff, pr_row(s['host']) + diff)
   if overlay:
     h = _swap(h, '\n</div>\n<script>t()</script>', f'\n{overlay}\n</div>\n<script>t()</script>')
-  write(name, h.replace('<title>Agentry · Tarea (desktop)', f'<title>Agentry · {title} (desktop)'))
+  write(name, h.replace('<title>Claudio · Tarea (desktop)', f'<title>Claudio · {title} (desktop)'))
 
 
 def item_mobile(name, title, s, overlay=''):
@@ -617,12 +617,12 @@ def cell(label, note, body):
 def states(mobile):
   gh = lambda **kw: scene('github', **{'decision': 'required', 'approvals': 'Falta una revisión de alguien con permiso de escritura', **kw})
   return [
-    ('GitHub: borrador', 'Aprobar y pedir cambios no se ofrecen en Agentry: llevan a GitHub.', block(gh(people=[('marta.ruiz', 24, 'waiting')], open_=1, done=0), mobile)),
+    ('GitHub: borrador', 'Aprobar y pedir cambios no se ofrecen en Claudio: llevan a GitHub.', block(gh(people=[('marta.ruiz', 24, 'waiting')], open_=1, done=0), mobile)),
     ('GitHub: cambios pedidos', 'Lo dice GitHub (reviewDecision); sin borrador, la barra invita a empezar uno.',
      block(gh(decision='changes', approvals='marta.ruiz pidió cambios', people=[('marta.ruiz', 24, 'changes'), ('dani.lopez', 200, 'commented')], bar='empty'), mobile)),
     ('GitHub: una PR tuya', 'Aprobar y pedir cambios en la propia PR los rechaza GitHub (own-change-request): no se ofrecen ni se enlazan.',
      block(gh(own=True, people=[], open_=0, done=2, author='yeyo'), mobile)),
-    ('GitHub: revisión sin enviar', 'pending-review-exists: hay un borrador del propio GitHub; Agentry no lo borra.',
+    ('GitHub: revisión sin enviar', 'pending-review-exists: hay un borrador del propio GitHub; Claudio no lo borra.',
      block(gh(people=[('marta.ruiz', 24, 'waiting')], bar='pending-exists'), mobile)),
     ('GitLab: enviando', 'Un envío en curso: lo único vivo es el anillo del botón.', block(scene('gitlab', bar='posting'), mobile)),
     ('GitLab: envío a medias', 'review-partly-posted: un comentario falló tras guardar otros; la persona elige.', block(scene('gitlab', bar='partly'), mobile)),
@@ -935,7 +935,7 @@ def followup_panel(host, mobile=False):
   return (f'<section class="fix-panel wait" aria-label="Comentarios atendidos"><div class="fix-head">'
           f'<div class="col grow" style="gap: 4px"><span class="fix-title">{ico("wait", "ico", "color: var(--idle)")}El desarrollador atendió 3 de 4 comentarios<span class="badge b-idle">te esperan</span></span>'
           f'<span class="fix-sub">QA lo dio por bueno y se subió <span class="mono">{PUSHED}</span> a <span class="mono">task/agn-26</span>: la {ref(host)} ya lo tiene. '
-          f'Agentry no responde ni resuelve nada por su cuenta.</span></div></div>'
+          f'Claudio no responde ni resuelve nada por su cuenta.</span></div></div>'
           f'<div class="addr-list">{rows}</div>'
           f'<div class="addr-reply"><span class="t-label">Respuesta que se publicará</span><span class="mono">Atendido en {PUSHED}</span></div>'
           f'<div class="fix-foot"><button type="button" class="{primary}"{wide}>{ico("check", "ico ico-sm")}Responder y resolver 2 hilos</button>'
@@ -984,7 +984,7 @@ RULES = [
    'review.triage pone «agente», «persona» o «sin acción» a cada hilo y solo deja elegidos los del agente. Un clic cambia cualquiera; por una marca no se envía ni se hace nada.'),
   ('02', 'Los comentarios son peticiones, no órdenes',
    'Los escribe otra gente. El desarrollador hace lo que la tarjeta y el comentario acuerdan y dice cuáles atendió y cuáles no, con su porqué. El diálogo lo avisa antes de empezar.'),
-  ('03', 'Agentry no responde ni resuelve solo',
+  ('03', 'Claudio no responde ni resuelve solo',
    'Tras la subida ofrece «Responder “Atendido en {sha}”» y «Resolver» por hilo, y una acción para los que quedan. Es siempre un clic tuyo, también cuando lo pidió una persona.'),
   ('04', 'Una acción primaria por zona',
    '«Atender N comentarios» es el degradado del diálogo; tras la subida lo es «Responder y resolver N» de la página. En el móvil no hay casillas: la fila entera es el botón y dice «Elegido».'),
@@ -1001,7 +1001,7 @@ DS_HEIGHT = 6460
 
 
 def ds_revision():
-  head = ('<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · alojamientos de código · revisiones</span>'
+  head = ('<header class="col" style="gap: 8px"><span class="t-label">Claudio design system · alojamientos de código · revisiones</span>'
           '<h1 class="t-display" style="margin: 0">Atender con un agente</h1>'
           '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Qué ve la persona cuando pide que un agente atienda los comentarios de una revisión: el diálogo que elige los hilos, '
           'las marcas con las que review.triage sugiere cuáles, la página de la tarea mientras trabaja y el seguimiento «Atendido en» que deja cada hilo en manos de quien lo abrió. '

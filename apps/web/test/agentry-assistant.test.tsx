@@ -11,9 +11,9 @@ import { phoneHeaderOf } from '../src/components/shell/phone-header';
 import i18n from '../src/i18n';
 import { AgentryAssistant } from '../src/pages/agentry-assistant/Entry';
 import { AssistantGreeting } from '../src/pages/agentry-assistant/Greeting';
-import { AGENTRY_ASSISTANT_PATH, STARTERS } from '../src/pages/agentry-assistant/model';
+import { CLAUDIO_ASSISTANT_PATH, STARTERS } from '../src/pages/agentry-assistant/model';
 import { ProjectScopeProvider } from '../src/lib/project-scope';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 
 // CW-18, the web part: the entry screen, its greeting and starters, the greeting of an assistant's
 // chat, and the call that starts it.
@@ -31,7 +31,7 @@ const wrap = (children: ReactNode) =>
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
 
 test('the entry is a route of its own, headed by its page on a phone, apart from the project assistant', () => {
-  assert.equal(AGENTRY_ASSISTANT_PATH, '/assistant');
+  assert.equal(CLAUDIO_ASSISTANT_PATH, '/assistant');
   assert.equal(phoneHeaderOf('/assistant'), 'page');
   assert.equal(phoneHeaderOf('/assistant/'), 'page');
   assert.equal(phoneHeaderOf('/projects/p1/assistant'), 'page', 'the project assistant keeps its own entry');
@@ -42,7 +42,7 @@ for (const language of ['en', 'es'] as const) {
     await i18n.changeLanguage(language);
     const html = wrap(<AgentryAssistant />);
     const words = text(html);
-    assert.match(words, language === 'es' ? /Hola, soy el asistente de Agentry/ : /Hi, I'm the Agentry assistant/);
+    assert.match(words, language === 'es' ? /Hola, soy el asistente de Claudio/ : /Hi, I'm the Claudio assistant/);
     assert.equal((html.match(/class="as-starter"/g) ?? []).length, STARTERS.length);
     for (const { key } of STARTERS) {
       assert.ok(words.includes(i18n.t(`assistant:agentry.starter.${key}.title`)), key);

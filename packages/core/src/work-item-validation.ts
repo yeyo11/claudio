@@ -1,4 +1,4 @@
-import type { WorkItemActor, WorkItemActorKind, WorkItemAssignee } from '@agentry/shared';
+import type { WorkItemActor, WorkItemActorKind, WorkItemAssignee } from '@claudio/shared';
 import { fold } from './work-item-rows.ts';
 import type { WorkItemContext } from './work-items.ts';
 

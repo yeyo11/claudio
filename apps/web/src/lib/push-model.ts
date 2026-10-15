@@ -1,4 +1,4 @@
-import type { NotificationKind } from '@agentry/shared';
+import type { NotificationKind } from '@claudio/shared';
 
 /*
  * The part of Web Push that is a pure function of where the page is running: whether this browser
@@ -18,8 +18,8 @@ import type { NotificationKind } from '@agentry/shared';
  * kinds this install asked for, or what language to fall back to. The same two names are written
  * into `public/sw.js`, and a test asserts they still match.
  */
-export const PUSH_STATE_CACHE = 'agentry-push';
-export const PUSH_STATE_KEY = '/__agentry-push-state';
+export const PUSH_STATE_CACHE = 'claudio-push';
+export const PUSH_STATE_KEY = '/__claudio-push-state';
 
 export interface PushFallbackText {
   title: string;
@@ -41,7 +41,7 @@ export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported';
 
 /** What the page can see about this browser, gathered once so the decision below stays pure. */
 export interface PushEnvironment {
-  /** `window.isSecureContext`: false for `http://192.168.1.10:8787`, which is how most run Agentry */
+  /** `window.isSecureContext`: false for `http://192.168.1.10:8797`, which is how most run Claudio */
   secure: boolean;
   serviceWorker: boolean;
   pushManager: boolean;
@@ -134,7 +134,7 @@ export function applicationServerKey(publicKey: string): Uint8Array<ArrayBuffer>
 
 /**
  * The id the server files this endpoint under — `sha256(endpoint)`, first 16 hex characters, the
- * same derivation as `idOfEndpoint` in `@agentry/core`. Computed here rather than remembered from
+ * same derivation as `idOfEndpoint` in `@claudio/core`. Computed here rather than remembered from
  * the registration, so a page that has only just loaded still knows which row of the list is the
  * device it is running on.
  */

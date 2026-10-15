@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { Core, loadConfig } from '@claudio/core';
 import type {
   AgentryEvent,
   ChatSummary,
@@ -18,7 +18,7 @@ import type {
   WorkItemOrchestrationDraft,
   WorkItemStatus,
   WorkOnWorkItemResult,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // Work items with the chats and orchestrations that work on them, over HTTP and a real core. The
@@ -80,8 +80,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -113,12 +113,12 @@ test('working on an item starts a chat in its own worktree, and the item follows
   const worktree = join(repo, '.claude', 'worktrees', `task-${slug}`);
 
   assert.equal(started.item.worktree, worktree);
-  assert.equal(started.item.branch, `task/${slug}`);
+  assert.equal(started.item.branch, `claudio-task/${slug}`);
   assert.equal(started.link.chatId, started.chat.id);
   assert.equal(started.link.role, 'work');
   assert.equal(started.chat.project?.id, project.id);
   assert.match(started.chat.firstPrompt ?? started.chat.title, new RegExp(`^${bug.key} · Cart loses items`));
-  assert.equal(execFileSync('git', ['-C', worktree, 'branch', '--show-current'], { encoding: 'utf8' }).trim(), `task/${slug}`);
+  assert.equal(execFileSync('git', ['-C', worktree, 'branch', '--show-current'], { encoding: 'utf8' }).trim(), `claudio-task/${slug}`);
 
   const reviewed = await statusIs(bug.id, 'in_review');
   await turnOver(started.chat.id);
@@ -141,7 +141,7 @@ test('working on an item starts a chat in its own worktree, and the item follows
 
   // What the chat wrote is on the item's branch, uncommitted
   const changes = (await app.inject(`/api/work-items/${bug.id}/changes`)).json<WorkItemChanges>();
-  assert.equal(changes.branch, `task/${slug}`);
+  assert.equal(changes.branch, `claudio-task/${slug}`);
   assert.deepEqual(changes.summary?.uncommitted.map((f) => f.path), ['cart.txt']);
   const diff = await app.inject(`/api/work-items/${bug.id}/changes/diff?path=cart.txt`);
   assert.equal(diff.statusCode, 200, diff.body);

@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { HostCall } from './exec.ts';
 
 // The breaker per host. Its state lives in SQLite (`host_rate_limits`, one row per host and bucket)
-// because two Agentry processes share the data directory and would otherwise spend the same budget
+// because two Claudio processes share the data directory and would otherwise spend the same budget
 // twice. It is scoped by host: a limit on github.example.com never stops github.com.
 // Signals are structured only: GitHub's `X-Ratelimit-*` headers and GitLab's `RateLimit-*`
 // headers (both recorded, from `api -i`), `Retry-After`, and GraphQL's `rateLimit{…}` fed in by the

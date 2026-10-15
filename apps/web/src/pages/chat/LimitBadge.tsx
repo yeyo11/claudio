@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { Tag } from '@agentry/ui/components/ui';
-import { formatHour, toMs } from '@agentry/ui/lib/format';
+import { Tag } from '@claudio/ui/components/ui';
+import { formatHour, toMs } from '@claudio/ui/lib/format';
 import type { LimitPhase } from './LimitBanner';
 
 /**

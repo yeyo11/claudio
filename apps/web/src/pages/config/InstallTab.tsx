@@ -1,13 +1,13 @@
 import { Bell, ChevronRight, Download, Share, ShieldAlert, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Empty } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Empty } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useInstallState } from '../../lib/pwa';
 
 /**
- * Installing Agentry on the device that is reading this.
+ * Installing Claudio on the device that is reading this.
  *
  * Android and the desktop hand the page their own install prompt, which may only be shown from a
  * click — so it is held and offered as a button here. iOS has no such API and never will: the only

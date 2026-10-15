@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname, join } from 'node:path';
-import type { AuthConfig, AuthMode, AuthTokenResult, OidcConfig, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@agentry/shared';
+import type { AuthConfig, AuthMode, AuthTokenResult, OidcConfig, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { AuthEnv, CoreConfig } from '../paths.ts';
 import { ChatTokenStore, chatActor } from './chat-tokens.ts';
@@ -18,7 +18,7 @@ interface StoredAuth {
   tokenId?: string;
   tokenCreatedAt?: string;
   /**
-   * SHA-256 of the last `AGENTRY_AUTH_TOKEN` that `AGENTRY_AUTH_TOKEN_RESET` applied. A deployment
+   * SHA-256 of the last `CLAUDIO_AUTH_TOKEN` that `CLAUDIO_AUTH_TOKEN_RESET` applied. A deployment
    * that leaves the variable set would otherwise undo, on every restart, a token rotated since.
    */
   envResetHash?: string;
@@ -89,14 +89,14 @@ export class AuthStore {
    */
   beforeUnguarded: (() => Promise<void>) | null = null;
   /**
-   * SHA-256 of the secret the desktop app handed the server it spawned (`AGENTRY_DESKTOP_TOKEN`),
+   * SHA-256 of the secret the desktop app handed the server it spawned (`CLAUDIO_DESKTOP_TOKEN`),
    * so its tray can read the state under whatever guard the owner turned on from the Security
    * panel, whose token the app never sees. It lives in this process only: it is not part of
    * `StoredAuth`, so no write puts it on disk, and a new launch brings a new one.
    */
   private readonly desktopHash: string | null;
   /**
-   * The tokens minted for the CLI processes Agentry spawns. Held here, beside the guard that reads
+   * The tokens minted for the CLI processes Claudio spawns. Held here, beside the guard that reads
    * them, and never in `StoredAuth`: they live exactly as long as this process does.
    */
   readonly chatTokens: ChatTokenStore;
@@ -105,9 +105,9 @@ export class AuthStore {
     this.chatTokens = chatTokens;
     this.file = join(config.dataDir, 'auth.json');
     this.oidcVerifier = verifier;
-    const desktop = env.AGENTRY_DESKTOP_TOKEN?.trim();
+    const desktop = env.CLAUDIO_DESKTOP_TOKEN?.trim();
     // Starting with a secret too short to be one would hand the guard a guessable way in
-    if (desktop && desktop.length < MIN_SECRET_LENGTH) throw new Error(`AGENTRY_DESKTOP_TOKEN must be at least ${String(MIN_SECRET_LENGTH)} characters`);
+    if (desktop && desktop.length < MIN_SECRET_LENGTH) throw new Error(`CLAUDIO_DESKTOP_TOKEN must be at least ${String(MIN_SECRET_LENGTH)} characters`);
     this.desktopHash = desktop ? sha256(desktop).toString('hex') : null;
     if (existsSync(this.file)) {
       try {
@@ -198,7 +198,7 @@ export class AuthStore {
 
   /**
    * Sets or rotates the bearer token and returns it once, which is the only time it exists outside
-   * the caller. A token Agentry generates is 32 random bytes: long enough that guessing it is not
+   * the caller. A token Claudio generates is 32 random bytes: long enough that guessing it is not
    * a strategy, short enough to paste.
    */
   async setToken(request: SetAuthTokenRequest = {}): Promise<AuthTokenResult> {
@@ -268,34 +268,34 @@ export class AuthStore {
 
 /**
  * A fresh install takes its guard from the environment, so an image can be deployed already
- * closed. `AGENTRY_AUTH_TOKEN` is hashed on the way in like any other: the variable is read once
+ * closed. `CLAUDIO_AUTH_TOKEN` is hashed on the way in like any other: the variable is read once
  * and its value is never written down.
  */
 function fromEnvironment(env: AuthEnv): StoredAuth {
   const stored: StoredAuth = { ...DEFAULTS };
-  const token = env.AGENTRY_AUTH_TOKEN?.trim();
+  const token = env.CLAUDIO_AUTH_TOKEN?.trim();
   if (token) {
     stored.tokenHash = sha256(token).toString('hex');
     stored.tokenId = 'env';
     stored.tokenCreatedAt = new Date().toISOString();
     stored.mode = 'token';
     // Seeding already applied this value, so a reset flag left on does not apply it a second time
-    if (flagOn(env.AGENTRY_AUTH_TOKEN_RESET)) stored.envResetHash = stored.tokenHash;
+    if (flagOn(env.CLAUDIO_AUTH_TOKEN_RESET)) stored.envResetHash = stored.tokenHash;
   }
-  const issuer = env.AGENTRY_OIDC_ISSUER?.trim();
-  const audience = env.AGENTRY_OIDC_AUDIENCE?.trim();
+  const issuer = env.CLAUDIO_OIDC_ISSUER?.trim();
+  const audience = env.CLAUDIO_OIDC_AUDIENCE?.trim();
   if (issuer && audience) {
-    stored.oidc = { issuer, audience, clientId: env.AGENTRY_OIDC_CLIENT_ID?.trim() ?? '' };
+    stored.oidc = { issuer, audience, clientId: env.CLAUDIO_OIDC_CLIENT_ID?.trim() ?? '' };
     stored.mode = 'oidc';
   }
-  const mode = env.AGENTRY_AUTH_MODE?.trim();
+  const mode = env.CLAUDIO_AUTH_MODE?.trim();
   if (mode) {
     const parsed = parseMode(mode);
-    if (parsed === 'token' && !stored.tokenHash) throw new Error('AGENTRY_AUTH_MODE=token needs AGENTRY_AUTH_TOKEN');
-    if (parsed === 'oidc' && !stored.oidc) throw new Error('AGENTRY_AUTH_MODE=oidc needs AGENTRY_OIDC_ISSUER and AGENTRY_OIDC_AUDIENCE');
+    if (parsed === 'token' && !stored.tokenHash) throw new Error('CLAUDIO_AUTH_MODE=token needs CLAUDIO_AUTH_TOKEN');
+    if (parsed === 'oidc' && !stored.oidc) throw new Error('CLAUDIO_AUTH_MODE=oidc needs CLAUDIO_OIDC_ISSUER and CLAUDIO_OIDC_AUDIENCE');
     stored.mode = parsed;
   }
-  const readOnly = env.AGENTRY_READ_ONLY?.trim();
+  const readOnly = env.CLAUDIO_READ_ONLY?.trim();
   if (readOnly) stored.readOnly = flagOn(readOnly);
   return stored;
 }
@@ -307,16 +307,16 @@ function flagOn(value: string | undefined): boolean {
 
 /**
  * The way back in for someone who lost the token and cannot reach the data volume (a pod, a
- * managed host): `AGENTRY_AUTH_TOKEN_RESET=1` with `AGENTRY_AUTH_TOKEN` replaces the stored hash on
+ * managed host): `CLAUDIO_AUTH_TOKEN_RESET=1` with `CLAUDIO_AUTH_TOKEN` replaces the stored hash on
  * start. It changes the credential only; the mode, OIDC and read-only stay what the document says,
  * because the reset is about a lost secret, not about reconfiguring the guard. Returns `null` when
  * there is nothing to do, including a value already applied by an earlier start.
  */
 function resetFromEnvironment(env: AuthEnv, stored: StoredAuth): StoredAuth | null {
-  if (!flagOn(env.AGENTRY_AUTH_TOKEN_RESET)) return null;
-  const token = env.AGENTRY_AUTH_TOKEN?.trim();
+  if (!flagOn(env.CLAUDIO_AUTH_TOKEN_RESET)) return null;
+  const token = env.CLAUDIO_AUTH_TOKEN?.trim();
   // A reset that silently did nothing would leave the person locked out and wondering why
-  if (!token) throw new Error('AGENTRY_AUTH_TOKEN_RESET needs AGENTRY_AUTH_TOKEN');
+  if (!token) throw new Error('CLAUDIO_AUTH_TOKEN_RESET needs CLAUDIO_AUTH_TOKEN');
   const hash = sha256(token).toString('hex');
   if (stored.envResetHash === hash) return null;
   return { ...stored, tokenHash: hash, tokenId: 'env', tokenCreatedAt: new Date().toISOString(), envResetHash: hash };

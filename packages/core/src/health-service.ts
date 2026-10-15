@@ -1,4 +1,4 @@
-import type { ChatContext, ChatHealth, ChatState, HealthLevel, HealthSignal, HealthSignalKind, SupervisorProposal, TaskLimits } from '@agentry/shared';
+import type { ChatContext, ChatHealth, ChatState, HealthLevel, HealthSignal, HealthSignalKind, SupervisorProposal, TaskLimits } from '@claudio/shared';
 import { chatHealth, HUNG_COMMAND_MS, stateFromRun, type HealthFacts } from './chat-model.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { commandKind, usualDuration, type UsualDuration } from './commands.ts';
@@ -26,7 +26,7 @@ export interface HealthBase {
 const FINGERPRINT_TTL_MS = 10_000;
 
 /**
- * The health of chats that have a process of Agentry's: the signals of `chat-model.ts` and
+ * The health of chats that have a process of Claudio's: the signals of `chat-model.ts` and
  * `health.ts`, fed with what the runtime has seen (the calls, the heartbeats), the history of how
  * long commands take, and what the worktree shows. Reading it changes nothing beyond a small cache,
  * so a UI polling for it and the monitor watching for it agree.
@@ -259,7 +259,7 @@ export class HealthMonitor {
 
   constructor(
     private readonly deps: HealthMonitorDeps,
-    private readonly intervalMs = Number(process.env.AGENTRY_HEALTH_INTERVAL_MS ?? 15_000),
+    private readonly intervalMs = Number(process.env.CLAUDIO_HEALTH_INTERVAL_MS ?? 15_000),
   ) {}
 
   start(): void {

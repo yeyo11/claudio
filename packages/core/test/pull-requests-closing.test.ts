@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { ProjectTrackerSettings } from '@agentry/shared';
+import type { ProjectTrackerSettings } from '@claudio/shared';
 import { PullRequestWatcher } from '../src/pull-requests.ts';
 import type { MergedNotice } from '../src/trackers/sync.ts';
 import { cleanup, expectGolden, note, opened, record, reviewed, setup, view, type Setup } from './fixtures/pr-harness.ts';

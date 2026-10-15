@@ -9,7 +9,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
  * some applies them and they become the stored ones.
  */
 
-const PREFIX = 'agentry:filters:';
+const PREFIX = 'claudio:filters:';
 
 /** The scope of a page that the top bar's project does not narrow */
 export const GLOBAL_SCOPE = 'global';

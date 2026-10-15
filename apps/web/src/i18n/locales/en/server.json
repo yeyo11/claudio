@@ -53,14 +53,14 @@
     "authorise": {
       "cli": "Run `claude` in a terminal, type `/mcp`, pick the connector and choose to authenticate. The CLI opens the browser for the sign-in.",
       "claudeAi": "Or enable and authorise it in claude.ai's connector settings; the CLI lists the connectors of the claude.ai account it is signed in with.",
-      "refresh": "Then refresh this page: Agentry only reads the state the CLI reports and cannot authorise a connector for you."
+      "refresh": "Then refresh this page: Claudio only reads the state the CLI reports and cannot authorise a connector for you."
     },
     "link": {
       "settings": "Connector settings on claude.ai",
       "mcpDocs": "Claude Code: connect to tools with MCP"
     },
     "unavailable": {
-      "webArtifacts": "The artifacts made in claude.ai have no public API and no CLI command, so Agentry cannot list, read or create them.",
+      "webArtifacts": "The artifacts made in claude.ai have no public API and no CLI command, so Claudio cannot list, read or create them.",
       "claudeAiMemory": "What claude.ai remembers about you has no public API and no CLI command. Claude Code's file memory is a different thing, on the Memory tab."
     },
     "action": {
@@ -76,8 +76,8 @@
   },
   "tunnel": {
     "authRequired": "The tunnel needs authentication: turn on a token or OIDC in Security first.",
-    "disabled": "This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.",
-    "noPort": "Agentry is not listening yet, so there is nothing to open a tunnel to.",
+    "disabled": "This Claudio does not offer the tunnel. Whoever runs it can turn it on with CLAUDIO_TUNNEL=on.",
+    "noPort": "Claudio is not listening yet, so there is nothing to open a tunnel to.",
     "tailscaleMissing": "The Tailscale CLI (tailscale) was not found. Install Tailscale on this machine and sign in, then try again.",
     "tailscaleUnsupported": "Tailscale {{version}} is too old: the tunnel needs 1.52 or later. Update Tailscale, then try again.",
     "tailscaleDaemonDown": "The tailscale CLI could not reach the Tailscale service (tailscaled). Start it, then try again.",
@@ -86,12 +86,12 @@
     "magicDnsOff": "MagicDNS is off for this tailnet. Turn it on in the DNS page of the Tailscale admin console, then try again.",
     "httpsOff": "HTTPS certificates are off for this tailnet. Turn them on in the DNS page of the Tailscale admin console, then try again.",
     "servePermission": "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again.",
-    "portTaken": "Port {{port}} of this machine's tailnet name is already served by something else, and Agentry leaves it alone. Free it, or set AGENTRY_TUNNEL_PORT to another port.",
+    "portTaken": "Port {{port}} of this machine's tailnet name is already served by something else, and Claudio leaves it alone. Free it, or set CLAUDIO_TUNNEL_PORT to another port.",
     "serveFailed": "tailscale serve did not accept the rule: {{detail}}",
-    "unverified": "The Serve rule was sent, but this machine's Serve config does not show it pointing at Agentry.",
-    "ruleRemoved": "Agentry's Serve rule was removed or changed outside Agentry, so the tunnel is closed.",
-    "managedDaemonDown": "The Tailscale service this container starts for Agentry is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder.",
-    "managedLoggedOut": "This Agentry's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access.",
-    "managedNotConnected": "This Agentry's Tailscale is not connected ({{state}}). Sign in again from Settings → Remote access."
+    "unverified": "The Serve rule was sent, but this machine's Serve config does not show it pointing at Claudio.",
+    "ruleRemoved": "Claudio's Serve rule was removed or changed outside Claudio, so the tunnel is closed.",
+    "managedDaemonDown": "The Tailscale service this container starts for Claudio is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder.",
+    "managedLoggedOut": "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access.",
+    "managedNotConnected": "This Claudio's Tailscale is not connected ({{state}}). Sign in again from Settings → Remote access."
   }
 }

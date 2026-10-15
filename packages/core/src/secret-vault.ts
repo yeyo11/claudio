@@ -5,7 +5,7 @@ import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { SecretBox } from './secret-box.ts';
 
-/** The file every secret Agentry hands a CLI through its environment lives in */
+/** The file every secret Claudio hands a CLI through its environment lives in */
 export const VAULT_FILE = 'secrets.json';
 /** The key made beside the data when the environment brings none (Docker only, see `keyFor`) */
 export const KEY_FILE = 'secret.key';
@@ -26,7 +26,7 @@ function readKeyFile(file: string): string {
 }
 
 /**
- * The key, in the order decision 3 of docs/plans/in-app-setup.md sets: `AGENTRY_SECRET_KEY` (the
+ * The key, in the order decision 3 of docs/plans/in-app-setup.md sets: `CLAUDIO_SECRET_KEY` (the
  * desktop app's, or one an operator passes), else a key file already beside the data, else, in the
  * Docker image only, a key file made on first use. A desktop or source install without a key keeps
  * what it always did: plain values in a 0600 file, so nothing changes under it.
@@ -92,7 +92,7 @@ export class SecretVault {
     return Object.keys(this.get(tool)).length > 0;
   }
 
-  /** Every value kept, for the redaction of Agentry's own secrets in what leaves the machine */
+  /** Every value kept, for the redaction of Claudio's own secrets in what leaves the machine */
   values(): string[] {
     return Object.keys(this.stored).flatMap((tool) => Object.values(this.get(tool)));
   }

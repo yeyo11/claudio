@@ -67,7 +67,7 @@ test('a dirty worktree is kept', async () => {
 Run it with:
 
 \`\`\`bash
-pnpm --filter @agentry/core test -- --test-name-pattern worktree
+pnpm --filter @claudio/core test -- --test-name-pattern worktree
 \`\`\`
 
 ~~~

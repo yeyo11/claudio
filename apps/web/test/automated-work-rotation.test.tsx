@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, FlowRun, ProviderStatus } from '@agentry/shared';
+import type { AgentryEvent, FlowRun, ProviderStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { keys } from '../src/api';

@@ -1,6 +1,6 @@
 {
   "tab": "Decisions",
-  "intro": "Short typed questions that Agentry answers for you, with the CLI or with Jev. Every point starts off, and you decide when it moves to shadow or to active.",
+  "intro": "Short typed questions that Claudio answers for you, with the CLI or with Jev. Every point starts off, and you decide when it moves to shadow or to active.",
   "nav": "Sections of Decisions",
   "engine": {
     "title": "Engine",
@@ -41,7 +41,7 @@
     "historyDays": "History kept (days)",
     "historyDaysHint": "Older decisions are deleted on their own.",
     "unavailableTitle": "Jev unavailable",
-    "unavailableBody": "{{failed}} of the last {{total}} requests did not arrive ({{reasons}}). The last one was {{when}}. Agentry carries on with its usual behaviour and does not wait for Jev.",
+    "unavailableBody": "{{failed}} of the last {{total}} requests did not arrive ({{reasons}}). The last one was {{when}}. Claudio carries on with its usual behaviour and does not wait for Jev.",
     "reason": {
       "no-key": "no key",
       "timeout": "timeout",
@@ -152,7 +152,7 @@
   "consent": {
     "title": "Before moving to {{mode}}",
     "leavesTitle": "This content leaves your machine",
-    "leavesBody": "It goes to an external TypeSafe service ({{host}}) with your key. Jev keeps nothing only on the enterprise plan. If the shape of the state changes, Agentry asks you again.",
+    "leavesBody": "It goes to an external TypeSafe service ({{host}}) with your key. Jev keeps nothing only on the enterprise plan. If the shape of the state changes, Claudio asks you again.",
     "staysTitle": "Nothing leaves your machine",
     "staysBody": "With the Claude Code CLI the question is asked in an internal chat with your account, like the rest of your chats. What you see below is what that chat reads.",
     "stateLast": "Exact state of the last request",
@@ -272,9 +272,9 @@
   "mark": {
     "decided": "decided · {{confidence}}",
     "suggested": "suggested",
-    "labelDecided": "Decided by Agentry, confidence {{confidence}}: {{answer}}. See the answer",
-    "labelSuggested": "Suggested by Agentry: {{answer}}. See the answer",
-    "popoverLabel": "Answer of Agentry",
+    "labelDecided": "Decided by Claudio, confidence {{confidence}}: {{answer}}. See the answer",
+    "labelSuggested": "Suggested by Claudio: {{answer}}. See the answer",
+    "popoverLabel": "Answer of Claudio",
     "close": "Close",
     "answer": "Answer",
     "modeThreshold": "{{mode}} · threshold {{threshold}}",

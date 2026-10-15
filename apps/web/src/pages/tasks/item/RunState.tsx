@@ -1,4 +1,4 @@
-import type { FlowRun, WorkItemDetail } from '@agentry/shared';
+import type { FlowRun, WorkItemDetail } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { WaitLine } from '../../../components/WaitLine';
 import { useItemRuns } from './Activity';

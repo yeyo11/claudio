@@ -9,31 +9,31 @@ import type {
   PermissionMode,
   TaskLimits,
   WorkItemOrchestrationDraft,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
-import { Collapsible, Combobox, NumberInput, Select, Switch } from '@agentry/ui/components/controls';
-import { ICON } from '@agentry/ui/components/icons';
+import { Collapsible, Combobox, NumberInput, Select, Switch } from '@claudio/ui/components/controls';
+import { ICON } from '@claudio/ui/components/icons';
 import { WorkItemStatusIcon } from '../components/work-item-icons';
 import { WorkItemKeyLink } from '../components/WorkItemKeyLink';
 import { DefaultLimits, GraphShape, VerificationFields } from '../components/GraphExtras';
-import { ListToolbar } from '@agentry/ui/components/ListToolbar';
+import { ListToolbar } from '@claudio/ui/components/ListToolbar';
 import { BoardStatusBadge } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog, TemplatesList } from '../components/OrchestrationTemplates';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../components/TaskEditor';
-import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Segmented, Tag } from '@agentry/ui/components/ui';
+import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Segmented, Tag } from '@claudio/ui/components/ui';
 import { EffortField } from '../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
-import { formatCost, timeAgo } from '@agentry/ui/lib/format';
+import { formatCost, timeAgo } from '@claudio/ui/lib/format';
 import { useListParams } from '../lib/list-params';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ALL_PROJECTS, inProject, useProjectScope } from '../lib/project-scope';
 import { layerTasks, liveTask, orchestrationProgress } from '../lib/orchestration-steps';
 import { cleanTask, draftOfVerification, verificationOf, type VerificationDraft } from '../lib/orchestration-v2';

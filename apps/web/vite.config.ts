@@ -7,7 +7,7 @@ import { buildServiceWorker } from './scripts/sw-shell.ts';
 // release-please bumps every package.json together, and the root one is where the build reads it
 const VERSION = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
-const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:8787';
+const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:8797';
 
 /** Files of `public/` the shell needs; the icons are not among them, the platform fetches those. */
 const STATIC_SHELL = ['/favicon.svg', '/manifest.webmanifest'];
@@ -24,7 +24,7 @@ function serviceWorkerShell(): Plugin {
   let dist = '';
   let publicDir = '';
   return {
-    name: 'agentry:service-worker-shell',
+    name: 'claudio:service-worker-shell',
     apply: 'build',
     configResolved(config) {
       dist = resolve(config.root, config.build.outDir);
@@ -47,12 +47,13 @@ function serviceWorkerShell(): Plugin {
 export default defineConfig({
   plugins: [react(), serviceWorkerShell()],
   // Compared with the version the server puts in every `stream.hello` (src/lib/reload.ts)
-  define: { __AGENTRY_VERSION__: JSON.stringify(VERSION) },
+  define: { __CLAUDIO_VERSION__: JSON.stringify(VERSION) },
   // One instance of each stateful library across the app and the packages it imports: two React
   // Query caches or two i18next instances would each be silently empty for half the screens.
   resolve: { dedupe: ['react', 'react-dom', 'i18next', 'react-i18next', '@tanstack/react-query', 'react-router-dom', 'motion'] },
   server: {
-    port: 5173,
+    port: 5181,
+    strictPort: true,
     proxy: {
       // API reference (Scalar) and its OpenAPI document are served by the API
       '/docs': { target: API_TARGET, changeOrigin: true },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import type { PermissionDecision, ProviderCapability, RunEvent, RunEventKind, ToolPolicy } from '@agentry/shared';
+import type { PermissionDecision, ProviderCapability, RunEvent, RunEventKind, ToolPolicy } from '@claudio/shared';
 import { ChatManager } from '../../src/chats.ts';
 import { CapabilityRefusal, ChatService, type ChatServiceDeps } from '../../src/chat-service.ts';
 import { Db } from '../../src/db.ts';
@@ -11,7 +11,7 @@ import { ProviderRegistry } from '../../src/providers/registry.ts';
 import { tempConfig } from '../helpers.ts';
 
 // What every provider's driver must do, asserted through `ChatManager` on the provider's fake CLI:
-// the driver is only ever reached that way, so a case that passes here is one Agentry can rely on.
+// the driver is only ever reached that way, so a case that passes here is one Claudio can rely on.
 // A case whose capability the driver does not declare is skipped, with the capability as the reason.
 // Nothing here names a provider's protocol: the harness says how to make its fake behave.
 
@@ -199,7 +199,7 @@ export function driverConformance(name: string, harness: DriverHarness): void {
     });
 
     // 1
-    scenario(harness, 'a start gives one init with the session id Agentry chose, and confirmed capabilities within the declared ones', async ({ chats, inits, driver }) => {
+    scenario(harness, 'a start gives one init with the session id Claudio chose, and confirmed capabilities within the declared ones', async ({ chats, inits, driver }) => {
       const chat = chats.start({ prompt: harness.script.turn, name: 'conformance', keepAlive: false });
       await chats.exited(chat.id);
       const events = chats.events(chat.id);

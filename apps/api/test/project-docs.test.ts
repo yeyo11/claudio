@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { Project, ProjectDoc, ProjectDocsOverview } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { Project, ProjectDoc, ProjectDocsOverview } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
 // The Claude Docs routes over a real core with a missing CLI: nothing here starts Claude. The
@@ -24,8 +24,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -78,7 +78,7 @@ test('ask on a document that is not in the project is 404', async () => {
 
 test("a chat's token can read the registry but not change it or ask", async () => {
   const secured = mkdtempSync(join(tmpdir(), 'agentry-api-pd-sec-'));
-  const c = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(secured, 'claude'), AGENTRY_WORKSPACE_DIR: join(secured, 'workspace'), AGENTRY_DATA_DIR: join(secured, 'data') }));
+  const c = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(secured, 'claude'), CLAUDIO_WORKSPACE_DIR: join(secured, 'workspace'), CLAUDIO_DATA_DIR: join(secured, 'data') }));
   const a = await buildApp(c, { logLevel: 'silent', webDist: join(secured, 'no-ui') });
   try {
     const created = await a.inject({ method: 'POST', url: '/api/security/token', ...json({}) });

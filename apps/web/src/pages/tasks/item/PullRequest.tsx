@@ -1,9 +1,9 @@
-import type { WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
+import type { WorkItemDetail, WorkItemPullRequest } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, ExternalLink, GitPullRequest, Hourglass, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { api, keys } from '../../../api';
 import { ChangeRequestFreshness } from '../../../components/ChangeRequestFreshness';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
@@ -58,7 +58,7 @@ export function PullRequestRow({ pr }: { pr: WorkItemPullRequest | null | undefi
  * panel (`.item-wait`): being prepared, conflicted (with the paths in mono), approved until QA
  * passes, waiting for the person's merge with its CI, closed or failed (with the approval again), or
  * the offer to open one; in a project that cannot, why, in warn and in words, with git's or the CLI's
- * line as its title. Nothing here moves: Agentry prepares a PR, no agent works on it.
+ * line as its title. Nothing here moves: Claudio prepares a PR, no agent works on it.
  *
  * Before any PR exists (`offer`, `not-ready`) it is one quiet line, not a panel: the head already
  * says the item waits for the person and carries "Move to Done", so a boxed panel with a status

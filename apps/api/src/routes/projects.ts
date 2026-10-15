@@ -1,8 +1,8 @@
 import { Readable } from 'node:stream';
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import { projectExportFilename, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@agentry/core';
-import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import { projectExportFilename, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
+import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
 export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -87,7 +87,7 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return reply.type('text/markdown; charset=utf-8').send(Readable.from(projectToMarkdown(source)));
   });
 
-  // The hooks Agentry keeps on the project's repository (GitHub only for now). The secret that signs
+  // The hooks Claudio keeps on the project's repository (GitHub only for now). The secret that signs
   // their deliveries never leaves the server. The writes are the person's click: a chat's token
   // gets 403 in `security.ts`.
   const webhook = async <T>(run: () => Promise<T>): Promise<T> => {
@@ -111,7 +111,7 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     webhook(() => core.webhookService.remove(req.params.id, req.params.registrationId)),
   );
 
-  // Harmless: Agentry forgets the directory and leaves everything else where it is
+  // Harmless: Claudio forgets the directory and leaves everything else where it is
   app.delete<{ Params: { id: string } }>('/projects/:id', async (req) => {
     await core.removeProject(req.params.id);
     return { ok: true };

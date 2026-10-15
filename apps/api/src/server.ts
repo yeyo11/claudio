@@ -2,13 +2,13 @@ import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { Core, MCP_ENTRY_ENV } from '@agentry/core';
+import { Core, MCP_ENTRY_ENV } from '@claudio/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
   port?: number;
   host?: string;
-  /** Built UI to serve; defaults to AGENTRY_WEB_DIST or the monorepo's apps/web/dist */
+  /** Built UI to serve; defaults to CLAUDIO_WEB_DIST or the monorepo's apps/web/dist */
   webDist?: string;
   /**
    * Whether a taken port is answered by binding one the system picks (default true, what the
@@ -51,8 +51,8 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   const core = new Core();
   // Read into the guard by now. Every chat, command and check the server starts inherits
   // `process.env`, and the desktop app's secret is not theirs to hold, nor to write to a transcript
-  delete process.env.AGENTRY_DESKTOP_TOKEN;
-  delete process.env.AGENTRY_SECRET_KEY;
+  delete process.env.CLAUDIO_DESKTOP_TOKEN;
+  delete process.env.CLAUDIO_SECRET_KEY;
   const app = await buildApp(core, { webDist: opts.webDist });
   for (const stray of core.runtime.strays()) {
     app.log.warn(
@@ -73,7 +73,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
   try {
-    await listenOn(app, opts.port ?? 8787, host, opts.portFallback ?? true);
+    await listenOn(app, opts.port ?? 8797, host, opts.portFallback ?? true);
   } catch (err) {
     core.shutdown();
     await app.close();
@@ -84,7 +84,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   if ((host === '0.0.0.0' || host === '::') && core.security.mode === 'none') {
     app.log.warn(
       `bound to ${host}: this API runs commands on the machine it is on, and nothing is asking for a credential. ` +
-        'Whoever reaches the port owns the machine. Set a token (AGENTRY_AUTH_TOKEN, or the security panel), or bind HOST=127.0.0.1.',
+        'Whoever reaches the port owns the machine. Set a token (CLAUDIO_AUTH_TOKEN, or the security panel), or bind HOST=127.0.0.1.',
     );
   }
 
@@ -98,7 +98,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   const bundledMcp = fileURLToPath(new URL('./mcp.mjs', import.meta.url));
   if (!process.env[MCP_ENTRY_ENV] && existsSync(bundledMcp)) process.env[MCP_ENTRY_ENV] = bundledMcp;
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
-  // when "start with Agentry" is on
+  // when "start with Claudio" is on
   core.tunnel.attach(port, urlHost);
   let closing: Promise<void> | undefined;
   return {

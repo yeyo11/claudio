@@ -1,17 +1,17 @@
-import type { CodeHostId, CodeHostStatus, Project, ProjectWebhooks, WebhookRegistration } from '@agentry/shared';
+import type { CodeHostId, CodeHostStatus, Project, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Link2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys } from '../../api';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { changeRequestWords } from '../../lib/code-hosts';
 import {
   BACKUP_POLL_MINUTES,
@@ -39,7 +39,7 @@ function shownKind(overview: ProjectWebhooks): WebhookRowKind {
 
 /**
  * Integrations → Webhooks: one row per project with a code host remote. A webhook only makes
- * Agentry read sooner; nothing here changes a pull request. The secret never reaches the page.
+ * Claudio read sooner; nothing here changes a pull request. The secret never reaches the page.
  */
 export function WebhooksSection({ projects }: { projects: Project[] }) {
   const { t } = useTranslation('webhooks');
@@ -278,7 +278,7 @@ function RegisterDialog({ project, overview, host, repo, hostname, onClose }: { 
     onSettled: () => queryClient.invalidateQueries({ queryKey: keys.projectWebhooks(project.id) }),
   });
 
-  // The receiver's path ends with an id Agentry only makes at registration, so the address is shown without it
+  // The receiver's path ends with an id Claudio only makes at registration, so the address is shown without it
   const address = `${overview.publicUrl ?? ''}/api/webhooks/${host}/`;
   const denied = error instanceof ApiRequestError && error.code === 'hook-no-permission';
   const subtitle = [repo, hostname, status?.version ? `${cli} ${status.version}` : cli].filter(Boolean).join(' · ');

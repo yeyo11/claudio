@@ -1,6 +1,6 @@
-// Agentry's service worker: the app shell, and nothing else.
+// Claudio's service worker: the app shell, and nothing else.
 //
-// It exists for two reasons. An installed Agentry has to paint its own frame before the network
+// It exists for two reasons. An installed Claudio has to paint its own frame before the network
 // answers — on a phone the alternative is a white rectangle for as long as the wrapper takes to
 // reply — and a worker is the only place a browser will ever deliver a Web Push.
 //
@@ -21,7 +21,7 @@ const BUILD = 'dev';
 const SHELL = [];
 /* shell:end */
 
-const CACHE = `agentry-shell-${BUILD}`;
+const CACHE = `claudio-shell-${BUILD}`;
 const SHELL_PATHS = new Set(SHELL);
 
 /**
@@ -59,7 +59,7 @@ self.addEventListener('install', (event) => {
       .then((cache) => cache.addAll(SHELL))
       // One asset that fails to download must not leave the worker uninstalled forever: it would
       // also take Web Push with it. An empty cache is a worker that passes everything through.
-      .catch((error) => console.warn('[agentry] the app shell was not cached:', error))
+      .catch((error) => console.warn('[claudio] the app shell was not cached:', error))
       // The next build takes over on the next load instead of waiting for every tab to close. What
       // it costs is that a page open across a deploy may ask for a chunk the new build renamed —
       // which is equally true without a worker, since the server no longer has the old one either.
@@ -71,7 +71,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((names) => Promise.all(names.filter((name) => name.startsWith('agentry-shell-') && name !== CACHE).map((name) => caches.delete(name))))
+      .then((names) => Promise.all(names.filter((name) => name.startsWith('claudio-shell-') && name !== CACHE).map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
@@ -102,15 +102,15 @@ self.addEventListener('fetch', (event) => {
 // every future one.
 
 /** Written by the page (see src/lib/push-model.ts); the two names are asserted equal in the tests. */
-const PUSH_STATE_CACHE = 'agentry-push';
-const PUSH_STATE_KEY = '/__agentry-push-state';
+const PUSH_STATE_CACHE = 'claudio-push';
+const PUSH_STATE_KEY = '/__claudio-push-state';
 
 /** A focused page gets this long to route the click itself before the worker reloads it. */
 const HANDOFF_MS = 600;
 
 const PUSH_ICON = '/icons/icon-192.png';
 
-/** The key a test push starts with: `TEST_PUSH_KEY_PREFIX` in @agentry/shared, asserted equal in the tests. */
+/** The key a test push starts with: `TEST_PUSH_KEY_PREFIX` in @claudio/shared, asserted equal in the tests. */
 const TEST_PUSH_KEY_PREFIX = 'push:test:';
 
 /** Pushes through this service are held to WebKit's rule that every push shows a notification. */
@@ -119,7 +119,7 @@ const APPLE_PUSH_HOST = /(^|\.)push\.apple\.com$/;
 /**
  * The MagicDNS names Tailscale gives a node (`<node>.<tailnet>.ts.net`, packages/core/src/tunnel.ts;
  * the tests assert the two agree). The tunnel's address is stable, but it can still move: the node
- * renamed in the admin console, or another port (`AGENTRY_TUNNEL_PORT`). An install made on the old
+ * renamed in the admin console, or another port (`CLAUDIO_TUNNEL_PORT`). An install made on the old
  * one outlives it: the push subscription does not change, and the worker keeps receiving pushes for
  * an origin that no longer answers.
  */
@@ -158,11 +158,11 @@ async function notify(data) {
   const state = await pushState();
   const fallback = state && state.fallback ? state.fallback : null;
   const at = Date.parse((payload && payload.at) || '');
-  await self.registration.showNotification((payload && payload.title) || (fallback && fallback.title) || 'Agentry', {
+  await self.registration.showNotification((payload && payload.title) || (fallback && fallback.title) || 'Claudio', {
     body: (payload && payload.body) || (fallback && fallback.body) || '',
     // The dedupe key the page uses for its own list: a chat that asks twice replaces its
     // notification instead of stacking a second one on the lock screen.
-    tag: (payload && payload.key) || 'agentry',
+    tag: (payload && payload.key) || 'claudio',
     renotify: Boolean(payload && payload.priority === 'high'),
     requireInteraction: Boolean(payload && payload.priority === 'high'),
     icon: PUSH_ICON,
@@ -279,7 +279,7 @@ function handOff(client, path) {
       resolve(true);
     };
     try {
-      client.postMessage({ type: 'agentry:open', href: path }, [channel.port2]);
+      client.postMessage({ type: 'claudio:open', href: path }, [channel.port2]);
     } catch {
       clearTimeout(timer);
       resolve(false);

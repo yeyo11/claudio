@@ -1,12 +1,12 @@
-import type { Effort, Team } from '@agentry/shared';
+import type { Effort, Team } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Combobox, Select } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Field } from '@agentry/ui/components/ui';
+import { Combobox, Select } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Field } from '@claudio/ui/components/ui';
 import { EffortField } from '../../components/EffortPicker';
 import { useEffortUnavailable } from '../../lib/provider-status';
 import { ModelCombobox } from '../../components/ui';
@@ -17,7 +17,7 @@ const NEW_FILE = '';
 
 /**
  * "Add a member": a role, the agent file that plays it (one already in `.claude/agents/` that no
- * member uses, or a new one Agentry writes), its model and what it answers for. The file itself is
+ * member uses, or a new one Claudio writes), its model and what it answers for. The file itself is
  * edited afterwards on the member's page, in the existing editor.
  */
 export function AddMemberDialog({ projectId, team, initialAgent, onClose, onAdded }: { projectId: string; team: Team; initialAgent?: string; onClose: () => void; onAdded: (agent: string) => void }) {

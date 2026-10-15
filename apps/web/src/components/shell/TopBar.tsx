@@ -7,11 +7,11 @@ import { useProjectScope } from '../../lib/project-scope';
 import type { LiveSummary } from '../../lib/shell-live';
 import { normalizeKey, TASKS_PATH } from '../../lib/work-items';
 import { CommandPaletteTrigger } from '../CommandPalette';
-import type { MenuItem } from '@agentry/ui/components/controls/Menu';
-import { BrandMark } from '@agentry/ui/components/icons';
+import type { MenuItem } from '@claudio/ui/components/controls/Menu';
+import { BrandMark } from '@claudio/ui/components/icons';
 import { NotificationBell } from '../Notifications';
 import { ProjectSelector } from '../ProjectSelector';
-import { SplitButton } from '@agentry/ui/components/SplitButton';
+import { SplitButton } from '@claudio/ui/components/SplitButton';
 import { LiveChip } from './live';
 import { TeamCrumbs } from './TeamCrumbs';
 
@@ -49,7 +49,7 @@ export function TopBar({
   return (
     <header className="topbar">
       {/* A phone has no sidebar, so the bar carries the mark that leads home */}
-      <NavLink to="/" className="brand topbar-brand" aria-label="Agentry">
+      <NavLink to="/" className="brand topbar-brand" aria-label="Claudio">
         <BrandMark size={28} />
       </NavLink>
       {/* The scope is the crumb's root: every page below it is about that project */}
@@ -85,7 +85,7 @@ export function TopBar({
             <span className="crumb-page mono">{taskKey}</span>
           </>
         ) : (
-          <span className="crumb-page ellipsis">{currentLabel ?? 'Agentry'}</span>
+          <span className="crumb-page ellipsis">{currentLabel ?? 'Claudio'}</span>
         )}
       </div>
       <div className="topbar-actions">

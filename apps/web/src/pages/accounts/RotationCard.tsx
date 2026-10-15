@@ -1,11 +1,11 @@
-import type { AccountsSettings } from '@agentry/shared';
+import type { AccountsSettings } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Slider, Switch } from '@agentry/ui/components/controls';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Segmented } from '@agentry/ui/components/ui';
+import { NumberInput, Slider, Switch } from '@claudio/ui/components/controls';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Segmented } from '@claudio/ui/components/ui';
 
 const STRATEGIES = ['order', 'least-used'] as const;
 

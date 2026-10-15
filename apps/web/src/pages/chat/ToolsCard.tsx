@@ -1,6 +1,6 @@
-import type { Chat } from '@agentry/shared';
+import type { Chat } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { Tag } from '@agentry/ui/components/ui';
+import { Tag } from '@claudio/ui/components/ui';
 import { Section } from './Side';
 
 function RuleList({ rules }: { rules: string[] }) {
@@ -19,7 +19,7 @@ function RuleList({ rules }: { rules: string[] }) {
 
 /**
  * The tool preset and MCP servers a chat was started with: what explains a tool that was refused or
- * a server that was never there. Nothing is shown for a chat Agentry did not configure.
+ * a server that was never there. Nothing is shown for a chat Claudio did not configure.
  */
 export function ToolsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');

@@ -130,63 +130,63 @@ test('the Claude credential reaches claude processes only, wins over the contain
 });
 
 test('an allowed-hosts pattern that guards nothing stops the wrapper instead of opening it', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-hosts', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-hosts', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-hosts', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-hosts', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-hosts', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-hosts', 'workspace') };
 
-  assert.deepEqual(loadConfig({ ...base, AGENTRY_ALLOWED_HOSTS: ' *.Example.com , agentry.internal ' }).allowedHosts, ['*.example.com', 'agentry.internal']);
+  assert.deepEqual(loadConfig({ ...base, CLAUDIO_ALLOWED_HOSTS: ' *.Example.com , agentry.internal ' }).allowedHosts, ['*.example.com', 'agentry.internal']);
   assert.deepEqual(loadConfig({ ...base }).allowedHosts, []);
 
   // A wildcard over a public suffix, or anywhere but the front, is a typo worth failing on
   for (const value of ['*.com', '*', '*.', 'a.*.example.com', 'ex*mple.com']) {
-    assert.throws(() => loadConfig({ ...base, AGENTRY_ALLOWED_HOSTS: value }), /AGENTRY_ALLOWED_HOSTS/, value);
+    assert.throws(() => loadConfig({ ...base, CLAUDIO_ALLOWED_HOSTS: value }), /CLAUDIO_ALLOWED_HOSTS/, value);
   }
 });
 
 test('the tunnel is offered by default, and in the Docker image only once its entrypoint started a tailscaled of its own', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
-  const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
+  const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
 
   assert.equal(loadConfig(base).tunnelEnabled, true);
   assert.equal(loadConfig(docker).tunnelEnabled, false);
-  // Compose passes `AGENTRY_TUNNEL=${AGENTRY_TUNNEL:-}` through: empty is the default, not "off"
-  assert.equal(loadConfig({ ...docker, AGENTRY_TUNNEL: '' }).tunnelEnabled, false);
-  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL: ' ' }).tunnelEnabled, true);
-  for (const on of ['on', 'ON', '1', 'true']) assert.equal(loadConfig({ ...docker, AGENTRY_TUNNEL: on }).tunnelEnabled, true, on);
-  for (const off of ['off', '0', 'false']) assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL: off }).tunnelEnabled, false, off);
+  // Compose passes `CLAUDIO_TUNNEL=${CLAUDIO_TUNNEL:-}` through: empty is the default, not "off"
+  assert.equal(loadConfig({ ...docker, CLAUDIO_TUNNEL: '' }).tunnelEnabled, false);
+  assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL: ' ' }).tunnelEnabled, true);
+  for (const on of ['on', 'ON', '1', 'true']) assert.equal(loadConfig({ ...docker, CLAUDIO_TUNNEL: on }).tunnelEnabled, true, on);
+  for (const off of ['off', '0', 'false']) assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL: off }).tunnelEnabled, false, off);
 
   // The switch that opens a way in is not guessed at
   for (const value of ['yes', 'enabled', 'of']) {
-    assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL: value }), /AGENTRY_TUNNEL/, value);
+    assert.throws(() => loadConfig({ ...base, CLAUDIO_TUNNEL: value }), /CLAUDIO_TUNNEL/, value);
   }
 });
 
-test('only the tailscaled the image started is Agentry\'s to sign in, and its node name is a host name', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-managed', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-managed', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-managed', 'workspace') };
-  const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
-  const managed = { ...docker, AGENTRY_TAILSCALE_MANAGED: '1' };
+test('only the tailscaled the image started is Claudio\'s to sign in, and its node name is a host name', () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-managed', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-managed', 'workspace') };
+  const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
+  const managed = { ...docker, CLAUDIO_TAILSCALE_MANAGED: '1' };
 
   assert.equal(loadConfig(base).tailscaleManaged, false);
   assert.equal(loadConfig(docker).tailscaleManaged, false);
   assert.equal(loadConfig(managed).tailscaleManaged, true);
-  // The entrypoint started a daemon, so the tunnel is offered; AGENTRY_TUNNEL=off still wins
+  // The entrypoint started a daemon, so the tunnel is offered; CLAUDIO_TUNNEL=off still wins
   assert.equal(loadConfig(managed).tunnelEnabled, true);
-  assert.equal(loadConfig({ ...managed, AGENTRY_TUNNEL: 'off' }).tunnelEnabled, false);
-  assert.equal(loadConfig({ ...docker, AGENTRY_TAILSCALE_MANAGED: '0' }).tailscaleManaged, false);
+  assert.equal(loadConfig({ ...managed, CLAUDIO_TUNNEL: 'off' }).tunnelEnabled, false);
+  assert.equal(loadConfig({ ...docker, CLAUDIO_TAILSCALE_MANAGED: '0' }).tailscaleManaged, false);
 
-  assert.equal(loadConfig(base).tailscaleHostname, 'agentry');
-  assert.equal(loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: ' Agentry-Lab ' }).tailscaleHostname, 'agentry-lab');
+  assert.equal(loadConfig(base).tailscaleHostname, 'claudio');
+  assert.equal(loadConfig({ ...base, CLAUDIO_TAILSCALE_HOSTNAME: ' Claudio-Lab ' }).tailscaleHostname, 'claudio-lab');
   // It goes to the CLI's argv: nothing that could read as a flag or leave the label
   for (const value of ['-x', 'a b', 'a.b', 'x-', 'a'.repeat(64)]) {
-    assert.throws(() => loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: value }), /AGENTRY_TAILSCALE_HOSTNAME/, value);
+    assert.throws(() => loadConfig({ ...base, CLAUDIO_TAILSCALE_HOSTNAME: value }), /CLAUDIO_TAILSCALE_HOSTNAME/, value);
   }
 });
 
-test("the tunnel's Serve port is 8443 unless set, and a value that is not a port stops the start", () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
-  assert.equal(loadConfig(base).tunnelPort, 8443);
-  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '' }).tunnelPort, 8443);
-  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
+test("the tunnel's Serve port is 8444 unless set, and a value that is not a port stops the start", () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
+  assert.equal(loadConfig(base).tunnelPort, 8444);
+  assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '' }).tunnelPort, 8444);
+  assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
   for (const value of ['0', '65536', '84.43', 'https']) {
-    assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL_PORT: value }), /AGENTRY_TUNNEL_PORT/, value);
+    assert.throws(() => loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: value }), /CLAUDIO_TUNNEL_PORT/, value);
   }
   assert.equal(loadConfig(base).tailscaleBin, 'tailscale');
   assert.equal(loadConfig({ ...base, TAILSCALE_BIN: '/opt/tailscale/bin/tailscale' }).tailscaleBin, '/opt/tailscale/bin/tailscale');
@@ -203,8 +203,8 @@ test('two panels asking for MCP health at once share one connection check', asyn
     CLAUDE_BIN: bin,
     CSWAP_BIN: '/nonexistent/cswap',
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
-    AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-    AGENTRY_DATA_DIR: join(root, 'data'),
+    CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+    CLAUDIO_DATA_DIR: join(root, 'data'),
   });
   const mcp = new McpConfig(config);
   const scope = userScope(config);
@@ -251,6 +251,6 @@ test('the provider homes inside the data directory are created, and no other', (
 test('loadConfig makes the provider homes the image points under the data directory', () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
   const data = join(root, 'data');
-  loadConfig({ AGENTRY_DATA_DIR: data, AGENTRY_WORKSPACE_DIR: join(root, 'ws'), GH_CONFIG_DIR: join(data, 'provider-homes', 'gh') });
+  loadConfig({ CLAUDIO_DATA_DIR: data, CLAUDIO_WORKSPACE_DIR: join(root, 'ws'), GH_CONFIG_DIR: join(data, 'provider-homes', 'gh') });
   assert.ok(statSync(join(data, 'provider-homes', 'gh')).isDirectory());
 });

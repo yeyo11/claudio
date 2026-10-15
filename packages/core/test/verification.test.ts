@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { Orchestration, VerificationSpec } from '@agentry/shared';
+import type { Orchestration, VerificationSpec } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator, verificationSteps } from '../src/orchestrator.ts';
 import { e2eSpecsChecks, e2eSpecsPrompt, E2E_SPECS_TASK_ID, failedSpecs, fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
-import { specOfOrchestration } from '@agentry/shared';
+import { specOfOrchestration } from '@claudio/shared';
 import { tempConfig } from './helpers.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
@@ -100,7 +100,7 @@ test('a verification spec gets its defaults, and what could not run is refused i
   assert.equal(normalizeVerification(spec({ model: '  ' }))?.model, undefined);
 });
 
-test('the fixer is told Agentry’s rules, the failure and what its earlier attempts said', () => {
+test('the fixer is told Claudio’s rules, the failure and what its earlier attempts said', () => {
   const prompt = fixerPrompt({
     objective: 'add notifications',
     branch: 'agentry/x',

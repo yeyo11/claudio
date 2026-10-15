@@ -50,7 +50,7 @@ export function streamJsonProcesses(): CliProcess[] {
 }
 
 /**
- * Processes of the same user that Agentry started, found by the `AGENTRY_CHAT_ID` the manager puts
+ * Processes of the same user that Claudio started, found by the `CLAUDIO_CHAT_ID` the manager puts
  * in every spawn's environment: the agents that speak a protocol on stdio carry no session id in
  * argv, so this is how a chat's process is told from a stranger's. Linux only; `[]` elsewhere, and
  * for a process whose environment cannot be read (another user's).
@@ -67,7 +67,7 @@ export function agentryChildren(): Array<{ pid: number; chatId: string; argv: st
     if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
     try {
       const environ = readFileSync(`/proc/${name}/environ`, 'utf8').split('\0');
-      const chatId = environ.find((entry) => entry.startsWith('AGENTRY_CHAT_ID='))?.slice('AGENTRY_CHAT_ID='.length);
+      const chatId = environ.find((entry) => entry.startsWith('CLAUDIO_CHAT_ID='))?.slice('CLAUDIO_CHAT_ID='.length);
       if (!chatId) continue;
       const argv = readFileSync(`/proc/${name}/cmdline`, 'utf8').split('\0').filter(Boolean);
       if (argv.length > 0) found.push({ pid: Number(name), chatId, argv });
@@ -139,7 +139,7 @@ export function processTable(): ProcessEntry[] {
   return table;
 }
 
-/** Kernel clock ticks per second; 100 on every Linux Agentry runs on. */
+/** Kernel clock ticks per second; 100 on every Linux Claudio runs on. */
 const TICKS_PER_SECOND = 100;
 
 /**
@@ -185,7 +185,7 @@ export function descendantsOf(table: readonly ProcessEntry[], root: number): Pro
 }
 
 /**
- * The process of the CLI itself under the pid Agentry spawned, which is the same one unless a
+ * The process of the CLI itself under the pid Claudio spawned, which is the same one unless a
  * wrapper started it as a child: found by what it drives, not by its name.
  */
 export function cliProcessOf(table: readonly ProcessEntry[], spawned: number, sessionId: string): ProcessEntry | null {

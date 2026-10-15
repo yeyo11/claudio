@@ -29,8 +29,8 @@ import type {
   VerificationState,
   VerifyOrchestrationRequest,
   WorkflowDefinition,
-} from '@agentry/shared';
-import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort } from '@agentry/shared';
+} from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -84,7 +84,7 @@ import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
-import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@agentry/shared';
+import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 
@@ -121,7 +121,7 @@ interface SettleVerdict {
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
 /** How often running tasks are checked against their time limit; the limits are in minutes */
-const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000);
+const LIMITS_CHECK_MS = Number(process.env.CLAUDIO_LIMITS_INTERVAL_MS ?? 10_000);
 const now = () => new Date().toISOString();
 
 const pendingCommand = (command: string, group?: number): VerificationCommand => ({
@@ -237,7 +237,7 @@ function checkoutOf(cwd: string): Checkout {
   return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '', home: mainTopLevel(cwd) };
 }
 
-/** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
+/** `claudio/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
 function integrationBranch(orch: Orchestration): string {
   const slug = orch.name
     .toLowerCase()
@@ -245,7 +245,7 @@ function integrationBranch(orch: Orchestration): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
-  return `agentry/${slug || 'orchestration'}-${orch.id.slice(0, 8)}`;
+  return `claudio/${slug || 'orchestration'}-${orch.id.slice(0, 8)}`;
 }
 
 /** Worktrees branch from a commit, so an empty repository cannot have any. */
@@ -628,7 +628,7 @@ export class Orchestrator {
           task.status = 'failed';
           task.error = `stopped at its time limit of ${String(limits.maxMinutes)} min`;
           task.endedAt = now();
-          this.runs.notice(runId, `Agentry stopped this task at its time limit of ${String(limits.maxMinutes)} min.`);
+          this.runs.notice(runId, `Claudio stopped this task at its time limit of ${String(limits.maxMinutes)} min.`);
           if (this.runs.get(runId)?.pid) this.runs.stop(runId);
           this.schedule(orch);
           changed = true;
@@ -637,7 +637,7 @@ export class Orchestrator {
           if (this.warned.has(key) || !this.runs.get(task.runId)?.pid || this.relaunching.has(`${orch.id}:${task.id}`)) continue;
           this.warned.add(key);
           try {
-            this.runs.send(task.runId, `A note from Agentry:\n\n${timeWarning(elapsed, limits)}`);
+            this.runs.send(task.runId, `A note from Claudio:\n\n${timeWarning(elapsed, limits)}`);
           } catch {
             // the worker is between two processes: the health signal still tells the person
           }
@@ -928,7 +928,7 @@ export class Orchestrator {
 
   private workerTask(orch: Orchestration, task: OrchestrationTaskState): string {
     // Said here, and not left to the objective: what each stage checks, and how an unattended run
-    // ends, are Agentry's rules
+    // ends, are Claudio's rules
     return [
       `Your task (${task.name}):\n${task.prompt}`,
       task.builtIn === 'e2e-specs' ? e2eSpecsChecks() : workerChecks(!!orch.verificationSpec),
@@ -1253,7 +1253,7 @@ ${quoted}
       return this.persist();
     }
     // A turn that ended as a report with work still owed goes back to its chat, naming what is open.
-    // Agentry commits what a worker leaves uncommitted, so only its last message is read here
+    // Claudio commits what a worker leaves uncommitted, so only its last message is read here
     const open =
       result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS
         ? []
@@ -1397,7 +1397,7 @@ ${quoted}
       end === 'cancelled'
         ? 'a person stopped waiting for the usage limit to reset'
         : reason === 'limit-wait-expired'
-          ? 'the usage limit did not reset within the time Agentry waits for it'
+          ? 'the usage limit did not reset within the time Claudio waits for it'
           : `the usage limit reset, but the task could not go on${reason ? ` (${reason})` : ''}`;
     task.endedAt = now();
     this.schedule(orch);
@@ -1484,7 +1484,7 @@ ${quoted}
 
   /**
    * Builds the one branch a worktree graph delivers: every completed task's branch merged, in
-   * dependency order, into `agentry/<name>` from the commit the graph started on. A conflict is
+   * dependency order, into `claudio/<name>` from the commit the graph started on. A conflict is
    * handed to an integrator agent in that branch's worktree, and the result is checked rather than
    * trusted. Never throws: whatever happens is recorded on `orch.integration`.
    */
@@ -1885,7 +1885,7 @@ ${quoted}
         const times = Math.max(...spentOut.map((f) => spent[f.i] ?? 0));
         return conclude(
           'failed',
-          `${spentOut.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ')} again after ${String(times)} fixer attempt${times === 1 ? '' : 's'}, so Agentry stopped there.` +
+          `${spentOut.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ')} again after ${String(times)} fixer attempt${times === 1 ? '' : 's'}, so Claudio stopped there.` +
             (last ? ` The last thing the fixer said: ${last}` : ''),
         );
       }
@@ -1894,7 +1894,7 @@ ${quoted}
       if (left !== null && left <= 0) {
         return conclude(
           'failed',
-          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
+          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Claudio stopped there.`,
         );
       }
       // Asked once per failed step, with all of its failed checks; "stop" only ends the fixing, and the checks stay failed
@@ -1902,7 +1902,7 @@ ${quoted}
         const last = notes.filter((n) => failed.some((f) => n.covers.has(f.i))).at(-1)?.note;
         return conclude(
           'failed',
-          `${named}, and the decision engine judged another fixer attempt unlikely to help, so Agentry stopped there after ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}.` +
+          `${named}, and the decision engine judged another fixer attempt unlikely to help, so Claudio stopped there after ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}.` +
             (last ? ` The last thing the fixer said: ${last}` : ''),
         );
       }
@@ -1932,7 +1932,7 @@ ${quoted}
         const made = state.commits.length;
         return conclude(
           'failed',
-          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Agentry stopped there without checking again.` +
+          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Claudio stopped there without checking again.` +
             (made ? ` What the fixer committed is on the branch, unchecked: ${state.commits.map((c) => c.subject).join('; ')}.` : ''),
         );
       }
@@ -2584,7 +2584,7 @@ ${quoted}
         writeFileSync(scriptPath, this.compile(orch));
       }
       const prompt =
-        `Run the workflow Agentry generated for the orchestration "${orch.name}": call the Workflow tool with ` +
+        `Run the workflow Claudio generated for the orchestration "${orch.name}": call the Workflow tool with ` +
         `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
         'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
         // No budget for a workflow today: the signal says time matters all the same

@@ -56,7 +56,7 @@ import {
   type UsageBucket,
   type UsageReport,
   type UsageSeries,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
 import { gitRaw } from './git.ts';
@@ -101,7 +101,7 @@ const RECENT_ENDED_EXTERNAL = 20;
 const RECENT_ENDED_WINDOW_MS = 24 * 3_600_000;
 
 /** The origins a chat list shows unless asked for more: workers and housekeeping have their own homes. */
-export const DEFAULT_ORIGINS: readonly ChatOrigin[] = ['agentry', 'external'];
+export const DEFAULT_ORIGINS: readonly ChatOrigin[] = ['claudio', 'external'];
 
 /**
  * A chat that could not start for a reason of the server's (the CLI could not be spawned, a callback
@@ -189,7 +189,7 @@ export interface ChatServiceDeps {
   /** Turns the tool preset and MCP servers a request picks into what the CLI is given */
   tools: ChatTools;
   sessions: SessionStore;
-  /** What a non-Claude chat streamed, read as its transcript when its provider keeps none Agentry can read */
+  /** What a non-Claude chat streamed, read as its transcript when its provider keeps none Claudio can read */
   entries?: TranscriptStore;
   orchestrator: Orchestrator;
   place: (dir: string, recorded: TranscriptSummary['worktree']) => Placement;
@@ -199,7 +199,7 @@ export interface ChatServiceDeps {
   windowOf: (model: string) => number | null;
   health: HealthService;
   /**
-   * A chat Agentry started for one of its own runs (a flow member's, the assistant's), now or
+   * A chat Claudio started for one of its own runs (a flow member's, the assistant's), now or
    * before: a person who continues it gets it back without the run's rules.
    */
   memberChat?: (chatId: string) => boolean;
@@ -244,7 +244,7 @@ interface Standing {
 
 /**
  * Assembles the chats the API serves from what is known of them: the transcript the CLI wrote, the
- * runtime of the ones Agentry drives, the CLI's own list of sessions and the orchestrations that
+ * runtime of the ones Claudio drives, the CLI's own list of sessions and the orchestrations that
  * own some. There is one chat per session id whatever it is read from, so a chat is never listed
  * twice however many of those know it.
  */
@@ -313,7 +313,7 @@ export class ChatService {
 
   /**
    * The orchestration each of its chats works for, keyed by session id, with what the chat does for
-   * it. The chat records say it: every chat Agentry starts for a graph carries its `orchestrationId`
+   * it. The chat records say it: every chat Claudio starts for a graph carries its `orchestrationId`
    * and `orchestrationTaskId` (a task's id, or a pseudo-id for the integrator, the fixer, the
    * synthesis and the workflow session), so a task's earlier chat that `retry-clean` replaced is
    * still linked. The graph's own session ids are the fallback for chats without a record.
@@ -523,7 +523,7 @@ export class ChatService {
 
   /**
    * The chat as a send needs it. A process of ours makes the chat interactive whatever the CLI's list
-   * says (`sessionHolder` → 'agentry'), so the send does not wait for that list, which can mean
+   * says (`sessionHolder` → 'claudio'), so the send does not wait for that list, which can mean
    * spawning `claude agents --json`. Anything else takes the full read.
    */
   private async summaryForSend(id: string): Promise<ChatSummary | null> {
@@ -541,7 +541,7 @@ export class ChatService {
   /**
    * Where a chat's transcript is read from, best first, each with the id it knows the chat by. A
    * Claude chat reads Claude's JSONL by its id; any other reads its provider's own store by the
-   * native id when the provider has one, then what Agentry recorded of the stream.
+   * native id when the provider has one, then what Claudio recorded of the stream.
    */
   private storesOf(id: string): Array<{ store: TranscriptStore; key: string }> {
     const runtime = this.deps.runtime.get(id);
@@ -667,7 +667,7 @@ export class ChatService {
   async create(
     body: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
     onStart?: (chat: ChatRuntime) => void,
-    /** Only the core's own entry for the Agentry assistant passes it: a body sent to the API never makes a chat one */
+    /** Only the core's own entry for the Claudio assistant passes it: a body sent to the API never makes a chat one */
     agentryAssistant?: AgentryAssistantMarker,
   ): Promise<ChatSummary> {
     const { agentryAssistant: _sent, ...rest } = body as typeof body & { agentryAssistant?: unknown };
@@ -677,7 +677,7 @@ export class ChatService {
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
     // request body names, since the API hands its body here as it came
     if (request.agentsFile !== undefined && dirname(resolve(request.agentsFile)) !== resolve(this.deps.config.dataDir, 'flow-agents')) {
-      throw new Error('agentsFile is not a file Agentry wrote');
+      throw new Error('agentsFile is not a file Claudio wrote');
     }
     // For the same reason, each value of a confinement becomes a flag's argument only in its known shape
     if (request.confine !== undefined && !confinementShape(request.confine)) throw new Error('confine is not a set of tool names and setting sources');
@@ -845,7 +845,7 @@ export class ChatService {
   }
 
   /**
-   * Stops what is working on a chat: the execution Agentry runs, or, for a session the CLI itself
+   * Stops what is working on a chat: the execution Claudio runs, or, for a session the CLI itself
    * holds in the background, the CLI's own `stop`, which keeps the conversation resumable.
    */
   async stop(id: string): Promise<ChatSummary> {
@@ -888,15 +888,15 @@ export class ChatService {
     return this.deps.runtime.toggleMcpServer(id, name, enabled);
   }
 
-  /** Deletes the chat: its transcript and sidecar files, and Agentry's record of it. */
+  /** Deletes the chat: its transcript and sidecar files, and Claudio's record of it. */
   async remove(id: string): Promise<void> {
     if (!(await this.summaryOf(id, true))) throw new Error('chat not found');
     if (await this.liveIn(id)) throw new ChatConflictError('Something is running on this chat: stop it before deleting.', null);
-    // Only Claude's transcript is Agentry's to delete: another vendor's history stays where its
-    // CLI keeps it, and Agentry's own rows go with the chat's record
+    // Only Claude's transcript is Claudio's to delete: another vendor's history stays where its
+    // CLI keeps it, and Claudio's own rows go with the chat's record
     if ((this.deps.runtime.get(id)?.provider ?? LEGACY_PROVIDER) === LEGACY_PROVIDER) {
       await this.deps.sessions.deleteSession(id).catch((err: unknown) => {
-        // A chat that never wrote a transcript has only Agentry's record to delete
+        // A chat that never wrote a transcript has only Claudio's record to delete
         if (!(err instanceof Error && /not found/.test(err.message))) throw err;
       });
     }
@@ -935,7 +935,7 @@ export class ChatService {
     return this.deps.runtime.partialSnapshot(id);
   }
 
-  /** Whether Agentry has a live stream for the chat to follow. */
+  /** Whether Claudio has a live stream for the chat to follow. */
   streams(id: string): boolean {
     return this.deps.runtime.get(id) !== null;
   }
@@ -943,10 +943,10 @@ export class ChatService {
   // ---------- branches ----------
 
   /**
-   * What a chat delegated. A chat Agentry has a process on reports from its live stream: the
+   * What a chat delegated. A chat Claudio has a process on reports from its live stream: the
    * freshest, and the only source for one whose transcript is not kept. Everything else comes from
    * the files the CLI writes beside the transcript, which is also what shows a chat started from a
-   * terminal, whose stream Agentry never sees, and one that ended, whose in-memory lists a restart
+   * terminal, whose stream Claudio never sees, and one that ended, whose in-memory lists a restart
    * empties. `live` says whether something is still around for its work to be running in.
    *
    * A live chat's workflows need both: the stream only has the runs of its current process, under
@@ -1027,7 +1027,7 @@ export class ChatService {
 
   /**
    * The chats whose delegated work is read for the aggregates: every one with a process, the
-   * recently ended ones of Agentry, the terminal sessions live now and the recent ended ones of
+   * recently ended ones of Claudio, the terminal sessions live now and the recent ended ones of
    * those. Every list and every count reads through here, so no screen can show work another misses.
    */
   private async activityChats(): Promise<string[]> {

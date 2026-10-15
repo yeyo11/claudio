@@ -1,11 +1,11 @@
-import type { WorkItemPriority, WorkItemTriage, WorkItemType } from '@agentry/shared';
+import type { WorkItemPriority, WorkItemTriage, WorkItemType } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
 import { DecisionMarkOf } from '../../../components/DecisionMark';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import type { SetDraft } from './model';
 
 /** The title is asked about once it is long enough to say something, and only when the person pauses. */

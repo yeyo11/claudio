@@ -1,15 +1,15 @@
-import type { ProviderStatus } from '@agentry/shared';
+import type { ProviderStatus } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { usageTone } from '@agentry/ui/components/motion';
-import { Tag } from '@agentry/ui/components/ui';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { usageTone } from '@claudio/ui/components/motion';
+import { Tag } from '@claudio/ui/components/ui';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { useLimitWindowName } from '../../../lib/limit-words';
 import { limitRows } from '../../../lib/limit-rows';
 
 /**
  * A provider's usage limit inside its row: one thin bar per window in the usage thresholds (neutral
  * below 60 %, warn from 60 %, bad from 75 % or when the limit is reached), the reset beside it and
- * the age of the reading. A reading whose reset has passed is `unknown` and says so: Agentry never
+ * the age of the reading. A reading whose reset has passed is `unknown` and says so: Claudio never
  * reads a stale figure as "fine". Nothing here moves.
  */
 export function LimitBars({ status }: { status: ProviderStatus }) {
@@ -19,7 +19,7 @@ export function LimitBars({ status }: { status: ProviderStatus }) {
   // An unknown reading is not drawn: its windows are old and their resets are past
   const rows = limit.state === 'unknown' ? [] : limitRows(limit);
   const exhausted = limit.state === 'exhausted';
-  // A window in the person's words (`five_hour` reads "5 h"); one Agentry does not know reads "usage limit"
+  // A window in the person's words (`five_hour` reads "5 h"); one Claudio does not know reads "usage limit"
   const name = useLimitWindowName();
   const source = limit.source === 'stream' ? t('limit.source.stream') : limit.source === 'probe' ? t('limit.source.probe') : t('limit.source.failure');
 

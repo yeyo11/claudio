@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AccountKind } from '@agentry/shared';
+import type { AccountKind } from '@claudio/shared';
 
 /** The account that is the CLI's own config, as the person set it up outside Claudio. */
 export const DEFAULT_ID = 'default';

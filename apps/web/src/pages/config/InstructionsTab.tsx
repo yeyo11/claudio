@@ -1,11 +1,11 @@
-import type { ConfigFileVariant } from '@agentry/shared';
+import type { ConfigFileVariant } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, PathLabel, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, ErrorBox, PathLabel, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 
 const VARIANTS = [

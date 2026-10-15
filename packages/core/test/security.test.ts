@@ -5,7 +5,7 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import test from 'node:test';
-import { REDACTED, type OidcConfig } from '@agentry/shared';
+import { REDACTED, type OidcConfig } from '@claudio/shared';
 import { writeAtomic } from '../src/config/files.ts';
 import { CredentialStore } from '../src/credentials.ts';
 import { Db } from '../src/db.ts';
@@ -92,7 +92,7 @@ test('rotating the token stops the previous one', async () => {
 test("the desktop app's secret names its tray, only from this machine, and never reaches the disk", async () => {
   const config = tempConfig();
   const secret = 'a-per-launch-secret-of-32-random-bytes';
-  const store = new AuthStore(config, { AGENTRY_DESKTOP_TOKEN: secret });
+  const store = new AuthStore(config, { CLAUDIO_DESKTOP_TOKEN: secret });
   // Under `none` there is nothing to authenticate, and the secret changes nothing
   assert.equal(await store.actorFor(secret, true), 'local');
 
@@ -116,13 +116,13 @@ test("the desktop app's secret names its tray, only from this machine, and never
 
 test("the desktop app's secret also opens an OIDC wrapper without a call to the issuer", async () => {
   const secret = 'a-per-launch-secret-of-32-random-bytes';
-  const store = new AuthStore(tempConfig(), { AGENTRY_DESKTOP_TOKEN: secret });
-  await store.update({ oidc: { issuer: 'http://127.0.0.1:9/never', audience: 'agentry', clientId: '' }, mode: 'oidc' });
+  const store = new AuthStore(tempConfig(), { CLAUDIO_DESKTOP_TOKEN: secret });
+  await store.update({ oidc: { issuer: 'http://127.0.0.1:9/never', audience: 'claudio', clientId: '' }, mode: 'oidc' });
   assert.equal(await store.actorFor(secret, true), 'desktop');
 });
 
 test('a desktop secret too short to be one stops the start', () => {
-  assert.throws(() => new AuthStore(tempConfig(), { AGENTRY_DESKTOP_TOKEN: 'short' }), /AGENTRY_DESKTOP_TOKEN must be at least 24/);
+  assert.throws(() => new AuthStore(tempConfig(), { CLAUDIO_DESKTOP_TOKEN: 'short' }), /CLAUDIO_DESKTOP_TOKEN must be at least 24/);
 });
 
 test('a mode that would lock everyone out is refused', async () => {
@@ -148,34 +148,34 @@ test('read-only is part of the guard and survives a restart', async () => {
 
 test('the environment can close a fresh install, and never writes the token down', () => {
   const config = tempConfig();
-  const store = new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42', AGENTRY_READ_ONLY: '1' });
+  const store = new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'from-the-environment-42', CLAUDIO_READ_ONLY: '1' });
   assert.equal(store.mode, 'token');
   assert.equal(store.readOnly, true);
   assert.equal(readFileSync(join(config.dataDir, 'auth.json'), 'utf8').includes('from-the-environment-42'), false);
   // The document on disk wins from then on: the environment only seeds an install that has none
-  const configured = new AuthStore(config, { AGENTRY_AUTH_MODE: 'none' });
+  const configured = new AuthStore(config, { CLAUDIO_AUTH_MODE: 'none' });
   assert.equal(configured.mode, 'token');
 });
 
-test('AGENTRY_AUTH_MODE without what it needs fails loudly rather than opening the port', () => {
-  assert.throws(() => new AuthStore(tempConfig(), { AGENTRY_AUTH_MODE: 'token' }), /needs AGENTRY_AUTH_TOKEN/);
-  assert.throws(() => new AuthStore(tempConfig(), { AGENTRY_AUTH_MODE: 'oidc' }), /AGENTRY_OIDC_ISSUER/);
+test('CLAUDIO_AUTH_MODE without what it needs fails loudly rather than opening the port', () => {
+  assert.throws(() => new AuthStore(tempConfig(), { CLAUDIO_AUTH_MODE: 'token' }), /needs CLAUDIO_AUTH_TOKEN/);
+  assert.throws(() => new AuthStore(tempConfig(), { CLAUDIO_AUTH_MODE: 'oidc' }), /CLAUDIO_OIDC_ISSUER/);
 });
 
 test('an auth document that cannot be read stops the wrapper instead of unguarding it', () => {
   const config = tempConfig();
-  new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42' });
+  new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'from-the-environment-42' });
   writeFileSync(join(config.dataDir, 'auth.json'), '{ not json');
   assert.throws(() => new AuthStore(config, {}), /is not readable as JSON/);
 });
 
-test('AGENTRY_AUTH_TOKEN_RESET replaces a stored token once, and leaves the rest of the guard alone', async () => {
+test('CLAUDIO_AUTH_TOKEN_RESET replaces a stored token once, and leaves the rest of the guard alone', async () => {
   const config = tempConfig();
   const store = new AuthStore(config, {});
   const { token: lost } = await store.setToken();
   await store.update({ mode: 'token', readOnly: true });
 
-  const env = { AGENTRY_AUTH_TOKEN: 'a-recovered-token-42', AGENTRY_AUTH_TOKEN_RESET: '1' };
+  const env = { CLAUDIO_AUTH_TOKEN: 'a-recovered-token-42', CLAUDIO_AUTH_TOKEN_RESET: '1' };
   const reset = new AuthStore(config, env);
   assert.ok(reset.environmentReset, 'the start that applied it says so, for the audit row');
   assert.equal(await reset.actorFor(lost), null);
@@ -193,26 +193,26 @@ test('AGENTRY_AUTH_TOKEN_RESET replaces a stored token once, and leaves the rest
   assert.equal(await restarted.actorFor('a-recovered-token-42'), null);
 
   // A different value is a new reset
-  const again = new AuthStore(config, { ...env, AGENTRY_AUTH_TOKEN: 'another-recovered-token' });
+  const again = new AuthStore(config, { ...env, CLAUDIO_AUTH_TOKEN: 'another-recovered-token' });
   assert.ok(again.environmentReset);
   assert.equal(await again.actorFor('another-recovered-token'), 'token:env');
 });
 
-test('AGENTRY_AUTH_TOKEN_RESET off, or seeding a fresh install, applies nothing on a later start', async () => {
+test('CLAUDIO_AUTH_TOKEN_RESET off, or seeding a fresh install, applies nothing on a later start', async () => {
   const config = tempConfig();
-  const seeded = new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42', AGENTRY_AUTH_TOKEN_RESET: '1' });
+  const seeded = new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'from-the-environment-42', CLAUDIO_AUTH_TOKEN_RESET: '1' });
   assert.equal(seeded.environmentReset, null, 'a fresh install is seeded, not reset');
   const { token } = await seeded.setToken();
-  assert.equal(new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42', AGENTRY_AUTH_TOKEN_RESET: '1' }).environmentReset, null);
-  const off = new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'yet-another-token-value', AGENTRY_AUTH_TOKEN_RESET: '0' });
+  assert.equal(new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'from-the-environment-42', CLAUDIO_AUTH_TOKEN_RESET: '1' }).environmentReset, null);
+  const off = new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'yet-another-token-value', CLAUDIO_AUTH_TOKEN_RESET: '0' });
   assert.equal(off.environmentReset, null);
   assert.equal(await off.actorFor(token) !== null, true);
 });
 
-test('AGENTRY_AUTH_TOKEN_RESET without a token fails loudly instead of doing nothing', async () => {
+test('CLAUDIO_AUTH_TOKEN_RESET without a token fails loudly instead of doing nothing', async () => {
   const config = tempConfig();
   await new AuthStore(config, {}).setToken();
-  assert.throws(() => new AuthStore(config, { AGENTRY_AUTH_TOKEN_RESET: '1' }), /needs AGENTRY_AUTH_TOKEN/);
+  assert.throws(() => new AuthStore(config, { CLAUDIO_AUTH_TOKEN_RESET: '1' }), /needs CLAUDIO_AUTH_TOKEN/);
 });
 
 test('a token of your own is refused until it is long enough to be worth guarding', async () => {
@@ -247,7 +247,7 @@ test('the guard document is unreadable to anyone else from the moment it exists'
   const config = tempConfig();
   const file = join(config.dataDir, 'auth.json');
   // The environment writes it from the constructor, which cannot await
-  new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42' });
+  new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'from-the-environment-42' });
   assert.equal(modeOf(file), 0o600);
 
   const store = new AuthStore(config, {});
@@ -309,14 +309,14 @@ async function startIssuer(): Promise<Issuer> {
 test('an OIDC token is accepted only when its signature, audience and expiry all hold', async (t) => {
   const issuer = await startIssuer();
   t.after(() => issuer.close());
-  const config: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: 'agentry-ui' };
+  const config: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: 'agentry-ui' };
   const verifier = new OidcVerifier();
   const now = Math.floor(Date.now() / 1000);
-  const good = { iss: issuer.url, aud: 'agentry', sub: 'user@example.test', exp: now + 600 };
+  const good = { iss: issuer.url, aud: 'claudio', sub: 'user@example.test', exp: now + 600 };
 
   assert.equal(await verifier.verify(issuer.jwt(good), config), 'user@example.test');
   // An audience list is as valid as a single one
-  assert.equal(await verifier.verify(issuer.jwt({ ...good, aud: ['other', 'agentry'] }), config), 'user@example.test');
+  assert.equal(await verifier.verify(issuer.jwt({ ...good, aud: ['other', 'claudio'] }), config), 'user@example.test');
 
   await assert.rejects(verifier.verify(issuer.jwt({ ...good, aud: 'another-app' }), config), /another audience/);
   await assert.rejects(verifier.verify(issuer.jwt({ ...good, exp: now - 3600 }), config), /expired/);
@@ -339,8 +339,8 @@ test('a configured client id rejects a token issued to another client', async (t
   t.after(() => issuer.close());
   const verifier = new OidcVerifier();
   const now = Math.floor(Date.now() / 1000);
-  const claims = { iss: issuer.url, aud: 'agentry', sub: 'user@example.test', exp: now + 600 };
-  const configured: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: 'agentry-ui' };
+  const claims = { iss: issuer.url, aud: 'claudio', sub: 'user@example.test', exp: now + 600 };
+  const configured: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: 'agentry-ui' };
 
   assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'agentry-ui' }), configured), 'user@example.test');
   await assert.rejects(verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), configured), /issued to another client/);
@@ -348,7 +348,7 @@ test('a configured client id rejects a token issued to another client', async (t
   assert.equal(await verifier.verify(issuer.jwt(claims), configured), 'user@example.test');
 
   // With no client id configured, `azp` is not this verifier's business
-  const open: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: '' };
+  const open: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: '' };
   assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), open), 'user@example.test');
 });
 
@@ -360,8 +360,8 @@ test('the issuer is asked for its keys once, not on every request', async (t) =>
     calls++;
     return fetch(url, init);
   });
-  const config: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: '' };
-  const token = issuer.jwt({ iss: issuer.url, aud: 'agentry', sub: 'someone', exp: Math.floor(Date.now() / 1000) + 600 });
+  const config: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: '' };
+  const token = issuer.jwt({ iss: issuer.url, aud: 'claudio', sub: 'someone', exp: Math.floor(Date.now() / 1000) + 600 });
   await counting.verify(token, config);
   const first = calls;
   await counting.verify(token, config);
@@ -372,8 +372,8 @@ test('an OIDC store answers with the subject of the token', async (t) => {
   const issuer = await startIssuer();
   t.after(() => issuer.close());
   const store = new AuthStore(tempConfig(), {});
-  await store.update({ oidc: { issuer: issuer.url, audience: 'agentry', clientId: '' }, mode: 'oidc' });
-  const token = issuer.jwt({ iss: issuer.url, aud: 'agentry', sub: 'alice', exp: Math.floor(Date.now() / 1000) + 600 });
+  await store.update({ oidc: { issuer: issuer.url, audience: 'claudio', clientId: '' }, mode: 'oidc' });
+  const token = issuer.jwt({ iss: issuer.url, aud: 'claudio', sub: 'alice', exp: Math.floor(Date.now() / 1000) + 600 });
   assert.equal(await store.actorFor(token), 'alice');
   assert.equal(await store.actorFor('rubbish'), null);
   await assert.rejects(store.update({ oidc: { issuer: 'not a url', audience: 'a', clientId: '' } }), /absolute URL/);

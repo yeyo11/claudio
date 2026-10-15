@@ -1,4 +1,4 @@
-import type { AccountRef } from '@agentry/accounts';
+import type { AccountRef } from '@claudio/accounts';
 import type {
   Attachment,
   EffectiveEnvironment,
@@ -13,7 +13,7 @@ import type {
   RunEvent,
   ToolPolicy,
   TranscriptEntry,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../cli-facts.ts';
 import type { ChatConfinement, NewChat } from '../live-chat.ts';
 import type { NeutralRequest } from '../policy-judge.ts';
@@ -34,13 +34,13 @@ export function binaryOf(source: BinarySource): string {
 /**
  * The code half of a provider; the manifest is the data half. Everything that is the agent's own
  * (its flags, its environment, its stream, its control protocol) sits behind this; everything that is
- * Agentry's (chats, executions, queueing, tokens, persistence, limits and moves) stays in
+ * Claudio's (chats, executions, queueing, tokens, persistence, limits and moves) stays in
  * `ChatManager`.
  */
 export interface ProviderDriver {
   readonly manifest: ProviderManifest;
 
-  /** Agentry's policy in the provider's own terms, and what it cannot enforce */
+  /** Claudio's policy in the provider's own terms, and what it cannot enforce */
   translatePolicy(policy: ToolPolicy): PolicyTranslation;
   /** What the picker offers for this provider */
   models(): ModelOption[];
@@ -49,11 +49,11 @@ export interface ProviderDriver {
    * A run records the id the CLI reports, while the picker holds the alias.
    */
   modelNames?(model: string): string[];
-  /** Who names the session: Agentry (`imposed`, Claude) or the agent (`assigned`) */
+  /** Who names the session: Claudio (`imposed`, Claude) or the agent (`assigned`) */
   readonly sessionIds: 'imposed' | 'assigned';
   /** The permission modes this provider can honour, each with its native value; the picker offers only these */
   permissionModes(): Array<{ mode: PermissionMode; native: string }>;
-  /** Reads what the provider wrote; null when it keeps nothing Agentry can read */
+  /** Reads what the provider wrote; null when it keeps nothing Claudio can read */
   readonly transcripts: TranscriptStore | null;
   /** A handshake that spends nothing, for detection: version, account, models, confirmed capabilities */
   handshake?(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult>;
@@ -81,9 +81,9 @@ export interface HandshakeResult {
   confirmed: ProviderCapability[];
 }
 
-/** Everything a process of a session is started from, minus what belongs to Agentry alone. */
+/** Everything a process of a session is started from, minus what belongs to Claudio alone. */
 export interface SessionLaunch {
-  /** The session id, chosen by Agentry and imposed on the agent */
+  /** The session id, chosen by Claudio and imposed on the agent */
   id: string;
   /** The agent's own id once it has named the session; null before the first process confirms it */
   nativeId: string | null;
@@ -120,13 +120,13 @@ export interface SessionLaunch {
   internal?: boolean;
   agent?: string;
   agentsFile?: string;
-  /** Agentry's policy for this run; the driver applies the settings part, the judge the host part */
+  /** Claudio's policy for this run; the driver applies the settings part, the judge the host part */
   policy: ToolPolicy | null;
   /** The Claude account this process runs on; absent leaves the environment as the CLI's own login */
   account?: AccountRef;
 }
 
-/** The process to start. `ChatManager` adds `AGENTRY_CHAT_ID`, `AGENTRY_API_URL` and the minted token itself. */
+/** The process to start. `ChatManager` adds `CLAUDIO_CHAT_ID`, `CLAUDIO_API_URL` and the minted token itself. */
 export interface LaunchPlan {
   bin: string;
   args: string[];
@@ -146,7 +146,7 @@ export interface SessionIO {
 
 /** A user turn: text and the files that go with it. */
 export interface UserTurn {
-  /** Agentry's id for the message, which the driver hands the agent where its protocol takes one */
+  /** Claudio's id for the message, which the driver hands the agent where its protocol takes one */
   id?: string;
   text: string;
   attachments: Attachment[];
@@ -316,7 +316,7 @@ export type DriverEvent =
       run: RunDraft;
     }
   | { kind: 'stderr'; text: string }
-  /** Agentry's own words about something the agent did that the person may want to see, with no change of status */
+  /** Claudio's own words about something the agent did that the person may want to see, with no change of status */
   | { kind: 'notice'; text: string }
   /** A stdout line that is not the protocol */
   | { kind: 'unreadable'; text: string };

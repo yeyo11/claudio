@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@agentry/shared';
+import type { AgentryEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@claudio/shared';
 import type { ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
@@ -40,7 +40,7 @@ const slow: HealthSignal = { kind: 'no-progress', level: 'warn', reason: 'No cha
 const looping: HealthSignal = { kind: 'loop', level: 'bad', reason: 'The same call four times.' };
 
 const chatOf = (id: string, over: Partial<ChatRuntime> = {}): ChatRuntime =>
-  ({ id, name: `chat ${id}`, cwd: '/work', workingDir: '/work/tree', origin: 'agentry', orchestrationId: null, ...over }) as ChatRuntime;
+  ({ id, name: `chat ${id}`, cwd: '/work', workingDir: '/work/tree', origin: 'claudio', orchestrationId: null, ...over }) as ChatRuntime;
 
 const task: TaskContext = { orchestrationId: 'orch-1', taskId: 'build', taskName: 'Build it', limits: null, elapsedMs: 0, spentUsd: 0 };
 
@@ -172,7 +172,7 @@ test('the question carries the signal, the settings and the worker\'s last steps
   assert.match(q?.prompt ?? '', /Its last steps, as its transcript records them:\n<pasted_content id="([0-9a-f]{8})">\n- Bash/);
   assert.ok(q?.prompt.includes(PASTED_NOTE));
   assert.match(q?.prompt ?? '', /hung-command: `pnpm e2e` has been running for 12 min\./);
-  assert.match(q?.prompt ?? '', /Agentry's generic suggestion: Run long commands/);
+  assert.match(q?.prompt ?? '', /Claudio's generic suggestion: Run long commands/);
   assert.match(q?.prompt ?? '', /- Bash \{"command":"pnpm e2e"\}\n {2}failed: line 0\n/);
   assert.match(q?.prompt ?? '', /line 5\n {2}… \(14 more lines\)/);
   assert.doesNotMatch(q?.prompt ?? '', /line 6/, 'a result is cut to a few lines');

@@ -1,4 +1,4 @@
-import { WIDGET_RULES, layoutProblem, type DocumentNode, type FlowRun } from '@agentry/shared';
+import { WIDGET_RULES, layoutProblem, type DocumentNode, type FlowRun } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addableWidgets, addWidget, moveWidgetTo, positionOf, removeWidget, resizeWidget, sameLayout, shiftWidget, widgetsInArea } from '../src/pages/dashboard/edit.ts';

@@ -1,16 +1,16 @@
-import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionProviderId, Project, ProjectDecisionSettings } from '@agentry/shared';
+import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionProviderId, Project, ProjectDecisionSettings } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useProjectSettings } from '../../api';
-import { Collapsible, Sheet, Slider } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Segmented, Skeleton } from '@agentry/ui/components/ui';
+import { Collapsible, Sheet, Slider } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
-import { formatNumber } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { formatNumber } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { AREAS, MODES, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/DecisionsTab';
 
 type Provider = 'inherit' | DecisionProviderId;

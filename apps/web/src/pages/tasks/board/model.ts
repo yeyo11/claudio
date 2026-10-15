@@ -5,8 +5,8 @@
  * and what may be picked for "Orchestrate". The shared vocabulary (columns, filters, live) is in
  * lib/work-items.ts.
  */
-import type { Board, BoardColumn, WorkItem, WorkItemRef, WorkItemStatus } from '@agentry/shared';
-import { BOARD_DONE_PAGE, WORK_ITEM_STATUSES } from '@agentry/shared';
+import type { Board, BoardColumn, WorkItem, WorkItemRef, WorkItemStatus } from '@claudio/shared';
+import { BOARD_DONE_PAGE, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { countsInColumn } from '../../../lib/work-items';
 
 /**

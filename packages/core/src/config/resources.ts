@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RESOURCE_FORMATS, type ConfigResource, type ResourceKind, type WorkflowDefinition } from '@agentry/shared';
+import { RESOURCE_FORMATS, type ConfigResource, type ResourceKind, type WorkflowDefinition } from '@claudio/shared';
 import { writeAtomic } from './files.ts';
 import { listWorkflowDirectory, scriptMeta } from '../workflows.ts';
 import type { ConfigScope } from './scope.ts';

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AccountLimit, ProviderLimitState, RateLimitWindow } from '@agentry/shared';
+import type { AccountLimit, ProviderLimitState, RateLimitWindow } from '@claudio/shared';
 import { isRecord, writeAtomic } from './fs.ts';
 
 /** From here the account counts as near its limit; matches where the usage bars turn red. */

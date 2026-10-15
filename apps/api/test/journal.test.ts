@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, JournalEntry, JournalPage, MemoryFile, MemoryProposal, Project, WorkItem } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { AgentryEvent, JournalEntry, JournalPage, MemoryFile, MemoryProposal, Project, WorkItem } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
 // The journal and memory proposal routes over a real core with scratch dirs and a missing CLI:
@@ -42,8 +42,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });

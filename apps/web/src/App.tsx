@@ -21,12 +21,12 @@ import { useTranslation } from 'react-i18next';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, chatListQuery, keys, useOpenTaskCount } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
-import type { MenuItem } from '@agentry/ui/components/controls/Menu';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import type { MenuItem } from '@claudio/ui/components/controls/Menu';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { DetailHost } from './components/DetailHost';
-import { BrandMark, ICON } from '@agentry/ui/components/icons';
+import { BrandMark, ICON } from '@claudio/ui/components/icons';
 import { NotificationHost } from './components/Notifications';
-import { PageTransition, SlidingIndicator, StatusDot } from '@agentry/ui/components/motion';
+import { PageTransition, SlidingIndicator, StatusDot } from '@claudio/ui/components/motion';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
 import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
@@ -37,10 +37,10 @@ import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { SignIn } from './components/SignIn';
 import { useSetupGate } from './lib/first-run';
-import { Empty, Skeleton } from '@agentry/ui/components/ui';
+import { Empty, Skeleton } from '@claudio/ui/components/ui';
 import { useUsageNow } from './lib/usage-now';
 import { useAuthChallenge, useAuthSettled } from './lib/auth';
-import { listRequest } from '@agentry/chat-ui/lib/chat-model';
+import { listRequest } from '@claudio/chat-ui/lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
@@ -49,7 +49,7 @@ import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Accounts } from './pages/Accounts';
 import { Home } from './pages/Home';
-import { AGENTRY_ASSISTANT_PATH } from './pages/agentry-assistant/model';
+import { CLAUDIO_ASSISTANT_PATH } from './pages/agentry-assistant/model';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
@@ -189,7 +189,7 @@ function Shell() {
 
   const home: NavItem = { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } };
   // The global assistant: the sparkle is its mark, never the gradient, so the entry costs no gradient slot
-  const assistant: NavItem = { to: AGENTRY_ASSISTANT_PATH, label: t('nav.assistant'), icon: Sparkle };
+  const assistant: NavItem = { to: CLAUDIO_ASSISTANT_PATH, label: t('nav.assistant'), icon: Sparkle };
   const chats: NavItem = { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working'), live: true } };
   // The open items of the scope: neutral, since an item waiting in a column is not something running
   const tasks: NavItem = { to: TASKS_PATH, label: t('shell:nav.tasks'), icon: SquareCheck, count: { value: openTasks, what: t('shell:nav.open', { count: openTasks ?? 0 }) } };
@@ -263,10 +263,10 @@ function Shell() {
 
       <aside id="sidebar" className="sidebar" aria-label={t('shell.sidebar')}>
         <div className="sidebar-head">
-          <Tooltip content={railTip('Agentry')} side="right">
-            <NavLink to="/" className="brand" aria-label="Agentry">
+          <Tooltip content={railTip('Claudio')} side="right">
+            <NavLink to="/" className="brand" aria-label="Claudio">
               <BrandMark />
-              <span className="brand-name">Agentry</span>
+              <span className="brand-name">Claudio</span>
             </NavLink>
           </Tooltip>
           <Tooltip content={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')} side="right">

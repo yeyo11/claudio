@@ -1,4 +1,4 @@
-import type { AccountLimit, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@agentry/shared';
+import type { AccountLimit, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
 
 /** What `choose` needs of an account; the rest of it is not its business. */
 export interface Candidate {

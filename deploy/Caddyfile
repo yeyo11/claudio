@@ -1,5 +1,5 @@
 # Used by the `tls` profile of docker-compose.yml. Caddy obtains and renews the certificate itself.
-{$AGENTRY_DOMAIN:localhost} {
+{$CLAUDIO_DOMAIN:localhost} {
 	encode zstd gzip
 
 	# The API sends the UI bundle its own, stricter headers (see apps/api/src/app.ts); `?` sets
@@ -13,7 +13,7 @@
 		?Referrer-Policy no-referrer
 	}
 
-	reverse_proxy agentry:8787 {
+	reverse_proxy claudio:8797 {
 		# The event stream (/api/events) and the chat streams are long-lived responses: without this
 		# Caddy buffers them and the UI sees nothing until the connection closes
 		flush_interval -1

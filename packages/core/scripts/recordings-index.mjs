@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_DIR = resolve(here, '../test/fixtures/recordings');
 
-const REPOSITORIES = ['agentry-probe', 'agentry'];
+const REPOSITORIES = ['agentry-probe', 'claudio'];
 const OWNER = 'yeyo11';
 const HOSTS = ['github.com', 'gitlab.com'];
 

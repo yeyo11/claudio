@@ -8,7 +8,7 @@ import type {
   WorkItemMovedEvent,
   WorkItemRemovedEvent,
   WorkItemUpdatedEvent,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 

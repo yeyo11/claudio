@@ -45,7 +45,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
   check((await page.eval(`return document.documentElement.dataset.hidden`)) === 'false', 'a tab being looked at is marked as such');
 
   // What is stored is in force from the first paint, not after a flash of movement
-  await page.eval(`localStorage.setItem('agentry-motion', 'subtle');`);
+  await page.eval(`localStorage.setItem('claudio-motion', 'subtle');`);
   await page.goto('/', 1200);
   check((await page.eval(`return document.documentElement.dataset.motion`)) === 'subtle', 'the stored level is in force');
 
@@ -61,12 +61,12 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
   `);
   check(looping.name === 'none' || looping.count === '1', `a live rail does not loop at subtle (${looping.name}, ${looping.count})`);
 
-  await page.eval(`localStorage.setItem('agentry-motion', 'off');`);
+  await page.eval(`localStorage.setItem('claudio-motion', 'off');`);
   await page.goto('/', 1200);
   check((await page.eval(`return document.documentElement.dataset.motion`)) === 'off', 'nothing moves at off');
 
   // A value nobody wrote is not obeyed
-  await page.eval(`localStorage.setItem('agentry-motion', 'sparkly');`);
+  await page.eval(`localStorage.setItem('claudio-motion', 'sparkly');`);
   await page.goto('/', 1200);
   check((await page.eval(`return document.documentElement.dataset.motion`)) === 'full', 'a stored level that is not one falls back to full');
 
@@ -146,7 +146,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     };
 
     // Full: the live things are what moves, and a run's screen has one energy border
-    await page.eval(`localStorage.setItem('agentry-motion', 'full');`);
+    await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
     for (const [path, live] of pages) {
       await open(path, live);
       const moving = await page.eval(loops(live === rail ? 'main' : live));
@@ -162,7 +162,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     }
 
     for (const level of ['subtle', 'off']) {
-      await page.eval(`localStorage.setItem('agentry-motion', '${level}');`);
+      await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
       for (const [path, live] of pages) {
         await open(path, live);
         const still = await page.eval(loops());
@@ -171,7 +171,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     }
 
     // The system setting stops them too, with the stored level back at full
-    await page.eval(`localStorage.setItem('agentry-motion', 'full');`);
+    await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
     await page.reduceMotion();
     for (const [path, live] of pages) {
       await open(path, live);
@@ -182,7 +182,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
 
     // A phone's board is a list, and its live row stops the same way
     await page.viewport(390, 844);
-    await page.eval(`localStorage.setItem('agentry-motion', 'subtle');`);
+    await page.eval(`localStorage.setItem('claudio-motion', 'subtle');`);
     await open(board);
     const phone = await page.eval(loops());
     check(phone.length === 0, `the phone's board: nothing repeats at subtle (${phone.join(', ')})`);
@@ -197,7 +197,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-motion');`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-motion');`).catch(() => {});
     for (const id of assistantRuns) await api.post(`/assistant/runs/${id}/stop`).catch(() => {});
     if (projectId) {
       // Off first, so stopping the member's run starts nothing after it

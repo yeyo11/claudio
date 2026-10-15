@@ -11,7 +11,7 @@ export function newWebhookSecret(): string {
 }
 
 /**
- * The secrets that sign the deliveries of the hooks Agentry registered, one per registration, in a
+ * The secrets that sign the deliveries of the hooks Claudio registered, one per registration, in a
  * 0600 file (decision 3): each value encrypted through the `SecretBox` when the desktop app handed
  * the server its key, plain on a server. A plain file found while a key is set is encrypted at
  * start. The database never holds them and no route returns them: the receiver reads one to verify

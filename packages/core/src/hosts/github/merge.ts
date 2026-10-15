@@ -1,4 +1,4 @@
-import type { HostReason, MergeMethod } from '@agentry/shared';
+import type { HostReason, MergeMethod } from '@claudio/shared';
 import {
   HostParseError,
   type ChangeRequestState,
@@ -27,7 +27,7 @@ const METHOD_FLAGS: Readonly<Record<MergeMethod, string>> = { squash: '--squash'
 const METHOD_ENUM: Readonly<Record<MergeMethod, string>> = { squash: 'SQUASH', merge: 'MERGE', rebase: 'REBASE' };
 const METHODS_OF: Readonly<Record<string, MergeMethod>> = { SQUASH: 'squash', MERGE: 'merge', REBASE: 'rebase' };
 
-/** The order Agentry offers them in: the repository's own default is not read, the first allowed wins */
+/** The order Claudio offers them in: the repository's own default is not read, the first allowed wins */
 const METHOD_ORDER: readonly MergeMethod[] = ['squash', 'merge', 'rebase'];
 
 /** The mutation of the recording (`automerge_off_graphql`), with the head the person saw as `expectedHeadOid` */
@@ -234,7 +234,7 @@ export const githubMerge: MergeAdapter = {
     return result.http?.status === 404 ? false : null;
   },
 
-  // Update from the base is Agentry's own merge in the item's worktree, not `gh pr update-branch`,
+  // Update from the base is Claudio's own merge in the item's worktree, not `gh pr update-branch`,
   // which moves the remote head away from the worktree
   rebase: () => null,
   rebaseStatus: () => null,

@@ -1,6 +1,6 @@
 {
   "title": "Webhooks",
-  "intro": "A webhook makes your code host tell Agentry the moment a pull or merge request changes, instead of waiting for the next read. It only makes Agentry read sooner: Agentry reads the request again and changes nothing because of what a notice says. Without a webhook, or if a notice is lost, it keeps reading every few minutes.",
+  "intro": "A webhook makes your code host tell Claudio the moment a pull or merge request changes, instead of waiting for the next read. It only makes Claudio read sooner: Claudio reads the request again and changes nothing because of what a notice says. Without a webhook, or if a notice is lost, it keeps reading every few minutes.",
   "aria": "Webhooks by project",
   "summary_one": "{{count}} project · {{active}} with a webhook",
   "summary_other": "{{count}} projects · {{active}} with a webhook",
@@ -9,7 +9,7 @@
   "arrive": "Notices arrive at",
   "open": "Open",
   "noAddress": {
-    "title": "Agentry has no public address.",
+    "title": "Claudio has no public address.",
     "body": "The tunnel only reaches your own tailnet, so a code host on the internet cannot deliver here."
   },
   "state": {
@@ -19,12 +19,12 @@
     "stale": "Old address"
   },
   "text": {
-    "active": "{{host}} delivers the notices and Agentry reads the pull request again at once.",
-    "off": "Without a webhook, Agentry reads the pull requests every {{count}} min. With one it finds out at once.",
-    "failing": "{{host}} cannot deliver the notices: Agentry's address answered with an error.",
-    "stale": "The webhook points to an address that is no longer Agentry's. Agentry points it at the new one by itself when it can; until then, remove it or wait.",
-    "noAddress": "Registering a webhook needs a public address. Meanwhile Agentry reads the pull requests every {{count}} min.",
-    "noAddressStale": "{{host}} can no longer reach the address this webhook points to, and Agentry has no public address to move it to. Remove it; meanwhile Agentry reads the pull requests on its own."
+    "active": "{{host}} delivers the notices and Claudio reads the pull request again at once.",
+    "off": "Without a webhook, Claudio reads the pull requests every {{count}} min. With one it finds out at once.",
+    "failing": "{{host}} cannot deliver the notices: Claudio's address answered with an error.",
+    "stale": "The webhook points to an address that is no longer Claudio's. Claudio points it at the new one by itself when it can; until then, remove it or wait.",
+    "noAddress": "Registering a webhook needs a public address. Meanwhile Claudio reads the pull requests every {{count}} min.",
+    "noAddressStale": "{{host}} can no longer reach the address this webhook points to, and Claudio has no public address to move it to. Remove it; meanwhile Claudio reads the pull requests on its own."
   },
   "fact": {
     "lastNotice": "last notice",
@@ -49,7 +49,7 @@
   },
   "remove": {
     "title": "Remove the webhook of {{project}}",
-    "body": "Agentry will delete the webhook of {{repo}} on {{host}} and stop receiving its notices. Pull requests will keep being read every {{count}} min. You can register it again whenever you want.",
+    "body": "Claudio will delete the webhook of {{repo}} on {{host}} and stop receiving its notices. Pull requests will keep being read every {{count}} min. You can register it again whenever you want.",
     "confirm": "Remove webhook",
     "done": "Webhook removed",
     "error": "Could not remove the webhook"
@@ -58,22 +58,22 @@
     "title": "Register a webhook on {{project}}",
     "addressId": "its id",
     "address": "Address",
-    "addressNote": "This is Agentry's public address right now. {{host}} signs each notice with the secret; Agentry checks it before reading anything.",
+    "addressNote": "This is Claudio's public address right now. {{host}} signs each notice with the secret; Claudio checks it before reading anything.",
     "events": "Events",
-    "eventsNote": "Agentry chooses them: they are the ones needed to follow a pull request, and they only make it read sooner. They cannot be changed here.",
-    "secret": "Agentry makes a 32-byte secret, keeps it and gives it to {{host}} when it registers the webhook. It is never shown again. If the repository already has a webhook at this address, Agentry adopts it instead of creating another. Registering needs administration permission on the repository.",
+    "eventsNote": "Claudio chooses them: they are the ones needed to follow a pull request, and they only make it read sooner. They cannot be changed here.",
+    "secret": "Claudio makes a 32-byte secret, keeps it and gives it to {{host}} when it registers the webhook. It is never shown again. If the repository already has a webhook at this address, Claudio adopts it instead of creating another. Registering needs administration permission on the repository.",
     "session": "Registered with {{cli}}, with the session of {{user}}",
     "sessionPlain": "Registered with {{cli}}, with its own session",
     "submit": "Register webhook",
     "submitting": "Registering…",
     "retry": "Try again",
     "done": "Webhook registered",
-    "failed": "Agentry could not register the webhook.",
-    "noPermission": "{{host}} did not let Agentry register the webhook.",
+    "failed": "Claudio could not register the webhook.",
+    "noPermission": "{{host}} did not let Claudio register the webhook.",
     "noPermissionBody": "The {{cli}} session has no administration permission on this repository. Ask the owner for it and try again."
   },
   "reason": {
-    "noPublicUrl": "Agentry has no public address for a host to deliver to.",
+    "noPublicUrl": "Claudio has no public address for a host to deliver to.",
     "noRemote": "This project has no code host remote."
   },
   "event": {

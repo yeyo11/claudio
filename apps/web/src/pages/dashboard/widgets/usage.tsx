@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useUsage } from '../../../api';
-import { Skeleton } from '@agentry/ui/components/ui';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { Skeleton } from '@claudio/ui/components/ui';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { localDay } from '../pulse';
 import type { WidgetProps } from '../registry';
 import { WidgetCard } from '../WidgetCard';

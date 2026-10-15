@@ -1,12 +1,12 @@
-import { searchPattern, type TranscriptSearchHit, type TranscriptSearchResult } from '@agentry/shared';
+import { searchPattern, type TranscriptSearchHit, type TranscriptSearchResult } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 // Direct imports: the barrel would pull the lazy form controls into the chat page's bundle
-import { hasOpenLayer } from '@agentry/ui/components/controls/layer';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { hasOpenLayer } from '@claudio/ui/components/controls/layer';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { ICON_SM } from '@claudio/ui/components/icons';
 
 /** Typing settles before the whole transcript is read again. */
 const DEBOUNCE_MS = 250;

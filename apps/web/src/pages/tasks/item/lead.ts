@@ -1,4 +1,4 @@
-import type { WorkItemPullRequest } from '@agentry/shared';
+import type { WorkItemPullRequest } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, keys, useMergeState } from '../../../api';
 import { fixStage } from '../../../lib/change-requests';

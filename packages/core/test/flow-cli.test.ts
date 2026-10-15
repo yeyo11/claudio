@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import type { FlowRun, ProjectSettings } from '@agentry/shared';
+import type { FlowRun, ProjectSettings } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { tempConfig } from './helpers.ts';
@@ -324,7 +324,7 @@ test('a run a restart cut off brings the newer spec into its worktree before its
     const [first, again] = readFileSync(prompts, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { resume: string | null; prompt: string });
     assert.match(first?.prompt ?? '', /specification is in this worktree: `docs\/plans\/hang\.md`/);
     assert.ok(again?.resume);
-    assert.match(again?.prompt ?? '', /^Agentry restarted while you were on this run\./);
+    assert.match(again?.prompt ?? '', /^Claudio restarted while you were on this run\./);
     assert.doesNotMatch(again?.prompt ?? '', /specification is in this worktree/);
   } finally {
     core.shutdown();

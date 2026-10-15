@@ -3,9 +3,9 @@ import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
-import { Collapsible, NumberInput, Select, Tooltip } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Field, Tag } from '@agentry/ui/components/ui';
+import { Collapsible, NumberInput, Select, Tooltip } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Field, Tag } from '@claudio/ui/components/ui';
 import { ModelCombobox } from '../../components/ui';
 import {
   getIn,

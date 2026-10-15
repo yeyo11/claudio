@@ -10,14 +10,14 @@ tags:
 # Settings in layers: what changes without a restart
 
 Three settings used to be read from the environment once, at startup. They can now change while
-Agentry runs, from Settings → Security:
+Claudio runs, from Settings → Security:
 
 | Setting | Variable | Default | Applies to |
 | --- | --- | --- | --- |
-| `allowedHosts` | `AGENTRY_ALLOWED_HOSTS` (its hosts add to the file's, see below) | none (loopback only) | the next request |
-| `maxConcurrentRuns` | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` (1 to 64) | the next chat or orchestration worker |
-| `defaultPermissionMode` | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | the next run that does not choose one |
-| `setupSeen` | `AGENTRY_SETUP_SEEN` (`on` or `off`; the older `AGENTRY_PROVIDERS_STEP_SEEN` still counts) | `off` | the next start: the setup assistant is shown only while it is off. A `providersStepSeen` stored before the rename counts as `setupSeen` |
+| `allowedHosts` | `CLAUDIO_ALLOWED_HOSTS` (its hosts add to the file's, see below) | none (loopback only) | the next request |
+| `maxConcurrentRuns` | `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` (1 to 64) | the next chat or orchestration worker |
+| `defaultPermissionMode` | `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | the next run that does not choose one |
+| `setupSeen` | `CLAUDIO_SETUP_SEEN` (`on` or `off`; the older `CLAUDIO_PROVIDERS_STEP_SEEN` still counts) | `off` | the next start: the setup assistant is shown only while it is off. A `providersStepSeen` stored before the rename counts as `setupSeen` |
 
 ## Which value wins
 
@@ -25,7 +25,7 @@ Each setting is read from three layers, in a fixed order:
 
 1. **The environment.** Whoever deployed the install decided it, and the UI must not quietly
    override a deploy. The UI shows such a value read-only, tagged "set by the environment" and
-   naming its variable, the same way `AGENTRY_AUTH_TOKEN` already works for the guard.
+   naming its variable, the same way `CLAUDIO_AUTH_TOKEN` already works for the guard.
 2. **`app-settings.json`** in the data directory. It holds only what was changed from the UI, and is
    not written at all on an install where nobody changed anything.
 3. **The default.** An install that sets nothing behaves exactly as it did before.
@@ -43,7 +43,7 @@ are guarded like every other settings route, so read-only mode answers `405`.
 Since 2026-10-06 the layers of `allowedHosts` add up instead of replacing each other. The guard
 answers the union of three sets:
 
-- **The environment's hosts** (`AGENTRY_ALLOWED_HOSTS`). They are fixed: the UI lists each one
+- **The environment's hosts** (`CLAUDIO_ALLOWED_HOSTS`). They are fixed: the UI lists each one
   read-only, tagged "set by the environment", and no `PUT` can remove one.
 - **The hosts added in the UI**, stored as `allowedHosts` in `app-settings.json`. A `PUT` of
   `allowedHosts` replaces this set and is accepted even when the variable is set. It applies to the
@@ -68,7 +68,7 @@ A runtime host coming or going emits `settings.changed`, so an open settings pag
 host as soon as it is lent. The draft in the field survives that refresh, because the card only
 remounts when the UI's own hosts change.
 
-**Why.** The owner's desktop app runs with `AGENTRY_ALLOWED_HOSTS=*.devtunnels.ms,192.168.1.184`.
+**Why.** The owner's desktop app runs with `CLAUDIO_ALLOWED_HOSTS=*.devtunnels.ms,192.168.1.184`.
 That made the whole list read-only, and adding a host meant editing the launcher and restarting.
 The rule "the environment wins" exists so the UI cannot quietly undo a deploy. Adding a host undoes
 nothing the deploy decided, while removing one would, so only adding is allowed. Two alternatives
@@ -86,11 +86,11 @@ hosts in the field, where they can be removed. Old clients that read only `sourc
 and keep showing the list read-only, which is safe.
 
 **An empty variable counts as unset.** Compose passes `VAR=` through. Before, an empty
-`AGENTRY_MAX_CONCURRENT_RUNS` became `0` (a wrapper that could start no run), and an empty mode was
+`CLAUDIO_MAX_CONCURRENT_RUNS` became `0` (a wrapper that could start no run), and an empty mode was
 passed to the CLI as is. Now either one means the default, and the setting stays editable in the UI.
 
 **In the Docker image, the permission mode is read-only in the UI.** The image sets
-`AGENTRY_DEFAULT_PERMISSION_MODE=bypassPermissions` in its `ENV`, so there the environment owns it.
+`CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions` in its `ENV`, so there the environment owns it.
 
 ## What a write is held to
 
@@ -105,14 +105,14 @@ nothing:
 - `maxConcurrentRuns` is a whole number from 1 to 64, and the mode is a valid permission mode.
 
 A hand-edited file is read with the same rules. A bad key is dropped and falls back to the default,
-so the file can never widen the allowlist. A file that is not valid JSON makes Agentry start on the
+so the file can never widen the allowlist. A file that is not valid JSON makes Claudio start on the
 defaults and refuse writes, so the file is never overwritten with a guess at what it held. Writes
 are atomic and one at a time.
 
 ## The runtime allowlist
 
 Beside the configured hosts, the guard also answers a set of **runtime hosts**: exact names that
-their owner adds and removes while Agentry runs. The only owner so far is the
+their owner adds and removes while Claudio runs. The only owner so far is the
 [tunnel](tunnel.md), which lends the node's tailnet name while its Serve rule holds. The set:
 
 - **Exact names only, never a pattern.** `*.ts.net` would let in every other node of every tailnet.

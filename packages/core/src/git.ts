@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { ChangedFile, ChangedFileStatus, Commit } from '@agentry/shared';
+import type { ChangedFile, ChangedFileStatus, Commit } from '@claudio/shared';
 
 /**
  * The few git operations orchestrations need to hand back one branch instead of a pile of
@@ -56,7 +56,7 @@ export function mainTopLevel(dir: string): string {
 /**
  * The main checkout's top level as a person sees it, which `mainTopLevel` is not for a submodule: its
  * git directory lives under the superproject's `.git/modules/`, and a directory next to that is no
- * checkout at all. Only for worktrees Agentry makes and opens itself; a `--worktree` the CLI adopts
+ * checkout at all. Only for worktrees Claudio makes and opens itself; a `--worktree` the CLI adopts
  * stays where `mainTopLevel` says, which is where the CLI looks.
  */
 export function mainCheckout(dir: string): string {
@@ -194,7 +194,7 @@ export function identity(dir: string): string[] {
   } catch {
     /* unset */
   }
-  return ['-c', 'user.name=Agentry', '-c', 'user.email=agentry@localhost'];
+  return ['-c', 'user.name=Claudio', '-c', 'user.email=agentry@localhost'];
 }
 
 /**

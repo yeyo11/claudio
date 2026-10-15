@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Agentry",
-  "short_name": "Agentry",
+  "name": "Claudio",
+  "short_name": "Claudio",
   "description": "Control panel for Claude Code: runs, sessions, orchestration and configuration.",
   "start_url": "/",
   "scope": "/",

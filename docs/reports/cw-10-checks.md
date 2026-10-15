@@ -18,7 +18,7 @@ was changed to get them green.
 Exit code 0. All five workspace packages (`shared`, `core`, `api`, `web`, `desktop`) report `Done`
 with no errors.
 
-## `pnpm --filter @agentry/api openapi:schemas`
+## `pnpm --filter @claudio/api openapi:schemas`
 
 Exit code 0. Afterwards `git status --short` shows no modified tracked file and `git diff --stat` is
 empty. The only untracked path was `docs/reports/`. So the committed `schemas.json` already matches
@@ -35,7 +35,7 @@ the new `AuditEntry.actor` comment: no drift.
 | `apps/web` | 856 | 855 | 1 (timing, see below) |
 
 `pnpm -r` stops at the first failing package, so `apps/api` was also run on its own
-(`pnpm --filter @agentry/api test`, exit 0, 183 of 183). Every new chat-token test in
+(`pnpm --filter @claudio/api test`, exit 0, 183 of 183). Every new chat-token test in
 `packages/core/test/chats.test.ts`, `packages/core/test/chat-tokens.test.ts` and
 `apps/api/test/security.test.ts` passed in both full runs.
 

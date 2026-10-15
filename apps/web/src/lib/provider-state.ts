@@ -1,4 +1,4 @@
-import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@agentry/shared';
+import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@claudio/shared';
 
 // What a provider's state looks like and what can be done about it, as plain data: the row, the
 // first-run step and the status bar all read it, and a test reads it without a page.
@@ -8,7 +8,7 @@ export type ProviderTone = 'ok' | 'warn' | 'bad' | 'idle' | 'muted';
 
 /**
  * A state's badge: ok is ready, warn needs a person (sign in, or a warning), bad is broken, idle is
- * waiting on something outside Agentry. `disabled` is a setting and not a detected state, so the
+ * waiting on something outside Claudio. `disabled` is a setting and not a detected state, so the
  * row passes it apart from the status.
  */
 export const STATE_TONE: Record<ProviderReadinessState | 'disabled', ProviderTone> = {
@@ -70,7 +70,7 @@ export function providerLink(id: string, kind: 'install' | 'sign-in'): string | 
   return kind === 'install' ? links.install : links.signIn;
 }
 
-/** Claude Code signs in inside Agentry, on Settings → Account; every other provider on its vendor's page. */
+/** Claude Code signs in inside Claudio, on Settings → Account; every other provider on its vendor's page. */
 export const CLAUDE_CODE_ID = 'claude-code';
 export const SIGN_IN_SETTINGS_PATH = '/settings?tab=account';
 

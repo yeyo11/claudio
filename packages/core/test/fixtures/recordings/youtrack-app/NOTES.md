@@ -25,11 +25,11 @@ decided it. `comment_60k` is not indexed: its argv holds a 60 000-character body
      no token at all (`Error: Token is required. Please create one at <host>/users/me?tab=account-security`);
      4 not found: HTTP 404, and some HTTP 400s whose message says "not found".
    - **5 when the address does not answer** (`TypeError: fetch failed`), which the README does not
-     list. Agentry reads it as `host-unreachable`.
+     list. Claudio reads it as `host-unreachable`.
    - Every error goes to stderr as one `Error: [<status>] <message>` line; stdout is empty.
 3. **HTTP 400 is 2 or 4 by its message.** `State expected: Nonsense` (a command) and "unable to
    locate an Issue" exit 2; "An Nonsense-type entity with the specified name was not found" (a field
-   write) exits 4. So Agentry never reads 2 or 4 alone as "the issue is gone": the sync, which has
+   write) exits 4. So Claudio never reads 2 or 4 alone as "the issue is gone": the sync, which has
    just read the issue, takes a refused status write as `transition-unknown`.
 4. **JSON.** `rest request` prints the answer pretty-printed. Objects carry `$type`. An issue with no
    description leaves the `description` field out rather than null. `updated` and `resolved` are
@@ -44,7 +44,7 @@ decided it. `comment_60k` is not indexed: its argv holds a 60 000-character body
    `State {To Verify}` and `State "In Progress"` are refused: a value with spaces is written bare,
    and the command language would read anything after it as more commands. Setting the field
    instead (`POST /api/issues/<id>` with `customFields`) takes the name as JSON data and answers
-   with the issue after the write, `resolved` set for a resolved State. Agentry writes the field.
+   with the issue after the write, `resolved` set for a resolved State. Claudio writes the field.
 8. **Idempotence.** Setting the State an issue already has exits 0 and changes nothing.
 9. **A 60 000-character body in argv** is taken (a comment of that size was created).
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { WorkItemComment, WorkItemHistoryEntry, WorkItemLink } from '@agentry/shared';
+import type { WorkItemComment, WorkItemHistoryEntry, WorkItemLink } from '@claudio/shared';
 import en from '../src/i18n/locales/en/workItem.json' with { type: 'json' };
 import {
   activityOf,

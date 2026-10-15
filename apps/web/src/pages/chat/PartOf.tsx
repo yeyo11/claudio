@@ -1,10 +1,10 @@
-import type { ChatOrchestration } from '@agentry/shared';
+import type { ChatOrchestration } from '@claudio/shared';
 import { Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useOrchestration } from '../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { orchestrationProgress, taskStage } from '../../lib/orchestration-steps';
 
 /**

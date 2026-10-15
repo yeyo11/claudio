@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import type { CodeHostId } from '@agentry/shared';
+import type { CodeHostId } from '@claudio/shared';
 import { aheadCount, conflictedPaths, identity, mergeInProgress, refExists, uncommittedFiles } from '../git.ts';
 import type { MergeCodeHostAdapter } from './code-host.ts';
 import type { ChecksTarget } from './checks-service.ts';
@@ -48,7 +48,7 @@ export function mergeTargetOf(base: ChecksTarget, host: CodeHostId, adapter: Mer
   if (!place) return target;
   const { home, worktree } = place;
 
-  // `git cat-file -e <sha>:<path>`: the commit is local when Agentry pushed it; another person's push is fetched first
+  // `git cat-file -e <sha>:<path>`: the commit is local when Claudio pushed it; another person's push is fetched first
   target.fileAt = async (sha, path) => {
     const exists = async (): Promise<boolean | null> => {
       try {

@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { PutTeamMemberRequest, TeamFromTemplateRequest } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { PutTeamMemberRequest, TeamFromTemplateRequest } from '@claudio/shared';
 
 /**
- * A project's team. A member is a CLI agent file plus the metadata Agentry keeps beside it; these
+ * A project's team. A member is a CLI agent file plus the metadata Claudio keeps beside it; these
  * routes change the metadata and write starting files, and the file itself is edited through
  * `/config/resources/agents/:name?project=`. Validation lives in core.
  */

@@ -1,16 +1,16 @@
-import type { ResourceKind } from '@agentry/shared';
+import type { ResourceKind } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, type Scope } from '../api';
-import { ICON } from '@agentry/ui/components/icons';
-import { Card, Empty, ErrorBox, Segmented, Skeleton, usePageTitle, useTabGroup } from '@agentry/ui/components/ui';
+import { ICON } from '@claudio/ui/components/icons';
+import { Card, Empty, ErrorBox, Segmented, Skeleton, usePageTitle, useTabGroup } from '@claudio/ui/components/ui';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { setThemePreference, useThemePreference, type ThemePreference } from '../lib/theme';
 import { AccountTab } from './config/AccountTab';
 import { AppearanceTab } from './config/AppearanceTab';
@@ -139,7 +139,7 @@ function TabContent({ tab, section }: { tab: TabId; section?: DecisionsSection }
 }
 
 function groupOf(tab: TabId): string {
-  return GROUPS.find((group) => group.tabs.includes(tab))?.id ?? 'agentry';
+  return GROUPS.find((group) => group.tabs.includes(tab))?.id ?? 'claudio';
 }
 
 /** What the heading of a tab says under its name, when there is something worth saying. */
@@ -148,7 +148,7 @@ function useTabSubtitle(tab: TabId): string | null {
   if (tab === 'appearance') return t('shell:appearance.intro');
   if (tab === 'providers') return t('providers:intro');
   if (tab === 'integrations') return t('integrations:intro');
-  // Tool presets are Agentry's own, kept by the server and not in ~/.claude
+  // Tool presets are Claudio's own, kept by the server and not in ~/.claude
   if (CLAUDE_GROUPS.has(groupOf(tab)) && tab !== 'tools') return t('config.userScope');
   return null;
 }

@@ -25,4 +25,4 @@ A UI change that breaks one of these is not done. The rules are in `docs/design-
 - [ ] **Accessibility.** Icon-only buttons carry an `aria-label`; everything is keyboard-reachable with a visible focus ring; `e2e/specs/a11y-*.spec.mjs` passes in both themes and at phone width.
 - [ ] **Lazy routes** use `lazyPage()`, never a bare `React.lazy`.
 
-Run `pnpm --filter @agentry/web test`, then `pnpm build && pnpm e2e` (or the specs your change touches).
+Run `pnpm --filter @claudio/web test`, then `pnpm build && pnpm e2e` (or the specs your change touches).

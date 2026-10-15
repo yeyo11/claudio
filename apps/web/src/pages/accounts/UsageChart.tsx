@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatDateTime } from '@agentry/ui/lib/format';
+import { formatDateTime } from '@claudio/ui/lib/format';
 import { useWidth } from '../../lib/use-width';
 import '../../usage-history.css';
 import { pathOf, summarise, xOf, yOf, type AccountSeries, type Frame } from '../../lib/usage-history';

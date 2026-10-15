@@ -10,8 +10,8 @@ export function tempConfig(): CoreConfig {
   const root = mkdtempSync(join(tmpdir(), 'agentry-test-'));
   const config = loadConfig({
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
-    AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-    AGENTRY_DATA_DIR: join(root, 'data'),
+    CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+    CLAUDIO_DATA_DIR: join(root, 'data'),
   });
   return config;
 }

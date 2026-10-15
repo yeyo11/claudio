@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { entryText, type TranscriptEntry } from '@agentry/shared';
+import { entryText, type TranscriptEntry } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
@@ -173,7 +173,7 @@ test('S-3: stopping a chat that holds a message says the message was not deliver
 
 // ---------- S-4: a message the CLI absorbed mid-turn is not in the transcript ----------
 
-test('S-4: a message the CLI absorbed into the running turn is in the transcript Agentry serves', async () => {
+test('S-4: a message the CLI absorbed into the running turn is in the transcript Claudio serves', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_QUEUE };
   const core = new Core(config);
   try {

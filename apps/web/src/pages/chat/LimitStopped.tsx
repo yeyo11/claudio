@@ -1,8 +1,8 @@
-import type { Chat } from '@agentry/shared';
+import type { Chat } from '@claudio/shared';
 import { Hourglass } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { formatHour } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { formatHour } from '@claudio/ui/lib/format';
 import { useProviderLabel } from '../../lib/provider-status';
 
 /** Where the chat's transcript ends: the turn stopped at the limit. */

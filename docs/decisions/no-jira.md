@@ -9,7 +9,7 @@ tags:
 ---
 # Jira is not supported
 
-**Decided by the owner on 2026-10-07:** Agentry does not support Jira, at least for now, and keeps
+**Decided by the owner on 2026-10-07:** Claudio does not support Jira, at least for now, and keeps
 no trace of it in the product.
 
 ## What it was

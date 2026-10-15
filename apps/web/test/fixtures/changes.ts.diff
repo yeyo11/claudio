@@ -4,8 +4,8 @@ index 9a14042..7584612 100644
 +++ b/apps/api/src/routes/changes.ts
 @@ -1,10 +1,18 @@
  import type { FastifyInstance } from 'fastify';
- import type { Changes } from '@agentry/core';
-+import type { DiffContext } from '@agentry/shared';
+ import type { Changes } from '@claudio/core';
++import type { DiffContext } from '@claudio/shared';
 +
 +/** `?context=full` or a number of lines; anything else is the default of three. */
 +function contextOf(value: string | undefined): DiffContext {

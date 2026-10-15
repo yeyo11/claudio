@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate, RunWorkflowRequest, TranscriptSearchResult } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate, RunWorkflowRequest, TranscriptSearchResult } from '@claudio/shared';
 
 const HEARTBEAT_MS = 15_000;
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
@@ -65,7 +65,7 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
       // hijacked replies bypass @fastify/cors
-      ...(process.env.AGENTRY_CORS_ORIGIN && req.headers.origin ? { 'Access-Control-Allow-Origin': req.headers.origin } : {}),
+      ...(process.env.CLAUDIO_CORS_ORIGIN && req.headers.origin ? { 'Access-Control-Allow-Origin': req.headers.origin } : {}),
     });
     // Ephemeral `partial` events carry no SSE id, so Last-Event-ID always points at a stored event
     const write = (event: RunEvent) =>

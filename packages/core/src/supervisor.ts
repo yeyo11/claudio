@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@agentry/shared';
+import type { HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
 import { writeAtomic } from './config/files.ts';
@@ -190,12 +190,12 @@ export function callsOf(entries: readonly TranscriptEntry[]): Array<{ tool: stri
 
 export function supervisorPrompt(signal: HealthSignal, steps: string, task: TaskContext | null): string {
   return [
-    `You are watching an AI coding agent${task ? ' working on a task of an orchestration' : ''}. Agentry's health checks flagged it:`,
+    `You are watching an AI coding agent${task ? ' working on a task of an orchestration' : ''}. Claudio's health checks flagged it:`,
     ...(task ? ['', 'The task, as it is named:', pasted(task.taskName)] : []),
     '',
     `${signal.kind}: ${signal.reason}`,
     ...(signal.detail ? [`Detail: ${signal.detail}`] : []),
-    ...(signal.hint ? [`Agentry's generic suggestion: ${signal.hint}`] : []),
+    ...(signal.hint ? [`Claudio's generic suggestion: ${signal.hint}`] : []),
     '',
     'Its last steps, as its transcript records them:',
     pasted(steps),

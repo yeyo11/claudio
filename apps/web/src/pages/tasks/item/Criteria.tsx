@@ -1,10 +1,10 @@
-import type { AcceptanceCriterion, AcceptanceCriterionInput, WorkItemDetail, WorkItemHistoryEntry } from '@agentry/shared';
+import type { AcceptanceCriterion, AcceptanceCriterionInput, WorkItemDetail, WorkItemHistoryEntry } from '@claudio/shared';
 import { Pencil, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox } from '@agentry/ui/components/controls';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { Checkbox } from '@claudio/ui/components/controls';
+import { ICON_SM, Monogram } from '@claudio/ui/components/icons';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { ItemActions } from './hooks';
 import { criteriaProgress, shortId } from './model';

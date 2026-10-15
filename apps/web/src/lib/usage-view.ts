@@ -1,5 +1,5 @@
-import type { UsagePoint, UsageSlice } from '@agentry/shared';
-import { parseDay, toDay } from '@agentry/ui/lib/calendar';
+import type { UsagePoint, UsageSlice } from '@claudio/shared';
+import { parseDay, toDay } from '@claudio/ui/lib/calendar';
 
 /** What a chart plots. Cost is what the CLI reported; a chat started from a terminal has tokens only. */
 export type UsageMetric = 'cost' | 'tokens' | 'chats';

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /**
  * The layout of each Home: `?project=<id>` for a project's, `?project=all` for All projects. The

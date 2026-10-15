@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionRecord } from '@agentry/shared';
+import type { DecisionRecord } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DecisionMarkOf } from '../src/components/DecisionMark';
 import i18n from '../src/i18n';
@@ -59,7 +59,7 @@ test('the mark reads "decided" with its confidence, and names the answer for a s
   assert.match(html, /decided · 0[.,]93/);
   assert.match(html, /aria-haspopup="dialog"/);
   assert.match(html, /aria-expanded="false"/);
-  assert.match(html, /Decided by Agentry, confidence 0[.,]93: Bug/);
+  assert.match(html, /Decided by Claudio, confidence 0[.,]93: Bug/);
   // Closed, the answer is not in the page
   assert.doesNotMatch(html, /Which type\?/);
 });

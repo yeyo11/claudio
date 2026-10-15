@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { entryText } from '@agentry/shared';
-import type { Chat, ChatDetail, TranscriptEntry } from '@agentry/shared';
-import { appendStreamed, spliceTail, streamMark } from '@agentry/chat-ui/lib/chat-stream';
+import { entryText } from '@claudio/shared';
+import type { Chat, ChatDetail, TranscriptEntry } from '@claudio/shared';
+import { appendStreamed, spliceTail, streamMark } from '@claudio/chat-ui/lib/chat-stream';
 
 // Reproductions added by docs/reports/chat-audit/repro.md for findings that had none. Each test
 // asserts what the chat should do and is marked `todo` with the finding's id: it fails today, and the

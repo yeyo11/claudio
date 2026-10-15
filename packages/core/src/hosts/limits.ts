@@ -9,7 +9,7 @@ export class HostBusyError extends Error {
 }
 
 export interface HostLimiterOptions {
-  /** Processes per CLI at once in this Agentry process */
+  /** Processes per CLI at once in this Claudio process */
   perCli?: number;
   /** How long a call waits for a slot before it is `busy` */
   admissionMs?: number;

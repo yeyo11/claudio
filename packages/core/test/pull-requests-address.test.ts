@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { ChangeRequestThreads, Orchestration, ReviewThread, WorkItem } from '@agentry/shared';
+import type { ChangeRequestThreads, Orchestration, ReviewThread, WorkItem } from '@claudio/shared';
 import { flowPrompt, reviewFixPrompt } from '../src/flow.ts';
 import { ReviewsError, type ReviewsService } from '../src/hosts/reviews-service.ts';
 import { runHostCall } from '../src/hosts/exec.ts';
@@ -89,7 +89,7 @@ async function withThreads(flowOn = true): Promise<Fixture> {
     reviews: st.reviews,
     flowOn: () => flowOn,
   });
-  return { s, service, stub: st, item, remoteHead: () => sh(s.r.remote, 'rev-parse', 'task/cw-1') };
+  return { s, service, stub: st, item, remoteHead: () => sh(s.r.remote, 'rev-parse', 'claudio-task/cw-1') };
 }
 
 function developerAddresses(f: Fixture): void {
@@ -129,7 +129,7 @@ test("a person's address hands the chosen thread to the Developer, and QA's pass
     assert.notEqual(f.remoteHead(), before);
     assert.equal(f.remoteHead(), sh(f.item.worktree ?? '', 'rev-parse', 'HEAD'));
     assert.match(sh(f.item.worktree ?? '', 'log', '-1', '--format=%s'), /^round the total$/);
-    assert.deepEqual(f.stub.writes, [], 'a thread is never replied to or resolved by Agentry itself');
+    assert.deepEqual(f.stub.writes, [], 'a thread is never replied to or resolved by Claudio itself');
   } finally {
     cleanup(f.s);
   }

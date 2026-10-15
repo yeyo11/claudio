@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 import type {
   Account,
   AccountLoginSession,
@@ -11,13 +11,13 @@ import type {
   RotationPolicy,
   RotationPolicyRequest,
   UsageHistoryPoint,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { AccountLogins } from '../account-logins.ts';
 
 /**
  * The Claude accounts (docs/plans/claude-only-fork.md, section 2): who they are, the usage each
  * reported, the sign-in of a `login` account, and the settings and policies that decide when work
- * moves to another. Validation lives in `@agentry/accounts`. A token or key travels in the body of
+ * moves to another. Validation lives in `@claudio/accounts`. A token or key travels in the body of
  * `POST /accounts/token` only and is never answered back or logged; every write is refused to a
  * chat's token in `security.ts`.
  */

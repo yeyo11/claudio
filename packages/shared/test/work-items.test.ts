@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { WorkItemLinkRole } from '../src/index.ts';
 import {
-  AGENTRY_LANGUAGES,
+  CLAUDIO_LANGUAGES,
   agentryLanguage,
   BOARD_DONE_PAGE,
   DEFAULT_FLOW_MAX_PARALLEL,
@@ -55,7 +55,7 @@ test('a prefix a clash left with a digit is still a valid prefix', () => {
 });
 
 test('an item is worked on a lower case task branch', () => {
-  assert.equal(workItemBranch('AGN-12'), 'task/agn-12');
+  assert.equal(workItemBranch('AGN-12'), 'claudio-task/agn-12');
 });
 
 test('a value list cannot drift from its union, in either direction', () => {
@@ -119,7 +119,7 @@ test('the language of a request is the first of ours it names, English otherwise
   assert.equal(agentryLanguage('de-DE'), 'en');
   assert.equal(agentryLanguage(undefined), 'en');
   assert.equal(agentryLanguage(['es']), 'en');
-  assert.deepEqual([...AGENTRY_LANGUAGES], ['en', 'es']);
+  assert.deepEqual([...CLAUDIO_LANGUAGES], ['en', 'es']);
 });
 
 test('pages are bounded, and the Done column starts smaller than a list page', () => {

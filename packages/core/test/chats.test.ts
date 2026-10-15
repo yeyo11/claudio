@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { Orchestration } from '@agentry/shared';
+import type { Orchestration } from '@claudio/shared';
 import { chatsFromRuns, type LegacyRun } from '../src/chat-records.ts';
 import { ChatConflictError } from '../src/chat-service.ts';
 import { Db } from '../src/db.ts';
@@ -39,7 +39,7 @@ function setup() {
   return { config, core };
 }
 
-/** A transcript the CLI wrote for a chat Agentry never drove, e.g. one started in a terminal. */
+/** A transcript the CLI wrote for a chat Claudio never drove, e.g. one started in a terminal. */
 function terminalChat(config: ReturnType<typeof tempConfig>, sessionId: string): string {
   // A real directory, since resuming the chat starts a process in it
   const cwd = join(config.workspaceDir, 'terminal-project');
@@ -197,11 +197,11 @@ test('a chat is told which wrapper runs it, and never inherits the address of an
   const log = join(config.dataDir, 'env.log');
   const claude = join(config.dataDir, 'claude');
   mkdirSync(config.dataDir, { recursive: true });
-  writeFileSync(claude, `#!/bin/sh\necho "$AGENTRY_CHAT_ID|$AGENTRY_API_URL" >> "${log}"\n`);
+  writeFileSync(claude, `#!/bin/sh\necho "$CLAUDIO_CHAT_ID|$CLAUDIO_API_URL" >> "${log}"\n`);
   chmodSync(claude, 0o755);
-  const inherited = process.env.AGENTRY_API_URL;
+  const inherited = process.env.CLAUDIO_API_URL;
   // The wrapper itself was started from a chat of another one
-  process.env.AGENTRY_API_URL = 'http://127.0.0.1:1/api';
+  process.env.CLAUDIO_API_URL = 'http://127.0.0.1:1/api';
   const core = new Core({ ...config, claudeBin: claude });
   try {
     const before = core.runtime.start({ prompt: 'hi', keepAlive: false });
@@ -212,8 +212,8 @@ test('a chat is told which wrapper runs it, and never inherits the address of an
     const after = core.runtime.start({ prompt: 'hi', keepAlive: false });
     assert.equal(await until(() => lines()[1], 'the second launch'), `${after.id}|http://127.0.0.1:34331/api`);
   } finally {
-    if (inherited === undefined) delete process.env.AGENTRY_API_URL;
-    else process.env.AGENTRY_API_URL = inherited;
+    if (inherited === undefined) delete process.env.CLAUDIO_API_URL;
+    else process.env.CLAUDIO_API_URL = inherited;
     core.shutdown();
   }
 });
@@ -221,7 +221,7 @@ test('a chat is told which wrapper runs it, and never inherits the address of an
 // ---------- the chat's own API token ----------
 
 /**
- * A CLI that writes `<chat id>|<AGENTRY_API_TOKEN>` and then either exits, or stays up while the
+ * A CLI that writes `<chat id>|<CLAUDIO_API_TOKEN>` and then either exits, or stays up while the
  * file named by $HOLD_FILE exists, so a test can look at a token while its process lives.
  */
 function tokenCli() {
@@ -230,7 +230,7 @@ function tokenCli() {
   const hold = join(config.dataDir, 'hold');
   const claude = join(config.dataDir, 'claude');
   mkdirSync(config.dataDir, { recursive: true });
-  writeFileSync(claude, `#!/bin/sh\necho "$AGENTRY_CHAT_ID|$AGENTRY_API_TOKEN" >> "${log}"\nif [ -f "${hold}" ]; then exec sleep 30; fi\n`);
+  writeFileSync(claude, `#!/bin/sh\necho "$CLAUDIO_CHAT_ID|$CLAUDIO_API_TOKEN" >> "${log}"\nif [ -f "${hold}" ]; then exec sleep 30; fi\n`);
   chmodSync(claude, 0o755);
   const core = new Core({ ...config, claudeBin: claude });
   core.runtime.apiUrl = 'http://127.0.0.1:34331/api';
@@ -245,9 +245,9 @@ type ProcOf = { chats: Map<string, { proc: import('node:child_process').ChildPro
 const exited = (core: Core, id: string) => ['completed', 'failed', 'stopped'].includes(core.runtime.get(id)?.status ?? '');
 
 test("a chat's process gets its own API token, never the one the wrapper inherited", async () => {
-  const inherited = process.env.AGENTRY_API_TOKEN;
+  const inherited = process.env.CLAUDIO_API_TOKEN;
   // The wrapper itself was started from a chat of another one
-  process.env.AGENTRY_API_TOKEN = 'agc_the-other-wrappers-token';
+  process.env.CLAUDIO_API_TOKEN = 'agc_the-other-wrappers-token';
   const { core, tokenOf } = tokenCli();
   try {
     core.runtime.start({ prompt: 'hi', keepAlive: false });
@@ -257,8 +257,8 @@ test("a chat's process gets its own API token, never the one the wrapper inherit
     // 32 random bytes in base64url
     assert.equal(Buffer.from(token.slice(CHAT_TOKEN_PREFIX.length), 'base64url').length, 32);
   } finally {
-    if (inherited === undefined) delete process.env.AGENTRY_API_TOKEN;
-    else process.env.AGENTRY_API_TOKEN = inherited;
+    if (inherited === undefined) delete process.env.CLAUDIO_API_TOKEN;
+    else process.env.CLAUDIO_API_TOKEN = inherited;
     core.shutdown();
   }
 });

@@ -1,4 +1,4 @@
-import type { Project, Schedule } from '@agentry/shared';
+import type { Project, Schedule } from '@claudio/shared';
 
 /**
  * What the search field of a list page matches: every word typed has to appear in one of the

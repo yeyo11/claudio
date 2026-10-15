@@ -1,14 +1,14 @@
-import type { ToolPreset } from '@agentry/shared';
+import type { ToolPreset } from '@claudio/shared';
 import { Plus, RotateCcw } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Select } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
+import { Select } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
 import { StringListEditor } from '../../components/editors';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 
 /** `Docs only` → `docs-only`: the id is what a chat request names, so it stays readable. */

@@ -14,7 +14,7 @@
     "title": "Schedules",
     "subtitle": "Chats and orchestrations that start on a timetable",
     "new": "New schedule",
-    "missedTitle": "A window missed while Agentry was down is skipped, not replayed",
+    "missedTitle": "A window missed while Claudio was down is skipped, not replayed",
     "missedBody": "If the wrapper is not running when a slot comes due, that run is recorded as skipped and nothing is started late.",
     "permissionsTitle": "Nobody approves permissions",
     "permissionsBody": "Nobody is at the keyboard when a schedule fires, so a scheduled run is denied any permission its mode does not already allow.",
@@ -138,7 +138,7 @@
     "invalidCron": "This is not a valid cron expression",
     "zoneNote": "Read in {{zone}}",
     "previewLoading": "Checking the expression…",
-    "missedNote": "If Agentry is not running when a slot comes due, that run is skipped, not replayed.",
+    "missedNote": "If Claudio is not running when a slot comes due, that run is skipped, not replayed.",
     "what": "What to start",
     "kinds": {
       "chat": "A chat",

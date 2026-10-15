@@ -11,7 +11,7 @@
 // A spec that exports `fakeCli = true` runs against the fake `claude` of e2e/fake-cli instead of the
 // real one: the server is restarted with it first on PATH, and those specs run after every other,
 // so a spec that did not ask never sees it. See e2e/fake-cli/README.md.
-// Agentry's own release check never reaches GitHub: AGENTRY_RELEASES_URL points at a fixture served
+// Agentry's own release check never reaches GitHub: CLAUDIO_RELEASES_URL points at a fixture served
 // here, whose tag a spec sets through `releases.set(tag)`. The daily check is off, so only a spec
 // that presses Check for updates (or posts /system/release/check) learns of a release.
 // Shards: E2E_SHARD=k/N runs only shard k of N (1-based) in this process, which is what each CI
@@ -98,7 +98,7 @@ const mine = shard ? new Set(splitSpecs(entries, timings, shard.count)[shard.ind
 const specs = mine ? allSpecs.filter((f) => mine.has(f)) : allSpecs;
 const loaded = mine ? allLoaded.filter((e) => mine.has(e.file)) : allLoaded;
 
-const PORT = Number(process.env.E2E_PORT || 8799);
+const PORT = Number(process.env.E2E_PORT || 8809);
 const baseUrl = `http://127.0.0.1:${PORT}`;
 
 // GitHub's latest-release shape, reduced to the fields the check reads
@@ -156,20 +156,20 @@ const env = {
   PORT: String(PORT),
   HOST: '127.0.0.1',
   LOG_LEVEL: 'error',
-  AGENTRY_WORKSPACE_DIR: join(sandbox, 'workspace'),
-  AGENTRY_DATA_DIR: join(sandbox, 'data'),
+  CLAUDIO_WORKSPACE_DIR: join(sandbox, 'workspace'),
+  CLAUDIO_DATA_DIR: join(sandbox, 'data'),
   // The build this run is about, and not whatever the environment already pointed at. Inherited
   // from a shell that had it set — a desktop install exports it for its own packaged bundle — the
   // server serves that instead, and the suite reports on a build nobody asked it to look at. The
   // check above proves this directory exists; it is also the one every spec means.
-  AGENTRY_WEB_DIST: join(root, 'apps/web/dist'),
-  AGENTRY_RELEASES_URL: releasesUrl,
-  AGENTRY_UPDATE_CHECK: 'off',
+  CLAUDIO_WEB_DIST: join(root, 'apps/web/dist'),
+  CLAUDIO_RELEASES_URL: releasesUrl,
+  CLAUDIO_UPDATE_CHECK: 'off',
   // The Updates card offers the Docker commands, the one distribution a browser run can stand for
-  AGENTRY_DISTRIBUTION: 'docker',
+  CLAUDIO_DISTRIBUTION: 'docker',
   // ...which turns the tunnel off by default; the Remote access specs need it offered. No spec can
   // open a real one: the suite runs with authentication off, and the tunnel refuses to start then
-  AGENTRY_TUNNEL: 'on',
+  CLAUDIO_TUNNEL: 'on',
   // The tunnel's CLI is the core tests' fake, on a node file of the sandbox's own: the suite never
   // asks, let alone changes, the real Tailscale of the machine it runs on
   TAILSCALE_BIN: join(root, 'packages/core/test/fixtures/fake-tailscale.mjs'),
@@ -180,7 +180,7 @@ const env = {
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
 // checked every half second, so a signal reaches the page within a spec's patience.
-// `scripts` is the fake's scripts file (AGENTRY_FAKE_CLI_SCRIPTS): a spec writes it to script a turn it
+// `scripts` is the fake's scripts file (CLAUDIO_FAKE_CLI_SCRIPTS): a spec writes it to script a turn it
 // cannot type itself, such as the prompt an assistant run is started with. The fake reads it anew on
 // every turn, and a missing file scripts nothing.
 const fakeCli = { bin: join(here, 'fake-cli', 'claude'), log: join(sandbox, 'fake-cli.jsonl'), scripts: join(sandbox, 'fake-cli-scripts.json') };
@@ -188,10 +188,10 @@ const fakeEnv = {
   ...env,
   PATH: [join(here, 'fake-cli'), process.env.PATH].filter(Boolean).join(delimiter),
   CLAUDE_CONFIG_DIR: join(sandbox, 'claude'),
-  AGENTRY_HEALTH_INTERVAL_MS: '500',
-  AGENTRY_FAKE_CLI_LOG: fakeCli.log,
-  AGENTRY_FAKE_CLI_SCRIPTS: fakeCli.scripts,
-  AGENTRY_FAKE_CLI_HEARTBEAT_MS: '500',
+  CLAUDIO_HEALTH_INTERVAL_MS: '500',
+  CLAUDIO_FAKE_CLI_LOG: fakeCli.log,
+  CLAUDIO_FAKE_CLI_SCRIPTS: fakeCli.scripts,
+  CLAUDIO_FAKE_CLI_HEARTBEAT_MS: '500',
   // By absolute path, not by PATH alone: the API puts the login shell's PATH first, and on a machine
   // with Claude Code in ~/.local/bin that found the real CLI, so every fakeCli spec talked to it and
   // ran out its time
@@ -206,7 +206,7 @@ let serverStderr = '';
 const STDERR_TAIL_CHARS = 4000;
 function startServer(cli) {
   // Its own process group: `pnpm`, `tsx` and the API are killed together, by the leader's PID
-  const child = spawn('pnpm', ['--filter', '@agentry/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+  const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
   serverStderr = '';
   // Still shown as it comes, as when stderr was inherited; kept as well, so a start that fails can say why
   child.stderr.on('data', (chunk) => {

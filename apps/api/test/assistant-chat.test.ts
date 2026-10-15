@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { Chat, Project } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { Chat, Project } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // POST /assistant/chats over a real core and the fake CLI: it answers what POST /chats answers, and the
-// chat the fake spawned was given the confinement of the Agentry assistant.
+// chat the fake spawned was given the confinement of the Claudio assistant.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 
@@ -29,8 +29,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });

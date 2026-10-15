@@ -1,4 +1,4 @@
-import type { Chat, ChangeSummary, EditStep, Orchestration, OrchestrationTaskState, TouchedFile } from '@agentry/shared';
+import type { Chat, ChangeSummary, EditStep, Orchestration, OrchestrationTaskState, TouchedFile } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -6,13 +6,13 @@ import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { AgentProviderScope, useAgentCopy } from '../../lib/agent-name';
 import { baseName, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../../lib/changes-summary';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
-import type { TickerActivity } from '@agentry/ui/lib/live';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
+import type { TickerActivity } from '@claudio/ui/lib/live';
 import { totalsOf } from '../../lib/observe';
 import { Fingerprint } from '../changes/Fingerprint';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { ErrorBox, Loading } from '@agentry/ui/components/ui';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { ErrorBox, Loading } from '@claudio/ui/components/ui';
 
 /*
  * The compact summary of what a chat, a task or the integration branch changed: the totals, the

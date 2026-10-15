@@ -1,16 +1,16 @@
-import type { ProviderLimit, ProviderStatus } from '@agentry/shared';
+import type { ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { useProviderReason } from '../ProviderRow';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { limitReading, type LimitReading } from '../../lib/shell-live';
 import { useLimitWindowName } from '../../lib/limit-words';
 import { resetWhen } from '../../lib/reset-when';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { StatusDot, usageTone, type DotTone } from '@agentry/ui/components/motion';
-import { Spinner } from '@agentry/ui/components/Spinner';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { StatusDot, usageTone, type DotTone } from '@claudio/ui/components/motion';
+import { Spinner } from '@claudio/ui/components/Spinner';
 
 /**
  * What the dot says of a provider whose last reading is near or at its limit. The limit is always

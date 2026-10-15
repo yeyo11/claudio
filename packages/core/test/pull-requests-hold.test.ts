@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { Orchestration } from '@agentry/shared';
+import type { Orchestration } from '@claudio/shared';
 import { runHostCall } from '../src/hosts/exec.ts';
 import type { MergeService } from '../src/hosts/merge-service.ts';
 import { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';
@@ -38,7 +38,7 @@ function holding(s: Setup, branch: string, refuse = false): Hold {
 
 /** An open pull request for the branch exists on the host already (opened by hand, say) */
 const alreadyOpen = (s: Setup): void => {
-  writeFileSync(join(s.r.state, 'list.json'), '[{"number":9,"url":"https://github.com/acme/shop/pull/9","state":"OPEN","headRefName":"task/cw-1","baseRefName":"main","isCrossRepository":false}]\n');
+  writeFileSync(join(s.r.state, 'list.json'), '[{"number":9,"url":"https://github.com/acme/shop/pull/9","state":"OPEN","headRefName":"claudio-task/cw-1","baseRefName":"main","isCrossRepository":false}]\n');
 };
 
 /** The service is built before the scenario knows its remote: the stub asks whoever is set when the push comes */
@@ -49,7 +49,7 @@ test('golden: approve on a branch that has an open request finds it, holds it fo
   const holder: { hold: Hold | null } = { hold: null };
   const s = setup({ merge: delegating(holder) });
   try {
-    holder.hold = holding(s, 'task/cw-1');
+    holder.hold = holding(s, 'claudio-task/cw-1');
     const item = reviewed(s);
     s.items.checkCriterion(item.id, item.acceptanceCriteria[0]?.id ?? '', { checked: true });
     alreadyOpen(s);
@@ -72,7 +72,7 @@ test('approving with no request on the host holds nothing, and a hold that is re
   const holder: { hold: Hold | null } = { hold: null };
   const s = setup({ merge: delegating(holder) });
   try {
-    holder.hold = holding(s, 'task/cw-1');
+    holder.hold = holding(s, 'claudio-task/cw-1');
     const item = reviewed(s);
     await opened(s, item);
     assert.deepEqual(holder.hold.held, []);
@@ -80,7 +80,7 @@ test('approving with no request on the host holds nothing, and a hold that is re
     // A later pull request for the same item, on a branch whose request cannot be disarmed
     const refusing = setup({ merge: delegating(holder) });
     try {
-      holder.hold = holding(refusing, 'task/cw-1', true);
+      holder.hold = holding(refusing, 'claudio-task/cw-1', true);
       const other = reviewed(refusing);
       alreadyOpen(refusing);
       const result = await refusing.service.approve(other.id);
@@ -88,7 +88,7 @@ test('approving with no request on the host holds nothing, and a hold that is re
       await refusing.service.settled();
       assert.equal(refusing.items.find(other.id)?.pullRequest?.phase, 'failed');
       assert.equal(refusing.items.find(other.id)?.pullRequest?.number ?? null, 9, 'the request found is the one named');
-      assert.equal(sh(refusing.r.remote, 'branch', '--list', 'task/cw-1'), '', 'nothing was pushed');
+      assert.equal(sh(refusing.r.remote, 'branch', '--list', 'claudio-task/cw-1'), '', 'nothing was pushed');
     } finally {
       cleanup(refusing);
     }

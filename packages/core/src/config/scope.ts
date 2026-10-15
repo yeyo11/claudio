@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { ConfigFileVariant } from '@agentry/shared';
+import type { ConfigFileVariant } from '@claudio/shared';
 import type { CoreConfig } from '../paths.ts';
 
 /** Where a piece of configuration lives: the account-wide Claude config dir, or one project. */

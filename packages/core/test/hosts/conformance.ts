@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Check, ReviewThread } from '@agentry/shared';
+import type { Check, ReviewThread } from '@claudio/shared';
 import {
   HostActionNotOffered,
   HostParseError,
@@ -103,7 +103,7 @@ export interface ConformanceOptions {
 
 /** A body with the characters a shell would trip on: it must still only travel on stdin. */
 const BODY = 'Objective: ship it\n\n- "quoted" and `ticks` and $(subshell)\n- ends here\n';
-const HEAD = 'task/ab12cd34';
+const HEAD = 'claudio-task/ab12cd34';
 const BASE = 'release/2026.10';
 const TITLE = 'Open the branch & wait';
 

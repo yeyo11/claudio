@@ -1,4 +1,4 @@
-import type { MemoryFile } from '@agentry/shared';
+import type { MemoryFile } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { BookText, ChevronRight, FileText, Folder, GitCommitVertical, Pencil } from 'lucide-react';
 import type { CSSProperties } from 'react';
@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useJournal } from '../../../api';
 import { CodeEditor } from '../../../components/CodeEditor';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { formatBytes, formatNumber } from '@agentry/ui/lib/format';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { formatBytes, formatNumber } from '@claudio/ui/lib/format';
 import { byteSize, memoryDir, sortMemoryFiles } from './model';
 
 /** The project's `CLAUDE.md` and the CLI's memory files: what every chat of the project reads. */
@@ -45,7 +45,7 @@ function FileRow({ file, href }: { file: MemoryFile; href: string }) {
 }
 
 /**
- * The CLI's own memory beside Agentry's: `CLAUDE.md` and the memory directory, which terminal chats
+ * The CLI's own memory beside Claudio's: `CLAUDE.md` and the memory directory, which terminal chats
  * read too and where approved proposals are written. Each file opens in the editor.
  */
 export function CliMemoryCard({ cli, editorHref }: { cli: CliMemory; editorHref: (file?: string) => string }) {

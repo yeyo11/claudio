@@ -1,4 +1,4 @@
-import { normalizeMessage, type TranscriptEntry } from '@agentry/shared';
+import { normalizeMessage, type TranscriptEntry } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../../cli-facts.ts';
 import { now } from '../../live-chat.ts';
 import { readProgress, workflowStatus } from '../../workflows.ts';

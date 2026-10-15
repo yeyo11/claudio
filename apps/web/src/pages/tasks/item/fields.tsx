@@ -1,7 +1,7 @@
-import type { Milestone, WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import type { Milestone, WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkItemStatus, WorkItemType } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { useMilestones, useProjects, useTeam, useWorkItemList } from '../../../api';
-import { Monogram, nameHue } from '@agentry/ui/components/icons';
+import { Monogram, nameHue } from '@claudio/ui/components/icons';
 import { PriorityMark, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/work-item-icons';
 import { WORK_ITEM_COLUMNS, WORK_ITEM_PRIORITY_META, WORK_ITEM_TYPE_META } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';

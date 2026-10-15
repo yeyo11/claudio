@@ -11,7 +11,7 @@ tags:
 ---
 # Desktop app (Linux)
 
-The desktop app is Agentry in a window: the same UI and REST API as the Docker image, packaged as
+The desktop app is Claudio in a window: the same UI and REST API as the Docker image, packaged as
 an AppImage and a `.deb` for Linux x86_64. No container, no port to remember.
 
 It is a small Electron shell. On start it launches the bundled API as a child process on
@@ -33,9 +33,9 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Default permission mode | `bypassPermissions` | `acceptEdits` |
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
-| Listens on | `0.0.0.0:8787` | `127.0.0.1`, the port it used last |
+| Listens on | `0.0.0.0:8797` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
-| Tunnel (Settings → Remote access) | Off unless `AGENTRY_TUNNEL=on` | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
+| Tunnel (Settings → Remote access) | Off unless `CLAUDIO_TUNNEL=on` | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
 no boundary: Claude reads and writes your real files and runs commands with your privileges. So it
@@ -74,7 +74,7 @@ token in Settings → Security if other users share the machine.
 **One command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash
 ```
 
 It downloads the latest release and picks the package for your system: the `.deb` through apt on
@@ -82,44 +82,44 @@ Debian and Ubuntu (it asks for your password once), the AppImage everywhere else
 `~/.local` with a menu entry and icon and no root. Options go after `bash -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --version v0.7.0
-curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --appimage
-curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --version v0.7.0
+curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --appimage
+curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --uninstall
 ```
 
-Uninstalling keeps your data (`~/.config/Agentry`, `~/Agentry`). To update, see [Updating](#updating):
+Uninstalling keeps your data (`~/.config/Claudio`, `~/Claudio`). To update, see [Updating](#updating):
 the app installs a new release itself.
 
 **By hand**
 
-Both files are attached to each [GitHub release](https://github.com/yeyo11/agentry/releases).
+Both files are attached to each [GitHub release](https://github.com/yeyo11/claudio/releases).
 
 **AppImage**
 
 ```bash
-chmod +x Agentry-<version>-x86_64.AppImage
-./Agentry-<version>-x86_64.AppImage
+chmod +x Claudio-<version>-x86_64.AppImage
+./Claudio-<version>-x86_64.AppImage
 ```
 
 **Debian / Ubuntu**
 
 ```bash
-sudo apt install ./Agentry-<version>-amd64.deb
+sudo apt install ./Claudio-<version>-amd64.deb
 ```
 
 apt may end with a note that the download was "performed unsandboxed as root" because the file is
 not readable by user `_apt`. That is harmless: the package installed. Installing from `/tmp`
 avoids it.
 
-This installs to `/opt/Agentry`, links `/usr/bin/agentry` and adds a launcher entry. Start it from
-your application menu or with `agentry`.
+This installs to `/opt/Claudio`, links `/usr/bin/claudio` and adds a launcher entry. Start it from
+your application menu or with `claudio`.
 
 The window opens on a splash screen while the server starts. If it cannot start, the window shows
 the reason with a **Restart** button and a link to the logs.
 
 ## The window, the tray and the taskbar
 
-**Title bar.** The window has no separate title bar: Agentry's own top bar is the title bar, and
+**Title bar.** The window has no separate title bar: Claudio's own top bar is the title bar, and
 dragging any empty part of it moves the window. The window controls sit on the right, drawn by the
 system over a 54 px strip that matches the top bar, and follow the light or dark theme as you
 change it (or as the system does, when the theme follows it). On macOS the traffic lights sit at the
@@ -129,13 +129,13 @@ fixed strip of the same height as its drag region. Without it the window had no 
 there, and on Wayland (GNOME, Ubuntu) the mouse reached nothing in the first-run step until the
 person got into the app by keyboard (0.30.0).
 
-**Tray.** A tray icon says what is live. Its tooltip reads like "Agentry — 2 working · 1 waiting ·
+**Tray.** A tray icon says what is live. Its tooltip reads like "Claudio — 2 working · 1 waiting ·
 1 orchestration"; Linux trays never show a tooltip, so the same line is also the first entry of its
-menu. The menu has **Open Agentry**, **New chat**, up to eight live items — chats waiting for you
+menu. The menu has **Open Claudio**, **New chat**, up to eight live items — chats waiting for you
 first, then working chats, then running orchestrations with their tasks done out of the total, and
-"N more…" past that — and **Quit Agentry**. Picking an item opens it in the window without reloading
+"N more…" past that — and **Quit Claudio**. Picking an item opens it in the window without reloading
 the page. Closing the window still quits the app: the tray shows what is live, it does not keep
-Agentry running in the background.
+Claudio running in the background.
 
 **Progress and badge.** The taskbar or dock shows the combined progress of the running
 orchestrations (tasks done over tasks, across all of them; indeterminate for one that has no tasks
@@ -149,14 +149,14 @@ something runs), re-read when the `/api/events` feed announces a change, at most
 every 30 s while the feed is down. The tray and the window menus are in English only.
 
 **The tray's credential.** At each launch the app generates a secret (32 random bytes) and hands it
-to the server it starts as `AGENTRY_DESKTOP_TOKEN`; the tray sends it as its bearer token. It is
+to the server it starts as `CLAUDIO_DESKTOP_TOKEN`; the tray sends it as its bearer token. It is
 what lets the tray read a server guarded from Settings → Security, whose token only exists as a
 hash and so is never known to the app. The server accepts the secret only from `127.0.0.1` dialled
 on a loopback name (not through the tunnel or a proxy), compares it in constant time, and treats it
 as the actor `desktop`, which may only read (`GET`/`HEAD`; anything else is `403`). It lives in the
 memory of the two processes only: it is never written to `auth.json` or a log, no route returns it,
 it is removed from the environment chats and commands inherit, and the next launch has another.
-Without a secret, `AGENTRY_AUTH_TOKEN` from the app's environment is sent instead.
+Without a secret, `CLAUDIO_AUTH_TOKEN` from the app's environment is sent instead.
 
 **When the server refuses it.** A `401` or `403` makes the tray stop asking for 5 minutes, then 10,
 up to 30, feed and polling alike; a `429` waits as long as `Retry-After` says. `desktop.log` gets
@@ -167,13 +167,13 @@ and chats out with `429` ([decisions/requests-without-credential.md](decisions/r
 
 ## Updating
 
-The app learns of a release from its own server, which asks GitHub for the latest Agentry release
+The app learns of a release from its own server, which asks GitHub for the latest Claudio release
 once a day and whenever you press **Check for updates** (see
 [plans/app-updates.md](plans/app-updates.md)). While a newer one is known, a dot marks Settings in
 the sidebar. The app never downloads or restarts on its own: both happen when you ask.
 
 **Where to ask.** Settings → Account → **Updates** shows the version in use and the newest release,
-with **Download Agentry X** and its progress, then **Restart to update to X**. Help → **Check for
+with **Download Claudio X** and its progress, then **Restart to update to X**. Help → **Check for
 updates…** does the same through dialogs: up to date, available (Download), ready (Restart), or why
 it cannot. Once a download is ready, the tray menu also has **Restart to update to X**, just above
 Quit. The check that looks for the files to download only runs when you ask for the download, so the
@@ -183,15 +183,15 @@ server's daily check is the only one there is.
 and orchestration in flight. So if chats are working, waiting for your answer (their CLI process is
 still running) or orchestrations are running, the restart asks first — *2 chats are working, 1
 orchestration is running…* — and offers **Restart now**, **Update when I quit** or Cancel. *Update
-when I quit* installs the update the next time you quit Agentry, after the server has stopped. A
+when I quit* installs the update the next time you quit Claudio, after the server has stopped. A
 restart stops the tray's monitor and the server first, installs, and starts the new version (an
 AppImage through a detached shell that waits for the old process to exit, since `app.relaunch()`
 runs from the image's mount, which goes away with it); if the install fails, the old server is
 started again.
 
 **AppImage.** The update replaces the AppImage file in place. `install.sh` installs it as
-`~/.local/share/agentry/Agentry.AppImage`, a name with no version in it, so the menu entry keeps working. A copy
-you downloaded by hand as `Agentry-<version>-x86_64.AppImage` is replaced by a file under the new
+`~/.local/share/claudio/Claudio.AppImage`, a name with no version in it, so the menu entry keeps working. A copy
+you downloaded by hand as `Claudio-<version>-x86_64.AppImage` is replaced by a file under the new
 version's name, so a launcher or a shortcut pointing at the old name has to be pointed at the new
 one.
 
@@ -209,12 +209,12 @@ the release page so you can install by hand:
 | --- | --- |
 | A development build (`desktop:dev`) | Updates are off in a development build. |
 | The AppImage cannot be written | The AppImage at *path* cannot be replaced: the file or its folder is not writable. |
-| Neither an AppImage nor a `.deb` | This copy of Agentry was not installed from an AppImage or a .deb, so it cannot update itself. |
+| Neither an AppImage nor a `.deb` | This copy of Claudio was not installed from an AppImage or a .deb, so it cannot update itself. |
 | A `.deb` with no graphical password prompt | Installing the .deb needs a password prompt (pkexec), and none was found. Install policykit-1, or download the .deb and install it with apt. |
 
 A copy is an AppImage when its runtime sets `APPIMAGE`, and a `.deb` when `resources/package-type`
 (which electron-builder writes into the package) says `deb`, the same test electron-updater makes.
-The app passes the answer to its server as `AGENTRY_DISTRIBUTION`, which is how a browser pointed at
+The app passes the answer to its server as `CLAUDIO_DISTRIBUTION`, which is how a browser pointed at
 this server knows to send you to Help → Check for updates… instead of showing Docker commands.
 
 Every download is checked against the SHA-512 in the release's `latest-linux.yml`, fetched over HTTPS
@@ -225,15 +225,15 @@ does is logged to `desktop.log`.
 
 | What | Path |
 | --- | --- |
-| Wrapper state (runs, orchestrations, `wrapper.db`) | `~/.config/Agentry/data` |
-| Logs | `~/.config/Agentry/logs/desktop.log` and `server.log` |
-| Default working directory for runs | `~/Agentry/workspace` |
+| Wrapper state (runs, orchestrations, `wrapper.db`) | `~/.config/Claudio/data` |
+| Logs | `~/.config/Claudio/logs/desktop.log` and `server.log` |
+| Default working directory for runs | `~/Claudio/workspace` |
 | Claude Code config and transcripts | `~/.claude` (the CLI's own, unchanged) |
-| The record of the tunnel's Serve rule, while it exists | `~/.config/Agentry/data/tunnel/serve-rule.json` |
-| "Open the tunnel when Agentry starts" | `~/.config/Agentry/data/tunnel-settings.json` |
+| The record of the tunnel's Serve rule, while it exists | `~/.config/Claudio/data/tunnel/serve-rule.json` |
+| "Open the tunnel when Claudio starts" | `~/.config/Claudio/data/tunnel-settings.json` |
 
 `~/.config` is `$XDG_CONFIG_HOME` if you set it. The workspace can be moved by starting the app
-with `AGENTRY_WORKSPACE_DIR` set. Each run can still use any project directory.
+with `CLAUDIO_WORKSPACE_DIR` set. Each run can still use any project directory.
 
 The **File** menu opens the data, workspace and logs folders (press `Alt` if the menu bar is
 hidden). Each log is rotated when the app starts once it passes 5 MB, keeping the last three.
@@ -253,12 +253,12 @@ and the accounts in `~/.local/share/claude-swap` are never touched.
 
 The server listens on `127.0.0.1` only, so a phone cannot reach it directly. Settings → **Remote
 access** serves it on your tailnet through Tailscale (`tailscale serve`): an HTTPS address on this
-machine's tailnet name, `https://<machine>.<tailnet>.ts.net:8443`, and a QR code. The phone needs
+machine's tailnet name, `https://<machine>.<tailnet>.ts.net:8444`, and a QR code. The phone needs
 the Tailscale app signed in to the same tailnet. Turn on a token in Settings → Security first,
 because the tunnel refuses to open without authentication. The tunnel reaches the port the server
-actually bound to, and since the app keeps that port, "Open the tunnel when Agentry starts" keeps
+actually bound to, and since the app keeps that port, "Open the tunnel when Claudio starts" keeps
 working across launches. The address stays the same while the machine keeps its name.
-[tunnel.md](tunnel.md) has the details, and `AGENTRY_TUNNEL=off` in the app's environment turns the
+[tunnel.md](tunnel.md) has the details, and `CLAUDIO_TUNNEL=off` in the app's environment turns the
 tab off.
 
 ## The CLI is not detected
@@ -269,7 +269,7 @@ shell profile (nvm, npm prefixes, `~/.local/bin`). To find the CLI the app build
 
 1. The `PATH` of your login shell, read with `$SHELL -ilc` (5 second timeout). The output is
    read between delimiters, so a banner printed by an rc file does not matter, and the shell runs
-   with `AGENTRY_SHELL_PATH_PROBE=1` set, which an rc file can test to skip prompts and plugins.
+   with `CLAUDIO_SHELL_PATH_PROBE=1` set, which an rc file can test to skip prompts and plugins.
    When it cannot be read (no `$SHELL`, a timeout, a shell that does not start or one that prints
    no `PATH`) the app carries on with the next two.
 2. The `PATH` the app itself was started with.
@@ -282,12 +282,12 @@ file), without spawning `which`. The server does the same when it starts on its 
 service, the standalone bundle), so it finds what your terminal finds. Directories that do not exist are dropped. If the UI still says **Claude Code CLI not detected**:
 
 1. Run `which claude` in a terminal. If that finds nothing, install the CLI first.
-2. Check `~/.config/Agentry/logs/desktop.log`, and `server.log` for the server's own output.
+2. Check `~/.config/Claudio/logs/desktop.log`, and `server.log` for the server's own output.
 3. If the CLI lives somewhere unusual, or your shell prints something that breaks non-interactive
    startup, launch the app from a terminal with the path set. The server inherits the environment:
 
    ```bash
-   CLAUDE_BIN=/path/to/claude ./Agentry-<version>-x86_64.AppImage
+   CLAUDE_BIN=/path/to/claude ./Claudio-<version>-x86_64.AppImage
    ```
 
    One variable does not get through: the server runs on Electron's own binary with
@@ -295,7 +295,7 @@ service, the standalone bundle), so it finds what your terminal finds. Directori
    and commands it runs — an Electron app among them — start as themselves rather than as Node.
 
 Any variable from the [environment table](../README.md#environment-variables), such as
-`AGENTRY_DEFAULT_PERMISSION_MODE`, can be set this way.
+`CLAUDIO_DEFAULT_PERMISSION_MODE`, can be set this way.
 
 ## Building from source
 
@@ -308,11 +308,11 @@ pnpm desktop:dist    # AppImage and .deb
 ```
 
 `desktop:dev` builds everything once and runs the shell against the repo's build output, with
-DevTools in the View menu. It keeps its data in `~/.config/Agentry-dev`, apart from an installed
+DevTools in the View menu. It keeps its data in `~/.config/Claudio-dev`, apart from an installed
 app. It does not watch for changes: rerun it after editing the UI or the API. For UI work,
 `pnpm dev` and the browser are faster.
 
-`pnpm --filter @agentry/desktop test` runs the shell's unit tests (the tray menu and tooltip, the
+`pnpm --filter @claudio/desktop test` runs the shell's unit tests (the tray menu and tooltip, the
 progress fraction, the event-stream reader, the title-bar options, the updater state machine and
 when it can update), and the root `pnpm test` includes them. The Updates card's desktop branch is
 covered in the browser by `e2e/specs/updates-desktop.spec.mjs`, which stands a fake
@@ -330,7 +330,7 @@ accepts `setTitleBarTheme` only from the local server's page and only as hex col
 the theme's `--bg` and `--text` whenever the theme changes. The title-bar overlay is 54 px tall
 because the top bar is (`--topbar-h`): change one and change the other.
 
-`desktop:dist` writes `Agentry-<version>-x86_64.AppImage` and `Agentry-<version>-amd64.deb` to
+`desktop:dist` writes `Claudio-<version>-x86_64.AppImage` and `Claudio-<version>-amd64.deb` to
 `apps/desktop/release/`. The first run downloads Electron and the packaging tools from GitHub, so it
 needs network access. The packaging is configured in `apps/desktop/electron-builder.yml`.
 
@@ -347,7 +347,7 @@ the files while the release is still a draft; a published release is immutable, 
 only keeps the packages as a run artifact.
 
 You can also run the **Desktop** workflow by hand from the Actions tab. With no tag it only builds
-and keeps the packages as the `agentry-linux` run artifact, which is a way to try a change before a
+and keeps the packages as the `claudio-linux` run artifact, which is a way to try a change before a
 release.
 
 ## Related

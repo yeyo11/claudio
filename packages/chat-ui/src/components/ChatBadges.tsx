@@ -1,13 +1,13 @@
-import type { ChatBranchStatus, ChatControl, ChatOrigin, ChatState, ChatSummary, ExecutionOutcome } from '@agentry/shared';
+import type { ChatBranchStatus, ChatControl, ChatOrigin, ChatState, ChatSummary, ExecutionOutcome } from '@claudio/shared';
 import { CircleCheck, CirclePause, Cog, Hand, Lock, Network, OctagonX, Play, Terminal, TriangleAlert, Zap, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded } from '../lib/chat-model';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { formatNumber } from '@claudio/ui/lib/format';
 import '../chats.css';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { usageTone } from '@agentry/ui/components/motion';
-import { statusText } from '@agentry/ui/components/ui';
-import { ProviderMark } from '@agentry/ui/components/ProviderMark';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { usageTone } from '@claudio/ui/components/motion';
+import { statusText } from '@claudio/ui/components/ui';
+import { ProviderMark } from '@claudio/ui/components/ProviderMark';
 
 /*
  * What a chat is, said the same way wherever it appears: in words and with an icon, never with a
@@ -83,7 +83,7 @@ export function ProviderBadge({ provider, label }: { provider: string; label: st
   );
 }
 
-const ORIGIN_ICON:Record<ChatOrigin, LucideIcon> = { agentry: Play, external: Terminal, orchestration: Network, internal: Cog };
+const ORIGIN_ICON:Record<ChatOrigin, LucideIcon> = { claudio: Play, external: Terminal, orchestration: Network, internal: Cog };
 
 /** Where the chat was born: it never changes, even when resuming adopts the chat. */
 export function OriginBadge({ origin, label }: { origin: ChatOrigin; label?: string }) {

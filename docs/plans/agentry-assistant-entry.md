@@ -10,18 +10,18 @@ tags:
     - design-system
     - built
 ---
-# Spec: a global entry for the Agentry assistant (CW-18)
+# Spec: a global entry for the Claudio assistant (CW-18)
 
-This spec covers story CW-18 of the epic CW-12, "The Agentry assistant". Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome).
+This spec covers story CW-18 of the epic CW-12, "The Claudio assistant". Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome).
 It builds the "The chat" bullet of [agentry-assistant.md](agentry-assistant.md), which records the
-owner's decisions of 2026-09-28. Those decisions are not reopened here: Agentry ships its own MCP server, passed with
+owner's decisions of 2026-09-28. Those decisions are not reopened here: Claudio ships its own MCP server, passed with
 `--mcp-config` and `--strict-mcp-config`, and the assistant can write.
 
 ## What and why
 
 Today the only assistant is the **project** assistant ([assistant.md](../assistant.md)). You need
 a project to use it, it runs one structured turn, and a person who continues its chat by hand gets an
-ordinary chat. The owner wants an assistant that knows Agentry, which you can open from anywhere,
+ordinary chat. The owner wants an assistant that knows Claudio, which you can open from anywhere,
 with or without a project. It should greet the person and say what it can do, and then behave like
 any other chat.
 
@@ -30,17 +30,17 @@ confined, and the first message. The MCP server and its read tools are CW-6, and
 
 ## The one rule
 
-The assistant is a CLI chat. It reaches Agentry only through the Agentry MCP server, which the CLI
-starts because Agentry wrote it into the `--mcp-config` file. It uses no SDK and makes no HTTP call
+The assistant is a CLI chat. It reaches Claudio only through the Claudio MCP server, which the CLI
+starts because Claudio wrote it into the `--mcp-config` file. It uses no SDK and makes no HTTP call
 to Anthropic, and the greeting is not produced by a model call (see [The greeting](#the-greeting)).
 
 ## Depends on
 
 | Dependency | Why | Status |
 |---|---|---|
-| **CW-6**, the Agentry MCP server and its read tools (`packages/core` or `packages/mcp`), assumed to be named `agentry` so its tools reach the CLI as `mcp__agentry__<name>`, as [assistant-write-tools.md](assistant-write-tools.md) assumes too | the chat is confined to its tools. Without it the chat has nothing to do | built (#171): server `agentry`, helper `agentryMcp()` in `packages/core/src/agentry-mcp.ts` |
+| **CW-6**, the Claudio MCP server and its read tools (`packages/core` or `packages/mcp`), assumed to be named `claudio` so its tools reach the CLI as `mcp__claudio__<name>`, as [assistant-write-tools.md](assistant-write-tools.md) assumes too | the chat is confined to its tools. Without it the chat has nothing to do | built (#171): server `claudio`, helper `agentryMcp()` in `packages/core/src/agentry-mcp.ts` |
 | **CW-17**, the write tools and how each write is confirmed ([assistant-write-tools.md](assistant-write-tools.md)) | it sets the chat's permission mode and prompts. CW-18 does not wait for it: it ships with the read tools | option A decided (2026-10-02), not built; it lands after CW-18 (umbrella CW-30) |
-| CW-10, a per-chat API token ([chat-api-token.md](chat-api-token.md)) | the MCP server calls `AGENTRY_API_URL`. In `token` mode (the desktop app with the tunnel) it gets `401` without `AGENTRY_API_TOKEN` | built |
+| CW-10, a per-chat API token ([chat-api-token.md](chat-api-token.md)) | the MCP server calls `CLAUDIO_API_URL`. In `token` mode (the desktop app with the tunnel) it gets `401` without `CLAUDIO_API_TOKEN` | built |
 | The design reference for the entry, desktop and phone | a new primary surface counts against the gradient budget | to draw (criterion 1) |
 | The owner's answers (see [Questions for the owner](#questions-for-the-owner)) | the default model, the project assistant page, and the greeting | open |
 
@@ -70,13 +70,13 @@ It uses the same mechanism as the project assistant's `ChatConfinement` (`packag
 | Flag | Value |
 |---|---|
 | `--tools` | empty: no built-in tool at all. No `Read`/`Grep`/`Glob` in this story (see [Out of scope](#out-of-scope)) |
-| `--mcp-config=<file>` + `--strict-mcp-config` | a file holding only the Agentry MCP server, with `AGENTRY_API_URL`, `AGENTRY_CHAT_ID` and, once CW-10 lands, `AGENTRY_API_TOKEN` in its environment |
+| `--mcp-config=<file>` + `--strict-mcp-config` | a file holding only the Claudio MCP server, with `CLAUDIO_API_URL`, `CLAUDIO_CHAT_ID` and, once CW-10 lands, `CLAUDIO_API_TOKEN` in its environment |
 | `--setting-sources=` | no user, project or local settings, so none of their rules, hooks or servers apply |
 | no `--add-dir` | no uploads directory (`uploads: false`) |
 | no `--allow-dangerously-skip-permissions` | the chat can never be switched to `bypassPermissions` |
-| `--allowedTools` | the MCP server's read tools, by name (`mcp__agentry__…`) |
+| `--allowedTools` | the MCP server's read tools, by name (`mcp__claudio__…`) |
 | permission mode / `permissionPrompts` | until CW-17 ships: `dontAsk`, so anything that is not a read tool is denied. CW-17 then changes this in the same place (option A: `default` + `permissionPrompts: 'host'`). CW-18 builds the argv in **one function** that CW-17 extends, not in two |
-| `--append-system-prompt` | the Agentry guide (concepts: projects, work items and columns, team and flow, orchestrations, verification, accounts and limits), the project in scope if any, and "answer in <language>" |
+| `--append-system-prompt` | the Claudio guide (concepts: projects, work items and columns, team and flow, orchestrations, verification, accounts and limits), the project in scope if any, and "answer in <language>" |
 | `--model` | the owner's default (see [Questions for the owner](#questions-for-the-owner)) |
 
 Once started, it behaves like **a normal chat**:
@@ -145,23 +145,23 @@ The designer draws this before anything is built (criterion 1). The constraints,
      item goes in the Más sheet, because the tab bar has four tabs and they stay four;
   2. a ghost sparkle icon button in the top bar, before the bell. On a phone, the same icon in the
      top bar (44 px);
-  3. an entry "Asistente de Agentry" inside "Nuevo chat ▾" (`startEntries` in `App.tsx`). On a phone
+  3. an entry "Asistente de Claudio" inside "Nuevo chat ▾" (`startEntries` in `App.tsx`). On a phone
      that list is in the Más sheet.
 - **The screen itself.** The entry screen is either `/assistant` or a panel, and its phone version
   either has `phoneHeader: 'page'` or does not. It is **not** an `Empty` illustration screen,
   because the greeting is content. The working composer carries the one energy border, as on any
   chat.
-- **Deliverables.** `DesktopAsistenteAgentry.html` and `MobileAsistenteAgentry.html` (names
+- **Deliverables.** `DesktopAsistenteClaudio.html` and `MobileAsistenteClaudio.html` (names
   indicative) in `docs/design-system/reference/`, with dark and light screenshots, and an entry in
   `reference/index.html`. Any new class goes in `agentry-ds.css` and `design-system.md` with its
   mapping.
 
 ### The palette
 
-- A new action is **always present**, with or without a selected project: "Asistente de Agentry" /
-  "Agentry assistant", with the icon `Sparkle`. Its hint is "Con <project> como contexto" when a
+- A new action is **always present**, with or without a selected project: "Asistente de Claudio" /
+  "Claudio assistant", with the icon `Sparkle`. Its hint is "Con <project> como contexto" when a
   project is selected, or "Pregunta por proyectos, tareas, orquestaciones o uso" when none is.
-  Keywords: `assistant agentry ask help mcp asistente`.
+  Keywords: `assistant claudio ask help mcp asistente`.
 - The existing "Asistente del proyecto" and "<project> — asistente" entries stay as they are until the
   owner answers the mode question. The two entries must be told apart by title.
 
@@ -181,9 +181,9 @@ The designer draws this before anything is built (criterion 1). The constraints,
 | Piece | Where |
 |---|---|
 | Starting and re-applying the confinement, the marker, the appended prompt | `packages/core/src/index.ts` (next to `launchAssistantRun`), `packages/core/src/chats.ts` (`ChatConfinement`, resume/fork paths), the chat store in `packages/core/src/db.ts` (JSON field, no new table) |
-| The Agentry guide for the system prompt | a new `packages/core/src/agentry-assistant-prompt.ts` (name indicative) |
+| The Claudio guide for the system prompt | a new `packages/core/src/agentry-assistant-prompt.ts` (name indicative) |
 | The route | a new file or `apps/api/src/routes/assistant.ts`; `apps/api/src/openapi/routes.ts` (summary + tag); the README's [Assistant](../../README.md#assistant) table |
-| Types | `packages/shared/src/types.ts`, then `pnpm --filter @agentry/api openapi:schemas` |
+| Types | `packages/shared/src/types.ts`, then `pnpm --filter @claudio/api openapi:schemas` |
 | The entry | `apps/web/src/App.tsx` (sidebar groups / `startEntries` / `TabBar` `more`) or `components/shell/TopBar.tsx`, as the design reference says |
 | The palette | `apps/web/src/components/CommandPalette.tsx` |
 | The entry screen and the greeting | a new `apps/web/src/pages/agentry-assistant/` (name indicative), and the chat view's first message for a marked chat (`pages/ChatView` or its components) |

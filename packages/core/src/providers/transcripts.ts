@@ -1,4 +1,4 @@
-import type { TranscriptSearchResult } from '@agentry/shared';
+import type { TranscriptSearchResult } from '@claudio/shared';
 import type { TranscriptPage, TranscriptSummary } from '../cli-facts.ts';
 import type { SessionStore } from '../sessions.ts';
 import { encodeProjectId } from '../workspace.ts';
@@ -35,7 +35,7 @@ export class TranscriptUnavailable extends Error {
 
 /**
  * Claude Code's JSONL transcripts behind the interface. For Claude the native id is the session
- * id Agentry imposes, so every call passes straight to {@link SessionStore}, which stays as it is.
+ * id Claudio imposes, so every call passes straight to {@link SessionStore}, which stays as it is.
  */
 export class SessionStoreTranscripts implements TranscriptStore {
   constructor(private readonly sessions: SessionStore) {}

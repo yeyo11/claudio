@@ -198,7 +198,7 @@ def tail(host):
 
 
 def foot_note(host):
-  return '<div class="check-log-foot"><span>Últimas 200 líneas · 16 KiB · Agentry oculta los posibles secretos</span></div>'
+  return '<div class="check-log-foot"><span>Últimas 200 líneas · 16 KiB · Claudio oculta los posibles secretos</span></div>'
 
 
 def unavailable(host):
@@ -274,7 +274,7 @@ def section(host, checks, mobile=False, sel=None, menu_for=None, menu_top=118, o
   if limited:
     limit_note = (f'<div class="callout callout-warn" role="note" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
                   f'<span class="col grow" style="gap: 4px"><span class="row" style="gap: 8px"><span class="badge b-warn">límite de la API</span></span>'
-                  f'<span>El límite de la API de {HOST[host][0]} para tu cuenta está agotado hasta las <span class="mono">{limited[1]}</span>. Agentry espera hasta entonces.</span>'
+                  f'<span>El límite de la API de {HOST[host][0]} para tu cuenta está agotado hasta las <span class="mono">{limited[1]}</span>. Claudio espera hasta entonces.</span>'
                   f'<span class="check-asof">Lista leída a las {limited[0]}</span></span></div>')
   acts = actions(checks, mobile, disabled=bool(limited))
   if mobile:
@@ -332,7 +332,7 @@ def item_desktop(name, title, **kw):
   h = _swap(h, crit, mr_panel('gitlab') + section('gitlab', GL, **kw) + crit)
   diff = '<div class="row" style="gap: 8px"><a href="#" class="btn btn-sm grow">'
   h = _swap(h, diff, pr_link_row('gitlab') + diff)
-  write(name, h.replace('<title>Agentry · Tarea (desktop)', f'<title>Agentry · {title} (desktop)'))
+  write(name, h.replace('<title>Claudio · Tarea (desktop)', f'<title>Claudio · {title} (desktop)'))
 
 
 def foot_mr():
@@ -454,7 +454,7 @@ RUNNING = [('e2e:chrome', 'e2e · pipeline hijo', 'running', '1:12', 88230)]
 PASSED_N = 11
 
 TAIL = [
-  ('', '$ pnpm --filter @agentry/core test'),
+  ('', '$ pnpm --filter @claudio/core test'),
   ('', ' RUN  v3.2.4 /builds/pagos/api/packages/core'),
   ('', ' ✓ src/orchestration/stages.test.ts (18 tests) 412 ms'),
   ('', ' ✓ src/orchestration/integration.test.ts (9 tests) 1204 ms'),
@@ -558,7 +558,7 @@ def fix_card(mobile=False):
     f'<a href="DesktopChat.html" class="btn">{ico("chats")}Ver el chat</a><button type="button" class="btn btn-primary">{ico("branch")}Subir el arreglo</button></div>')
   return ('<section class="ochk-fix grad-border" aria-label="Arreglo listo">'
           '<div class="row" style="gap: 10px"><h2 class="t-h2 grow">Arreglo listo para subir</h2><span class="badge b-idle">te espera</span></div>'
-          '<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Agentry ha corregido 1 de los 2 checks que fallaban y lo ha confirmado en la rama de integración. '
+          '<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Claudio ha corregido 1 de los 2 checks que fallaban y lo ha confirmado en la rama de integración. '
           f'No sube nada hasta que pulses «Subir el arreglo».</p>{facts}<div class="col">{rs}</div>{btns}</section>')
 
 
@@ -985,9 +985,9 @@ DS_HEIGHT = 7900
 
 
 def ds_checks():
-  head = ('<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · alojamientos de código · checks</span>'
+  head = ('<header class="col" style="gap: 8px"><span class="t-label">Claudio design system · alojamientos de código · checks</span>'
           '<h1 class="t-display" style="margin: 0">Arreglar los checks</h1>'
-          '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Qué ve la persona mientras Agentry arregla los checks fallidos de una MR o una PR: la tarjeta, la página de la tarea, '
+          '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Qué ve la persona mientras Claudio arregla los checks fallidos de una MR o una PR: la tarjeta, la página de la tarea, '
           'el diálogo que lo empieza y el punto de decisión que puede empezarlo solo. Una palabra junto a cada color, una acción primaria por zona, y nada se sube sin que lo haya aprobado una persona.</p></header>')
   sections = [rules_section(), board_section(), item_section(), dialog_section(), decision_section()]
   body = (f'<div class="app col" data-theme="dark" style="width: 1440px; height: {DS_HEIGHT}px; padding: 56px 64px; gap: 40px; overflow: hidden">'

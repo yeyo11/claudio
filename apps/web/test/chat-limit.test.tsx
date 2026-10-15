@@ -2,14 +2,14 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat, Execution, ProviderLimit, ProviderMove, ProviderStatus } from '@agentry/shared';
-import { ChatUiProvider, type ChatUiConfig } from '@agentry/chat-ui/lib/context';
+import type { Chat, Execution, ProviderLimit, ProviderMove, ProviderStatus } from '@claudio/shared';
+import { ChatUiProvider, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import i18n from '../src/i18n';
 import { LimitStopped } from '../src/pages/chat/LimitStopped';

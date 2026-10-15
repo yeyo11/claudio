@@ -8,22 +8,22 @@ import type {
   DecisionSettingsUpdate,
   DecisionTestResult,
   DecisionUnavailableReason,
-} from '@agentry/shared';
-import { isEffort } from '@agentry/shared';
+} from '@claudio/shared';
+import { isEffort } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Cpu, KeyRound, Save, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Slider } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { NumberInput, Slider } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { EffortPicker } from '../../components/EffortPicker';
 import { ModelCombobox } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
-import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { BulkConsentDialog } from './decisions/BulkConsentDialog';
 import { BulkMode } from './decisions/BulkMode';
 import { ConsentDialog } from './decisions/ConsentDialog';

@@ -1,11 +1,11 @@
-import type { Chat, Orchestration, OrchestrationTaskState, TranscriptEntry } from '@agentry/shared';
+import type { Chat, Orchestration, OrchestrationTaskState, TranscriptEntry } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { GitMerge, ListChecks, Terminal, X } from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Card, StatusBadge } from '@agentry/ui/components/ui';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Card, StatusBadge } from '@claudio/ui/components/ui';
 import { ActivityLine, useChatTail } from './Activity';
 import { ChatChangesSummary, IntegrationChangesSummary, TaskChangesSummary } from './Changes';
 import { ChecklistView } from './Checklist';

@@ -5,10 +5,10 @@ import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
 const SHELL_TIMEOUT_MS = 5_000;
-const SENTINEL = '__AGENTRY_PATH__';
+const SENTINEL = '__CLAUDIO_PATH__';
 
 /** Set to `1` in the login shell's environment, so an rc file can skip its slow parts (prompts, plugins) */
-export const SHELL_PATH_PROBE_ENV = 'AGENTRY_SHELL_PATH_PROBE';
+export const SHELL_PATH_PROBE_ENV = 'CLAUDIO_SHELL_PATH_PROBE';
 
 /** Why the login shell's PATH could not be read. "Could not check" is not "there is nothing" */
 export type ShellPathFailure = 'no-shell' | 'timeout' | 'spawn-error' | 'empty-path';

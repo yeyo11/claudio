@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { ModelPicker, modelPicks } from '../src/components/ModelPicker';
-import { monogramLetters, projectMonogram } from '@agentry/ui/components/icons';
+import { monogramLetters, projectMonogram } from '@claudio/ui/components/icons';
 import { isActive, type NavItem } from '../src/components/shell/nav';
 import { PhoneHeader } from '../src/components/shell/PhoneHeader';
 import { phoneHeaderOf, PHONE_HEADER_ROUTES } from '../src/components/shell/phone-header';

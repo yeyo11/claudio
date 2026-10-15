@@ -1,4 +1,4 @@
-import type { ReviewSuggestion } from '@agentry/shared';
+import type { ReviewSuggestion } from '@claudio/shared';
 import { HostParseError } from './code-host.ts';
 import { parseJson } from './json.ts';
 
@@ -90,5 +90,5 @@ export function login(value: string, pattern: RegExp): string {
   return value;
 }
 
-/** Every body Agentry sends travels as JSON on stdin */
+/** Every body Claudio sends travels as JSON on stdin */
 export const json = (value: unknown): string => JSON.stringify(value);

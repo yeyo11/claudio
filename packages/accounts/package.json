@@ -1,6 +1,6 @@
 {
-  "name": "@agentry/accounts",
-  "version": "0.37.1",
+  "name": "@claudio/accounts",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,7 +14,7 @@
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   },
   "dependencies": {
-    "@agentry/shared": "workspace:*"
+    "@claudio/shared": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.15"

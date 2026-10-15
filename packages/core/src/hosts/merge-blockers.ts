@@ -1,9 +1,9 @@
-import type { Check, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod } from '@agentry/shared';
+import type { Check, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod } from '@claudio/shared';
 import type { ChangeRequestState, MergeRules, MergeSettings } from './code-host.ts';
 
 // "What blocks a merge" (docs/plans/code-hosts.md): the table as two pure functions, one per host,
 // that read what the host printed and name the blockers in the table's order. Nothing here runs a
-// call. GitHub's own refusal is computed client-side by gh (recorded), so Agentry computes the same
+// call. GitHub's own refusal is computed client-side by gh (recorded), so Claudio computes the same
 // from the fields and never relies on the refusal text. A value no row knows is `blocked-by-policy`,
 // never "no blocker": a merge the host would refuse must not look possible.
 
@@ -17,7 +17,7 @@ const ORDER: readonly MergeBlockerCode[] = [
   'title-rejected', 'blocked-by-dependency', 'not-yet', 'locked-files', 'merge-queue', 'blocked-by-policy', 'computing',
 ];
 
-/** The one action of each row: an Agentry action or a link, never a command to copy. */
+/** The one action of each row: an Claudio action or a link, never a command to copy. */
 const ACTIONS: Readonly<Record<MergeBlockerCode, MergeBlockerAction | null>> = {
   'not-open': null,
   computing: 'refresh',

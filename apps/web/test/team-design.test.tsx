@@ -2,15 +2,15 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { FlowRun, FlowRunPage, Overview, Project, ProjectFlowSettings, Team, TeamMember } from '@agentry/shared';
+import type { FlowRun, FlowRunPage, Overview, Project, ProjectFlowSettings, Team, TeamMember } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { keys } from '../src/api';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { DirtyProvider } from '../src/lib/dirty';
 import i18n, { setLanguage } from '../src/i18n';
 import { TeamActivityView } from '../src/pages/team/Activity';
@@ -255,7 +255,7 @@ test("a failed run says why in the person's language, keeps the raw error, and o
   assert.match(html, /flow-run-retry/);
   assert.match(words, /Reintentar/);
   // Retried: what the retry did, leading to its chat, and no second "Reintentar"
-  assert.match(words, /Se cortó 3 veces\. Agentry se reinició mientras QA trabajaba/);
+  assert.match(words, /Se cortó 3 veces\. Claudio se reinició mientras QA trabajaba/);
   assert.match(html, /href="\/chats\/chat-r"[^>]*>Reintentada: pasó hace 12 min</);
   assert.equal((html.match(/flow-run-retry/g) ?? []).length, 1);
   // A run whose item was deleted: said as gone, and why the run never started

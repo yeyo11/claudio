@@ -1,7 +1,7 @@
-import type { SetupTailscaleSummary } from '@agentry/shared';
+import type { SetupTailscaleSummary } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { Tag } from '@agentry/ui/components/ui';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { Tag } from '@claudio/ui/components/ui';
 import { tailscaleActions, tailscaleSignedIn, tailscaleTone } from '../../lib/setup';
 import { SignInPanel, SignInSheet } from './SignInPanel';
 import { SignOutButton } from './SignOutButton';
@@ -18,7 +18,7 @@ function reasonKey(summary: SetupTailscaleSummary): 'signedIn' | 'loggedOut' | '
 
 /**
  * Tailscale as one more row of the setup (the Access step): the network Remote access goes through.
- * Where Agentry runs the daemon (the Docker image) the row signs it in with the shared panel, by a
+ * Where Claudio runs the daemon (the Docker image) the row signs it in with the shared panel, by a
  * link or an auth key, and out; a machine's own Tailscale is the person's, so the row only says how
  * it stands. Laid out like the other rows of the assistant, with the panel under it on a desktop and
  * in a Sheet on a phone.

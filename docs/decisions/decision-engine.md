@@ -23,13 +23,13 @@ TypeSafe's jev-1.13, a "System One" model: no text or code, only typed answers t
 
 ## Why optional, with the owner's key
 
-Separate provider and bill; content leaves the machine (no other outside service Agentry calls receives a person's content); the one rule requires Agentry to work in full with the CLI alone; quality must be measured on the owner's data.
+Separate provider and bill; content leaves the machine (no other outside service Claudio calls receives a person's content); the one rule requires Claudio to work in full with the CLI alone; quality must be measured on the owner's data.
 
 ## Decisions taken by the owner (2026-09-28)
 
 1. **Engine**: one decision engine, primitives choice / score / noul; providers `cli` (default, a housekeeping CLI chat with `--json-schema`) and `jev` (optional, the owner's key).
 2. **Modes** off / shadow / active per decision point, all shipped off. Suggest points vs act points; act points act only when confidence clears the threshold.
-3. **Settings layout**: new Settings -> Agentry -> Decisions tab (Engine, Decision points, Supervisor, History) that absorbs the Supervisor tab; **per-project overrides from the start**.
+3. **Settings layout**: new Settings -> Claudio -> Decisions tab (Engine, Decision points, Supervisor, History) that absorbs the Supervisor tab; **per-project overrides from the start**.
 4. **Language**: every technical text in English, Jev questions and rubrics included, and the records agents write. See [[decisions/english-technical-language.md]].
 5. **Jev client**: the official SDK (`@typesafe-ai/sdk`) **behind an adapter** of our own.
 6. **CLI confidence is `null`**: act points never act on their own with the CLI provider; suggest points work with both.

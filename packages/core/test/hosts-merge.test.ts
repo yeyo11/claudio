@@ -22,7 +22,7 @@ const gh = (label: string): string => file('gh/2.102.0', label, 'out');
 const gl = (label: string): string => file('glab/1.120.0', label, 'out');
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
 const result = (stdout: string, extra: Partial<HostResult> = {}): HostResult => ({ exitCode: 0, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1, ...extra });
 const argv = (call: HostCall | null): string => (call ? call.args.join(' ') : 'none');
@@ -156,7 +156,7 @@ test('github merge: ready, the branch box and the calls GitHub does not have', (
   assert.equal(githubAdapter.parseBranchExists(result('', { exitCode: 1, http: { status: 404, headers: {} } })), false);
   assert.equal(githubAdapter.parseBranchExists(result('', { exitCode: 1, http: { status: 502, headers: {} } })), null);
   assert.equal(githubAdapter.parseBranchExists(result('', { exitCode: 1 })), null);
-  // Update from the base is Agentry's own merge in the worktree
+  // Update from the base is Claudio's own merge in the worktree
   assert.equal(githubAdapter.rebase?.(ghRepo, 1), null);
   assert.equal(githubAdapter.rebaseStatus?.(ghRepo, 1), null);
   assert.equal(githubAdapter.mergeabilityChecks?.(ghRepo, 1), null);
@@ -261,7 +261,7 @@ test('gitlab merge: the recorded boxes are parsed for their status and message, 
   // A 405 never says why: it is a refusal with a status, and the re-read names the blocker
   assert.deepEqual(boxedRefusal(refused('disc_merge_refused')), { status: 405, detail: '405 Method Not Allowed' });
   assert.equal(gitlabAdapter.mergeReason('merge', refused('disc_merge_refused')), 'merge-failed');
-  // glab's own boxes carry no status; the detail is Agentry's wording, never glab's command to copy
+  // glab's own boxes carry no status; the detail is Claudio's wording, never glab's command to copy
   assert.deepEqual(boxedRefusal(refused('conf_merge_refused')), { status: null, detail: 'the merge request has conflicts' });
   assert.deepEqual(boxedRefusal(refused('nopipe_merge_refused')), { status: null, detail: 'a passing pipeline is required before merging' });
   assert.deepEqual(boxedRefusal(refused('draft_merge_refused')), { status: null, detail: 'the merge request is a draft' });

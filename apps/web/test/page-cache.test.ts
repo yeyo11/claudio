@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
+import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 
 // A page kept for Back stays connected: every stream it held takes one of the origin's six
 // connections until the page is evicted, and a few chats opened in a row leave the page in front

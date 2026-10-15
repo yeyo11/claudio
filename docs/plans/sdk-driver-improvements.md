@@ -45,7 +45,7 @@ other vendors.
 
 Grouped into three stages. Every field added to a neutral type (`ModelUsage`, `RunOutcome`,
 `RateLimitInfo`, `ProviderLimit`) goes through `packages/shared/src/types.ts`, which means
-regenerating the OpenAPI schemas (`pnpm --filter @agentry/api openapi:schemas`).
+regenerating the OpenAPI schemas (`pnpm --filter @claudio/api openapi:schemas`).
 
 ### D1 · Richer reads of data already on the stream
 
@@ -162,7 +162,7 @@ can change mid-chat.
 D1 first (it improves the accounts and limit feature the fork rebuilds), then D2, then D3; they are
 independent and could also run in parallel, each owning its files. Every task runs `pnpm typecheck`,
 the tests of the packages it touches, and — when it changes a shared type —
-`pnpm --filter @agentry/api openapi:schemas` with no drift. A task that adds a flag adds its
+`pnpm --filter @claudio/api openapi:schemas` with no drift. A task that adds a flag adds its
 golden-args case so the Claude argument contract stays pinned.
 
 ## Out of scope (the one rule)

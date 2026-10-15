@@ -1,4 +1,4 @@
-import type { ProviderCapability, ProviderId, ProviderTransport } from '@agentry/shared';
+import type { ProviderCapability, ProviderId, ProviderTransport } from '@claudio/shared';
 
 /** A directory a provider keeps its state in, and the variable that moves it. */
 export interface ProviderConfigHome {
@@ -63,7 +63,7 @@ export interface ProviderManifest {
     range: string | null;
   };
   install: {
-    /** The vendor's install page: Agentry links to it and never runs an install */
+    /** The vendor's install page: Claudio links to it and never runs an install */
     url: string;
   };
   auth: {

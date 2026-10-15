@@ -81,7 +81,7 @@ English, and long sentences that explain too much.
 5. **Update the tests that assert Spanish text** (`apps/web/test/detail.test.ts`,
    `robustness.test.ts`, `server-strings.test.ts`, `e2e/specs/shell.spec.mjs`, and any others you
    find) so they assert the new text. Never loosen an assertion to make it pass.
-6. **Checks you run:** `pnpm typecheck` and `pnpm --filter @agentry/web test`, each under
+6. **Checks you run:** `pnpm typecheck` and `pnpm --filter @claudio/web test`, each under
    `timeout`. Do not run `pnpm e2e`; the verification phase runs it once.
 7. **Strings that are not in the locale files.** If you find Spanish or English hardcoded in a
    component that should be in the locale files, list it in your result. The `review` task decides
@@ -212,7 +212,7 @@ and nothing to list.
 
 ### Checks run
 
-`pnpm typecheck` (all five packages) and `pnpm --filter @agentry/web test` (430/430), both under
+`pnpm typecheck` (all five packages) and `pnpm --filter @claudio/web test` (430/430), both under
 `timeout`, after `pnpm install --frozen-lockfile` (this worktree had no `node_modules`). No test in
 `apps/web/test` or spec in `e2e/specs` asserted any of the strings this pass changed, so none needed
 updating. `pnpm e2e` was not run; that happens once, in the verification phase, on the merged branch.

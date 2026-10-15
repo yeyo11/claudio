@@ -11,7 +11,7 @@ import type {
   ReviewSide,
   ReviewThread,
   WorkItemPullRequestCi,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /**
  * One call to a CLI, as an adapter describes it. An adapter never runs anything: it returns this
@@ -35,7 +35,7 @@ export interface HostCall {
 
 /** What a call answered: stdout, stderr and the exit code are three different things. */
 export interface HostResult {
-  /** Null when Agentry killed it */
+  /** Null when Claudio killed it */
   exitCode: number | null;
   /** The data; parsed only when the exit code is 0 */
   stdout: string;
@@ -68,7 +68,7 @@ export class HostParseError extends Error {
 
 export type ChangeRequestState = 'open' | 'merged' | 'closed';
 
-/** What a view says, in Agentry's words. */
+/** What a view says, in Claudio's words. */
 export interface ChangeRequestView {
   number: number | null;
   url: string | null;
@@ -193,8 +193,8 @@ export class HostRequestError extends Error {
 }
 
 /**
- * The host offers no such action (Agentry does not approve or request changes on GitHub, nor remove
- * a reviewer there, and a review is posted as comments only). It is Agentry's own refusal before a
+ * The host offers no such action (Claudio does not approve or request changes on GitHub, nor remove
+ * a reviewer there, and a review is posted as comments only). It is Claudio's own refusal before a
  * call is made, never a host failure.
  */
 export class HostActionNotOffered extends Error {
@@ -354,7 +354,7 @@ export interface ReviewsAdapter {
   /** GitLab: delete a draft note. Null on GitHub, where a person's pending review is never deleted */
   discardDraft(repo: HostRepo, number: number, draftId: string): HostCall | null;
 
-  /** Null where Agentry does not approve (GitHub, decision 1) */
+  /** Null where Claudio does not approve (GitHub, decision 1) */
   approve(repo: HostRepo, number: number, headSha: string): HostCall | null;
   revoke(repo: HostRepo, number: number): HostCall | null;
   /** GitLab's approvals endpoint; null on GitHub, whose decision comes with `reviewers` */
@@ -381,7 +381,7 @@ export type ReviewsCodeHostAdapter = ChecksCodeHostAdapter & ReviewsAdapter;
  * branch, so no extra request. `methods` is before the branch's rules.
  */
 export interface MergeSettings {
-  /** In the order Agentry offers them; empty when the repository allows none */
+  /** In the order Claudio offers them; empty when the repository allows none */
   methods: MergeMethod[];
   /** GitHub `allow_auto_merge`; GitLab always */
   autoMergeAllowed: boolean;
@@ -503,7 +503,7 @@ export interface MergeAdapter {
   /** Null when the answer does not say */
   parseBranchExists(result: HostResult): boolean | null;
 
-  /** GitLab `ff` projects: a host-side rebase (E9); null on GitHub, whose update is Agentry's own merge */
+  /** GitLab `ff` projects: a host-side rebase (E9); null on GitHub, whose update is Claudio's own merge */
   rebase(repo: HostRepo, number: number): HostCall | null;
   /** GitLab: `rebase_in_progress` is only in the body with `include_rebase_in_progress=true` */
   rebaseStatus(repo: HostRepo, number: number): HostCall | null;

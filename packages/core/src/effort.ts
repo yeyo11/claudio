@@ -1,4 +1,4 @@
-import { isEffort, recommendedEffort, type Effort, type EffortUse } from '@agentry/shared';
+import { isEffort, recommendedEffort, type Effort, type EffortUse } from '@claudio/shared';
 
 /**
  * The effort a run starts with: the first level someone chose, in the order given (the task's, then

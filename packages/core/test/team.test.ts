@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@agentry/shared';
+import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { agentFileContent, RECORDS_IN_ENGLISH, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
 import { SCOPE_AND_COMPLETION } from '../src/prompt-rules.ts';
@@ -169,13 +169,13 @@ test('an agent file that already exists is kept as it is, and reported when it d
     assert.equal(developer?.file.model, 'haiku');
     assert.deepEqual(team.unassignedAgents, ['helper']);
 
-    // Nor does changing the metadata write over it: only a file still exactly Agentry's follows it
+    // Nor does changing the metadata write over it: only a file still exactly Claudio's follows it
     await core.team.putMember(p.id, 'developer', { role: 'developer', model: 'opus', responsibility: 'Builds it' });
     assert.equal(readFileSync(agentFile(p, 'developer'), 'utf8'), mine);
   });
 });
 
-test("a file Agentry wrote follows the metadata until a person edits it; then it is theirs", async () => {
+test("a file Claudio wrote follows the metadata until a person edits it; then it is theirs", async () => {
   await withCore(async (core) => {
     const p = await project(core);
     await core.team.fromTemplate(p.id, { roles: ['developer'] });
@@ -341,7 +341,7 @@ test('the starting file quotes what YAML would misread, and reads back the same'
   assert.ok(content.includes(`## How you work\n\n${SCOPE_AND_COMPLETION}\n`));
   assert.deepEqual(readFrontmatter(content), { name: 'po', description: 'Refines: the "backlog" # first', model: 'opus' });
   assert.match(content, /You are the Product Owner/);
-  assert.match(content, /Agentry sets no limit of its own/);
+  assert.match(content, /Claudio sets no limit of its own/);
   assert.deepEqual(readFrontmatter("---\ndescription: 'it''s mine'\n---\n"), { description: "it's mine" });
   assert.deepEqual(readFrontmatter('no frontmatter'), {});
 });
@@ -363,7 +363,7 @@ test('a member that writes nothing is told so, not told it has no limit; one wit
   assert.match(nothing, /You write none of the project's files: only documents in the documents folder/);
   assert.doesNotMatch(nothing, /no limit/);
   const free = agentFileContent({ agent: 'dev', role: 'developer', model: 'sonnet', responsibility: 'Implements' });
-  assert.match(free, /Agentry sets no limit of its own/);
+  assert.match(free, /Claudio sets no limit of its own/);
   const some = agentFileContent({ agent: 'qa', role: 'qa', model: 'sonnet', responsibility: 'Verifies', writes: ['docs/reports'] });
   assert.match(some, /You may write only these paths, relative to the project, and the documents folder:\n\n- `docs\/reports`/);
   assert.match(some, /`criteria`: when you verify the item/);
@@ -379,7 +379,7 @@ test("a member's shell commands are kept, checked and told to its agent file; nu
     const listed = await core.team.putMember(p.id, 'developer', { ...base, commands: ['pnpm test', 'pnpm *', 'pnpm test'] });
     assert.deepEqual(listed.commands, ['pnpm test', 'pnpm *']);
     assert.deepEqual((await core.projectSettings(p.id)).team?.members[0]?.commands, ['pnpm test', 'pnpm *']);
-    // Agentry's own file follows, and says what the shell may run
+    // Claudio's own file follows, and says what the shell may run
     assert.match(readFileSync(agentFile(p, 'developer'), 'utf8'), /## What you may run[^]*- `pnpm test`\n- `pnpm \*`/);
 
     const none = await core.team.putMember(p.id, 'developer', { ...base, commands: [] });

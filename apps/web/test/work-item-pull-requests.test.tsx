@@ -2,14 +2,14 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { BoardCheckout, FlowRun, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemHistoryEntry, WorkItemPullRequest, WorkItemStatus } from '@agentry/shared';
+import type { BoardCheckout, FlowRun, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemHistoryEntry, WorkItemPullRequest, WorkItemStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ToastProvider } from '@agentry/ui/components/Toast';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ToastProvider } from '@claudio/ui/components/Toast';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n, { setLanguage } from '../src/i18n';
 import enTasks from '../src/i18n/locales/en/tasks.json' with { type: 'json' };
 import esTasks from '../src/i18n/locales/es/tasks.json' with { type: 'json' };
@@ -47,7 +47,7 @@ const item = (status: WorkItemStatus, extra: Partial<WorkItem> = {}): WorkItem =
   relations: [],
   rank: 'x',
   worktree: null,
-  branch: 'task/agn-7',
+  branch: 'claudio-task/agn-7',
   createdAt: '2026-09-27T10:00:00Z',
   updatedAt: '2026-09-27T10:00:00Z',
   closedAt: null,
@@ -58,7 +58,7 @@ const pr = (over: Partial<WorkItemPullRequest> = {}): WorkItemPullRequest => ({
   phase: 'open',
   number: 123,
   url: 'https://github.com/acme/shop/pull/123',
-  branch: 'task/agn-7',
+  branch: 'claudio-task/agn-7',
   base: 'main',
   ci: 'passing',
   conflicts: [],
@@ -232,7 +232,7 @@ test('each pull request state takes its one status colour, and only live things 
     const state = workItemStrip(it);
     return state ? stripTone(state) : 'none';
   };
-  assert.equal(tone(item('in_review', { pullRequest: pr({ phase: 'preparing' }) })), null, 'Agentry preparing a PR is neutral: no agent works on it');
+  assert.equal(tone(item('in_review', { pullRequest: pr({ phase: 'preparing' }) })), null, 'Claudio preparing a PR is neutral: no agent works on it');
   assert.equal(tone(item('in_progress', { pullRequest: pr({ phase: 'conflict', conflicts: ['a'] }) })), 'warn');
   assert.equal(tone(item('in_review', { pullRequest: pr({ phase: 'awaiting-verify' }) })), null);
   assert.equal(tone(item('in_review', { pullRequest: pr() })), 'wait', 'waiting for the merge is idle');
@@ -520,7 +520,7 @@ test("the item's PR row under Changes links to GitHub with its number in mono, i
   const open = wrap(<PullRequestRow pr={pr({ ci: 'failing' })} />);
   assert.match(open, /<a class="item-pr" href="https:\/\/github.com\/acme\/shop\/pull\/123" target="_blank" rel="noreferrer">/);
   assert.match(open, /<span class="item-pr-num">PR #123<\/span>/);
-  assert.match(open, /<span class="item-pr-branch">task\/agn-7 → main<\/span>/);
+  assert.match(open, /<span class="item-pr-branch">claudio-task\/agn-7 → main<\/span>/);
   assert.match(open, /class="badge pr-ci badge-bad"/);
   assert.match(text(open), /CI failing/);
   const merged = wrap(<PullRequestRow pr={pr({ phase: 'merged' })} />);
@@ -529,7 +529,7 @@ test("the item's PR row under Changes links to GitHub with its number in mono, i
   assert.doesNotMatch(wrap(<PullRequestRow pr={pr({ phase: 'preparing', number: null, url: null })} />), /item-pr/, 'no row before GitHub numbered it');
   assert.doesNotMatch(wrap(<PullRequestRow pr={null} />), /item-pr/);
   await inSpanish();
-  assert.match(text(wrap(<PullRequestRow pr={pr({ phase: 'merged' })} />)), /PR #123 task\/agn-7 → main fusionada/);
+  assert.match(text(wrap(<PullRequestRow pr={pr({ phase: 'merged' })} />)), /PR #123 claudio-task\/agn-7 → main fusionada/);
   assert.match(text(wrap(<PullRequestRow pr={pr({ phase: 'closed' })} />)), /cerrada sin fusionar/);
 });
 
@@ -539,7 +539,7 @@ test('a GitLab project says merge request, MR and !7 wherever a GitHub one says 
   const merge = text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: mr, pullRequestReadiness: gitlab })} />));
   assert.match(merge, /MR !7 waits for you to merge it on GitLab/);
   assert.match(merge, /Open MR !7 on GitLab/);
-  assert.match(text(wrap(<PullRequestRow pr={mr} />)), /MR !7 task\/agn-7 → main/);
+  assert.match(text(wrap(<PullRequestRow pr={mr} />)), /MR !7 claudio-task\/agn-7 → main/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: gitlab })} />)), /Approve and open MR/);
 
   const signedOut: PullRequestReadiness = {

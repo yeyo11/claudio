@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { EditStep } from '@agentry/shared';
+import type { EditStep } from '@claudio/shared';
 import { parseUnified } from '../src/lib/diff';
 import {
   conversationHref,

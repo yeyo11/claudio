@@ -10,11 +10,11 @@ import {
   type ExecutionOutcome,
   type HealthSignal,
   type RunStatus,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { slowAfterMs, type UsualDuration } from './commands.ts';
 import { HEALTH_REASONS, oneLine, said, wholeMinutes } from './health-strings.ts';
 
-// The adapter between what the Claude Code CLI reports and Agentry's model. Everything the CLI says
+// The adapter between what the Claude Code CLI reports and Claudio's model. Everything the CLI says
 // in its own words (stream statuses, `claude agents --json` fields, who has a process on a session)
 // is read here and comes out as `ChatState`, `ChatControl` and `ExecutionOutcome`. Nothing beyond
 // this file needs to know those words.
@@ -79,18 +79,18 @@ export function executionOutcome(status: RunStatus, restored = false): Execution
 /** Who has a process on a session right now. */
 export type SessionHolder =
   /** A live process of one of our runs */
-  | 'agentry'
+  | 'claudio'
   /** A CLI process that is not ours: a terminal, an IDE, a background session */
   | 'terminal'
   | 'nobody';
 
 /**
  * Who holds a session, from what is known of its processes: one of ours wins, since it is the one
- * Agentry drives; a process that is not ours (the CLI's list, or the process table) holds it
+ * Claudio drives; a process that is not ours (the CLI's list, or the process table) holds it
  * against us; otherwise nobody does.
  */
 export function sessionHolder(facts: { ownProcess: boolean; foreignProcess: boolean }): SessionHolder {
-  if (facts.ownProcess) return 'agentry';
+  if (facts.ownProcess) return 'claudio';
   return facts.foreignProcess ? 'terminal' : 'nobody';
 }
 
@@ -126,7 +126,7 @@ export function chatControl({ holder, origin, taskRunning = false, deliverable =
           action: 'fork',
         };
   }
-  if (holder === 'agentry') return { mode: 'interactive' };
+  if (holder === 'claudio') return { mode: 'interactive' };
   if (holder === 'terminal') {
     return {
       mode: 'readOnly',
@@ -162,10 +162,10 @@ export interface RunningCommandFacts {
   usual?: UsualDuration | null;
 }
 
-/** What health is read from. Every field is something Agentry already holds. */
+/** What health is read from. Every field is something Claudio already holds. */
 export interface HealthFacts {
   state: ChatState;
-  /** What Agentry's process on the chat is doing; null while there is none, which is when nothing can be silent or hung */
+  /** What Claudio's process on the chat is doing; null while there is none, which is when nothing can be silent or hung */
   live: { lastEventAt: string; commands: RunningCommandFacts[] } | null;
   /** Signals worked out elsewhere (`health.ts`) that only mean something while the chat is working: a loop, no progress */
   extra?: HealthSignal[];
@@ -199,7 +199,7 @@ function commandAge(command: RunningCommandFacts, nowMs: number): number {
 }
 
 /**
- * Whether a chat is working as it should, from the signals that can be told from what Agentry
+ * Whether a chat is working as it should, from the signals that can be told from what Claudio
  * receives. Worst first; a chat with none is `ok`, and says so. The clock is a parameter because a
  * hung command is a fact of the time it has been running.
  */

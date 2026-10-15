@@ -9,7 +9,7 @@ tags:
 ---
 # Push while the app is open
 
-What the service worker does with a push that arrives while a window of Agentry is open, and why
+What the service worker does with a push that arrives while a window of Claudio is open, and why
 that rule changed after the first release of Web Push ([[plans/mobile.md]]).
 
 ## The bug

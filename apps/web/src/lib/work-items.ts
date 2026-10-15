@@ -32,7 +32,7 @@ import {
   type WorkItemPullRequestCi,
   type WorkItemStatus,
   type WorkItemType,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { fixStage, type FixStage } from './change-requests';
 
 // ---------- where things are ----------
@@ -423,8 +423,8 @@ export type StripActor = { kind: 'role'; role: string } | { kind: 'person' } | {
  * - `failed`: the last run of its column failed and nothing ran that step since (bad);
  * - `rejected`: QA sent it back, in QA's words (neutral: a bounce is not a failure);
  * - `queued`: a member waits for a place under the flow's limit (neutral);
- * - `pr-*`: its pull request (docs/plans/work-item-pull-requests.md): Agentry preparing it
- *   (neutral: Agentry works, no agent does, so nothing moves), a conflict updating the branch (warn),
+ * - `pr-*`: its pull request (docs/plans/work-item-pull-requests.md): Claudio preparing it
+ *   (neutral: Claudio works, no agent does, so nothing moves), a conflict updating the branch (warn),
  *   an approval kept until QA passes (neutral), open and waiting for the person's merge (idle),
  *   closed without merging (idle, with the approval again) and failed to open (bad). A Done card
  *   draws no strip, so a merged PR whose worktree was kept is told on the item's page.
@@ -665,7 +665,7 @@ export function ciTone(ci: WorkItemPullRequestCi): 'ok' | 'bad' | null {
 
 /**
  * The quiet line under the board's toolbar when the project's checkout is behind its default
- * branch: how far, and why Agentry did not bring it forward. Null while it is up to date. The words
+ * branch: how far, and why Claudio did not bring it forward. Null while it is up to date. The words
  * are the `tasks` namespace's `checkout.*`; it never offers a command to copy.
  */
 export interface CheckoutNote {

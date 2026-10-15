@@ -22,9 +22,9 @@ import {
 import { takeNotificationParam } from '../lib/notification-open';
 import { pushIsActive, syncPush } from '../lib/push';
 import '../notifications.css';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { ICON } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { ICON } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
 
 // The panel (list, preferences, motion) loads on the first click; the shell only carries the bell
 const NotificationPanel = lazy(() => import('./NotificationPanel').then((m) => ({ default: m.NotificationPanel })));
@@ -135,7 +135,7 @@ export function NotificationHost() {
     if (!('serviceWorker' in navigator)) return;
     const onMessage = (event: MessageEvent<unknown>) => {
       const data = event.data;
-      if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== 'agentry:open') return;
+      if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== 'claudio:open') return;
       const href = (data as { href?: unknown }).href;
       if (typeof href !== 'string') return;
       navigate(href);

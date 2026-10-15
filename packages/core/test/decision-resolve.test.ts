@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import test from 'node:test';
-import type { DecisionAnswer, DecisionPointId, DecisionRecord } from '@agentry/shared';
+import type { DecisionAnswer, DecisionPointId, DecisionRecord } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
 import { DecisionResolvers } from '../src/decisions/resolve.ts';

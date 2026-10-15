@@ -1,15 +1,15 @@
-import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, Orchestration, OrchestrationPullRequest } from '@agentry/shared';
+import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, Orchestration, OrchestrationPullRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, ExternalLink, GitMerge, Pencil } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys, useMergeState, type ChangeRequestFixResult } from '../api';
-import { Checkbox } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Segmented } from '@agentry/ui/components/ui';
-import { formatDateTime } from '@agentry/ui/lib/format';
+import { Checkbox } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Segmented } from '@claudio/ui/components/ui';
+import { formatDateTime } from '@claudio/ui/lib/format';
 import { checksActions } from '../lib/change-requests';
 import {
   actionLabelKey,
@@ -37,7 +37,7 @@ const MERGE_TONE_BADGE: Record<MergeTone, string> = { ok: 'badge-ok', warn: 'bad
 /** The `merge` namespace is the item page's: both blocks word a blocker and a refusal from it, so one blocker reads the same on both. */
 type MergeWords = (key: string, values?: Record<string, string | number>) => string;
 
-/** Remedies that act through Agentry; every other action is a place on the host, which is where the person does it. */
+/** Remedies that act through Claudio; every other action is a place on the host, which is where the person does it. */
 const MERGE_CALLS: ReadonlySet<MergeBlockerAction> = new Set<MergeBlockerAction>(['mark-ready', 'update-from-base', 'rebase-on-host', 'auto-merge', 'refresh', 'fix-checks', 'rerun-checks', 'address-review']);
 
 /**
@@ -72,7 +72,7 @@ export function headGradients(facts: { live: boolean; relaunch: boolean; lead: L
 }
 
 /**
- * Merging the orchestration's change request from Agentry: the repository's methods, the branch
+ * Merging the orchestration's change request from Claudio: the repository's methods, the branch
  * box, the commit message of a squash and Merge, which stays the person's click. What blocks it is
  * named with a word and its remedy; the host's own text is rendered as text, never as markup.
  */
@@ -188,7 +188,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
   const leadArm = lead === 'merge' && !!state && !state.canMerge;
   const leadMerge = lead === 'merge' && !!state?.canMerge;
 
-  /** A remedy: an Agentry call, or the place on the host where the person does it. */
+  /** A remedy: an Claudio call, or the place on the host where the person does it. */
   const remedy = (blocker: MergeBlocker): ReactNode => {
     const action = blocker.action;
     if (!action) return null;

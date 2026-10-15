@@ -1,16 +1,16 @@
-import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, WorkItemPullRequest } from '@agentry/shared';
+import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, WorkItemPullRequest } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ban, Check, CircleAlert, Clock, ExternalLink, GitMerge, Pencil } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError, api, keys, useMergeState, type ChangeRequestFixResult } from '../../../api';
-import { Checkbox } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Segmented } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { Checkbox } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Segmented } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
 import {
   actionLabelKey,
   armBody,
@@ -196,7 +196,7 @@ export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPull
   const primaryClass = (lead: boolean) => `btn btn-small ${lead ? 'btn-primary' : ''}`.trim();
   const lead = leading === 'merge';
 
-  /** A remedy: an Agentry call, a link to the host, or a move inside the page. */
+  /** A remedy: an Claudio call, a link to the host, or a move inside the page. */
   const remedyButton = (blocker: MergeBlocker): ReactNode => {
     const action = blocker.action;
     if (!action) return null;

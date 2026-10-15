@@ -18,8 +18,8 @@ import type {
   PermissionMode,
   RunEvent,
   RunStatus,
-} from '@agentry/shared';
-import { isEffort } from '@agentry/shared';
+} from '@claudio/shared';
+import { isEffort } from '@claudio/shared';
 import { ChatActivityTracker } from './chat-activity.ts';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
@@ -35,7 +35,7 @@ const MAX_EVENTS_PER_RUN = 5000;
 /** Ids remembered per chat for a retried send: far more than any page retries */
 const MAX_RECEIPTS = 500;
 /** Why a message the agent had not taken when the wrapper went away is lost */
-const RESTARTED = 'Agentry restarted before the agent read it';
+const RESTARTED = 'Claudio restarted before the agent read it';
 /** Lost messages kept for a page opened later: the newest ones */
 const MAX_UNDELIVERED = 20;
 
@@ -97,7 +97,7 @@ export interface NewChat extends NewChatRequest {
    */
   systemPromptSnapshot?: 'off';
   /**
-   * `false` leaves the uploads directory out (`--add-dir`): a run Agentry starts on its own carries
+   * `false` leaves the uploads directory out (`--add-dir`): a run Claudio starts on its own carries
    * no attachment, and every person's uploads would otherwise be readable to it.
    */
   uploads?: false;
@@ -106,7 +106,7 @@ export interface NewChat extends NewChatRequest {
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
   /**
-   * `false` leaves `AGENTRY_API_URL` out of the environment and mints no `AGENTRY_API_TOKEN`: a run
+   * `false` leaves `CLAUDIO_API_URL` out of the environment and mints no `CLAUDIO_API_TOKEN`: a run
    * that never calls the API back (a decision chat) holds no credential to it.
    */
   api?: false;
@@ -114,14 +114,14 @@ export interface NewChat extends NewChatRequest {
   /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
   confine?: ChatConfinement;
   /**
-   * Makes the chat one of the Agentry assistant: whatever the request asked for its tools, mode and
+   * Makes the chat one of the Claudio assistant: whatever the request asked for its tools, mode and
    * prompt, the core sets them again at every process (`ChatManager.assistantLaunch`).
    */
   agentryAssistant?: AgentryAssistantMarker;
 }
 
 /**
- * A chat that may only do what Agentry names. The allow and deny lists only rule on the tools a
+ * A chat that may only do what Claudio names. The allow and deny lists only rule on the tools a
  * session has, and add to whatever the person's settings files allow; this takes the rest away.
  */
 export interface ChatConfinement {
@@ -174,7 +174,7 @@ export interface AdoptedChat {
 }
 
 /**
- * What the runtime says about a chat Agentry drives or has driven: its process, its live stream and
+ * What the runtime says about a chat Claudio drives or has driven: its process, its live stream and
  * what it delegated. The chat the API serves is assembled from this, the transcript and the CLI's
  * own list of sessions (see `chat-service.ts`).
  */
@@ -183,7 +183,7 @@ export interface ChatRuntime {
   id: string;
   /** The provider whose agent runs the chat; a runtime built without a driver states none */
   provider?: string;
-  /** The agent's own id for the session once it named it; null for a provider that takes Agentry's id */
+  /** The agent's own id for the session once it named it; null for a provider that takes Claudio's id */
   nativeSessionId?: string | null;
   name: string;
   cwd: string;
@@ -217,7 +217,7 @@ export interface ChatRuntime {
   pendingPrompts: number;
   /** What the live process is doing right now; null when there is none */
   activity: ChatActivity | null;
-  /** The tool preset and MCP servers Agentry started it with; null when it picked none */
+  /** The tool preset and MCP servers Claudio started it with; null when it picked none */
   tools?: ChatToolConfig | null;
   agentryAssistant?: AgentryAssistantMarker | null;
   executions: Execution[];
@@ -275,7 +275,7 @@ export interface ChatHost {
 }
 
 /**
- * A chat Agentry has a record of, in memory: its live stream, whatever it delegated, its history of
+ * A chat Claudio has a record of, in memory: its live stream, whatever it delegated, its history of
  * executions and, while one is running, the process. There is one per session id, however many
  * times the chat is resumed: resuming adds an execution here, it never adds a chat.
  */
@@ -368,7 +368,7 @@ export class LiveChat {
   carrying = false;
   /**
    * The CLI has confirmed the session exists (its `init` arrived): from then on a process resumes
-   * it. Until then the first spawn creates it, under the id Agentry chose, which is what lets a fork
+   * it. Until then the first spawn creates it, under the id Claudio chose, which is what lets a fork
    * have its id before the CLI has said anything.
    */
   created: boolean;
@@ -376,7 +376,7 @@ export class LiveChat {
   forkFrom: string | null = null;
   /**
    * The agent's own id for the session, once a process has reported it; null before, and always
-   * null for a provider that takes the id Agentry chose. Once set it never changes.
+   * null for a provider that takes the id Claudio chose. Once set it never changes.
    */
   nativeId: string | null = null;
   /** The last message sent, files included: a chat with none has no turn a limit could replay */

@@ -8,25 +8,25 @@ tags:
     - api
     - desktop
 ---
-# Agentry's own MCP server
+# Claudio's own MCP server
 
-Agentry ships a small MCP server, named **`agentry`**, so a chat can look things up in the wrapper that
+Claudio ships a small MCP server, named **`claudio`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
-from a config file Agentry hands over with `--mcp-config`, and it calls the REST API at
-`AGENTRY_API_URL`. Its tools reach the CLI as `mcp__agentry__<tool>`: 16 read tools (CW-6) and nine
+from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
+`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 16 read tools (CW-6) and nine
 write tools (CW-17, [below](#write-tools)). The spec is [plans/agentry-mcp-server.md](plans/agentry-mcp-server.md) (CW-6, epic
 [plans/agentry-assistant.md](plans/agentry-assistant.md)).
 
-It adds no screen and no route. The Agentry assistant's chat ([agentry-assistant.md](agentry-assistant.md))
+It adds no screen and no route. The Claudio assistant's chat ([agentry-assistant.md](agentry-assistant.md))
 is what hands it to a chat, through the helper below.
 
 ## The one rule
 
-Agentry reaches Claude Code only through its CLI, and the CLI reaches Agentry through a tool Agentry
-configured. The server makes HTTP calls only to `AGENTRY_API_URL`, never to Anthropic, and uses no
+Claudio reaches Claude Code only through its CLI, and the CLI reaches Claudio through a tool Claudio
+configured. The server makes HTTP calls only to `CLAUDIO_API_URL`, never to Anthropic, and uses no
 Anthropic package. The MCP protocol (JSON-RPC 2.0 over stdio, one message per line: `initialize`,
 `notifications/initialized`, `ping`, `tools/list`, `tools/call`) is written by hand in
-`packages/mcp`, which has no runtime dependency apart from the types of `@agentry/shared`.
+`packages/mcp`, which has no runtime dependency apart from the types of `@claudio/shared`.
 
 ## The tools
 
@@ -51,7 +51,7 @@ other method; the write tools below go through `send`, the only way to write.
 | `list_providers` | the agent providers with their readiness, account and usage limit per window, as last detected (claude-swap's accounts are gone since providers phase 4) |
 | `list_accounts` | the Claude accounts with their kind, plan, state and usage limit per account, from `GET /accounts` |
 
-The names live in `packages/mcp/src/names.ts` (`AGENTRY_MCP_SERVER`, `AGENTRY_MCP_READ_TOOLS`); a test
+The names live in `packages/mcp/src/names.ts` (`CLAUDIO_MCP_SERVER`, `CLAUDIO_MCP_READ_TOOLS`); a test
 keeps the catalogue in `tools.ts` equal to that list, and the allow list is built from it.
 
 ## Fields of the list tools
@@ -104,22 +104,22 @@ stays strict and now accepts lists and nested objects (labels, criteria).
 
 None deletes, stops, skips or restores, and none can widen a chat. The write names are in `names.ts`
 (`isAgentryMcpWriteTool`) and are never in `--allowedTools`: the CLI asks the person before each call,
-and Agentry shows no "always allow" for them ([agentry-assistant.md](agentry-assistant.md#writes-confirmed-one-by-one-option-a)).
+and Claudio shows no "always allow" for them ([agentry-assistant.md](agentry-assistant.md#writes-confirmed-one-by-one-option-a)).
 
 ## Environment
 
-The server needs `AGENTRY_API_URL`. When it is unset, empty or not an `http(s)` URL it writes
-`agentry-mcp: AGENTRY_API_URL is not set; this server only talks to the Agentry that started the chat`
+The server needs `CLAUDIO_API_URL`. When it is unset, empty or not an `http(s)` URL it writes
+`agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat`
 to stderr and exits with 1, before it reads anything. There is no default URL and no port in the
 package; a test checks it.
 
-- `AGENTRY_API_TOKEN`, when set, goes out as `Authorization: Bearer …`: it is the chat's own token
+- `CLAUDIO_API_TOKEN`, when set, goes out as `Authorization: Bearer …`: it is the chat's own token
   ([chat-environment.md](chat-environment.md)).
-- `AGENTRY_CHAT_ID`, when set, goes out as `X-Agentry-Chat`. It is informational and grants nothing.
-- `AGENTRY_VERSION` is the `serverInfo.version`.
+- `CLAUDIO_CHAT_ID`, when set, goes out as `X-Claudio-Chat`. It is informational and grants nothing.
+- `CLAUDIO_VERSION` is the `serverInfo.version`.
 
-**What the config file holds.** The same file serves every chat. It has `AGENTRY_API_URL` and
-`AGENTRY_VERSION` as literals and `AGENTRY_CHAT_ID` and `AGENTRY_API_TOKEN` as `${…}` references,
+**What the config file holds.** The same file serves every chat. It has `CLAUDIO_API_URL` and
+`CLAUDIO_VERSION` as literals and `CLAUDIO_CHAT_ID` and `CLAUDIO_API_TOKEN` as `${…}` references,
 because the chat id and the per-process token only exist when a process spawns. The CLI expands them
 from the chat's environment, so the secret never reaches the file. The file is written to
 `<dataDir>/mcp/` (directory 0700, file 0600) by the same writer as the MCP servers a person picks
@@ -129,12 +129,12 @@ from the chat's environment, so the secret never reaches the file. The file is w
 
 The helper `agentryMcp({ dataDir, apiUrl, version })` (`packages/core/src/agentry-mcp.ts`, also
 `Core.agentryMcp()`) builds the `command` of the file. **The choice is one environment variable,
-`AGENTRY_MCP_ENTRY`**, the absolute path of a bundled `mcp.mjs`:
+`CLAUDIO_MCP_ENTRY`**, the absolute path of a bundled `mcp.mjs`:
 
 | Runtime | What runs |
 |---|---|
 | Source (`pnpm dev`) | no variable: `node --import <tsx loader> packages/mcp/src/main.ts`, with tsx resolved from the mcp package because a chat's directory is not where tsx lives |
-| API bundle, container | `startServer` (`apps/api/src/server.ts`) sets `AGENTRY_MCP_ENTRY` to the `mcp.mjs` beside its own bundle; the helper runs `process.execPath` on it. `pnpm build` writes `apps/api/dist/mcp.mjs` as a third esbuild entry |
+| API bundle, container | `startServer` (`apps/api/src/server.ts`) sets `CLAUDIO_MCP_ENTRY` to the `mcp.mjs` beside its own bundle; the helper runs `process.execPath` on it. `pnpm build` writes `apps/api/dist/mcp.mjs` as a third esbuild entry |
 | Desktop app | `electron-builder.yml` ships `mcp.mjs` next to `server.mjs`, so the same rule finds it; under Electron the helper adds `ELECTRON_RUN_AS_NODE=1` to the server's `env`, as `server-process.ts` does for `server.mjs` |
 
 It was picked over a runtime field because it is a single string that works everywhere and needs no
@@ -147,7 +147,7 @@ The helper returns what a caller spreads into `runtime.start`:
 
 | Flag | Value |
 |---|---|
-| `--mcp-config` + `--strict-mcp-config` | a file with only the `agentry` server |
+| `--mcp-config` + `--strict-mcp-config` | a file with only the `claudio` server |
 | `--tools=` | empty: no built-in tool |
 | `--setting-sources=` | empty: no user, project or local settings, rules, hooks or servers |
 | `--allowedTools` | the read tools by name, and nothing else |
@@ -163,21 +163,21 @@ The helper returns what a caller spreads into `runtime.start`:
 
 ## How to try it
 
-- Tests: `pnpm --filter @agentry/mcp test` (the server, in process and over stdio),
+- Tests: `pnpm --filter @claudio/mcp test` (the server, in process and over stdio),
   `packages/core/test/agentry-mcp.test.ts` (the helper) and `apps/api/test/agentry-mcp-chat.test.ts` (a
   confined chat that asks about AGN-12, through the fake CLI's `FAKE-MCP-CALL <server> <tool> <json>`
   keyword).
 - By hand, against a running wrapper:
 
   ```bash
-  AGENTRY_API_URL=http://127.0.0.1:8787/api pnpm --filter @agentry/mcp exec tsx src/main.ts   # or, after pnpm build: node apps/api/dist/mcp.mjs
+  CLAUDIO_API_URL=http://127.0.0.1:8797/api pnpm --filter @claudio/mcp exec tsx src/main.ts   # or, after pnpm build: node apps/api/dist/mcp.mjs
   ```
 
   then type `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` and press Enter.
 
 ## Not here
 
-Stop, skip, rerun and delete tools, moving a card to Done, and listing `agentry` in the person's MCP
-settings: it is internal and given only to chats Agentry confines.
+Stop, skip, rerun and delete tools, moving a card to Done, and listing `claudio` in the person's MCP
+settings: it is internal and given only to chats Claudio confines.
 
 Related: [[plans/agentry-mcp-server.md]], [[plans/agentry-assistant.md]], [[agentry-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]]

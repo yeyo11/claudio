@@ -1,6 +1,6 @@
 {
-  "name": "@agentry/mcp",
-  "version": "0.37.1",
+  "name": "@claudio/mcp",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,9 +11,9 @@
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   },
   "devDependencies": {
-    "@agentry/api": "workspace:*",
-    "@agentry/core": "workspace:*",
-    "@agentry/shared": "workspace:*",
+    "@claudio/api": "workspace:*",
+    "@claudio/core": "workspace:*",
+    "@claudio/shared": "workspace:*",
     "fastify": "^5.12.5",
     "tsx": "^4.23.15"
   }

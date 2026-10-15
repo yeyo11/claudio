@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { CodeHostId, WebhookRegistration } from '@agentry/shared';
+import type { CodeHostId, WebhookRegistration } from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
 import { signingTokenOf } from './gitlab/hooks.ts';

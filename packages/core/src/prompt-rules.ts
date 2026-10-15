@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * The texts every prompt Agentry builds shares, written once so no builder keeps its own copy of
+ * The texts every prompt Claudio builds shares, written once so no builder keeps its own copy of
  * them (docs/prompts.md). They follow the Opus 5.5 and Sonnet 5.5 prompting guides: no request to
  * write reasoning into the answer, no line asking to think in stages, nothing that discourages tool
  * use, and a standing instruction against ending an unattended run early.

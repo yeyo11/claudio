@@ -11,7 +11,7 @@ for the docs task and the pull request.
 - **Single files** (`<screen>-<desktop|phone>-<dark|light>.webp`) are the screens it compared
   against the reference and left alone.
 - They ran against one isolated sandbox with the fake CLI, nothing live:
-  - a worktree chat (`agentry/b67aa3`, three commits and two files not committed) built from this
+  - a worktree chat (`claudio/b67aa3`, three commits and two files not committed) built from this
     repository's own history: `git.ts`, `changes.ts`, `types.ts` and `chats.ts` before and after
     the `api` task, `diff.ts` added, `editor.ts` deleted, and seven edits in its transcript;
   - an orchestration (`shop-pricing`) with two task branches merged into an integration branch;

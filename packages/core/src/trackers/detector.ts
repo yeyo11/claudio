@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os';
-import type { CodeHostId, CodeHostStatus, TrackerId, TrackerReason, TrackerState, TrackerStatus, TrackersSettings } from '@agentry/shared';
+import type { CodeHostId, CodeHostStatus, TrackerId, TrackerReason, TrackerState, TrackerStatus, TrackersSettings } from '@claudio/shared';
 import type { CodeHostAdapter, HostCall } from '../hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, probeHostVersion, type HostRun, type HostRunWhere } from '../hosts/detector.ts';
 import { runHostCall } from '../hosts/exec.ts';
@@ -10,7 +10,7 @@ import type { TrackerManifest } from './manifest.ts';
 import { TrackerRegistry } from './registry.ts';
 import type { YoutrackCredentials } from './youtrack/credentials.ts';
 
-/** Runs a call of a tracker with a CLI of its own, with the credentials Agentry keeps for it in the child's environment */
+/** Runs a call of a tracker with a CLI of its own, with the credentials Claudio keeps for it in the child's environment */
 export type OwnTrackerRun = (call: HostCall, where: HostRunWhere, secrets: Record<string, string>) => Promise<import('../hosts/exec.ts').HostResult>;
 
 const defaultOwnRun: OwnTrackerRun = (call, where, secrets) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, secretEnv: secrets });
@@ -35,7 +35,7 @@ export interface TrackerDetectorDeps {
   /** What the person chose; null (or a missing entry) means every tracker is on, using its host's binary */
   settings?: () => TrackersSettings | null;
   run?: HostRun;
-  /** The YouTrack instance and token Agentry keeps; absent where no tracker keeps credentials */
+  /** The YouTrack instance and token Claudio keeps; absent where no tracker keeps credentials */
   youtrackCredentials?: () => YoutrackCredentials | null;
   /** Runs `youtrack-app` with its credentials; the execution layer by default */
   ownRun?: OwnTrackerRun;
@@ -160,7 +160,7 @@ export class TrackerDetector {
   }
 
   /**
-   * A tracker with a CLI of its own (YouTrack): the binary, its release, then whether Agentry keeps
+   * A tracker with a CLI of its own (YouTrack): the binary, its release, then whether Claudio keeps
    * an address and a token, and whether the instance takes them. The sign-in probe is the one read
    * the recordings show is cheap and says who the token is: `/api/users/me`, exit 3 for a token
    * refused or missing.

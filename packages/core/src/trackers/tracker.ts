@@ -1,8 +1,8 @@
-import type { CodeHostId, TrackerId, TrackerMappedStatus } from '@agentry/shared';
+import type { CodeHostId, TrackerId, TrackerMappedStatus } from '@claudio/shared';
 import type { HostCall, HostRepo } from '../hosts/code-host.ts';
 
 // What a tracker adapter is, in the same shape as a code host's: a stateless translator from an
-// action to the CLI call that does it, and from the CLI's recorded output to Agentry's words. An
+// action to the CLI call that does it, and from the CLI's recorded output to Claudio's words. An
 // adapter never runs anything: `hosts/exec.ts` is the only place that spawns a CLI, writes are
 // never retried, and the caller re-reads after every write (docs/plans/code-hosts.md, "The
 // execution layer"). Issue text is untrusted: an adapter returns it as data and never acts on it.
@@ -13,7 +13,7 @@ export const ISSUES_CEILING = 500;
 /** Issues one page of a list holds. */
 export const ISSUES_PAGE_SIZE = 100;
 
-/** The longest issue body Agentry copies into a work item. */
+/** The longest issue body Claudio copies into a work item. */
 export const MAX_ISSUE_BODY = 60_000;
 
 /**
@@ -23,7 +23,7 @@ export const MAX_ISSUE_BODY = 60_000;
  */
 export type TrackerScope = HostRepo;
 
-/** An issue as a tracker prints it, in Agentry's words. */
+/** An issue as a tracker prints it, in Claudio's words. */
 export interface IssueRead {
   /** What the person reads and the CLI takes back: the issue number as a string */
   key: string;
@@ -120,7 +120,7 @@ export interface TrackerAdapter {
    * `done` writes (it closes as completed); every other column is null: nothing to do, not a failure.
    */
   setStatus(scope: TrackerScope, key: string, to: TrackerStatusTarget): HostCall | null;
-  /** Closes as completed: the one reason Agentry writes. Only the host trackers, whose `done` is a close */
+  /** Closes as completed: the one reason Claudio writes. Only the host trackers, whose `done` is a close */
   close?(scope: TrackerScope, key: string): HostCall;
 
   /**

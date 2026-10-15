@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { Project, ProjectSettings, ProjectTrackerSettings, TrackerStatus, TrackersSettings, WorkItem } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { Project, ProjectSettings, ProjectTrackerSettings, TrackerStatus, TrackersSettings, WorkItem } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The tracker routes over HTTP, on a real core with scratch dirs. The CLIs on this machine are
@@ -31,8 +31,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -110,7 +110,7 @@ test('the tracker issues and the import are refused with a reason when they cann
   assert.equal((await app.inject(issues)).statusCode, 409);
   assert.equal((await app.inject({ method: 'POST', url: importUrl, ...json({ keys: ['1'] }) })).statusCode, 409);
 
-  // Jira is not a tracker Agentry supports
+  // Jira is not a tracker Claudio supports
   const jira = { id: 'jira', scope: 'PROJ', query: '', statusMap: {} };
   assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/tracker`, ...json(jira) })).statusCode, 400);
 

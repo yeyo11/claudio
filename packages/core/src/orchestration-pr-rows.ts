@@ -1,4 +1,4 @@
-import type { OrchestrationPullRequest, OrchestrationPullRequestPhase, WorkItemPullRequestCi } from '@agentry/shared';
+import type { OrchestrationPullRequest, OrchestrationPullRequestPhase, WorkItemPullRequestCi } from '@claudio/shared';
 import { fixOf, hostOf, refOf } from './work-item-rows.ts';
 
 /**

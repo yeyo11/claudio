@@ -1,9 +1,9 @@
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { Collapsible } from '@agentry/ui/components/controls';
+import { Collapsible } from '@claudio/ui/components/controls';
 import { EnvironmentPanel } from '../../components/EnvironmentPanel';
-import { TabPanel, Tabs, useTabGroup } from '@agentry/ui/components/ui';
+import { TabPanel, Tabs, useTabGroup } from '@claudio/ui/components/ui';
 import { useDirtyKeys, useLeaveGuard } from '../../lib/dirty';
 import { FilesTab } from '../config/FilesTab';
 import { InstructionsTab } from '../config/InstructionsTab';
@@ -19,7 +19,7 @@ const SECTIONS = ['instructions', 'settings', 'mcp', 'files'] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 /**
- * A project's settings: Agentry's own first (name, key prefix, modules, board limits), then the
+ * A project's settings: Claudio's own first (name, key prefix, modules, board limits), then the
  * Claude Code configuration that lives in the project: CLAUDE.md, settings, MCP servers and files.
  */
 export function ProjectSettings({ project }: { project: Project }) {

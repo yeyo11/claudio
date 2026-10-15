@@ -1,14 +1,14 @@
-import type { AccountLoginSession } from '@agentry/shared';
+import type { AccountLoginSession } from '@claudio/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ExternalLink, KeyRound, LogIn } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { CopyButton, ErrorBox, Field, Segmented } from '@agentry/ui/components/ui';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { CopyButton, ErrorBox, Field, Segmented } from '@claudio/ui/components/ui';
 
 type Kind = 'login' | 'token' | 'api-key';
 const KINDS: readonly Kind[] = ['login', 'token', 'api-key'];

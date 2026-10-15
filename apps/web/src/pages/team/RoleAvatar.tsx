@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOverview } from '../../api';
-import type { TeamMember } from '@agentry/shared';
+import type { TeamMember } from '@claudio/shared';
 import { isKnownRole, roleFallbackName, roleHue, roleInitials, templateResponsibilityRole } from './model';
 
 /** A role's name in the interface language: the template's roles are translated, any other is shown as written. */

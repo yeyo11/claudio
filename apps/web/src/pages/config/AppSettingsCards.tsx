@@ -1,19 +1,19 @@
-import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@agentry/shared';
+import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Select } from '@agentry/ui/components/controls';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { NumberInput, Select } from '@claudio/ui/components/controls';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { PERMISSION_MODES } from '../../components/ui';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
-  allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
-  maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
-  defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
-  setupSeen: 'AGENTRY_SETUP_SEEN',
+  allowedHosts: 'CLAUDIO_ALLOWED_HOSTS',
+  maxConcurrentRuns: 'CLAUDIO_MAX_CONCURRENT_RUNS',
+  defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
+  setupSeen: 'CLAUDIO_SETUP_SEEN',
 };
 
 // The server's own bounds; a value outside them is refused with a 400

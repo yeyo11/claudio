@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, AssistantRunDetail } from '@agentry/shared';
+import type { AgentryEvent, AssistantRunDetail } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { DENIED_TOOLS } from '../src/assistant.ts';
@@ -225,7 +225,7 @@ async function spawned(file: string, match: (argv: string) => boolean, what: str
 }
 
 // The flow's hand-back and the assistant's confinement meet in ChatService.resume: an assistant
-// chat is one of Agentry's runs, so a person continuing it is handed it back, and the run's own
+// chat is one of Claudio's runs, so a person continuing it is handed it back, and the run's own
 // continuation after a restart must still come back confined through that same path.
 test('a person who continues an assistant chat through the core gets an ordinary chat, with no rule or recorded prompt of the run', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };

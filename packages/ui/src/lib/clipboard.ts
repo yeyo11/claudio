@@ -1,7 +1,7 @@
 /**
  * Puts text on the clipboard, and says whether it did.
  *
- * `navigator.clipboard` exists only in a secure context (HTTPS, or localhost), and Agentry is often
+ * `navigator.clipboard` exists only in a secure context (HTTPS, or localhost), and Claudio is often
  * opened over plain HTTP on a local network address, where it is `undefined`: a bare
  * `navigator.clipboard?.writeText()` then does nothing, with no error and no toast. There, and when
  * the asynchronous write is refused, the text is copied the older way, from a selected, hidden

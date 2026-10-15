@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { Check, ChangeRequestChecks, ChangeRequestKind, CheckLog, CheckAnnotation, ChecksRerunRequest, HostReason, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, ChangeRequestChecks, ChangeRequestKind, CheckLog, CheckAnnotation, ChecksRerunRequest, HostReason, WorkItemPullRequestCi } from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { ChangeRequestSnapshotRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';
@@ -105,7 +105,7 @@ function failure(what: string, result: HostResult, call: HostCall): ChecksError 
   return new ChecksError(`${what} failed`, reason, result.stderrFirstLine || null);
 }
 
-/** When Agentry may read again, from the headers the host sent; null without one */
+/** When Claudio may read again, from the headers the host sent; null without one */
 function resetOf(result: HostResult, now: number): string | null {
   const headers = result.http?.headers ?? {};
   const after = Number(headers['retry-after']);

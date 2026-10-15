@@ -10,7 +10,7 @@ import type {
   Orchestration,
   OrchestrationTaskState,
   TranscriptEntry,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { ChatService } from './chat-service.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import type { ChatManager } from './chats.ts';

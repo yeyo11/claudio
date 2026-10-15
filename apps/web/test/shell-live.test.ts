@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ProviderLimit } from '@agentry/shared';
+import type { ProviderLimit } from '@claudio/shared';
 import { desktopClasses } from '../src/lib/desktop.ts';
 import { chatActivity, fabFor, hidesTabBar, hidesTopBar, liveSummary, moreNotes, orchestrationProgress, cardProvider, limitReading, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 

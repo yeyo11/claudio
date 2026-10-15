@@ -1,21 +1,21 @@
-import type { Project, ProjectModule, WorkItemStatus } from '@agentry/shared';
+import type { Project, ProjectModule, WorkItemStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocuments, useJournal, useProjects, useProjectSettings, useTeam, useWorkItemBoard } from '../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Sheet } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { changeRequestWords } from '../../lib/code-hosts';
 import { useDirty } from '../../lib/dirty';
-import { errorMessage, formatNumber } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { errorMessage, formatNumber } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { columnMeta, notReadyReason, openCount } from '../../lib/work-items';
 import { columnLimitsOf, LIMIT_STATUSES, moduleFigure, normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule, type ModuleFigures } from '../projects/model';
 import { HiddenNote, ModuleCard, ModulesOffNote } from '../projects/parts';
@@ -70,7 +70,7 @@ function LimitFields({ limits, onChange }: { limits: Limits; onChange: (limits: 
 const HOST_TONE: Readonly<Record<string, 'ok' | 'warn'>> = { ready: 'ok', 'cli-missing': 'warn', 'cli-incompatible': 'warn', 'cli-signed-out': 'warn', 'unsupported-host': 'warn' };
 
 /**
- * Where the project's code lives, as Agentry detected it from the origin remote and never chosen
+ * Where the project's code lives, as Claudio detected it from the origin remote and never chosen
  * here: which host, which CLI answers for it and, when it cannot, what to do about it.
  */
 function ProjectHostLine({ project, stacked }: { project: Project; stacked: boolean }) {
@@ -146,7 +146,7 @@ function HostNoun({ project }: { project: Project }) {
 }
 
 /**
- * The part of a project's settings that is Agentry's own: its name, the prefix of its keys, its
+ * The part of a project's settings that is Claudio's own: its name, the prefix of its keys, its
  * modules and the limits of its board, saved together; and removing it. Claude Code's configuration
  * of the project follows it on the same tab.
  */

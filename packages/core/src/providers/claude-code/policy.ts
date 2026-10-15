@@ -1,4 +1,4 @@
-import { isTeamCommandPattern, type CommandRule, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
+import { isTeamCommandPattern, type CommandRule, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit'];

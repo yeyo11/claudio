@@ -139,7 +139,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
           `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, approved_at, opened_at, checked_at, created_at, updated_at)
            VALUES (?, ?, ?, 'open', 7, 'https://github.com/acme/shop/pull/7', ?, 'main', 'passing', '[]', ?, ?, ?, ?, ?)`,
         )
-        .run(crId, item.id, projectId, `task/${item.key.toLowerCase()}`, now, now, now, now, now);
+        .run(crId, item.id, projectId, `claudio-task/${item.key.toLowerCase()}`, now, now, now, now, now);
       writer.prepare("UPDATE work_items SET waiting = 'merge' WHERE id = ?").run(item.id);
       writer.close();
     }
@@ -220,7 +220,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await draft({ path: 'src/cart.ts', side: 'right', line: 12, body: 'One more thing on the rounding.' });
     await page.goto('/', 300);
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       await page.goto(`/tasks/${item.key}`, 1500);
       await page.waitFor(reviewBlockRead, { label: `[${theme}] the review block` });
       const block = await page.text('.rv');
@@ -281,7 +281,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     }
 
     // ---- 4. A phone ----
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.viewport(390, 844);
     await page.goto(`/tasks/${item.key}`, 1500);
     await page.waitFor(`return !!document.querySelector('.rv-submit-btn')`, { label: 'the review block on a phone' });
@@ -310,7 +310,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.viewport(1440, 900);
 
     // ---- 4b. Reachable from a screen ----
-    const branch = `task/${item.key.toLowerCase()}`;
+    const branch = `claudio-task/${item.key.toLowerCase()}`;
     git(root, 'checkout', '-q', '-b', branch);
     writeFileSync(join(root, 'src', 'cart.ts'), cartSource(true));
     git(root, 'commit', '-q', '-am', 'round the total');
@@ -320,7 +320,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       writer.prepare('UPDATE work_items SET branch = ? WHERE id = ?').run(branch, item.id);
       writer.close();
     }
-    const setTheme = (theme) => page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+    const setTheme = (theme) => page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
     const changesUrl = `/tasks/${item.key}/changes?file=${encodeURIComponent('src/cart.ts')}&mode=unified`;
     const unresolvedNow = async () => (await api.get(`/change-requests/${crId}/reviewers`)).body.unresolvedThreads;
     await api.del('/decisions').catch(() => {});
@@ -563,7 +563,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
             `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, approved_at, opened_at, checked_at, created_at, updated_at, host, hostname)
              VALUES (?, ?, ?, 'open', 7, 'https://gitlab.com/acme/shop/-/merge_requests/7', ?, 'main', 'passing', '[]', ?, ?, ?, ?, ?, 'gitlab', 'gitlab.com')`,
           )
-          .run(mrId, labItem.id, labProject, `task/${labItem.key.toLowerCase()}`, now, now, now, now, now);
+          .run(mrId, labItem.id, labProject, `claudio-task/${labItem.key.toLowerCase()}`, now, now, now, now, now);
         writer.prepare("UPDATE work_items SET waiting = 'merge' WHERE id = ?").run(labItem.id);
         writer.close();
       }
@@ -600,7 +600,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       check(approval.viewerHasApproved === true && /mr approve 7 --sha b2c3d4e5/.test(calls('glab')), 'after the refresh the approval is given on the new head');
 
       for (const theme of ['dark', 'light']) {
-        await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+        await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
         await page.goto(`/tasks/${labItem.key}`, 1500);
         await page.waitFor(reviewBlockRead, { label: `[${theme}] the review block on a merge request` });
         const text = await page.text('.rv');
@@ -658,7 +658,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       stopped = await partlyPost();
       check(stopped.post && stopped.onHost === 2, `only the notes Agentry saved are counted as its own (${stopped.onHost} of ${hostDrafts().length})`);
       for (const theme of ['dark', 'light']) {
-        await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+        await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
         for (const visit of ['first load', 'after a reload']) {
           await page.goto(`/tasks/${labItem.key}`, 1500);
           await page.waitFor(`return !!document.querySelector('.rv-draft .rv-foot')`, { label: `[${theme}] the partly sent review (${visit})` });
@@ -727,7 +727,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
           await page.sleep(500);
         }
         check(state?.integration?.status === 'merged', `its branch was integrated (${state?.status} / ${state?.integration?.status})`);
-        await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+        await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
         await page.goto(`/orchestration/${orchestrationId}`, 1500);
         const push = '.card .btn.btn-primary';
         await page.waitFor(`return [...document.querySelectorAll('${push}')].some((b) => b.textContent.includes('Push & open MR'))`, { label: 'the button names the merge request' });
@@ -756,7 +756,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     for (const name of ['gh', 'glab']) {
       for (const file of ['json', 'threadstate', 'replies', 'requested', 'reviews-posted', 'review-1', 'approved', 'drafts', 'draftseq', 'draftposts', 'published', 'created', 'next']) rmSync(join(stateDir, `${name}.${file}`), { force: true });
     }

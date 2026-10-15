@@ -1,8 +1,8 @@
-Agentry is starting in {{ .Release.Namespace }}.
+Claudio is starting in {{ .Release.Namespace }}.
 
 Reach it from your machine:
 
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "agentry.fullname" . }} {{ .Values.port }}:{{ .Values.port }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "claudio.fullname" . }} {{ .Values.port }}:{{ .Values.port }}
 
 then open http://localhost:{{ .Values.port }}.
 {{- if eq .Values.auth.mode "none" }}
@@ -13,10 +13,10 @@ Keep it a ClusterIP behind port-forward, or set auth.mode to token or oidc befor
 {{- if .Values.tunnel.enabled }}
 
 tunnel.enabled is true: the pod runs a tailscaled of its own. Once it is signed in from Settings >
-Remote access, anyone who can sign in to Agentry can serve this pod on that tailnet (`tailscale
+Remote access, anyone who can sign in to Claudio can serve this pod on that tailnet (`tailscale
 serve`), around the Service and the Ingress. It refuses to open while the auth mode is "none".
 {{- end }}
-{{- if not (include "agentry.secretKeySecret" .) }}
+{{- if not (include "claudio.secretKeySecret" .) }}
 
 No secretKey was given: the key that seals the credentials kept in the app is made on the data
 volume, beside what it seals. Pass one with secretKey.existingSecret to protect the volume too.

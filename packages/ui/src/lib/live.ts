@@ -17,7 +17,7 @@ export function spinnerGlyph(index: number, moving = true): string {
 }
 
 /**
- * The shape `ChatActivity` has in `@agentry/shared`, declared structurally so this file and the
+ * The shape `ChatActivity` has in `@claudio/shared`, declared structurally so this file and the
  * types task can land independently. Anything with these fields can be given to an `ActivityTicker`.
  */
 export interface TickerActivity {

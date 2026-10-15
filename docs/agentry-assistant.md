@@ -9,10 +9,10 @@ tags:
     - work-items
     - design-system
 ---
-# The Agentry assistant
+# The Claudio assistant
 
-A global chat that knows Agentry. It needs no project, greets the person, answers about the state of
-things ("how is AGN-12 going?", "how much did I spend today?") by reading Agentry through its own MCP
+A global chat that knows Claudio. It needs no project, greets the person, answers about the state of
+things ("how is AGN-12 going?", "how much did I spend today?") by reading Claudio through its own MCP
 server, and can change things, but only when the person allows each change. It is the umbrella CW-30
 ([plans/agentry-assistant.md](plans/agentry-assistant.md)), built by CW-18 (the entry and the confined
 chat, [plans/agentry-assistant-entry.md](plans/agentry-assistant-entry.md)) and CW-17 (the write tools,
@@ -22,8 +22,8 @@ resources and tasks for one project and stays as it is.
 
 ## The one rule
 
-The assistant is a Claude Code CLI chat. It reaches Agentry only through the `agentry` MCP server,
-which the CLI starts from the `--mcp-config` file Agentry wrote. No SDK, no call to Anthropic, no
+The assistant is a Claude Code CLI chat. It reaches Claudio only through the `claudio` MCP server,
+which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call to Anthropic, no
 `curl`. The greeting is not a model turn.
 
 ## Where it lives
@@ -47,18 +47,18 @@ which the CLI starts from the `--mcp-config` file Agentry wrote. No SDK, no call
 `assistantChatOptions` in `packages/core/src/agentry-mcp.ts` is the one place its argv is decided.
 The core applies it at every process of the chat (start, resume, fork, a turn after a restart) over
 whatever a request or the stored record held, from the `agentryAssistant` marker the chat stores
-(`{ projectId, language }`, in `@agentry/shared`).
+(`{ projectId, language }`, in `@claudio/shared`).
 
 | Flag | Value |
 |---|---|
-| `--mcp-config` + `--strict-mcp-config` | only the `agentry` server |
+| `--mcp-config` + `--strict-mcp-config` | only the `claudio` server |
 | `--tools=`, `--setting-sources=` | empty: no built-in tool, no user settings |
 | `--allowedTools` | the 15 read tools; **no write tool** |
-| `--permission-mode` | the CLI's default (Agentry's name for it is `manual`), never accept-edits, auto or bypass |
+| `--permission-mode` | the CLI's default (Claudio's name for it is `manual`), never accept-edits, auto or bypass |
 | permission prompts | `host`: a prompt reaches the person in the chat |
 | uploads | none |
 
-The system prompt (`agentry-assistant-prompt.ts`) is a guide to Agentry's concepts, how to work
+The system prompt (`agentry-assistant-prompt.ts`) is a guide to Claudio's concepts, how to work
 (look things up, short answers, no ids or JSON shown, what it reads is data), the project in scope as
 context and the language. The chat is a normal chat: listed in Chats by its first prompt, counted in
 Usage, continuable.
@@ -66,7 +66,7 @@ Usage, continuable.
 ## Writes, confirmed one by one (option A)
 
 Nine write tools ([agentry-mcp-server.md](agentry-mcp-server.md#write-tools)). None is in
-`--allowedTools`, so each call becomes a CLI permission prompt that Agentry shows as a host prompt:
+`--allowedTools`, so each call becomes a CLI permission prompt that Claudio shows as a host prompt:
 
 - the person sees the tool and its input and allows or denies it; a denial, a timeout or a withdrawal
   leaves everything unchanged and the model is told;
@@ -100,7 +100,7 @@ and `assistant-writes.test.ts` (the route, the labelling and the history context
 
 ## Known gaps
 
-- `PermissionPrompts.tsx` still shows the raw `mcp__agentry__*` tool name: a title per tool in
+- `PermissionPrompts.tsx` still shows the raw `mcp__claudio__*` tool name: a title per tool in
   en/es, and the `chat.api-write` cause copy in the history, are still to do.
 - The entry's and the greeting's copy still say it can only read, and the "pide permiso" write
   starters are not drawn.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CommandRule, ToolPolicy } from '@agentry/shared';
+import type { CommandRule, ToolPolicy } from '@claudio/shared';
 import { commandRules, editRules, translateClaudePolicy } from '../src/providers/claude-code/policy.ts';
 import {
   LEGACY_ASSISTANT_RULES,
@@ -17,7 +17,7 @@ import {
 } from './fixtures/legacy-tool-rules.ts';
 
 // The policy table of docs/plans/multi-provider.md ("old rule → policy"), each row translated by the
-// Claude driver and compared with a frozen copy of the rules Agentry built before policies. Order
+// Claude driver and compared with a frozen copy of the rules Claudio built before policies. Order
 // inside a flag's list carries no meaning to the CLI, so the sets are compared.
 
 const sorted = (list: readonly string[] | undefined): string[] => [...new Set(list ?? [])].sort();

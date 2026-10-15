@@ -9,7 +9,7 @@
  const app = Fastify({ logger: true });
 -app.register(routes);
 +app.register(routes, { prefix: '/api' });
- app.listen({ port: 8787 });
+ app.listen({ port: 8797 });
 @@ -20,3 +21,5 @@ export async function stop() {
    await app.close();
  }

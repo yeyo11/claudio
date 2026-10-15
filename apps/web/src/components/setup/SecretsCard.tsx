@@ -1,13 +1,13 @@
-import type { SecretStorageStatus } from '@agentry/shared';
+import type { SecretStorageStatus } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Lock, TriangleAlert } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Card, Tag } from '@agentry/ui/components/ui';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Card, Tag } from '@claudio/ui/components/ui';
 
 /** Where passing the key in the environment is explained: the README's table of variables. */
-export const SECRET_KEY_DOCS = 'https://github.com/yeyo11/agentry#environment-variables';
+export const SECRET_KEY_DOCS = 'https://github.com/yeyo11/claudio#environment-variables';
 
 const mono = { mono: <span className="mono" /> };
 
@@ -23,7 +23,7 @@ function HowLink() {
 }
 
 /**
- * Settings → Security's first card: how the keys and tokens Agentry hands a CLI are kept
+ * Settings → Security's first card: how the keys and tokens Claudio hands a CLI are kept
  * (`SecretStorageStatus` in `GET /setup`). Sealed is ok; a key beside the data it seals is a warning
  * that recommends the environment; no key at all is a warning that values are plain.
  */

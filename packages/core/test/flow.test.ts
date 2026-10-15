@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@claudio/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';
@@ -588,7 +588,7 @@ test('a restart puts cut-off runs back in the queue on their chat, and starts no
   const resumed = second.launches[0];
   assert.equal(resumed?.run.itemId, a.id);
   assert.equal(resumed?.resumeChatId, chat);
-  assert.match(resumed?.prompt ?? '', /Agentry restarted/);
+  assert.match(resumed?.prompt ?? '', /Claudio restarted/);
   assert.deepEqual(queued(second).map((r) => r.itemId), [b.id]);
   await second.answer(a.id, ok());
   assert.equal(second.items.find(a.id)?.status, 'in_review');
@@ -1460,7 +1460,7 @@ test('a run ended before causes were kept reads its cause from its error, after 
   const rows: Array<[string, string, string | null]> = [
     ['budget', 'failed', 'it reached its budget of 1 USD (flow.maxCostUsd)'],
     ['account', 'failed', 'the account hit its rate limit and no other account could take the run over'],
-    ['restarts', 'failed', 'Agentry restarted 3 times while this run worked; move the item again to start it over'],
+    ['restarts', 'failed', 'Claudio restarted 3 times while this run worked; move the item again to start it over'],
     ['unreadable', 'failed', 'the run ended without a readable structured result'],
     ['cli', 'failed', 'Error: something the CLI said'],
     ['removed', 'cancelled', 'the item was removed'],
@@ -1772,7 +1772,7 @@ test("a work run that leaves changes uncommitted in the item's worktree is sent 
   const asked: string[] = [];
   const s = setup({ uncommitted: (dir) => (asked.push(dir), dirty.paths) });
   const it = await item(s, 'in_progress');
-  s.items.setWorktree(it.id, { worktree: '/tmp/agentry-wt-agn-1', branch: 'task/agn-1' });
+  s.items.setWorktree(it.id, { worktree: '/tmp/agentry-wt-agn-1', branch: 'claudio-task/agn-1' });
   await s.answer(it.id, ok('Implemented'));
   assert.deepEqual(asked, ['/tmp/agentry-wt-agn-1']);
   s.flow.chatEnded(s.chatOf(it.id), null);

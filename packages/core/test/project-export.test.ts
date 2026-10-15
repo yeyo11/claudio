@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat, ChatExport, ChatSummary, Project, ProjectExport, TranscriptEntry } from '@agentry/shared';
+import type { Chat, ChatExport, ChatSummary, Project, ProjectExport, TranscriptEntry } from '@claudio/shared';
 import { byStart, projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from '../src/project-export.ts';
 
 const project: Project = { id: '9f1c2d3e-0000-4000-8000-000000000000', name: 'Billing API', path: '/work/billing', key: 'BA', modules: [], worktrees: [], exists: true, chatCount: 3, lastActivity: null };
@@ -64,7 +64,7 @@ test('the Markdown export opens with the project, the dates, the models and the 
   assert.match(md, /\*\*Range:\*\* 2026-03-01T08:00:00Z to 2026-03-11T13:30:00Z/);
   assert.match(md, /\*\*Chats:\*\* 3/);
   assert.match(md, /\*\*Models:\*\* `claude-haiku-4-5`, `claude-opus-5`, `claude-sonnet-5`/);
-  assert.match(md, /\*\*Cost:\*\* \$0\.75 \(as reported by the CLI; 1 chat started outside Agentry reported none and is not in it\)/);
+  assert.match(md, /\*\*Cost:\*\* \$0\.75 \(as reported by the CLI; 1 chat started outside Claudio reported none and is not in it\)/);
   assert.match(md, /\*\*Tokens:\*\* 230 /);
   assert.match(md, /^1\. Chat aaaa1111 · `aaaa1111` · 2026-03-01T08:00:00Z · \$0\.50$/m);
   assert.match(md, /^3\. Chat cccc3333 · `cccc3333` · 2026-03-11T12:00:00Z$/m);

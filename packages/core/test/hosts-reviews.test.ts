@@ -20,7 +20,7 @@ const gh = (file: string): string => readFileSync(join(here, 'fixtures/recording
 const gl = (file: string): string => readFileSync(join(here, 'fixtures/recordings/glab/1.120.0', `${file}.out`), 'utf8');
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
 const result = (stdout: string, exitCode = 0): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1 });
 const argv = (call: HostCall | null | undefined): string => (call ? call.args.join(' ') : 'none');
@@ -224,7 +224,7 @@ test('github reviews: pending reviews are paged and only PENDING ones are pendin
   assert.deepEqual(pending, [{ id: '9', pending: true, body: '', author: 'me' }]);
 });
 
-test('github reviews: reviewers come from the re-read, an unknown login adds nobody, and Agentry never approves', () => {
+test('github reviews: reviewers come from the re-read, an unknown login adds nobody, and Claudio never approves', () => {
   const read = githubAdapter.reviewers(ghRepo, 31);
   assert.equal(argv(read), 'pr view 31 -R github.com/yeyo11/agentry-probe --json reviewRequests,reviewDecision,reviews');
   const parsed = githubAdapter.parseReviewers(result(gh('d11_reread')), 2);
@@ -354,7 +354,7 @@ test('gitlab reviews: approvals are read from the endpoint, and canApprove is no
   assert.equal(argv(gitlabAdapter.revoke(glRepo, 13)), 'mr revoke 13 -R https://gitlab.com/yeyo11/agentry');
   assert.equal(argv(gitlabAdapter.approvals(glRepo, 13)), 'api --hostname gitlab.com projects/87089091/merge_requests/13/approvals');
   const before = gitlabAdapter.parseApprovals(result(gl('d9_approvals_before')), GL_HEAD);
-  // the host says user_can_approve false for the author, whose approval succeeds: Agentry offers it
+  // the host says user_can_approve false for the author, whose approval succeeds: Claudio offers it
   assert.deepEqual(before, { approved: true, approvalsRequired: 0, approvalsLeft: 0, viewerHasApproved: false, canApprove: true, canRevoke: false, approvedBy: [], headSha: GL_HEAD });
   const after = gitlabAdapter.parseApprovals(result(gl('d9_approvals_after_approve')), GL_HEAD);
   assert.deepEqual([after.viewerHasApproved, after.canApprove, after.canRevoke, after.approvedBy], [true, false, true, ['yeyo11']]);

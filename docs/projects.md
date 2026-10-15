@@ -73,7 +73,7 @@ The work item store asks for a project's settings synchronously and passes the p
 unusable prefix reads as the same derived one the project list shows.
 
 `deriveKeyPrefix` takes the initials of the name's words when it has several (`claude wrapper` →
-`CW`, `MyShop` → `MS`), or the first letter and the consonants after it when it has one (`Agentry`
+`CW`, `MyShop` → `MS`), or the first letter and the consonants after it when it has one (`Claudio`
 → `AGN`); accents are dropped and a name with fewer than two letters gets `PRJ`. A prefix already
 taken gets a digit, from 2 up (`AGN2`). Derivation is serialized, so projects read for the first time
 together never share a prefix.
@@ -222,7 +222,7 @@ widget still shows its count, but it no longer links to the missing tab.
 
 ### Settings
 
-The Ajustes tab (`apps/web/src/pages/home/ProjectGeneral.tsx`) now starts with Agentry's own
+The Ajustes tab (`apps/web/src/pages/home/ProjectGeneral.tsx`) now starts with Claudio's own
 settings, above the Claude Code settings it already edited:
 
 - **Name.**
@@ -233,7 +233,7 @@ settings, above the Claude Code settings it already edited:
   ("13 abiertas · 25 en total"), the team's members, the documents, the journal's entries. A module
   whose figure has not loaded, or that was just switched on, shows none rather than a zero.
 - **Column limits** for the board, while the Board module is on.
-- **Remove** the project from Agentry.
+- **Remove** the project from Claudio.
 
 On a phone, Save is a bar pinned to the bottom, the tab bar steps aside for it, and no FAB covers
 it.
@@ -262,7 +262,7 @@ holds, a part a hand edit broke included. The README's [Projects](../README.md#p
 
 ## Removing and importing again
 
-Removing a project from Agentry only makes it forget the directory. The settings document stays, and
+Removing a project from Claudio only makes it forget the directory. The settings document stays, and
 so do the work items, which are keyed by the project's id. The document records the path it was
 written for, so importing the same directory again finds it and **takes the old id back**, and with
 it the settings and the board. `DELETE /projects/:id` says so in its description.

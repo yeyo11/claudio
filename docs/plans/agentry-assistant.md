@@ -8,7 +8,7 @@ tags:
     - chats
     - built
 ---
-# Plan: the Agentry assistant, a chat that knows Agentry
+# Plan: the Claudio assistant, a chat that knows Claudio
 
 Status: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; not yet merged to `main`). Decided with the owner on 2026-09-28, open questions answered on 2026-10-02. Built: the MCP server with its read tools (CW-6, #171), the per-chat API token (CW-10), the global entry and confined chat (CW-18) and the confirmed write tools (CW-17). Feature doc: [agentry-assistant.md](../agentry-assistant.md). See [Delivery](#delivery-the-umbrella-cw-30).
 
@@ -16,7 +16,7 @@ Status: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; 
 
 The project assistant ([assistant.md](../assistant.md)) proposes a team, resources and tasks for one
 project, and is read-only. The owner wants more: **an assistant with weight in the app, an agent
-expert in Agentry**, that does not need a project picked first, that greets the person when a chat
+expert in Claudio**, that does not need a project picked first, that greets the person when a chat
 opens ("what can I do for you?"), and that answers questions about the state of things ("how is
 AGN-12 going?", "why did the verification of orchestration 7 fail?", "how much did I spend today?")
 and can act on them.
@@ -25,11 +25,11 @@ and can act on them.
 
 1. **When:** a feature of its own, after the ecosystem PR (#118, merged on 2026-09-28). It did not
    delay that PR.
-2. **How it reaches Agentry:** Agentry ships **its own MCP server**, handed to the chat with
+2. **How it reaches Claudio:** Claudio ships **its own MCP server**, handed to the chat with
    `--mcp-config` and `--strict-mcp-config`. It talks to the REST API of the wrapper that spawned the
-   chat (`AGENTRY_API_URL`, see [chat-environment.md](../chat-environment.md)). This keeps the one
-   rule: Agentry still reaches Claude Code only through its CLI, and the CLI reaches Agentry through
-   a tool Agentry configured. Rejected: `curl` through `Bash` (no `Bash` rule can be told apart from
+   chat (`CLAUDIO_API_URL`, see [chat-environment.md](../chat-environment.md)). This keeps the one
+   rule: Claudio still reaches Claude Code only through its CLI, and the CLI reaches Claudio through
+   a tool Claudio configured. Rejected: `curl` through `Bash` (no `Bash` rule can be told apart from
    a write, see assistant.md "It can only read"), and a snapshot of the state in the prompt (stale,
    and it cannot look up details).
 3. **It can write too**, not only read (the owner's answer to option A, which offered writes as
@@ -40,7 +40,7 @@ and can act on them.
 - **The MCP server** (`packages/core` or a small `packages/mcp`), stdio, started by the CLI. Its read
   tools are specified in [agentry-mcp-server.md](agentry-mcp-server.md) (CW-6), which built
   `packages/mcp` (feature doc: [../agentry-mcp-server.md](../agentry-mcp-server.md)) and fixed the
-  server name `agentry`:
+  server name `claudio`:
   - read tools: projects, work items (board, one item with its history, links and runs),
     orchestrations (list, one with tasks, verification and final report), flow runs and team,
     journal and documents, chats (list, summary, waiting), usage and limits, accounts;
@@ -50,22 +50,22 @@ and can act on them.
   that opens an assistant chat with no project required; the project in scope, if any, is context,
   not a requirement. Its first message greets and offers what it can do. It is a normal chat: it
   counts in Usage, it has a transcript, it can be continued.
-- **Confinement:** `--tools` limited to the Agentry MCP tools (plus `Read`/`Grep`/`Glob` if it should
+- **Confinement:** `--tools` limited to the Claudio MCP tools (plus `Read`/`Grep`/`Glob` if it should
   read project files), `--setting-sources=` so no user settings add rules, no shell, no editor.
 - **Writes are the person's call.** Open question for the plan, pick one:
-  - A. every write tool goes through the CLI's permission prompt, which Agentry already shows as a
+  - A. every write tool goes through the CLI's permission prompt, which Claudio already shows as a
     host permission prompt in the chat (`permissionPrompts: 'host'`): the person allows or denies each
     one (recommended: it reuses what exists and the person sees exactly what will change);
   - B. writes are allowed outright and listed in the chat as they happen, with undo where possible;
   - C. writes become proposals accepted one by one, like the project assistant's.
-- **Expert in Agentry:** its system prompt carries a short guide to Agentry's concepts (projects,
+- **Expert in Claudio:** its system prompt carries a short guide to Claudio's concepts (projects,
   work items and columns, team and flow, orchestrations, verification, accounts and limits) and the
   README's REST tables are the reference for the tools; the knowledge base (`docs/`) can be offered
   read-only.
 
 ## Confirming writes (CW-17)
 
-Decided on 2026-10-02: option A (the owner said to follow the recommendations). Writes are confirmed with the CLI's own permission prompt that Agentry already shows. The spec [assistant-write-tools.md](assistant-write-tools.md) is written for it.
+Decided on 2026-10-02: option A (the owner said to follow the recommendations). Writes are confirmed with the CLI's own permission prompt that Claudio already shows. The spec [assistant-write-tools.md](assistant-write-tools.md) is written for it.
 
 ## Open questions
 

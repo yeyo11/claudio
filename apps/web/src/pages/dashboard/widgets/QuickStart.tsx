@@ -1,4 +1,4 @@
-import type { Effort, NewChatRequest, PermissionMode } from '@agentry/shared';
+import type { Effort, NewChatRequest, PermissionMode } from '@claudio/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SendHorizontal } from 'lucide-react';
 import { useState } from 'react';
@@ -6,9 +6,9 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOverview } from '../../../api';
 import { ChatToolsPicker, type ToolChoices } from '../../../components/ChatToolsPicker';
-import { Collapsible, Select } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox, Field } from '@agentry/ui/components/ui';
+import { Collapsible, Select } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox, Field } from '@claudio/ui/components/ui';
 import { EffortField } from '../../../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 import type { WidgetProps } from '../registry';

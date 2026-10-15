@@ -8,7 +8,7 @@ tags:
     - convention
     - branding
 ---
-# Agentry design system: Night Shift (v2)
+# Claudio design system: Night Shift (v2)
 
 The reference for every screen of the web UI, the PWA and the Electron shell. The redesign that
 brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesign-night-shift.md).
@@ -24,7 +24,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
 
 **Claudio's colours** (2026-10-15, [plans/claudio-rebrand.md](plans/claudio-rebrand.md)). Night
-Shift was drawn for Agentry, in terracotta and rose on warm neutrals. Claudio keeps every rule of
+Shift was drawn for Claudio, in terracotta and rose on warm neutrals. Claudio keeps every rule of
 it and changes the palette to the brand kit's: navy surfaces, the blue → violet gradient, the
 brand cyan as `--live`, and Claudio's mark. The values below are Claudio's.
 
@@ -36,9 +36,9 @@ The prototypes use Spanish copy because they were designed on the `es` locale. T
 string in i18n: `en` is the source and `es` follows `apps/web/src/i18n/GLOSSARY.md`.
 
 **Where the code lives.** The design system is implemented in two workspace packages and the app.
-`packages/ui` (`@agentry/ui`) holds the tokens, the shared stylesheets, the controls, dialogs,
+`packages/ui` (`@claudio/ui`) holds the tokens, the shared stylesheets, the controls, dialogs,
 toasts, icons, illustrations, motion, formatters, Markdown and syntax highlighting.
-`packages/chat-ui` (`@agentry/chat-ui`) holds the conversation. `apps/web` holds the screens, the
+`packages/chat-ui` (`@claudio/chat-ui`) holds the conversation. `apps/web` holds the screens, the
 other components and `styles.css`, the one manifest of the cascade. Paths in this document name
 the package when a file is in one (see [plans/web-packages.md](plans/web-packages.md)).
 
@@ -97,7 +97,7 @@ them is not part of the redesign.
 | `--accent-2nd` | `#a78bfa` (dark), `#6d28d9` (light) | the second stop of the brand gradient, the energy border. Only ever inside a gradient or beside `--accent`: solid violet is `--idle` |
 | `--logo-blue`, `--logo-violet`, `--logo-spark` | `#246bfd`, `#a78bfa`, `#00e5ff` (the spark is `#246bfd` in light) | Claudio's mark (`BrandMark`, `.logo-mark`), which stands on the page with no tile |
 
-`--accent-2` is the tag and project tone, the same violet as `--idle`, as it was in Agentry. The
+`--accent-2` is the tag and project tone, the same violet as `--idle`, as it was in Claudio. The
 gradient's second stop is `--accent-2nd` (it was `--accent-rose`; renamed when the rose became a
 violet). The brand blue `#246bfd` itself only appears in the mark: as text it reads 4.1:1 on
 `--bg`, so `--accent` is a lighter blue in dark and a darker one in light.
@@ -306,9 +306,9 @@ already belong to the orchestration board.
 | `.wi-card-ctx`, `.wi-epic.bare`, `.wi-tag` | new `.workitem-context` | one quiet line: the epic by name with its hue only on the diamond, then the labels as `#tags` in mono. No pills: a board of one epic with a pill on every card was the loudest thing on screen. `.wi-label` stays for filters and the detail page |
 | `.wi-crit` (`.full`) | new `.workitem-criteria` | a 28 × 4 bar and "2/5"; complete is the one ok on a card |
 | `.wi-strip` (`.live`, `.wait`, `.fail`, neutral), `.actor-orch`, `.detail`, `.verb` | new `WorkItemStrip` (`.workitem-strip`) | **what happens to the card now, at its foot, led by who does it.** One strip per card, never two. Live: the actor (a role's squircle, the person's round monogram or the orchestration glyph), the braille spinner, the stage verb, the running clock and, on its own line, the detail in mono; the card takes `.rail-live`. Waiting for the person: an idle "te espera" and why, with "Aprobar y pasar a Hecho" when QA passed it. Failed: the actor, an ✕ and "Falló al refinar · ninguna cuenta tenía cupo". Neutral: queued ("En cola: la refinará cuando quede sitio") or QA's last words when it sent the card back; a card sent back that also waits for a place keeps QA's words, and its queued run shows in Team activity. When the strip's actor is the assignee, the foot does not repeat it |
-| `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci` | `WorkItemStrip` states `pr-*` (`.workitem-strip.is-warn`, `.workitem-strip-num`, `.workitem-strip-link`, `.pr-not-ready`, `CiBadge`) | **the card's pull request** (docs/plans/work-item-pull-requests.md). "Preparando la PR" neutral and still: Agentry prepares it, no agent works on it, so no spinner and no `--live`. "Conflicto con main · 2 archivos" in warn. "Aprobada · su PR se abrirá cuando pase la verificación" neutral. "PR #123 · esperando fusión" in idle, the number in mono and tabular, then the CI badge with its word (CI superada ok, CI pendiente neutral with no loop, CI fallida bad) and an icon link to GitHub (`target="_blank" rel="noreferrer"`, 44 px on a phone) that never opens the card. "PR #123 cerrada sin fusionar" in idle and "No se ha podido abrir la PR · motivo" in bad, both with the approval again. In a ready project the approval reads "Aprobar y abrir PR"; otherwise it stays "Aprobar y pasar a Hecho", and a warn line above it says why, "Sin PR: gh no ha iniciado sesión", with gh's own line as its title. A Done card still draws no strip |
-| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or an Agentry action (Ajustes → Integraciones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
-| `.wi-checkout` | new `.workitem-checkout-note` | the project's checkout behind `origin/<default>`: one quiet warn line under the board's toolbar, "La copia de trabajo va 3 commits por detrás de origin/main: tiene cambios sin commit", naming why Agentry did not bring it forward. Never a command to copy |
+| `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci` | `WorkItemStrip` states `pr-*` (`.workitem-strip.is-warn`, `.workitem-strip-num`, `.workitem-strip-link`, `.pr-not-ready`, `CiBadge`) | **the card's pull request** (docs/plans/work-item-pull-requests.md). "Preparando la PR" neutral and still: Claudio prepares it, no agent works on it, so no spinner and no `--live`. "Conflicto con main · 2 archivos" in warn. "Aprobada · su PR se abrirá cuando pase la verificación" neutral. "PR #123 · esperando fusión" in idle, the number in mono and tabular, then the CI badge with its word (CI superada ok, CI pendiente neutral with no loop, CI fallida bad) and an icon link to GitHub (`target="_blank" rel="noreferrer"`, 44 px on a phone) that never opens the card. "PR #123 cerrada sin fusionar" in idle and "No se ha podido abrir la PR · motivo" in bad, both with the approval again. In a ready project the approval reads "Aprobar y abrir PR"; otherwise it stays "Aprobar y pasar a Hecho", and a warn line above it says why, "Sin PR: gh no ha iniciado sesión", with gh's own line as its title. A Done card still draws no strip |
+| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or an Claudio action (Ajustes → Integraciones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
+| `.wi-checkout` | new `.workitem-checkout-note` | the project's checkout behind `origin/<default>`: one quiet warn line under the board's toolbar, "La copia de trabajo va 3 commits por detrás de origin/main: tiene cambios sin commit", naming why Claudio did not bring it forward. Never a command to copy |
 | `.wi-proj` | new `.workitem-project` | on Tasks with All projects selected, each card names its project at the head of its context row, and no column shows a limit (each project has its own) |
 | `.wi-key` (`.boxed`) | new `.workitem-key` | `AGN-12` in mono, tabular |
 | `.wi-type` | new `WorkItemTypeIcon` | epic, story, task and bug by shape, all neutral |
@@ -623,7 +623,7 @@ item page, the dialog and the decision point, each with its phone counterpart),
 
 ### Brand marks: the official logo of a program
 
-Every program Agentry names wears **its own official mark**: the code hosts (GitHub, GitLab), the
+Every program Claudio names wears **its own official mark**: the code hosts (GitHub, GitLab), the
 issue trackers (a tracker on a host wears the host's mark; YouTrack its own) and the agent (Claude
 Code). A name with no mark keeps its monogram.
 
@@ -673,19 +673,19 @@ only gradients are the ones a screen already had. The rules are under "Providers
 - **Actions are neutral buttons.** A row never carries the gradient: the page's one primary is
   "Continuar con Claude Code" on first run, and Settings has none. Sign in, Install, Update and
   See install open the vendor's page and carry the external-link icon; in phase 1 only Claude Code's
-  sign-in stays inside Agentry.
+  sign-in stays inside Claudio.
 - **Default and order.** On a desktop, a "Proveedor predeterminado" select on top of the list
   ("Automático" is the first ready one) and the order by dragging `.prov-grip`; the row being
   dragged is `.lifted` and the drop point a 2 px accent line (`.prov-drop`). On a phone one cell,
   "Predeterminado y orden", opens a `Sheet`: a radio for each provider (a 44 px button around
   `.prov-radio`) and up/down buttons, no handle.
 - **Binary override.** On a desktop, "Elegir binario" opens a panel under the row (`.prov-bin`, the row
-  gets `.open`): a mono path, "Buscar…", "Comprobar y guardar" and "Usar el del PATH". Agentry reads
+  gets `.open`): a mono path, "Buscar…", "Comprobar y guardar" and "Usar el del PATH". Claudio reads
   the version before saving. On a phone tapping a row opens its `Sheet` with the switch, the same
   field at 16 px and the one primary, "Comprobar y guardar".
 - **First run (`.prov-first`).** A full page with no shell, 760 px wide: brand, title at the display
   size, the providers grouped by state (Listos, Sin sesión, Usados antes, Sin instalar), a note that
-  Agentry watches the folders, "Volver a comprobar", "Omitir por ahora" and the primary. Gradients:
+  Claudio watches the folders, "Volver a comprobar", "Omitir por ahora" and the primary. Gradients:
   the logo and the primary. On a phone the groups become one card and the actions are pinned in
   `.m-foot`.
 - **Nothing found** is an `Empty` with the set's `install` illustration (`il-lg` on a desktop, `il-sm`
@@ -708,7 +708,7 @@ its checking and nothing-found states still draw the Agents step before any sign
 ### Claude Code on the chat page, and its limit block
 
 Claudio drives one agent, so no chat says which agent it runs on: the badge, the provider chip and
-the "continued in another provider" divider of Agentry are gone
+the "continued in another provider" divider of Claudio are gone
 ([plans/claude-only-fork.md](plans/claude-only-fork.md)). Nothing here is live.
 
 - **The limit block (`.prov-limit`).** Inside Claude Code's card (`.prov-state`), under the reason:
@@ -775,7 +775,7 @@ primary stays the composer's. Reference screens: `DesktopChatEspera` and its
 ### Integrations: the code hosts' CLIs
 
 Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation
-before P2 builds it. Settings → Integrations is a tab of the Agentry group, after Providers, and it
+before P2 builds it. Settings → Integrations is a tab of the Claudio group, after Providers, and it
 reuses the provider pieces: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and the
 `Empty`. The only new rule is `.host-known`.
 
@@ -799,7 +799,7 @@ reuses the provider pieces: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the 
   Sign-in, Install and Update open the vendor's page (external-link icon); a remedy is never a
   command to copy. The checking rows show `.skeleton` bars until their turn.
 - **Binary override.** "Elegir binario" opens the `.prov-bin` panel under the row on a desktop and a
-  `Sheet` on a phone (the field at 16 px, "Comprobar y guardar" as the one primary). Agentry reads the
+  `Sheet` on a phone (the field at 16 px, "Comprobar y guardar" as the one primary). Claudio reads the
   version before saving and refuses one below the CLI's minimum.
 - **Nothing installed** is an `Empty` with the set's `cli-missing` illustration (`il-warn`), the
   screen's only one and with no rows next to it: the primary opens the install page of `gh`, and
@@ -835,7 +835,7 @@ it adds no CSS: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and `
   status colour: there is nothing to colour), an honest sentence, `unknown · not-recorded` in mono
   (on a desktop; the phone drops it) and **no action**. None is listed today.
 - **YouTrack** (built 2026-10-07, [trackers.md](trackers.md#youtrack)) has a CLI of its own and the
-  access Agentry keeps, so its state is its own: "Sin sesión" (warn) with "Indica a Agentry la
+  access Claudio keeps, so its state is its own: "Sin sesión" (warn) with "Indica a Claudio la
   dirección…" while nothing is saved or the token is refused, "Listo" naming the instance and the
   account once the instance answers. Its remedy is **Conectar**, which opens the access form under
   the row in the same `.prov-bin` panel as the binary override (on a phone, a `Sheet`): the address
@@ -881,16 +881,16 @@ new, in `agentry-ds.css`: `.hook-origin` (the strip under the card's head), `.ho
   | not available yet (GitLab) | plain `.badge` | Aún no disponible | none |
   | registering (a call to the host is in flight) | plain `.badge` with the braille spinner | Registrando | none |
 
-  An active hook Agentry re-pointed by itself says so in its facts ("apuntado de nuevo · por Agentry ·
+  An active hook Claudio re-pointed by itself says so in its facts ("apuntado de nuevo · por Claudio ·
   hace 4 min"). With no public address a hook that had one is stale and offers only Quitar, and an off
   row offers nothing.
 - **GitLab** has the same row, states and buttons as GitHub: its registration, test, removal and
   re-pointing are recorded (`w0`), so the screen needs nothing of its own. The dialog lists GitLab's four
   events (`merge_requests_events`, `pipeline_events`, `note_events`, `issues_events`) in place of the nine.
-- **No redelivery on GitHub.** It needs a scope Agentry does not ask for, so the screen has no button
+- **No redelivery on GitHub.** It needs a scope Claudio does not ask for, so the screen has no button
   for it and never offers a command to copy.
 - **The register dialog** lists the address (read-only, with copy), the nine events in mono with what
-  each means, and a note on the secret: Agentry generates it, it is shown to nobody, and an existing
+  each means, and a note on the secret: Claudio generates it, it is shown to nobody, and an existing
   hook with this address is adopted. On a phone it is a `Sheet`, the events as a plain list (no
   checkboxes: they are not chosen), the address wrapped, the copy button 44 px and "Registrar webhook"
   the one primary.
@@ -924,7 +924,7 @@ before phase 2 builds it. Nothing here is live: no energy border, no loop, no gr
 - **The readiness word.** `b-ok` "Listo" when the CLI is signed in on that host; `b-warn` "Sin sesión"
   for `cli-signed-out` and `b-warn` "No disponible" for `unsupported-host`. A word always, never a
   colour alone. The plain reason sits under the row (`.host-line-why`) with **one** action, a link
-  or an Agentry action and never a command to copy: "Ir a Integraciones" for an unsupported host,
+  or an Claudio action and never a command to copy: "Ir a Integraciones" for an unsupported host,
   "Ver cómo iniciar sesión" (the sign-in docs) for a signed-out CLI. A ready line has no action.
 - **Phone.** `.host-line.stacked`: the reason and the action stack under the row, the action is a
   44 px button, and the card is a section called "Repositorio" between General and Modules.
@@ -956,10 +956,10 @@ gradient is its Save.
   names its own States; the placeholders are the names a new YouTrack project has, and the hint says
   every column writes and is read back.
 - **The mapping (`.trk-map`)** is one select (`.select` with a chevron, `.trk-sel`) per board column,
-  Agentry's side first. GitHub and GitLab have no statuses between open and closed, so In progress and
+  Claudio's side first. GitHub and GitLab have no statuses between open and closed, so In progress and
   In review are disabled "Sin cambios" with the reason beside them, and Done offers one real choice:
   close the issue ("Cerrar como completada" on GitHub, "Cerrar la incidencia" on GitLab, which takes no
-  reason). The hint says the change request closes the issue with its closing word, and Agentry only closes
+  reason). The hint says the change request closes the issue with its closing word, and Claudio only closes
   it afterwards when the base is not the default branch. PR and `#12` on GitHub, MR and `!12` on GitLab.
 - **Phone.** The choice is a 64 px cell that opens a Sheet with the same rows; fields are 44 px at 16 px,
   each select is full width with its note under it, and Save is the footer's gradient button.
@@ -990,7 +990,7 @@ validation before P2 builds it. The orchestration's checks and the fix states ar
   colours: ok "superada", bad "fallida", warn "fallo permitido", idle "manual", neutral "en cola" and
   "omitida". Only a running row is live: the ring spinner, `.rail-live` and `b-live` "en marcha".
 - **Menu of a row**: "Repetir esta comprobación" (GitLab manual job: "Ejecutar esta comprobación")
-  and "Abrir en {host}". A commit status or another service's check cannot be re-run from Agentry:
+  and "Abrir en {host}". A commit status or another service's check cannot be re-run from Claudio:
   the item is disabled and a line under it says why (`check-not-rerunnable`).
 - **The log tail** (`.check-log`): a panel under the list on a desktop and a `Sheet` on a phone. Above
   it, what the host says: GitHub's annotations as a level word (`error` bad, `aviso` warn, `nota`
@@ -1078,7 +1078,7 @@ existing ones. The orchestration's merge (`m-p3`) and the blocked states (`m-p2`
   page keeps its two gradient surfaces (that and "Trabajar en ella"). When required checks are
   pending, Fusionar is not offered and **Activar fusión automática** takes its place as the action.
 - **Armed auto-merge.** `activada` (idle badge), who, when and the method in mono, **Desactivar**
-  (plain), what it waits for, and the note that Agentry turns it off before it pushes to the branch
+  (plain), what it waits for, and the note that Claudio turns it off before it pushes to the branch
   and says so. No gradient, no motion: it waits on the host, not on an agent.
 - **GitLab waiting for the pipeline** is live: the braille spinner stands next to the verb ("Esperando
   a la pipeline", `b-live` badge) and Fusionar stays off until the head's pipeline has finished. While
@@ -1115,7 +1115,7 @@ the comparator's own rows: **a thread is a card under its line**, never a new ki
   once; they are not part of the draft review.
 - **A suggestion** is drawn inside its comment (`.rt-sugg`) as the two lines it is: the line it
   replaces with the removed rail and `--diff-del-bg`, the proposed one with the added rail and
-  `--diff-add-bg`, in the muted `--sx-*` syntax. Agentry does not apply suggestions: they feed the
+  `--diff-add-bg`, in the muted `--sx-*` syntax. Claudio does not apply suggestions: they feed the
   agent through Address with an agent.
 - **A line with a thread** has its number at full strength and, in Reading, a pill at the right
   (`.dv-note-pill`, comment icon and count; violet while a thread is open, neutral otherwise). The
@@ -1182,13 +1182,13 @@ Drawn for [code hosts](plans/code-hosts.md), phase 2 (task `k-p2` of P0), by `re
 Drawn for [code hosts](plans/code-hosts.md), phase 4 (task `m-p2` of P0), by `reference/tools/merge.py`:
 `DSFusion`. New classes `.mb-*`; the badge, the buttons and the ring spinner are the existing ones.
 
-- **One notice (`.mb-note`)** per blocker: the tone's icon, a badge with its word, the Agentry code in
+- **One notice (`.mb-note`)** per blocker: the tone's icon, a badge with its word, the Claudio code in
   mono, the sentence in `--fg`, the host's own field and value in mono (`.mb-detail`) and the remedy
   (`.mb-acts`). Tones: `bad` for `conflicts` and `checks-failing`; `warn` for a rule or a missing
   piece; `idle` (`borrador`) for what waits for the person; `live` (`calculando`, `en marcha`) only
   while the host is working, the one tone that moves; neutral for `not-open`; `ok` for a merge that
   can go ahead.
-- **The remedy** is a neutral button that acts in Agentry, or an external link to the host. Never the
+- **The remedy** is a neutral button that acts in Claudio, or an external link to the host. Never the
   gradient, never a command, and never a way round a rule. A blocker with no remedy (`not-yet`)
   shows none.
 - **The first blocker that applies is the notice**; the others are `.mb-others`, one line each with
@@ -1254,7 +1254,7 @@ is `.fix-panel.wait` with the phase 2 fix path (`fix_state`, the same push rule)
   Developer's sentence of why, and the state it reached on the host: `respondido`, `resuelto` (ok, each with its
   word). A thread still open offers "Responder «Atendido en a8f3c21»" (the text that will be posted is shown
   under the list) and "Resolver"; one the Developer left alone offers a link to the thread on the host. A
-  resolved thread folds its quote. Agentry never replies or resolves by itself.
+  resolved thread folds its quote. Claudio never replies or resolves by itself.
 - **Hosts.** The noun and number follow the host (`PR #12`, `MR !12`); the thread semantics are the same.
 
 ### A wait, and the limit in the status bar
@@ -1339,16 +1339,16 @@ stages the graph runs in and names its longest chain; nothing on it is live or c
   action, and it does not animate in (`animation: none`).
 - A graph of one stage says "1 stage, all in parallel" and names no chain.
 
-### The Agentry assistant: the entry, the greeting and the host prompt of a write
+### The Claudio assistant: the entry, the greeting and the host prompt of a write
 
 Drawn for the umbrella CW-30 ([plans/agentry-assistant.md](plans/agentry-assistant.md): CW-18, the entry and its
-confined chat, then CW-17, the write tools), by `reference/tools/assistant_entry.py`, in `DesktopAsistenteAgentry`,
-`DesktopAsistenteAgentryChat`, `MobileAsistenteAgentry`, `MobileAsistenteAgentryChat` and `MobileAsistenteAgentryMas`. The
+confined chat, then CW-17, the write tools), by `reference/tools/assistant_entry.py`, in `DesktopAsistenteClaudio`,
+`DesktopAsistenteAgentryChat`, `MobileAsistenteClaudio`, `MobileAsistenteAgentryChat` and `MobileAsistenteAgentryMas`. The
 decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
 - **Where it lives.** A sidebar item "Asistente" with the sparkle, in the first group under Inicio (route
   `/assistant`), and on a phone the same item as the first row of Más. The tab bar keeps its four tabs and Más is the one
-  lit while the screen is open. The palette's "Asistente de Agentry" action is always present and is not drawn. The sparkle is the
+  lit while the screen is open. The palette's "Asistente de Claudio" action is always present and is not drawn. The sparkle is the
   plain nav icon on desktop and the neutral `.ai-mark` tile (28 px inside a `.cell`) on the phone: never the gradient, so the entry
   costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
 - **The entry screen is content, not an `Empty`.** The mark, the greeting (34 px on desktop, 24 on a phone), one line saying
@@ -1481,7 +1481,7 @@ checking and nothing-found states) while `GET /setup` says `seen: false`. It is 
 shell, 760 px) with the wizard's `.steps` on top: Acceso → Agentes → Código y tareas → Listo.
 
 - **The foot (`.setup-foot`)**: Volver (ghost, not on step 1), the step's count ("1 de 5 listo"), Omitir (ghost), and
-  Continuar, the one primary. Listo has Volver and "Empezar a usar Agentry". A step the person skipped is `.step.skipped`:
+  Continuar, the one primary. Listo has Volver and "Empezar a usar Claudio". A step the person skipped is `.step.skipped`:
   a dotted bar and "omitido" under its name, no status colour. On a phone the bar keeps only the bars
   (`.steps-bare`, the names stay for screen readers) and the header says "2 de 4 · Agentes"; the foot is `.m-foot` with
   Continuar full width and Volver and Omitir under it.
@@ -1491,7 +1491,7 @@ shell, 760 px) with the wizard's `.steps` on top: Acceso → Agentes → Código
 - **Rows** are the first run's `.prov-row.compact` on a desktop and `.prov-cell` on a phone, for agents, `gh`, `glab` and
   YouTrack alike (their monograms from `providers.py`, `hosts.py`, `trackers.py`). The badges and words are the
   providers' table. A row that is not signed in offers **Iniciar sesión** (neutral, no external-link icon: it stays in
-  Agentry); a ready row offers **Cerrar sesión** (ghost). Where signing out only forgets the key Agentry keeps
+  Claudio); a ready row offers **Cerrar sesión** (ghost). Where signing out only forgets the key Claudio keeps
   it is offered only while one is kept, and its confirmation says so.
 - **Listo** is the one screen with an illustration: the set's `welcome` (`il-md` beside the title on a desktop, `il-sm`
   on a phone), next to a summary and no live data. Each line (`.setup-sum-row`) has the tool, its account or why not, a
@@ -1507,7 +1507,7 @@ Integrations, so nothing is assistant-only.
   whose key may go in several variables (`variables`, Claude Code's "Token de OAuth / Clave de API") chooses with a second Segmented; the field's label is the variable's name when it is a variable.
 - **Key**: a write-only field (`type="password"`, mono, never prefilled), the vendor's page to make one as a link with
   the external-link icon, a hint that says where it goes (`env`: "Se guarda cifrada y solo la reciben los procesos de
-  …"; `stdin`: "… lo guarda en su configuración; Agentry no se queda con una copia"), then **Guardar y comprobar** and
+  …"; `stdin`: "… lo guarda en su configuración; Claudio no se queda con una copia"), then **Guardar y comprobar** and
   Cancelar. `gh` and `glab` add the host field (`defaultHost` prefilled); YouTrack keeps its access form.
 - **Claude Code's token.** The vendor offers no sign-in a program can drive, so the panel says so and names
   `claude setup-token` as inline code inside the sentence, on **the person's own computer** (bold), with a link to the
@@ -1531,7 +1531,7 @@ Integrations, so nothing is assistant-only.
 
 - **In the assistant** it is one `.prov-row.compact` (a `.prov-cell` on a phone) in its own `.card.prov-list` under the
   Access card, with the monogram "TA" (no brand art is added), the state as the tunnel tab's word in a `Tag`, and a
-  sentence. Iniciar sesión and Cerrar sesión only where Agentry runs the daemon (the Docker image); elsewhere the row
+  sentence. Iniciar sesión and Cerrar sesión only where Claudio runs the daemon (the Docker image); elsewhere the row
   only says how the machine's Tailscale stands. Listo lists it, pointing at "Ajustes → Acceso remoto".
 - **The panel** heads with "Enlace / Clave": Tailscale's sign-in is a link with no code, so it is named for what the
   person gets. A waiting link is the same `.signin-device` box with `.energy`, its two lines (open the link; sign in and
@@ -1546,17 +1546,17 @@ Integrations, so nothing is assistant-only.
 **Settings → Security** gains a **Secretos** card first, from `SecretStorageStatus`: a `b-ok` "cifrados" badge and one
 sentence on where secrets go and who receives them. With `keyBeside`, a `.callout-warn` "La clave está junto a los
 datos" names the key's path, says it protects a copy of the files and not the volume, and recommends passing
-`AGENTRY_SECRET_KEY` in the environment, with a link to how. With no key (`sealed: false`) the badge is `b-warn` "sin
+`CLAUDIO_SECRET_KEY` in the environment, with a link to how. With no key (`sealed: false`) the badge is `b-warn` "sin
 cifrar" and the callout says values are kept plain at 0600. The Access and Token cards follow, as the app has them.
 
 **Decisions.**
 
-- **`claude setup-token` is named, not handed out.** The rule "a remedy is never a command to copy" keeps Agentry from
-  sending a person to a shell on the machine Agentry runs on. This command is different: it is the vendor's only
+- **`claude setup-token` is named, not handed out.** The rule "a remedy is never a command to copy" keeps Claudio from
+  sending a person to a shell on the machine Claudio runs on. This command is different: it is the vendor's only
   documented way to get a token for a program, and it runs on the person's own computer, where they already use Claude.
   So the panel names it inside a sentence, as inline code, says where to run it in bold, and links to the vendor's page;
   there is no copy button and no code block, so it reads as an explanation and not as a remedy to paste. Everything that
-  can be done in Agentry (pasting the token) is.
+  can be done in Claudio (pasting the token) is.
 - **Expired is warn, failed is bad.** The status colours keep one meaning each: a code that ran out needs the person
   again (warn), a CLI that refused or broke failed (bad).
 - **The panel's Save is neutral on a desktop.** With the logo and Continuar the screen already has its two gradient
@@ -1576,7 +1576,7 @@ Iniciar sesión or Cerrar sesión at the end of each known host's line.
 
 **Copy.** Steps: Acceso, Agentes, Código y tareas, Listo. Buttons: Volver, Omitir, Continuar, Iniciar sesión, Cerrar
 sesión, Guardar y comprobar, Cancelar, Copiar, Reintentar, Pedir otro código, Usar una clave, Conectar, Empezar a usar
-Agentry. Methods: Código, Clave. Waiting: "Esperando a que lo apruebes", "caduca en m:ss". Skipped: "omitido" on the
+Claudio. Methods: Código, Clave. Waiting: "Esperando a que lo apruebes", "caduca en m:ss". Skipped: "omitido" on the
 step, "Omitido" on a summary line. The `en` source follows the same structure ("Back", "Skip", "Continue", "Sign in",
 "Code", "Key", "Waiting for you to approve").
 
@@ -1605,7 +1605,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Agentry has its own set of 15 SVG illustrations, drawn in the interface's language: hairline
+Claudio has its own set of 15 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
@@ -1666,7 +1666,7 @@ Rules:
 
 ## 5. Diff comparator
 
-Changes are reviewed inside Agentry. Nothing links to an editor or hands out a command to copy:
+Changes are reviewed inside Claudio. Nothing links to an editor or hands out a command to copy:
 the comparator draws the unified diff the API already serves. The reference is `DSComparador`, the
 `DiffView` component and the screens of the reference's **Changes** section; the classes are §18
 of `agentry-ds.css`.
@@ -1885,7 +1885,7 @@ the file being edited is its only moving part.
   `top`: `kpis` (agents running, waiting, today's spend) and `limits` (the 5 h ring with the weekly
   share, the account card at the bottom on a phone). "In progress" folds the orchestrations into the
   live widget and holds the page's one energy border while anything runs.
-- **Settings** has 20 tabs in four groups (Agentry, Claude Code, Extensions, System): a vertical side
+- **Settings** has 20 tabs in four groups (Claudio, Claude Code, Extensions, System): a vertical side
   nav on desktop that is still one ARIA tablist, and cells in cards on a phone, where a tab opens as
   its own screen. The `?tab=` ids did not change.
 - **Chats** folds each row into a phone card with a container query on the list, not the window.

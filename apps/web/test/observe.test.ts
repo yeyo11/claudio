@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ContentBlock, Health, HealthSignal, TranscriptEntry } from '@agentry/shared';
+import type { ContentBlock, Health, HealthSignal, TranscriptEntry } from '@claudio/shared';
 import { cancellable, checklistProgress, currentActivity, describeCall, healthWord, totalsOf } from '../src/lib/observe.ts';
 
 const entry = (uuid: string, blocks: ContentBlock[], extra: Partial<TranscriptEntry> = {}): TranscriptEntry => ({

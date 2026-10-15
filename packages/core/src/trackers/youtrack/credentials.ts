@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { YoutrackCredentialsStatus } from '@agentry/shared';
+import type { YoutrackCredentialsStatus } from '@claudio/shared';
 import type { CoreConfig } from '../../paths.ts';
 import { SecretBox } from '../../secret-box.ts';
 import { SecretVault } from '../../secret-vault.ts';
@@ -37,7 +37,7 @@ const HOST = 'YOUTRACK_HOST';
 const TOKEN = 'YOUTRACK_TOKEN';
 
 /**
- * The one secret Agentry keeps for a tracker (code hosts decision 3): YouTrack's address and
+ * The one secret Claudio keeps for a tracker (code hosts decision 3): YouTrack's address and
  * permanent token, in the secret vault under `youtrack`, as the two variables `youtrack-app` reads.
  * The token is never returned by a route and never put in argv: it reaches `youtrack-app` only
  * through the child's environment (`childEnv`, by way of `hosts/env.ts`).

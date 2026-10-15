@@ -14,7 +14,7 @@ const API_PREFIX = '/api';
  *   /openapi.json  the raw document
  */
 export async function registerOpenApi(app: FastifyInstance, version: string): Promise<void> {
-  // Route schemas are documentation only. Input validation lives in @agentry/core (single source of
+  // Route schemas are documentation only. Input validation lives in @claudio/core (single source of
   // truth for error messages) and responses must never be stripped down to the documented fields.
   app.setValidatorCompiler(() => () => true);
   app.setSerializerCompiler(() => (data) => JSON.stringify(data));
@@ -23,14 +23,14 @@ export async function registerOpenApi(app: FastifyInstance, version: string): Pr
     openapi: {
       openapi: '3.1.0',
       info: {
-        title: 'Agentry API',
+        title: 'Claudio API',
         version,
         description:
           'REST + SSE API over the Claude Code CLI: runs, sessions, orchestration, plugins, memory and every ' +
           'piece of user or project configuration.\n\nErrors are `{ "error": "…" }` with a 4xx status.\n\n' +
           'Authentication is off by default (`mode: none`), which is what a local install wants. With `token` ' +
           'or `oidc` (see the Security tag) every route needs `Authorization: Bearer …` except `GET /api/health`; ' +
-          'Agentry never terminates TLS itself, so put a reverse proxy in front before exposing the port.',
+          'Claudio never terminates TLS itself, so put a reverse proxy in front before exposing the port.',
       },
       servers: [{ url: '/', description: 'This wrapper' }],
       tags: TAGS,
@@ -58,7 +58,7 @@ export async function registerOpenApi(app: FastifyInstance, version: string): Pr
     url: '/openapi.json',
     theme: 'default',
     layout: 'modern',
-    metaData: { title: 'Agentry API' },
+    metaData: { title: 'Claudio API' },
     hideClientButton: true,
     // Self-hosted and private: no Scalar cloud features, no telemetry
     showToolbar: 'never',

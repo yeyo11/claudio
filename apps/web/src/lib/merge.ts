@@ -6,7 +6,7 @@
  *
  * Label keys are in the `merge` namespace: `t(key, params)` with `useTranslation('merge')`.
  */
-import type { ChangeRequest, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod, MergeRequestBody, MergeState } from '@agentry/shared';
+import type { ChangeRequest, MergeBlocker, MergeBlockerAction, MergeBlockerCode, MergeMethod, MergeRequestBody, MergeState } from '@claudio/shared';
 import { changeRequestWords } from './code-hosts';
 
 /** `live` is the host working it out now: the only blockers that move, and only while it does. */
@@ -50,7 +50,7 @@ export function blockerMark(code: MergeBlockerCode | string): BlockerMark {
   return { tone: TONE[known], word: `blocker.${known}.word`, text: `blocker.${known}.text` };
 }
 
-/** What a blocker's remedy does: an Agentry call, a link to the host, or a move inside the page. */
+/** What a blocker's remedy does: an Claudio call, a link to the host, or a move inside the page. */
 export type BlockerActionKind = 'call' | 'link' | 'page';
 
 const ACTION_KIND: Readonly<Record<MergeBlockerAction, BlockerActionKind>> = {
@@ -90,7 +90,7 @@ export interface BlockerParams extends Record<string, string> {
  */
 export function blockerParams(blocker: Pick<MergeBlocker, 'detail'>, cr: Pick<ChangeRequest, 'host' | 'branch' | 'base' | 'phase'>, noun: string): BlockerParams {
   const words = changeRequestWords(cr.host);
-  // `state` is what the host says of the request (a not-open blocker's detail), never Agentry's own phase, which is still open while the block shows
+  // `state` is what the host says of the request (a not-open blocker's detail), never Claudio's own phase, which is still open while the block shows
   return { noun, host: words.label, head: cr.branch, base: cr.base, name: blocker.detail ?? '', state: blocker.detail ?? '' };
 }
 
@@ -126,10 +126,10 @@ export function blockerSentence(blocker: Pick<MergeBlocker, 'code' | 'detail'>, 
   return { tone, word, text, params };
 }
 
-/** Who turned auto-merge off for an update: a person by name, Agentry, or the one person there is when authentication is off (`local`). */
+/** Who turned auto-merge off for an update: a person by name, Claudio, or the one person there is when authentication is off (`local`). */
 export function autoMergeOffKey(why: 'push' | 'update', by: string): `autoMergeOff.${'push' | 'update' | 'updateYou' | 'updateAgentry'}` {
   if (why === 'update' && by === 'local') return 'autoMergeOff.updateYou';
-  if (why === 'update' && by === 'agentry') return 'autoMergeOff.updateAgentry';
+  if (why === 'update' && by === 'claudio') return 'autoMergeOff.updateAgentry';
   return `autoMergeOff.${why}`;
 }
 

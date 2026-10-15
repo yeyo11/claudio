@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ToolPolicy } from '@agentry/shared';
+import type { ToolPolicy } from '@claudio/shared';
 import { commandSegments, judge, runsGitPush } from '../src/policy-judge.ts';
 
 const base: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: 'any' }, network: 'omit', gitPush: 'deny' };

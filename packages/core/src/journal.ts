@@ -9,7 +9,7 @@ import {
   type WorkItemActor,
   type WorkItemRef,
   type WorkItemSource,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, pathSegments } from './document-paths.ts';
@@ -19,7 +19,7 @@ import { actorOf } from './work-item-rows.ts';
 import { PERSON, WorkItemError } from './work-item-validation.ts';
 
 /**
- * A project's journal: Agentry's own record of the decisions taken and the items closed, beside the
+ * A project's journal: Claudio's own record of the decisions taken and the items closed, beside the
  * CLI's memory (docs/plans/project-ecosystem.md, decision 32). Rows in the shared database, newest
  * first when read, and handed to every flow run with `--append-system-prompt` through
  * {@link JournalService.handoff}.
@@ -72,7 +72,7 @@ export interface JournalHandoff {
   bytes: number;
 }
 
-/** What Agentry itself writes, beside the kinds a person may. */
+/** What Claudio itself writes, beside the kinds a person may. */
 export interface JournalWrite {
   kind: JournalEntryKind;
   text: string;
@@ -226,7 +226,7 @@ export class JournalService {
   create(projectId: string, input: CreateJournalEntryRequest): JournalEntry {
     const body = input as Partial<CreateJournalEntryRequest> | undefined;
     const kind = body?.kind ?? 'note';
-    if (kind !== 'decision' && kind !== 'note') throw new WorkItemError('kind must be one of decision, note: closed and memory entries are written by Agentry', 400);
+    if (kind !== 'decision' && kind !== 'note') throw new WorkItemError('kind must be one of decision, note: closed and memory entries are written by Claudio', 400);
     const itemId = body?.itemId ?? null;
     if (itemId !== null) {
       if (typeof itemId !== 'string') throw new WorkItemError('itemId must be text', 400);
@@ -236,7 +236,7 @@ export class JournalService {
     return this.add(projectId, { kind, text: entryText(body?.text), itemId, author: PERSON, documentPath: documentPath(body?.documentPath) });
   }
 
-  /** Any entry, as Agentry writes it: the checks on the text and the path still hold. */
+  /** Any entry, as Claudio writes it: the checks on the text and the path still hold. */
   add(projectId: string, input: JournalWrite): JournalEntry {
     if (!KINDS[input.kind]) throw new WorkItemError(`unknown journal entry kind: ${String(input.kind)}`, 400);
     const id = randomUUID();

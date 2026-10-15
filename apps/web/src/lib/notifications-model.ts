@@ -13,16 +13,16 @@ import {
   type NotificationLevel,
   type NotificationText,
   type PermissionRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import i18n from '../i18n';
-import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
+import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { serverText } from './server-strings';
 import { resetWhen } from './reset-when';
 
 /*
  * The browser's own bookkeeping around notifications: the stored list, what is a repeat of what,
  * read state and the preferences. What a notification *is*, and which events make one, lives in
- * `@agentry/shared` (`packages/shared/src/notifications.ts`) so that the push sender on the server
+ * `@claudio/shared` (`packages/shared/src/notifications.ts`) so that the push sender on the server
  * reads the same event through the same function; this file re-exports it, so nothing in the web
  * has to know where it moved to.
  *
@@ -40,8 +40,8 @@ export {
   type NotificationLevel,
   type NotificationPriority,
   type NotificationTone,
-} from '@agentry/shared';
-export { PROMPT_PARAM } from '@agentry/chat-ui/lib/permission-param';
+} from '@claudio/shared';
+export { PROMPT_PARAM } from '@claudio/chat-ui/lib/permission-param';
 
 /** A notification once the store has given it a read state. */
 export type AppNotification = Omit<NotificationDraft, 'dedupeMs'> & {

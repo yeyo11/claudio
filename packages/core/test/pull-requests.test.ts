@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, IssueRef, WorkItem, WorkItemHistoryPullRequest } from '@agentry/shared';
+import type { AgentryEvent, FlowCriterionResult, IssueRef, WorkItem, WorkItemHistoryPullRequest } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { flowPrompt, stageRules } from '../src/flow.ts';
 import { branchExists, mergeInProgress } from '../src/git.ts';
@@ -175,18 +175,18 @@ test('approving commits what is left, merges origin/main into the branch, pushes
     assert.equal(after?.pullRequest?.phase, 'open');
     assert.equal(after?.pullRequest?.number, 7);
     assert.equal(after?.pullRequest?.url, 'https://github.com/acme/shop/pull/7');
-    assert.equal(after?.pullRequest?.branch, 'task/cw-1');
+    assert.equal(after?.pullRequest?.branch, 'claudio-task/cw-1');
     assert.equal(after?.pullRequest?.base, 'main');
 
     const wt = item.worktree ?? '';
     assert.equal(sh(wt, 'status', '--porcelain'), '');
     assert.match(sh(wt, 'log', '--format=%s'), /chore\(cw-1\): keep the work QA verified/);
     assert.ok(existsSync(join(wt, 'shipping.ts')), 'origin/main was merged into the branch');
-    assert.ok(remoteHas(s.r, 'task/cw-1'), 'the branch was pushed');
-    assert.equal(sh(s.r.remote, 'rev-parse', 'task/cw-1'), sh(wt, 'rev-parse', 'HEAD'));
+    assert.ok(remoteHas(s.r, 'claudio-task/cw-1'), 'the branch was pushed');
+    assert.equal(sh(s.r.remote, 'rev-parse', 'claudio-task/cw-1'), sh(wt, 'rev-parse', 'HEAD'));
 
     assert.equal(creates(s.r).length, 1);
-    assert.match(readFileSync(join(s.r.state, 'create-7'), 'utf8'), /--head task\/cw-1 --base main --title feat: Fix the cart total \(CW-1\) --body-file -/);
+    assert.match(readFileSync(join(s.r.state, 'create-7'), 'utf8'), /--head claudio-task\/cw-1 --base main --title feat: Fix the cart total \(CW-1\) --body-file -/);
     const body = readFileSync(join(s.r.state, 'body-7'), 'utf8');
     assert.match(body, /The total was off by one\./);
     assert.match(body, /- \[x\] The total adds up/);
@@ -304,7 +304,7 @@ test('a conflict pushes nothing, keeps the merge in the worktree and sends the i
     assert.equal(after?.pullRequest?.phase, 'conflict');
     assert.deepEqual(after?.pullRequest?.conflicts, ['cart.ts']);
     assert.ok(mergeInProgress(item.worktree ?? ''));
-    assert.ok(!remoteHas(s.r, 'task/cw-1'), 'nothing was pushed');
+    assert.ok(!remoteHas(s.r, 'claudio-task/cw-1'), 'nothing was pushed');
     assert.equal(creates(s.r).length, 0);
 
     const moved = lastMove(s, item.id);
@@ -336,12 +336,12 @@ test('after the conflict run, conflicts left fail it, a resolved merge is commit
     assert.deepEqual(s.service.settleConflict(item.id), ['cart.ts']);
     assert.equal(s.items.find(item.id)?.pullRequest?.phase, 'conflict');
 
-    // Resolved and staged, but the merge left for Agentry to commit
+    // Resolved and staged, but the merge left for Claudio to commit
     write(wt, 'cart.ts', 'export const total = 4;\n');
     sh(wt, 'add', 'cart.ts');
     assert.equal(s.service.settleConflict(item.id), null);
     assert.ok(!mergeInProgress(wt));
-    assert.match(sh(wt, 'log', '-1', '--format=%s'), /Merge origin\/main into task\/cw-1/);
+    assert.match(sh(wt, 'log', '-1', '--format=%s'), /Merge origin\/main into claudio-task\/cw-1/);
     assert.equal(s.items.find(item.id)?.pullRequest?.phase, 'awaiting-verify');
 
     // The flow moves it to review and QA passes it: no second click
@@ -351,7 +351,7 @@ test('after the conflict run, conflicts left fail it, a resolved merge is commit
     const after = s.items.find(item.id);
     assert.equal(after?.pullRequest?.phase, 'open');
     assert.equal(after?.waiting, 'merge');
-    assert.ok(remoteHas(s.r, 'task/cw-1'));
+    assert.ok(remoteHas(s.r, 'claudio-task/cw-1'));
     assert.equal(creates(s.r).length, 1);
   } finally {
     cleanup(s);
@@ -457,8 +457,8 @@ test('a merged PR moves the item to Done as the person, removes its clean worktr
     assert.deepEqual(prEntries(s, item.id).pop(), { phase: 'merged', number: 7, url: 'https://github.com/acme/shop/pull/7', conflicts: [] });
 
     assert.ok(!existsSync(wt), 'the worktree was removed');
-    assert.ok(branchExists(s.r.project, 'task/cw-1'), 'the branch stays for Changes');
-    assert.equal(after?.branch, 'task/cw-1');
+    assert.ok(branchExists(s.r.project, 'claudio-task/cw-1'), 'the branch stays for Changes');
+    assert.equal(after?.branch, 'claudio-task/cw-1');
     assert.equal(sh(s.r.project, 'rev-parse', 'HEAD'), sh(s.r.project, 'rev-parse', 'origin/main'));
     assert.deepEqual(s.service.checkout(s.r.project, 'main'), { defaultBranch: 'main', branch: 'main', behind: 0, reason: null });
   } finally {

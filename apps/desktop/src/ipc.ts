@@ -1,17 +1,17 @@
 /** The channels between the preload and the main process */
 export const IPC = {
   /** page → main: `{ color, symbolColor }` for the title bar's controls */
-  titleBarTheme: 'agentry:title-bar-theme',
+  titleBarTheme: 'claudio:title-bar-theme',
   /** main → page: an in-app path to open with the page's own router */
-  navigate: 'agentry:navigate',
+  navigate: 'claudio:navigate',
   /** page → main (invoke): the updater's current state */
-  updateState: 'agentry:update-state',
+  updateState: 'claudio:update-state',
   /** main → page: the updater's state, whenever it changes */
-  updateChanged: 'agentry:update-changed',
+  updateChanged: 'claudio:update-changed',
   /** page → main (invoke): check if needed, then download the newest release */
-  updateDownload: 'agentry:update-download',
+  updateDownload: 'claudio:update-download',
   /** page → main (invoke): `{ whenIdle?, force? }`, answered with an `InstallAnswer` */
-  updateInstall: 'agentry:update-install',
+  updateInstall: 'claudio:update-install',
 } as const;
 
 /** Only a path inside the app: one slash, no scheme or host, so a message cannot send the page elsewhere */

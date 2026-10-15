@@ -68,9 +68,9 @@
       "paths": "Estas rutas"
     },
     "scopeHint": {
-      "anywhere": "Agentry no pone ningún límite propio a los chats que le abre. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "anywhere": "Claudio no pone ningún límite propio a los chats que le abre. Desde la terminal solo cuenta lo que dice su archivo de agente.",
       "documents": "Ningún archivo del proyecto: solo documentos en la carpeta de documentos, donde van las especificaciones y los informes. Desde la terminal solo cuenta lo que dice su archivo de agente.",
-      "paths": "Fuera de estas rutas y de la carpeta de documentos, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente."
+      "paths": "Fuera de estas rutas y de la carpeta de documentos, los chats que Claudio le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente."
     },
     "commands": "Comandos de shell",
     "commandScope": {
@@ -79,7 +79,7 @@
       "listed": "Estos comandos"
     },
     "commandHint": {
-      "any": "Cuando trabaja en una tarea, Agentry no pone ningún límite propio a la shell. Al refinar y al verificar tiene sus propias herramientas.",
+      "any": "Cuando trabaja en una tarea, Claudio no pone ningún límite propio a la shell. Al refinar y al verificar tiene sus propias herramientas.",
       "none": "Cuando trabaja en una tarea, no ejecuta ningún comando de shell. Al refinar y al verificar tiene sus propias herramientas.",
       "listed": "Cuando trabaja en una tarea, solo ejecuta estos comandos; un * vale por el resto de la línea (pnpm *). Al refinar y al verificar tiene sus propias herramientas."
     },
@@ -131,7 +131,7 @@
     "write": "Escribir el archivo",
     "writeFailed": "No se ha podido escribir el archivo del agente",
     "driftedTitle": "El archivo del agente dice otra cosa",
-    "driftedBody": "Su cabecera no coincide con el rol en: {{fields}}. Se editó a mano, así que Agentry lo deja como está."
+    "driftedBody": "Su cabecera no coincide con el rol en: {{fields}}. Se editó a mano, así que Claudio lo deja como está."
   },
   "add": {
     "title": "Añadir miembro",
@@ -142,7 +142,7 @@
     "roleTaken": "Ese rol ya está en el equipo.",
     "file": "Archivo del agente",
     "newFile": "Un archivo nuevo",
-    "fileNew": "Agentry escribe {{path}} con las instrucciones del rol.",
+    "fileNew": "Claudio escribe {{path}} con las instrucciones del rol.",
     "fileKept": "El archivo se queda como está.",
     "responsibilityPlaceholder": "De qué responde, en una línea",
     "added": "{{name}} se ha unido al equipo",
@@ -381,8 +381,8 @@
     "restarts": {
       "title_one": "Se cortó {{count}} vez.",
       "title_other": "Se cortó {{count}} veces.",
-      "body": "Agentry se reinició mientras {{role}} trabajaba. Siguió en su chat las veces que se permiten; a la siguiente, la ejecución se dio por fallida.",
-      "short": "se cortó al reiniciarse Agentry"
+      "body": "Claudio se reinició mientras {{role}} trabajaba. Siguió en su chat las veces que se permiten; a la siguiente, la ejecución se dio por fallida.",
+      "short": "se cortó al reiniciarse Claudio"
     },
     "unreadable": {
       "title": "No dejó un resultado legible.",
@@ -406,7 +406,7 @@
     },
     "not-continued": {
       "title": "No se ha podido retomar su chat.",
-      "body": "Agentry se reinició y el chat no pudo continuar. La tarea sigue en {{column}}, sin cambios.",
+      "body": "Claudio se reinició y el chat no pudo continuar. La tarea sigue en {{column}}, sin cambios.",
       "short": "no se ha podido retomar su chat"
     },
     "chat-ended": {

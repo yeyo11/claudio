@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { DecisionAnswer, DecisionPointId, HealthSignal, Orchestration, OrchestrationSpec, TranscriptEntry, VerificationSpec } from '@agentry/shared';
+import type { DecisionAnswer, DecisionPointId, HealthSignal, Orchestration, OrchestrationSpec, TranscriptEntry, VerificationSpec } from '@claudio/shared';
 import { ChatManager, type ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
@@ -329,7 +329,7 @@ test('orchestration.model: an unavailable provider leaves the draft as today, at
 // ---------- supervisor.intervene ----------
 
 const hung: HealthSignal = { kind: 'hung-command', level: 'bad', reason: '`pnpm e2e` has been running for 12 min.', detail: 'pnpm e2e' };
-const chat = { id: 'c1', name: 'chat c1', cwd: '/work', workingDir: '/work', origin: 'agentry', orchestrationId: null } as ChatRuntime;
+const chat = { id: 'c1', name: 'chat c1', cwd: '/work', workingDir: '/work', origin: 'claudio', orchestrationId: null } as ChatRuntime;
 const transcript: TranscriptEntry[] = [
   {
     uuid: 'u1',

@@ -1,6 +1,6 @@
-import type { ChatHealth, ConnectorAction, ConnectorLimit, HealthSignal, Localized, LocalizedParams } from '@agentry/shared';
+import type { ChatHealth, ConnectorAction, ConnectorLimit, HealthSignal, Localized, LocalizedParams } from '@claudio/shared';
 import i18n from '../i18n';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { formatNumber } from '@claudio/ui/lib/format';
 
 /*
  * Sentences the server writes come with a stable code and the figures they were built from. The

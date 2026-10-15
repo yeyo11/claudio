@@ -1,4 +1,4 @@
-import type { AssistantProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal, StartAssistantRunRequest } from '@agentry/shared';
+import type { AssistantProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal, StartAssistantRunRequest } from '@claudio/shared';
 
 /** `?suggest=1` opens Suggest tasks over the board of the selected project. */
 export const SUGGEST_PARAM = 'suggest';
@@ -60,7 +60,7 @@ const NAMED: Partial<Record<AssistantSource['kind'], SourcePhrase['key']>> = {
 
 /**
  * The sources a finished run actually read, the project's own files and history first (what the
- * person cannot see Agentry handing it), then Agentry's, at most `max`.
+ * person cannot see Claudio handing it), then Claudio's, at most `max`.
  */
 export function readPhrases(sources: readonly AssistantSource[], max = 3): SourcePhrase[] {
   const read = sources.filter((s) => s.state === 'read' || s.state === 'partial');

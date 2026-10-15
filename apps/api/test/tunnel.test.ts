@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { AuditPage, TunnelStatus } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { AuditPage, TunnelStatus } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The whole wrapper, listening on loopback, behind the fake `tailscale` the core tests use. What
@@ -47,8 +47,8 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
       TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
   );
@@ -63,7 +63,7 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
   const { port } = app.server.address() as AddressInfo;
   const remote = (path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<number> =>
     new Promise((resolve) => {
-      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host: `${NODE}:8443` } }, (res) => {
+      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host: `${NODE}:8444` } }, (res) => {
         res.resume();
         resolve(res.statusCode ?? 0);
       });
@@ -91,7 +91,7 @@ async function openTunnel(w: Wrapper, token: string): Promise<TunnelStatus> {
   return tunnel(w.app, token);
 }
 
-test('the tunnel starts stopped, with a ready Tailscale read from its CLI and start with Agentry off', async (t) => {
+test('the tunnel starts stopped, with a ready Tailscale read from its CLI and start with Claudio off', async (t) => {
   const { app } = await wrapper(t);
   const status = await tunnel(app);
   assert.deepEqual(status, {
@@ -100,10 +100,10 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     since: null,
     reason: null,
     enabled: true,
-    // A source install's Tailscale is the machine's, never signed in by Agentry
+    // A source install's Tailscale is the machine's, never signed in by Claudio
     managed: false,
     tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
-    port: 8443,
+    port: 8444,
     settings: { startWithAgentry: false },
   });
 });
@@ -124,7 +124,7 @@ test('the tailnet name is answered while active, and refused again once it stops
   // Before the tunnel, the node's name is not one this wrapper answers to
   assert.equal(await w.remote('/api/overview', auth), 421);
   const active = await openTunnel(w, token);
-  assert.equal(active.url, `https://${NODE}:8443`);
+  assert.equal(active.url, `https://${NODE}:8444`);
   assert.equal(await w.remote('/api/overview', auth), 200);
   // The host is let in, the guard still is not skipped
   assert.equal(await w.remote('/api/overview'), 401);

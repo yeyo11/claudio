@@ -9,8 +9,8 @@ if (!root || !label || !count) throw new Error('usage: work-item-writer <root> <
 const config = loadConfig({
   CSWAP_BIN: '/nonexistent/cswap',
   CLAUDE_CONFIG_DIR: `${root}/claude`,
-  AGENTRY_WORKSPACE_DIR: `${root}/workspace`,
-  AGENTRY_DATA_DIR: `${root}/data`,
+  CLAUDIO_WORKSPACE_DIR: `${root}/workspace`,
+  CLAUDIO_DATA_DIR: `${root}/data`,
 });
 const db = new Db(config);
 const service = new WorkItemService({ db, project: () => ({ keyPrefix: 'AGN', columnLimits: {} }) });

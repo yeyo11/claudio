@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { detectLanguage, intlLocale } from '@agentry/ui/i18n/language';
+import { detectLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { en, es, withManyPlurals } from '../src/i18n/resources.ts';
 
 function keys(tree: object, prefix = ''): string[] {
@@ -59,7 +59,7 @@ test('Spanish many plurals are derived from other', () => {
   });
 });
 
-test('language detection: the first language Agentry has wins, English otherwise', () => {
+test('language detection: the first language Claudio has wins, English otherwise', () => {
   assert.equal(detectLanguage(['es-ES', 'en']), 'es');
   assert.equal(detectLanguage(['es']), 'es');
   assert.equal(detectLanguage(['ES-mx']), 'es');

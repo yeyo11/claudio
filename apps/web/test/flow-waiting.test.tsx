@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { FlowRun, FlowWaiting } from '@agentry/shared';
+import type { FlowRun, FlowWaiting } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import i18n, { setLanguage } from '../src/i18n';
 import { FlowWaitingBody, startedMessage, switchesFlowOn, waitingToAsk } from '../src/pages/team/FlowWaiting';

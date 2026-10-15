@@ -1,4 +1,4 @@
-import type { PolicyTranslation, ProviderId, ToolPolicy } from '@agentry/shared';
+import type { PolicyTranslation, ProviderId, ToolPolicy } from '@claudio/shared';
 import { translationFor } from './providers/registry.ts';
 
 /** The rules a run starts with, in its provider's own terms. */

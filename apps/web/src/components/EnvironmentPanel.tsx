@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useFallbackInterval } from '../lib/feed';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 
 const MCP_TONE: Record<string, string> = { connected: 'ok', failed: 'bad', 'needs-auth': 'warn', pending: 'muted' };
 
@@ -121,7 +121,7 @@ export function EnvironmentBody({ env }: { env: LoadedEnvironment }) {
 }
 
 /**
- * What Claude actually loaded in the latest chat Agentry started in `cwd`: the ground truth that the
+ * What Claude actually loaded in the latest chat Claudio started in `cwd`: the ground truth that the
  * configuration files only describe. `live` keeps it refreshed while a chat is in progress: the event
  * feed does it, and a slow poll stands in while the feed is down.
  */

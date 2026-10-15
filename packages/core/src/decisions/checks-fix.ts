@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
-import { DEFAULT_CHECKS_FIX_ATTEMPTS, DEFAULT_FLOW_MAX_PARALLEL, MAX_CHECKS_FIX_ATTEMPTS, type ChangeRequestChecks, type CheckLog, type WorkItem } from '@agentry/shared';
+import { DEFAULT_CHECKS_FIX_ATTEMPTS, DEFAULT_FLOW_MAX_PARALLEL, MAX_CHECKS_FIX_ATTEMPTS, type ChangeRequestChecks, type CheckLog, type WorkItem } from '@claudio/shared';
 import type { FlowProject } from '../flow.ts';
 import { failingChecks, type ChecksFailingNotice, type FixChecksResult } from '../pull-requests.ts';
 import type { DecisionOutcome } from './engine.ts';

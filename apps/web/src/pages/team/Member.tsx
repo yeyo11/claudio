@@ -1,4 +1,4 @@
-import type { Effort, Project, TeamMember } from '@agentry/shared';
+import type { Effort, Project, TeamMember } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, Pencil, Undo2, UserMinus } from 'lucide-react';
 import { useState } from 'react';
@@ -6,18 +6,18 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { MoreActions, Tooltip } from '@agentry/ui/components/controls';
+import { MoreActions, Tooltip } from '@claudio/ui/components/controls';
 import { EffortPicker } from '../../components/EffortPicker';
 import { ModelPicker } from '../../components/ModelPicker';
 import { useEffortUnavailable } from '../../lib/provider-status';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { AnswersFor, FileState } from './Members';
 import { frontmatterProblem } from '../config/frontmatter';
 import {
@@ -96,7 +96,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     content: file.data?.content ?? '',
   };
   // Only the fields the person touched: the rest follows what is saved, so a model changed on the
-  // Flow screen, a file Agentry rewrote or another tab's save shows here instead of being overwritten
+  // Flow screen, a file Claudio rewrote or another tab's save shows here instead of being overwritten
   const [draft, setDraft] = useState<Partial<Draft>>({});
   const now: Draft = { ...saved, ...draft };
   const writes = writesFor(now.scope, now.paths);
@@ -119,7 +119,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
 
   const save = useMutation({
     mutationFn: async () => {
-      // The metadata first: Agentry may rewrite a file it wrote itself to follow it, and the person's
+      // The metadata first: Claudio may rewrite a file it wrote itself to follow it, and the person's
       // own edit to the file must be the last word
       if (metaChanged)
         await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), effort: now.effort || null, responsibility, writes: writes ?? null, commands }));

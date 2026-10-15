@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationTaskState, VerificationState } from '@agentry/shared';
+import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationTaskState, VerificationState } from '@claudio/shared';
 import { followedStep, graphShape, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, stageState, taskStage, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({

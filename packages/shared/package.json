@@ -1,6 +1,6 @@
 {
-  "name": "@agentry/shared",
-  "version": "0.37.1",
+  "name": "@claudio/shared",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {

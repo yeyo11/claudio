@@ -11,8 +11,8 @@ import type {
   WorkItemLink,
   WorkItemLinkRole,
   WriteDocumentRequest,
-} from '@agentry/shared';
-import { DOCUMENT_KINDS } from '@agentry/shared';
+} from '@claudio/shared';
+import { DOCUMENT_KINDS } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { DocumentPathError, documentPath, isMarkdown, rootSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
@@ -20,7 +20,7 @@ import type { WorkItemContext, WorkItemService } from './work-items.ts';
 
 /**
  * The Documents module: the Markdown files of a project's documents folder (`documents.path`,
- * `docs` by default), read and written from Agentry, and tied to work items as `document` links.
+ * `docs` by default), read and written from Claudio, and tied to work items as `document` links.
  *
  * Every path a caller hands in goes through two checks. `document-paths.ts` refuses its shape
  * (absolute, `..`, hidden parts, not Markdown, outside the folder) before the disk is touched; then

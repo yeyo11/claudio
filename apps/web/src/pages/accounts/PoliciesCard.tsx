@@ -1,15 +1,15 @@
-import type { Account, Project, RotationPolicy } from '@agentry/shared';
+import type { Account, Project, RotationPolicy } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Check, Pencil, Plus, Route, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useProjects } from '../../api';
 import { accountName } from '../../lib/accounts';
-import { Checkbox, Slider, Tooltip } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Field } from '@agentry/ui/components/ui';
+import { Checkbox, Slider, Tooltip } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field } from '@claudio/ui/components/ui';
 
 interface Draft {
   /** Absent while a new policy is being written */

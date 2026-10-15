@@ -1,21 +1,21 @@
 image:
-  repository: ghcr.io/yeyo11/agentry
+  repository: ghcr.io/yeyo11/claudio
   # A release so that an upgrade is a decision; `latest` follows every release and `edge` every push
   # to main. The Claude Code version is baked into the image, not chosen here, and neither are the
   # other agents' (Codex, Gemini, Copilot, OpenCode). release-please moves this tag with every release.
   # Change both together or neither: a moving tag (`latest`, `edge`) needs pullPolicy: Always, or a
   # node that already holds the image serves yesterday's build - and a security fix - forever, while
   # a node scheduled fresh pulls a different one under the same name.
-  tag: "0.37.1" # x-release-please-version
+  tag: "0.1.0" # x-release-please-version
   pullPolicy: IfNotPresent
 
 # The port the API listens on inside the pod and the one the Service exposes
-port: 8787
+port: 8797
 
 service:
   type: ClusterIP
 
-# Agentry keeps its state in a SQLite file shared by the API and the CLI processes it starts, so it
+# Claudio keeps its state in a SQLite file shared by the API and the CLI processes it starts, so it
 # is one pod on one volume. More than one replica would corrupt that store: the chart has no knob.
 
 resources:
@@ -24,7 +24,7 @@ resources:
     memory: 512Mi
   limits:
     # Every chat is a `claude` process inside this pod, and each one runs shell commands of its own:
-    # size both for the number you run at once (AGENTRY_MAX_CONCURRENT_RUNS, 8 by default), not for
+    # size both for the number you run at once (CLAUDIO_MAX_CONCURRENT_RUNS, 8 by default), not for
     # the API. The CPU limit is there so a pod full of busy agents throttles instead of taking the
     # node from everything else scheduled beside it - raise it before raising the concurrency.
     cpu: "4"
@@ -45,7 +45,7 @@ persistence:
 claude:
   existingSecret: ""
 
-# The key that seals the keys and tokens Agentry keeps for the CLIs (AGENTRY_SECRET_KEY, 32 bytes as
+# The key that seals the keys and tokens Claudio keeps for the CLIs (CLAUDIO_SECRET_KEY, 32 bytes as
 # hex: `openssl rand -hex 32`). Without one the image makes a key on the first write and keeps it on
 # the data volume beside what it seals, which protects a copy of the files but not the volume.
 # Changing it later makes what the old key sealed read as absent: those keys are entered again.
@@ -80,12 +80,12 @@ auth:
 # /dev/net/tun), with its node state on the data volume, and the person signs it in from the app.
 # Once it opens, tailnet members reach the server on 127.0.0.1 inside the pod, around this chart's
 # Service, your Ingress and any NetworkPolicy on ingress. It refuses to open while auth is `none`,
-# and only opens when someone starts it from the UI (or turns on "start with Agentry" there).
+# and only opens when someone starts it from the UI (or turns on "start with Claudio" there).
 # `false` starts no tailscaled in the pod and offers no tunnel.
 tunnel:
   enabled: true
 
-# Extra environment variables for the container (AGENTRY_MAX_CONCURRENT_RUNS, AGENTRY_CLI_UPDATE_CHECK...).
+# Extra environment variables for the container (CLAUDIO_MAX_CONCURRENT_RUNS, CLAUDIO_CLI_UPDATE_CHECK...).
 # Plain values: a secret goes in `secretKey`, `auth.token` or `claude.existingSecret` instead.
 env: {}
 

@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import i18n from '../i18n';
 
 /** What a person can decide about one task right now; mirrors what the server accepts. */

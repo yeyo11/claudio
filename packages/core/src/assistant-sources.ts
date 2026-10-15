@@ -1,11 +1,11 @@
 import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import type { AssistantSource, AssistantSourceUnit } from '@agentry/shared';
+import type { AssistantSource, AssistantSourceUnit } from '@claudio/shared';
 import type { AssistantGit } from './assistant-answer.ts';
 import { git, isGitRepo } from './git.ts';
 
 /**
- * "What it read": the list a run shows while it works and keeps once it ends. Agentry lays it out
+ * "What it read": the list a run shows while it works and keeps once it ends. Claudio lays it out
  * when the run starts, from a look at the directory and from what it hands the run itself (the
  * journal, the work items, the team, the resources, the chats' titles); the chat's own reads fill
  * it in as they happen and from its answer. What was laid out and never read is dropped when the
@@ -21,7 +21,7 @@ export interface AssistantReads {
 
 export const NO_READS: AssistantReads = { files: [], dirs: [], git: false };
 
-/** What Agentry knows of a project beside its directory, counted for the list. */
+/** What Claudio knows of a project beside its directory, counted for the list. */
 export interface AssistantFacts {
   memoryFiles: number;
   journalEntries: number;
@@ -113,7 +113,7 @@ export function topFiles(path: string): Array<{ name: string; bytes: number | nu
 }
 
 /**
- * The list as a run starts it: everything Agentry hands it is read, the directory is still to read.
+ * The list as a run starts it: everything Claudio hands it is read, the directory is still to read.
  * `dropped` names top-level files `assistant.sources` judged the run will not need: they leave the
  * list, and the room they held goes to the next files. A file the run then reads is listed anyway.
  */
@@ -136,7 +136,7 @@ export function initialSources(path: string, facts: AssistantFacts, empty: boole
   source(instructions === null ? { kind: 'instructions', path: 'CLAUDE.md', state: 'missing' } : { kind: 'instructions', path: 'CLAUDE.md', state: 'read', count: instructions, unit: 'lines' });
   if (facts.memoryFiles) source({ kind: 'memory', state: 'read', count: facts.memoryFiles, unit: 'files' });
   if (facts.chats) source({ kind: 'chats', state: 'read', count: facts.chats, unit: 'chats' });
-  // Agentry reads the history and hands it in the prompt: the run has no shell to ask git
+  // Claudio reads the history and hands it in the prompt: the run has no shell to ask git
   if (facts.commits) source({ kind: 'git', state: 'read', count: facts.commits, unit: 'commits' });
   else if (empty) source({ kind: 'git', state: 'missing' });
   if (facts.journalEntries) source({ kind: 'journal', state: 'read', count: facts.journalEntries, unit: 'entries' });
@@ -229,7 +229,7 @@ const CHANGES_HANDED = 40;
 const LINE_MAX = 200;
 
 /**
- * What a run would have asked git, asked by Agentry: the branch, the latest commits and the
+ * What a run would have asked git, asked by Claudio: the branch, the latest commits and the
  * uncommitted changes. A part that fails counts as none; null outside a repository.
  */
 export function assistantGit(path: string, timeout = 10_000): AssistantGit | null {

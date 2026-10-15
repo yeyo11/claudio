@@ -93,7 +93,7 @@ jobs:
 
       - name: OpenAPI schemas are up to date with the shared types
         run: |
-          pnpm --filter @agentry/api openapi:schemas
+          pnpm --filter @claudio/api openapi:schemas
           git diff --exit-code -- apps/api/src/openapi/schemas.json
 
       - run: pnpm typecheck
@@ -188,10 +188,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build the image
-        run: docker build -f docker/Dockerfile -t agentry:ci .
+        run: docker build -f docker/Dockerfile -t claudio:ci .
       - name: Container reports a detected CLI
         run: |
-          docker run -d --name agentry --init -p 8787:8787 agentry:ci
-          for i in $(seq 1 30); do curl -fsS localhost:8787/api/system && break; sleep 1; done
-          curl -fsS localhost:8787/api/system | grep -q '"installed":true'
-          curl -fsS -o /dev/null localhost:8787/docs/
+          docker run -d --name claudio --init -p 8797:8797 claudio:ci
+          for i in $(seq 1 30); do curl -fsS localhost:8797/api/system && break; sleep 1; done
+          curl -fsS localhost:8797/api/system | grep -q '"installed":true'
+          curl -fsS -o /dev/null localhost:8797/docs/

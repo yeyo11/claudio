@@ -1,12 +1,12 @@
-import type { Check, CheckAnnotation } from '@agentry/shared';
+import type { Check, CheckAnnotation } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Ban, Check as CheckIcon, CircleAlert, Clock, ExternalLink, Minus, Play, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ApiRequestError, api, keys } from '../../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
 import { clockOf, checkDurationMs, checkMark } from '../../../lib/change-requests';
-import { errorMessage } from '@agentry/ui/lib/format';
+import { errorMessage } from '@claudio/ui/lib/format';
 
 /** The lines the runners write for an error: the tail's own windows are cut around the same ones. */
 const ERROR_LINE = /##\[error\]|\bERROR:|\bexit code [1-9]\d*/;

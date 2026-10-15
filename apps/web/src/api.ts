@@ -260,10 +260,10 @@ import type {
   StartLoginRequest,
   SaveDashboardLayoutRequest,
   StoredDashboardLayout,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
-import { chatKeys, type ChatClient } from '@agentry/chat-ui/lib/context';
+import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
 import { mergeRefetchMs } from './lib/merge';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
@@ -336,7 +336,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
-      // The language the person reads Agentry in, for what the server writes in it (a chat's title)
+      // The language the person reads Claudio in, for what the server writes in it (a chat's title)
       headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
       signal: init.signal ? either(init.signal, timeout) : timeout,
@@ -362,7 +362,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
     if (res.status === 401) setChallenge(err?.mode ?? 'token');
-    // No JSON error means Agentry did not write this answer (a proxy's or a tunnel's page): say so in
+    // No JSON error means Claudio did not write this answer (a proxy's or a tunnel's page): say so in
     // the person's language and keep the status line as the detail
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
     const code = (err as { code?: unknown }).code;
@@ -853,7 +853,7 @@ export const api = {
   armAutoMerge: (id: string, req: AutoMergeRequestBody) =>
     request<MergeState>(`/change-requests/${enc(id)}/auto-merge`, { method: 'POST', body: req }),
   disarmAutoMerge: (id: string) => request<MergeState>(`/change-requests/${enc(id)}/auto-merge`, { method: 'DELETE' }),
-  /** Update from base: Agentry's own merge of the base into the branch (or a host-side rebase on GitLab `ff` projects) */
+  /** Update from base: Claudio's own merge of the base into the branch (or a host-side rebase on GitLab `ff` projects) */
   updateBranch: (id: string) => request<UpdateBranchResult>(`/change-requests/${enc(id)}/update-branch`, { method: 'POST', body: {} }),
   /** Mark ready for review, or back to a draft */
   markReady: (id: string, req: MergeReadyRequest) =>
@@ -943,7 +943,7 @@ export const api = {
     request<{ ok: true }>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'DELETE' }),
   tieDocument: (itemId: string, req: TieDocumentRequest) =>
     request<WorkItemLink>(`/work-items/${enc(itemId)}/documents`, { method: 'POST', body: req }),
-  // ---- the Agentry assistant: a confined global chat (docs/plans/agentry-assistant-entry.md)
+  // ---- the Claudio assistant: a confined global chat (docs/plans/agentry-assistant-entry.md)
   startAgentryAssistantChat: (req: StartAgentryAssistantChatRequest) => request<ChatSummary>('/assistant/chats', { method: 'POST', body: req }),
   // ---- the project assistant (docs/plans/project-ecosystem.md, orchestration 4)
   /** Refused with 409 while a run of the same kind runs in the project */

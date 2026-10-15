@@ -1,7 +1,7 @@
-import type { ProjectCodeHostRemote } from '@agentry/shared';
+import type { ProjectCodeHostRemote } from '@claudio/shared';
 
 /**
- * A remote as Agentry reads it. The user and the secret of the URL are dropped while parsing and
+ * A remote as Claudio reads it. The user and the secret of the URL are dropped while parsing and
  * exist in no field, so nothing built from this can store, log or serve them.
  */
 export interface ParsedRemote extends ProjectCodeHostRemote {

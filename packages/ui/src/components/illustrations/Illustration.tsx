@@ -50,7 +50,7 @@ const SIZES: readonly string[] = ['sm', 'md', 'lg'] satisfies IllustrationSize[]
 const TONES: readonly string[] = ['accent', 'warn', 'bad', 'live'] satisfies IllustrationTone[];
 
 /**
- * One of Agentry's own illustrations, for empty, error and system states. Always decorative: the
+ * One of Claudio's own illustrations, for empty, error and system states. Always decorative: the
  * title and text next to it carry the meaning. Sizes and tones outside the unions (a stray string
  * from a caller that isn't typed) fall back to `md` and the drawing's own tone.
  */

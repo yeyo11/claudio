@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { ProviderMove, ProvidersSettings } from '@agentry/shared';
+import type { ProviderMove, ProvidersSettings } from '@claudio/shared';
 import type { ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
 import { Core } from '../src/index.ts';

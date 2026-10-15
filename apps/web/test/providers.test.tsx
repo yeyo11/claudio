@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@agentry/shared';
+import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -83,7 +83,7 @@ test('each state offers the remedy the prototype shows, one primary at most', ()
   for (const state of STATES) assert.ok(actionsFor(state).filter((a) => a.primary).length <= 1, state);
 });
 
-test('a vendor page is known for the provider Agentry drives', () => {
+test('a vendor page is known for the provider Claudio drives', () => {
   assert.match(providerLink('claude-code', 'install') ?? '', /^https:\/\//);
   assert.equal(providerLink('nope', 'install'), null);
 });
@@ -109,7 +109,7 @@ test('a row shows the state as a word, the reason and the path in mono', async (
   const html = render(<ProviderRow status={status({ state: 'degraded', reason: 'version-below-range', version: '2.0.8', id: 'claude-code', label: 'Claude Code' })} />);
   const words = text(html);
   assert.match(words, /Warnings/);
-  assert.match(words, /v2\.0\.8 is older than the versions Agentry has been tested with \(\^1\.0\.0\)/);
+  assert.match(words, /v2\.0\.8 is older than the versions Claudio has been tested with \(\^1\.0\.0\)/);
   assert.match(html, /prov-meta[^>]*>v2\.0\.8 · \^1\.0\.0 · \/usr\/local\/bin\/claude/);
   assert.match(html, /href="https:\/\/code\.claude\.com\/docs\/en\/setup"/);
 });

@@ -1,18 +1,18 @@
-import type { AuthConfig, AuthMode, CodeHostId, CodeHostStatus, SetupState, TrackerStatus } from '@agentry/shared';
+import type { AuthConfig, AuthMode, CodeHostId, CodeHostStatus, SetupState, TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, ExternalLink, RefreshCw, Shield } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { BrandMark, ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Illustration } from '@agentry/ui/components/illustrations';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { BrandMark, ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Illustration } from '@claudio/ui/components/illustrations';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { getToken } from '../../lib/auth';
 import { useEventFeed } from '../../lib/events';
 import { nothingFound } from '../../lib/first-run';
@@ -75,7 +75,7 @@ export function SetupAssistant({ onFinish }: { onFinish: () => void }) {
       <main className="prov-first setup">
         <div className="prov-first-brand">
           <BrandMark size={26} />
-          <span className="prov-first-name">Agentry</span>
+          <span className="prov-first-name">Claudio</span>
           <span className="grow" />
           <span className="section-label">{phone ? t('labelPhone', { n: at, total: SETUP_STEPS.length, name }) : t('label', { n: at, total: SETUP_STEPS.length })}</span>
           {/* On a phone the header has room for the step's name only; Skip on each step gets there too */}
@@ -221,10 +221,10 @@ function Intro({ title, text }: { title: string; text: string }) {
 const SETUP_MODES: AuthMode[] = ['none', 'token'];
 
 /**
- * Step 1: who may open Agentry, and from where. The mode (None or Token) and the token shown once,
+ * Step 1: who may open Claudio, and from where. The mode (None or Token) and the token shown once,
  * from the same pieces as Settings → Security; OIDC and the read-only mode stay there. Turning Token
  * on makes a token first when this browser holds none, so the step can never lock the person out.
- * Below it, Tailscale, which Remote access goes through: signed in here where Agentry runs it (the
+ * Below it, Tailscale, which Remote access goes through: signed in here where Claudio runs it (the
  * Docker image), shown as it stands where it is the machine's own, and left out where the deploy
  * offers no tunnel or the machine has no Tailscale.
  */

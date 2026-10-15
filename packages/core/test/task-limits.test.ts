@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, remainingUsd, spentUsd, startClock } from '../src/task-limits.ts';
 import { tempConfig } from './helpers.ts';
 
-// What a task may spend. The cost ceiling is the CLI's own flag and the time ceiling is Agentry's;
+// What a task may spend. The cost ceiling is the CLI's own flag and the time ceiling is Claudio's;
 // what is tested here is that each reaches the place that enforces it, and that a retry neither
 // escapes the ceiling by getting it all again nor trips a limit the person just gave a new go.
 
@@ -154,7 +154,7 @@ test('a task past its time limit is stopped and fails with the reason, and what 
   // A person decides what happens to the branch: the graph waits, and the task behind it is blocked
   const orch = await until(() => orchestrator.get(started.id) as Orchestration, (o) => o.status === 'waiting', 'the graph to wait');
   assert.equal(orch.tasks.find((t) => t.id === 'after')?.status, 'blocked');
-  assert.match(runs.events(chat).map((e) => e.text ?? '').join('|'), /Agentry stopped this task at its time limit of 10 min/);
+  assert.match(runs.events(chat).map((e) => e.text ?? '').join('|'), /Claudio stopped this task at its time limit of 10 min/);
   close();
 });
 
@@ -168,7 +168,7 @@ test('the worker is warned once before the stop, and told to wrap up', async () 
     runs
       .events(chat)
       .flatMap((e) => e.entry?.blocks ?? [])
-      .flatMap((b) => (b.type === 'text' && b.text.startsWith('A note from Agentry') ? [b.text] : []));
+      .flatMap((b) => (b.type === 'text' && b.text.startsWith('A note from Claudio') ? [b.text] : []));
   orchestrator.enforceLimits(Date.now() + 7 * 60_000);
   assert.equal(notesOf().length, 0, 'seven of ten minutes is not yet close');
   orchestrator.enforceLimits(Date.now() + 8 * 60_000);
@@ -176,7 +176,7 @@ test('the worker is warned once before the stop, and told to wrap up', async () 
   const notes = runs
     .events(chat)
     .flatMap((e) => e.entry?.blocks ?? [])
-    .flatMap((b) => (b.type === 'text' && b.text.startsWith('A note from Agentry') ? [b.text] : []));
+    .flatMap((b) => (b.type === 'text' && b.text.startsWith('A note from Claudio') ? [b.text] : []));
   assert.equal(notes.length, 1);
   assert.match(notes[0] ?? '', /used 8 of the 10 minutes/);
   assert.match(notes[0] ?? '', /Wrap up now: commit what works/);

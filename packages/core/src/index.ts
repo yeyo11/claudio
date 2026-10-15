@@ -67,13 +67,13 @@ import type {
   WorkOnWorkItemRequest,
   WorkOnWorkItemResult,
   FileDiff,
-} from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type AgentryAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@agentry/shared';
+} from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, agentryLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type AgentryAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountStore, DEFAULT_ID, readCache } from '@agentry/accounts';
+import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -341,7 +341,7 @@ export {
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
-const AGENTRY_VERSION = pkg.version;
+const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
@@ -377,7 +377,7 @@ export class Core {
   /** The YouTrack instance and token `youtrack-app` is handed (`youtrack-credentials.json`, decision 3) */
   readonly youtrackCredentials: YoutrackCredentialStore;
   readonly permissions: PermissionBroker;
-  /** Processes and live streams of the chats Agentry drives */
+  /** Processes and live streams of the chats Claudio drives */
   readonly runtime: ChatManager;
   /** The chats the API serves: the transcript, the runtime and the CLI's own list, as one */
   readonly chats: ChatService;
@@ -434,7 +434,7 @@ export class Core {
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
   readonly cliVersion: CliVersionWatch;
-  /** Whether a newer Agentry has been released: `release.json`, checked once a day */
+  /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
   readonly workspace: Workspace;
   readonly locator = new Locator();
@@ -471,11 +471,11 @@ export class Core {
   readonly webhooks: WebhookStore;
   /** The 0600 files that hold each registration's signing secret; never returned by the API */
   readonly webhookSecrets: WebhookSecrets;
-  /** Takes Agentry's own secrets back out of the redaction, at shutdown */
+  /** Takes Claudio's own secrets back out of the redaction, at shutdown */
   private readonly forgetSecrets: () => void;
   /** What `POST /webhooks/:host/:registrationId` calls: verify, dedupe, then move the named rows' next read to now */
   readonly webhookReceiver: WebhookReceiver;
-  /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receiver reads their secrets from `webhookSecrets` itself */
+  /** Registers, tests, removes and re-points the hooks Claudio keeps on a repository; the receiver reads their secrets from `webhookSecrets` itself */
   readonly webhookService: WebhooksService;
   /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
   readonly merge: MergeService;
@@ -485,7 +485,7 @@ export class Core {
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
   /**
-   * The person's language, as their panel last said it (`noteLanguage`): what the chats Agentry
+   * The person's language, as their panel last said it (`noteLanguage`): what the chats Claudio
    * starts on its own, with no request of the person's behind them, are titled in.
    */
   private language: AgentryLanguage = 'en';
@@ -547,7 +547,7 @@ export class Core {
         method: 'POST',
         path: '/api/security/token',
         status: 200,
-        summary: 'Replace the token from AGENTRY_AUTH_TOKEN (AGENTRY_AUTH_TOKEN_RESET)',
+        summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
     this.appSettings = new AppSettingsStore(config, {
@@ -571,7 +571,7 @@ export class Core {
       hosts: this.appSettings.runtimeHosts,
       emit: (event) => this.events.emit(event),
       // What the tunnel does by itself; what a person asks for is audited by the API's own hook
-      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'agentry', status: 200, ...row }),
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
     });
     // The tunnel never outlives the guard: it is closed before the first unguarded request
     this.security.beforeUnguarded = async () => {
@@ -579,7 +579,7 @@ export class Core {
     };
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
-    this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
+    this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
     this.projectSettingsStore = new ProjectSettingsStore(config);
     this.team = new TeamService({
@@ -806,13 +806,13 @@ export class Core {
       binary: (tool) => this.setupBinary(tool),
       readiness: (tool, host) => this.setupReadiness(tool, host),
       refusal: (tool) => (tool === 'tailscale' ? this.tailscaleRefusal() : null),
-      // A rule left in the daemon's Serve config would outlive the sign-out, and only Agentry would know it
+      // A rule left in the daemon's Serve config would outlive the sign-out, and only Claudio would know it
       beforeSignOut: async (tool) => {
         if (tool === 'tailscale') await this.tunnel.stop();
       },
       tailscaleName: config.tailscaleHostname,
     });
-    // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
+    // Claudio's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
     this.forgetSecrets = recognizeSecrets({
       values: () => [this.decisionCredentials.getKey() ?? '', ...this.vault.values(), ...this.webhookSecrets.values()],
@@ -1183,7 +1183,7 @@ export class Core {
         configDir: this.config.configDir,
         workspaceDir: this.config.workspaceDir,
         defaultPermissionMode: this.appSettings.defaultPermissionMode,
-        version: AGENTRY_VERSION,
+        version: CLAUDIO_VERSION,
       };
       // A read that finished late never replaces a newer one
       if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) {
@@ -1268,7 +1268,7 @@ export class Core {
   /**
    * Deletes every trace Claude Code keeps of a project: transcripts, tasks, file history and its
    * config entry. The CLI owns that layout, so it does the deleting. Irreversible, and separate
-   * from `removeProject`, which only makes Agentry forget the directory.
+   * from `removeProject`, which only makes Claudio forget the directory.
    */
   async purgeProject(id: string): Promise<{ detail: string }> {
     const project = this.projectStore.get(id);
@@ -1292,7 +1292,7 @@ export class Core {
     return projectScope(project.path);
   }
 
-  /** Claude Code keys a project's memory by its directory, not by the id Agentry gives the project. */
+  /** Claude Code keys a project's memory by its directory, not by the id Claudio gives the project. */
   private memoryKey(projectId: string): string {
     const project = this.projectStore.get(projectId);
     if (!project) throw new Error('project not found');
@@ -1351,7 +1351,7 @@ export class Core {
     return storageReport(this.release.distribution, { config: configDir, data: dataDir, workspace: workspaceDir });
   }
 
-  /** This Agentry against the newest release, as the last check left it: no network here. */
+  /** This Claudio against the newest release, as the last check left it: no network here. */
   releaseInfo(): AgentryReleaseInfo {
     return this.release.info();
   }
@@ -1364,16 +1364,16 @@ export class Core {
 
   /** The version this server runs, as every client should expect it */
   get version(): string {
-    return AGENTRY_VERSION;
+    return CLAUDIO_VERSION;
   }
 
-  /** Agentry's own MCP server for a chat, and the flags that confine the chat to its read tools. */
+  /** Claudio's own MCP server for a chat, and the flags that confine the chat to its read tools. */
   agentryMcp(): Promise<AgentryMcpLaunch> {
-    return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
+    return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
   }
 
   /**
-   * Starts a chat with the Agentry assistant (`POST /assistant/chats`): the person's prompt, the
+   * Starts a chat with the Claudio assistant (`POST /assistant/chats`): the person's prompt, the
    * project in scope as context if there is one, and nothing else of the chat is theirs to choose.
    * It runs in the project's directory when that exists, else in the workspace. Its confinement is
    * `assistantChatLaunch`, applied again at every process of the chat.
@@ -1400,7 +1400,7 @@ export class Core {
   private assistantChatLaunch(marker: AgentryAssistantMarker): AssistantChatOptions {
     const project = marker.projectId ? this.projectStore.get(marker.projectId) : null;
     const scope = project ? { id: project.id, name: project.name, key: this.projectSettingsStore.stored(project.id, project.name)?.keyPrefix ?? '', path: project.path } : null;
-    const launch = agentryMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
+    const launch = agentryMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
     return assistantChatOptions(launch, agentryAssistantPrompt(scope, marker.language));
   }
 
@@ -1441,7 +1441,7 @@ export class Core {
   async markSetupSeen(): Promise<SetupState> {
     const settings = this.appSettings.get();
     if (!settings.setupSeen && settings.sources.setupSeen === 'env') {
-      throw Object.assign(new Error('setupSeen is set by the environment (AGENTRY_SETUP_SEEN) and cannot be changed here'), { statusCode: 409 });
+      throw Object.assign(new Error('setupSeen is set by the environment (CLAUDIO_SETUP_SEEN) and cannot be changed here'), { statusCode: 409 });
     }
     if (!settings.setupSeen) await this.appSettings.update({ setupSeen: true });
     return this.setupState();
@@ -1449,11 +1449,11 @@ export class Core {
 
   /**
    * Why Tailscale is not signed in from here, or null where it is: only the daemon the image starts
-   * for Agentry is Agentry's to sign in, and only while the tunnel is offered at all.
+   * for Claudio is Claudio's to sign in, and only while the tunnel is offered at all.
    */
   private tailscaleRefusal(): string | null {
-    if (!this.config.tailscaleManaged) return "This machine's Tailscale belongs to it: sign it in with the Tailscale app or tailscale up. Agentry signs in only the Tailscale it runs itself, in its Docker image.";
-    if (!this.config.tunnelEnabled) return 'This Agentry does not offer the tunnel (AGENTRY_TUNNEL is off), so it runs no Tailscale to sign in.';
+    if (!this.config.tailscaleManaged) return "This machine's Tailscale belongs to it: sign it in with the Tailscale app or tailscale up. Claudio signs in only the Tailscale it runs itself, in its Docker image.";
+    if (!this.config.tunnelEnabled) return 'This Claudio does not offer the tunnel (CLAUDIO_TUNNEL is off), so it runs no Tailscale to sign in.';
     return null;
   }
 
@@ -1695,7 +1695,7 @@ export class Core {
   }
 
   /**
-   * YouTrack is not the project's host: its calls go to the instance Agentry keeps the address and
+   * YouTrack is not the project's host: its calls go to the instance Claudio keeps the address and
    * token of, through the `youtrack-app` the detector found ready, with the token only in the
    * child's environment.
    */
@@ -1789,7 +1789,7 @@ export class Core {
   }
 
   /**
-   * Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not
+   * Forgets a project in Claudio. What Claude Code keeps about it is `purgeProject`, and is not
    * touched; neither are its settings document and work items, which importing it again brings back.
    */
   async removeProject(id: string): Promise<void> {
@@ -1837,13 +1837,13 @@ export class Core {
   }
 
   /**
-   * Keeps the language an `Accept-Language` header names, when it names one of Agentry's: the panel
+   * Keeps the language an `Accept-Language` header names, when it names one of Claudio's: the panel
    * sends the person's with every request. A header that names none (`*`, which a script's fetch
    * sends, or another language) leaves the last one as it was.
    */
   noteLanguage(header: unknown): void {
     if (typeof header !== 'string') return;
-    const named = header.split(',').some((tag) => (AGENTRY_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
+    const named = header.split(',').some((tag) => (CLAUDIO_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
     if (named) this.language = agentryLanguage(header);
   }
 
@@ -2026,7 +2026,7 @@ export class Core {
   }
 
   /**
-   * A chat Agentry started for a run of its own, the flow's or the assistant's: a person who
+   * A chat Claudio started for a run of its own, the flow's or the assistant's: a person who
    * continues it gets it back without the run's rules (`ChatService.resume`).
    */
   private memberChat(chatId: string): boolean {
@@ -2117,9 +2117,9 @@ export class Core {
 
   /**
    * The member's definition for `--agents`, from the agent file in the project's checkout: the item's
-   * worktree only has the agent files that were committed, and the file a person edits in Agentry is
+   * worktree only has the agent files that were committed, and the file a person edits in Claudio is
    * the one that should run. It carries what the file says of the agent (its tools, the tools it is
-   * denied, as a list in either YAML form) and the member's model, which is Agentry's to set, so a
+   * denied, as a list in either YAML form) and the member's model, which is Claudio's to set, so a
    * file's `model` never runs a role on a model its screen does not show. Named by its content, so
    * the same definition is one file.
    */
@@ -2156,7 +2156,7 @@ export class Core {
   // ---------- work items ----------
   //
   // A project whose Board module is off keeps its items, and they stay readable so nothing looks
-  // lost; what it refuses is a change. A project removed from Agentry keeps them too, for the day
+  // lost; what it refuses is a change. A project removed from Claudio keeps them too, for the day
   // its directory is imported again, but it is not a place anything is created in.
 
   /**
@@ -2207,7 +2207,7 @@ export class Core {
     if (!adapter) return null;
     const worktree = this.orchestrator.get(orch.orchestration_id)?.integration?.worktree ?? null;
     const target = mergeTargetOf(base, hostOf(orch.host), adapter, { home: mainCheckout(orch.cwd), worktree: worktree && existsSync(worktree) ? worktree : null });
-    // The integration worktree is in use while the fixer Agentry started for this request works in it
+    // The integration worktree is in use while the fixer Claudio started for this request works in it
     target.busy = () => Boolean(sql.prepare("SELECT 1 FROM orchestration_pull_requests WHERE id = ? AND fix_state = 'fixing'").get(id));
     return target;
   }
@@ -2553,7 +2553,7 @@ export class Core {
 
   /**
    * Where an orchestration's time went, computed now from the graph and the executions of the chats
-   * Agentry started for it. Null for an unknown id.
+   * Claudio started for it. Null for an unknown id.
    */
   orchestrationTimings(id: string): OrchestrationTimings | null {
     const orch = this.orchestrator.get(id);
@@ -2605,7 +2605,7 @@ export class Core {
     // in one pass, not once per kind
     const [system, chats, { tasks, subagents, workflows }] = await Promise.all([
       this.system(),
-      this.chats.list({ origins: ['agentry', 'external', 'orchestration'] }),
+      this.chats.list({ origins: ['claudio', 'external', 'orchestration'] }),
       this.chats.allActivity(),
     ]);
     return {

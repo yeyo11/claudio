@@ -7,7 +7,7 @@ tags:
     - setup
     - docker
 ---
-# Security model: who may open Agentry, and how its secrets are kept
+# Security model: who may open Claudio, and how its secrets are kept
 
 The project's security policy, what is and is not protected and how to report a vulnerability, is
 [SECURITY.md](../SECURITY.md) at the root. This page is the knowledge base's map of the model,
@@ -18,12 +18,12 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
 ## Who may open it
 
 - **The auth mode** is `none`, `token` or `oidc` (Settings → Security, `auth.json` in the data
-  directory with the hash of the token, mode 0600; `AGENTRY_AUTH_MODE` only seeds an install that has
+  directory with the hash of the token, mode 0600; `CLAUDIO_AUTH_MODE` only seeds an install that has
   none yet). See the README's [Securing it](../README.md#securing-it). The setup assistant's Access
   step sets the same thing, and turning Token on makes a token first when the browser holds none, so
   it cannot lock the person out ([setup.md](setup.md#the-web)).
-- **Read-only mode** (`AGENTRY_READ_ONLY`) refuses every write, the setup's included (405).
-- **A chat's own token.** A chat Agentry starts gets its own `AGENTRY_API_TOKEN`
+- **Read-only mode** (`CLAUDIO_READ_ONLY`) refuses every write, the setup's included (405).
+- **A chat's own token.** A chat Claudio starts gets its own `CLAUDIO_API_TOKEN`
   ([chat-environment.md](chat-environment.md)); it may not change the security settings, open the
   tunnel or touch the setup routes but `GET /setup` (403), since reading a sign-in session would hand
   it the person's device code.
@@ -40,12 +40,12 @@ there is a key, as `enc:v1:…`.
 
 **The key**, in this order (the plan's decision 3):
 
-1. `AGENTRY_SECRET_KEY`, 32 bytes as hex. The desktop app makes one and keeps it in a file only the
+1. `CLAUDIO_SECRET_KEY`, 32 bytes as hex. The desktop app makes one and keeps it in a file only the
    operating system's keyring can open (Electron's `safeStorage`, `apps/desktop/src/secret-key.ts`),
    and hands it to its server at launch; an operator can pass one to a container. The server drops it
    from `process.env` once read, so no child inherits it.
 2. `<dataDir>/secret.key`, when it already exists.
-3. In the Docker image only (`AGENTRY_DISTRIBUTION=docker`), a new `secret.key`, 32 random bytes as
+3. In the Docker image only (`CLAUDIO_DISTRIBUTION=docker`), a new `secret.key`, 32 random bytes as
    hex, mode 0600, made on the first write: `/data/secret.key`, on the same volume as the vault.
 4. Otherwise none: a source install, or a desktop app with no keyring, keeps the values plain at
    0600, as before the vault.
@@ -87,13 +87,13 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
   by line for the verification URL and the one-time code only; `login.updated` carries those and an
   error *code*, never what the CLI printed. Success is decided by re-running the tool's readiness
   probe, not by reading the output.
-- **Masked where text leaves the machine.** Every vault value joins Agentry's own secrets
+- **Masked where text leaves the machine.** Every vault value joins Claudio's own secrets
   (`recognizeSecrets`, `packages/core/src/decisions/redact.ts`), masked in a decision's state whatever text surrounds them.
 
 ## What the vendors' CLIs keep in plain text
 
-Some sign-ins are not Agentry's to keep. Where a vendor's CLI has a login command, it owns the
-credential and stores it where it always does (decision 4); Agentry does not copy it, seal it or
+Some sign-ins are not Claudio's to keep. Where a vendor's CLI has a login command, it owns the
+credential and stores it where it always does (decision 4); Claudio does not copy it, seal it or
 read it. In the Docker image those homes are on the data volume so a replaced container keeps them,
 and a container has no system keyring, so each CLI falls back to the plain-text store it documents
 for that case:
@@ -108,12 +108,12 @@ Why this is accepted rather than wrapped: sealing another CLI's files would mean
 rewriting them behind its back, or handing it a credential it was not built to take, which the one
 rule forbids ([CLAUDE.md](../CLAUDE.md)). The CLIs' own fallback is what their vendors document for
 a machine with no keyring, and the files sit on the same volume, with the same exposure, as
-Agentry's own `secret.key`. The protection for all of them is the volume's: who can read `/data`.
-Signing out from Agentry runs each CLI's documented sign-out (`gh auth logout`, `glab auth logout`,
+Claudio's own `secret.key`. The protection for all of them is the volume's: who can read `/data`.
+Signing out from Claudio runs each CLI's documented sign-out (`gh auth logout`, `glab auth logout`,
 `tailscale logout`), which removes what it stored.
 
 On a person's own machine (a source checkout, the desktop app) the CLIs use the system keyring when
-there is one, as they always did; Agentry changes nothing there.
+there is one, as they always did; Claudio changes nothing there.
 
 ## Known limits
 

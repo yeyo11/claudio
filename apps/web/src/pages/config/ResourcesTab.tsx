@@ -1,15 +1,15 @@
 import { Plus } from 'lucide-react';
-import { RESOURCE_FORMATS, type ConfigResource, type ResourceKind } from '@agentry/shared';
+import { RESOURCE_FORMATS, type ConfigResource, type ResourceKind } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { frontmatterProblem } from './frontmatter';
 
 // The starting file content is not translated: it is what the CLI reads, and the frontmatter keys are

@@ -9,7 +9,7 @@ import { defaultProjectSettings, parseProjectSettings } from '../src/project-set
 
 function stores() {
   const root = mkdtempSync(join(tmpdir(), 'agentry-decisions-'));
-  const config = loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(root, 'claude'), AGENTRY_WORKSPACE_DIR: join(root, 'ws'), AGENTRY_DATA_DIR: join(root, 'data') });
+  const config = loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(root, 'claude'), CLAUDIO_WORKSPACE_DIR: join(root, 'ws'), CLAUDIO_DATA_DIR: join(root, 'data') });
   const credentials = new DecisionCredentialStore(config);
   return { config, credentials, settings: new DecisionSettingsStore(config, credentials), dir: config.dataDir };
 }

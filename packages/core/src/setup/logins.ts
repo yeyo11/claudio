@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
-import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResult, StartLoginRequest } from '@agentry/shared';
+import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResult, StartLoginRequest } from '@claudio/shared';
 import { childEnv } from '../child-env.ts';
 import type { AgentryEventInput } from '../events.ts';
 import { buildHostEnv } from '../hosts/env.ts';
@@ -30,13 +30,13 @@ export class LoginInputError extends Error {
   readonly statusCode = 400;
 }
 
-/** A sign-in this Agentry does not offer here: the request was understood, the deploy forbids it */
+/** A sign-in this Claudio does not offer here: the request was understood, the deploy forbids it */
 export class LoginRefusedError extends Error {
   readonly statusCode = 409;
 }
 
 /** The node name a managed tailscaled signs in with when the deps name none */
-const DEFAULT_TAILSCALE_NAME = 'agentry';
+const DEFAULT_TAILSCALE_NAME = 'claudio';
 
 export interface LoginServiceDeps {
   vault: Pick<SecretVault, 'set' | 'clear'>;
@@ -51,7 +51,7 @@ export interface LoginServiceDeps {
   readiness: (tool: SetupTool, host: string | null) => Promise<boolean | null>;
   /**
    * Why this deploy does not sign a tool in or out, or null when it does (every tool by default).
-   * Tailscale is signed in only where Agentry runs its daemon: a machine's own is the person's.
+   * Tailscale is signed in only where Claudio runs its daemon: a machine's own is the person's.
    */
   refusal?: (tool: SetupTool) => string | null;
   /** Runs before a sign-out command: Tailscale's closes the tunnel first, while the daemon can still take its rule away */

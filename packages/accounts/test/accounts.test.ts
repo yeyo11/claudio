@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AccountLimit, AccountsSettings } from '@agentry/shared';
+import type { AccountLimit, AccountsSettings } from '@claudio/shared';
 import { AccountStore, choose, envFor, fold, identify, login, ModelCache, parseInitialize, readCache, readingFromEvent, Readings } from '../src/index.ts';
 import { main } from '../src/commands.ts';
 

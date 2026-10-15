@@ -1,7 +1,7 @@
 import { lazy, useMemo, type ReactNode } from 'react';
 import { api, BASE, enc } from '../api';
 import { withToken } from './auth';
-import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@agentry/chat-ui/lib/context';
+import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { reviewLink, reviewPath } from './changes-summary';
 import { useFallbackInterval } from './feed';
 import { useProviderLabel } from './provider-status';

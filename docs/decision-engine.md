@@ -13,7 +13,7 @@ tags:
 ---
 # The decision engine
 
-Agentry makes many small judgments: whether a card needs refining, whether a failed task is worth a
+Claudio makes many small judgments: whether a card needs refining, whether a failed task is worth a
 retry, whether a run that ended on a report owes more work, which journal entries an agent reads.
 Each used to be a fixed rule, a paid Claude run or a person. The **decision engine** gives them one
 home in `packages/core/src/decisions/`: a decision point puts typed questions to a provider and
@@ -50,7 +50,7 @@ A point batches all its questions into one provider call.
 
 The `cli` provider is inside the [one rule](../CONTRIBUTING.md): it is the Claude Code CLI and
 nothing else. Its chat is `internal` (no transcript, hidden, never supervised), has no tool and no
-settings file (`confine`), and gets no `AGENTRY_API_URL` or `AGENTRY_API_TOKEN` (`NewChat.api:
+settings file (`confine`), and gets no `CLAUDIO_API_URL` or `CLAUDIO_API_TOKEN` (`NewChat.api:
 false`), so it can never call back. Its prompt follows the shared rules of [prompts.md](prompts.md):
 the state sits in one `pasted()` block followed by `PASTED_NOTE`, there is no reason field, and a
 Sonnet model is told to think the problem through. A result without a readable structured answer is
@@ -59,7 +59,7 @@ turn is `rate-limited` at once, with no rotation and no resume.
 
 Jev is the one bounded exception to the one rule ("typed decision services" in CONTRIBUTING.md):
 off by default, the owner's key, no text or code, no call to Anthropic, only the state a point
-declares after consent, and Agentry works in full with `cli` alone. Nothing falls back from `jev` to
+declares after consent, and Claudio works in full with `cli` alone. Nothing falls back from `jev` to
 `cli`: a paid, slow run in place of a 0.2 s call would be a silent change of cost.
 
 **Provider unavailable.** A provider that cannot answer (`no-key`, `timeout`, `rate-limited`,
@@ -196,7 +196,7 @@ a point that is off costs nothing.
 
 - **The state is declared.** A point sends only the fields its catalogue entry lists, every string
   cut to the point's byte limit, with anything that looks like a secret masked
-  (`decisions/redact.ts`). Agentry's own secrets are masked too, whatever text surrounds them,
+  (`decisions/redact.ts`). Claudio's own secrets are masked too, whatever text surrounds them,
   since no pattern tells `T="<token>"` from any long word (the owner's token reached Jev that way
   on 2026-10-02): the Jev key, YouTrack's token and the webhook secrets as they are, and the owner's, the desktop
   app's and every live chat's API token by hashing each word long enough to be one, since those
@@ -265,7 +265,7 @@ switches a point to `active` by itself.
 
 ## Where it shows
 
-- **Settings → Agentry → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`, with
+- **Settings → Claudio → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`, with
   `decisions/`): Engine (provider, CLI model, effort and cost cap, the Jev key with a connection test,
   history days), Decision points (mode, threshold, consent and metrics per row, grouped by area),
   Supervisor (the former tab, `supervisor.json` unchanged) and History (filter, open a row, useful /

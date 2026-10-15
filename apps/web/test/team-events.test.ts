@@ -12,7 +12,7 @@ import type {
   ProjectUpdatedEvent,
   Team,
   TeamChangedEvent,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { keys } from '../src/api';
 import { patchActivity, targetMatches, targetsFor } from '../src/lib/events';
 

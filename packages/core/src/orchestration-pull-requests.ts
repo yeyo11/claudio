@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, ReviewThread, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, ReviewThread, WorkItemPullRequestCi } from '@claudio/shared';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';
@@ -25,7 +25,7 @@ import { hostOf } from './work-item-rows.ts';
 
 /**
  * An orchestration's change request (docs/plans/code-hosts.md, phase 1): the person asks for it on a
- * graph whose integration branch is built and checked, and Agentry pushes that branch and opens the
+ * graph whose integration branch is built and checked, and Claudio pushes that branch and opens the
  * pull request (or merge request) with the project's host CLI, against the default branch. The
  * person merges it on the host; the watcher records the merge or the close. An orchestration has no
  * Done to move, so nothing else follows from either.
@@ -202,7 +202,7 @@ export class OrchestrationPullRequestService {
     if (!adapter || !manifest || !host.remote) throw new Error(`no adapter for ${id}`);
     const searchPath = await (this.deps.searchPath ? this.deps.searchPath() : hostSearchPath(this.env(), homedir()));
     const binaryPath = await resolveHostBinary(manifest, this.deps.settings?.()?.hosts[hostOf(id)]?.binaryPath ?? null, searchPath);
-    if (!binaryPath) throw new Error(`${manifest.cli} is not installed, or Agentry cannot find it`);
+    if (!binaryPath) throw new Error(`${manifest.cli} is not installed, or Claudio cannot find it`);
     const at = host.remote.path.lastIndexOf('/');
     const repo: HostRepo = { host: host.remote.hostname, path: host.remote.path, owner: at === -1 ? '' : host.remote.path.slice(0, at), name: host.remote.path.slice(at + 1) };
     return { adapter, binaryPath, repo };
@@ -378,12 +378,12 @@ export class OrchestrationPullRequestService {
     if (!row || row.phase !== 'open' || row.number === null) throw new OrchestrationPullRequestError('the orchestration has no open change request to fix', 'not-open');
     if (row.fix_state) throw new OrchestrationPullRequestError('a fix of the checks is already under way', 'fix-under-way');
     const runFix = this.deps.runFix;
-    if (!runFix) throw new OrchestrationPullRequestError('Agentry cannot start the fixer here', 'fix-unavailable');
+    if (!runFix) throw new OrchestrationPullRequestError('Claudio cannot start the fixer here', 'fix-unavailable');
     // The fixer commits on the integration branch, so it needs the worktree that has it checked out: never the project's own checkout
     const cwd = orch.integration?.worktree;
     if (!cwd || !existsSync(cwd)) throw new OrchestrationPullRequestError('the integration worktree is gone, so there is nowhere to fix the branch', 'no-worktree');
     const checks = this.deps.checks;
-    if (!checks) throw new OrchestrationPullRequestError('Agentry cannot read checks here', 'checks-unavailable');
+    if (!checks) throw new OrchestrationPullRequestError('Claudio cannot read checks here', 'checks-unavailable');
     let failing: Check[];
     let headSha: string | null;
     try {
@@ -422,11 +422,11 @@ export class OrchestrationPullRequestService {
     if (!row || row.phase !== 'open' || row.number === null) throw new OrchestrationPullRequestError('the orchestration has no open change request to address', 'not-open');
     if (row.fix_state) throw new OrchestrationPullRequestError('a fix of the change request is already under way', 'fix-under-way');
     const runFix = this.deps.runFix;
-    if (!runFix) throw new OrchestrationPullRequestError('Agentry cannot start the fixer here', 'fix-unavailable');
+    if (!runFix) throw new OrchestrationPullRequestError('Claudio cannot start the fixer here', 'fix-unavailable');
     const cwd = orch.integration?.worktree;
     if (!cwd || !existsSync(cwd)) throw new OrchestrationPullRequestError('the integration worktree is gone, so there is nowhere to fix the branch', 'no-worktree');
     const reviews = this.deps.reviews;
-    if (!reviews) throw new OrchestrationPullRequestError('Agentry cannot read review threads here', 'reviews-unavailable');
+    if (!reviews) throw new OrchestrationPullRequestError('Claudio cannot read review threads here', 'reviews-unavailable');
     let threads: ReviewThread[];
     let headSha: string | null;
     try {

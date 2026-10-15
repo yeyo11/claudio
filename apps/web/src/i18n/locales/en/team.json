@@ -68,9 +68,9 @@
       "paths": "These paths"
     },
     "scopeHint": {
-      "anywhere": "Agentry sets no limit of its own on the chats it starts for it. From a terminal it is only what its agent file says.",
+      "anywhere": "Claudio sets no limit of its own on the chats it starts for it. From a terminal it is only what its agent file says.",
       "documents": "None of the project's files: only documents in the documents folder, where specifications and reports go. From a terminal it is only what its agent file says.",
-      "paths": "Outside these paths and the documents folder, the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says."
+      "paths": "Outside these paths and the documents folder, the chats Claudio starts for it may not edit. From a terminal it is only what its agent file says."
     },
     "commands": "Shell commands",
     "commandScope": {
@@ -79,7 +79,7 @@
       "listed": "These commands"
     },
     "commandHint": {
-      "any": "When it works on a task, the shell has no limit of Agentry's own. Refining and verifying keep their own tools.",
+      "any": "When it works on a task, the shell has no limit of Claudio's own. Refining and verifying keep their own tools.",
       "none": "When it works on a task, it runs no shell command at all. Refining and verifying keep their own tools.",
       "listed": "When it works on a task, it runs only these commands; a * stands for the rest of the line (pnpm *). Refining and verifying keep their own tools."
     },
@@ -131,7 +131,7 @@
     "write": "Write the file",
     "writeFailed": "Could not write the agent file",
     "driftedTitle": "The agent file says something else",
-    "driftedBody": "Its frontmatter differs from the role in: {{fields}}. It was edited by hand, so Agentry leaves it as it is."
+    "driftedBody": "Its frontmatter differs from the role in: {{fields}}. It was edited by hand, so Claudio leaves it as it is."
   },
   "add": {
     "title": "Add member",
@@ -142,7 +142,7 @@
     "roleTaken": "That role is already on the team.",
     "file": "Agent file",
     "newFile": "A new file",
-    "fileNew": "Agentry writes {{path}} with the role's instructions.",
+    "fileNew": "Claudio writes {{path}} with the role's instructions.",
     "fileKept": "The file is kept as it is.",
     "responsibilityPlaceholder": "What it answers for, in one line",
     "added": "{{name}} joined the team",
@@ -381,8 +381,8 @@
     "restarts": {
       "title_one": "It was cut off {{count}} time.",
       "title_other": "It was cut off {{count}} times.",
-      "body": "Agentry restarted while {{role}} was working. It went on in its chat as many times as allowed; the next time, the run was marked as failed.",
-      "short": "cut off by Agentry restarting"
+      "body": "Claudio restarted while {{role}} was working. It went on in its chat as many times as allowed; the next time, the run was marked as failed.",
+      "short": "cut off by Claudio restarting"
     },
     "unreadable": {
       "title": "It left no readable result.",
@@ -406,7 +406,7 @@
     },
     "not-continued": {
       "title": "Its chat could not be resumed.",
-      "body": "Agentry restarted and the chat could not continue. The item stays in {{column}}, unchanged.",
+      "body": "Claudio restarted and the chat could not continue. The item stays in {{column}}, unchanged.",
       "short": "its chat could not be resumed"
     },
     "chat-ended": {

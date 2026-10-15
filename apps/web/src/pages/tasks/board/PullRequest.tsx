@@ -1,11 +1,11 @@
-import type { BoardCheckout, CodeHostId, PullRequestNotReadyReason, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemPullRequestCi } from '@agentry/shared';
+import type { BoardCheckout, CodeHostId, PullRequestNotReadyReason, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemPullRequestCi } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, Clock, Minus, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../../api';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import { changeRequestRef, changeRequestWords } from '../../../lib/code-hosts';
 import { checkoutNote, ciTone, notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 
@@ -156,7 +156,7 @@ export function NotReadyNote({ readiness, className = '' }: { readiness: PullReq
 
 /**
  * One quiet line under the board's toolbar while the project's checkout is behind its default branch,
- * with the reason Agentry did not bring it forward. Never a command to copy.
+ * with the reason Claudio did not bring it forward. Never a command to copy.
  */
 export function CheckoutLine({ checkout }: { checkout: BoardCheckout | null | undefined }) {
   const { t } = useTranslation('tasks');

@@ -21,20 +21,20 @@ async function fake(name: string, body: string, mode = 0o755): Promise<string> {
 
 describe('probeLoginShellPath', () => {
   it('reads the PATH between the sentinels and ignores banners', async () => {
-    const shell = await fake('banner-shell', 'echo "welcome"; printf "__AGENTRY_PATH__/a:/b__AGENTRY_PATH__"; echo bye');
+    const shell = await fake('banner-shell', 'echo "welcome"; printf "__CLAUDIO_PATH__/a:/b__CLAUDIO_PATH__"; echo bye');
     assert.deepEqual(await probeLoginShellPath({ env: { SHELL: shell } }), { ok: true, path: '/a:/b' });
   });
 
   it('sets the fast-path marker for rc files', async () => {
     const shell = await fake(
       'marker-shell',
-      'printf "__AGENTRY_PATH__%s__AGENTRY_PATH__" "$AGENTRY_SHELL_PATH_PROBE"',
+      'printf "__CLAUDIO_PATH__%s__CLAUDIO_PATH__" "$CLAUDIO_SHELL_PATH_PROBE"',
     );
     assert.deepEqual(await probeLoginShellPath({ env: { SHELL: shell } }), { ok: true, path: '1' });
   });
 
   it('keeps the PATH of a shell that exits non-zero afterwards', async () => {
-    const shell = await fake('failing-shell', 'printf "__AGENTRY_PATH__/x__AGENTRY_PATH__"; exit 3');
+    const shell = await fake('failing-shell', 'printf "__CLAUDIO_PATH__/x__CLAUDIO_PATH__"; exit 3');
     assert.deepEqual(await probeLoginShellPath({ env: { SHELL: shell } }), { ok: true, path: '/x' });
   });
 
@@ -131,7 +131,7 @@ describe('resolveUserPath', () => {
     const inherited = join(root, 'inherited');
     const localBin = join(home, '.local', 'bin');
     for (const dir of [fromShell, inherited, localBin]) await mkdir(dir, { recursive: true });
-    const shell = await fake('path-shell', `printf "__AGENTRY_PATH__${fromShell}:${join(root, 'gone')}:${inherited}__AGENTRY_PATH__"`);
+    const shell = await fake('path-shell', `printf "__CLAUDIO_PATH__${fromShell}:${join(root, 'gone')}:${inherited}__CLAUDIO_PATH__"`);
     const path = await resolveUserPath({ env: { SHELL: shell, PATH: inherited }, home });
     const dirs = path.split(delimiter);
     assert.deepEqual(dirs.slice(0, 3), [fromShell, inherited, localBin]);

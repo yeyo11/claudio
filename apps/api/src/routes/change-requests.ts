@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core, ChangeRequestFix } from '@agentry/core';
+import type { Core, ChangeRequestFix } from '@claudio/core';
 import type {
   AddressReviewRequest,
   ApprovalRequest,
@@ -26,7 +26,7 @@ import type {
   ReviewersRequest,
   UpdateBranchResult,
   WorkItemPullRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /**
  * A change request's checks and their fixes. `:id` is the row id of either change request table

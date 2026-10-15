@@ -242,7 +242,7 @@ test('the level decides what interrupts, from everything down to nothing, and ba
   assert.deepEqual(passing('silent'), []);
 });
 
-test('a chat named by Agentry is told by its first prompt, a name someone chose is kept', () => {
+test('a chat named by Claudio is told by its first prompt, a name someone chose is kept', () => {
   const request = { id: 'p1', runId: 'b1c2d3e4-0000', toolName: 'Bash', toolUseId: 'tu1', input: {}, requestedAt: AT };
   const generated = { id: 'b1c2d3e4-0000', title: 'harbor-api-b1c2d3', firstPrompt: 'Fix the flaky login test\nand more', orchestration: null };
   const title = waitingDrafts(generated, [request])[0]?.title ?? '';
@@ -254,7 +254,7 @@ test('a chat named by Agentry is told by its first prompt, a name someone chose 
 
 test('a setting or the tunnel changing refreshes the page but never wakes anyone', () => {
   // A tunnel's address is a way into the machine: it has no place on a lock screen or in a push
-  // service Agentry does not run, and a setting someone just changed is not news to them
+  // service Claudio does not run, and a setting someone just changed is not news to them
   const settings: AgentryEvent = {
     ...base('Settings changed'),
     type: 'settings.changed',

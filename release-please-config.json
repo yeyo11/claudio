@@ -7,7 +7,7 @@
   "force-tag-creation": true,
   "packages": {
     ".": {
-      "package-name": "agentry",
+      "package-name": "claudio",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         {
@@ -23,6 +23,11 @@
         {
           "type": "json",
           "path": "apps/web/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/accounts/package.json",
           "jsonpath": "$.version"
         },
         {
@@ -52,7 +57,7 @@
         },
         {
           "type": "generic",
-          "path": "deploy/helm/agentry/values.yaml"
+          "path": "deploy/helm/claudio/values.yaml"
         }
       ]
     }

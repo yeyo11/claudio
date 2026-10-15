@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { api, ApiRequestError } from '../src/api';
-import { errorMessage } from '@agentry/ui/lib/format';
+import { errorMessage } from '@claudio/ui/lib/format';
 import i18n from '../src/i18n';
 
-// An answer Agentry did not write — a dropped connection, a proxy's or a tunnel's own page — used to
+// An answer Claudio did not write — a dropped connection, a proxy's or a tunnel's own page — used to
 // reach the screen as the browser's "Failed to fetch" or a bare "HTTP 503", in English and with
 // nothing to act on. It is said in the reader's language, and the technical line stays as detail.
 
@@ -36,11 +36,11 @@ test('a connection that drops is said in the reader language, keeping the browse
   });
   assert.equal(err.status, 0);
   assert.equal(err.message, i18n.t('common:networkError'));
-  assert.match(err.message, /No se ha podido conectar con Agentry/);
+  assert.match(err.message, /No se ha podido conectar con Claudio/);
   assert.equal(err.detail, 'Failed to fetch');
 });
 
-test("a page from a tunnel or a proxy names who answered, with Agentry's own errors left as they are", async () => {
+test("a page from a tunnel or a proxy names who answered, with Claudio's own errors left as they are", async () => {
   const tunnel = await failure(async () => new Response('<h1>no tunnel here :(</h1>', { status: 503, statusText: 'Service Unavailable', headers: { 'content-type': 'text/html' } }));
   assert.equal(tunnel.status, 503);
   assert.match(tunnel.message, /\(error 503\)/);

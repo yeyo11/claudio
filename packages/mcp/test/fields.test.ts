@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { AGENTRY_MCP_READ_TOOL_NAMES } from '../src/names.ts';
+import { CLAUDIO_MCP_READ_TOOL_NAMES } from '../src/names.ts';
 import { chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, providerRows, accountRows, teamRows } from '../src/fields.ts';
 import { seed, type Seeded } from './fixture.ts';
 
@@ -23,7 +23,7 @@ test('no read tool indents its answer: compact JSON is one line', async () => {
     list_documents: { projectId: s.project.id },
     read_document: { projectId: s.project.id, path: 'docs/plan.md' },
   };
-  for (const name of AGENTRY_MCP_READ_TOOL_NAMES) {
+  for (const name of CLAUDIO_MCP_READ_TOOL_NAMES) {
     if (name === 'get_chat') continue;
     const { isError, text } = await s.call(name, args[name] ?? {});
     assert.equal(isError, false, name);
@@ -66,10 +66,10 @@ test('list_flow_runs, get_team, get_journal and list_documents answer their shor
 
 test('list_chats and list_providers keep the fields that choose', () => {
   const chat = {
-    id: 'c1', title: 'T', state: 'waiting', origin: 'agentry', model: 'opus', messageCount: 3, updatedAt: 'x', cwd: '/p', provider: 'claude-code',
+    id: 'c1', title: 'T', state: 'waiting', origin: 'claudio', model: 'opus', messageCount: 3, updatedAt: 'x', cwd: '/p', provider: 'claude-code',
     project: { id: 'p1', name: 'Shop' }, orchestration: null, cost: { usd: 1.5, tokens: [{}], total: {} }, executions: [{}], context: {}, worktree: { path: '/w' },
   };
-  assert.deepEqual(chatRows([chat]), [{ id: 'c1', title: 'T', state: 'waiting', origin: 'agentry', model: 'opus', messageCount: 3, updatedAt: 'x', project: 'Shop', projectId: 'p1', costUsd: 1.5 }]);
+  assert.deepEqual(chatRows([chat]), [{ id: 'c1', title: 'T', state: 'waiting', origin: 'claudio', model: 'opus', messageCount: 3, updatedAt: 'x', project: 'Shop', projectId: 'p1', costUsd: 1.5 }]);
   const provider = { id: 'claude-code', label: 'Claude Code', state: 'ready', reason: null, account: 'a@b', version: '2', binaryPath: '/bin', capabilities: ['x'], checkedAt: 'z', limit: { state: 'ok', window: '5h', utilization: 0.2, resetsAt: null, windows: { '5h': {} }, source: 'stream' } };
   assert.deepEqual(providerRows([provider]), [{ id: 'claude-code', label: 'Claude Code', state: 'ready', account: 'a@b', version: '2', limit: { state: 'ok', window: '5h', utilization: 0.2 } }]);
 });

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AccountStore, DEFAULT_ID, readingFromEvent } from '@agentry/accounts';
+import { AccountStore, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
 import type { ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
 import { Core } from '../src/index.ts';

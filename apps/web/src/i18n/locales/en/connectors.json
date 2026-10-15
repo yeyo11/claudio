@@ -3,7 +3,7 @@
   "title": "Connectors",
   "subtitle": "checked {{when}}",
   "subtitleLoading": "Asking the CLI…",
-  "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Agentry only reads this list: it cannot authorise, change or call a connector itself.",
+  "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Claudio only reads this list: it cannot authorise, change or call a connector itself.",
   "refresh": "Ask the CLI again",
   "refreshing": "Asking…",
   "cliFailed": "The CLI could not list its connectors",
@@ -39,7 +39,7 @@
   },
   "unavailable": {
     "title": "Out of reach",
-    "intro": "Agentry talks to Claude Code only through its CLI, so anything the CLI has no command for stays out of reach:",
-    "short": "{{items}} are out of Agentry’s reach."
+    "intro": "Claudio talks to Claude Code only through its CLI, so anything the CLI has no command for stays out of reach:",
+    "short": "{{items}} are out of Claudio’s reach."
   }
 }

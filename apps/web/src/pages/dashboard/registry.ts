@@ -4,7 +4,7 @@
  * definition here plus its component; editing and storing a layout per project will read the same
  * list to offer what can be added.
  */
-import type { Project, ProjectModule, WidgetType } from '@agentry/shared';
+import type { Project, ProjectModule, WidgetType } from '@claudio/shared';
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import { layoutOf, validateLayout, type DashboardLayout, type DashboardScope, type WidgetRule, type WidgetScope, type WidgetSize } from './layout';
 

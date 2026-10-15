@@ -15,7 +15,7 @@ driver as its only implementation, so detection, readiness, the policy judge and
 suite keep one shape. This document is the reference for what a provider is, how the app decides
 whether one is ready and how it finds the binary. The fork's reasons are in
 [plans/claude-only-fork.md](plans/claude-only-fork.md); the multi-vendor design this grew from is
-Agentry's history, in [plans/multi-provider.md](plans/multi-provider.md).
+Claudio's history, in [plans/multi-provider.md](plans/multi-provider.md).
 
 | Provider | Driver | Transport | Declared at | Starts a chat |
 |---|---|---|---|---|
@@ -109,7 +109,7 @@ the binary, in this order:
 
 1. **The override** the person set in Settings → Providers.
 2. **The person's PATH.** The login shell is run once (`$SHELL -ilc`) with sentinels around the
-   output, a timeout, and a fast-path marker in the environment (`AGENTRY_SHELL_PATH_PROBE=1`) that rc
+   output, a timeout, and a fast-path marker in the environment (`CLAUDIO_SHELL_PATH_PROBE=1`) that rc
    files can test to skip slow setup. Failure is typed: `no-shell`, `timeout`, `spawn-error` or
    `empty-path`. So a server started from a desktop session or a service finds what the terminal finds.
 3. **Install directories**, when the PATH has nothing: nvm (ordered by its `default` alias), volta,
@@ -182,7 +182,7 @@ The setup assistant of [setup.md](setup.md) stands in for the app on a first sta
 lists Claude Code with the same Sign in panel as Settings → Providers, or the install page when none
 is found (`nothingFound` in `apps/web/src/lib/first-run.ts`). It is shown while `setupSeen` in the
 app settings is off; finishing or skipping it records the setting (`POST /setup/seen`, or
-`AGENTRY_SETUP_SEEN=on` from the environment) and it never comes back. Home and the status bar say
+`CLAUDIO_SETUP_SEEN=on` from the environment) and it never comes back. Home and the status bar say
 nothing is ready and point at Settings, where a provider gets fixed. "Check again" calls
 `POST /providers/refresh`, and an install or sign-in made in a terminal arrives through
 `providers.changed`.

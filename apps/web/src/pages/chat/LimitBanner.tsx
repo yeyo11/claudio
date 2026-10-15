@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Chat, ProviderMove, ProviderStatus } from '@agentry/shared';
+import type { Chat, ProviderMove, ProviderStatus } from '@claudio/shared';
 import { Hourglass, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { formatDateTime, formatDuration, formatHour, timeAgo, toMs } from '@agentry/ui/lib/format';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { formatDateTime, formatDuration, formatHour, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { api, keys } from '../../api';
 import { useProviders } from '../../lib/providers';
 import { isKnownLimitWindow, useLimitWindowName } from '../../lib/limit-words';

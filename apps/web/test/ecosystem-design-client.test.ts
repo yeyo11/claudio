@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueryKey } from '@tanstack/react-query';
-import { FLOW_STEP_OF_COLUMN, flowStepOf } from '@agentry/shared';
+import { FLOW_STEP_OF_COLUMN, flowStepOf } from '@claudio/shared';
 import { api, keys } from '../src/api';
 
 // The contract of orchestration 7 (docs/plans/project-ecosystem.md, "ecosystem-design") as the web

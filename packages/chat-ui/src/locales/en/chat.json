@@ -156,20 +156,20 @@
       "interrupted": "Interrupted"
     },
     "origin": {
-      "agentry": "Agentry",
+      "claudio": "Claudio",
       "external": "Terminal",
       "orchestration": "Orchestration",
       "internal": "Internal"
     },
     "originHint": {
-      "agentry": "Started from Agentry",
+      "claudio": "Started from Claudio",
       "external": "Started in a terminal with {{agent}}",
       "orchestration": "Works for an orchestration",
-      "internal": "Housekeeping of Agentry itself"
+      "internal": "Housekeeping of Claudio itself"
     },
     "control": {
       "interactive": "Interactive",
-      "interactiveHint": "Agentry is driving this chat: write to it, interrupt it, change how it runs",
+      "interactiveHint": "Claudio is driving this chat: write to it, interrupt it, change how it runs",
       "resumable": "Resumable",
       "resumableHint": "Nothing holds this chat: sending a message resumes it",
       "readOnly": "Read-only"
@@ -188,7 +188,7 @@
     "notAvailable": "not available",
     "usage": {
       "title": "Context and cost",
-      "costNotReported": "{{agent}} reports a cost only for what Agentry launched.",
+      "costNotReported": "{{agent}} reports a cost only for what Claudio launched.",
       "tokensCaption": "Tokens spent, per model",
       "input": "In",
       "output": "Out",
@@ -200,7 +200,7 @@
     },
     "executions": {
       "title": "Executions ({{n}})",
-      "empty": "Agentry has not run this chat: it was written in a terminal.",
+      "empty": "Claudio has not run this chat: it was written in a terminal.",
       "lasted": "lasted {{duration}}",
       "up": "up {{duration}}",
       "turns_one": "{{count}} turns",
@@ -268,9 +268,9 @@
       "readOnly": "read-only"
     },
     "hint": {
-      "live": "Agentry is driving this chat and its stream is connected",
+      "live": "Claudio is driving this chat and its stream is connected",
       "reconnecting": "The stream dropped a few seconds ago; the browser is reconnecting",
-      "interactive": "Agentry is driving this chat: write to it, interrupt it, change how it runs",
+      "interactive": "Claudio is driving this chat: write to it, interrupt it, change how it runs",
       "resumable": "Nothing holds this chat: sending a message resumes it",
       "readOnly": "Something else holds this chat"
     }
@@ -549,7 +549,7 @@
       "idle": "Idle"
     },
     "origin": {
-      "agentry": "Agentry",
+      "claudio": "Claudio",
       "external": "Terminal",
       "orchestration": "Orchestration",
       "internal": "Internal"

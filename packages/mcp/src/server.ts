@@ -69,7 +69,7 @@ export function createServer(options: { api: ApiClient; version: string; tools?:
       case 'initialize': {
         const asked = (message.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
         const version = PROTOCOL_VERSIONS.find((v) => v === asked) ?? PROTOCOL_VERSIONS[0];
-        return reply(id, { protocolVersion: version, capabilities: { tools: {} }, serverInfo: { name: 'agentry', version: options.version } });
+        return reply(id, { protocolVersion: version, capabilities: { tools: {} }, serverInfo: { name: 'claudio', version: options.version } });
       }
       case 'ping':
         return reply(id, {});

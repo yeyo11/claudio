@@ -91,7 +91,7 @@ def item_desktop(host, state, name, title):
   h = _swap(h, crit, panel(host, state) + crit)
   diff = '<div class="row" style="gap: 8px"><a href="#" class="btn btn-sm grow">'
   h = _swap(h, diff, to_host(pr_row(host), host) + diff)
-  write(name, h.replace('<title>Agentry · Tarea (desktop)', f'<title>Agentry · {title} (desktop)'))
+  write(name, h.replace('<title>Claudio · Tarea (desktop)', f'<title>Claudio · {title} (desktop)'))
 
 
 def item_mobile(host, state, name, title):
@@ -102,7 +102,7 @@ def item_mobile(host, state, name, title):
   done = f'<button type="button" class="btn btn-lg" style="flex: 0 0 auto">{ico("check", "ico ico-lg")}Mover a Hecho</button>'
   noun, num = HOSTS[host][1], HOSTS[host][2]
   h = _swap(h, done, f'<a href="#" class="btn btn-lg" style="flex: 0 0 auto" target="_blank" rel="noreferrer">{ext_ico("ico ico-lg")}Abrir {noun} {num}</a>')
-  write(name, h.replace('<title>Agentry · Tarea (móvil)', f'<title>Agentry · {title} (móvil)'))
+  write(name, h.replace('<title>Claudio · Tarea (móvil)', f'<title>Claudio · {title} (móvil)'))
 
 
 # ---------------------------------------------------------------- DSWebhooks
@@ -139,8 +139,8 @@ def tier_section():
   rows = ''.join(f'<div style="{TGRID}; padding: 12px 0; border-top: 1px solid var(--line)"><span class="t-sm">{w}</span>'
                  f'<span class="mono t-sm" style="font-variant-numeric: tabular-nums">{n}</span><span class="mono t-xs fg-2">{x}</span></div>'
                  for w, n, x in TIERS)
-  return (f'<section class="col" style="gap: 0"><span class="t-label" style="padding-bottom: 6px">De dónde sale el número · el ritmo de Agentry</span>'
-          f'<p class="t-sm fg-2" style="margin: 0 0 14px; max-width: 900px; line-height: 1.5">Agentry elige el ritmo de cada PR o MR abierta; la línea solo cuenta lo que ya decidió. '
+  return (f'<section class="col" style="gap: 0"><span class="t-label" style="padding-bottom: 6px">De dónde sale el número · el ritmo de Claudio</span>'
+          f'<p class="t-sm fg-2" style="margin: 0 0 14px; max-width: 900px; line-height: 1.5">Claudio elige el ritmo de cada PR o MR abierta; la línea solo cuenta lo que ya decidió. '
           f'Una entrega de webhook o un Actualizar mandan la próxima lectura a ahora.</p>{cols}{rows}</section>')
 
 
@@ -178,7 +178,7 @@ def phone_section():
 def gitlab_section():
   return (f'<section class="callout" style="align-items: flex-start; max-width: 1100px">{ico("info", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}'
           '<span class="col" style="gap: 4px"><b style="color: var(--fg); font-weight: 500">GitLab: aún sin webhook</b>'
-          '<span>Agentry ya sabe recibir un webhook de GitLab, pero todavía no lo registra, lo prueba ni lo quita: eso falta por probarlo con glab. '
+          '<span>Claudio ya sabe recibir un webhook de GitLab, pero todavía no lo registra, lo prueba ni lo quita: eso falta por probarlo con glab. '
           'Hasta entonces una MR muestra solo la lectura periódica, y Integraciones dice «aún no disponible» en vez de ofrecer una acción que no existe.</span></span></section>')
 
 
@@ -186,7 +186,7 @@ DS_HEIGHT = 2440
 
 
 def ds_webhooks():
-  head = ('<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · alojamientos de código · webhooks</span>'
+  head = ('<header class="col" style="gap: 8px"><span class="t-label">Claudio design system · alojamientos de código · webhooks</span>'
           '<h1 class="t-display" style="margin: 0">Lo fresca que está una PR o una MR</h1>'
           '<p class="fg-2" style="margin: 0; max-width: 900px; line-height: 1.55">Una línea en el panel de la PR o la MR de la tarea: si se actualiza al instante '
           'por un webhook, o cuándo se leyó y cuándo se volverá a leer, dicho con palabras. Una palabra junto a cada color y un solo botón, Actualizar.</p></header>')

@@ -3,7 +3,7 @@
  * from. Pure, like `reviews.ts` (which it builds on): tested without a browser
  * (test/review-lines.test.ts).
  */
-import type { ReviewDraft, ReviewSide } from '@agentry/shared';
+import type { ReviewDraft, ReviewSide } from '@claudio/shared';
 import type { ParsedDiff } from './diff';
 import { lineKey } from './reviews';
 

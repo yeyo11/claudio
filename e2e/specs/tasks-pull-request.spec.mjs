@@ -43,7 +43,7 @@ export default async ({ page, api, check, dirs }) => {
       db.prepare(
         `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, error_code, error_detail, approved_at, opened_at, closed_at, checked_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(randomUUID(), item.id, project.id, r.phase, r.number, r.url, `task/${item.key.toLowerCase()}`, r.ci, r.conflicts, r.error_code, r.error_detail, now, r.opened_at, r.closed_at, r.checked_at, now, now);
+      ).run(randomUUID(), item.id, project.id, r.phase, r.number, r.url, `claudio-task/${item.key.toLowerCase()}`, r.ci, r.conflicts, r.error_code, r.error_detail, now, r.opened_at, r.closed_at, r.checked_at, now, now);
     };
     const open = (item, number, ci) => {
       row(item, { number, url: `https://github.com/acme/shop/pull/${number}`, ci, opened_at: now, checked_at: now });
@@ -62,7 +62,7 @@ export default async ({ page, api, check, dirs }) => {
     // Storage belongs to the app's origin: a blank page before the first visit has none
     await page.goto(`/tasks?project=${project.id}`, 1500);
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       await page.goto(`/tasks?project=${project.id}`, 1500);
       await page.waitFor(`return !!document.querySelector('${card(passing.id)}')`, { label: `[${theme}] the open PR's strip` });
       const strip = (item) => page.eval(`const s = document.querySelector('${card(item.id)}'); return s ? { text: s.textContent, cls: s.className, ci: s.querySelector('.pr-ci')?.dataset.ci ?? null, ciCls: s.querySelector('.pr-ci')?.className ?? '', link: s.querySelector('a[href^="https://github.com"]')?.getAttribute('href') ?? null, target: s.querySelector('a[href^="https://github.com"]')?.getAttribute('target') ?? null, num: s.querySelector('.workitem-strip-num') ? getComputedStyle(s.querySelector('.workitem-strip-num')).fontVariantNumeric : null } : null`);
@@ -95,7 +95,7 @@ export default async ({ page, api, check, dirs }) => {
       await page.waitFor(`return !!document.querySelector('.item-pr')`, { label: `[${theme}] the PR row under Changes` });
       const prRow = await page.eval(`const r = document.querySelector('.item-pr'); return { href: r.getAttribute('href'), target: r.getAttribute('target'), rel: r.getAttribute('rel'), text: r.textContent }`);
       check(prRow.href === 'https://github.com/acme/shop/pull/101' && prRow.target === '_blank' && prRow.rel === 'noreferrer', `[${theme}] the PR row is an external link (${JSON.stringify(prRow)})`);
-      check(prRow.text.includes('task/') && prRow.text.includes('main'), `[${theme}] the PR row names branch and base (${prRow.text})`);
+      check(prRow.text.includes('claudio-task/') && prRow.text.includes('main'), `[${theme}] the PR row names branch and base (${prRow.text})`);
       const item = await page.axe();
       check(item.length === 0, `[${theme}] axe finds nothing on the item with an open PR: ${JSON.stringify(item)}`);
       await page.shot(`cw22-item-open-${theme}`);
@@ -109,7 +109,7 @@ export default async ({ page, api, check, dirs }) => {
     }
 
     // ---- a phone ----
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.viewport(390, 844);
     await page.goto(`/tasks/${passing.key}`, 1500);
     // The PR panel leads the detail, as the waiting panel does

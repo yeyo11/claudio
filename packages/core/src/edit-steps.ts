@@ -1,5 +1,5 @@
 import { isAbsolute, relative, sep } from 'node:path';
-import { normalizeMessage, type EditStep, type EditStepTool, type TranscriptEntry } from '@agentry/shared';
+import { normalizeMessage, type EditStep, type EditStepTool, type TranscriptEntry } from '@claudio/shared';
 import type { JsonlFold } from './jsonl-cache.ts';
 import type { JsonLine } from './transcript-index.ts';
 

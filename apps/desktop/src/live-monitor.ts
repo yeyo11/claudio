@@ -52,12 +52,12 @@ const RELEVANT = ['run.', 'permission.', 'orchestration.', 'sessions.', 'stream.
 
 /**
  * The tray's credential. The app's own per-launch secret comes first: the server it spawned always
- * knows it, whatever guard the owner turned on since, while `AGENTRY_AUTH_TOKEN` only seeds a
+ * knows it, whatever guard the owner turned on since, while `CLAUDIO_AUTH_TOKEN` only seeds a
  * fresh install and goes stale the moment the token is rotated from the Security panel. The
  * variable is still used when there is no secret to send.
  */
 export function monitorHeaders(desktopSecret: string | undefined, env: NodeJS.ProcessEnv): Record<string, string> {
-  const token = desktopSecret?.trim() || env.AGENTRY_AUTH_TOKEN?.trim();
+  const token = desktopSecret?.trim() || env.CLAUDIO_AUTH_TOKEN?.trim();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

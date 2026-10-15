@@ -19,7 +19,7 @@ tags:
 
 A **code host** is where a project's repository lives and where its change requests are opened:
 GitHub, reached through `gh`, and GitLab, reached through `glab`. This document is the reference for
-what a code host is, how Agentry decides whether a project can open a change request, what every
+what a code host is, how Claudio decides whether a project can open a change request, what every
 call to the CLIs goes through, and how to add a host. The reasons, the evidence behind each
 argument and the order of work are in [plans/code-hosts.md](plans/code-hosts.md); if the code
 differs from this page, the code wins and this page is stale.
@@ -32,7 +32,7 @@ and screens come with the tasks that own them. Phase 3 is built in `packages/cor
 contract (review threads, drafts, posting, reply and resolve, approval, reviewers, Address with an
 agent), described in [Reviews](#reviews); its routes and screens come with the tasks that own them.
 Phase 4 is built in `packages/core` and the contract (the merge state and its blockers, Merge,
-Auto-merge, Update from base, the GitLab pipeline guard, auto-merge turned off before Agentry
+Auto-merge, Update from base, the GitLab pipeline guard, auto-merge turned off before Claudio
 pushes, the audit), described in [Merging](#merging); its routes and screens come with the tasks
 that own them. Trackers (GitHub and GitLab Issues) are described in [trackers.md](trackers.md); phase 6, the pacer and webhooks, is described in [Events and paced polling](#events-and-paced-polling).
 
@@ -41,22 +41,22 @@ In shared types and in this document "pull request" means a PR or an MR: the hos
 
 ## The rule a code host lives under
 
-Agentry reaches each tool **only through the interface its vendor ships for programs**: for a code
+Claudio reaches each tool **only through the interface its vendor ships for programs**: for a code
 host, its CLI and the CLI's own `api` subcommand, which calls the host's documented API with the
 CLI's login. The rule is stated in [CLAUDE.md](../CLAUDE.md) and
 [CONTRIBUTING.md](../CONTRIBUTING.md). So:
 
-- there is **no REST client of Agentry's own** and no token of Agentry's own for a code host;
+- there is **no REST client of Claudio's own** and no token of Claudio's own for a code host;
 - no second login: the session is the one the person has in `gh` or `glab`, whether it was made in
-  a terminal or from Agentry, which only runs the CLI's own `auth login` and `auth logout` (see
-  [Signing in from Agentry](#signing-in-from-agentry));
+  a terminal or from Claudio, which only runs the CLI's own `auth login` and `auth logout` (see
+  [Signing in from Claudio](#signing-in-from-claudio));
 - **no agent ever pushes.** `stageRules` in `packages/core/src/flow.ts` keeps `git push` denied; the
-  push is Agentry's own process, after the person approved.
+  push is Claudio's own process, after the person approved.
 
-## Signing in from Agentry
+## Signing in from Claudio
 
 Since 2026-10-08 ([the in-app setup plan](plans/in-app-setup.md), reference in
-[setup.md](setup.md)), `gh` and `glab` are signed in and out from Agentry, so a container with no
+[setup.md](setup.md)), `gh` and `glab` are signed in and out from Claudio, so a container with no
 shell can reach GitHub and GitLab. It happens in two places, with the same panel: Settings →
 Integrations (a signed-out CLI's **Sign in**, **Add another host** on a ready one, and Sign in or
 Sign out at the end of each known host's line) and the setup assistant's "Code and work items" step.
@@ -69,7 +69,7 @@ default; an Enterprise or self-managed one is typed in).
 | `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` (GitLab 17.9 or later on the host) | `glab auth logout --hostname H` |
 
 - **The CLI owns the credential** (the plan's decision 4). The token goes once to the CLI's own
-  login command on stdin, never in argv, and the CLI stores it where it always does. Agentry's
+  login command on stdin, never in argv, and the CLI stores it where it always does. Claudio's
   secret vault keeps nothing for gh or glab.
 - **Success is the readiness probe**, not the output: the code hosts' detector is refreshed and the
   host must read `signedIn`. It matters for glab, which stores a bad token with exit 0 and only a
@@ -83,7 +83,7 @@ default; an Enterprise or self-managed one is typed in).
   ([deploy.md](deploy.md#what-the-image-contains)). A container has no system keyring, so both CLIs
   store the token in plain text in those files (gh in `hosts.yml`, glab in `config.yml`, mode 0600):
   that is their documented fallback when no keyring exists, and glab says so as it signs in. Why
-  Agentry accepts it is in [security-model.md](security-model.md#what-the-vendors-clis-keep-in-plain-text).
+  Claudio accepts it is in [security-model.md](security-model.md#what-the-vendors-clis-keep-in-plain-text).
 - **Tokens the person keeps in the environment** (`GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, …) are
   still left alone, and sign-out does not touch them.
 
@@ -101,7 +101,7 @@ The registry (`hosts/registry.ts`) is keyed by id. `CodeHostId` is a closed unio
 | Field | What it holds |
 |---|---|
 | `id`, `label`, `cli` | Identity and the one binary the host is reached through (`gh`, `glab`) |
-| `versions` | The arguments that print the version, the `minimum` release Agentry works with, the `recorded` releases every fact comes from, and what a newer unrecorded release reads as (`untested`: `ready` or `degraded`) |
+| `versions` | The arguments that print the version, the `minimum` release Claudio works with, the `recorded` releases every fact comes from, and what a newer unrecorded release reads as (`untested`: `ready` or `degraded`) |
 | `auth` | How the CLI says it is signed in: `hosts-json` (gh: one call lists every host, so it is also gh's list of known hosts) or `exit-code` (glab: one call per known host, read by its exit code only) |
 | `defaultHosts` | Hosts matched without asking the CLI: `github.com`, `gitlab.com` |
 | `configHome` | The CLI's own configuration directory and the variable that moves it, watched for sign-ins |
@@ -144,7 +144,7 @@ without a process, and the service runs them through the execution layer.
 
 The rolled-up CI, per host:
 
-| Agentry | GitHub (`statusCheckRollup`) | GitLab (`head_pipeline.status`) |
+| Claudio | GitHub (`statusCheckRollup`) | GitLab (`head_pipeline.status`) |
 |---|---|---|
 | `none` | no checks | no `head_pipeline` |
 | `failing` | a conclusion or state of `FAILURE`, `CANCELLED`, `TIMED_OUT`, `ACTION_REQUIRED`, `STARTUP_FAILURE`, `ERROR` | `failed`, `canceled`, `canceling` |
@@ -191,7 +191,7 @@ ever passed to `api`** (glab accepts one); a lint test fails on any adapter that
   error body, of which only the structured fields (HTTP status, `errors[]`, rate-limit headers) are
   read.
 - **stderr is never parsed for a decision.** Its first line, redacted, is kept as the detail the
-  person reads beside Agentry's own sentence.
+  person reads beside Claudio's own sentence.
 - Decisions come from the exit code, structured stdout and a re-read of the state. A failed create
   is followed by `find` by head and base, and exactly one open result is adopted.
 
@@ -206,7 +206,7 @@ exits 1 like an unreachable host.
 **Rate limits, per host.** Headers and `Retry-After` open a breaker for a (host, bucket) until the
 reset, or for a doubling wait from 60 s up to 15 min on a secondary limit. Background polling
 pauses below 50 remaining on GitHub's core and graphql buckets, 5 in search and 5 % on GitLab. The
-breaker lives in SQLite (`host_rate_limits`) because two Agentry processes share the data
+breaker lives in SQLite (`host_rate_limits`) because two Claudio processes share the data
 directory. A limit on one host never stops another. At most 4 processes per CLI run at once, queued
 30 s (`busy`).
 
@@ -297,7 +297,7 @@ What the service guarantees for GitHub and GitLab alike:
   change's description. GitLab has its own logs in `golden/phase1-gitlab/`.
 - **A create is followed by a lookup.** One open result for the head and base is adopted; none
   records the `create` step with the CLI's first line.
-- **GitLab accepts an empty merge request**, GitHub refuses one. Agentry checks the commits ahead
+- **GitLab accepts an empty merge request**, GitHub refuses one. Claudio checks the commits ahead
   of the base itself before it creates either.
 - **The work item and the orchestration share the service.** Both open their change request through
   it, are watched by the same loop (a list of sources, each with its rows, claim and outcome), and
@@ -310,7 +310,7 @@ What the service guarantees for GitHub and GitLab alike:
 
 ## Checks, logs and fixing
 
-Phase 2 adds what a change request's CI says and what Agentry does about a failure. Every argument
+Phase 2 adds what a change request's CI says and what Claudio does about a failure. Every argument
 below is one the recordings show (`k0-NOTES.md`, `gh/NOTES.md`, `glab/NOTES.md`); where a recording
 disagreed with the plan's matrix, the recording won.
 
@@ -454,7 +454,7 @@ cached by head for 30 seconds and read again after any write.
   say "outdated", so the service compares the note's head with the current one.
 - A thread is drawn on its `path` and new-side line when it was left on the head, and folded as
   outdated otherwise. Resolved threads fold by default. A comment's body is another person's text.
-  Agentry's own marker comment is removed before a body is served.
+  Claudio's own marker comment is removed before a body is served.
 
 ### The draft review
 
@@ -471,7 +471,7 @@ Writes to one change request run one after the other, so a double click never po
 attempt is a row in `review_posts` (`posting`, `posted`, `partly`, `failed`) whose body carries a
 marker comment. `GET /change-requests/:id/review-posts` reads those rows back, newest first, so a
 review that stopped partway is known after a reload; for a `partly` post it also counts the draft
-notes Agentry saved that are still waiting on the host (`savedOnHost`, null when the host could not
+notes Claudio saved that are still waiting on the host (`savedOnHost`, null when the host could not
 be read).
 
 | | GitHub | GitLab |
@@ -480,11 +480,11 @@ be read).
 | Events | `comment` only | `comment`, and `approve` as a separate approval after the post |
 | A bad line | 422 with `errors: ["Line could not be resolved"]` → `line-not-in-diff`; nothing posted | **accepted silently** by the draft POST and dropped silently by publish, so the service checks every line against the diff before creating the draft and counts the notes after publishing |
 | A timeout | looks for the marker in the reviews list, then the threads | looks for the marker in note bodies (a published general draft is a resolvable discussion, `individual_note: false`, not a review) |
-| Partial failure | none | a note that fails after others were saved → `review-partly-posted`; **Publish saved** (`…/reviews/:postId/publish-saved`) or **Discard saved** (`…/discard-saved`). `glab mr note publish` cannot publish selectively (it sends every draft note of the viewer), so Publish saved is refused with `pending-review-exists` while a draft Agentry did not save is waiting. A publish that sends fewer notes than were saved drops the rows of the notes that went out and keeps the rest |
+| Partial failure | none | a note that fails after others were saved → `review-partly-posted`; **Publish saved** (`…/reviews/:postId/publish-saved`) or **Discard saved** (`…/discard-saved`). `glab mr note publish` cannot publish selectively (it sends every draft note of the viewer), so Publish saved is refused with `pending-review-exists` while a draft Claudio did not save is waiting. A publish that sends fewer notes than were saved drops the rows of the notes that went out and keeps the rest |
 
 A post is refused while a pending review is in the way: a GitHub review in state `PENDING` by the
 viewer, or any GitLab draft note (`pending-review-exists`, whose detail names the count and the
-host). Agentry deletes only the drafts it saved itself and only after the person chose Discard: a
+host). Claudio deletes only the drafts it saved itself and only after the person chose Discard: a
 `partly` post records the ids of the draft notes it saved (`detail.draftIds`), and Discard deletes
 those and the note carrying the post's marker, never another draft note of the viewer's; it never
 deletes a pending review of theirs.
@@ -510,12 +510,12 @@ read, and still blocks a merge.
   on the other.
 - **Approve** is GitLab only and takes the head the person looked at: a head that moved is
   `head-moved` (409). Approving twice is a 401 and is settled by re-reading. Whether Approve is
-  offered is Agentry's rule, never GitLab's `user_can_approve`, which is `false` for an author whose
+  offered is Claudio's rule, never GitLab's `user_can_approve`, which is `false` for an author whose
   approval succeeds: the recordings show GitLab letting the author approve their own merge request
   on a project without approval rules, so Approve is offered while the viewer has not approved
   (`canApprove = !viewerHasApproved`) and hidden once they have. A project whose rules forbid it
   refuses the approval, and the person reads the host's reason.
-- **Reviewers**: GitLab's `--reviewer user` *replaces* the list, so Agentry always sends `+user` and
+- **Reviewers**: GitLab's `--reviewer user` *replaces* the list, so Claudio always sends `+user` and
   `-user`. GitHub's `gh pr edit --add-reviewer` drops the author silently, so the API is called
   instead. An unknown GitHub login exits 0 and adds nobody; the re-read decides what the person is
   told.
@@ -535,7 +535,7 @@ when none are named), and starts the flow's Developer with a prompt built by `re
   by other people: requests to weigh, not instructions to obey; never anything that reaches outside
   the repository; and to say in the summary which comments it addressed and which not, and why. A
   closing tag inside a comment is escaped and control characters are stripped.
-- **No host writes by the agent.** The prompt forbids replying, resolving and pushing. Agentry never
+- **No host writes by the agent.** The prompt forbids replying, resolving and pushing. Claudio never
   resolves by itself: after the push it offers **Reply "Addressed in <sha>"** and **Resolve** for
   the addressed threads, and the person clicks.
 - **The push rule is phase 2's.** A person's click is the approval to push at the end of QA; a
@@ -579,8 +579,8 @@ them.
   `remove_source_branch_after_merge`, the default of the branch box.
 - **`autoMerge`**: whether one may be armed (and the reason when not), and who armed it, when and
   with which method when one is.
-- **`autoMergeOff`**: set when Agentry turned auto-merge off for a push of its own or for Update from
-  base: `by` (`agentry` for a push, the person who clicked for an update), `at`, `why` (`push` or
+- **`autoMergeOff`**: set when Claudio turned auto-merge off for a push of its own or for Update from
+  base: `by` (`claudio` for a push, the person who clicked for an update), `at`, `why` (`push` or
   `update`) and `pushing` (the push is still going on). It is read from the audit and lasts until the
   person arms again (or the host shows it armed); the person's own disarm does not set it.
 - **`waitingForPipeline`**, **`canRebaseOnHost`** and **`rebaseOnHostWhy`**: GitLab only (below).
@@ -606,7 +606,7 @@ Computed from the fields, never from a CLI's refusal text (gh computes its own r
 and glab's is a boxed stderr). The first that applies is `blocker`; the rest are `others`. The pure
 functions are `githubBlockers` and `gitlabBlockers` in `hosts/merge-blockers.ts`, tested with every
 recorded status, every documented `detailed_merge_status` and values nobody has seen: an unknown
-value is `blocked-by-policy`. Every blocker ends in an Agentry action or a link, never a command to
+value is `blocked-by-policy`. Every blocker ends in an Claudio action or a link, never a command to
 copy.
 
 | Code | Action |
@@ -652,7 +652,7 @@ A conflicting merge request in a GitLab `ff` project reads `need_rebase` (`behin
    text are not trusted: `glab mr merge` refuses in a boxed stderr and its 405 never says why.
    `write-unconfirmed` means the host neither confirmed nor refused.
 5. After a merge the service tells the owner of the row (`merged(id)`), and the existing `merged()`
-   path moves the item to Done as the person ([work-items.md](work-items.md#merging-from-agentry)).
+   path moves the item to Done as the person ([work-items.md](work-items.md#merging-from-claudio)).
    The local branch stays. The remote branch goes only when the box was ticked or the project
    deletes it itself.
 
@@ -668,7 +668,7 @@ deletion then failed the running job. So on GitLab **Merge now** is allowed only
   finished; or
 - there is no pipeline, the project has no CI file at the head (`git cat-file -e
   <sha>:<ci_config_path or .gitlab-ci.yml>`, after one fetch when the commit is missing), the
-  project does not require a pipeline, and 90 s have passed since the last push Agentry saw.
+  project does not require a pipeline, and 90 s have passed since the last push Claudio saw.
 
 A pipeline still running adds a `checks-running` blocker. With `only_allow_merge_if_pipeline_succeeds`
 on and no pipeline the state is `checks-missing` and Merge never opens (glab refuses with
@@ -692,9 +692,9 @@ state is re-read every 10 s.
 - **GitLab** arms through `glab mr merge --auto-merge --sha` and disarms through
   `POST …/cancel_merge_when_pipeline_succeeds`. glab's `status:error` answer is not trusted: the
   re-read decides whether it is armed.
-- **Before Agentry pushes** to a branch (a fix, an address run, and the push that opens a change
+- **Before Claudio pushes** to a branch (a fix, an address run, and the push that opens a change
   request onto a branch that already has one), `holdForPush(id)` reads the change request and, if
-  armed, turns it off as `agentry` with the detail "arm it again". It **fails closed**: if the host
+  armed, turns it off as `claudio` with the detail "arm it again". It **fails closed**: if the host
   still shows it armed or cannot be read, it throws and the push does not happen. It also **holds**
   the change request (arming, disarming, merging and updating are `busy`) until the caller calls
   `release()` when the push ends, well or not, so nobody can arm in the gap and have the host merge
@@ -708,28 +708,28 @@ state is re-read every 10 s.
 
 ### Update from base
 
-`POST /change-requests/:id/update-branch` is Agentry's own, in the item's checkout. It refuses with
+`POST /change-requests/:id/update-branch` is Claudio's own, in the item's checkout. It refuses with
 `busy` while a chat or a run works in that checkout (an item's links, an orchestration's fixer). It
 disarms first, as the person who clicked (the route passes `req.actor`; the disarm is recorded as
-theirs, with the detail that Agentry updated the branch), merges the base into the branch and
+theirs, with the detail that Claudio updated the branch), merges the base into the branch and
 pushes. A conflict aborts the merge, pushes nothing and returns the paths (409).
 
 On a GitLab `ff` project Rebase on GitLab is the host's rebase, offered only when the checkout loses
 nothing: no uncommitted changes and no commit that was never pushed (`reset --keep` after the host
 rewrote the branch would drop both). When it would apply but does not, `rebaseOnHostWhy` says
-`uncommitted-changes` or `unpushed-commits` and Update from base is Agentry's own merge. The rebase
+`uncommitted-changes` or `unpushed-commits` and Update from base is Claudio's own merge. The rebase
 polls `rebase_in_progress` with `include_rebase_in_progress=true` (the plain body does not carry it),
 then fetches and `reset --keep`s. A rebase the host refuses about the content (its `merge_error`, a
-conflict) falls back to Agentry's own update, which names the paths; a host that did not answer does
+conflict) falls back to Claudio's own update, which names the paths; a host that did not answer does
 not. `POST …/ready` marks a draft ready.
 
 The service returns the conflicting paths and leaves the worktree as it was; how they reach the
-Developer is not decided in the service (see [work-items.md](work-items.md#merging-from-agentry)).
+Developer is not decided in the service (see [work-items.md](work-items.md#merging-from-claudio)).
 
 ### The audit
 
 `change_request_merges` has one row per click or arming: `action` (`merge`, `arm`, `disarm`),
-`method`, `expected_head`, `delete_branch`, `requested_at`, `requested_by` (the person, or `agentry`
+`method`, `expected_head`, `delete_branch`, `requested_at`, `requested_by` (the person, or `claudio`
 for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disarmed`, `failed`),
 `reason` and `detail`. They are rows because they accumulate. `core.merge.history(id)` returns them.
 
@@ -775,9 +775,9 @@ for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disar
 
 ## Events and paced polling
 
-Phase 6 (step 1) replaces the fixed 60 s watch with a pacer and lets GitHub and GitLab tell Agentry
+Phase 6 (step 1) replaces the fixed 60 s watch with a pacer and lets GitHub and GitLab tell Claudio
 that something changed. The reasons are in [plans/code-hosts.md](plans/code-hosts.md#phase-6-webhooks-and-paced-polling);
-a hook delivers to a public origin, which Agentry does not have today: the tunnel is tailnet-only
+a hook delivers to a public origin, which Claudio does not have today: the tunnel is tailnet-only
 since it moved to Tailscale ([tunnel.md](tunnel.md#webhooks)), so registering answers
 `no-public-url` and polling carries the rows. [deploy.md](deploy.md#webhooks-and-the-public-address)
 says what a deployment must expose.
@@ -835,7 +835,7 @@ registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
   and does nothing.
   - The id: `X-GitHub-Delivery` for GitHub, `Idempotency-Key` or `webhook-id` for GitLab.
   - The signed raw body: its SHA-256, per registration, for one hour. GitHub does not sign the id and
-    whatever ends TLS in front of Agentry can see a signed body and send it again under a new id or none; the same
+    whatever ends TLS in front of Claudio can see a signed body and send it again under a new id or none; the same
     bytes inside the window are a duplicate whatever id they carry. After the window they count again.
   - **A delivery with no id is not enough to mark a hook healthy.** It may still move the next read
     of the rows it names, but it does not stamp `lastDeliveryAt` or `lastPingAt`, clear `failing` or
@@ -856,13 +856,13 @@ the person's click; a chat's token is refused on the writes. The table is GitHub
 | Step | Call |
 | --- | --- |
 | Register (G1) | `gh api -X POST repos/{O}/{N}/hooks --input -`, the secret in the stdin JSON, never in argv |
-| Adopt | only a hook whose URL carries the id of a registration this install made on the repository (`gh api --paginate --slurp repos/{O}/{N}/hooks?per_page=100`); another install's Agentry hook is left alone and the answer says so. Two clicks at once share one registration. Re-pointing and removing read the hook first and leave one that no longer carries the registration's id |
+| Adopt | only a hook whose URL carries the id of a registration this install made on the repository (`gh api --paginate --slurp repos/{O}/{N}/hooks?per_page=100`); another install's Claudio hook is left alone and the answer says so. Two clicks at once share one registration. Re-pointing and removing read the hook first and leave one that no longer carries the registration's id |
 | Test (G2) | `gh api -X POST repos/{O}/{N}/hooks/<id>/pings`, then the hook's `last_response` is read |
 | Remove (G3) | `gh api -X DELETE repos/{O}/{N}/hooks/<id>`; a removed registration stays listed until the repository is registered again |
 | Re-point (G7) | `gh api -X PATCH repos/{O}/{N}/hooks/<id>/config --input -`, by id |
 
 GitLab (`glab api -i --hostname <host> …`; `-i` because a failed call prints no status of its own
-on stdout): `POST projects/<id>/hooks --input -` with `{url, token, signing_token, name: "agentry",
+on stdout): `POST projects/<id>/hooks --input -` with `{url, token, signing_token, name: "claudio",
 merge_requests_events, pipeline_events, note_events, issues_events: true, push_events, job_events:
 false, enable_ssl_verification: true}`; the listing is `GET projects/<id>/hooks?per_page=100` (a
 project holds at most 100); the test is `POST …/hooks/<id>/test/push_events`, the one test that
@@ -887,7 +887,7 @@ is refused with `401`.
 How it is kept is decision 3, in `secret-box.ts`: in the desktop app each value is encrypted
 (AES-256-GCM) with a key the app keeps under Electron's `safeStorage` (`secret-key.bin` in its
 user data, made by `apps/desktop/src/secret-key.ts`) and hands the server at launch in
-`AGENTRY_SECRET_KEY`, which the server removes from `process.env` once read so no chat inherits it.
+`CLAUDIO_SECRET_KEY`, which the server removes from `process.env` once read so no chat inherits it.
 On a server there is no key and the values are plain, at 0600. A plain file found while a key is set
 is encrypted when the server starts; a value sealed under another key, or opened with no key, reads
 as absent and its hook is registered again. The decision engine's key and the account credentials
@@ -912,7 +912,7 @@ cannot manage hooks), `404 registration-not-found`, `409` for `no-public-url`,
 ## How to add a code host
 
 1. **Check the interface.** The vendor must ship a CLI (or its own `api` subcommand) for programs.
-   No REST client, no token of Agentry's own.
+   No REST client, no token of Claudio's own.
 2. **Search the knowledge base**, then collect the facts from the vendor's docs and from running
    the CLI: version flag and output, auth probe, how it lists its hosts, how it pins a repository,
    create, find, view and default branch, and its install and sign-in pages. A fact you cannot
@@ -923,7 +923,7 @@ cannot manage hooks), `404 registration-not-found`, `409` for `no-public-url`,
 4. **Add `hosts/<id>/manifest.ts`**, each fact with its source in a comment, and one line in
    `CODE_HOST_MANIFESTS` in `hosts/registry.ts`. Add the id to `CodeHostId` in
    `packages/shared/src/types.ts` and regenerate the schemas
-   (`pnpm --filter @agentry/api openapi:schemas`).
+   (`pnpm --filter @claudio/api openapi:schemas`).
 5. **Add `hosts/<id>/adapter.ts`**, implementing `CodeHostAdapter`. It builds `HostCall`s and
    parses, and runs nothing. Pin every call to the host; declare `kind` and `class` on each; never
    build an absolute URL for `api`.

@@ -2,12 +2,12 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { MergeState, WorkItem } from '@agentry/shared';
+import type { MergeState, WorkItem } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import i18n from '../src/i18n';
 import { WorkItemCard } from '../src/pages/tasks/board/WorkItemCard';
@@ -42,7 +42,7 @@ const item = (): WorkItem => ({
     phase: 'open',
     number: 12,
     url: 'https://gitlab.com/acme/shop/-/merge_requests/12',
-    branch: 'task/agn-1',
+    branch: 'claudio-task/agn-1',
     base: 'main',
     ci: 'pending',
     conflicts: [],

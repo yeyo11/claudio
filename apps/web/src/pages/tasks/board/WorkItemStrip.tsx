@@ -1,16 +1,16 @@
-import type { CodeHostId, FlowRunCause, LimitWait, WorkItem } from '@agentry/shared';
+import type { CodeHostId, FlowRunCause, LimitWait, WorkItem } from '@claudio/shared';
 import { Check, CircleAlert, Clock, ExternalLink, GitPullRequest, Workflow, X } from 'lucide-react';
 import { useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { Monogram } from '@agentry/ui/components/icons';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { timeUntil } from '@agentry/ui/lib/format';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { Monogram } from '@claudio/ui/components/icons';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { timeUntil } from '@claudio/ui/lib/format';
 import { useProviderLabel } from '../../../lib/provider-status';
 import { resetWhen } from '../../../lib/reset-when';
-import { activityTarget, activityVerb, elapsedSince, formatElapsed } from '@agentry/ui/lib/live';
-import { useClockTick } from '@agentry/ui/lib/motion';
+import { activityTarget, activityVerb, elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
+import { useClockTick } from '@claudio/ui/lib/motion';
 import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
 import { approvalOpensPullRequest, notReadyReason, pullRequestErrorKey, stripOffersApproval, stripTone, type StripActor, type WorkItemStripState } from '../../../lib/work-items';
 import { useRoleName } from '../../team/RoleAvatar';
@@ -115,7 +115,7 @@ export function RunWaitWords({ wait }: { wait: Pick<LimitWait, 'provider' | 'res
  * What happens to an item now, at the foot of its card or phone row (`.wi-strip`): one state, led by
  * who acts, and nothing when nothing is going on. Live strips move and take the live tint; a card
  * that waits for the person takes the idle one; a failure the bad one with its word and its reason;
- * a conflict the warn one; QA's words on a card it sent back, a place in the queue and Agentry
+ * a conflict the warn one; QA's words on a card it sent back, a place in the queue and Claudio
  * preparing a pull request stay neutral, and still: no agent works on a PR.
  */
 export function WorkItemStrip({

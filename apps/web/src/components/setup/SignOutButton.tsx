@@ -1,14 +1,14 @@
-import type { SetupTool } from '@agentry/shared';
+import type { SetupTool } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
 import { READINESS_KEYS } from '../../lib/setup';
 
 /**
- * Sign out of a tool, after asking: it is destructive (the tool stops working for Agentry until
+ * Sign out of a tool, after asking: it is destructive (the tool stops working for Claudio until
  * someone signs in again), so the confirmation is the danger one. A code host signs out of one host.
  * The vendor's own command does it where there is one (`DELETE /setup/credentials/:tool`).
  */

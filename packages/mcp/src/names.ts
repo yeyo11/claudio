@@ -1,11 +1,11 @@
 /**
- * The tools of Agentry's own MCP server, by name. A file of its own, with no import, so the core can
+ * The tools of Claudio's own MCP server, by name. A file of its own, with no import, so the core can
  * build an allow list from it without loading the server: a test checks the catalogue in tools.ts
  * against this list, which keeps the two the same.
  */
-export const AGENTRY_MCP_SERVER = 'agentry';
+export const CLAUDIO_MCP_SERVER = 'claudio';
 
-export const AGENTRY_MCP_READ_TOOL_NAMES = [
+export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'list_projects',
   'get_overview',
   'get_board',
@@ -24,16 +24,16 @@ export const AGENTRY_MCP_READ_TOOL_NAMES = [
   'list_accounts',
 ] as const;
 
-export type AgentryMcpReadToolName = (typeof AGENTRY_MCP_READ_TOOL_NAMES)[number];
+export type AgentryMcpReadToolName = (typeof CLAUDIO_MCP_READ_TOOL_NAMES)[number];
 
 /** The names as the CLI sees them, which is what `--allowedTools` takes */
-export const AGENTRY_MCP_READ_TOOLS: readonly string[] = AGENTRY_MCP_READ_TOOL_NAMES.map((name) => `mcp__${AGENTRY_MCP_SERVER}__${name}`);
+export const CLAUDIO_MCP_READ_TOOLS: readonly string[] = CLAUDIO_MCP_READ_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 
 /**
  * The tools that change something. None is ever in `--allowedTools`: each call reaches the person as
  * a permission prompt in the chat, and a call nobody confirms never reaches the API.
  */
-export const AGENTRY_MCP_WRITE_TOOL_NAMES = [
+export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'create_work_item',
   'update_work_item',
   'move_work_item',
@@ -45,10 +45,10 @@ export const AGENTRY_MCP_WRITE_TOOL_NAMES = [
   'discard_assistant_proposal',
 ] as const;
 
-export type AgentryMcpWriteToolName = (typeof AGENTRY_MCP_WRITE_TOOL_NAMES)[number];
+export type AgentryMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];
 export type AgentryMcpToolName = AgentryMcpReadToolName | AgentryMcpWriteToolName;
 
-export const AGENTRY_MCP_WRITE_TOOLS: readonly string[] = AGENTRY_MCP_WRITE_TOOL_NAMES.map((name) => `mcp__${AGENTRY_MCP_SERVER}__${name}`);
+export const CLAUDIO_MCP_WRITE_TOOLS: readonly string[] = CLAUDIO_MCP_WRITE_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 
-/** Whether the CLI's name for a tool is one of Agentry's write tools */
-export const isAgentryMcpWriteTool = (toolName: string): boolean => AGENTRY_MCP_WRITE_TOOLS.includes(toolName);
+/** Whether the CLI's name for a tool is one of Claudio's write tools */
+export const isAgentryMcpWriteTool = (toolName: string): boolean => CLAUDIO_MCP_WRITE_TOOLS.includes(toolName);

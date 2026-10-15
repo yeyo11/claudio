@@ -1,4 +1,4 @@
-import type { EditStep } from '@agentry/shared';
+import type { EditStep } from '@claudio/shared';
 import type { ParsedDiff } from '../../../lib/diff';
 
 // What the Step by step lens works out from the chat's edits, kept pure so the rules that decide

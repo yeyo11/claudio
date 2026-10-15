@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, Board, Project, ProjectSettings, ProjectTemplate, WorkItem } from '@agentry/shared';
-import { Core, loadConfig } from '@agentry/core';
+import type { AgentryEvent, Board, Project, ProjectSettings, ProjectTemplate, WorkItem } from '@claudio/shared';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
 // Project modules and templates over the routes. Scratch dirs and a missing CLI: nothing here
@@ -23,8 +23,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -75,13 +75,13 @@ test('a project is created or imported from a template, and a bad one is refused
 test('settings are read and replaced whole, validated, and each change reaches the event feed', async () => {
   const events: AgentryEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
-  const { id } = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name: 'Agentry' }) })).json<Project>();
+  const { id } = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name: 'Claudio' }) })).json<Project>();
   const other = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name: 'Other' }) })).json<Project>();
   try {
     const read = await app.inject(`/api/projects/${id}/settings`);
     assert.equal(read.statusCode, 200);
     const settings = read.json<ProjectSettings>();
-    assert.deepEqual([settings.modules, settings.keyPrefix, settings.template], [[], 'AGN', null]);
+    assert.deepEqual([settings.modules, settings.keyPrefix, settings.template], [[], 'CLD', null]);
 
     const next: ProjectSettings = { ...settings, modules: ['board'], board: { types: ['task', 'bug'], columnLimits: { in_progress: 2 } } };
     const put = await app.inject({ method: 'PUT', url: `/api/projects/${id}/settings`, ...json(next) });
@@ -92,7 +92,7 @@ test('settings are read and replaced whole, validated, and each change reaches t
     const invalid = await app.inject({ method: 'PUT', url: `/api/projects/${id}/settings`, ...json({ ...next, board: { types: [], columnLimits: {} } }) });
     assert.equal(invalid.statusCode, 400);
     assert.match(invalid.json().error, /at least one type/);
-    const clash = await app.inject({ method: 'PUT', url: `/api/projects/${other.id}/settings`, ...json({ ...next, keyPrefix: 'AGN' }) });
+    const clash = await app.inject({ method: 'PUT', url: `/api/projects/${other.id}/settings`, ...json({ ...next, keyPrefix: 'CLD' }) });
     assert.equal(clash.statusCode, 400);
     assert.match(clash.json().error, /already used/);
 

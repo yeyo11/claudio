@@ -6,7 +6,7 @@
 // little state that takes to tell them apart: the brackets in force, whether a type or an
 // expression is being read, and what a declaration is introducing. Measured against shiki over
 // this repository, that is the difference between 92% and 99% of the characters in the same
-// colour (`pnpm --filter @agentry/web parity`).
+// colour (`pnpm --filter @claudio/web parity`).
 import { pieces, type Piece, type Role } from './paint';
 import type { HighlightToken } from '@tanstack/highlight/core';
 

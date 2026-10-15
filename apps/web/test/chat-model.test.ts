@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ChatSummary, Execution } from '@agentry/shared';
-import type { ChatFilters } from '@agentry/chat-ui/lib/chat-model';
+import type { ChatSummary, Execution } from '@claudio/shared';
+import type { ChatFilters } from '@claudio/chat-ui/lib/chat-model';
 
 // The cost's wording follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
@@ -28,7 +28,7 @@ const {
   SORTERS,
   stateCounts,
   stepCursor,
-} = await import('@agentry/chat-ui/lib/chat-model');
+} = await import('@claudio/chat-ui/lib/chat-model');
 
 const tokens = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
 
@@ -61,7 +61,7 @@ const chat = (over: Partial<ChatSummary> = {}): ChatSummary => ({
   project: null,
   cwd: '/work/alpha',
   worktree: null,
-  origin: 'agentry',
+  origin: 'claudio',
   orchestration: null,
   derivedFrom: null,
   state: 'idle',
@@ -134,22 +134,22 @@ test('the integrator and the fixer are workers named by their role, not taken fo
 test('internal chats need their own switch', () => {
   assert.equal(matchesFilters(chat({ origin: 'internal' }), filters()), false);
   assert.equal(matchesFilters(chat({ origin: 'internal' }), filters({ internal: true })), true);
-  assert.deepEqual(originsToFetch({ internal: false }), ['agentry', 'external', 'orchestration']);
-  assert.deepEqual(originsToFetch({ internal: true }), ['agentry', 'external', 'orchestration', 'internal']);
+  assert.deepEqual(originsToFetch({ internal: false }), ['claudio', 'external', 'orchestration']);
+  assert.deepEqual(originsToFetch({ internal: true }), ['claudio', 'external', 'orchestration', 'internal']);
 });
 
 test('origin and state narrow the list', () => {
   const terminal = chat({ origin: 'external', state: 'working' });
-  assert.equal(matchesFilters(terminal, filters({ origins: new Set(['agentry']) })), false);
+  assert.equal(matchesFilters(terminal, filters({ origins: new Set(['claudio']) })), false);
   assert.equal(matchesFilters(terminal, filters({ origins: new Set(['external']) })), true);
   assert.equal(matchesFilters(terminal, filters({ state: 'idle' })), false);
   assert.equal(matchesFilters(terminal, filters({ state: 'working' })), true);
 });
 
 test('search reads the title, the project and the orchestration', () => {
-  const c = worker({ project: { id: 'p1', name: 'Agentry' } });
+  const c = worker({ project: { id: 'p1', name: 'Claudio' } });
   assert.equal(matchesFilters(c, filters({ workers: true, search: 'login' })), true);
-  assert.equal(matchesFilters(c, filters({ workers: true, search: 'agentry' })), true);
+  assert.equal(matchesFilters(c, filters({ workers: true, search: 'claudio' })), true);
   assert.equal(matchesFilters(c, filters({ workers: true, search: 'write docs' })), true);
   assert.equal(matchesFilters(c, filters({ workers: true, search: 'nothing like it' })), false);
 });
@@ -164,8 +164,8 @@ test('a search never matches across two fields, and reads a chat that changed af
 });
 
 test('the list asks the server to leave workers out unless they are wanted', () => {
-  assert.deepEqual(listRequest({ internal: false, workers: false }), { origin: ['agentry', 'external', 'orchestration'], workers: false });
-  assert.deepEqual(listRequest({ internal: true, workers: true }), { origin: ['agentry', 'external', 'orchestration', 'internal'] });
+  assert.deepEqual(listRequest({ internal: false, workers: false }), { origin: ['claudio', 'external', 'orchestration'], workers: false });
+  assert.deepEqual(listRequest({ internal: true, workers: true }), { origin: ['claudio', 'external', 'orchestration', 'internal'] });
 });
 
 test('sorting by context puts the chats closest to compacting first, and those without a share last', () => {
@@ -196,7 +196,7 @@ test('the project and model facets narrow the list, and an empty facet lets ever
 
 test('the state tabs count what each would show with the other filters kept', () => {
   const chats = [chat({ id: 'w', state: 'working' }), chat({ id: 'q', state: 'waiting' }), chat({ id: 'i' }), chat({ id: 'x', origin: 'external' })];
-  const counts = stateCounts(chats, filters({ state: 'working', origins: new Set(['agentry']) }));
+  const counts = stateCounts(chats, filters({ state: 'working', origins: new Set(['claudio']) }));
   assert.deepEqual(counts, { all: 3, working: 1, waiting: 1, idle: 1 });
 });
 
@@ -280,7 +280,7 @@ test('the keyboard cursor starts at an end and stops at either end', () => {
   assert.equal(stepCursor(2, 5, 1), 0);
 });
 
-test('a chat reads as its first prompt, not as the name Agentry gave the CLI', () => {
+test('a chat reads as its first prompt, not as the name Claudio gave the CLI', () => {
   const id = 'e2b36e71-d31d-460b-a378-201035a99b74';
   assert.equal(displayTitle(chat({ id, title: 'workspace-e2b36e', firstPrompt: 'Fix the login bug\nand test it' })), 'Fix the login bug');
   assert.equal(displayTitle(chat({ id, title: id, firstPrompt: 'Fix the login bug' })), 'Fix the login bug');

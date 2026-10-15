@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@agentry/shared';
+import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@claudio/shared';
 import type {
   AuditEntry,
   AuditFilter,
@@ -35,7 +35,7 @@ import type {
   SupervisorProposal,
   SupervisorProposalStatus,
   UsageHistoryPoint,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
 import { pruneWebhookDeliveries } from './webhook-store.ts';
@@ -200,7 +200,7 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // of them would erase the other's comment. Only the number is stored, never the key, so a new
   // prefix renames every key at once. The counter hands out numbers and is never decremented, so a
   // number freed by a delete is not handed out again. Nothing references the projects: a project
-  // removed from Agentry keeps its work items for when its directory is imported again.
+  // removed from Claudio keeps its work items for when its directory is imported again.
   `CREATE TABLE work_item_counters (
      project_id  TEXT PRIMARY KEY,
      last_number INTEGER NOT NULL
@@ -728,7 +728,7 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      ALTER TABLE work_item_issues_scoped RENAME TO work_item_issues;
      CREATE INDEX work_item_issues_item ON work_item_issues (item_id, imported_at);`);
   },
-  // Webhooks (docs/plans/code-hosts.md, phase 6): the hooks Agentry registered, and the delivery ids it
+  // Webhooks (docs/plans/code-hosts.md, phase 6): the hooks Claudio registered, and the delivery ids it
   // has seen, so a redelivery is a no-op. The signing secret is not a column: it is kept in a 0600 file
   // like the other secrets (decision 3), never in the database. events and last_response are JSON
   `CREATE TABLE webhook_registrations (

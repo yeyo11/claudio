@@ -1,4 +1,4 @@
-import { MAX_CONTINUATIONS } from '@agentry/shared';
+import { MAX_CONTINUATIONS } from '@claudio/shared';
 
 /**
  * What an unattended run still owes when its turn ended: a turn that ends with text while work is

@@ -3,13 +3,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test, { beforeEach } from 'node:test';
-import type { MergeBlockerAction, MergeBlockerCode, MergeState, WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
+import type { MergeBlockerAction, MergeBlockerCode, MergeState, WorkItemDetail, WorkItemPullRequest } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import { setLanguage } from '../src/i18n';
 import enMerge from '../src/i18n/locales/en/merge.json' with { type: 'json' };
@@ -26,7 +26,7 @@ import { PullRequestState } from '../src/pages/tasks/item/PullRequest';
 beforeEach(() => setLanguage('en'));
 
 const pr = (over: Partial<WorkItemPullRequest> = {}): WorkItemPullRequest => ({
-  id: 'cr1', phase: 'open', host: 'github', number: 12, ref: '#12', url: 'https://github.com/acme/shop/pull/12', branch: 'task/agn-26', base: 'main', ci: 'passing',
+  id: 'cr1', phase: 'open', host: 'github', number: 12, ref: '#12', url: 'https://github.com/acme/shop/pull/12', branch: 'claudio-task/agn-26', base: 'main', ci: 'passing',
   conflicts: [], error: null, openedAt: '2026-10-01T09:00:00Z', closedAt: null, checkedAt: '2026-10-01T10:00:00Z', ...over,
 });
 
@@ -64,11 +64,11 @@ test('a ready block offers the methods, the message, the branch box and one grad
   const html = render(state());
   const plain = text(html);
   assert.match(plain, /Merge/);
-  assert.match(plain, /PR #12 · task\/agn-26 → main · a81d3f0/);
+  assert.match(plain, /PR #12 · claudio-task\/agn-26 → main · a81d3f0/);
   assert.match(plain, /ready to merge/);
   assert.equal(count(html, 'role="radio"'), 3);
   assert.match(html, /aria-label="Commit subject"/);
-  assert.match(plain, /Delete the branch task\/agn-26 on GitHub after merging/);
+  assert.match(plain, /Delete the branch claudio-task\/agn-26 on GitHub after merging/);
   assert.match(plain, /The local branch stays/);
   assert.equal(count(html, 'btn-primary'), 1);
   assert.match(html, /<button[^>]*btn-primary[^>]*>.*?Merge<\/button>/);
@@ -189,10 +189,10 @@ test('a code this version does not know reads as the policy block', () => {
   assert.match(text(html), /GitHub&#x27;s rules for main do not allow this merge yet/);
 });
 
-test('the person is told when Agentry turned auto-merge off for a push, and why a host rebase is not offered', () => {
-  const off = text(render(state({ autoMergeOff: { by: 'agentry', at: '2026-10-01T09:30:00Z', why: 'push', pushing: false } })));
-  assert.match(off, /Agentry turned auto-merge off .* because it pushed to the branch/);
-  const pushing = text(render(state({ autoMergeOff: { by: 'agentry', at: '2026-10-01T09:30:00Z', why: 'push', pushing: true } })));
+test('the person is told when Claudio turned auto-merge off for a push, and why a host rebase is not offered', () => {
+  const off = text(render(state({ autoMergeOff: { by: 'claudio', at: '2026-10-01T09:30:00Z', why: 'push', pushing: false } })));
+  assert.match(off, /Claudio turned auto-merge off .* because it pushed to the branch/);
+  const pushing = text(render(state({ autoMergeOff: { by: 'claudio', at: '2026-10-01T09:30:00Z', why: 'push', pushing: true } })));
   assert.match(pushing, /is pushing to the branch/);
   const update = text(render(state({ autoMergeOff: { by: 'marta', at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
   assert.match(update, /turned off .* by marta for Update from base/);
@@ -282,10 +282,10 @@ test('a request the host merged or closed says so in words, with no raw host wor
   assert.match(text(render(blocked('not-open', null, null))), /Esta PR ya no está abierta\./);
 });
 
-test('who turned auto-merge off for an update reads as you or Agentry, never as local', () => {
+test('who turned auto-merge off for an update reads as you or Claudio, never as local', () => {
   const off = (by: string) => text(render(state({ autoMergeOff: { by, at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
   assert.match(off('local'), /You turned auto-merge off .* for Update from base/);
-  assert.match(off('agentry'), /Agentry turned auto-merge off .* for Update from base/);
+  assert.match(off('claudio'), /Claudio turned auto-merge off .* for Update from base/);
   assert.doesNotMatch(off('local'), /local turned|by local/);
 });
 
@@ -297,7 +297,7 @@ test('Update from base and arming have their own words for every refusal, and on
       assert.doesNotMatch(resource.update[refusal], /Developer|desarrollador/, refusal);
       assert.doesNotMatch(resource.update[refusal], /conflict/i, refusal);
     }
-    // Arming while Agentry is still pushing is not the host rejecting the merge
+    // Arming while Claudio is still pushing is not the host rejecting the merge
     assert.doesNotMatch(resource.failure.busy, /refused|rechazado/);
     assert.notEqual(resource.failure.busy, resource.failure['merge-failed']);
   }

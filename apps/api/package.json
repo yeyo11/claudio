@@ -1,6 +1,6 @@
 {
-  "name": "@agentry/api",
-  "version": "0.37.1",
+  "name": "@claudio/api",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,9 +12,9 @@
     "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
-    "@agentry/accounts": "workspace:*",
-    "@agentry/core": "workspace:*",
-    "@agentry/shared": "workspace:*",
+    "@claudio/accounts": "workspace:*",
+    "@claudio/core": "workspace:*",
+    "@claudio/shared": "workspace:*",
     "@fastify/compress": "^9.2.0",
     "@fastify/cors": "^11.3.0",
     "@fastify/etag": "^6.2.0",

@@ -120,11 +120,11 @@ export default async ({ page, api, check }) => {
     await noViolations(page, '/schedules with a card and its history', check);
 
     // ---------- light theme ----------
-    await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
     await page.goto('/schedules', 900);
     await page.waitFor(`return !!document.querySelector('.schedule-card')`, { label: 'the card in the light theme' });
     await noViolations(page, '/schedules in the light theme', check);
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`);
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`);
     await page.goto('/schedules', 900);
 
     // ---------- on a phone the card keeps its switch and moves the rest behind a ⋯ sheet ----------
@@ -159,7 +159,7 @@ export default async ({ page, api, check }) => {
   } finally {
     await page.viewport(1440, 900).catch(() => {});
     await page.reduceMotion(false).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     if (scheduleId) await api.del(`/schedules/${scheduleId}`).catch(() => {});
     for (const id of started) {
       await api.post(`/chats/${id}/stop`).catch(() => {});

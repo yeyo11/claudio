@@ -1,4 +1,4 @@
-import type { AssistantProposal, AssistantResourceKind, AssistantResourceProposal, AssistantRun, ConfigScopeKind, ResourceKind } from '@agentry/shared';
+import type { AssistantProposal, AssistantResourceKind, AssistantResourceProposal, AssistantRun, ConfigScopeKind, ResourceKind } from '@claudio/shared';
 
 /** The kinds the assistant proposes and builds, which the tab shows together under "All". */
 export const AI_KINDS: readonly AssistantResourceKind[] = ['agents', 'skills', 'commands'];

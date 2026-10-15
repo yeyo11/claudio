@@ -19,7 +19,7 @@ and [[repro.md]] (a reproduction of every major finding, plus both symptoms end 
   agent did get the message.**
   - When a message arrives during a turn, the CLI usually takes it into that turn at the next tool
     result. It records the message only as an `attachment` line of type `queued_command`, never as a
-    `user` line, and Agentry's transcript reader throws away every line that is neither `user` nor
+    `user` line, and Claudio's transcript reader throws away every line that is neither `user` nor
     `assistant` (`packages/shared/src/normalize.ts:72`).
   - Three things follow. The queued card never clears and, 8 s after the turn, calls the message
     "never read". The row sinks to the bottom of the page and is dropped after 10 minutes. After a
@@ -44,7 +44,7 @@ and [[repro.md]] (a reproduction of every major finding, plus both symptoms end 
   - A message with files never matches its card (C-3).
   - A message sent during a permission prompt gets no card at all (C-8).
   - "Send now" works when the message really is still waiting in the CLI's queue (scenario B2).
-- **The root fix is to give each message an id.** Agentry chooses the id and the CLI keeps it. The
+- **The root fix is to give each message an id.** Claudio chooses the id and the CLI keeps it. The
   server reports when the CLI takes the message and keeps a list of what is still pending. The page
   then matches cards by id instead of by words. Everything this needs is documented CLI behaviour:
   the stream-json `uuid`, `--replay-user-messages`, the transcript's `queued_command` and
@@ -102,7 +102,7 @@ change that drops that `key` would bring it back. The fix in work item 3 keys th
 The agent got the message, and the page loses it:
 
 - **C-1 / S-4** is the main cause. The CLI takes the message mid-turn and acts on it. The transcript
-  Agentry serves has no entry for it, so the card says "never read" and a reload erases it.
+  Claudio serves has no entry for it, so the card says "never read" and a reload erases it.
 - **C-7** makes the row sink under the answers, and drops it after 10 minutes or at a whole-page read.
 - **C-6** drops a message whose words match an earlier one ("ok", "continue").
 - **C-3** calls a message with files lost, and Restore gives back the words without the files.
@@ -151,7 +151,7 @@ tests it names lose their `todo` mark and pass, and when the browser spec, run w
 - In the Claude transcript reader, read `attachment` lines whose `attachment.type` is
   `queued_command` and whose `commandMode` is `prompt` as the person's `user` entries. Keep them in
   place, with the line's uuid and timestamp.
-- For providers whose transcript Agentry keeps itself, `writeUserMessage` records the person's
+- For providers whose transcript Claudio keeps itself, `writeUserMessage` records the person's
   entry through `recordEntry`.
 
 Acceptance criteria:

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { ProviderLimit, ProvidersSettings } from '@agentry/shared';
+import type { ProviderLimit, ProvidersSettings } from '@claudio/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
 import { ProviderLimits, type ProviderLimitStore } from '../src/providers/limits.ts';
@@ -40,7 +40,7 @@ async function fake(name: string, body: string): Promise<string> {
 }
 
 function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
-  const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), AGENTRY_DATA_DIR: join(home, 'data'), ...options.env };
+  const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDIO_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
     env,

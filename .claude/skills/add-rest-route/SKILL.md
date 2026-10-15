@@ -1,6 +1,6 @@
 ---
 name: add-rest-route
-description: Add or change a REST route in Agentry's API: shared types, OpenAPI summary and tag, README table row, schema regeneration and tests. Use whenever a route or a shared type changes.
+description: Add or change a REST route in Claudio's API: shared types, OpenAPI summary and tag, README table row, schema regeneration and tests. Use whenever a route or a shared type changes.
 ---
 
 # Adding or changing a REST route
@@ -15,10 +15,10 @@ CI fails on each of the steps below, so do them in this order.
 6. **README.** Add a row to the matching table under `## REST API` in `README.md`.
 7. **Regenerate the schemas** when a shared type changed, and commit the result:
    ```bash
-   pnpm --filter @agentry/api openapi:schemas
+   pnpm --filter @claudio/api openapi:schemas
    ```
 8. **Events.** If the change should reach the web live, emit an event and add what the web refetches in `apps/web/src/lib/events.ts`.
 9. **Tests.** An API integration test with Fastify `inject`, and a core unit test for the logic. Name each after the behaviour it protects.
 10. **Check.** Run `pnpm typecheck` and `pnpm test`.
 
-Agentry's own docs (`docs/<area>.md`) get the route's behaviour and its Known gaps; the commit is `feat:` or `fix:` (Conventional Commits).
+Claudio's own docs (`docs/<area>.md`) get the route's behaviour and its Known gaps; the commit is `feat:` or `fix:` (Conventional Commits).

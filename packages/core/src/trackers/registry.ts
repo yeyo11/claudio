@@ -1,4 +1,4 @@
-import type { CodeHostId, TrackerId } from '@agentry/shared';
+import type { CodeHostId, TrackerId } from '@claudio/shared';
 import { githubIssuesManifest } from './github-issues/manifest.ts';
 import { gitlabIssuesManifest } from './gitlab-issues/manifest.ts';
 import type { TrackerManifest } from './manifest.ts';

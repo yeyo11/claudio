@@ -29,14 +29,14 @@ import type {
   TunnelChangedEvent,
   TunnelStatus,
   WorkItemChange,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
-import { hasLiveStream } from '@agentry/chat-ui/lib/chats';
-import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
+import { hasLiveStream } from '@claudio/chat-ui/lib/chats';
+import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 
 export {
   FALLBACK_POLL_MS,

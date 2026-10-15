@@ -1,6 +1,6 @@
-import type { Effort, FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
-import { DEFAULT_FLOW_MAX_PARALLEL, flowStepOf, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES, type TeamCommandProblem } from '@agentry/shared';
-import { daysAgo } from '@agentry/ui/lib/format';
+import type { Effort, FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@claudio/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, flowStepOf, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES, type TeamCommandProblem } from '@claudio/shared';
+import { daysAgo } from '@claudio/ui/lib/format';
 
 /**
  * The Team tab's pure model: role names and initials, the flow as the screens edit it, and what the
@@ -284,7 +284,7 @@ export function teamSearch(params: URLSearchParams, next: { section?: TeamSectio
 
 /**
  * Where a member may write, as its `writes` says it and the flow enforces it (`stageRules` in
- * packages/core/src/flow.ts): absent is no limit of Agentry's own, `[]` is nothing of the project
+ * packages/core/src/flow.ts): absent is no limit of Claudio's own, `[]` is nothing of the project
  * but the documents folder, and a list is those paths plus the documents folder.
  */
 export type WriteScope = 'anywhere' | 'documents' | 'paths';

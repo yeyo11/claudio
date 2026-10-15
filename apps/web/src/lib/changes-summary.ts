@@ -1,6 +1,6 @@
-import type { ChangedFile, ChangeSummary, EditStep } from '@agentry/shared';
-import { isEditTool } from '@agentry/chat-ui/lib/edit-chips';
-import type { TickerActivity } from '@agentry/ui/lib/live';
+import type { ChangedFile, ChangeSummary, EditStep } from '@claudio/shared';
+import { isEditTool } from '@claudio/chat-ui/lib/edit-chips';
+import type { TickerActivity } from '@claudio/ui/lib/live';
 
 /*
  * What the compact summary of a change and the edit chips of a transcript work out, without React:
@@ -8,7 +8,7 @@ import type { TickerActivity } from '@agentry/ui/lib/live';
  * group made. The review screen is where each of them leads.
  */
 
-export { baseName, editChips, isEditTool, type EditChip } from '@agentry/chat-ui/lib/edit-chips';
+export { baseName, editChips, isEditTool, type EditChip } from '@claudio/chat-ui/lib/edit-chips';
 
 export type StatusLetter = 'M' | 'A' | 'D' | 'R' | 'B';
 

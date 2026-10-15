@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, ReviewDraft, ReviewThread } from '@agentry/shared';
+import type { AgentryEvent, ReviewDraft, ReviewThread } from '@claudio/shared';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {

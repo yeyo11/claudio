@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@agentry/shared';
+import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { Orchestrator, PLAN_SCHEMA, PLANNER_GRAPH_GUIDANCE, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
@@ -258,7 +258,7 @@ test('dependent tasks build on their dependencies and the graph ends on one bran
 
   const integration = orch.integration;
   assert.equal(integration?.status, 'merged');
-  assert.equal(integration?.branch, `agentry/linux-app-${orch.id.slice(0, 8)}`);
+  assert.equal(integration?.branch, `claudio/linux-app-${orch.id.slice(0, 8)}`);
   assert.deepEqual(integration?.merged.sort(), ['api', 'assets', 'shell']);
   assert.equal(show(repo, `${integration?.branch}:api.txt`), 'server');
   assert.equal(show(repo, `${integration?.branch}:icon.txt`), 'png');
@@ -573,7 +573,7 @@ test('a failed task is tried again in the same chat, told what went wrong, and k
   assert.equal(flaky.status, 'completed');
   assert.equal(flaky.attempts, 2);
   assert.equal(flaky.error, null);
-  // The retry is Agentry's own words, from the error: the objective and the original prompt are not in it
+  // The retry is Claudio's own words, from the error: the objective and the original prompt are not in it
   assert.match(flaky.result ?? '', /^retried: Your previous attempt at this task ended with an error:\n\nthe tests do not pass\n/);
   assert.doesNotMatch(flaky.result ?? '', /FAKE-FAIL-ONCE/);
 
@@ -1000,7 +1000,7 @@ test('re-running a task is refused while the graph runs, for a workflow, and onc
       id: 'graph-pushed',
       worktree: true,
       status: 'completed',
-      integration: { branch: 'agentry/x-1', worktree: null, status: 'merged', merged: [], conflicts: [], commit: null, error: null, integratorRunId: null, pullRequestUrl: 'https://example.test/pr/1' },
+      integration: { branch: 'claudio/x-1', worktree: null, status: 'merged', merged: [], conflicts: [], commit: null, error: null, integratorRunId: null, pullRequestUrl: 'https://example.test/pr/1' },
     }),
   ]);
   const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
@@ -1430,7 +1430,7 @@ test('a person who stops waiting stops the task, and a wait that ran out fails i
   assert.equal(taskOf(started.id, 'a').status, 'stopped');
   assert.match(taskOf(started.id, 'a').error ?? '', /stopped waiting/);
   assert.equal(taskOf(started.id, 'b').status, 'failed');
-  assert.match(taskOf(started.id, 'b').error ?? '', /did not reset within the time Agentry waits/);
+  assert.match(taskOf(started.id, 'b').error ?? '', /did not reset within the time Claudio waits/);
   // Heard for a chat no task runs: nothing changes
   orchestrator.waitEnded({ fromChat: 'nobody', at: new Date().toISOString() }, 'failed', null);
   db.close();

@@ -12,11 +12,11 @@ test('the previewed prefix follows core: initials of several words, consonants o
   const none = new Set<string>();
   assert.equal(deriveKeyPrefix('claude wrapper', none), 'CW');
   assert.equal(deriveKeyPrefix('MyShop', none), 'MS');
-  assert.equal(deriveKeyPrefix('Agentry', none), 'AGN');
+  assert.equal(deriveKeyPrefix('Claudio', none), 'CLD');
   assert.equal(deriveKeyPrefix('pagos-api', none), 'PA');
   assert.equal(deriveKeyPrefix('Ñandú', none), 'NND');
   assert.equal(deriveKeyPrefix('x', none), 'PRJ');
-  assert.equal(deriveKeyPrefix('Agentry', new Set(['AGN', 'AGN2'])), 'AGN3');
+  assert.equal(deriveKeyPrefix('Claudio', new Set(['CLD', 'CLD2'])), 'CLD3');
 });
 
 test('a prefix is refused empty, off the pattern or taken, and typed in upper case', () => {

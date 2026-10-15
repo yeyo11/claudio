@@ -1,9 +1,9 @@
-import type { AssistantResourceKind, AssistantResourceProposal, ResourceKind } from '@agentry/shared';
+import type { AssistantResourceKind, AssistantResourceProposal, ResourceKind } from '@claudio/shared';
 import { ChevronDown, Sparkle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Menu } from '@agentry/ui/components/controls/Menu';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Segmented, Tag } from '@agentry/ui/components/ui';
+import { Menu } from '@claudio/ui/components/controls/Menu';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Segmented, Tag } from '@claudio/ui/components/ui';
 import { AI_KINDS, isAiKind, OTHER_KINDS, type ResourceSection } from './model';
 
 /** "All" and the kinds the assistant handles, each with how many the project has. */

@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
-import type { ProviderId } from '@agentry/shared';
-import { upperFirst } from '@agentry/chat-ui/lib/agent';
+import type { ProviderId } from '@claudio/shared';
+import { upperFirst } from '@claudio/chat-ui/lib/agent';
 import { useTranslation } from 'react-i18next';
 import { useProviders } from './providers';
 

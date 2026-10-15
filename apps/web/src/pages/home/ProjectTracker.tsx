@@ -1,17 +1,17 @@
-import type { Project, TrackerId, TrackerMappedStatus } from '@agentry/shared';
+import type { Project, TrackerId, TrackerMappedStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, CircleOff } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
-import { Select, Sheet } from '@agentry/ui/components/controls';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Select, Sheet } from '@claudio/ui/components/controls';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { hasNamedStatuses, issueRef, MAPPED_COLUMNS, statusChoices, TRACKER_IDS, trackerEntry, trackerWords, YOUTRACK_DEFAULT_STATES } from '../../lib/trackers';
 import { canSaveDraft, chooseTracker, draftOf, sameDraft, settingsOf, trackerOptions, withMapped, type TrackerDraft, type TrackerOption } from './project-tracker';
 

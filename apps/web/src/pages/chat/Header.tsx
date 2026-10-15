@@ -1,30 +1,30 @@
-import type { Chat } from '@agentry/shared';
+import type { Chat } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Search, Square, Trash2, WifiOff } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
-import { Menu, type MenuEntry } from '@agentry/ui/components/controls/Menu';
-import { MoreActions } from '@agentry/ui/components/controls/MoreActions';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { Menu, type MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { HealthBadge } from '../../components/observe/Health';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import type { TranscriptFind } from '@agentry/chat-ui/components/TranscriptSearch';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import type { TranscriptFind } from '@claudio/chat-ui/components/TranscriptSearch';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { api } from '../../api';
-import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '@agentry/chat-ui/lib/chat-live';
-import { ProviderBadge } from '@agentry/chat-ui/components/ChatBadges';
-import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
-import { useChatUi } from '@agentry/chat-ui/lib/context';
-import { COMPACT, useMediaQuery } from '@agentry/ui/lib/media';
+import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '@claudio/chat-ui/lib/chat-live';
+import { ProviderBadge } from '@claudio/chat-ui/components/ChatBadges';
+import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import { useChatUi } from '@claudio/chat-ui/lib/context';
+import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
 import { LimitBadge } from './LimitBadge';
 import type { LimitPhase } from './LimitBanner';
-import { copyText } from '@agentry/ui/lib/clipboard';
+import { copyText } from '@claudio/ui/lib/clipboard';
 
 /** True once `on` has held for `ms`: a flag that does not flap on a blip. */
 function useHeldFor(on: boolean, ms: number): boolean {

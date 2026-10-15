@@ -1,4 +1,4 @@
-import type { JournalEntry, MemoryFile } from '@agentry/shared';
+import type { JournalEntry, MemoryFile } from '@claudio/shared';
 
 /** A local calendar day, `YYYY-MM-DD`: the journal groups by the person's day, not UTC's. */
 export function localDay(date: Date): string {

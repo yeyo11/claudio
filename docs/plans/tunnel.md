@@ -10,10 +10,10 @@ tags:
     - built
     - tailscale
 ---
-# Plan: reaching Agentry through a tunnel
+# Plan: reaching Claudio through a tunnel
 
-Let a person open their Agentry from a phone or another network without a VPS, a domain, a
-reverse proxy, an account or anything new to install. Agentry opens a tunnel through
+Let a person open their Claudio from a phone or another network without a VPS, a domain, a
+reverse proxy, an account or anything new to install. Claudio opens a tunnel through
 [localhost.run](https://localhost.run) with the system's own `ssh`, shows the public HTTPS address
 and a QR code, and closes it again, all from the settings page.
 
@@ -30,7 +30,7 @@ task delivered is under [Outcome](#outcome), and the feature itself is documente
 
 ## Why
 
-[deploy.md](../deploy.md) covers exposing Agentry on purpose: Docker, Caddy, a domain, a
+[deploy.md](../deploy.md) covers exposing Claudio on purpose: Docker, Caddy, a domain, a
 certificate. Many people want less than that: to glance at a running orchestration from the
 phone, or answer a permission prompt away from the desk. A plain-HTTP LAN install is not enough
 for that. It is unreachable outside the house, and without a secure origin the browser gives the
@@ -60,13 +60,13 @@ It needs no account and no key: the `nokey@` user gets an anonymous tunnel.
 
 A throwaway Node server on `127.0.0.1` sent one SSE event per second, with the exact headers
 `apps/api/src/sse.ts` sends (`text/event-stream`, `Cache-Control: no-cache, no-transform`,
-`X-Accel-Buffering: no`). Agentry itself was never exposed. As a control, localhost delivered one
+`X-Accel-Buffering: no`). Claudio itself was never exposed. As a control, localhost delivered one
 event per second (+1.0 s … +6.0 s).
 
 | Provider | Extra install | `GET` stream | Why not chosen |
 | --- | --- | --- | --- |
 | **localhost.run** | none (`ssh`) | streams (+2.2 s … +7.2 s) | — |
-| Cloudflare quick tunnel | the `cloudflared` binary | **buffered until the response ends** (+6.1 s, over QUIC or HTTP/2, with or without padding or compression). `POST` streams | Agentry's streams are `EventSource`, which can only `GET`. A known limitation: [cloudflared#1449](https://github.com/cloudflare/cloudflared/issues/1449) |
+| Cloudflare quick tunnel | the `cloudflared` binary | **buffered until the response ends** (+6.1 s, over QUIC or HTTP/2, with or without padding or compression). `POST` streams | Claudio's streams are `EventSource`, which can only `GET`. A known limitation: [cloudflared#1449](https://github.com/cloudflare/cloudflared/issues/1449) |
 | Pinggy | none (`ssh`) | streams | the free tunnel expires after 60 min, and the subdomain contains the machine's public IP |
 | Tailscale serve / funnel | the Tailscale app, on the phone too | not measured | install and account |
 | ngrok | the `ngrok` binary | not measured | account; free caps (1 GB, 20k requests, 2 h); a browser interstitial reported to break SSE |
@@ -88,14 +88,14 @@ to `fetch` is not needed for the tunnel.
 
 ## Settings in layers
 
-Tunnel settings are settings-shaped, so they go in JSON files. They also need something Agentry
+Tunnel settings are settings-shaped, so they go in JSON files. They also need something Claudio
 lacks today: **changing at runtime what is now only read from the environment at startup.** The
 allowlist is the clearest case (`loadConfig` in `packages/core/src/paths.ts`,
 `registerSecurity` in `apps/api/src/security.ts:212`).
 
 - **Order of precedence: the environment, then a JSON file editable from the UI, then the
   default.** A value set in the environment is shown read-only with "set by the environment", the
-  same pattern `AuthStore` already follows with `AGENTRY_AUTH_TOKEN`.
+  same pattern `AuthStore` already follows with `CLAUDIO_AUTH_TOKEN`.
 - **First cases:** `allowedHosts`, `maxConcurrentRuns`, `defaultPermissionMode`. Each moves one
   at a time. None changes behaviour for an install that sets nothing.
 - **No global singleton.** The stores hang off `Core` like every other one (`core.security`,
@@ -114,7 +114,7 @@ allowlist is the clearest case (`loadConfig` in `packages/core/src/paths.ts`,
   `ssh -T -n -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o UserKnownHostsFile=<dataDir>/tunnel/known_hosts -o StrictHostKeyChecking=yes -R 80:127.0.0.1:<port> nokey@localhost.run`.
   The URL is parsed from its output (`https://<id>.lhr.life`).
   `SSH_BIN` points at another `ssh`.
-- **The host key is pinned.** localhost.run's key ships with Agentry and is written to Agentry's
+- **The host key is pinned.** localhost.run's key ships with Claudio and is written to Claudio's
   own `known_hosts` file. The person's `~/.ssh` is never read or written. Without the pin, a network
   that intercepts the SSH connection could swap the endpoint and receive every request.
 - **States:** `stopped → starting → verifying → active`, with `failed` (and its reason) and
@@ -124,8 +124,8 @@ allowlist is the clearest case (`loadConfig` in `packages/core/src/paths.ts`,
   broken for a minute.
 - **Domain changes:** when the connection drops or a new URL appears, the old host leaves the
   allowlist, the new one joins once it is verified, and the change goes out on `/api/events`.
-- **Lifecycle:** the tunnel reconnects with backoff, and dies with Agentry: the child is killed on
-  shutdown, and a pid file clears an orphan on the next start. "Start with Agentry" is a setting and
+- **Lifecycle:** the tunnel reconnects with backoff, and dies with Claudio: the child is killed on
+  shutdown, and a pid file clears an orphan on the next start. "Start with Claudio" is a setting and
   is off by default.
 - **Port:** the port the server actually bound to, not the preferred one. The desktop keeps it
   stable already (`apps/desktop/src/server-port.ts`).
@@ -186,7 +186,7 @@ Every task runs on Opus, with no time or cost limit.
 3. **Layered settings hang off `Core`.** No global singleton and no module-level state. A test can
    build two wrappers in one process, each with its own settings and its own tunnel.
 4. **The web's streams stay on `EventSource`.** Moving them to `fetch` is a later change.
-5. **Agentry itself is never exposed during development.** A task that needs the real localhost.run
+5. **Claudio itself is never exposed during development.** A task that needs the real localhost.run
    (to read its host key or its forwarding headers) points the tunnel at a throwaway server on
    `127.0.0.1` that answers a fixed text, and closes it before finishing. Tests never touch the
    network: they use a fake `ssh`.
@@ -206,7 +206,7 @@ Every task runs on Opus, with no time or cost limit.
    `writeAtomic`. A document that holds a secret is written with mode `0600`.
 8. **Every new route** gets a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in the
    README's REST API tables. After changing `packages/shared/src/types.ts`, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the result.
+   `pnpm --filter @claudio/api openapi:schemas` and commit the result.
 9. **Every change reaches the event feed.** A setting or the tunnel changing emits an
    `AgentryEvent` that carries what a client needs to refetch.
 10. **Never touch the real `~/.claude` or `~/.ssh`.** Tests and experiments use scratch directories.
@@ -242,7 +242,7 @@ comment:
   environment did not set.
 - **Tunnel:** `TunnelState` (`stopped`, `starting`, `verifying`, `active`, `stopping`, `failed`),
   `TunnelStatus` (state, URL when active, the reason when failed, whether `ssh` was found, when the
-  current address started), `TunnelSettings` (start with Agentry) and its update request.
+  current address started), `TunnelSettings` (start with Claudio) and its update request.
 - **Events:** `settings.changed` and `tunnel.changed`, added to the `AgentryEvent` union.
 - **Done when**: typecheck passes across the workspace, the OpenAPI schemas are regenerated and
   committed, and nothing that exists changed shape.
@@ -283,7 +283,7 @@ Build "Core: `TunnelManager`" and "Security" above, item by item, plus the route
   to the port it was given, and can be told to drop and come back with a new address.
 - Tests for: start refused under `mode: 'none'`; switching to `none` stops the tunnel; the host
   joins the allowlist only once verified and leaves on stop; a domain change swaps the host; the
-  child dies with Agentry, and an orphan from a crash is cleared; `ssh` missing is a state, not a
+  child dies with Claudio, and an orphan from a crash is cleared; `ssh` missing is a state, not a
   crash; the pinned key is used, and `~/.ssh` is never read.
 - **Done when**: everything above has a test, and a short manual run against the throwaway server
   reached `active` and was stopped cleanly.
@@ -314,7 +314,7 @@ it open the current one?
   on `127.0.0.1`, and around the operator's proxy and TLS profile. Can a container reach
   localhost.run on port 22 by default? What would a Helm operator expect?
 - Build the answer. A tunnel that is off in Docker unless the operator enables it is decided the
-  same way `cswapManaged` is today (`AGENTRY_DISTRIBUTION=docker`), with a variable to turn it on,
+  same way `cswapManaged` is today (`CLAUDIO_DISTRIBUTION=docker`), with a variable to turn it on,
   documented in `.env.example` and in the chart's `values.yaml`. If the answer is "on", say why the
   bypass above is acceptable.
 - Add `openssh-client` to the `.deb` dependencies in `apps/desktop/electron-builder.yml`.
@@ -425,7 +425,7 @@ by `push-current-url` on 2026-09-27.
 
 `notificationclick` in `apps/web/public/sw.js` resolved `href` (a path such as
 `/chats/<id>?prompt=<id>`) against `self.location.origin`, which is the origin the worker was
-installed from. A phone that installed Agentry on `https://a….lhr.life` therefore opened
+installed from. A phone that installed Claudio on `https://a….lhr.life` therefore opened
 `https://a….lhr.life/chats/…` for every notification, including ones sent long after that address
 stopped answering.
 
@@ -453,7 +453,7 @@ stopped answering.
 3. **A run in real Chrome.** Chrome 152, headless, with a scratch profile. Two HTTPS servers on
    `127.0.0.1` played the old and the new address, `https://0a1b….lhr.life` and
    `https://9f8e….lhr.life`, through `--host-resolver-rules` and a self-signed certificate, so
-   nothing left the machine and Agentry was not involved. The built `sw.js` was served from both.
+   nothing left the machine and Claudio was not involved. The built `sw.js` was served from both.
    - The page installed on the old address, and then the old server was shut down.
    - `ServiceWorker.deliverPushMessage` delivered a payload carrying the new address to the old
      registration. The old worker showed the notification, and its `data` held the new URL.
@@ -513,9 +513,9 @@ stopped answering.
 
 ## Answer: the tunnel in Docker
 
-**The image offers the tunnel only when the operator turns it on**, with `AGENTRY_TUNNEL=on` in
+**The image offers the tunnel only when the operator turns it on**, with `CLAUDIO_TUNNEL=on` in
 `.env` for Compose, or `tunnel.enabled: true` in the Helm chart. Everywhere else (a source install,
-the desktop app) it is on by default, and `AGENTRY_TUNNEL=off` turns it off there too.
+the desktop app) it is on by default, and `CLAUDIO_TUNNEL=off` turns it off there too.
 
 ### The evidence
 
@@ -548,7 +548,7 @@ throwaway server listened on `127.0.0.1:9999` and answered a fixed text. The con
   that does this, where anyone who can sign in can press it, is not something to switch on by
   default.
 - **Nothing in the network stops it.** The measurement shows that Docker's default bridge lets the
-  container out on port 22, so the only thing between the image and a public address is Agentry's
+  container out on port 22, so the only thing between the image and a public address is Claudio's
   own switch. On a cluster with egress NetworkPolicies, or behind a firewall that blocks outbound
   22, turning it on is not enough either. The chart says so.
 - **On a desktop the person is the operator.** The machine is theirs, nothing stands in front of
@@ -556,9 +556,9 @@ throwaway server listened on `127.0.0.1:9999` and answered a fixed text. The con
 
 ### What was built
 
-- `CoreConfig.tunnelEnabled` (`packages/core/src/paths.ts`), from `AGENTRY_TUNNEL`. It is decided
+- `CoreConfig.tunnelEnabled` (`packages/core/src/paths.ts`), from `CLAUDIO_TUNNEL`. It is decided
   the same way as `cswapManaged`: on by default, and off by default when
-  `AGENTRY_DISTRIBUTION=docker`.
+  `CLAUDIO_DISTRIBUTION=docker`.
   - `on`, `1` and `true` turn it on; `off`, `0` and `false` turn it off.
   - Empty or unset means the default, because Compose passes empty variables through.
   - Any other value stops the wrapper at startup. A typo in the switch that opens a public address
@@ -567,22 +567,22 @@ throwaway server listened on `127.0.0.1:9999` and answered a fixed text. The con
   who can turn the tunnel on instead of offering a button.
 - `TunnelManager` with `enabled: false`:
   - `start` is refused with `409` and `tunnel.disabled`.
-  - A "start with Agentry" saved earlier does not open the tunnel. The state stays `stopped`, not
+  - A "start with Claudio" saved earlier does not open the tunnel. The state stays `stopped`, not
     `failed`: nothing went wrong.
-- Compose: `.env.example` documents `AGENTRY_TUNNEL=on` and what it goes around. `env_file: .env`
+- Compose: `.env.example` documents `CLAUDIO_TUNNEL=on` and what it goes around. `env_file: .env`
   already hands it to the container, so `docker-compose.yml` did not change.
-- Helm: `tunnel.enabled: false` in `values.yaml`. The deployment always writes `AGENTRY_TUNNEL` as
+- Helm: `tunnel.enabled: false` in `values.yaml`. The deployment always writes `CLAUDIO_TUNNEL` as
   `on` or `off`, so the release decides whatever the image defaults to. `NOTES.txt` warns when it
   is on. The chart does not refuse `tunnel.enabled` with `auth.mode: none`, because `auth.mode`
   only seeds a fresh volume, and the UI's value wins after that. The tunnel checks the live mode
   itself.
 - The Dockerfile only gained comments. `openssh-client` was already there, and
-  `AGENTRY_DISTRIBUTION=docker` is what keeps the tunnel off.
+  `CLAUDIO_DISTRIBUTION=docker` is what keeps the tunnel off.
 - The `.deb` declares `openssh-client` (`apps/desktop/electron-builder.yml`).
 
 Turned on, the image's tunnel is the same as everywhere else: it refuses under `mode: 'none'`, only
 its exact host joins the allowlist, and it opens only when someone starts it or turns on "start with
-Agentry".
+Claudio".
 
 Changed outside `packaging`'s ownership, because the answer needed them:
 
@@ -612,7 +612,7 @@ orchestration's verification. The feature is documented in [tunnel.md](../tunnel
   test. Beyond the plan:
   - Small edits to `chats.ts` and `orchestrator.ts`, which no task owned, so the next run reads the
     store.
-  - An empty `AGENTRY_MAX_CONCURRENT_RUNS` or `AGENTRY_DEFAULT_PERMISSION_MODE` now counts as unset.
+  - An empty `CLAUDIO_MAX_CONCURRENT_RUNS` or `CLAUDIO_DEFAULT_PERMISSION_MODE` now counts as unset.
     Before, an empty run limit meant a wrapper that could start no run.
   - A header registered with a runtime host is read at its last hop, because earlier hops are the
     client's to forge.
@@ -627,11 +627,11 @@ orchestration's verification. The feature is documented in [tunnel.md](../tunnel
   `*.lhr.life` origin to another. Its limits (sign in again, duplicates, a stale address, a lost
   renewal) are in the answer above and in [tunnel.md](../tunnel.md#the-address-changes).
 - **`packaging`.** Open question 2 is answered **off in Docker unless the operator turns it on**:
-  `AGENTRY_TUNNEL` in Compose's `.env`, and `tunnel.enabled` in the chart. It also added
+  `CLAUDIO_TUNNEL` in Compose's `.env`, and `tunnel.enabled` in the chart. It also added
   `TunnelStatus.enabled` and the `tunnel.disabled` refusal, both outside its ownership, and
   `openssh-client` to the `.deb`. A real image build confirmed the `409`.
 - **`web`.** Settings → Remote access (state word and colour, address with copy, an in-house QR code
-  for versions 1 to 10 with two new tokens, the auth warning, the no-ssh state, "start with Agentry",
+  for versions 1 to 10 with two new tokens, the auth warning, the no-ssh state, "start with Claudio",
   and a footnote about new addresses), and the three layered settings as two cards in Security. Both
   events write their caches directly. The e2e spec is written, not run, and `a11y.spec.mjs` covers
   the new tab.
@@ -646,7 +646,7 @@ orchestration's verification. The feature is documented in [tunnel.md](../tunnel
   - The tab did not know `enabled`: in the Docker image it offered a start button that could only
     answer `409`, and `tunnel.disabled` had no translation.
 
-  The tab now says that the deploy turned the tunnel off and names `AGENTRY_TUNNEL=on`, in `en` and
+  The tab now says that the deploy turned the tunnel off and names `CLAUDIO_TUNNEL=on`, in `en` and
   `es`, with a unit test. The e2e fake status carries `enabled: true`. The README's `GET /tunnel` row
   gained `enabled`.
 
@@ -696,7 +696,7 @@ Tailscale: no provider selector, and localhost.run is gone from the code. Built 
   on the machine itself, with a real certificate for the node's name.
 - **No ssh, and the vendor's own CLI.** No pinned host key to keep current, no banner to parse, no
   public IP on stderr, no outbound TCP 22. Tailscale is reached the way the one rule asks of every
-  program Agentry drives: its CLI flags and `--json` output, with the person's own session.
+  program Claudio drives: its CLI flags and `--json` output, with the person's own session.
 - **Not on the internet.** `tailscale serve`, never Funnel: only the person's tailnet can reach it.
   What was rejected in the first plan as "install and account" is what the owner chose: the phone
   needs the Tailscale app, and that is the boundary that keeps strangers out.
@@ -718,11 +718,11 @@ Tailscale: no provider selector, and localhost.run is gone from the code. Built 
   no special permission.
 - `tailscale serve --bg --yes --https=18443 http://127.0.0.1:<port>` was **refused**: "sending serve
   config: Access denied: serve config denied", with the advice `sudo tailscale set --operator=$USER`.
-  The user here is not the node's operator, and Agentry does not change that, so adding a rule could
+  The user here is not the node's operator, and Claudio does not change that, so adding a rule could
   not be exercised on the real node. That refusal became `tunnel.servePermission`.
 - `tailscale serve --https=18443 off` on a port with no rule answered "error: failed to remove web
   serve: handler does not exist" (exit 1), without needing the operator: `off` is a read-modify-write
-  of the CLI's that touches only the handler it names. Agentry treats that answer as already gone.
+  of the CLI's that touches only the handler it names. Claudio treats that answer as already gone.
 - The node's Serve config was `{}` before and after: nothing was left behind.
 
 The shape of a rule in `serve status --json` (`TCP["<port>"].HTTPS` and
@@ -733,16 +733,16 @@ path through it.
 ### Decisions taken while building it
 
 - **Port 8443, configurable.** Serve config is global to the node, and `tailscale serve` without a
-  port takes 443, which is where a person's own rule most likely is. Agentry uses 8443
-  (`AGENTRY_TUNNEL_PORT`) and only ever adds or removes the `/` handler on that port. A port holding
-  anything else, or even a rule of Agentry's exact shape that Agentry did not record adding, is
+  port takes 443, which is where a person's own rule most likely is. Claudio uses 8443
+  (`CLAUDIO_TUNNEL_PORT`) and only ever adds or removes the `/` handler on that port. A port holding
+  anything else, or even a rule of Claudio's exact shape that Claudio did not record adding, is
   `tunnel.portTaken`. Rejected: a path on 443 (`--set-path`), which would share a listener with the
   person's rules and make "remove only ours" depend on the CLI's handling of siblings.
-- **`--bg` with a record, not a foreground process.** A background rule outlives Agentry, so the rule
+- **`--bg` with a record, not a foreground process.** A background rule outlives Claudio, so the rule
   is recorded in `<dataDir>/tunnel/serve-rule.json` before it is sent, removed on stop and,
   synchronously, on shutdown, and reconciled on the next start after a crash. The pid file and the
   orphan logic of the ssh tunnel are gone. Rejected: a foreground `tailscale serve` child, whose rule
-  would vanish with the child but which would linger as an orphan after a crash of Agentry, the very
+  would vanish with the child but which would linger as an orphan after a crash of Claudio, the very
   case the record covers.
 - **Verified by reading the config back, not through the tailnet name.** A node reaching its own
   Serve listener through its MagicDNS name could not be measured (no operator), and MagicDNS may not

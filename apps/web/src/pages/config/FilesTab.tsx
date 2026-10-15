@@ -1,18 +1,18 @@
-import type { ConfigFileNode } from '@agentry/shared';
+import type { ConfigFileNode } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys, type Scope } from '../../api';
 import { CodeEditor, languageForPath } from '../../components/CodeEditor';
-import { Select, Switch, Tooltip } from '@agentry/ui/components/controls';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { fileIcon, ICON_SM } from '@agentry/ui/components/icons';
-import { Collapse } from '@agentry/ui/components/motion';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Select, Switch, Tooltip } from '@claudio/ui/components/controls';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { fileIcon, ICON_SM } from '@claudio/ui/components/icons';
+import { Collapse } from '@claudio/ui/components/motion';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
-import { errorMessage, formatBytes, timeAgo } from '@agentry/ui/lib/format';
+import { errorMessage, formatBytes, timeAgo } from '@claudio/ui/lib/format';
 
 // Labels live in the `config` locale under files.templates
 const TEMPLATES = [

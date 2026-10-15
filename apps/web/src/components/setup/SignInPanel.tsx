@@ -1,14 +1,14 @@
-import type { LoginMethod, LoginSession, SetupToolMethods } from '@agentry/shared';
+import type { LoginMethod, LoginSession, SetupToolMethods } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Clock, ExternalLink, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { CopyButton, ErrorBox, Segmented, Skeleton } from '@agentry/ui/components/ui';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { CopyButton, ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import {
   failureOf,
   installLink,

@@ -1,5 +1,5 @@
-import { entryText } from '@agentry/shared';
-import type { ChatDetail, MessageDelivery, RunEvent, TranscriptEntry } from '@agentry/shared';
+import { entryText } from '@claudio/shared';
+import type { ChatDetail, MessageDelivery, RunEvent, TranscriptEntry } from '@claudio/shared';
 
 // ---------- the transcript, kept current from the stream ----------
 

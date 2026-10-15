@@ -1,9 +1,9 @@
-import type { LimitWait } from '@agentry/shared';
+import type { LimitWait } from '@claudio/shared';
 import { Clock } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { timeUntil } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { timeUntil } from '@claudio/ui/lib/format';
 import { useProviderLabel } from '../lib/provider-status';
 import { resetWhen } from '../lib/reset-when';
 

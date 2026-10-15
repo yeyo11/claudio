@@ -3,7 +3,7 @@
 # dialect. They answer only what the Integrations page, a project's readiness and the change request
 # flow ask. See README.md.
 name=$(basename "$0")
-dir="${AGENTRY_DATA_DIR:-.}/fake-hosts"
+dir="${CLAUDIO_DATA_DIR:-.}/fake-hosts"
 file="$dir/$name.json"
 
 read_key() {
@@ -386,7 +386,7 @@ gh_merge_view() {
     auto=null
   fi
   case "$mr_state" in merged) st=MERGED ;; closed) st=CLOSED ;; *) st=OPEN ;; esac
-  printf '{"id":"PR_kwDOe2e%04d","number":%s,"url":"%s/pull/%s","state":"%s","isDraft":%s,"headRefOid":"%s","headRefName":"task/e2e","baseRefName":"main","mergeable":"%s","mergeStateStatus":"%s","reviewDecision":%s,"autoMergeRequest":%s}\n' \
+  printf '{"id":"PR_kwDOe2e%04d","number":%s,"url":"%s/pull/%s","state":"%s","isDraft":%s,"headRefOid":"%s","headRefName":"claudio-task/e2e","baseRefName":"main","mergeable":"%s","mergeStateStatus":"%s","reviewDecision":%s,"autoMergeRequest":%s}\n' \
     "$number" "$number" "$(repo_url "$@")" "$number" "$st" "$draft" "$head_sha" "$mergeable" "$status" "$decision" "$auto"
 }
 
@@ -447,7 +447,7 @@ glab_merge_view() {
   fi
   squash=false
   [ "$method" = squash ] && squash=true
-  printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"draft":%s,"detailed_merge_status":"%s","has_conflicts":%s,"head_pipeline":%s,"sha":"%s","source_branch":"task/e2e","target_branch":"main","merge_when_pipeline_succeeds":%s,"merge_user":%s,"squash":%s,"merge_error":null,"diff_refs":{"base_sha":"%s","start_sha":"%s","head_sha":"%s"}}\n' \
+  printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"draft":%s,"detailed_merge_status":"%s","has_conflicts":%s,"head_pipeline":%s,"sha":"%s","source_branch":"claudio-task/e2e","target_branch":"main","merge_when_pipeline_succeeds":%s,"merge_user":%s,"squash":%s,"merge_error":null,"diff_refs":{"base_sha":"%s","start_sha":"%s","head_sha":"%s"}}\n' \
     "$number" "$(repo_url "$@")" "$number" "$st" "$at" "$draft" "$detail" "$conflicts" "$pipe" "$head_sha" "$armed" "$merge_user" "$squash" "$head_sha" "$head_sha" "$head_sha"
 }
 
@@ -640,7 +640,7 @@ gh_hooks() {
 # spec reads, so it can sign what the host would deliver.
 glab_hook_json() {
   alert=$(read_key hookAlert)
-  printf '{"id":%s,"url":"%s","name":"agentry","alert_status":"%s","token_present":true,"signing_token_present":true}' \
+  printf '{"id":%s,"url":"%s","name":"claudio","alert_status":"%s","token_present":true,"signing_token_present":true}' \
     "$1" "$(sed -n 1p "$dir/glab.hook-$1")" "${alert:-executable}"
 }
 glab_hook_missing() {

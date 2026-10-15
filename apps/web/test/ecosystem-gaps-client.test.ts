@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
-import type { AgentryEvent, ChatActivityEvent, FlowRunEvent, FlowRunPage, ProjectFlow, TeamChangedEvent, WorkItemMovedEvent } from '@agentry/shared';
+import type { AgentryEvent, ChatActivityEvent, FlowRunEvent, FlowRunPage, ProjectFlow, TeamChangedEvent, WorkItemMovedEvent } from '@claudio/shared';
 import { api, ApiRequestError, keys } from '../src/api';
 import { patchActivity, targetMatches, targetsFor } from '../src/lib/events';
 

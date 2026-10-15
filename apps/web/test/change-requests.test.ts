@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, Check } from '@agentry/shared';
+import type { AgentryEvent, Check } from '@claudio/shared';
 import { checkDurationMs, checkMark, checksActions, clockOf, countChecks, fixStage, groupChecks } from '../src/lib/change-requests';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';

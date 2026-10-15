@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Account, AccountLimit } from '@agentry/shared';
+import type { Account, AccountLimit } from '@claudio/shared';
 import { accountName, accountUsable, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
 
 const limit = (state: AccountLimit['state'], utilization: number | null): AccountLimit => ({

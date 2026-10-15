@@ -1,6 +1,6 @@
-import type { DecisionPointStats } from '@agentry/shared';
+import type { DecisionPointStats } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { formatCost, formatNumber } from '@agentry/ui/lib/format';
+import { formatCost, formatNumber } from '@claudio/ui/lib/format';
 import { percent } from './model';
 
 /** The window the per-point numbers cover: last week's, as the plan says. */

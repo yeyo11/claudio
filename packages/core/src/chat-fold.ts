@@ -1,5 +1,5 @@
-import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@agentry/shared';
-import { isAgentryMcpWriteTool } from '@agentry/mcp';
+import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@claudio/shared';
+import { isAgentryMcpWriteTool } from '@claudio/mcp';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
@@ -11,7 +11,7 @@ const entrySeq = new WeakMap<LiveChat, number>();
 
 /**
  * Records what a non-Claude chat streamed as rows, the transcript of a provider that keeps none
- * Agentry can read. Claude's own JSONL is its transcript, so it is not copied.
+ * Claudio can read. Claude's own JSONL is its transcript, so it is not copied.
  */
 export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
   if (chat.driver.manifest.id === LEGACY_PROVIDER) return;
@@ -25,8 +25,8 @@ export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<Drive
 }
 
 /** Read when used, so a test can shorten them */
-export const idleTimeoutMs = (): number => Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
-const viewedIdleMaxMs = (): number => Number(process.env.AGENTRY_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
+export const idleTimeoutMs = (): number => Number(process.env.CLAUDIO_IDLE_TIMEOUT_MS ?? 10 * 60_000);
+const viewedIdleMaxMs = (): number => Number(process.env.CLAUDIO_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
 
 /**
  * Folds what a driver reports into the chat it belongs to: the settings, the ticker, the history of
@@ -52,7 +52,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
           host.persist();
         }
       } else if (event.sessionId && event.sessionId !== chat.id) {
-        // The id was Agentry's to choose, and the agent takes it; if it ever answered otherwise, the
+        // The id was Claudio's to choose, and the agent takes it; if it ever answered otherwise, the
         // chat would be one row on disk and another here, so say so where the person can see it
         chat.push({ kind: 'notice', text: `The CLI reported session ${event.sessionId} for the chat ${chat.id}; its transcript is not where this chat expects it.` });
       }
@@ -336,7 +336,7 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
   const broker = host.permissions;
   const policy = chat.opts.toolConfig?.policy;
   if (policy && question.request && hostJudges(chat, policy, question.request)) {
-    // Decided by Agentry's policy, not by the agent's own rules: the part is listed as `host`
+    // Decided by Claudio's policy, not by the agent's own rules: the part is listed as `host`
     const verdict = judge(policy, question.request);
     if (verdict !== 'ask') {
       const allowed = verdict === 'allow';
@@ -361,7 +361,7 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
       input: question.input,
       requestedAt: now(),
       ...(question.description !== undefined ? { description: question.description } : {}),
-      // No "always allow" for a write of Agentry's own: each one is confirmed on its own, every time
+      // No "always allow" for a write of Claudio's own: each one is confirmed on its own, every time
       ...(question.suggestions && !isWrite ? { suggestions: question.suggestions } : {}),
       ...(question.requiresUserInteraction ? { requiresUserInteraction: true } : {}),
     })

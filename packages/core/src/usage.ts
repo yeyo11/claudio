@@ -1,4 +1,4 @@
-import { isModelName, normalizeMessage, type ChatModelTokens, type TokenUsage, type TranscriptEntry } from '@agentry/shared';
+import { isModelName, normalizeMessage, type ChatModelTokens, type TokenUsage, type TranscriptEntry } from '@claudio/shared';
 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 

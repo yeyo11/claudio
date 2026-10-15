@@ -1,11 +1,11 @@
-import type { WorkItem } from '@agentry/shared';
+import type { WorkItem } from '@claudio/shared';
 import { useMutation } from '@tanstack/react-query';
 import { CircleSlash, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
 import { blocksWithin } from './model';
 
 /**

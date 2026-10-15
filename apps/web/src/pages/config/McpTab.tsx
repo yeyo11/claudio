@@ -1,17 +1,17 @@
 import { CircleCheck, CircleHelp, CircleX, Plus, TriangleAlert, type LucideIcon } from 'lucide-react';
-import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
+import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { Select, Switch } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Select, Switch } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { isObject, parseObject, stringList } from './settingsModel';
 

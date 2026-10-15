@@ -1,4 +1,4 @@
-import { PERMISSION_MODES, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
+import { PERMISSION_MODES, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
 import { modelOptions } from './models.ts';
@@ -110,7 +110,7 @@ class ClaudeCodeSession implements DriverSession {
  */
 export class ClaudeCodeDriver implements ProviderDriver {
   readonly manifest = claudeCodeManifest;
-  /** Agentry names the session and the CLI takes the name (`--session-id`), so the native id is the chat id */
+  /** Claudio names the session and the CLI takes the name (`--session-id`), so the native id is the chat id */
   readonly sessionIds = 'imposed';
   /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
   transcripts: TranscriptStore | null = null;

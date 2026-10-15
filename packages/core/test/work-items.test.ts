@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@claudio/shared';
 import { Db, WORK_ITEMS_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';
@@ -679,11 +679,11 @@ test('the worktree and branch of an item are recorded as a fact: announced, but 
   const item = service.create('p1', { title: 'x' });
   const entries = service.history(item.id).length;
   events.length = 0;
-  const placed = service.setWorktree(item.id, { worktree: '/repo/.claude/worktrees/agn-1', branch: 'task/agn-1' });
-  assert.deepEqual([placed.worktree, placed.branch], ['/repo/.claude/worktrees/agn-1', 'task/agn-1']);
+  const placed = service.setWorktree(item.id, { worktree: '/repo/.claude/worktrees/agn-1', branch: 'claudio-task/agn-1' });
+  assert.deepEqual([placed.worktree, placed.branch], ['/repo/.claude/worktrees/agn-1', 'claudio-task/agn-1']);
   assert.deepEqual(
     [service.get(item.id).worktree, service.get(item.id).branch],
-    ['/repo/.claude/worktrees/agn-1', 'task/agn-1'],
+    ['/repo/.claude/worktrees/agn-1', 'claudio-task/agn-1'],
   );
   assert.equal(service.history(item.id).length, entries);
   assert.deepEqual(
@@ -692,7 +692,7 @@ test('the worktree and branch of an item are recorded as a fact: announced, but 
   );
   const cleared = service.setWorktree(item.id, { worktree: null, branch: null });
   assert.deepEqual([cleared.worktree, cleared.branch], [null, null]);
-  assert.throws(() => service.setWorktree('missing', { worktree: '/x', branch: 'task/x' }), refusal(404));
+  assert.throws(() => service.setWorktree('missing', { worktree: '/x', branch: 'claudio-task/x' }), refusal(404));
 });
 
 // ---------- lists, filters, search and the board ----------

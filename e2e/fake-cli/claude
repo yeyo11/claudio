@@ -20,11 +20,11 @@ import { createInterface } from 'node:readline';
 const argv = process.argv.slice(2);
 const env = process.env;
 // A recording of the UI wants a footer that reads like an account, not like the test double it is
-const VERSION = env.AGENTRY_FAKE_CLI_VERSION || '2.1.1-fake';
+const VERSION = env.CLAUDIO_FAKE_CLI_VERSION || '2.1.1-fake';
 function authStatus() {
   let extra = {};
   try {
-    extra = env.AGENTRY_FAKE_CLI_AUTH ? JSON.parse(env.AGENTRY_FAKE_CLI_AUTH) : {};
+    extra = env.CLAUDIO_FAKE_CLI_AUTH ? JSON.parse(env.CLAUDIO_FAKE_CLI_AUTH) : {};
   } catch {
     // an unreadable override leaves the fake's own answer
   }
@@ -35,20 +35,20 @@ function numberEnv(name, fallback) {
   return raw !== undefined && raw !== '' && Number(raw) >= 0 ? Number(raw) : fallback;
 }
 /** Added to every heartbeat's elapsed time: a spec makes a command look hung without waiting minutes for it */
-let elapsedOffsetS = numberEnv('AGENTRY_FAKE_CLI_ELAPSED_S', 0);
+let elapsedOffsetS = numberEnv('CLAUDIO_FAKE_CLI_ELAPSED_S', 0);
 /** The real CLI beats every 30 s; a spec wants to see one sooner */
-const HEARTBEAT_MS = numberEnv('AGENTRY_FAKE_CLI_HEARTBEAT_MS', 30_000);
-const TURN_COST_USD = numberEnv('AGENTRY_FAKE_CLI_TURN_COST_USD', 0);
+const HEARTBEAT_MS = numberEnv('CLAUDIO_FAKE_CLI_HEARTBEAT_MS', 30_000);
+const TURN_COST_USD = numberEnv('CLAUDIO_FAKE_CLI_TURN_COST_USD', 0);
 /** How long the worker "thinks" between two steps: long enough for a message sent with a cancel to arrive first */
 const SETTLE_MS = 300;
 // How long a `read:` step holds its Read call open, so a page can show what is being read
-const READ_MS = numberEnv('AGENTRY_FAKE_CLI_READ_MS', 400);
+const READ_MS = numberEnv('CLAUDIO_FAKE_CLI_READ_MS', 400);
 
 /** What a spec reads to know the process heard something: one JSON line per fact, when the variable names a file. */
 function log(event, fields = {}) {
-  if (!env.AGENTRY_FAKE_CLI_LOG) return;
+  if (!env.CLAUDIO_FAKE_CLI_LOG) return;
   try {
-    appendFileSync(env.AGENTRY_FAKE_CLI_LOG, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...fields })}\n`);
+    appendFileSync(env.CLAUDIO_FAKE_CLI_LOG, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...fields })}\n`);
   } catch {
     // a log that cannot be written only costs the spec its evidence
   }
@@ -124,16 +124,16 @@ if (worktree) enterWorktree(worktree);
 
 /**
  * The transcript the CLI writes to `$CLAUDE_CONFIG_DIR/projects/<cwd>/<session>.jsonl`, in its own
- * shape, when `AGENTRY_FAKE_CLI_TRANSCRIPT=1` or the scripts file has `"@transcript": true` (a spec
+ * shape, when `CLAUDIO_FAKE_CLI_TRANSCRIPT=1` or the scripts file has `"@transcript": true` (a spec
  * cannot set the server's environment). Off by default, and never without `CLAUDE_CONFIG_DIR`, so
  * the real `~/.claude` is not written. A message read in the middle of a turn is written the way CLI
  * 2.1 writes it: `queue-operation` lines and an `attachment` of type `queued_command`, no `user` line.
  */
 function transcriptOn() {
   if (!env.CLAUDE_CONFIG_DIR) return false;
-  if (env.AGENTRY_FAKE_CLI_TRANSCRIPT === '1') return true;
+  if (env.CLAUDIO_FAKE_CLI_TRANSCRIPT === '1') return true;
   try {
-    return env.AGENTRY_FAKE_CLI_SCRIPTS ? JSON.parse(readFileSync(env.AGENTRY_FAKE_CLI_SCRIPTS, 'utf8'))['@transcript'] === true : false;
+    return env.CLAUDIO_FAKE_CLI_SCRIPTS ? JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8'))['@transcript'] === true : false;
   } catch {
     return false;
   }
@@ -244,7 +244,7 @@ const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
 
 /**
  * Turns written elsewhere, so the prompt a page shows reads like a person's and not like a script:
- * `AGENTRY_FAKE_CLI_SCRIPTS` names a JSON object of `{ "<text>": "<script>" }`, and a message that
+ * `CLAUDIO_FAKE_CLI_SCRIPTS` names a JSON object of `{ "<text>": "<script>" }`, and a message that
  * contains one of the texts is played as its script. A worker's prompt is its task wrapped in the
  * orchestrator's own words, which is why a key is looked for inside the message and not matched whole.
  */
@@ -257,10 +257,10 @@ function scriptFor(text) {
   // ready, needs-refining, not-for-agents in the order asked, so a spec sees all three without a script
   const issues = [...text.matchAll(/^(\S+): Can an agent start on issue/gm)].map((m) => m[1]);
   if (issues.length > 0) return `json: ${JSON.stringify(Object.fromEntries(issues.map((id, i) => [id, ['ready', 'needs-refining', 'not-for-agents'][i % 3]])))}`;
-  if (!env.AGENTRY_FAKE_CLI_SCRIPTS) return text;
+  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return text;
   let scripts;
   try {
-    scripts = JSON.parse(readFileSync(env.AGENTRY_FAKE_CLI_SCRIPTS, 'utf8'));
+    scripts = JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8'));
   } catch {
     return text;
   }
@@ -510,11 +510,11 @@ function endTurn({ result = '', error = false, structured = undefined }) {
 
 /**
  * The MCP servers `mcp_status` reports: a local server and a claude.ai connector waiting for its
- * authorisation, or the list in AGENTRY_FAKE_CLI_MCP (JSON). `mcp_toggle` switches one, for this process.
+ * authorisation, or the list in CLAUDIO_FAKE_CLI_MCP (JSON). `mcp_toggle` switches one, for this process.
  */
 const mcpServers = (() => {
   try {
-    if (env.AGENTRY_FAKE_CLI_MCP) return JSON.parse(env.AGENTRY_FAKE_CLI_MCP);
+    if (env.CLAUDIO_FAKE_CLI_MCP) return JSON.parse(env.CLAUDIO_FAKE_CLI_MCP);
   } catch {
     // an unreadable override leaves the fake's own list
   }

@@ -1,12 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { CodeHostStatus, CodeHostsSettings } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { CodeHostStatus, CodeHostsSettings } from '@claudio/shared';
 
 /**
- * The code hosts Agentry reaches through their own CLI (gh, glab): what detection found, served
+ * The code hosts Claudio reaches through their own CLI (gh, glab): what detection found, served
  * from the detector's cache, a re-detection on demand, and the settings document. Validation lives
  * in core. The settings write and the refresh are refused to a chat's token in `security.ts`: the
- * write names a binary Agentry will run.
+ * write names a binary Claudio will run.
  */
 export const hostRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/hosts', (): Promise<CodeHostStatus[]> => core.hosts.statuses());

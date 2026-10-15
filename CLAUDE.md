@@ -1,4 +1,4 @@
-# Agentry
+# Claudio
 
 REST API, web UI and multi-agent orchestration around the Claude Code CLI. pnpm monorepo, Node >= 22.
 [CONTRIBUTING.md](CONTRIBUTING.md) is the source of truth for the rules below; read it before
@@ -6,7 +6,7 @@ changing code.
 
 ## The one rule
 
-Agentry reaches each agent **only through the interface its vendor ships for programs**: CLI
+Claudio reaches each agent **only through the interface its vendor ships for programs**: CLI
 flags, the vendor's official SDK, a documented stream or RPC protocol, the files the CLI writes. No
 terminal scraping, no undocumented HTTP endpoints, no second login of our own. Today the only
 provider that runs is Claude Code, reached through its CLI. [docs/providers.md](docs/providers.md)
@@ -17,9 +17,9 @@ describes what a provider is.
 - `packages/shared` — types shared by every package (`src/types.ts` is the API contract)
 - `packages/core` — the CLI driver: runs, sessions, accounts, orchestration, config, SQLite store
 - `apps/api` — Fastify REST API; route docs in `src/openapi/routes.ts`
-- `packages/ui` — `@agentry/ui`, the web's primitives: tokens and shared styles, controls, dialogs,
+- `packages/ui` — `@claudio/ui`, the web's primitives: tokens and shared styles, controls, dialogs,
   toasts, icons, illustrations, formatters, Markdown and syntax highlighting
-- `packages/chat-ui` — `@agentry/chat-ui`, the conversation: transcript, composer, permission
+- `packages/chat-ui` — `@claudio/chat-ui`, the conversation: transcript, composer, permission
   prompts, chat hooks; it reaches the server only through a client the app hands it
 - `apps/web` — React + Vite UI; depends on both packages (`apps/web` → `chat-ui` → `ui` → `shared`)
 - `apps/desktop` — Electron shell for the Linux desktop app
@@ -34,11 +34,11 @@ pnpm build && pnpm e2e
 ```
 
 After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (CI fails if they
-drift): `pnpm --filter @agentry/api openapi:schemas`. Every new route needs a summary and a tag in
+drift): `pnpm --filter @claudio/api openapi:schemas`. Every new route needs a summary and a tag in
 `apps/api/src/openapi/routes.ts`, and a row in the README's REST API tables.
 
-A chat started by Agentry has `AGENTRY_API_URL` (and `AGENTRY_CHAT_ID`) in its environment. Call
-the API there, never on a guessed port, with `Authorization: Bearer $AGENTRY_API_TOKEN` when that
+A chat started by Claudio has `CLAUDIO_API_URL` (and `CLAUDIO_CHAT_ID`) in its environment. Call
+the API there, never on a guessed port, with `Authorization: Bearer $CLAUDIO_API_TOKEN` when that
 is set: the desktop app and a dev server often run side by side, each with its own data, and an
 orchestration launched on the other one does not show up in yours.
 
@@ -115,7 +115,7 @@ A change that breaks one of these rules is not done:
   - Don't add a library or third-party art. A new illustration joins the set, and its reference
     SVG goes into `docs/design-system/illustrations/`, in the same PR.
 - **Diffs.**
-  - Changes are reviewed inside Agentry. Never link to the person's editor, never hand out a
+  - Changes are reviewed inside Claudio. Never link to the person's editor, never hand out a
     command to copy, and never add a diff library: a diff is drawn with `DiffView`
     (`apps/web/src/components/changes`) from the unified text the API serves (design system §5).
   - Only what changed carries colour: muted syntax (`--sx-*`, never green, red or cyan), dimmed

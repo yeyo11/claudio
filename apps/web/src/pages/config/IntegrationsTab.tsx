@@ -1,17 +1,17 @@
-import type { CodeHostId, CodeHostsSettings, CodeHostStatus, TrackerId, TrackersSettings, TrackerStatus } from '@agentry/shared';
+import type { CodeHostId, CodeHostsSettings, CodeHostStatus, TrackerId, TrackersSettings, TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { keepsCredentials, trackerEntry, trackerWords, TRACKER_IDS, withTrackerEntry } from '../../lib/trackers';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { BinaryEditor, ExternalLinkText, HostRow, LINKS, TrackerRow, trackerBinaryWords, trackerReasonText, WORKS } from './integrations/rows';
 import { hostTool } from '../../lib/setup';
 import { SignInPanel, SignInSheet } from '../../components/setup/SignInPanel';
@@ -24,7 +24,7 @@ const latestCheck = (list: Array<{ checkedAt: string }>): string | null =>
   list.reduce<string | null>((latest, s) => (latest === null || s.checkedAt > latest ? s.checkedAt : latest), null);
 
 /**
- * The code host CLIs Agentry reaches (gh, glab): each one's state in words, the host names it knows
+ * The code host CLIs Claudio reaches (gh, glab): each one's state in words, the host names it knows
  * with their accounts, and a binary of the person's own when the search cannot find one. Nothing is
  * stored but that path; the sessions are the programs' own.
  */

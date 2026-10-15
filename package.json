@@ -1,7 +1,7 @@
 {
   "name": "agentry",
   "private": true,
-  "version": "0.37.1",
+  "version": "0.1.0",
   "description": "Dockerized Claude Code wrapper: REST API + UI on top of the CLI",
   "type": "module",
   "packageManager": "pnpm@10.17.1",
@@ -9,19 +9,19 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @agentry/api --filter @agentry/web dev",
-    "dev:api": "pnpm --filter @agentry/api dev",
-    "dev:web": "pnpm --filter @agentry/web dev",
-    "build": "pnpm --filter @agentry/web build",
-    "start": "pnpm --filter @agentry/api start",
+    "dev": "pnpm -r --parallel --filter @claudio/api --filter @claudio/web dev",
+    "dev:api": "pnpm --filter @claudio/api dev",
+    "dev:web": "pnpm --filter @claudio/web dev",
+    "build": "pnpm --filter @claudio/web build",
+    "start": "pnpm --filter @claudio/api start",
     "typecheck": "pnpm -r typecheck",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "test": "pnpm --filter @agentry/shared --filter @agentry/core --filter @agentry/api --filter @agentry/mcp --filter @agentry/web --filter @agentry/ui --filter @agentry/chat-ui --filter @agentry/desktop test",
+    "test": "pnpm --filter @claudio/shared --filter @claudio/core --filter @claudio/api --filter @claudio/mcp --filter @claudio/web --filter @claudio/ui --filter @claudio/chat-ui --filter @claudio/desktop test",
     "e2e": "node e2e/run.mjs",
     "media": "node scripts/record-media.mjs",
-    "desktop:dev": "pnpm --filter @agentry/desktop dev",
-    "desktop:dist": "pnpm --filter @agentry/desktop dist:linux"
+    "desktop:dev": "pnpm --filter @claudio/desktop dev",
+    "desktop:dist": "pnpm --filter @claudio/desktop dist:linux"
   },
   "pnpm": {
     "//": "undici arrives with the Scalar docs viewer and every 7.x below 7.29.0 carries the twelve advisories pnpm audit reports, four of them high. Nothing here calls undici on purpose (the OIDC verifier goes through globalThis.fetch), but it ships in the image. Caret and not >=: undici 8 is a major the Scalar packages were not written against. CI runs pnpm audit --audit-level=high, so the next one fails a pull request instead of waiting for an audit. source-map-js reaches the tree through vite > postcss; 1.2.1 has GHSA-68fv-2mgg-jv7q (event-loop denial of service through source-map section offsets) and 1.2.2 patches it within the same major.",

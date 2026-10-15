@@ -9,7 +9,7 @@ tags:
 ---
 # Chat delivery: every message tracked by id
 
-How a message a person (or Agentry, as a hint) sends to a chat is identified, sent, held, delivered
+How a message a person (or Claudio, as a hint) sends to a chat is identified, sent, held, delivered
 or reported undelivered. Built for CW-37 from the fix plan of the chat message audit
 ([reports/chat-audit/README.md](reports/chat-audit/README.md)). Before it, nothing said which message
 the agent had read, so the page guessed from the words and a clock, and both symptoms of the audit
@@ -55,7 +55,7 @@ followed from the guesses.
 
 The chat lists them as `pending` (`GET /chats/:id`), with the messages lost since (`undelivered`, with
 a reason), until the person sends again. They are written with the chat's record, so a restart turns
-whatever was pending into `undelivered` ("Agentry restarted before the agent read it").
+whatever was pending into `undelivered` ("Claudio restarted before the agent read it").
 
 A CLI that never reads a message back (an old one, or a test double) is found out at its first
 result: from then on what is written to it is not followed, as before this change.

@@ -38,7 +38,7 @@ git -C <root>/project symbolic-ref --short refs/remotes/origin/HEAD
 git -C <root>/project rev-parse --path-format=absolute --git-common-dir
 git -C <root>/project rev-parse --absolute-git-dir
 git -C <root>/project rev-parse --show-toplevel
-git -C <root>/project rev-parse --verify --quiet refs/heads/task/cw-1
+git -C <root>/project rev-parse --verify --quiet refs/heads/claudio-task/cw-1
 git -C <root>/project rev-parse --git-dir
 git -C <root>/project rev-parse HEAD
 git -C <root>/project rev-parse --show-toplevel
@@ -67,12 +67,12 @@ git -C <root>/project/.claude/worktrees/task-cw-1 diff --cached --quiet
 git -C <root>/project/.claude/worktrees/task-cw-1 fetch origin main
 git -C <root>/project/.claude/worktrees/task-cw-1 config user.email
 git -C <root>/project/.claude/worktrees/task-cw-1 merge --no-edit origin/main
-git -C <root>/project/.claude/worktrees/task-cw-1 push -u origin task/cw-1
+git -C <root>/project/.claude/worktrees/task-cw-1 push -u origin claudio-task/cw-1
 git -C <root>/project rev-parse --path-format=absolute --git-common-dir
 git -C <root>/project rev-parse --absolute-git-dir
 git -C <root>/project rev-parse --show-toplevel
 git -C <root>/project remote get-url origin
-gh pr create -R github.com/acme/shop --head task/cw-1 --base main --title feat: Fix the cart total (CW-1) --body-file -
+gh pr create -R github.com/acme/shop --head claudio-task/cw-1 --base main --title feat: Fix the cart total (CW-1) --body-file -
   cwd: <root>/project/.claude/worktrees/task-cw-1
   env: GIT_TERMINAL_PROMPT=0
   env: GH_PROMPT_DISABLED=1
@@ -98,7 +98,7 @@ gh pr create -R github.com/acme/shop --head task/cw-1 --base main --title feat: 
     | ## Work item
     | 
     | [CW-1](http://localhost:8787/tasks/CW-1)
-gh pr list -R github.com/acme/shop --head task/cw-1 --base main --state all --limit 2 --json number,url,state,headRefName,baseRefName,isCrossRepository
+gh pr list -R github.com/acme/shop --head claudio-task/cw-1 --base main --state all --limit 2 --json number,url,state,headRefName,baseRefName,isCrossRepository
   cwd: <root>/project/.claude/worktrees/task-cw-1
   env: GIT_TERMINAL_PROMPT=0
   env: GH_PROMPT_DISABLED=1

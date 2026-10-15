@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentryEvent, CodeHostId, HostReason, ProjectWebhooks, WebhookRegistration, WebhookUnavailableReason } from '@agentry/shared';
+import type { AgentryEvent, CodeHostId, HostReason, ProjectWebhooks, WebhookRegistration, WebhookUnavailableReason } from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
 import { reasonOf } from './classify.ts';
@@ -11,13 +11,13 @@ import type { HookDriver, RemoteHook } from './hook-driver.ts';
 import { webhookHealthy } from './pacer.ts';
 import { newWebhookSecret, type WebhookSecrets } from './webhook-secrets.ts';
 
-// Registering, testing, removing and re-pointing the hooks Agentry keeps on a repository
+// Registering, testing, removing and re-pointing the hooks Claudio keeps on a repository
 // (docs/plans/code-hosts.md, phase 6). It is the person's click that registers (the route is not
-// open to a chat's token); after that, a new public origin re-points the hooks Agentry registered,
+// open to a chat's token); after that, a new public origin re-points the hooks Claudio registered,
 // by id and never anyone else's (decision 2). Today there is no public origin: the tunnel is
 // tailnet-only (`tailscale serve`), so `Core` hands the service none and does not wire `observe`. Each host's calls are a `HookDriver`
 // (GitHub's and GitLab's are both recorded); everything else here is the same for both. A hook only
-// tells Agentry to look again (hosts/pacer.ts); polling stays the source of truth.
+// tells Claudio to look again (hosts/pacer.ts); polling stays the source of truth.
 
 /** The receivers' path under the public origin (`apps/api` serves everything under `/api`). */
 export const WEBHOOK_PATH = '/api/webhooks';
@@ -167,7 +167,7 @@ export class WebhooksService {
 
   /**
    * Registers a hook on the project's repository. Only a hook this install made is ever adopted (the
-   * one a removed registration of its own left behind); another install's Agentry hook is left alone
+   * one a removed registration of its own left behind); another install's Claudio hook is left alone
    * and said so. Two calls for one repository at once share one registration.
    */
   async register(projectId: string): Promise<WebhookRegistration> {
@@ -189,7 +189,7 @@ export class WebhooksService {
   private async registerOne(projectId: string, target: WebhookTarget, origin: string, access: WebhookAccess): Promise<WebhookRegistration> {
     const { store, secrets } = this.deps;
     const mine = store.list(projectId).filter((r) => r.hostname === access.repo.host && r.repoPath === access.repo.path);
-    if (mine.some((r) => r.state !== 'removed')) throw new WebhooksError('this repository already has a webhook registered by Agentry', 409, 'already-registered');
+    if (mine.some((r) => r.state !== 'removed')) throw new WebhooksError('this repository already has a webhook registered by Claudio', 409, 'already-registered');
 
     const id = randomUUID();
     const secret = newWebhookSecret();
@@ -262,7 +262,7 @@ export class WebhooksService {
     const access = await this.deps.access(projectId);
     const read = await this.tryReadHook(driverOf(registration.host), access, this.remoteId(registration));
     if ('failed' in read) {
-      // The person deleted it on the host: Agentry cannot re-point what is not there, and says so
+      // The person deleted it on the host: Claudio cannot re-point what is not there, and says so
       if (reasonOf(read.failed, read.call.cli) === 'not-found') return this.apply(registration, { state: 'stale' });
       throw failure('read the hook', read.failed, read.call);
     }
@@ -279,7 +279,7 @@ export class WebhooksService {
     void this.follow(event.tunnel.url);
   }
 
-  /** Re-points every hook Agentry registered to this origin. Settles when the hooks have been tried; never throws. */
+  /** Re-points every hook Claudio registered to this origin. Settles when the hooks have been tried; never throws. */
   follow(publicUrl: string): Promise<void> {
     const origin = originOf(publicUrl);
     if (!origin) return Promise.resolve();
@@ -325,7 +325,7 @@ export class WebhooksService {
       if (result.exitCode !== 0) throw failure('re-point the hook', result, call);
       this.apply(registration, { url, state: 'active' });
     } catch {
-      // Agentry could not move it: it stays on the old address and says so
+      // Claudio could not move it: it stays on the old address and says so
       this.apply(registration, { state: 'stale' });
     }
   }
@@ -335,7 +335,7 @@ export class WebhooksService {
   /**
    * Finds the hook a new registration is for. A hook is adopted only when its address carries the id
    * of a registration this install made on the repository (`ours`), or the id being registered now (a
-   * create whose answer was lost). Any other Agentry address belongs to another install: it is not
+   * create whose answer was lost). Any other Claudio address belongs to another install: it is not
    * touched, and the person is told.
    */
   private async createOrAdopt(driver: HookDriver, access: WebhookAccess, hook: { url: string; secret: string }, ours: Set<string>): Promise<{ hookId: string; notice: string | null }> {
@@ -359,7 +359,7 @@ export class WebhooksService {
       if (same) return { hookId: await this.adopt(driver, access, same, hook), notice };
     }
     // GitHub answers 404 to a token that may not manage hooks: the repository is there, the right is not
-    if (call.cli === 'gh' && reasonOf(result, call.cli) === 'not-found') throw new WebhooksError('Agentry could not register the hook: this account cannot manage hooks on the repository', 403, 'hook-no-permission', result.stderrFirstLine || null);
+    if (call.cli === 'gh' && reasonOf(result, call.cli) === 'not-found') throw new WebhooksError('Claudio could not register the hook: this account cannot manage hooks on the repository', 403, 'hook-no-permission', result.stderrFirstLine || null);
     throw failure('register the hook', result, call);
   }
 
@@ -414,14 +414,14 @@ export class WebhooksService {
 
   private async remoteTarget(projectId: string): Promise<WebhookTarget> {
     const target = await this.deps.target(projectId);
-    if (!target) throw new WebhooksError("this project's remote is not on a code host Agentry knows", 409, 'no-remote');
+    if (!target) throw new WebhooksError("this project's remote is not on a code host Claudio knows", 409, 'no-remote');
     return target;
   }
 
   private publicOrigin(): string {
     const url = this.deps.publicUrl();
     const origin = url ? originOf(url) : null;
-    if (!origin) throw new WebhooksError('Agentry has no public address for a hook to deliver to', 409, 'no-public-url');
+    if (!origin) throw new WebhooksError('Claudio has no public address for a hook to deliver to', 409, 'no-public-url');
     return origin;
   }
 
@@ -450,7 +450,7 @@ export class WebhooksService {
     try {
       return read();
     } catch (error) {
-      if (error instanceof HostParseError) throw new WebhooksError(`the host's answer was not what Agentry expects: ${error.message}`, 502, 'unexpected-output');
+      if (error instanceof HostParseError) throw new WebhooksError(`the host's answer was not what Claudio expects: ${error.message}`, 502, 'unexpected-output');
       throw error;
     }
   }
@@ -474,10 +474,10 @@ function unavailable(target: WebhookTarget | null, publicUrl: string | null): We
   return publicUrl ? null : 'no-public-url';
 }
 
-/** What the person is told when the repository already holds an Agentry hook that is not this install's. */
+/** What the person is told when the repository already holds an Claudio hook that is not this install's. */
 function foreignNotice(foreign: RemoteHook[]): string {
   const origins = [...new Set(foreign.map((h) => (h.url ? originOf(h.url) : null)).filter((o): o is string => o !== null))];
-  return `This repository already has an Agentry webhook made by another Agentry install${origins.length > 0 ? ` (${origins.join(', ')})` : ''}. Agentry left it alone and registered its own.`;
+  return `This repository already has an Claudio webhook made by another Claudio install${origins.length > 0 ? ` (${origins.join(', ')})` : ''}. Claudio left it alone and registered its own.`;
 }
 
 function describe(hook: RemoteHook): string | null {
@@ -503,7 +503,7 @@ function failure(what: string, result: HostResult, call: HostCall): WebhooksErro
   const detail = result.stderrFirstLine || null;
   // Hooks need admin rights on the repository: a refusal is that, in the person's words
   if (reason === 'forbidden') {
-    return new WebhooksError(`Agentry could not ${what}: this account cannot manage hooks on the repository`, 403, 'hook-no-permission', detail);
+    return new WebhooksError(`Claudio could not ${what}: this account cannot manage hooks on the repository`, 403, 'hook-no-permission', detail);
   }
-  return new WebhooksError(`Agentry could not ${what}`, reason === 'not-found' ? 404 : 502, reason, detail);
+  return new WebhooksError(`Claudio could not ${what}`, reason === 'not-found' ? 404 : 502, reason, detail);
 }

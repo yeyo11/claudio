@@ -1,8 +1,8 @@
 import { hashKey, skipToken, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
-import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
-import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@agentry/shared';
+import { TRANSCRIPT_PAGE_MAX } from '@claudio/shared';
+import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
+import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@claudio/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
 import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';

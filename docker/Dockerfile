@@ -20,8 +20,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY packages packages
 COPY apps apps
-RUN pnpm --filter @agentry/web build \
- && pnpm --filter @agentry/api bundle
+RUN pnpm --filter @claudio/web build \
+ && pnpm --filter @claudio/api bundle
 
 FROM node:26-bookworm-slim
 
@@ -34,7 +34,7 @@ RUN apt-get update \
 # which is also why node and python3 stay.
 RUN npm install -g pnpm@10.17.1
 
-# The code hosts' own CLIs, which are the only way Agentry reaches GitHub and GitLab
+# The code hosts' own CLIs, which are the only way Claudio reaches GitHub and GitLab
 # (docs/code-hosts.md), from the vendors' linux amd64 release tarballs (the image is built for amd64
 # only, .github/workflows/image.yml). Pinned to the versions the recordings under
 # packages/core/test/fixtures/recordings were made with, for the same reason as the agents below.
@@ -72,7 +72,7 @@ RUN set -eu; cd /tmp \
 # the pinned digest must be the one pkgs.tailscale.com publishes beside the file, and the file must
 # hash to it. To bump it, set the version and take the digest from
 #   curl -fsSL https://pkgs.tailscale.com/stable/tailscale_<v>_amd64.tgz.sha256
-# /run/tailscale holds the daemon's socket where the CLI looks by default, so neither Agentry nor
+# /run/tailscale holds the daemon's socket where the CLI looks by default, so neither Claudio nor
 # anyone else passes --socket; it belongs to the user tailscaled runs as (/var/run is /run here).
 ARG TAILSCALE_VERSION=1.102.4
 ARG TAILSCALE_SHA256=50748df1045e60b5b695f19f4c56b0da36c019948b440fb456b6584a50f0d8b9
@@ -111,9 +111,9 @@ RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
  && rm /tmp/claude-install.sh \
  && claude --version
 # Read by the update check, which compares it with the newest published version
-ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
+ENV CLAUDIO_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 
-# JetBrains' `youtrack-app`, the only way Agentry reaches YouTrack (docs/trackers.md), is pinned like
+# JetBrains' `youtrack-app`, the only way Claudio reaches YouTrack (docs/trackers.md), is pinned like
 # Claude Code, to the version its recordings were made with. It goes to an npm prefix of its own in
 # the image, which is on the PATH; what a person installs later with `npm -g` goes to the same place
 # and lives as long as the container. Override with --build-arg YOUTRACK_APP_VERSION=<version>.
@@ -131,27 +131,27 @@ COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
-# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
-# The tunnel is on by default because the entrypoint runs a tailscaled of Agentry's own; it reaches
+# CLAUDIO_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
+# The tunnel is on by default because the entrypoint runs a tailscaled of Claudio's own; it reaches
 # the server on 127.0.0.1, around the published port and the operator's proxy, which is why
-# AGENTRY_TUNNEL=off turns it, and that daemon, off (docs/deploy.md, "The tunnel in Docker").
+# CLAUDIO_TUNNEL=off turns it, and that daemon, off (docs/deploy.md, "The tunnel in Docker").
 ENV NODE_ENV=production \
-    AGENTRY_PID_FILE=/tmp/agentry.pid \
-    PORT=8787 \
+    CLAUDIO_PID_FILE=/tmp/claudio.pid \
+    PORT=8797 \
     HOST=0.0.0.0 \
     CLAUDE_CONFIG_DIR=/home/node/.claude \
-    AGENTRY_WORKSPACE_DIR=/workspace \
-    AGENTRY_DATA_DIR=/data \
-    AGENTRY_DEFAULT_PERMISSION_MODE=bypassPermissions \
+    CLAUDIO_WORKSPACE_DIR=/workspace \
+    CLAUDIO_DATA_DIR=/data \
+    CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
-    AGENTRY_WEB_DIST=/app/web \
-    AGENTRY_DISTRIBUTION=docker \
+    CLAUDIO_WEB_DIST=/app/web \
+    CLAUDIO_DISTRIBUTION=docker \
     # gh and glab keep their sign-ins in their config folders, in plain text where there is no
     # keyring (no container has one): on the volume, and nowhere else
     GH_CONFIG_DIR=/data/provider-homes/gh \
     GLAB_CONFIG_DIR=/data/provider-homes/glab
 
-EXPOSE 8787
+EXPOSE 8797
 VOLUME ["/home/node/.claude", "/workspace", "/data"]
 
 # The script also ends the server after a few failed probes, which is what makes a restart policy

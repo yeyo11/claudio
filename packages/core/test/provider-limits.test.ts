@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { ProviderLimit, RateLimitInfo } from '@agentry/shared';
+import type { ProviderLimit, RateLimitInfo } from '@claudio/shared';
 import type { DriverEvent } from '../src/providers/driver.ts';
 import { LIMIT_WRITE_GAP_MS, ProviderLimits, limitFromInfo, type ProviderLimitStore } from '../src/providers/limits.ts';
 

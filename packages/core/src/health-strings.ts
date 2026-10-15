@@ -1,4 +1,4 @@
-import type { HealthSignal } from '@agentry/shared';
+import type { HealthSignal } from '@claudio/shared';
 
 // Every sentence a health signal says, keyed by a stable code and written from the figures in its
 // params. The English is built from the same params a client receives, so a client that
@@ -61,7 +61,7 @@ export const HEALTH_REASONS = {
 
 /**
  * What a person would say to a worker in each situation, so the box is never empty when the badge
- * turns. Written by Agentry: a suggestion per signal is worth more than a blank field to someone
+ * turns. Written by Claudio: a suggestion per signal is worth more than a blank field to someone
  * who has just been told a worker is stuck.
  */
 export const HEALTH_HINTS = {

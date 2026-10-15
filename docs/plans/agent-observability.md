@@ -9,7 +9,7 @@ tags:
 ---
 # Plan: see what every agent is really doing, and step in on time
 
-Status: **landed, in full**. Written on 2026-09-19 after the first large orchestration Agentry ran
+Status: **landed, in full**. Written on 2026-09-19 after the first large orchestration Claudio ran
 on its own repository, and built by the orchestration in
 [roadmap-completion.md](roadmap-completion.md); the optional supervisor of §3, the last piece left
 open, was built by [post-roadmap.md](post-roadmap.md). Each section below starts with a **Landed**
@@ -90,7 +90,7 @@ and `GET …/changes/diff?path=` → the unified diff of one file. The same for 
 > changed line (from the diff's hunk headers), a link template, the container-to-host path rows and
 > the optional `code --diff` command, edited in the **Editor** tab of Settings with a live preview.
 > Templates whose scheme is `javascript:`, `data:`, `vbscript:`, `file:` or `blob:` are refused.
-> **Not as planned:** the settings live in `localStorage` (`agentry-editor:v1`), not on the server,
+> **Not as planned:** the settings live in `localStorage` (`claudio-editor:v1`), not on the server,
 > because they describe the machine the browser runs on and a server copy would need a route and a
 > schema for one person's preference. And a browser cannot run `code --diff`, so that button copies
 > the command instead of running it, and only on a task (a chat has no main-checkout path for the left
@@ -133,7 +133,7 @@ Limits and settings:
 > The actions are `POST /chats/:id/commands/:toolUseId/cancel` (that command's process tree, found
 > under the CLI's pid from the process tree and start times, never from a command line; Linux
 > only), `POST /chats/:id/hint` and the task hint route that already existed. Each signal carries a
-> hint text Agentry writes.
+> hint text Claudio writes.
 >
 > **Levels are `ok`, `warn`, `bad`, not the plan's ok, slow, stuck and looping.** Those mix a
 > severity with three kinds of signal, and severity is what the panel already rendered. The badge maps
@@ -165,7 +165,7 @@ The CLI already reports what is needed. While a command runs it sends a heartbea
 {"type":"tool_progress","tool_name":"Bash","parent_tool_use_id":"toolu_…","elapsed_time_seconds":60,"heartbeat":true}
 ```
 
-Signals, all computed from data Agentry already receives:
+Signals, all computed from data Claudio already receives:
 
 | Signal | Rule | In the case above |
 |---|---|---|
@@ -193,7 +193,7 @@ What happens when one fires:
   worker's last steps and drafts the hint. Off by default; when on, it proposes and a person
   approves, unless set to send on its own.
   Left for later by the orchestration that finished the rest of this section
-  (`roadmap-completion.md`), because every signal already carries a suggested hint text that Agentry
+  (`roadmap-completion.md`), because every signal already carries a suggested hint text that Claudio
   writes; built afterwards by `post-roadmap.md`, off by default, so the second model is paid for only
   by someone who asks for it. See the note at the top of this section.
 
@@ -205,7 +205,7 @@ What happens when one fires:
 > harness started on every way out (pass, failure, timeout, `SIGINT`, `SIGTERM`, `SIGHUP`, a crash),
 > and `e2e/harness.test.mjs` proves that no browser or server outlives a forced timeout. Per-task
 > limits are `TaskLimits { maxMinutes?, maxCostUsd? }` on a task or a graph: the cost goes to the CLI
-> as `--max-budget-usd` (a retry only gets what is left), and the time is Agentry's own clock, which
+> as `--max-budget-usd` (a retry only gets what is left), and the time is Claudio's own clock, which
 > warns the worker at 80 % and ends the task with the reason at the limit. A workflow graph refuses
 > limits instead of ignoring them.
 
@@ -221,7 +221,7 @@ What happens when one fires:
 > **Landed.** `verification: { commands, fixer, maxAttempts, model?, timeoutMinutes? }` on the
 > orchestration, run in `finish()` after integration and before the synthesis, so the synthesis
 > prompt and the pull request body carry the outcome. Each command runs alone under a timeout (default
-> 20 min) and a hung one's process tree is killed by pid. The fixer's rules come from Agentry, it
+> 20 min) and a hung one's process tree is killed by pid. The fixer's rules come from Claudio, it
 > sees the failure, its earlier attempts and what each task did, and each command has its own
 > `maxAttempts`; after each fix every command runs again from the first. The outcome is `passed`,
 > `fixed` (with the fixer's commits) or `failed` (with the report and the checks that never ran),
@@ -243,12 +243,12 @@ told to leave the suite to the final task.
 Split the checks by what each step can actually judge:
 
 - **Workers**: `pnpm typecheck` and `pnpm test`, fast and reliable on a part of the change. They may
-  write or update e2e specs but do not run the suite. Agentry adds this to every worker's prompt
+  write or update e2e specs but do not run the suite. Claudio adds this to every worker's prompt
   instead of relying on the objective to say it.
 - **A verification phase** after integration, configurable per orchestration:
   - commands to run on the integration branch (for this repo `pnpm build`, then the e2e suite spec
     by spec);
-  - a fixer agent for what fails, with rules that come from Agentry, not the objective: every
+  - a fixer agent for what fails, with rules that come from Claudio, not the objective: every
     command under `timeout`, one spec at a time, headless browsers closed after a hang, existing
     assertions never loosened (a behaviour that changed on purpose is stated as such), and at most N
     attempts per failure before it stops and reports what is left;

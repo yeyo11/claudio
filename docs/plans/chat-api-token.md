@@ -9,7 +9,7 @@ tags:
     - api
     - built
 ---
-# Spec: a chat Agentry starts gets its own API token (CW-10)
+# Spec: a chat Claudio starts gets its own API token (CW-10)
 
 Status: **built** (CW-10). Under `mode: none` the actor stays `local` even with a chat token; the
 CW-17 amendment below is not part of this change. This spec builds section 2 of
@@ -19,10 +19,10 @@ developer can build without asking.
 
 ## Why
 
-Every chat gets `AGENTRY_API_URL` and `AGENTRY_CHAT_ID` ([chat-environment.md](../chat-environment.md)).
+Every chat gets `CLAUDIO_API_URL` and `CLAUDIO_CHAT_ID` ([chat-environment.md](../chat-environment.md)).
 When the API is guarded (the desktop app is set up for the tunnel, so it runs in `token` mode), the
 chat has no credential and every call answers `401`. On 2026-09-28 a chat had to open `wrapper.db`
-read-only to diagnose the board. The Agentry assistant's MCP server
+read-only to diagnose the board. The Claudio assistant's MCP server
 ([agentry-assistant.md](agentry-assistant.md)) will need the same credential.
 
 `chat-environment.md` currently says "No credential is passed". This change replaces that decision
@@ -31,8 +31,8 @@ process and to loopback.
 
 ## The one rule
 
-This change stays inside Agentry. It adds an environment variable to the `claude` process that
-Agentry already spawns. It uses no SDK and makes no call to Anthropic.
+This change stays inside Claudio. It adds an environment variable to the `claude` process that
+Claudio already spawns. It uses no SDK and makes no call to Anthropic.
 
 ## Where it lives
 
@@ -52,7 +52,7 @@ developer does change a shared type, the usual CI rules apply (see the acceptanc
 ### Minting
 
 - `spawnProcess` mints a fresh token **every time it spawns a process**, and puts it in the child's
-  environment as `AGENTRY_API_TOKEN`, next to `AGENTRY_API_URL`. A chat that runs several turns
+  environment as `CLAUDIO_API_TOKEN`, next to `CLAUDIO_API_URL`. A chat that runs several turns
   (one process per turn) gets a new token each turn.
 - The token is minted **whatever the current mode**. Minting is cheap. If the owner switches the mode
   from `none` to `token` while a turn is running, that turn still holds a working credential. Under
@@ -61,7 +61,7 @@ developer does change a shared type, the usual CI rules apply (see the acceptanc
   recognisable prefix, for example `agc_`, so a leaked one can be recognised in a log.
 - The token is added only when the runtime knows its API URL (`this.apiUrl`). Without a URL the
   token is useless.
-- An inherited `AGENTRY_API_TOKEN` is always removed first, the same way `AGENTRY_API_URL` is. Its
+- An inherited `CLAUDIO_API_TOKEN` is always removed first, the same way `CLAUDIO_API_URL` is. Its
   own chats must never see the token of a wrapper that was started from another wrapper's chat.
 - MCP servers that the CLI starts inherit the CLI's environment. That is how the assistant's MCP
   server will get the token. Nothing extra is needed for this.
@@ -96,7 +96,7 @@ does not validate it), the guard tries the chat-token store. A chat token is acc
    future `trustProxy` cannot widen this check.
 2. **The authority dialled is loopback.** `hostNameOf(req.headers.host)` is `localhost`, `::1` or
    `127.x.x.x`. A request with no `Host` fails this check, and so does a request on a runtime host
-   (the tunnel) or on an `AGENTRY_ALLOWED_HOSTS` name. **This condition is required:** tunnel
+   (the tunnel) or on an `CLAUDIO_ALLOWED_HOSTS` name. **This condition is required:** tunnel
    traffic arrives from `127.0.0.1` (`ssh -R 80:127.0.0.1:<port>`, [tunnel.md](../tunnel.md)), so
    the peer check alone would accept a leaked chat token from the internet.
 3. **No forwarding header is present.** The request has no `Forwarded`, no `X-Forwarded-For`, and no
@@ -126,7 +126,7 @@ is the same under OIDC, and the loopback rules make the token no wider there. If
 
 ### Attribution
 
-- `req.actor` is `chat:<chatId>` (the chat's id, which the process also sees as `AGENTRY_CHAT_ID`).
+- `req.actor` is `chat:<chatId>` (the chat's id, which the process also sees as `CLAUDIO_CHAT_ID`).
   The existing `onResponse` hook writes it to the audit log unchanged, so every write names the chat
   that made it.
 - The owner's actor stays `token:<tokenId>` or the OIDC subject. `local` under `mode: none` is also
@@ -138,7 +138,7 @@ is the same under OIDC, and the loopback rules make the token no wider there. If
 
 ### Unchanged
 
-- Owner token: minting, rotation, `AGENTRY_AUTH_TOKEN_RESET`, the `401`/`429` answers, and the
+- Owner token: minting, rotation, `CLAUDIO_AUTH_TOKEN_RESET`, the `401`/`429` answers, and the
   `WWW-Authenticate` header.
 - `mode: none`: no guard, actor `local`, and no chat-token code on the request path.
 - Host allowlist (`421`) and read-only (`405`). Both run for chat tokens exactly as they do for the
@@ -147,10 +147,10 @@ is the same under OIDC, and the loopback rules make the token no wider there. If
 
 ## Tests
 
-- **Core** (`packages/core/test/chats.test.ts`, following the existing `AGENTRY_CHAT_ID|AGENTRY_API_URL`
+- **Core** (`packages/core/test/chats.test.ts`, following the existing `CLAUDIO_CHAT_ID|CLAUDIO_API_URL`
   fake-CLI test):
-  - The child sees a non-empty `AGENTRY_API_TOKEN`.
-  - An inherited `AGENTRY_API_TOKEN` in `process.env` is replaced, never passed through.
+  - The child sees a non-empty `CLAUDIO_API_TOKEN`.
+  - An inherited `CLAUDIO_API_TOKEN` in `process.env` is replaced, never passed through.
   - Two turns get two different tokens.
   - The token verifies while the process lives, and is refused after `exit`.
   - A late exit from an earlier process leaves the current token valid.
@@ -172,21 +172,21 @@ The e2e suite is not required: no screen changes.
 
 ## Docs
 
-- `docs/chat-environment.md`: add `AGENTRY_API_TOKEN` to the list. Replace "No credential is passed"
+- `docs/chat-environment.md`: add `CLAUDIO_API_TOKEN` to the list. Replace "No credential is passed"
   with the new decision (own token per process, loopback only, revoked at exit and restart, cannot
   administer the guard, audited as `chat:<id>`), and link this spec and the plan.
 - `SECURITY.md`: under "Protected once you turn it on", describe chat tokens and their limits. Under
   "Not protected", add that a process on the machine that can read a chat's environment
   (`/proc/<pid>/environ` as the same user) can use that chat's token from loopback while the chat
   runs. This is the same boundary as `mode: none` for a local user, and it is narrower in time.
-- `CLAUDE.md` of this repo: the sentence about `AGENTRY_API_URL` should add "with
-  `Authorization: Bearer $AGENTRY_API_TOKEN` when it is set".
+- `CLAUDE.md` of this repo: the sentence about `CLAUDIO_API_URL` should add "with
+  `Authorization: Bearer $CLAUDIO_API_TOKEN` when it is set".
 
 ## Out of scope
 
 - A UI for listing or revoking chat tokens.
 - Per-route scopes finer than "everything except administering the guard".
-- Tokens for processes Agentry does not spawn through `spawnProcess`.
+- Tokens for processes Claudio does not spawn through `spawnProcess`.
 
 ## Related
 

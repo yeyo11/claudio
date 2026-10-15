@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { assistantLanguage, type Core } from '@agentry/core';
-import type { AcceptAssistantProposalRequest, StartAgentryAssistantChatRequest, StartAssistantRunRequest } from '@agentry/shared';
+import { assistantLanguage, type Core } from '@claudio/core';
+import type { AcceptAssistantProposalRequest, StartAgentryAssistantChatRequest, StartAssistantRunRequest } from '@claudio/shared';
 import { chatWriteContext } from './work-items.ts';
 
 /**
@@ -10,12 +10,12 @@ import { chatWriteContext } from './work-items.ts';
  */
 export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.post<{ Params: { id: string }; Body: StartAssistantRunRequest }>('/projects/:id/assistant/runs', async (req, reply) => {
-    // The chat's title is written in the language the person reads Agentry in, which the web sends
+    // The chat's title is written in the language the person reads Claudio in, which the web sends
     const run = await core.assistant.start(req.params.id, req.body ?? {}, assistantLanguage(req.headers['accept-language']));
     return reply.code(201).send(run);
   });
 
-  // The Agentry assistant: a global, confined chat that reads Agentry through its MCP server. The body
+  // The Claudio assistant: a global, confined chat that reads Claudio through its MCP server. The body
   // carries a prompt, a project for context and a model and no other option of a chat
   app.post<{ Body: StartAgentryAssistantChatRequest }>('/assistant/chats', async (req, reply) =>
     reply.code(201).send(await core.startAgentryAssistantChat(req.body, assistantLanguage(req.headers['accept-language']))),

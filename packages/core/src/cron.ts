@@ -8,7 +8,7 @@
  * pure function from an expression and an instant to the next instant, and that is testable.
  */
 
-import { describeCronIn, parseCron, type CronSpec, type CronWords } from '@agentry/shared';
+import { describeCronIn, parseCron, type CronSpec, type CronWords } from '@claudio/shared';
 
 // The parser lives in shared so the web reads an expression exactly as the scheduler does
 export { parseCron, type CronSpec };

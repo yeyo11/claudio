@@ -1,11 +1,11 @@
-import type { AssistantRun, AssistantRunDetail, Project } from '@agentry/shared';
+import type { AssistantRun, AssistantRunDetail, Project } from '@claudio/shared';
 import { ChevronLeft, ChevronRight, Info, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { LiveRunHead, RunFacts, RunFindings, RunSources, SuggestionWait } from '../../components/assistant/run';
-import { ICON, ICON_SM, Monogram } from '@agentry/ui/components/icons';
-import { ErrorBox } from '@agentry/ui/components/ui';
+import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
+import { ErrorBox } from '@claudio/ui/components/ui';
 import { projectPath, stageOf } from './model';
 import { SectionHead, useDecide } from './proposals';
 import { Describe, DoneLine, EmptyLine, NoRun, ReadPanel, ResourcesCard, TasksCard, TeamCard } from './cards';

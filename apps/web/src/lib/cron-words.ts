@@ -1,11 +1,11 @@
-import { describeCronIn, parseCron, type CronWords } from '@agentry/shared';
+import { describeCronIn, parseCron, type CronWords } from '@claudio/shared';
 import i18n from '../i18n';
-import { intlLocale } from '@agentry/ui/i18n/language';
+import { intlLocale } from '@claudio/ui/i18n/language';
 
 /*
  * A cron expression in the UI language. The API describes it too, but only in English: it has no
  * language of its own. The parser and the choice of phrase are shared with the server
- * (`@agentry/shared`'s cron module), so the sentence here says what the scheduler will do; only the
+ * (`@claudio/shared`'s cron module), so the sentence here says what the scheduler will do; only the
  * words differ. Validity and the next fires still come from the API, which knows the time zones.
  */
 

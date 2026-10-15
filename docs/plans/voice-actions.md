@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: starting an orchestration by voice
 
-"Hey Siri, create an orchestration", say what it is about, and Agentry starts planning it. The
+"Hey Siri, create an orchestration", say what it is about, and Claudio starts planning it. The
 plan is ready on the phone a couple of minutes later, to be reviewed and launched. No native app,
 no app store, and nothing for the person to build by hand.
 
@@ -19,26 +19,26 @@ Status: **proposed on 2026-09-28**. Nothing is built yet.
 
 ## Why
 
-Agentry is a PWA ([mobile.md](mobile.md)), and a PWA cannot register anything with Siri or
+Claudio is a PWA ([mobile.md](mobile.md)), and a PWA cannot register anything with Siri or
 Gemini. Both only take voice commands from native apps: App Intents on iOS, and App Actions or
 AppFunctions on Android. A native shell was considered again for this and set aside again:
 
 - **iOS.** App Intents need a Mac with Xcode, an Apple Developer account at 99 $ a year, and
   either App Store review (guideline 4.2 rejects a WebView of a server) or TestFlight builds that
-  expire every 90 days. Apple also puts the app's name in the phrase ("…in Agentry").
+  expire every 90 days. Apple also puts the app's name in the phrase ("…in Claudio").
 - **Android.** App Actions belong to Google Assistant, which Gemini is replacing. Its successor,
   [AppFunctions](https://developer.android.com/ai/appfunctions), was a private preview for
   trusted testers in May 2026, on Android 16 and later only. A third-party app cannot ship it today.
 
 What does work without a native app is the Shortcuts app on iOS. Siri runs any shortcut by its
 name, and a shortcut can call an HTTP API. The shortcut's name is the whole phrase, so "Hey Siri,
-create an orchestration" works without "in Agentry". This plan is about making that shortcut
+create an orchestration" works without "in Claudio". This plan is about making that shortcut
 something a person installs in two taps, never something they build.
 
 ## What the person does
 
 1. Settings → **Voice**, on the iPhone, with authentication on. Press **Set up on this iPhone**.
-2. Agentry copies a setup code to the clipboard and opens the shortcut's iCloud link. Shortcuts
+2. Claudio copies a setup code to the clipboard and opens the shortcut's iCloud link. Shortcuts
    shows **Add Shortcut**. Tap it.
 3. Say "Hey Siri, create an orchestration" once. The shortcut finds the code on the clipboard,
    stores it, and clears the clipboard. iOS asks once for permission to save the file.
@@ -47,9 +47,9 @@ Nothing is typed at any step. From then on:
 
 1. "Hey Siri, create an orchestration."
 2. Siri asks "What should it do?", and the person dictates the objective.
-3. Siri answers with what Agentry sent back, e.g. "Planning *add dark mode to the invoices page* in
+3. Siri answers with what Claudio sent back, e.g. "Planning *add dark mode to the invoices page* in
    *billing-web*. I'll let you know when the plan is ready."
-4. When the planner finishes, a push notification ("Plan ready") opens the draft in Agentry. There
+4. When the planner finishes, a push notification ("Plan ready") opens the draft in Claudio. There
    the person reviews it and launches it, as with any other plan.
 
 On a desktop, the Voice section shows a QR code that opens the same page on the phone, because
@@ -76,9 +76,9 @@ the clipboard step has to happen on the iPhone itself.
   warning the tunnel uses.
 - **The setup code travels through the clipboard.** Shortcuts' import questions cannot be
   pre-filled from outside, so they would mean typing a URL and a token on a phone keyboard. The
-  code is `agentry-voice:v1:` followed by base64 JSON `{ url, token }`. On every run the shortcut
+  code is `claudio-voice:v1:` followed by base64 JSON `{ url, token }`. On every run the shortcut
   checks the clipboard for that prefix first. If it is there, the shortcut saves the code to
-  `Shortcuts/agentry-voice.json` in iCloud Drive and clears the clipboard; if not, it reads the
+  `Shortcuts/claudio-voice.json` in iCloud Drive and clears the clipboard; if not, it reads the
   file. So **Set up again** after the address changes is the same two steps, without adding the
   shortcut again. Since the tunnel moved to Tailscale (2026-10-06) its address is stable, so that
   only happens when the machine's tailnet name or the tunnel port changes
@@ -105,7 +105,7 @@ gets:
   which opens the planner with dictation already listening, and **New chat**.
 - **A documented Tasker recipe**, not a supported feature. Tasker's HTTP Request action can call
   the same `/api/voice/orchestrations` with a voice token, and AutoVoice or Tasker's own voice
-  trigger provides the phrase. `docs/voice.md` shows how, and says it is outside what Agentry tests.
+  trigger provides the phrase. `docs/voice.md` shows how, and says it is outside what Claudio tests.
 
 ## API
 
@@ -127,7 +127,7 @@ gets:
 ## Plan ready
 
 Today a planner run notifies nothing (`notifications.ts` leaves housekeeping runs out on purpose).
-When a planner finishes and its draft is recorded, Agentry emits an `orchestration`-kind
+When a planner finishes and its draft is recorded, Claudio emits an `orchestration`-kind
 notification, "Plan ready: <name>", with `href` `/orchestration?draft=<runId>`. That is the
 existing kind, so no new taxonomy ([mobile.md](mobile.md#not-in-this-orchestration)), and it
 reaches the phone through the push already built. It is emitted for every plan, not only
@@ -141,9 +141,9 @@ An agent cannot build it: shortcuts are made in the Shortcuts app and signed by 
 `shortcuts sign` only runs on macOS. The maintainer builds each of the two once on an iPhone,
 following the action list in `docs/voice.md`:
 
-1. Get Clipboard → if it starts with `agentry-voice:v1:`, save it to `agentry-voice.json` and set
+1. Get Clipboard → if it starts with `claudio-voice:v1:`, save it to `claudio-voice.json` and set
    the clipboard to empty.
-2. Get File `agentry-voice.json` → if missing, speak "Set it up from Agentry → Settings → Voice
+2. Get File `claudio-voice.json` → if missing, speak "Set it up from Claudio → Settings → Voice
    first" and stop.
 3. Decode the base64 part into a dictionary (`url`, `token`).
 4. Dictate Text (language fixed per shortcut, stop after a pause).

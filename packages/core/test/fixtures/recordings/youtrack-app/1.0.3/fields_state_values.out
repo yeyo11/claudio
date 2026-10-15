@@ -125,7 +125,7 @@
     "bundle": {
       "values": [
         {
-          "name": "Agentry probe Team",
+          "name": "Claudio probe Team",
           "$type": "ProjectTeam"
         }
       ],

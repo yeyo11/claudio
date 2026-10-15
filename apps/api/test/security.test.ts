@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import { REDACTED } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import { REDACTED } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { FailureBackoff } from '../src/security.ts';
 
@@ -24,8 +24,8 @@ async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpd
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
       ...env,
     }),
   );
@@ -141,10 +141,10 @@ test('an OIDC wrapper refuses a token it cannot check, without reaching for the 
   const configured = await app.inject({
     method: 'PUT',
     url: '/api/security/auth',
-    ...json({ oidc: { issuer: 'http://127.0.0.1:1', audience: 'agentry', clientId: 'ui' }, mode: 'oidc' }),
+    ...json({ oidc: { issuer: 'http://127.0.0.1:1', audience: 'claudio', clientId: 'ui' }, mode: 'oidc' }),
   });
   assert.equal(configured.statusCode, 200);
-  assert.deepEqual(configured.json().oidc, { issuer: 'http://127.0.0.1:1', audience: 'agentry', clientId: 'ui' });
+  assert.deepEqual(configured.json().oidc, { issuer: 'http://127.0.0.1:1', audience: 'claudio', clientId: 'ui' });
 
   const refused = await app.inject({ url: '/api/overview', ...bearer('not.a.jwt') });
   assert.equal(refused.statusCode, 401);
@@ -232,7 +232,7 @@ test('every write leaves an audit row, with who and what but never the body', as
   assert.equal(newest.actor, 'local');
   assert.equal(newest.status, 200);
   // The summary comes from the route's own documentation, not from anything the caller sent
-  assert.equal(newest.summary, 'Remove a project from Agentry');
+  assert.equal(newest.summary, 'Remove a project from Claudio');
   assert.equal(page.entries.some((entry: { summary: string }) => entry.summary === 'Create a project in the workspace'), true);
   assert.equal((await app.inject('/api/audit')).payload.includes('audited'), false, 'no body, and no name from one, is ever recorded');
 
@@ -290,7 +290,7 @@ test('a write refused for want of a credential is recorded as nobody', async (t)
 });
 
 test('the environment can hand a fresh install a closed door', async (t) => {
-  const { app } = await wrapper({ AGENTRY_AUTH_TOKEN: 'a-token-from-a-secret', AGENTRY_READ_ONLY: '1' });
+  const { app } = await wrapper({ CLAUDIO_AUTH_TOKEN: 'a-token-from-a-secret', CLAUDIO_READ_ONLY: '1' });
   t.after(() => app.close());
 
   assert.equal((await app.inject('/api/overview')).statusCode, 401);
@@ -302,28 +302,28 @@ test('the environment can hand a fresh install a closed door', async (t) => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...authed('a-token-from-a-secret', { name: 'x' }) })).statusCode, 405);
 });
 
-test('AGENTRY_AUTH_TOKEN_RESET lets someone who lost the token back in, once, and says so in the log', async (t) => {
+test('CLAUDIO_AUTH_TOKEN_RESET lets someone who lost the token back in, once, and says so in the log', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-security-'));
   const first = await wrapper({}, root);
   const lost = await withToken(first.app);
   await first.app.close();
 
-  const reset = { AGENTRY_AUTH_TOKEN: 'a-recovered-token-from-env', AGENTRY_AUTH_TOKEN_RESET: '1' };
+  const reset = { CLAUDIO_AUTH_TOKEN: 'a-recovered-token-from-env', CLAUDIO_AUTH_TOKEN_RESET: '1' };
   const second = await wrapper(reset, root);
   assert.equal((await second.app.inject({ url: '/api/overview', ...bearer(lost) })).statusCode, 401, 'the lost token no longer opens it');
-  assert.equal((await second.app.inject({ url: '/api/overview', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).statusCode, 200);
-  const rows = (await second.app.inject({ url: '/api/audit?path=/api/security/token', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).json();
+  assert.equal((await second.app.inject({ url: '/api/overview', ...bearer(reset.CLAUDIO_AUTH_TOKEN) })).statusCode, 200);
+  const rows = (await second.app.inject({ url: '/api/audit?path=/api/security/token', ...bearer(reset.CLAUDIO_AUTH_TOKEN) })).json();
   const byEnv = rows.entries.filter((entry: { actor: string }) => entry.actor === 'env');
   assert.equal(byEnv.length, 1);
-  assert.match(byEnv[0].summary, /AGENTRY_AUTH_TOKEN_RESET/);
+  assert.match(byEnv[0].summary, /CLAUDIO_AUTH_TOKEN_RESET/);
   // Someone rotates it from the UI; a restart with the variable still set must not undo that
-  const rotated = (await second.app.inject({ method: 'POST', url: '/api/security/token', ...authed(reset.AGENTRY_AUTH_TOKEN, {}) })).json() as { token: string };
+  const rotated = (await second.app.inject({ method: 'POST', url: '/api/security/token', ...authed(reset.CLAUDIO_AUTH_TOKEN, {}) })).json() as { token: string };
   await second.app.close();
 
   const third = await wrapper(reset, root);
   t.after(() => third.app.close());
   assert.equal((await third.app.inject({ url: '/api/overview', ...bearer(rotated.token) })).statusCode, 200);
-  assert.equal((await third.app.inject({ url: '/api/overview', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).statusCode, 401);
+  assert.equal((await third.app.inject({ url: '/api/overview', ...bearer(reset.CLAUDIO_AUTH_TOKEN) })).statusCode, 401);
   const after = (await third.app.inject({ url: '/api/audit?path=/api/security/token', ...bearer(rotated.token) })).json();
   assert.equal(after.entries.filter((entry: { actor: string }) => entry.actor === 'env').length, 1, 'no second reset row');
 });
@@ -340,7 +340,7 @@ test('a host nobody configured is refused, which is what stops DNS rebinding', a
   // The attack itself: a page on a name whose second lookup answers 127.0.0.1
   const rebound = await app.inject({ url: '/api/overview', headers: { host: 'rebind.evil.test' } });
   assert.equal(rebound.statusCode, 421);
-  assert.match(rebound.json().error, /AGENTRY_ALLOWED_HOSTS/);
+  assert.match(rebound.json().error, /CLAUDIO_ALLOWED_HOSTS/);
 
   // Every guarded path, not just the API: /docs and the reference serve the same install
   assert.equal((await app.inject({ url: '/openapi.json', headers: { host: 'rebind.evil.test' } })).statusCode, 421);
@@ -355,8 +355,8 @@ test('a host nobody configured is refused, which is what stops DNS rebinding', a
   assert.equal((await app.inject({ url: '/api/health', headers: { host: 'rebind.evil.test' } })).statusCode, 200);
 });
 
-test('AGENTRY_ALLOWED_HOSTS names the hosts a deployment answers to, port and case aside', async (t) => {
-  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: 'agentry.example.com, agentry.internal' });
+test('CLAUDIO_ALLOWED_HOSTS names the hosts a deployment answers to, port and case aside', async (t) => {
+  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'agentry.example.com, agentry.internal' });
   t.after(() => app.close());
 
   assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.example.com' } })).statusCode, 200);
@@ -369,7 +369,7 @@ test('AGENTRY_ALLOWED_HOSTS names the hosts a deployment answers to, port and ca
 
 test('a pattern answers to the subdomains of a domain, and to nothing that merely looks like one', async (t) => {
   // What a tunnel needs: its host changes on every start, and only the domain under it is fixed
-  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: '*.tunnel.example, agentry.internal' });
+  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: '*.tunnel.example, agentry.internal' });
   t.after(() => app.close());
 
   for (const host of ['a.tunnel.example', 'a-1234.region.tunnel.example', 'A.Tunnel.Example:8787']) {
@@ -551,7 +551,7 @@ test('the owner is served while something on the same machine polls without a cr
 const DESKTOP_SECRET = 'a-per-launch-secret-of-32-random-bytes';
 
 test("the desktop app's own secret lets its tray read from loopback, whatever token the owner chose", async (t) => {
-  const { app, core } = await wrapper({ AGENTRY_DESKTOP_TOKEN: DESKTOP_SECRET });
+  const { app, core } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET });
   t.after(() => app.close());
   await withToken(app);
 
@@ -575,7 +575,7 @@ test("the desktop app's own secret lets its tray read from loopback, whatever to
 });
 
 test("the desktop app's secret is refused from anywhere but this machine, and a wrong one is a guess", async (t) => {
-  const { app } = await wrapper({ AGENTRY_DESKTOP_TOKEN: DESKTOP_SECRET, AGENTRY_ALLOWED_HOSTS: 'agentry.example' });
+  const { app } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET, CLAUDIO_ALLOWED_HOSTS: 'agentry.example' });
   t.after(() => app.close());
   await withToken(app);
   const withSecret = (secret: string) => ({ authorization: `Bearer ${secret}` });
@@ -595,7 +595,7 @@ test('without a desktop secret configured, nothing is accepted in its place', as
   assert.equal((await app.inject({ url: '/api/overview', ...bearer(DESKTOP_SECRET) })).statusCode, 401);
 });
 
-// ---------- a chat's own token (AGENTRY_API_TOKEN) ----------
+// ---------- a chat's own token (CLAUDIO_API_TOKEN) ----------
 
 /** How a chat on this machine calls the wrapper that started it: loopback peer, loopback name. */
 const fromChat = (token: string, extra: Record<string, string> = {}) => ({
@@ -626,7 +626,7 @@ test("a chat's token opens a guarded read and a write from loopback, and the wri
 });
 
 test("a chat's token is refused, like a wrong token, from anywhere that is not a chat on this machine", async (t) => {
-  const { app, core } = await wrapper({ AGENTRY_ALLOWED_HOSTS: 'agentry.example' });
+  const { app, core } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'agentry.example' });
   t.after(() => app.close());
   await withToken(app);
   core.appSettings.runtimeHosts.add('abc123.lhr.life', { clientIpHeader: 'X-Client-Ip' });
@@ -742,7 +742,7 @@ test("read-only and the host allowlist apply to a chat's token as to the owner's
 test("a chat's token is honoured under OIDC too, under the same loopback rules", async (t) => {
   const { app, core } = await wrapper();
   t.after(() => app.close());
-  const configured = await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ oidc: { issuer: 'http://127.0.0.1:1', audience: 'agentry', clientId: 'ui' }, mode: 'oidc' }) });
+  const configured = await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ oidc: { issuer: 'http://127.0.0.1:1', audience: 'claudio', clientId: 'ui' }, mode: 'oidc' }) });
   assert.equal(configured.statusCode, 200);
   const token = core.security.chatTokens.mint('chat-42');
   assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 200);

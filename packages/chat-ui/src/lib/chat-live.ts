@@ -1,6 +1,6 @@
-import type { Chat, ChecklistItem } from '@agentry/shared';
-import type { TickerActivity } from '@agentry/ui/lib/live';
-import type { ProgressCounts, StepState } from '@agentry/ui/lib/progress';
+import type { Chat, ChecklistItem } from '@claudio/shared';
+import type { TickerActivity } from '@claudio/ui/lib/live';
+import type { ProgressCounts, StepState } from '@claudio/ui/lib/progress';
 
 /*
  * What the chat page says about a chat that is alive, without React: the one pill that merges its

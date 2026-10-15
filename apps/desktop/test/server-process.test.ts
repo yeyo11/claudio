@@ -21,7 +21,7 @@ test('each launch has a secret of its own, long enough that nobody guesses it', 
 test("the server the app spawns is handed the launch's secret, beside what the person set", async () => {
   const secret = newDesktopSecret();
   const env = envFor(secret, { PORT: '9999', SOMETHING_OF_MINE: 'kept' });
-  assert.equal(env.AGENTRY_DESKTOP_TOKEN, secret);
+  assert.equal(env.CLAUDIO_DESKTOP_TOKEN, secret);
   assert.equal(env.SOMETHING_OF_MINE, 'kept');
   assert.equal(env.PORT, '9999', 'PORT from the environment still wins');
   assert.equal(envFor(secret).PORT, '43123');
@@ -34,8 +34,8 @@ test("the server the app spawns is handed the launch's secret, beside what the p
   writeFileSync(
     entry,
     `import { writeFileSync } from 'node:fs';
-writeFileSync(process.env.SEEN_FILE, process.env.AGENTRY_DESKTOP_TOKEN ?? '');
-console.log('AGENTRY_READY ' + JSON.stringify({ url: 'http://127.0.0.1:1', port: 1 }));
+writeFileSync(process.env.SEEN_FILE, process.env.CLAUDIO_DESKTOP_TOKEN ?? '');
+console.log('CLAUDIO_READY ' + JSON.stringify({ url: 'http://127.0.0.1:1', port: 1 }));
 setInterval(() => {}, 1000);
 `,
   );
@@ -51,8 +51,8 @@ setInterval(() => {}, 1000);
   assert.equal(readFileSync(log.path, 'utf8').includes(secret), false, 'the secret is never logged');
 });
 
-test("the tray sends the launch's secret, and AGENTRY_AUTH_TOKEN only when there is none", () => {
-  assert.deepEqual(monitorHeaders('launch-secret', { AGENTRY_AUTH_TOKEN: 'from-env' }), { Authorization: 'Bearer launch-secret' });
-  assert.deepEqual(monitorHeaders(undefined, { AGENTRY_AUTH_TOKEN: ' from-env ' }), { Authorization: 'Bearer from-env' });
+test("the tray sends the launch's secret, and CLAUDIO_AUTH_TOKEN only when there is none", () => {
+  assert.deepEqual(monitorHeaders('launch-secret', { CLAUDIO_AUTH_TOKEN: 'from-env' }), { Authorization: 'Bearer launch-secret' });
+  assert.deepEqual(monitorHeaders(undefined, { CLAUDIO_AUTH_TOKEN: ' from-env ' }), { Authorization: 'Bearer from-env' });
   assert.deepEqual(monitorHeaders(undefined, {}), {});
 });

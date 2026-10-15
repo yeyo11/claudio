@@ -2,10 +2,10 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { OrchestrationTimings } from '@agentry/shared';
+import type { OrchestrationTimings } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TimingsBody } from '../src/components/TimingsPanel';
-import { formatDuration as d } from '@agentry/ui/lib/format';
+import { formatDuration as d } from '@claudio/ui/lib/format';
 import i18n, { setLanguage } from '../src/i18n';
 import { PHASE_CELLS, phaseCellCounts, phaseCells, timingsPhaseKey } from '../src/lib/orchestration-timings';
 

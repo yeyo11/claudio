@@ -1,12 +1,12 @@
-import type { IssueRef, IssueSyncState, WorkItemDetail } from '@agentry/shared';
+import type { IssueRef, IssueSyncState, WorkItemDetail } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleDot, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { canSyncAgain, issueChipText, issueRef, SYNC_TONE, trackerWords } from '../../../lib/trackers';
 
 /** An issue's sync state as a dot and a word; the word is what says it, the colour only agrees. */
@@ -109,7 +109,7 @@ function IssueRow({ item, issue }: { item: Pick<WorkItemDetail, 'id'>; issue: Is
 
 /**
  * The item's issues as a panel beside the pull request's: one block per tracker with each issue's
- * state, why its last write failed and, only then, Sync again. Agentry writes once per event; the
+ * state, why its last write failed and, only then, Sync again. Claudio writes once per event; the
  * second try is this click, never a timer.
  */
 export function Issues({ item }: { item: Pick<WorkItemDetail, 'id' | 'issues'> }) {

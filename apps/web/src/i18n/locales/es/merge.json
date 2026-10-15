@@ -2,9 +2,9 @@
   "title": "Fusión",
   "sub": "{{ref}} · {{head}} → {{base}} · {{sha}}",
   "loading": "Leyendo qué impide la fusión…",
-  "failed": "Agentry no ha podido leer el estado de la fusión en {{host}}.",
+  "failed": "Claudio no ha podido leer el estado de la fusión en {{host}}.",
   "retry": "Reintentar",
-  "limited": "{{host}} está limitando las lecturas. Este es el último estado que tenía Agentry; vuelve a leer a las {{time}}.",
+  "limited": "{{host}} está limitando las lecturas. Este es el último estado que tenía Claudio; vuelve a leer a las {{time}}.",
   "badge": {
     "ready": "lista para fusionar",
     "warning": "se puede, con aviso",
@@ -55,8 +55,8 @@
   },
   "note": {
     "done": "Al fusionar, la tarea pasa sola a Hecho.",
-    "arm": "{{host}} fusionará la {{noun}} cuando terminen las comprobaciones, aunque Agentry esté cerrado.",
-    "armed": "Si Agentry sube cambios a la rama, la desactiva antes y te avisa para que la actives otra vez.",
+    "arm": "{{host}} fusionará la {{noun}} cuando terminen las comprobaciones, aunque Claudio esté cerrado.",
+    "armed": "Si Claudio sube cambios a la rama, la desactiva antes y te avisa para que la actives otra vez.",
     "pipelineWait": "Fusionar ahora podría saltarse la pipeline del commit que acabas de subir.",
     "merging": "Enviando la fusión a {{host}}…"
   },
@@ -73,7 +73,7 @@
   },
   "headMoved": {
     "title": "La rama cambió mientras mirabas, y no se fusionó nada.",
-    "text": "Lee los cambios nuevos y vuelve a fusionar: Agentry nunca fusiona un commit que no hayas visto.",
+    "text": "Lee los cambios nuevos y vuelve a fusionar: Claudio nunca fusiona un commit que no hayas visto.",
     "seen": "el que viste",
     "now": "el que tiene la rama ahora",
     "changes": "Ver los cambios"
@@ -99,7 +99,7 @@
   },
   "update": {
     "busy": "No se ha actualizado nada: un chat, una ejecución u otra acción está trabajando en esta rama. Inténtalo de nuevo cuando termine.",
-    "not-offered": "Agentry no puede actualizar esta rama: esta {{noun}} no tiene copia local aquí. Actualízala en {{host}}.",
+    "not-offered": "Claudio no puede actualizar esta rama: esta {{noun}} no tiene copia local aquí. Actualízala en {{host}}.",
     "not-open": "No se ha actualizado nada: esta {{noun}} ya no está abierta.",
     "merge-failed": "No se ha podido actualizar la rama desde {{base}}. No se ha subido nada."
   },
@@ -111,7 +111,7 @@
     "waiting-for-pipeline": "{{host}} aún no ha asociado la pipeline de este commit. Inténtalo de nuevo en un momento.",
     "rate-limited": "{{host}} está limitando las peticiones. Inténtalo más tarde.",
     "forbidden": "Solo una persona puede fusionar, y esta cuenta no puede.",
-    "busy": "Agentry sigue trabajando en esta rama: hay una subida u otra acción de fusión en marcha. Inténtalo de nuevo cuando termine.",
+    "busy": "Claudio sigue trabajando en esta rama: hay una subida u otra acción de fusión en marcha. Inténtalo de nuevo cuando termine.",
     "merge-failed": "{{host}} ha rechazado la fusión."
   },
   "blocker": {
@@ -223,11 +223,11 @@
     "refresh": "Volver a comprobar"
   },
   "autoMergeOff": {
-    "pushing": "Agentry ha desactivado la fusión automática y está subiendo cambios a la rama. Vuelve a activarla cuando termine.",
-    "push": "Agentry desactivó la fusión automática {{when}} porque subió cambios a la rama. Vuelve a activarla si aún la quieres.",
+    "pushing": "Claudio ha desactivado la fusión automática y está subiendo cambios a la rama. Vuelve a activarla cuando termine.",
+    "push": "Claudio desactivó la fusión automática {{when}} porque subió cambios a la rama. Vuelve a activarla si aún la quieres.",
     "update": "{{who}} desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres.",
     "updateYou": "Desactivaste la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres.",
-    "updateAgentry": "Agentry desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres."
+    "updateAgentry": "Claudio desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres."
   },
   "rebaseOnHostWhy": {
     "uncommitted-changes": "No se ofrece rebase en {{host}}: la copia local tiene cambios sin confirmar y el rebase la dejaría atrasada.",

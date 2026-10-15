@@ -39,7 +39,7 @@ Everything a member does goes through the Claude Code CLI. A member is a CLI age
 chat started with `--agent`, and a run's result comes back through `--json-schema`. No SDK and no
 HTTP call to Anthropic.
 
-## A member is an agent file plus Agentry's metadata
+## A member is an agent file plus Claudio's metadata
 
 `packages/core/src/team.ts` (`TeamService`). A member (decision 26) is two things:
 
@@ -51,13 +51,13 @@ HTTP call to Anthropic.
   commands it may run in the work stage (`commands`, see
   [What a run may do](#what-a-run-may-do)).
 
-**The agent file belongs to the person.** Agentry writes a starting file only where there is none,
+**The agent file belongs to the person.** Claudio writes a starting file only where there is none,
 with an exclusive create, so not even a race overwrites one. The file's frontmatter has `name`,
 `description` (the responsibility) and `model`. Its body states the role, what the role does when
 the flow hands it a card, what it may write, and how a flow run ends.
 
-Afterwards Agentry rewrites the file to follow the metadata **only while it is byte for byte what
-Agentry last wrote**. It keeps the hash of every file it wrote in `data/team-files/<projectId>.json`
+Afterwards Claudio rewrites the file to follow the metadata **only while it is byte for byte what
+Claudio last wrote**. It keeps the hash of every file it wrote in `data/team-files/<projectId>.json`
 to know that. Any other file is the person's and is never written again. `GET /projects/:id/team`
 reports each member's file as:
 
@@ -102,7 +102,7 @@ settings, `flow`:
 | `columns` | The role that answers for each column |
 | `maxBounces` | How many times verification may send an item back in one round, 0 to 20 |
 | `maxParallel` | Runs of the project at once, 1 to 10 (`MAX_FLOW_PARALLEL`). Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`) |
-| `maxCostUsd` | What one run may spend, in USD, above 0 and up to 100. Optional: absent means no limit of Agentry's own |
+| `maxCostUsd` | What one run may spend, in USD, above 0 and up to 100. Optional: absent means no limit of Claudio's own |
 
 Both limits are edited on the Flow screen (see [Team](#team-viewteam)).
 
@@ -194,7 +194,7 @@ Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
   Documents module reads;
 - `--agent <agent>`, with `--agents` pointing at a definition read from the agent file **in the
   project's checkout**. The worktree only has the agent files that were committed, and the file the
-  person edits in Agentry is the one that should run. The definition carries the file's `tools` and
+  person edits in Claudio is the one that should run. The definition carries the file's `tools` and
   `disallowedTools` (as a comma list, a `[a, b]` list or a block list of `- a` lines,
   `readFrontmatterList` in `team.ts`) and the **member's** model, so a `model` in the file never runs
   a role on a model its screen does not show. It is written under `data/flow-agents/`, named by its
@@ -213,8 +213,8 @@ Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
   and its title ("Desarrollador · AGN-12 · Fix the cart"), since a chat is listed by the first line of
   its first prompt (orchestration 6, gap 13). A run starts with no request of the person's behind it,
   so the core keeps the language the panel last named in `Accept-Language`; a header that names none
-  of Agentry's languages leaves it as it was. The run stores that language when it is queued
-  (`flow_runs.language`, `FlowRun.language`), so a run still queued when Agentry restarts, before the
+  of Claudio's languages leaves it as it was. The run stores that language when it is queued
+  (`flow_runs.language`, `FlowRun.language`), so a run still queued when Claudio restarts, before the
   person's next request names a language again, is titled as it would have been. The item follows, as "Work on it" gives it, then the
   stage's instructions in English (`flowPrompt`).
 
@@ -243,7 +243,7 @@ created **or resumed**, `launchFlowRun` brings the item's documents across:
 - **The prompt.** A work or verify prompt gets one line, after the item's part, naming every tied
   document now in the worktree, copied or already there: ``The item's specification is in this
   worktree: `docs/plans/x.md`.`` A prompt with no tied document has no such line. A resumed
-  Developer's chat gets it too; the short "Agentry restarted…" prompt of a continued run does not, but
+  Developer's chat gets it too; the short "Claudio restarted…" prompt of a continued run does not, but
   the sync still runs before it.
 - **Failure.** If copying or committing fails (a git error, an index lock), the launch throws
   `ItemDocumentsError` with git's message, before any chat is created or resumed. The run ends failed
@@ -306,7 +306,7 @@ that, the result it has decides, as before.
 
 - **`git push` is denied** as `Bash(git push)` and `Bash(git push *)`: a member's work stays on the
   item's branch until a person takes it further. That holds for the Developer's run that resolves a
-  merge conflict too. **The push is Agentry's own**: once the person approves the item, the core
+  merge conflict too. **The push is Claudio's own**: once the person approves the item, the core
   process runs `git push` and `gh pr create` itself, as the person, never as an agent
   ([work-items.md](work-items.md#approving-opens-its-pull-request)).
 - **Only working reaches the network.** Refining and verifying read the project.
@@ -345,7 +345,7 @@ that, the result it has decides, as before.
   not only a wildcard, and **no comma**, since the flow hands the CLI its rules as one comma-joined
   `--allowedTools=` list and a comma would cut a rule in two. The route and the screen say a comma
   is the problem; the flow leaves out a pattern that got into the settings anyway, which allows
-  less, never more. `null` in the route drops the list. The agent file Agentry owns says what the member may run. The
+  less, never more. `null` in the route drops the list. The agent file Claudio owns says what the member may run. The
   template's Developer gets no list, so the default stays unlimited unless the owner chooses.
   Refining and verifying keep their own tool sets whatever `commands` says. From a terminal, both are
   only the agent file's instructions.
@@ -406,7 +406,7 @@ and a cause the history translates: `flow.refined`, `flow.worked`, `flow.rejecte
 `flow.bounces`.
 
 **The approval opens the item's pull request.** In a project that can open PRs, the person's
-approval of an item waiting in `in_review` is "Aprobar y abrir PR": Agentry commits what QA verified,
+approval of an item waiting in `in_review` is "Aprobar y abrir PR": Claudio commits what QA verified,
 merges the default branch into the item's branch, pushes it and opens the PR, and the item stays in
 `in_review` with `waiting: 'merge'` until the person merges it on GitHub. The merge moves it to Done
 as the person (cause `pr.merged`), so decision 29 still holds: only a person's act closes an item.
@@ -417,7 +417,7 @@ See [work-items.md](work-items.md#approving-opens-its-pull-request).
 branch into the item's branch conflicts, nothing is pushed: the merge stays in progress in the
 item's worktree and the item moves to `in_progress` as the person (cause `pr.conflict`), which starts
 the Developer's work run. Its prompt adds a section, "Resolve the merge of `<default>` into this
-branch", naming every conflicting path, and still says not to push. When that run ends well, Agentry
+branch", naming every conflicting path, and still says not to push. When that run ends well, Claudio
 checks the worktree: a merge resolved but left open is committed; conflicted paths still there fail
 the run with the cause `conflict-unresolved`. QA then verifies as usual, and its pass opens the PR
 with no second click (`pullRequest.phase: 'awaiting-verify'` until then). A person's move of the item
@@ -508,12 +508,12 @@ The flow is driven by the event feed and the runtime's results, never by polling
 until the runtime has restored its chats, since a chat still being restored looks like one that
 ended. Then `recover()` puts a run that the restart cut off back in the queue:
 
-- It **keeps its chat**, and continues there with "Agentry restarted while you were on this run".
+- It **keeps its chat**, and continues there with "Claudio restarted while you were on this run".
 - It **keeps when it started** (`started_at`), so a person's move made before the restart still stops
   the run from moving the item.
 - **Only its own chat.** If that chat cannot be continued (its record is gone, or something else
   holds it), the run **fails**, with its comment on the item. Before, it started a fresh chat whose
-  only prompt was "Agentry restarted…", with none of the item's context, and that chat's result
+  only prompt was "Claudio restarted…", with none of the item's context, and that chat's result
   still moved the card.
 - **At most twice** (`MAX_FLOW_RESTARTS`, counted in `flow_runs.restarts`). A run cut off a third
   time fails, since whatever keeps taking the wrapper down would keep spending.
@@ -547,7 +547,7 @@ replaying it would spend on a result nobody reads.
 ## The journal
 
 `packages/core/src/journal.ts` (`JournalService`), decision 32. The CLI's own memory (`CLAUDE.md` and
-the project's memory directory) is shared memory as it is. The journal is what Agentry adds beside
+the project's memory directory) is shared memory as it is. The journal is what Claudio adds beside
 it: rows per project in `journal_entries`, newest first, paged.
 
 Three things write it:
@@ -605,7 +605,7 @@ route that creates a proposal: only a flow run's result makes one.
 
 `packages/core/src/documents.ts` (`DocumentService`), decision 34. The Documents module is the
 project's **documents folder**, `documents.path` in its settings (`docs` by default): its Markdown
-files, read and written from Agentry, and tied to work items.
+files, read and written from Claudio, and tied to work items.
 
 **Path traversal is refused twice.** `document-paths.ts` refuses a path's shape first: absolute,
 `..`, empty or hidden parts, not Markdown, or outside the folder. Then the file, or its nearest
@@ -632,7 +632,7 @@ every place the audit's note N5 lists:
 `team_role` is general: the flow records the role whose run made any link.
 
 - **A run's documents** are written by the agent itself, and reported in its result: a refine's in
-  the project's checkout, a work or verify run's in the item's worktree. Agentry ties each to the
+  the project's checkout, a work or verify run's in the item's worktree. Claudio ties each to the
   item with the run's stage as the link's role and the member's role as `teamRole`. The tied
   documents are brought from the checkout into the item's worktree, and committed on its branch,
   before each work or verify run (see [How a run starts](#how-a-run-starts)).
@@ -742,7 +742,7 @@ as written, and saving a member untouched keeps the English. A test reads core's
   runs: today by member and the flow's limits. The list pages by 50 with "Mostrar 50 más · quedan
   N". The crumbs read "Equipo / Actividad".
 - **Add a member.** A role, the agent file that plays it (one already in `.claude/agents/` or a new
-  one Agentry writes), its model and what it answers for.
+  one Claudio writes), its model and what it answers for.
 
 ### The board worked by a team
 
@@ -857,7 +857,7 @@ described above where it now lives. The last detail, the model's name, was close
   with dots, with the variant after it: `claude-sonnet-5` is "Sonnet 5", `claude-opus-5-5`
   "Opus 5.5", `claude-haiku-4-5-20251001` "Haiku 4.5", `claude-fable-5-1[1m]` "Fable 5.1 (1M)". A
   label the CLI gives wins over the derived one. Until a chat has run on an alias it shows alone,
-  and an id off that scheme is left unnamed rather than guessed. No list of Agentry's own and no
+  and an id off that scheme is left unnamed rather than guessed. No list of Claudio's own and no
   call to Anthropic: only what the CLI reported.
 
 ## Related

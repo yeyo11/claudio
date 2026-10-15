@@ -1,10 +1,10 @@
-import type { WorkItem } from '@agentry/shared';
+import type { WorkItem } from '@claudio/shared';
 import { Ban, Check, CircleDot, Folder, X } from 'lucide-react';
 import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { DecisionMarkOf, useVisibleDecisions } from '../../../components/DecisionMark';
-import { Monogram, nameHue } from '@agentry/ui/components/icons';
+import { Monogram, nameHue } from '@claudio/ui/components/icons';
 import { issueChipText } from '../../../lib/trackers';
 import { PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/work-item-icons';
 import { stripNamesAssignee, taskPath, workItemLiveState, workItemStrip, type WorkItemStripState } from '../../../lib/work-items';

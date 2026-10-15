@@ -14,7 +14,7 @@ import {
   type SystemOneRequest,
   type SystemOneResult,
 } from '@typesafe-ai/sdk';
-import type { DecisionAnswer, DecisionQuestion, DecisionUnavailableReason } from '@agentry/shared';
+import type { DecisionAnswer, DecisionQuestion, DecisionUnavailableReason } from '@claudio/shared';
 import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engine.ts';
 import { JEV_MODEL, JEV_PRICE_USD_PER_INPUT_TOKEN } from '../settings.ts';
 

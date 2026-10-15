@@ -35,8 +35,8 @@ import type {
   WorkItemSource,
   WorkItemStatus,
   WorkItemType,
-} from '@agentry/shared';
-import { DOCUMENT_KINDS, WORK_ITEM_LINK_KINDS, WORK_ITEM_LINK_ROLES, WORK_ITEM_STATUSES, workItemKey } from '@agentry/shared';
+} from '@claudio/shared';
+import { DOCUMENT_KINDS, WORK_ITEM_LINK_KINDS, WORK_ITEM_LINK_ROLES, WORK_ITEM_STATUSES, workItemKey } from '@claudio/shared';
 
 /**
  * The work item tables as SQLite hands their rows back, and the conversions between those rows and

@@ -1,8 +1,8 @@
-import type { HealthSignal, TaskLimits } from '@agentry/shared';
+import type { HealthSignal, TaskLimits } from '@claudio/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
 
-// The signals that say a worker is busy and not getting anywhere, worked out from what Agentry
+// The signals that say a worker is busy and not getting anywhere, worked out from what Claudio
 // already receives: the tool calls and results of its stream, and what its worktree shows. Each is a
 // pure function of a trace and a clock, so the rules are tested with made-up ones. The rules that
 // need only a command's age (a hung command, silence) live in `chat-model.ts` beside the rest of
@@ -350,8 +350,8 @@ export function lastFileChangeAt(trace: Trace): string | null {
 export const SOFT_LIMIT = 0.8;
 
 /**
- * A task past most of the time or cost it was allowed. The time is Agentry's to enforce, so past
- * the limit it is `bad` and the task is stopped; the cost is enforced by the CLI itself, and Agentry
+ * A task past most of the time or cost it was allowed. The time is Claudio's to enforce, so past
+ * the limit it is `bad` and the task is stopped; the cost is enforced by the CLI itself, and Claudio
  * only ever knows what earlier executions cost (the CLI reports cost when a turn ends), so this
  * says so only for what has been spent.
  */

@@ -1,12 +1,12 @@
-import type { ChatExport, ChatOrigin, ChatSummary, ExportFormat, Project, TokenUsage } from '@agentry/shared';
+import type { ChatExport, ChatOrigin, ChatSummary, ExportFormat, Project, TokenUsage } from '@claudio/shared';
 import { chatToMarkdown, count, oneLine, slugOf, usd } from './chat-export.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 /**
- * The chats a project export holds. Housekeeping chats are left out: they are Agentry's own
+ * The chats a project export holds. Housekeeping chats are left out: they are Claudio's own
  * errands (a title, a summary), not work done in the project, and most have no transcript.
  */
-export const EXPORTED_ORIGINS: readonly ChatOrigin[] = ['agentry', 'external', 'orchestration'];
+export const EXPORTED_ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration'];
 
 /**
  * What a project export is made of. The chats are listed up front, because the header needs their
@@ -66,8 +66,8 @@ function projectHeader(source: ProjectExportSource): string {
   const reported = chats.filter((c) => c.cost.usd !== null);
   const unreported = chats.length - reported.length;
   const spent = reported.reduce((sum, c) => sum + (c.cost.usd ?? 0), 0);
-  const without = unreported ? `; ${count(unreported)} ${unreported === 1 ? 'chat' : 'chats'} started outside Agentry reported none and ${unreported === 1 ? 'is' : 'are'} not in it` : '';
-  fact('Cost', reported.length ? `${usd(spent)} (as reported by the CLI${without})` : 'not reported: the CLI only reports a cost for chats Agentry started');
+  const without = unreported ? `; ${count(unreported)} ${unreported === 1 ? 'chat' : 'chats'} started outside Claudio reported none and ${unreported === 1 ? 'is' : 'are'} not in it` : '';
+  fact('Cost', reported.length ? `${usd(spent)} (as reported by the CLI${without})` : 'not reported: the CLI only reports a cost for chats Claudio started');
 
   const tokens = emptyTokenUsage();
   for (const chat of chats) addTokens(tokens, chat.cost.total);

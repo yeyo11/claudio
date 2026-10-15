@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { LoginSession, SetupState, SignOutResult } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { LoginSession, SetupState, SignOutResult } from '@claudio/shared';
 
 const notFound = (id: string): Error => Object.assign(new Error(`sign-in ${id} not found`), { statusCode: 404 });
 

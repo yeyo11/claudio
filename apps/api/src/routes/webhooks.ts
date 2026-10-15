@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { CodeHostId } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { CodeHostId } from '@claudio/shared';
 
 /** A delivery larger than this is refused with 413; the pacer's polling covers what it would have said. */
 export const WEBHOOK_BODY_LIMIT = 5 * 1024 * 1024;

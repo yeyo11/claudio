@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import test, { after } from 'node:test';
-import type { ChangeRequestChecks, Check, DecisionAnswer, DecisionRecord, WorkItem } from '@agentry/shared';
+import type { ChangeRequestChecks, Check, DecisionAnswer, DecisionRecord, WorkItem } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { ChecksFix } from '../src/decisions/checks-fix.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
@@ -205,7 +205,7 @@ test('checks.fix resolves against the head the rollup reads after the failing on
   const T = '2026-10-01T10:00:00.000Z';
   db.connection.prepare("INSERT INTO work_items (id, project_id, number, type, title, description, status, priority, rank, created_at, updated_at) VALUES ('i1', 'p1', 1, 'task', 't', '', 'in_review', 'medium', 'a', ?, ?)").run(T, T);
   db.connection
-    .prepare("INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, branch, base, approved_at, created_at, updated_at) VALUES ('cr1', 'i1', 'p1', 'open', 7, 'task/AGN-1', 'main', ?, ?, ?)")
+    .prepare("INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, branch, base, approved_at, created_at, updated_at) VALUES ('cr1', 'i1', 'p1', 'open', 7, 'claudio-task/AGN-1', 'main', ?, ?, ?)")
     .run(T, T, T);
   const snapshot = (head: string, rollup: string) =>
     db.connection.prepare('INSERT OR REPLACE INTO change_request_snapshots (cr_id, kind, head_sha, checks, rollup, fetched_at) VALUES (?, ?, ?, ?, ?, ?)').run('cr1', 'work-item', head, '[]', rollup, T);

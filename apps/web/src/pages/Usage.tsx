@@ -1,4 +1,4 @@
-import type { UsageBucket, UsagePoint, UsageSlice } from '@agentry/shared';
+import type { UsageBucket, UsagePoint, UsageSlice } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,16 +6,16 @@ import { api, keys, useUsageBreakdown, useUsageSeries, type UsageRange } from '.
 import { BarChart } from '../components/BarChart';
 import { DecisionsLineView } from '../components/DecisionsLine';
 import { ProjectExportCard } from '../components/ProjectExport';
-import { DatePicker } from '@agentry/ui/components/controls';
-import { Card, Empty, ErrorBox, Segmented, Skeleton } from '@agentry/ui/components/ui';
+import { DatePicker } from '@claudio/ui/components/controls';
+import { Card, Empty, ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
-import { formatCost, formatNumber } from '@agentry/ui/lib/format';
-import { intlLocale } from '@agentry/ui/i18n/language';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { formatCost, formatNumber } from '@claudio/ui/lib/format';
+import { intlLocale } from '@claudio/ui/i18n/language';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { useProjectScope } from '../lib/project-scope';
 import { bucketFor, customRangeError, metricValue, presetRange, sumMetric, topSlices, type RangePreset, type UsageMetric } from '../lib/usage-view';
-import { parseDay, toDay } from '@agentry/ui/lib/calendar';
+import { parseDay, toDay } from '@claudio/ui/lib/calendar';
 import '../insights.css';
 
 const PRESETS: readonly RangePreset[] = ['7d', '30d', '90d', 'all', 'custom'];

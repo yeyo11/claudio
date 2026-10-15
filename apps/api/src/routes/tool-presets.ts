@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /** The named tool sets a chat can be started or resumed with (`toolPreset` on the chat requests). */
 export const toolPresetRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

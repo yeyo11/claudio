@@ -5,7 +5,7 @@ import { AuthStore } from '../src/security/auth.ts';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
-// Agentry's own secrets in what may leave the machine. On 2026-10-02 the owner's API token reached
+// Claudio's own secrets in what may leave the machine. On 2026-10-02 the owner's API token reached
 // Jev in a decision's state: a chat's command held it as `T="…"`, which no pattern of a credential
 // matches. The token is kept only as a hash, so it is recognised by hashing every word long enough
 // to be one; the secrets kept in plain are masked as they are.
@@ -31,7 +31,7 @@ test("the owner's token is masked wherever a command holds it, recognised by its
 test("a chat's token is masked by its prefix, and by the store that minted it", async () => {
   const store = new AuthStore(tempConfig(), {});
   const chat = store.chatTokens.mint('chat-1');
-  assert.equal(maskSecrets(`AGENTRY_API_TOKEN=x; echo ${chat}`).includes(chat), false);
+  assert.equal(maskSecrets(`CLAUDIO_API_TOKEN=x; echo ${chat}`).includes(chat), false);
   assert.equal(store.isOwnSecret(chat), true);
   assert.equal(store.isOwnSecret(`agc_${'a'.repeat(43)}`), false);
 });

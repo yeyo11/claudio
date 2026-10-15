@@ -9,9 +9,9 @@ x-defaults: &defaults
 services:
   api:
     <<: *defaults
-    image: ghcr.io/example/agentry:latest
+    image: ghcr.io/example/claudio:latest
     ports:
-      - "8787:8787"
+      - "8797:8797"
       - 9229:9229
     environment:
       NODE_ENV: production
@@ -23,9 +23,9 @@ services:
     volumes:
       - ./data:/data:rw
       - claude-config:/home/node/.claude
-    command: ["node", "dist/server.js", "--port", "8787"]
+    command: ["node", "dist/server.js", "--port", "8797"]
     healthcheck:
-      test: curl -fsS http://localhost:8787/api/health || exit 1
+      test: curl -fsS http://localhost:8797/api/health || exit 1
       interval: 30s
     depends_on: [db]
   db:
@@ -42,16 +42,16 @@ volumes:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agentry
+  name: claudio
   labels:
-    app.kubernetes.io/name: agentry
+    app.kubernetes.io/name: claudio
 spec:
   replicas: 2
   template:
     spec:
       containers:
         - name: api
-          image: "ghcr.io/example/agentry:1.2.3"
+          image: "ghcr.io/example/claudio:1.2.3"
           args:
             - --verbose
             - --timeout=30

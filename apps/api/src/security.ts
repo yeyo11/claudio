@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, chatActor, type Core, type RuntimeHosts } from '@agentry/core';
+import { DESKTOP_ACTOR, chatActor, type Core, type RuntimeHosts } from '@claudio/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -88,7 +88,7 @@ function allowlist(patterns: readonly string[]): { names: ReadonlySet<string>; s
  * A browser sends the name it was pointed at, so a page served from a name with a one-second TTL
  * that rebinds to 127.0.0.1 arrives here carrying that name, and same-origin policy has stopped
  * protecting the install. Refusing an authority nobody configured is what closes it: a local
- * install is reached through loopback, and `AGENTRY_ALLOWED_HOSTS` names whatever else a
+ * install is reached through loopback, and `CLAUDIO_ALLOWED_HOSTS` names whatever else a
  * deployment answers to.
  *
  * A request with no `Host` at all passes: HTTP/1.1 requires one and every browser sends one, so it
@@ -165,16 +165,16 @@ const CHAT_FORBIDDEN = new Set([
   `DELETE ${API_PREFIX}/security/token`,
   `POST ${API_PREFIX}/tunnel/start`,
   `PUT ${API_PREFIX}/tunnel/settings`,
-  // It names a binary Agentry will run, so a prompt injection must not be able to point it at one
+  // It names a binary Claudio will run, so a prompt injection must not be able to point it at one
   `PUT ${API_PREFIX}/providers/settings`,
   `POST ${API_PREFIX}/providers/refresh`,
-  // Same for the code hosts: the settings name the gh or glab binary Agentry will run
+  // Same for the code hosts: the settings name the gh or glab binary Claudio will run
   `PUT ${API_PREFIX}/hosts/settings`,
   `POST ${API_PREFIX}/hosts/refresh`,
   // And the trackers: the same binaries
   `PUT ${API_PREFIX}/trackers/settings`,
   `POST ${API_PREFIX}/trackers/refresh`,
-  // YouTrack's token is the one tracker secret Agentry keeps: a chat neither reads where it points nor changes it
+  // YouTrack's token is the one tracker secret Claudio keeps: a chat neither reads where it points nor changes it
   `GET ${API_PREFIX}/trackers/youtrack/credentials`,
   `PUT ${API_PREFIX}/trackers/youtrack/credentials`,
   `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
@@ -227,7 +227,7 @@ const CHAT_FORBIDDEN_ROTATION = new Set([
 
 /**
  * Registering a webhook puts a URL and a secret on the person's repository, and removing one stops
- * Agentry hearing from it: the person's click, never a chat's. Reading them stays open.
+ * Claudio hearing from it: the person's click, never a chat's. Reading them stays open.
  */
 const CHAT_FORBIDDEN_WEBHOOKS = new Set([
   `POST ${API_PREFIX}/projects/:id/webhooks`,
@@ -350,7 +350,7 @@ interface Failures {
  *
  * Written here rather than pulled in as a rate-limiting plugin, for the reason `cron.ts` gives for
  * its own parser: what this needs is a count and an instant per address, and a plugin would bring
- * a store, a policy language and a dependency to hold them. A token Agentry generates is 32 random
+ * a store, a policy language and a dependency to hold them. A token Claudio generates is 32 random
  * bytes and out of reach of guessing, but a token someone chooses is accepted from 16 characters,
  * and 16 characters under an unlimited online attack are not enough.
  *
@@ -476,7 +476,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
     if (guarded && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts)) {
       req.actor = 'anonymous';
       void reply.status(421).send({
-        error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in AGENTRY_ALLOWED_HOSTS.',
+        error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in CLAUDIO_ALLOWED_HOSTS.',
       });
       return reply;
     }
@@ -491,7 +491,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         // The mode travels with the refusal: it is what tells the UI whether to ask for a token
         // or to send the person to their identity provider, without an open route to ask first.
         return reply
-          .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Agentry"' : `Bearer realm="Agentry", error="invalid_token"`)
+          .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Claudio"' : `Bearer realm="Claudio", error="invalid_token"`)
           .status(401)
           .send({ error: 'authentication required', mode });
       };

@@ -1,11 +1,11 @@
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import { ChevronLeft, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Segmented } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Segmented } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { InstructionsTab } from '../config/InstructionsTab';
 import { CliMemoryCard, HandedCard, PhoneCli, useCliMemory } from './memory/Cli';
 import { MemoryFiles } from './memory/Files';

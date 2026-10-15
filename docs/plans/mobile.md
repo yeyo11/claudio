@@ -8,9 +8,9 @@ tags:
     - push
     - shipped
 ---
-# Plan: Agentry on a phone
+# Plan: Claudio on a phone
 
-Make Agentry installable on Android and iPhone, and able to tell you that a chat is waiting for
+Make Claudio installable on Android and iPhone, and able to tell you that a chat is waiting for
 you while the app is closed — without a native shell, without an app store, and without leaving
 the one rule.
 
@@ -44,7 +44,7 @@ worker, which is also the only way to receive Web Push.
 - **Push over VAPID, with no third party of ours.** The server signs its own JWT with its own
   keypair and posts the encrypted payload to whatever push endpoint the browser handed us
   (Mozilla's, Apple's, Google's). There is no Firebase project, no account to create, no key of
-  Anthropic's or ours in anyone else's console. A self-hosted Agentry behind a NAT can still send:
+  Anthropic's or ours in anyone else's console. A self-hosted Claudio behind a NAT can still send:
   the connection is outbound.
 - **One source of truth for what is worth a notification.** `notificationsFor(event)` in
   `apps/web/src/lib/notifications-model.ts` is already a pure function from an `AgentryEvent` to a
@@ -54,7 +54,7 @@ worker, which is also the only way to receive Web Push.
 
 ## The one rule, again
 
-Agentry reaches Claude Code **only through its CLI**. Nothing in this plan goes near that boundary:
+Claudio reaches Claude Code **only through its CLI**. Nothing in this plan goes near that boundary:
 a push subscription is a row, a VAPID key is a file, and the events being pushed are the ones the
 wrapper already derives from the CLI's stream-json output. If a piece of a task cannot be expressed
 without inventing a surface on Claude Code, leave it out and say so in your result.
@@ -70,7 +70,7 @@ without inventing a surface on Claude Code, leave it out and say so in your resu
 - **Offline use.** The service worker caches the app shell so a cold start paints immediately; it
   never caches `/api`. A wrapper you cannot reach is a wrapper with nothing to say, and a stale
   chat transcript is worse than an honest "cannot reach the server".
-- **Per-user push.** Agentry has one credential for everyone who holds it and no per-user
+- **Per-user push.** Claudio has one credential for everyone who holds it and no per-user
   isolation (README, "Known limitations"). A subscription belongs to an install, not to a person,
   and every install that subscribed gets the same notifications. Do not invent an identity model
   here; document the consequence.
@@ -89,7 +89,7 @@ without inventing a surface on Claude Code, leave it out and say so in your resu
 5. **Every long command under `timeout`**, e.g. `timeout 300 pnpm test`. If a command hits its
    timeout twice, stop retrying it and report it in your result.
 6. **After touching `packages/shared/src/types.ts`**, run
-   `pnpm --filter @agentry/api openapi:schemas` and commit the regenerated schemas. CI fails on
+   `pnpm --filter @claudio/api openapi:schemas` and commit the regenerated schemas. CI fails on
    drift.
 7. **Every new route** needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in
    the README REST API tables, which you add yourself.
@@ -121,7 +121,7 @@ Get these wrong and the feature looks broken rather than absent. They are not ne
 
 - **Secure context or nothing.** `navigator.serviceWorker` and `window.PushManager` are `undefined`
   on an insecure origin. `https://` and `http://localhost` qualify; `http://192.168.1.10:8787` —
-  how most people run Agentry — does not. The UI must **say this**, naming the origin it is on,
+  how most people run Claudio — does not. The UI must **say this**, naming the origin it is on,
   instead of showing a switch that silently does nothing.
 - **iOS needs the app installed.** Safari 16.4+ supports Web Push only from a PWA added to the
   Home Screen — never from a browser tab. An iPhone in a tab must be told to install first, in
@@ -215,7 +215,7 @@ The sender, the store and the routes. No UI in this task.
     prove it works without waiting for a real event.
 - Route summaries and tags in `apps/api/src/openapi/routes.ts`, the README REST rows, and the
   regenerated OpenAPI schemas (rules 6 and 7). Types in `packages/shared/src/types.ts`.
-- Tests in `@agentry/core` for the sender: the right subscriptions are picked for an event, a `410`
+- Tests in `@claudio/core` for the sender: the right subscriptions are picked for an event, a `410`
   prunes, and a throwing endpoint does not take the bus down.
 
 ## Stage 2 — the client side
@@ -277,7 +277,7 @@ would fight the redesign's.
 
 ## What "done" means
 
-- Agentry installs to the home screen on Android and iPhone and starts standalone, with its own
+- Claudio installs to the home screen on Android and iPhone and starts standalone, with its own
   icon, no URL bar and an immediate first paint.
 - With the app closed, a chat that stops for a permission prompt puts a notification on the phone,
   and tapping it opens that prompt.
@@ -287,7 +287,7 @@ would fight the redesign's.
 
 ## Outcome
 
-All five tasks shipped. Agentry installs to a home screen on Android and iPhone and, with the app
+All five tasks shipped. Claudio installs to a home screen on Android and iPhone and, with the app
 closed, a chat that stops for a permission prompt reaches the phone over Web Push this server signs
 itself. Written from what the tasks built, not from what this plan proposed.
 
@@ -299,9 +299,9 @@ itself. Written from what the tasks built, not from what this plan proposed.
   them, so no import changed. Beyond the plan: the words could not simply move, since a server has no
   i18next — the mapping takes a `NotificationText`, the web passes the active language's strings and
   the shared package carries built-in English for the sender. A web test runs one event per sentence
-  through both and fails if they drift. `@agentry/shared` gained tests and joined `pnpm test`.
+  through both and fails if they drift. `@claudio/shared` gained tests and joined `pnpm test`.
 - **`pwa-shell`** — `manifest.webmanifest` (standalone, root scope, `id: "/"`), icons rasterised from
-  `favicon.svg` by `pnpm --filter @agentry/web icons` and committed as PNGs (192, 512, a maskable 512
+  `favicon.svg` by `pnpm --filter @claudio/web icons` and committed as PNGs (192, 512, a maskable 512
   and a 180 px `apple-touch-icon`), the four Apple metas in `index.html`, and a hand-written
   `public/sw.js` whose asset list and build id are stamped in by a Vite plugin at `closeBundle`, read
   back from what the built `index.html` asks for before it can paint. What the worker answers is an
@@ -314,7 +314,7 @@ itself. Written from what the tasks built, not from what this plan proposed.
   `notificationsFor`, filters by the kinds each install asked for, collapses on the draft's own key
   and deletes a row on `404`/`410`; every failure is caught inside it, so a dead endpoint is a log
   line. The five routes, their OpenAPI entries and the regenerated schemas. Beyond the plan:
-  `AGENTRY_PUSH_SUBJECT` sets the VAPID `sub` claim, stored beside the keypair and re-read on start.
+  `CLAUDIO_PUSH_SUBJECT` sets the VAPID `sub` claim, stored beside the keypair and re-read on start.
 - **`push-web`** — `push`, `notificationclick` and `pushsubscriptionchange` in the same worker. A
   push with a visible window of ours shows nothing (the page is already showing the toast for that
   event, which is also what Chrome's `userVisibleOnly` bargain allows); a click prefers an open page
@@ -325,7 +325,7 @@ itself. Written from what the tasks built, not from what this plan proposed.
   preferences (one component, shared with the bell's popover), the push switch, every registered
   install with this one marked, and **Test** and **Remove** on each.
 - **`docs`** — this section, the README (an *On a phone* section, the push routes checked against the
-  code, `AGENTRY_PUSH_SUBJECT`, `push.json` in the volumes table, the relay bullet under *Securing
+  code, `CLAUDIO_PUSH_SUBJECT`, `push.json` in the volumes table, the relay bullet under *Securing
   it* and two entries in *Known limitations*), `docs/deploy.md` (*Notifications on a phone*),
   `docs/desktop.md` (why the desktop app has no push) and the ROADMAP.
 
@@ -342,7 +342,7 @@ itself. Written from what the tasks built, not from what this plan proposed.
 - **A badge icon** — there is no monochrome brand mark, and a wrong badge is a grey blob.
 - **Translated words in the worker.** A push with no payload shows the fallback title and body the
   page cached in its language; a browser that never subscribed from this build falls back to
-  "Agentry".
+  "Claudio".
 - **Rotating the VAPID keypair.** Every subscription was taken out against that public key, so
   replacing it would silently orphan all of them. It is made once; losing the data directory means
   every install subscribes again.
@@ -352,7 +352,7 @@ itself. Written from what the tasks built, not from what this plan proposed.
 - **Push needs a secure origin.** On `http://<lan-ip>:8787` the browser gives the page no service
   worker at all — no push, no cached shell — and the UI says so, naming the origin. On iPhone and
   iPad, only an app on the Home Screen is ever pushed to.
-- **A subscription belongs to an install, not to a person.** Agentry has one credential for everyone
+- **A subscription belongs to an install, not to a person.** Claudio has one credential for everyone
   who holds it, so every device that turned push on is sent the same notifications, and anyone who
   can reach Settings can test or remove another device's registration.
 

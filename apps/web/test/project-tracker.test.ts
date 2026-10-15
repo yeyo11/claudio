@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import type { TrackerStatus } from '@agentry/shared';
+import type { TrackerStatus } from '@claudio/shared';
 import { TRACKER_IDS } from '../src/lib/trackers';
 import { canSaveDraft, chooseTracker, draftOf, NO_TRACKER, sameDraft, settingsOf, trackerOption, trackerOptions, withMapped } from '../src/pages/home/project-tracker';
 
@@ -105,5 +105,5 @@ test('the form is mounted in the project settings and saves through the client',
   const form = read('../src/pages/home/ProjectTracker.tsx');
   assert.match(form, /api\.putProjectTracker/);
   assert.match(form, /api\.projectTracker/);
-  assert.match(form, /Select, Sheet \} from '@agentry\/ui\/components\/controls'/);
+  assert.match(form, /Select, Sheet \} from '@claudio\/ui\/components\/controls'/);
 });

@@ -1,13 +1,13 @@
 # Two ways to run it:
 #
-#   docker compose up -d                   Agentry alone, published on 127.0.0.1 only (the default)
+#   docker compose up -d                   Claudio alone, published on 127.0.0.1 only (the default)
 #   docker compose --profile tls up -d     the same, plus a TLS-terminating proxy on :80 and :443
 #
-# The tls profile is for reaching Agentry from another machine. Turn on authentication first
-# (AGENTRY_AUTH_MODE=token and AGENTRY_AUTH_TOKEN in .env): the proxy encrypts, it does not
+# The tls profile is for reaching Claudio from another machine. Turn on authentication first
+# (CLAUDIO_AUTH_MODE=token and CLAUDIO_AUTH_TOKEN in .env): the proxy encrypts, it does not
 # authenticate. docs/deploy.md has the details, including the headers the proxy passes.
 services:
-  agentry:
+  claudio:
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -23,12 +23,12 @@ services:
         - GLAB_SHA256
         - TAILSCALE_VERSION
         - TAILSCALE_SHA256
-    image: agentry:dev
+    image: claudio:dev
     init: true # reaps the claude child processes
     env_file: .env
     ports:
       # localhost only: put authentication (and, off this machine, TLS) in front before changing it
-      - "127.0.0.1:${PORT:-8787}:8787"
+      - "127.0.0.1:${PORT:-8797}:8797"
     # The three folders the image declares as volumes, all named here. Compose prefixes a volume's
     # name with the project's, which is the folder's name unless COMPOSE_PROJECT_NAME says otherwise:
     # started from another folder it would find three empty ones. Set COMPOSE_PROJECT_NAME in .env
@@ -50,7 +50,7 @@ services:
     # every recreate would eventually lock you out of a renewal
     environment:
       # A public name gets a Let's Encrypt certificate; `localhost` gets one from Caddy's local CA
-      AGENTRY_DOMAIN: ${AGENTRY_DOMAIN:-localhost}
+      CLAUDIO_DOMAIN: ${CLAUDIO_DOMAIN:-localhost}
     ports:
       - "${PROXY_HTTP_PORT:-80}:80"
       - "${PROXY_HTTPS_PORT:-443}:443"
@@ -59,7 +59,7 @@ services:
       - proxy-data:/data
       - proxy-config:/config
     depends_on:
-      agentry:
+      claudio:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]

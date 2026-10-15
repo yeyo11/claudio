@@ -1,5 +1,5 @@
 // Lossless JSON for host output. Webhook delivery ids and other 64-bit ids do not survive a double,
-// and `--jq`'s `tostring`, `@tsv` and `--template` lose them too (recorded), so Agentry parses the
+// and `--jq`'s `tostring`, `@tsv` and `--template` lose them too (recorded), so Claudio parses the
 // JSON itself and reads an integer above Number.MAX_SAFE_INTEGER as the string it was written as.
 // `JSON.parse`'s reviver gets the source text of a primitive from Node 22 on.
 

@@ -3,10 +3,10 @@ import test from 'node:test';
 import { parseMarkdown } from '@tanstack/markdown/parser';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import Markdown, { pieceOptions } from '@agentry/ui/components/Markdown';
-import { splitMarkdownBlocks, type BlockSplit } from '@agentry/ui/lib/markdown-blocks';
-import { repairTail } from '@agentry/ui/lib/markdown-repair';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import Markdown, { pieceOptions } from '@claudio/ui/components/Markdown';
+import { splitMarkdownBlocks, type BlockSplit } from '@claudio/ui/lib/markdown-blocks';
+import { repairTail } from '@claudio/ui/lib/markdown-repair';
 import { ANSWERS } from './fixtures/answers.ts';
 
 const html = (text: string, streaming: boolean) =>

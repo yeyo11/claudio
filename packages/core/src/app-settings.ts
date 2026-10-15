@@ -1,16 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PERMISSION_MODES, type AllowedHostLayers, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@agentry/shared';
+import { PERMISSION_MODES, type AllowedHostLayers, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, type CoreConfig } from './paths.ts';
 
 /*
  * Settings that used to be read from the environment once, at startup, and can now change while
- * Agentry runs. Each is read from three layers in a fixed order: the environment, then
+ * Claudio runs. Each is read from three layers in a fixed order: the environment, then
  * `app-settings.json` in the data directory, then the default. The environment wins because it is
  * what whoever deployed the install decided, and the UI must not quietly override a deploy; it
- * shows such a value read-only instead, the way `AGENTRY_AUTH_TOKEN` already works for the guard.
+ * shows such a value read-only instead, the way `CLAUDIO_AUTH_TOKEN` already works for the guard.
  *
  * `allowedHosts` is the exception: its layers add up. A deploy names the hosts it must always
  * answer to, and the person running it can still add one (a new tunnel domain, a LAN address)
@@ -38,7 +38,7 @@ export interface RunDefaults {
 /**
  * One allowlist entry as typed by a person: trimmed and lowercased like the environment's, then
  * held to the same rule, so `*.com` is refused from the file exactly as it is from
- * `AGENTRY_ALLOWED_HOSTS`. A port is refused rather than dropped: the guard ignores ports, and an
+ * `CLAUDIO_ALLOWED_HOSTS`. A port is refused rather than dropped: the guard ignores ports, and an
  * entry that looks narrower than what it lets in is a misunderstanding worth saying out loud.
  */
 function parseHost(value: unknown): string {
@@ -181,7 +181,7 @@ export class AppSettingsStore implements RunDefaults {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));
       } catch {
         // Not thrown: the defaults are what an install that never wrote the file runs on, so they
-        // are safe to start with, and a broken settings file must not keep Agentry from starting.
+        // are safe to start with, and a broken settings file must not keep Claudio from starting.
         // Writes are refused, or the next one would overwrite whatever the person meant to keep.
         this.broken = `${this.file} is not valid JSON; fix or remove it`;
       }

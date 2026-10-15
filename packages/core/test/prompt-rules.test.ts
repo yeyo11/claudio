@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { MAX_CONTINUATIONS } from '@agentry/shared';
+import { MAX_CONTINUATIONS } from '@claudio/shared';
 import { continuationPrompt, openItems, stoppedOnMaxTokens } from '../src/open-items.ts';
 import {
   designSources,
@@ -25,7 +25,7 @@ import {
 } from '../src/prompt-rules.ts';
 import { fixerPrompt, workerChecks, type FixerContext } from '../src/verification.ts';
 
-// The shared texts every prompt Agentry builds carries (docs/prompts.md). A paid run reads these
+// The shared texts every prompt Claudio builds carries (docs/prompts.md). A paid run reads these
 // words unattended, so what each one must say is pinned here, and the builders' tests pin that they
 // carry them.
 

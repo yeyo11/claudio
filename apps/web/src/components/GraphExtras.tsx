@@ -1,11 +1,11 @@
-import type { OrchestrationTaskSpec, TaskLimits } from '@agentry/shared';
+import type { OrchestrationTaskSpec, TaskLimits } from '@claudio/shared';
 import { Info } from 'lucide-react';
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphShape } from '../lib/orchestration-steps';
 import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
-import { NumberInput, Select, Switch } from '@agentry/ui/components/controls';
-import { Field } from '@agentry/ui/components/ui';
+import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
+import { Field } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 

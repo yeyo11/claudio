@@ -108,7 +108,7 @@
   color: var(--fg);
 }
 
-/* The binary override, open under its row: the path Agentry uses instead of looking on PATH */
+/* The binary override, open under its row: the path Claudio uses instead of looking on PATH */
 .prov-bin {
   display: flex;
   flex-direction: column;
