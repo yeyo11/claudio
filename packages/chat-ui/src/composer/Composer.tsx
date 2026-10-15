@@ -162,6 +162,7 @@ export function Composer({
   interrupt,
   restore,
   history = [],
+  writing = false,
 }: {
   chat: Chat;
   kind: ComposerKind;
@@ -173,6 +174,8 @@ export function Composer({
   restore?: { text: string; attachments: ChatPendingAttachment[]; at: number } | null;
   /** What the person already sent in this chat, oldest first: ArrowUp brings it back */
   history?: readonly string[];
+  /** The answer's text is streaming: the text is the live surface then, so the box drops its energy border */
+  writing?: boolean;
 }) {
   const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
@@ -326,7 +329,7 @@ export function Composer({
         <AttachmentTray state={files} />
         <SlashMenu state={slash}>
           <form
-            className={`composer ${working ? 'live-energy is-working' : ''}`.trim()}
+            className={`composer ${working ? (writing ? 'is-working' : 'live-energy is-working') : ''}`.trim()}
             aria-label={kind === 'fork' ? t('sessionView.continueCopy') : t('composer.message')}
             onSubmit={(e) => {
               e.preventDefault();

@@ -478,6 +478,7 @@ export function ChatView() {
             kind={composer}
             restore={restore}
             history={sentHistory}
+            writing={writing}
             onSent={(sent) => {
               setFollow(true);
               // The server says whether it waits: a resume or a fork, or a message that starts a turn, does not

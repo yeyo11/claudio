@@ -1589,7 +1589,7 @@ step, "Omitido" on a summary line. The `en` source follows the same structure ("
 | Agent thinking, no tool | three bouncing dots and a shimmering "Pensando" |
 | Task row in progress | ring spinner, plus the live rail on the row |
 | Progress of an orchestration | segmented bar, one segment per task: ok, bad, live (partial fill), empty = pending |
-| The one surface that matters now | **energy border**, one per screen: the composer of a working chat, or the running orchestration or stage |
+| The one surface that matters now | **energy border**, one per screen: the composer of a working chat while the agent runs tools, and not while its answer is being written (the text is the live surface then), or the running orchestration or stage |
 | Something is live somewhere | a pinging dot in the top bar chip or on the project row |
 
 Every loop respects the motion setting:

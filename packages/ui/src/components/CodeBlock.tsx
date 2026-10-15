@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import { HighlightScheduler } from '../lib/highlight-scheduler';
 import { Lru } from '../lib/lru';
 import { CopyButton } from './ui';
 
@@ -15,34 +16,58 @@ const coloured = new Lru<string, Tokens>(300);
 const MAX_CACHED_CHARS = 50_000;
 const cacheKey = (lang: string, code: string) => `${lang}\u0000${code}`;
 
+const scheduler = new HighlightScheduler();
+
 /**
- * Highlights off the main bundle and a beat after the code stops changing. While a block is still
- * streaming, the part already coloured stays coloured and only the new tail shows plain.
+ * Highlights off the main bundle, at most once per pass while the code grows and once more on the
+ * final code. While a block is still streaming, the part already coloured stays coloured and only
+ * the new tail shows plain.
  */
 function useHighlight(code: string, lang: string | undefined, enabled: boolean): { tokens: Tokens; rest: string } | null {
   const [done, setDone] = useState<{ code: string; tokens: Tokens } | null>(null);
   const cached = enabled && lang ? coloured.get(cacheKey(lang, code)) : undefined;
-  const hit = cached !== undefined;
+  const latest = useRef(code);
+  latest.current = code;
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const live = useRef(true);
   useEffect(() => {
-    if (!enabled || !lang || hit) return;
-    let live = true;
-    const timer = setTimeout(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+      clearTimeout(timer.current);
+      timer.current = undefined;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !lang || cached !== undefined || done?.code === code) return;
+    const plan = scheduler.next({ hasResult: done !== null, length: code.length });
+    // A throttle keeps the timer it has; only a huge block starts its wait again on every change
+    if (timer.current !== undefined) {
+      if (!plan.restartOnChange) return;
+      clearTimeout(timer.current);
+    }
+    const run = () => {
+      timer.current = undefined;
+      const snapshot = latest.current;
       import('./highlight')
-        .then((m) => m.highlight(code, lang))
+        .then((m) => m.highlight(snapshot, lang))
         .then((tokens) => {
-          if (!tokens) return;
-          if (code.length <= MAX_CACHED_CHARS) coloured.set(cacheKey(lang, code), tokens);
-          if (live) setDone({ code, tokens });
+          if (!tokens || !live.current) return;
+          if (snapshot.length <= MAX_CACHED_CHARS) coloured.set(cacheKey(lang, snapshot), tokens);
+          setDone({ code: snapshot, tokens });
+          // The code moved on while this pass ran: one more, so the last version is coloured too
+          if (latest.current !== snapshot && timer.current === undefined) {
+            timer.current = setTimeout(run, scheduler.next({ hasResult: true, length: latest.current.length }).delay);
+          }
         })
         .catch(() => {
           // colour is a nicety: the plain block is already on screen
         });
-    }, 120);
-    return () => {
-      live = false;
-      clearTimeout(timer);
     };
-  }, [code, lang, enabled, hit]);
+    timer.current = setTimeout(run, plan.delay);
+  }, [code, lang, enabled, cached, done]);
+
   if (cached) return { tokens: cached, rest: '' };
   if (!done || !code.startsWith(done.code)) return null;
   return { tokens: done.tokens, rest: code.slice(done.code.length) };

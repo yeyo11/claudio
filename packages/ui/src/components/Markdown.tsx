@@ -7,6 +7,7 @@ import i18n from 'i18next';
 import { Lru } from '../lib/lru';
 import { autolinkExtension } from '../lib/markdown-autolink';
 import { splitMarkdownBlocks, type BlockSplit } from '../lib/markdown-blocks';
+import { repairTail } from '../lib/markdown-repair';
 import { CodeBlock } from './CodeBlock';
 
 const EXTERNAL = { target: '_blank', rel: 'noopener noreferrer' } as const;
@@ -107,7 +108,7 @@ function StreamingMarkdown({ text }: { text: string }) {
       {starts.map((start, index) => (
         <Block
           key={start}
-          text={source.slice(start, starts[index + 1])}
+          text={index === starts.length - 1 ? repairTail(source.slice(start)) : source.slice(start, starts[index + 1])}
           options={pieceOptions(index, starts.length)}
         />
       ))}
