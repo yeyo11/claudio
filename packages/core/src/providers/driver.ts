@@ -106,6 +106,13 @@ export interface SessionLaunch {
   uploadsDir?: string;
   worktree?: string;
   maxBudgetUsd?: number;
+  maxTurns?: number;
+  fallbackModel?: string;
+  thinking?: 'adaptive' | 'disabled';
+  maxThinkingTokens?: number;
+  thinkingDisplay?: string;
+  /** Resume at this message of the session instead of its end; only with `created` */
+  resumeSessionAt?: string;
   /** `host` only when something is listening for what the agent asks */
   permissionPrompts: 'host' | 'none';
   jsonSchema?: unknown;
@@ -151,7 +158,7 @@ export interface DriverSession {
   /** Sends a turn; returns the text the agent received as the user's, for the transcript */
   send(turn: UserTurn): string;
   interrupt(): Promise<void>;
-  setOption(option: { permissionMode: PermissionMode } | { model: string }): Promise<void>;
+  setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void>;
   /** The MCP servers the process has, as it reports them now; a driver that cannot say leaves it out */
   mcpStatus?(): Promise<LiveMcpServer[]>;
   /** The context window's use as the process reports it now, between turns; a driver that cannot say leaves it out */

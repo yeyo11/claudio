@@ -23,6 +23,8 @@ interface Case {
   /** What to do after the first turn: continue the chat in place, or in a copy */
   then?: 'resume' | 'fork';
   host?: boolean;
+  /** The rewind point the resume names */
+  resumeAt?: string;
 }
 
 const CASES: Case[] = [
@@ -43,6 +45,10 @@ const CASES: Case[] = [
     chat: { allowedTools: ['Read', 'Bash(git status:*)'], disallowedTools: ['Write'], mcp: { config: '/tmp/mcp.json', servers: [] } as unknown as NewChat['mcp'] },
   },
   { name: 'agent', chat: { agent: 'reviewer', agentsFile: '/tmp/agents.json', appendSystemPrompt: 'be brief', systemPromptSnapshot: 'off' } },
+  { name: 'max turns', chat: { maxTurns: 6 } },
+  { name: 'fallback model', chat: { model: 'opus', fallbackModel: 'sonnet' } },
+  { name: 'thinking budget', chat: { thinking: 'adaptive', maxThinkingTokens: 8000, thinkingDisplay: 'summarized' } },
+  { name: 'resume at a message', then: 'resume', resumeAt: 'msg-1' },
   { name: 'no uploads', chat: { uploads: false } },
   { name: 'internal', chat: { internal: true } },
   { name: 'bypass mode', chat: { permissionMode: 'bypassPermissions' } },
@@ -60,7 +66,7 @@ async function argvOf(c: Case, dir: string): Promise<string[][]> {
     const first = chats.start({ prompt: 'hello', name: 'golden', keepAlive: false, ...c.chat });
     await chats.exited(first.id);
     if (c.then === 'resume') {
-      chats.resume(first.id, { prompt: 'again', keepAlive: false, ...(c.chat?.model ? { model: c.chat.model } : {}) });
+      chats.resume(first.id, { prompt: 'again', keepAlive: false, ...(c.chat?.model ? { model: c.chat.model } : {}), ...(c.resumeAt ? { resumeSessionAt: c.resumeAt } : {}) });
       await chats.exited(first.id);
     } else if (c.then === 'fork') {
       // keepAlive is not a fork option in the types, and the manager honours it all the same

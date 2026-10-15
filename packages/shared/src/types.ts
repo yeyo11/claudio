@@ -1084,6 +1084,18 @@ export interface ChatStartOptions {
   mcp?: McpSelection | null;
   /** Ceiling on what this execution may spend */
   maxBudgetUsd?: number;
+  /** Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1 */
+  maxTurns?: number;
+  /** The model the chat degrades to on a capacity error (`--fallback-model`) */
+  fallbackModel?: string;
+  /** Thinking mode (`--thinking`); beside `effort`, which stays the usual way to choose how hard the model thinks */
+  thinking?: 'adaptive' | 'disabled';
+  /** Ceiling on thinking tokens (`--max-thinking-tokens`); a live chat changes it with `set_max_thinking_tokens` */
+  maxThinkingTokens?: number;
+  /** How thinking is shown in the stream (`--thinking-display`) */
+  thinkingDisplay?: string;
+  /** On a resume, continue at this message of the session, a rewind (`--resume-session-at`), instead of at its end */
+  resumeSessionAt?: string;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
 }
