@@ -156,7 +156,10 @@ Recommendation (core, t2's files): mark every process Claudio starts on an agent
 variable of its own, for example `CLAUDIO_AGENT_RUN=<item>`, and have `PeerCheck` scan those trees
 as well. A separate variable is better than `CLAUDIO_CHAT_ID`, which the chat lists read.
 
-### T8-3 — A client that stops acknowledging freezes the shell for every client (medium, open, core)
+### T8-3 — A client that stops acknowledging freezes the shell for every client (medium, fixed in core)
+
+**Fixed.** `FlowControl` takes a clock and evicts (`evicted-slow`, after which the view reattaches from a snapshot) a client that is the only one still behind (at or over the low watermark) once the shell has been paused for `STALL_EVICT_MS` (5 s, checked by the 5 s re-check, so 5 to 10 s in practice). A client alone on the terminal, or two that are both behind, keep the current behaviour: the shell stays paused, as on a real terminal, because nobody else is being held and there is no telling whom to blame. The `todo` test is a real test with a fake clock, plus one for each of those two cases.
+
 
 t7 measured this, and the audit confirms it in the code:
 
@@ -260,7 +263,7 @@ Tested by "rotating the token… ends the sockets" and "narrowing `remote`…".
 
 - `pnpm typecheck` (root): exit 0.
 - `pnpm --filter @claudio/api test`: 352 tests, 351 pass, 0 fail, 0 todo (T8-1 is now a test of the accepted behaviour).
-- `pnpm --filter @claudio/core test`: 2 245 tests, 2 239 pass, 0 fail, 5 skipped, 1 todo (T8-3).
+- `pnpm --filter @claudio/core test`: 2 245 tests, 2 239 pass, 0 fail, 5 skipped, 0 todo (T8-3 is fixed).
   - The skips are conformance cases the Claude Code harness has no rig for. None is a terminal test.
 - No process was left running. The detached child in the T8-1 test ends itself after 5 s.
 
