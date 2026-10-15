@@ -15,6 +15,11 @@ tags:
 ---
 # Multiple agent providers
 
+> **Agentry history.** Claudio, the fork, drives Claude Code only and removed every other vendor
+> ([plans/claude-only-fork.md](claude-only-fork.md)). This plan describes what Agentry built before
+> that and is kept as the record of why; nothing in it is built in Claudio, and the current reference
+> is [providers.md](../providers.md).
+
 Status: **phases 1, 2 and 3 landed** (#150, #155, #167): detection and the first-run step, Claude
 Code behind the driver interface, then the Codex and ACP drivers, OpenCode's SQLite transcripts and
 the provider on the chat page. **Phase 4 is planned** as a task graph ("Phase 4: rotation between

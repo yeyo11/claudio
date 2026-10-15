@@ -37,11 +37,10 @@ followed from the guesses.
   interrupt merges several queued messages into one prompt, each is read back, and the merged line
   takes the last one's id. All of it was confirmed on CLI 2.1.288
   ([reports/chat-audit/server.md](reports/chat-audit/server.md), "Confirmed on the CLI").
-- **Codex and ACP** (Gemini, Copilot, OpenCode). The driver queues turns itself and reports a message
-  taken when it starts its turn (`turn/start`, `session/prompt`). While it holds a turn the chat's
-  input is not ended, even for a `keepAlive: false` chat (`DriverSession.holdsTurns`). For Gemini and
-  Copilot, whose transcript Agentry keeps in `chat_entries`, the person's own entry is recorded there
-  under the id.
+- A driver that queues turns itself reports a message taken when it starts its turn, and while it
+  holds one the chat's input is not ended, even for a `keepAlive: false` chat
+  (`DriverSession.holdsTurns`). Claude Code's driver does not queue, so this stays a property of the
+  interface.
 
 ## What the server keeps
 

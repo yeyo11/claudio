@@ -35,8 +35,7 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
 
 `packages/core/src/secret-vault.ts`, one document: `<dataDir>/secrets.json`, mode 0600, written
 through a temp file created at 0600. It holds only what a CLI reads from its **environment**: Claude
-Code's OAuth token or API key, Gemini's key, Copilot's token (`COPILOT_GITHUB_TOKEN`), OpenCode's
-upstream keys, YouTrack's address and token. Values are sealed with AES-256-GCM (`SecretBox`) when
+Code's OAuth token or API key, YouTrack's address and token. Values are sealed with AES-256-GCM (`SecretBox`) when
 there is a key, as `enc:v1:…`.
 
 **The key**, in this order (the plan's decision 3):
@@ -68,13 +67,12 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
 
 - **Only to the child processes of the CLI that needs it.** `childEnv(tool)`
   (`packages/core/src/child-env.ts`) lays that tool's vault variables over the inherited environment
-  for every spawn of that tool: Claude Code's runs and probes, the Codex and ACP drivers, the
-  detectors, gh, glab and youtrack-app. Nothing is written to `process.env`, so a project's checks,
+  for every spawn of that tool: Claude Code's runs and probes, the
+  detector, gh, glab and youtrack-app. Nothing is written to `process.env`, so a project's checks,
   git, or another agent never inherit Claude Code's token. (Before the vault, the Claude store copied
   it into `process.env` and every child got it.)
-- **On stdin for a CLI with a login command.** A key for Codex, gh or glab goes once to that CLI's
-  own login command on stdin (`codex login --with-api-key`, `gh auth login --with-token`,
-  `glab auth login --stdin`), and the CLI stores it (decision 4). The tests assert the spawned argv
+- **On stdin for a CLI with a login command.** A key for gh or glab goes once to that CLI's
+  own login command on stdin (`gh auth login --with-token`, `glab auth login --stdin`), and the CLI stores it (decision 4). The tests assert the spawned argv
   and what the fake CLI read on stdin.
 - **Tailscale's auth key through a file.** `tailscale up` takes a key only in argv or as
   `--auth-key=file:<path>`, so the key is written to a file of mode 0600 inside a fresh 0700 folder
@@ -82,10 +80,6 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
   and the folder is removed when the command ends, whatever happened. tailscaled keeps the node key
   it gets in exchange, so the auth key is used once and stored nowhere
   ([setup.md](setup.md#tailscale)).
-- **Copilot's token as `COPILOT_GITHUB_TOKEN`** in Copilot's own environment, like Gemini's key
-  (decision 7). Copilot CLI's own login cannot store a token without a system keychain unless a
-  terminal answers its question, and GitHub documents the environment variable for containers. A
-  classic `ghp_` token is refused before it is kept.
 - **Write-only fields.** The key fields in the sign-in panel and YouTrack's token are never filled
   back: no route answers a secret, the field is cleared once sent, and an empty token field keeps
   the saved one.
@@ -94,10 +88,7 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
   error *code*, never what the CLI printed. Success is decided by re-running the tool's readiness
   probe, not by reading the output.
 - **Masked where text leaves the machine.** Every vault value joins Agentry's own secrets
-  (`recognizeSecrets`, `packages/core/src/decisions/redact.ts`), masked in a decision's state and a
-  provider handoff whatever text surrounds them. Copilot's gh fallback runs
-  `gh auth token --hostname github.com` and reads only its exit code and whether it printed
-  something; the token is never kept or logged (`providers/gh-fallback.ts`).
+  (`recognizeSecrets`, `packages/core/src/decisions/redact.ts`), masked in a decision's state whatever text surrounds them.
 
 ## What the vendors' CLIs keep in plain text
 
@@ -111,9 +102,7 @@ for that case:
 |---|---|---|
 | gh | `/data/provider-homes/gh/hosts.yml` (`GH_CONFIG_DIR`) | the OAuth or personal token per host; gh's documented fallback when no keyring exists |
 | glab | `/data/provider-homes/glab/config.yml` (`GLAB_CONFIG_DIR`), mode 0600 | the token per host; glab says so as it signs in |
-| Codex | `auth.json` in `/data/provider-homes/codex` (`CODEX_HOME`) | the API key or the ChatGPT sign-in, in its file store |
 | Tailscale | `/data/tailscale/tailscaled.state`, in a 0700 folder | the node's key, which is what keeps it on the tailnet |
-| OpenCode, Gemini | under `/data/provider-homes` | whatever their own sign-in wrote, when it was made in a terminal (Agentry keeps their keys in the vault instead) |
 
 Why this is accepted rather than wrapped: sealing another CLI's files would mean reading and
 rewriting them behind its back, or handing it a credential it was not built to take, which the one
@@ -121,7 +110,7 @@ rule forbids ([CLAUDE.md](../CLAUDE.md)). The CLIs' own fallback is what their v
 a machine with no keyring, and the files sit on the same volume, with the same exposure, as
 Agentry's own `secret.key`. The protection for all of them is the volume's: who can read `/data`.
 Signing out from Agentry runs each CLI's documented sign-out (`gh auth logout`, `glab auth logout`,
-`codex logout`, `tailscale logout`), which removes what it stored.
+`tailscale logout`), which removes what it stored.
 
 On a person's own machine (a source checkout, the desktop app) the CLIs use the system keyring when
 there is one, as they always did; Agentry changes nothing there.

@@ -15,10 +15,6 @@ services:
         # Listed without a value so that, unless you set it in .env, the Dockerfile's pinned
         # version wins instead of being overridden by a default written here as well
         - CLAUDE_CODE_VERSION
-        - CODEX_VERSION
-        - GEMINI_CLI_VERSION
-        - COPILOT_VERSION
-        - OPENCODE_VERSION
         - YOUTRACK_APP_VERSION
         # A gh or glab bump needs its digest too: the build checks the download against it
         - GH_VERSION

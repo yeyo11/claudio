@@ -10,6 +10,11 @@ tags:
 ---
 # What a container keeps, and what it carries
 
+> **Claudio.** The image installs Claude Code alone: Codex, Gemini, Copilot and OpenCode, their
+> `provider-homes` and the size they added are gone ([plans/claude-only-fork.md](plans/claude-only-fork.md)).
+> What follows is the decision as Agentry took it; `gh` and `glab` keep their homes under
+> `/data/provider-homes`.
+
 Two things went wrong in the Docker image: it carried one agent when Agentry drives five, and an
 update could lose a person's account setup, transcripts and projects without anything saying so.
 This page records what was found, what was decided and what it costs. How to run and update the

@@ -128,19 +128,11 @@ const dirs = {
   workspaceDir: join(sandbox, 'workspace'),
   dataDir: join(sandbox, 'data'),
 };
-// The other providers' state lives in the sandbox too, never in the real home: the homes are named
-// here and created by the specs that need a provider that was "used before" (e2e/specs/providers.spec.mjs)
-const providerHomes = { codex: join(sandbox, 'codex-home'), gemini: join(sandbox, 'gemini-home'), copilot: join(sandbox, 'copilot-home'), xdgConfig: join(sandbox, 'xdg-config'), xdgData: join(sandbox, 'xdg-data') };
 // Without setup recorded as seen, the setup assistant stands in for the app on every page
 // load, and no other spec could see the app. So the sandbox starts as a machine that finished that
-// step (`setupSeen`) and has one agent ready: Codex, a fake (e2e/fake-providers) reached by
-// the override in providers.json, not by PATH. The providers spec restores both before it ends.
+// step (`setupSeen`); its one agent, Claude Code, is the fake CLI of e2e/fake-cli.
 mkdirSync(dirs.dataDir, { recursive: true });
 writeFileSync(join(dirs.dataDir, 'app-settings.json'), `${JSON.stringify({ setupSeen: true }, null, 2)}\n`);
-writeFileSync(
-  join(dirs.dataDir, 'providers.json'),
-  `${JSON.stringify({ providers: { codex: { enabled: true, binaryPath: join(here, 'fake-providers', 'codex') } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null }, null, 2)}\n`,
-);
 // The code hosts are fakes too (e2e/fake-hosts), reached by the override in hosts.json: no real gh or
 // glab on the machine changes what the Integrations and merge request specs see
 writeFileSync(
@@ -161,13 +153,6 @@ writeFileSync(join(glabConfigDir, 'config.yml'), 'hosts:\n  gitlab.com:\n    use
 const env = {
   ...process.env,
   GLAB_CONFIG_DIR: glabConfigDir,
-  CODEX_HOME: providerHomes.codex,
-  GEMINI_CLI_HOME: providerHomes.gemini,
-  COPILOT_HOME: providerHomes.copilot,
-  // OpenCode keeps its config and data under the XDG directories, so the server's point at the
-  // sandbox and a real ~/.config/opencode never makes it "used before" here
-  XDG_CONFIG_HOME: providerHomes.xdgConfig,
-  XDG_DATA_HOME: providerHomes.xdgData,
   PORT: String(PORT),
   HOST: '127.0.0.1',
   LOG_LEVEL: 'error',

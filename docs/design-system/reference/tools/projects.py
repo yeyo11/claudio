@@ -1,7 +1,6 @@
 from data import *
 from board import mhead
 from decision_parts import *
-from providers_rotation import project_providers_card
 
 MODS = [
   ('board', 'board', 'Tablero', 'Tareas en cinco columnas, hitos, y su enlace con chats y orquestaciones.'),
@@ -256,7 +255,6 @@ def project_settings_desktop():
 <div class="row" style="justify-content: flex-end; gap: 8px"><button type="button" class="btn btn-ghost">Descartar</button><button type="button" class="btn btn-primary">Guardar los cambios</button></div>
 </div>
 </div>
-{project_providers_card()}
 {override_card()}
 </main>'''
   write('DesktopProyectoAjustes.html', tall(desktop('Ajustes del proyecto', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main), 2700))

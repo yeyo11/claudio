@@ -84,12 +84,6 @@ default; an Enterprise or self-managed one is typed in).
   store the token in plain text in those files (gh in `hosts.yml`, glab in `config.yml`, mode 0600):
   that is their documented fallback when no keyring exists, and glab says so as it signs in. Why
   Agentry accepts it is in [security-model.md](security-model.md#what-the-vendors-clis-keep-in-plain-text).
-- **Copilot uses gh's github.com sign-in** (the plan's decision 7). Copilot CLI's own login cannot
-  keep a token without a keychain, and GitHub documents `gh auth token` as Copilot's last credential
-  source. So Copilot's **Code** sign-in starts gh's device sign-in to github.com (the same session the
-  GitHub row would start), and Copilot reads `ready` when `gh auth token --hostname github.com`
-  succeeds. Signing gh out of github.com from Agentry refreshes Copilot at once; it then stops
-  working unless it has a token of its own. See [setup.md](setup.md#copilot-in-a-container).
 - **Tokens the person keeps in the environment** (`GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, …) are
   still left alone, and sign-out does not touch them.
 
