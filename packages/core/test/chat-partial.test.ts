@@ -27,7 +27,7 @@ test('the first partial of a block goes out at once, the rest at most one per th
     );
     const seen: string[] = [];
     chat.emitter.on('event', (e: RunEvent) => {
-      if (e.kind === 'partial') seen.push(e.text ?? '');
+      if (e.kind === 'partial') seen.push(e.text ?? `+${e.append}@${e.at}`);
     });
     chat.partial = { block: 'text', text: 'He' };
     chat.emitPartial();
@@ -38,7 +38,16 @@ test('the first partial of a block goes out at once, the rest at most one per th
     chat.emitPartial();
     assert.deepEqual(seen, ['He'], 'inside the throttle nothing more goes out yet');
     await pause(120);
-    assert.deepEqual(seen, ['He', 'Hello'], 'the trailing one carries the latest text');
+    assert.deepEqual(seen, ['He', '+llo@2'], 'the trailing one carries what is new since the last, and where it starts');
+    assert.equal(chat.partialSnapshot()?.text, 'Hello', 'a late subscriber is handed the whole text');
+    // A new block starts again with its whole text
+    chat.partial = { block: 'text', text: 'Yo' };
+    chat.partialSent = null;
+    await pause(120);
+    chat.emitPartial();
+    assert.deepEqual(seen, ['He', '+llo@2', 'Yo']);
+    chat.partial = null;
+    assert.equal(chat.partialSnapshot(), null);
   } finally {
     rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
   }

@@ -1029,7 +1029,7 @@ is stored; assert no frame moves the last row by more than 2 px while following.
 
 ### CHAT-11 — Fewer reads and renders
 
-Status: proposed.
+Status: built 2026-10-15 (no PR yet). As sketched; also `liveStreams` is cleared in `es.onerror`, so the feed refetches while the stream retries. Profile numbers not taken (no browser run).
 
 Four independent changes; do them in this order and measure with the React profiler after each.
 
@@ -1082,7 +1082,7 @@ renders during one streamed answer of ~10 blocks; record the numbers in this doc
 
 ### CHAT-12 — Partials as appends
 
-Status: proposed. Protocol change: shared type, API, client.
+Status: built 2026-10-15 (no PR yet). Protocol change: shared type, API, client. As sketched; `partialSnapshot` sits on `LiveChat`, `ChatManager` and `ChatService`, and `applyPartial` lives in `chat-stream.ts`. No other consumer of `partial` reads its text.
 
 **Design.** The first partial of a block, and the first one any subscriber receives, carries the
 whole text; after that the server sends only what is new, with where it starts.

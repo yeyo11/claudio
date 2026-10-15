@@ -1,5 +1,5 @@
 import { entryText } from '@agentry/shared';
-import type { ChatDetail, MessageDelivery, TranscriptEntry } from '@agentry/shared';
+import type { ChatDetail, MessageDelivery, RunEvent, TranscriptEntry } from '@agentry/shared';
 
 // ---------- the transcript, kept current from the stream ----------
 
@@ -175,10 +175,19 @@ export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.P
     else streamed.delete(entry);
   }
   const entries: TranscriptEntry[] = [...(after.get(null) ?? [])];
-  for (const entry of fresh.entries) entries.push(entry, ...(after.get(entry.uuid) ?? []));
+  // An entry the read hands back unchanged stays the object already held, so what renders it does not
+  const heldByUuid = new Map(region.map((entry) => [entry.uuid, entry]));
+  for (const entry of fresh.entries) {
+    const held = heldByUuid.get(entry.uuid);
+    const kept = held && !streamed.has(held) && sameEntry(held, entry) ? held : entry;
+    entries.push(kept, ...(after.get(entry.uuid) ?? []));
+  }
   entries.push(...late);
   return { ...fresh, from: held.from, entries: [...held.entries.slice(0, at), ...entries], total: fresh.total + entries.length - fresh.entries.length };
 }
+
+const sameEntry = (a: TranscriptEntry, b: TranscriptEntry) =>
+  a.timestamp === b.timestamp && a.blocks.length === b.blocks.length && JSON.stringify(a.blocks) === JSON.stringify(b.blocks);
 
 // ---------- what is being written right now ----------
 
@@ -195,6 +204,16 @@ export interface StreamSnapshot {
   connected: boolean;
   /** The block was stored: what is shown is the rest of it catching up, then it leaves */
   ending: boolean;
+}
+
+/**
+ * The text of the block after a `partial` event: a whole text replaces what is held, an append
+ * extends it only where it starts exactly at the held length. A gap leaves the text as it is: the
+ * next block, or the snapshot of the next connection, brings the whole of it again.
+ */
+export function applyPartial(current: string, event: Pick<RunEvent, 'text' | 'append' | 'at'>): string {
+  if (event.append === undefined) return event.text ?? current;
+  return event.at === current.length ? current + event.append : current;
 }
 
 /** A partial not updated for this long is not being written any more, whatever became of it. */

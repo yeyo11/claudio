@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Chat, ChatDetail, TranscriptEntry } from '@agentry/shared';
-import { appendStreamed, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '@agentry/chat-ui/lib/chat-stream';
+import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '@agentry/chat-ui/lib/chat-stream';
 
 // A live chat's page is kept current from its stream and read back a short tail at a time. These
 // rules decide whether a message said a moment ago shows, shows twice or vanishes.
@@ -134,4 +134,24 @@ test('a stored block stays on screen until the transcript shows it, and a quiet 
   const before = renders;
   store.setConnected(false);
   assert.equal(renders, before, 'nothing that did not change is announced');
+});
+
+test('a tail read that hands back identical entries keeps the objects already held', () => {
+  const held = page(0, ['a', 'b', 'c']);
+  const merged = spliceTail(held, page(1, ['b', 'c']));
+  assert.ok(merged);
+  assert.equal(merged.entries[1], held.entries[1]);
+  assert.equal(merged.entries[2], held.entries[2]);
+  const changed = spliceTail(held, { ...page(1, ['b', 'c']), entries: [entry('b'), entry('c', { blocks: [{ type: 'text', text: 'longer' }] })] });
+  assert.ok(changed);
+  assert.equal(changed.entries[1], held.entries[1]);
+  assert.notEqual(changed.entries[2], held.entries[2]);
+});
+
+test('a partial is a whole text or an append that starts exactly where the held text ends', () => {
+  assert.equal(applyPartial('', { text: 'He' }), 'He');
+  assert.equal(applyPartial('He', { append: 'llo', at: 2 }), 'Hello');
+  assert.equal(applyPartial('He', { text: 'Yo' }), 'Yo', 'a whole text replaces');
+  assert.equal(applyPartial('He', { append: 'llo', at: 5 }), 'He', 'a gap is ignored');
+  assert.equal(applyPartial('Hello', { append: 'llo', at: 2 }), 'Hello', 'a repeat is ignored');
 });

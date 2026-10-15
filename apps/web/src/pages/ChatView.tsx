@@ -22,7 +22,7 @@ import { Empty, ErrorBox, PageHeader, Skeleton, usePageTitle } from '@agentry/ui
 import { api, ApiRequestError, keys, useProjects } from '../api';
 import { tickerActivity } from '@agentry/chat-ui/lib/chat-live';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
-import { subagentFor, transcriptRows } from '@agentry/chat-ui/lib/chat-steps';
+import { subagentFor, transcriptRows, type TranscriptRow } from '@agentry/chat-ui/lib/chat-steps';
 import type { ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '@agentry/chat-ui/lib/chats';
 import { useDetailPanel } from '../lib/detail';
@@ -190,7 +190,9 @@ export function ChatView() {
     toDelete.current = { request: remove.requestDelete, chat };
   });
 
-  const rows = useMemo(() => transcriptRows(items), [items]);
+  // Rows built again from the same entries stay the same objects, so what renders them does not
+  const lastRows = useRef<readonly TranscriptRow[]>([]);
+  const rows = useMemo(() => (lastRows.current = transcriptRows(items, lastRows.current)), [items]);
   // What the person sent here, for the box's ArrowUp: their own words, the newest last
   const sentHistory = useMemo(
     () =>

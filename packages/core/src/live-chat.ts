@@ -314,6 +314,8 @@ export class LiveChat {
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
   private partialSentAt = 0;
+  /** How much of the current block subscribers hold; null until its first partial went out */
+  partialSent: { block: 'text' | 'thinking'; length: number } | null = null;
   /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
   structured: string | null = null;
   /** Prompts the CLI is holding for a person */
@@ -681,13 +683,24 @@ export class LiveChat {
   private sendPartial(): void {
     if (!this.partial) return;
     this.partialSentAt = Date.now();
+    const { block, text } = this.partial;
+    const sent = this.partialSent;
+    // The first partial of a block carries all of it; after that only what is new, and where it starts
+    const whole = !sent || sent.block !== block || sent.length > text.length;
+    this.partialSent = { block, length: text.length };
     this.emitter.emit('event', {
       seq: this.seq,
       ts: now(),
       kind: 'partial',
-      block: this.partial.block,
-      text: this.partial.text,
+      block,
+      ...(whole ? { text } : { append: text.slice(sent.length), at: sent.length }),
     } satisfies RunEvent);
+  }
+
+  /** The current block as a late subscriber needs it: the whole text so far, or null between blocks. */
+  partialSnapshot(): RunEvent | null {
+    if (!this.partial) return null;
+    return { seq: this.seq, ts: now(), kind: 'partial', block: this.partial.block, text: this.partial.text };
   }
 
   setStatus(status: RunStatus): void {
