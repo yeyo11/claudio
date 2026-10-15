@@ -87,7 +87,7 @@ import { TunnelManager } from './tunnel.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
-import { ProjectDocsService } from './project-docs.ts';
+import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
@@ -1747,6 +1747,30 @@ export class Core {
     );
     this.projectUpdated(record, settingsChanges(before, after), after.modules);
     return after;
+  }
+
+  /** 404 for a project that is not imported; the docs routes check it before they touch the registry. */
+  assertProjectDocsProject(projectId: string): void {
+    if (!this.projectStore.get(projectId)) throw new ProjectDocsError('project not found', 404);
+  }
+
+  /**
+   * "Ask Claude about this document": a normal chat in the project, with the document's link in the
+   * prompt, so the person drives any change in a chat they can watch. The Docs connector reaches it
+   * through the account's own claude.ai connectors; nothing is pre-approved.
+   */
+  async askAboutProjectDoc(projectId: string, docId: string, language: AgentryLanguage = 'en'): Promise<ChatSummary> {
+    this.assertProjectDocsProject(projectId);
+    const record = this.requireProject(projectId);
+    const doc = this.projectDocs.find(projectId, docId);
+    if (!existsSync(record.path)) throw new ProjectDocsError(`the project's directory ${record.path} is missing`, 409);
+    const lead = language === 'es' ? `Hablemos del documento «${doc.title}»` : `Let's talk about the document "${doc.title}"`;
+    const prompt = [
+      lead,
+      `The document lives in Claude Docs: ${doc.url}`,
+      'Use the Claude Docs connector to read it first. Change it only if I ask you to.',
+    ].join('\n\n');
+    return this.chats.create({ prompt, cwd: record.path });
   }
 
   private requireProject(id: string): ProjectRecord {

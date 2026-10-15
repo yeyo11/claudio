@@ -921,6 +921,11 @@ Where GitHub and GitLab deliver for a hook Agentry registered (tag `Webhooks`). 
 | POST | `/projects/:id/webhooks` | Register the repository's hook, on GitHub or GitLab (adopts an Agentry hook already there, never touches another) → `201` with the registration; `409` `no-public-url`, `no-remote`, `already-registered`; `403 hook-no-permission`; `502 hook-unreachable`. Not open to a chat's token |
 | POST | `/projects/:id/webhooks/:registrationId/test` | Ping the hook (GitLab: a push test) and read the host's answer back → the registration; `502` when the host did not report an answered delivery. Not open to a chat's token |
 | DELETE | `/projects/:id/webhooks/:registrationId` | Delete the hook on the host and its secret here → the registration, now `removed`. Not open to a chat's token |
+| GET | `/projects/:id/docs` | The project's Claude Docs registry: id, link, title, `createdBy`, `status` (`unread`, `ok`, `unavailable`), `checkedAt`. Starts no session |
+| POST | `/projects/:id/docs` | `{ url }` or `{ create: { title, body } }` → `201` with the entry; one confined `claude` session with the Docs connector opens or creates it. `409` when the connector is missing or not connected, or the document is already there. Not open to a chat's token |
+| POST | `/projects/:id/docs/refresh` | Read every title again; one that no longer resolves is marked `unavailable`, not dropped. Not open to a chat's token |
+| DELETE | `/projects/:id/docs/:docId` | Drop the entry (the document on claude.ai is never touched) → `204`. Not open to a chat's token |
+| POST | `/projects/:id/docs/:docId/ask` | Open a chat in the project about the document → `201` with the chat. Not open to a chat's token |
 
 ### Decisions
 

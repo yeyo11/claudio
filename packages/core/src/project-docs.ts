@@ -24,6 +24,9 @@ export class ProjectDocsError extends Error {
   ) {
     super(message);
   }
+
+  /** The message is written for the person, also on a 502: the API shows it instead of "internal error" */
+  readonly expose = true;
 }
 
 const PROJECT_ID = /^[\w-]{1,300}$/;
