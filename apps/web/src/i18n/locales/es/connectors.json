@@ -21,6 +21,8 @@
     "connected": "Conectado",
     "needsAuth": "Necesita autorización"
   },
+  "toolCount_one": "{{count}} herramienta",
+  "toolCount_other": "{{count}} herramientas",
   "cliSays": "El CLI dice: {{detail}}",
   "blocked": {
     "title_one": "{{name}} necesita autorización",

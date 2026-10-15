@@ -1,7 +1,10 @@
-import type { Connector, ConnectorAction, ConnectorGuide, ConnectorKind, ConnectorLimit, ConnectorsOverview } from '@claudio/shared';
+import type { AccountRef } from '@claudio/accounts';
+import type { Connector, ConnectorAction, ConnectorGuide, ConnectorKind, ConnectorLimit, ConnectorsOverview, LiveMcpServer } from '@claudio/shared';
 import { parseMcpHealth } from './config/mcp.ts';
 import { execCli } from './cli.ts';
+import { childEnv } from './child-env.ts';
 import type { CoreConfig } from './paths.ts';
+import { probeMcpServers } from './providers/claude-code/mcp-probe.ts';
 
 // `claude mcp list` connects to every server, so it takes seconds: an answer is reused for a minute
 // unless the caller asks for a fresh one.
@@ -107,15 +110,64 @@ export function parseConnectors(output: string): Connector[] {
   return connectors;
 }
 
+/**
+ * The claude.ai connectors in the CLI's `mcp_status`: the servers with the scope `claudeai`, which
+ * include those still waiting for their authorisation (`claude mcp list` leaves those out).
+ */
+export function connectorsFromStatus(servers: LiveMcpServer[]): Connector[] {
+  const connectors: Connector[] = [];
+  for (const server of servers) {
+    if (server.kind !== 'connector') continue;
+    const kind = connectorKind(server.name);
+    const status = server.status === 'connected' || server.status === 'needs-auth' ? server.status : 'unknown';
+    const connector: Connector = { id: server.name, name: server.label, kind, status };
+    if (server.status === 'connected') connector.toolCount = server.tools.length;
+    // A failure or a connection that never settled says nothing about the session: `unknown`, in words
+    if (server.status === 'failed') connector.detail = server.error ?? 'Failed to connect';
+    else if (server.status === 'pending') connector.detail = 'Still connecting';
+    else if (server.status === 'disabled') connector.detail = 'Disabled';
+    if (status !== 'needs-auth' && kind !== 'other') connector.actions = ACTIONS[kind];
+    connectors.push(connector);
+  }
+  return connectors;
+}
+
+export interface ConnectorsOptions {
+  /** The account whose connectors are read: the default one, as `claude mcp list` always did */
+  account?: () => AccountRef;
+  probeCeilingMs?: number;
+  probePollMs?: number;
+}
+
 export class Connectors {
   private cache: ConnectorsOverview | null = null;
 
-  constructor(private readonly config: CoreConfig) {}
+  constructor(
+    private readonly config: CoreConfig,
+    private readonly opts: ConnectorsOptions = {},
+  ) {}
+
+  /** The structured source: a short-lived CLI process answering `mcp_status`. Null when it could not. */
+  private async probe(): Promise<Connector[] | null> {
+    try {
+      const servers = await probeMcpServers({
+        bin: this.config.claudeBin,
+        env: childEnv('claude-code', process.env, this.opts.account?.() ?? null),
+        ...(this.opts.probeCeilingMs !== undefined ? { ceilingMs: this.opts.probeCeilingMs } : {}),
+        ...(this.opts.probePollMs !== undefined ? { pollMs: this.opts.probePollMs } : {}),
+      });
+      return connectorsFromStatus(servers);
+    } catch {
+      return null;
+    }
+  }
 
   async overview(refresh = false): Promise<ConnectorsOverview> {
     if (!refresh && this.cache && Date.now() - Date.parse(this.cache.checkedAt) < TTL_MS) return this.cache;
-    const res = await execCli(this.config, ['mcp', 'list'], { timeoutMs: HEALTH_TIMEOUT_MS });
-    const connectors = parseConnectors(res.stdout);
+    const probed = await this.probe();
+    // The scrape stays as the fallback until the CLI ships `mcp list --json`
+    const res = probed ? { stdout: '', stderr: '', code: 0 } : await execCli(this.config, ['mcp', 'list'], { timeoutMs: HEALTH_TIMEOUT_MS });
+    const connectors = probed ?? parseConnectors(res.stdout);
     const listed = new Set(connectors.map((c) => c.kind));
     const overview: ConnectorsOverview = {
       connectors,

@@ -21,6 +21,8 @@
     "connected": "Connected",
     "needsAuth": "Needs authorisation"
   },
+  "toolCount_one": "{{count}} tool",
+  "toolCount_other": "{{count}} tools",
   "cliSays": "The CLI says: {{detail}}",
   "blocked": {
     "title_one": "{{name}} needs authorisation",

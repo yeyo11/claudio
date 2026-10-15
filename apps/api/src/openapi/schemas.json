@@ -13338,6 +13338,10 @@
         "type": "string",
         "description": "The CLI's own words for the state (`Connected`, `Needs authentication`, a failure…)"
       },
+      "toolCount": {
+        "type": "number",
+        "description": "How many tools it offers; only when the CLI reported its tools (connected)"
+      },
       "actions": {
         "type": "array",
         "items": {
