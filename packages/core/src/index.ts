@@ -194,10 +194,16 @@ export {
 } from './decisions/settings.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
+import { TerminalService } from './terminals/service.ts';
+import { TerminalSettingsStore } from './terminals/settings.ts';
+import { TerminalStore } from './terminals/store.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
+export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
+export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
+export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -418,6 +424,8 @@ export class Core {
   private readonly releaseVault: () => void;
   /** How the API is guarded: the auth mode, the token hash and read-only */
   readonly security: AuthStore;
+  /** The person's own shells: opened by them, never driven by an agent. See docs/plans/terminal.md */
+  readonly terminals: TerminalService;
   /**
    * The settings that change at runtime (`app-settings.json` under the environment), and the exact
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
@@ -1090,6 +1098,25 @@ export class Core {
       },
     });
     this.rotation.start();
+    this.terminals = new TerminalService({
+      store: new TerminalStore(this.db.connection),
+      settings: new TerminalSettingsStore(config),
+      vault: this.vault,
+      version: CLAUDIO_VERSION,
+      emit: (event) => this.events.emit(event),
+      lookup: {
+        project: async (id) => {
+          const project = (await this.projects()).find((p) => p.id === id);
+          return project ? { path: project.path, worktrees: project.worktrees.map((w) => w.path) } : null;
+        },
+        chat: async (id) => {
+          const chat = await this.chats.get(id);
+          return chat ? { cwd: chat.cwd, worktree: chat.worktree?.path ?? null, projectId: chat.project?.id ?? null } : null;
+        },
+      },
+    });
+    // Shells a previous server left running (it was killed hard) end before any new one opens
+    this.terminals.reapStrays();
   }
 
   /** The run, task or item a chat works for: what makes its limit the rotation's. Null for a person's chat. */
@@ -2699,6 +2726,8 @@ export class Core {
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
     this.rotation.close();
+    // The rows that say the shells ended are written before this returns, while the database is open
+    void this.terminals.shutdown();
     this.runtime.stopAll();
     this.db.close();
   }

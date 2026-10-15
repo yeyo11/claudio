@@ -139,6 +139,21 @@ export function processTable(): ProcessEntry[] {
   return table;
 }
 
+/** One process from the table, or null when it is gone: for a caller that already knows the pid and must not scan them all. */
+export function processEntry(pid: number): ProcessEntry | null {
+  try {
+    const stat = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
+    const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+    const ppid = Number(fields[1]);
+    const started = Number(fields[19]);
+    if (!Number.isFinite(ppid) || !Number.isFinite(started)) return null;
+    const argv = readFileSync(`/proc/${String(pid)}/cmdline`, 'utf8').split('\0').filter(Boolean);
+    return { pid, ppid, started, argv };
+  } catch {
+    return null;
+  }
+}
+
 /** Kernel clock ticks per second; 100 on every Linux Claudio runs on. */
 const TICKS_PER_SECOND = 100;
 
