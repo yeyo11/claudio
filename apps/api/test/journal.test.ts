@@ -142,3 +142,39 @@ test('approving writes each proposal to its target, and nothing is written befor
   assert.equal((await app.inject({ method: 'POST', url: `/api/memory-proposals/${rejected.id}/approve` })).statusCode, 409);
   assert.equal((await app.inject({ method: 'POST', url: '/api/memory-proposals/nope/reject' })).statusCode, 404);
 });
+
+test("a chat's token cannot approve or reject a memory proposal, and the person's token can", async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-journal-sec-'));
+  const secured = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(dir, 'claude'), CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'), CLAUDIO_DATA_DIR: join(dir, 'data') }));
+  const guarded = await buildApp(secured, { logLevel: 'silent', webDist: join(dir, 'no-ui') });
+  try {
+    const { token: owner } = (await guarded.inject({ method: 'POST', url: '/api/security/token', ...json({}) })).json<{ token: string }>();
+    assert.equal((await guarded.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'token' }) })).statusCode, 200);
+    const chat = secured.security.chatTokens.mint('chat-42');
+    const as = (token: string) => ({ method: 'POST' as const, remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}`, 'content-type': 'application/json' }, payload: '{}' });
+
+    const projectDir = mkdtempSync(join(tmpdir(), 'agentry-api-journal-sec-project-'));
+    const imported = await guarded.inject({ url: '/api/projects/import', ...as(owner), payload: JSON.stringify({ path: projectDir, name: 'Secured', modules: ['memory'] }) });
+    assert.equal(imported.statusCode, 201, imported.body);
+    const project = imported.json<Project>();
+    const propose = (text: string) => secured.memoryProposals.propose(project.id, { target: { kind: 'instructions', file: null, section: 'Testing' }, text, reason: 'Because' }, qa);
+    const approving = propose('Run the checks');
+    const rejecting = propose('Skip the checks on Fridays');
+
+    for (const url of [`/api/memory-proposals/${approving.id}/approve`, `/api/memory-proposals/${rejecting.id}/reject`]) {
+      const res = await guarded.inject({ url, ...as(chat) });
+      assert.equal(res.statusCode, 403, url);
+      assert.match(res.json<{ error: string }>().error, /chat's token cannot approve or reject a memory proposal/);
+    }
+    // Refused before anything was decided or written
+    assert.equal(secured.memoryProposals.find(approving.id)?.status, 'pending');
+    assert.equal(existsSync(join(projectDir, 'CLAUDE.md')), false);
+
+    const okApprove = await guarded.inject({ url: `/api/memory-proposals/${approving.id}/approve`, ...as(owner) });
+    assert.equal(okApprove.statusCode, 200, okApprove.body);
+    assert.equal((await guarded.inject({ url: `/api/memory-proposals/${rejecting.id}/reject`, ...as(owner) })).statusCode, 200);
+  } finally {
+    await guarded.close();
+    secured.shutdown();
+  }
+});

@@ -128,6 +128,13 @@ itself (changes, the diff stat of a failing check, the health probe, the merge s
 integrator, verification and fixer, planner, workflow, synthesis), to the supervisor, and to every flow
 stage. The push of a pull request branch is Claudio's own process, after the person approved.
 
+## A chat cannot approve its own memory
+
+What a memory proposal writes (`CLAUDE.md`, a memory file, the journal) is read as instructions by every
+later run of the project. `POST /memory-proposals/:proposalId/approve` and `/reject` therefore answer
+403 to a chat's token, with the same error shape as the other routes closed to it; proposing stays
+open, and the person's token decides.
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.

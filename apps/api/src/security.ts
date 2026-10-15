@@ -239,6 +239,17 @@ const CHAT_FORBIDDEN_WEBHOOKS = new Set([
 const CHAT_FORBIDDEN_CONNECTORS = new Set([`POST ${API_PREFIX}/connectors/:id/authorise`]);
 
 /**
+ * Approving a memory proposal writes its text into `CLAUDE.md`, a memory file or the journal, which
+ * every later run of the project reads as instructions: a chat that could approve (or reject) its
+ * own proposals would write its own standing orders. Deciding is the person's click; proposing stays
+ * open to a chat.
+ */
+const CHAT_FORBIDDEN_MEMORY = new Set([
+  `POST ${API_PREFIX}/memory-proposals/:proposalId/approve`,
+  `POST ${API_PREFIX}/memory-proposals/:proposalId/reject`,
+]);
+
+/**
  * Importing, linking and syncing issues writes the person's work items and their tracker, and an
  * issue's text is untrusted: an injection in one must not be able to import more issues, link or
  * unlink them, change which tracker a project uses or write to the tracker through a chat's token.
@@ -575,6 +586,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_CONNECTORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot authorise a connector: that is the person's click" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_MEMORY.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot approve or reject a memory proposal: what is written into memory is the person's decision" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

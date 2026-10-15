@@ -1287,8 +1287,8 @@ project's Memory module on.
 | POST | `/projects/:id/journal` | Write a decision or a note by hand — body `{ text, kind?, itemId?, documentPath? }` |
 | DELETE | `/journal/:entryId` | Delete a journal entry |
 | GET | `/projects/:id/memory/proposals?status=` | The team's memory proposals, newest first, by status |
-| POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text`, and write it to its target |
-| POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written |
+| POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text`, and write it to its target; a chat's token gets 403 |
+| POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written; a chat's token gets 403 |
 
 ### Plugins
 
