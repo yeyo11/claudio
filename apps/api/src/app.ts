@@ -6,6 +6,7 @@ import compress from '@fastify/compress';
 import cors from '@fastify/cors';
 import etag from '@fastify/etag';
 import fastifyStatic from '@fastify/static';
+import websocket from '@fastify/websocket';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Core } from '@claudio/core';
 import { allowedOrigin } from './origins.ts';
@@ -44,6 +45,8 @@ import { projectDocsRoutes } from './routes/project-docs.ts';
 import { documentRoutes } from './routes/documents.ts';
 import { assistantRoutes } from './routes/assistant.ts';
 import { webhookRoutes } from './routes/webhooks.ts';
+import { terminalRoutes } from './routes/terminals.ts';
+import { SOCKET_OPTIONS } from './terminal-socket.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -104,6 +107,14 @@ function uiHeaders(webDist: string): Record<string, string> {
   };
 }
 
+/**
+ * A URL as the logs may keep it. A socket's ticket and the streams' `?token=` are credentials, and
+ * Fastify logs `req.url`: a line that kept them would hand them to whoever reads the log.
+ */
+export function redactUrl(url: string): string {
+  return url.replace(/([?&](?:ticket|token)=)[^&#]*/g, '$1[redacted]');
+}
+
 export interface AppOptions {
   logLevel?: string;
   /** Built UI to serve; skipped when the directory does not exist */
@@ -112,7 +123,13 @@ export interface AppOptions {
 
 export async function buildApp(core: Core, options: AppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: { level: options.logLevel ?? process.env.LOG_LEVEL ?? 'info' },
+    logger: {
+      level: options.logLevel ?? process.env.LOG_LEVEL ?? 'info',
+      serializers: {
+        // Fastify's own shape, with the credentials in the URL taken out
+        req: (req) => ({ method: req.method, url: redactUrl(req.url), host: req.host, remoteAddress: req.ip, remotePort: req.socket?.remotePort }),
+      },
+    },
     // The event stream is a hijacked, never-ending response: without this a browser tab left open
     // keeps close() waiting until the orchestrator SIGKILLs the process
     forceCloseConnections: true,
@@ -150,8 +167,26 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // an exception thrown into the event path. This is where that line goes.
   core.push.log = (line) => app.log.warn({ scope: 'push' }, line);
 
+  // First of all the hooks: a refused upgrade must not leave its socket open. Once a request has
+  // asked to upgrade, Node stops tracking its socket, so `forceCloseConnections` never reaches one
+  // that got an HTTP answer (401, 403, 405, 421…) and `close()` would wait for it for ever.
+  app.addHook('onRequest', async (req, reply) => {
+    if (req.headers.upgrade === undefined) return;
+    reply.raw.once('finish', () => req.raw.socket.destroy());
+  });
+
   // Before every route: the guard must also cover /docs and the OpenAPI document
-  registerSecurity(app, core);
+  const guard = registerSecurity(app, core);
+
+  // The terminal's byte stream. Registered before the routes so each socket route is seen as one;
+  // the sockets are closed with the server, whether or not their peer answers the handshake
+  await app.register(websocket, {
+    options: SOCKET_OPTIONS,
+    preClose(done) {
+      for (const client of this.websocketServer.clients) client.terminate();
+      done();
+    },
+  });
 
   // The lists are JSON whose keys repeat on every row, so they shrink to a fifth or less; that is
   // what a phone behind the tunnel feels. The event streams are hijacked replies, which no hook
@@ -208,6 +243,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(changeRequestRoutes, { core });
       await api.register(pushRoutes, { core });
       await api.register(webhookRoutes, { core });
+      await api.register(terminalRoutes, { core, guard });
     },
     { prefix: '/api' },
   );
