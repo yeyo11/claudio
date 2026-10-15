@@ -134,7 +134,7 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
-import { Orchestrator, validateEffort } from './orchestrator.ts';
+import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
@@ -1517,7 +1517,8 @@ export class Core {
   private async askSupervisor(question: SupervisorQuestion): Promise<SupervisorAnswer> {
     const preset = this.toolPresets.get('read-only') ?? DEFAULT_SUPERVISOR_PRESET;
     const allowedTools = preset.allowedTools ?? [];
-    const disallowedTools = preset.disallowedTools ?? [];
+    // A watcher reads: whatever the stored preset says, it never pushes
+    const disallowedTools = [...new Set([...(preset.disallowedTools ?? []), ...PUSH_DENIED])];
     const run = this.runtime.start({
       prompt: question.prompt,
       cwd: question.cwd,

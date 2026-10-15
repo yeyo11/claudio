@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@claudio/shared';
 import { Db } from '../src/db.ts';
-import { Orchestrator, PLAN_SCHEMA, PLANNER_GRAPH_GUIDANCE, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
+import { Orchestrator, PLAN_SCHEMA, PUSH_DENIED, PLANNER_GRAPH_GUIDANCE, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
@@ -1537,4 +1537,35 @@ test('the planner prompt carries the guidance, and a draft keeps the model the p
   // A model the CLI would refuse is dropped, not kept to fail a worker later
   assert.equal(draft.tasks.find((t) => t.id === 'web')?.model, undefined);
   db.close();
+});
+
+test('every process an orchestration starts is denied git push, not only told not to', async () => {
+  assert.deepEqual([...PUSH_DENIED], ['Bash(git push)', 'Bash(git push *)']);
+  const spawns = join(mkdtempSync(join(tmpdir(), 'claudio-push-')), 'spawns.log');
+  process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  try {
+    const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+    const db = new Db(config);
+    const repo = repoWithCommit();
+    const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+    const started = orchestrator.create({
+      name: 'no push',
+      cwd: repo,
+      worktree: true,
+      synthesize: true,
+      tasks: [
+        { id: 'a', name: 'A', prompt: 'FAKE-WRITE a.txt a' },
+        { id: 'b', name: 'B', prompt: 'FAKE-WRITE b.txt b' },
+      ],
+    });
+    const orch = await settle(orchestrator, started.id);
+    assert.equal(orch.status, 'completed');
+    const lines = readFileSync(spawns, 'utf8').split('\n').filter(Boolean);
+    // Two workers and the synthesis, at least
+    assert.ok(lines.length >= 3, `only ${lines.length} processes were started`);
+    for (const line of lines) assert.match(line, /--disallowedTools=\S*Bash\(git push\)\S*Bash\(git push \*\)/, line);
+    db.close();
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+  }
 });

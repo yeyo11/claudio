@@ -207,7 +207,13 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
 const worktreePath = (root: string, name: string) => join(root, '.claude', 'worktrees', name);
 
 /** What each of the orchestrator's own runs may do, beside the native rules the person gave the graph */
-const NO_PUSH = { network: 'omit', gitPush: 'omit' } as const;
+const NO_PUSH = { network: 'omit', gitPush: 'deny' } as const;
+/**
+ * `git push` denied, as `--disallowedTools` rules. Telling a worker in its prompt not to push is a
+ * request; this is the enforcement, and it holds in every permission mode. Claudio's own code pushes
+ * the integration branch for a pull request, so nothing an agent does needs it.
+ */
+export const PUSH_DENIED: readonly string[] = rulesFor('claude-code', { read: { allow: true }, edit: { allow: 'none' }, commands: { allow: 'none' }, ...NO_PUSH }).disallowedTools;
 /** The planner only looks */
 const PLANNER_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'none' }, commands: { allow: 'none' }, ...NO_PUSH };
 /** Merging is git work; without it the integrator could only describe the conflicts */
@@ -1108,6 +1114,7 @@ export class Orchestrator {
           model: (task.model ?? orch.model) ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
+          disallowedTools: [...PUSH_DENIED],
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:${task.id}`.slice(0, 60),
           keepAlive: false,
@@ -1588,6 +1595,7 @@ ${quoted}
         provider: 'claude-code',
         // Merging is git work; without it the integrator could only describe the conflicts
         allowedTools: rulesFor('claude-code', INTEGRATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+        disallowedTools: [...PUSH_DENIED],
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:integration`.slice(0, 60),
         keepAlive: false,
@@ -1654,6 +1662,7 @@ ${quoted}
           ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
           permissionMode: orch.permissionMode,
           name: `${orch.name}:synthesis`.slice(0, 60),
+          disallowedTools: [...PUSH_DENIED],
           keepAlive: false,
         },
         { orchestrationId: orch.id, orchestrationTaskId: '__synthesis__' },
@@ -2048,6 +2057,7 @@ ${quoted}
           provider: 'claude-code',
           // Building and running tests is the job, so it may run commands; the graph asked for a fixer
           allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+          disallowedTools: [...PUSH_DENIED],
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:verification`.slice(0, 60),
           keepAlive: false,
@@ -2100,6 +2110,7 @@ ${quoted}
         // These rules are Claude Code's, so a default provider set to another one never receives them
         provider: 'claude-code',
         allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+        disallowedTools: [...PUSH_DENIED],
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:checks-fix`.slice(0, 60),
         keepAlive: false,
@@ -2195,6 +2206,7 @@ ${quoted}
       // These rules are Claude Code's, so a default provider set to another one never receives them
       provider: 'claude-code',
       allowedTools: rulesFor('claude-code', PLANNER_POLICY).allowedTools,
+      disallowedTools: [...PUSH_DENIED],
       name: PLANNER_RUN_NAME,
       keepAlive: false,
       internal: true,
@@ -2613,6 +2625,7 @@ ${quoted}
             provider: 'claude-code',
             // Asked for by the person who launched the graph: nothing to confirm again
             allowedTools: rulesFor('claude-code', WORKFLOW_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+            disallowedTools: [...PUSH_DENIED],
             ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
             name: `${orch.name}:workflow`.slice(0, 60),
             keepAlive: false,

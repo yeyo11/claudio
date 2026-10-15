@@ -50,8 +50,11 @@ CLI's login. The rule is stated in [CLAUDE.md](../CLAUDE.md) and
 - no second login: the session is the one the person has in `gh` or `glab`, whether it was made in
   a terminal or from Claudio, which only runs the CLI's own `auth login` and `auth logout` (see
   [Signing in from Claudio](#signing-in-from-claudio));
-- **no agent ever pushes.** `stageRules` in `packages/core/src/flow.ts` keeps `git push` denied; the
-  push is Claudio's own process, after the person approved.
+- **no agent ever pushes.** `stageRules` in `packages/core/src/flow.ts` keeps `git push` denied for the
+  flow, and every run an orchestration starts (workers, integrator, verification and fixer, planner,
+  workflow, synthesis, the supervisor) passes `PUSH_DENIED` as `--disallowedTools`, so it is
+  enforced and not only asked for in a prompt. The push is Claudio's own process, after the person
+  approved.
 
 ## Signing in from Claudio
 
