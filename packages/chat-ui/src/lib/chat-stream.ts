@@ -48,6 +48,38 @@ export function unconfirmedTail(page: ChatDetail): number {
   return count;
 }
 
+/** What a message says, as a transcript line and the stream's copy of it both put it. */
+const said = (entry: TranscriptEntry): string => entryText(entry).trim();
+
+/** Entries the page drew on Send, before the server said anything: removed again if the send fails. */
+const optimistic = new WeakSet<TranscriptEntry>();
+
+/**
+ * The person's message as the page draws it on Send; the server's copy has the same uuid. Text
+ * only: the confirmed entry brings the files and the row updates in place.
+ */
+export function optimisticEntry(id: string, text: string, now = new Date()): TranscriptEntry {
+  const entry: TranscriptEntry = {
+    uuid: id,
+    role: 'user',
+    timestamp: now.toISOString(),
+    model: null,
+    isSidechain: false,
+    parentToolUseId: null,
+    blocks: [{ type: 'text', text }],
+  };
+  optimistic.add(entry);
+  return entry;
+}
+
+export const isOptimistic = (entry: TranscriptEntry): boolean => optimistic.has(entry);
+
+/** `page` without the optimistic entry `id` (its send failed). */
+export function dropOptimistic(page: ChatDetail, id: string): ChatDetail {
+  const entries = page.entries.filter((e) => !(e.uuid === id && optimistic.has(e)));
+  return entries.length === page.entries.length ? page : { ...page, entries, total: page.total - 1 };
+}
+
 /** How far back a stored message is looked for before it is taken to be new. */
 const DEDUPE_WINDOW = 50;
 
@@ -59,21 +91,29 @@ const DEDUPE_WINDOW = 50;
  */
 export function appendStreamed(page: ChatDetail, entry: TranscriptEntry, now = Date.now()): { page: ChatDetail; outcome: 'appended' | 'present' | 'skipped' } {
   if (entry.isSidechain) return { page, outcome: 'skipped' };
+  // Searched before the timestamp check: an optimistic entry carries the page's clock, which the
+  // server's copy may slightly precede
+  for (let i = page.entries.length - 1; i >= Math.max(0, page.entries.length - DEDUPE_WINDOW); i--) {
+    const held = page.entries[i];
+    if (!held) continue;
+    // A resume has no id of its own to send, so its optimistic row is matched by words
+    const isOptimisticTwin = entry.role === 'user' && optimistic.has(held) && said(held) === said(entry);
+    if (!(entry.uuid && held.uuid === entry.uuid) && !isOptimisticTwin) continue;
+    if (!optimistic.has(held)) return { page, outcome: 'present' };
+    // The server's copy takes the optimistic row's place, with its real timestamp and blocks
+    streamed.set(entry, { mark: ++appended, at: streamed.get(held)?.at ?? now });
+    streamed.delete(held);
+    const entries = page.entries.slice();
+    entries[i] = entry;
+    return { page: { ...page, entries }, outcome: 'present' };
+  }
   // Older than the page's end: a replay (a restarted server replays a restored chat whole), whose
   // place is somewhere above and not at the end
   const last = page.entries.at(-1)?.timestamp;
   if (entry.timestamp && last && entry.timestamp < last) return { page, outcome: 'skipped' };
-  if (entry.uuid) {
-    for (let i = page.entries.length - 1; i >= Math.max(0, page.entries.length - DEDUPE_WINDOW); i--) {
-      if (page.entries[i]?.uuid === entry.uuid) return { page, outcome: 'present' };
-    }
-  }
   streamed.set(entry, { mark: ++appended, at: now });
   return { page: { ...page, entries: [...page.entries, entry], total: page.total + 1 }, outcome: 'appended' };
 }
-
-/** What a message says, as a transcript line and the stream's copy of it both put it. */
-const said = (entry: TranscriptEntry): string => entryText(entry).trim();
 
 /**
  * The streamed messages of the person that the read's new user entries stand for, each entry

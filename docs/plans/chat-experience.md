@@ -426,7 +426,7 @@ plan's; create tracker items with these titles if the project tracks them.
 
 ### CHAT-1 — Optimistic user message
 
-Status: proposed.
+Status: **built** on 2026-10-15 (`optimisticEntry`, `dropOptimistic` and the in-place replace in `appendStreamed` in `chat-stream.ts`; `Composer` `onSending`; test `packages/chat-ui/test/chat-stream.test.ts`). The optimistic row shows text only; files arrive with the confirmed entry. No e2e spec added.
 
 **Problem.** After Send the words stay in the box and nothing appears in the conversation until the
 POST returns and, later, the stream's `message` event arrives (B1.2, B3). On a resume or a cold

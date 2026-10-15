@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import { entryText, type Chat, type ChatPendingAttachment, type EditStep } from '@agentry/shared';
+import { entryText, type Chat, type ChatDetail, type ChatPendingAttachment, type EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -21,7 +21,7 @@ import { api, ApiRequestError, keys, useProjects } from '../api';
 import { tickerActivity } from '@agentry/chat-ui/lib/chat-live';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import { subagentFor, transcriptRows } from '@agentry/chat-ui/lib/chat-steps';
-import type { ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
+import { appendStreamed, dropOptimistic, optimisticEntry, type ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '@agentry/chat-ui/lib/chats';
 import { useDetailPanel } from '../lib/detail';
 import { taskPath } from '../lib/work-items';
@@ -91,6 +91,20 @@ export function ChatView() {
   // A message still waiting for the turn is a card over the box, so it is not also a row here
   const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
   const items = pendingless;
+  // The person's words are drawn at the end of the conversation the moment Send is pressed; the undo takes them out again if the send fails
+  const onSending = useCallback(
+    ({ id: messageId, text }: { id: string | null; text: string }) => {
+      const uuid = messageId ?? `optimistic-${crypto.getRandomValues(new Uint32Array(1))[0]}`;
+      const entry = optimisticEntry(uuid, text);
+      const cached = [keys.chat(id, false), keys.chat(id, true)];
+      for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? appendStreamed(page, entry).page : page));
+      setFollow(true);
+      return () => {
+        for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? dropOptimistic(page, uuid) : page));
+      };
+    },
+    [id, queryClient, setFollow],
+  );
   const limit = useLimitState(chat);
   usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
@@ -460,6 +474,7 @@ export function ChatView() {
             kind={composer}
             restore={restore}
             history={sentHistory}
+            onSending={onSending}
             onSent={(sent) => {
               setFollow(true);
               // The server says whether it waits: a resume or a fork, or a message that starts a turn, does not
