@@ -12,7 +12,7 @@ import { PermissionPrompts } from '@agentry/chat-ui/components/PermissionPrompts
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { AnimatePresence, motion } from '@agentry/ui/components/motion';
 import { useToast } from '@agentry/ui/components/Toast';
-import { endsWithAssistant, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
+import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@agentry/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
@@ -68,6 +68,7 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
 
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
+  useEffect(() => preloadMarkdown(), []);
   const { t } = useTranslation(['chat', 'work', 'common']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
