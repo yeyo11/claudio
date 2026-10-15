@@ -365,6 +365,20 @@ describe('models from initialize', () => {
     assert.equal(def.plan, 'Claude Max');
   });
 
+  it('follows a new sign-in of the CLI instead of the account the cached list was read for', async () => {
+    const root3 = join(root, 'relogin');
+    const s = new AccountStore({ dataDir: root3, defaultDir, claude: FAKE, env: { ...env(), CLAUDE_CONFIG_DIR: defaultDir } });
+    await s.models('default');
+    assert.equal(s.get('default').email, 'a@example.com');
+    // `claude auth login` again in the same dir, as someone else
+    writeFileSync(join(defaultDir, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'b@example.com', organizationName: 'B' } }));
+    assert.equal(s.get('default').email, 'b@example.com', 'the list shows who the CLI is signed in as now');
+    const count = (): number => readFileSync(join(defaultDir, 'initialize-count'), 'utf8').length;
+    const before = count();
+    await s.models('default');
+    assert.equal(count(), before + 1, 'the cached list of the previous account is read again');
+  });
+
   it('serves the cache until the CLI version or the plan moves', async () => {
     const dir = join(root, 'models-b');
     mkdirSync(dir, { recursive: true });

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { ModelOption, ModelTier } from '@claudio/shared';
 import { envFor, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
+import { cliLogin } from './usage.ts';
 
 /** What `initialize` says about the account besides its models. */
 export interface InitializeAccount {
@@ -187,7 +188,11 @@ export class ModelCache {
     const version = await cliVersion({ ...this.opts, env: envFor(account, this.opts.env) });
     const hit = this.read(account.id);
     const planMoved = !!opts.plan && !!hit?.account.subscriptionType && !samePlan(opts.plan, hit.account.subscriptionType);
-    if (hit && !opts.refresh && hit.cliVersion === version && !planMoved) return hit;
+    // The CLI signed in as someone else in this dir since the list was read (`claude auth login`
+    // again): the list and the identity it carries are that other account's
+    const login = account.kind === 'login' ? cliLogin(account.dir) : null;
+    const accountMoved = !!login && !!hit?.account.email && hit.account.email !== login.email;
+    if (hit && !opts.refresh && hit.cliVersion === version && !planMoved && !accountMoved) return hit;
     const read = await readInitialize(account, this.opts);
     const entry: ModelsEntry = { ...read, cliVersion: version, fetchedAt: new Date().toISOString() };
     await writeAtomic(this.file(account.id), `${JSON.stringify(entry, null, 2)}\n`, 0o600);

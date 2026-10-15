@@ -10,7 +10,7 @@ import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { identify, type Identity } from './identify.ts';
 import { ModelCache, offers } from './models.ts';
-import { readCache, Readings, type Reading } from './usage.ts';
+import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
 export { DEFAULT_ID };
@@ -166,7 +166,11 @@ export class AccountStore {
       // An identity never read from the CLI (the default account starts out assumed signed in) is
       // completed from the account block of the last `initialize` the model cache stored: what the
       // CLI said about this account, read from a file, with no process started for it
-      const cli = identity.email === null ? this.modelCache.read(id)?.account : undefined;
+      // Only when that block is about the account the CLI is signed in as now: after a new
+      // `claude auth login` in the dir it would name the previous one, so the login itself is shown
+      const login = identity.email === null && kind === 'login' ? cliLogin(this.ref(id).dir) : null;
+      const cached = identity.email === null ? this.modelCache.read(id)?.account : undefined;
+      const cli = cached && (!login || cached.email === login.email) ? cached : login ? { email: login.email, organization: login.organization, subscriptionType: null } : undefined;
       return {
         id,
         kind,

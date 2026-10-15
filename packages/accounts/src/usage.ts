@@ -57,6 +57,23 @@ export function cliConfigFile(dir: string, home: string = homedir()): string {
 }
 
 /**
+ * Who the CLI is signed in as in a config dir: the `oauthAccount` it writes into its config file
+ * (`emailAddress`, `organizationName`). Read from the file, with no process started; null when the
+ * dir has no login (a token or key account, a signed-out dir, a file that does not parse).
+ */
+export function cliLogin(dir: string, home: string = homedir()): { email: string; organization: string | null } | null {
+  try {
+    const doc = JSON.parse(readFileSync(cliConfigFile(dir, home), 'utf8')) as { oauthAccount?: { emailAddress?: unknown; organizationName?: unknown } };
+    const email = doc.oauthAccount?.emailAddress;
+    if (typeof email !== 'string' || !email) return null;
+    const org = doc.oauthAccount?.organizationName;
+    return { email, organization: typeof org === 'string' && org ? org : null };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The CLI's own `cachedUsageUtilization` (`fetchedAtMs` plus `utilization.five_hour|seven_day`,
  * each `{ utilization: 0..100, resets_at: ISO }`). Undocumented and best-effort: only the usage
  * block is read, never the rest of the file, and a malformed one is no reading.
