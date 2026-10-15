@@ -1101,20 +1101,20 @@ test('a run stopped while it waits for the limit is not touched by the end of th
   assert.equal(flowRuns(s)[0]?.outcome, 'cancelled');
 });
 
-const movedRow = (s: Setup, run: { id: string }, fromChat: string, toChat: string) => ({
-  id: `move-${toChat}`,
+const waitRow = (run: { id: string }, fromChat: string) => ({
+  id: `wait-${fromChat}`,
   at: new Date().toISOString(),
   subjectKind: 'flow_run' as const,
   subjectId: run.id,
   projectId: 'p1',
   fromChat,
-  toChat,
+  toChat: null,
   fromProvider: 'claude-code',
-  toProvider: 'codex',
+  toProvider: null,
   fromModel: 'sonnet',
-  toModel: 'gpt-5.5',
-  action: 'handoff' as const,
-  state: 'moved' as const,
+  toModel: null,
+  action: 'wait' as const,
+  state: 'waiting' as const,
   decidedBy: 'setting' as const,
   decisionId: null,
   resetsAt: null,
@@ -1122,70 +1122,14 @@ const movedRow = (s: Setup, run: { id: string }, fromChat: string, toChat: strin
   updatedAt: new Date().toISOString(),
 });
 
-test('a move re-points the run at the new chat once, links it on the item, and the new chat ends the run', async () => {
+test('the rotation reads what a running run works for, and nothing for any other chat', async () => {
   const s = setup();
   const it = await item(s, 'in_progress');
   const chat = s.chatOf(it.id);
   const run = running(s)[0];
   assert.ok(run);
-  s.rotating.add(chat);
-  await s.answer(it.id, {}, true, RATE_LIMITED);
-  const move = movedRow(s, run, chat, 'chat-codex');
-  assert.equal(s.flow.moved(move), true);
-  // A second caller (another process, or the result that came first) changes nothing
-  assert.equal(s.flow.moved(move), false);
-  const after = running(s)[0];
-  assert.equal(after?.chatId, 'chat-codex');
-  assert.equal(after?.provider, 'codex');
-  assert.equal(after?.model, 'gpt-5.5');
-  assert.ok(s.items.links(it.id).some((l) => l.kind === 'chat' && l.chatId === 'chat-codex' && l.role === 'work'));
-  // The old chat's process ending is nobody's failure: the run is not on it any more
-  s.flow.chatEnded(chat, 'exit code 1');
-  assert.equal(running(s)[0]?.chatId, 'chat-codex');
-  await s.flow.chatResult('chat-codex', { isError: false, result: '', structuredOutput: ok('Implemented') });
-  await s.flow.settled();
-  assert.equal(s.items.find(it.id)?.status, 'in_review');
-  assert.deepEqual(
-    flowRuns(s)
-      .filter((r) => r.stage === 'work')
-      .map((r) => [r.chatId, r.provider, r.outcome]),
-    [['chat-codex', 'codex', 'passed']],
-  );
-});
-
-test('a result from the new chat that comes before the move re-points the run is not lost', async () => {
-  const s = setup();
-  const it = await item(s, 'in_progress');
-  const chat = s.chatOf(it.id);
-  const run = running(s)[0];
-  assert.ok(run);
-  s.db.insertProviderMove(movedRow(s, run, chat, 'chat-codex'));
-  await s.flow.chatResult('chat-codex', { isError: false, result: '', structuredOutput: ok('Implemented') });
-  await s.flow.settled();
-  assert.equal(s.items.find(it.id)?.status, 'in_review');
-  assert.equal(flowRuns(s).find((r) => r.stage === 'work')?.chatId, 'chat-codex');
-});
-
-test("a run's work is what a move carries: its prompt, what is owed, and the budget that is left across the chain", async () => {
-  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxCostUsd: 5 } } });
-  const it = await item(s, 'in_progress');
-  const chat = s.chatOf(it.id);
-  const run = running(s)[0];
-  assert.ok(run);
-  s.costs.set(chat, 1.5);
-  const work = s.flow.workOf(chat);
-  assert.equal(work?.kind, 'flow-run');
-  assert.equal(work?.subjectKind, 'flow_run');
-  assert.equal(work?.subjectId, run.id);
-  assert.equal(work?.prompt, s.launches.find((l) => l.run.id === run.id)?.prompt);
-  assert.equal(work?.remainingBudgetUsd, 3.5);
-  // After a move the run's budget is what is left of the chain, not the whole of it again
-  s.db.insertProviderMove(movedRow(s, run, chat, 'chat-codex'));
-  assert.equal(s.flow.moved(movedRow(s, run, chat, 'chat-codex')), true);
-  s.costs.set('chat-codex', 1);
-  assert.equal(s.flow.workOf('chat-codex')?.remainingBudgetUsd, 2.5);
-  assert.equal(s.flow.workOf('chat-codex')?.prompt, work?.prompt);
-  assert.equal(s.flow.workOf(chat), null);
+  assert.deepEqual(s.flow.workOf(chat), { subjectKind: 'flow_run', subjectId: run.id });
+  assert.equal(s.flow.workOf('nobody'), null);
 });
 
 test("an item's runs are all served, newest first, so an older failed run still reads as failed", async () => {
@@ -2285,7 +2229,7 @@ test('a restart leaves a run that waits for a limit to reset where it is: the ro
   const chat = first.chatOf(a.id);
   const run = running(first)[0];
   assert.ok(run);
-  first.db.insertProviderMove({ ...movedRow(first, run, chat, ''), toChat: null, toProvider: null, toModel: null, action: 'wait', state: 'waiting', resetsAt: new Date(Date.now() + 3_600_000).toISOString() });
+  first.db.insertProviderMove({ ...waitRow(run, chat), resetsAt: new Date(Date.now() + 3_600_000).toISOString() });
 
   const second = setup({ db: first.db, settings: first.state.settings, recover: false });
   second.flow.recover();

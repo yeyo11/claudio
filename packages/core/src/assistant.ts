@@ -47,7 +47,7 @@ import {
   type ProviderMove,
 } from '@agentry/shared';
 import type { ChatWork } from './chat-service.ts';
-import { openWaitOf } from './work-provider.ts';
+import { openWaitOf } from './rotation.ts';
 import {
   assistantLanguage,
   assistantPrompt,
@@ -595,7 +595,6 @@ export class AssistantService {
         started = true;
         // What the chat was started with, which a provider without `effort` leaves null
         this.sql.prepare("UPDATE assistant_runs SET chat_id = ?, effort = CASE WHEN ? = 1 THEN ? ELSE effort END WHERE id = ? AND status = 'running'").run(chatId, effort === undefined ? 0 : 1, effort ?? null, row.id);
-        this.prompts.set(chatId, launch.prompt);
         if (row.kind === 'resources' && row.description && row.resource_kind) this.drafting.set(chatId, row.id);
         this.announce(row.id, 'read');
       });
@@ -741,29 +740,10 @@ export class AssistantService {
     state.timer.unref();
   }
 
-  /** The prompt a run's chat was started with, which a restart of the work on another provider sends again */
-  private readonly prompts = new Map<string, string>();
-
-  /** What a chat works for, as a move reads it; null for a chat that is not a running run's. */
+  /** What a chat works for, as the rotation reads it; null for a chat that is not a running run's. */
   workOf(chatId: string): ChatWork | null {
     const row = this.sql.prepare("SELECT id FROM assistant_runs WHERE chat_id = ? AND status = 'running'").get(chatId) as { id: string } | undefined;
-    return row ? { kind: 'assistant', subjectKind: 'assistant_run', subjectId: row.id, prompt: this.prompts.get(chatId) ?? null } : null;
-  }
-
-  /** A move gave the run a new chat; it is re-pointed only while it is still on the old one. */
-  moved(move: Pick<ProviderMove, 'subjectKind' | 'subjectId' | 'fromChat' | 'toChat'>): boolean {
-    if (move.subjectKind !== 'assistant_run' || !move.toChat) return false;
-    const changed = this.sql.prepare("UPDATE assistant_runs SET chat_id = ? WHERE id = ? AND chat_id = ? AND status = 'running'").run(move.toChat, move.subjectId, move.fromChat).changes;
-    if (changed !== 1) return false;
-    const prompt = this.prompts.get(move.fromChat);
-    if (prompt !== undefined) this.prompts.set(move.toChat, prompt);
-    this.prompts.delete(move.fromChat);
-    const drafting = this.drafting.get(move.fromChat);
-    if (drafting !== undefined) {
-      this.drafting.delete(move.fromChat);
-      this.drafting.set(move.toChat, drafting);
-    }
-    return true;
+    return row ? { subjectKind: 'assistant_run', subjectId: row.id } : null;
   }
 
   /** A wait for the limit to reset ended: replayed, the run goes on; otherwise it ends. */
@@ -782,16 +762,9 @@ export class AssistantService {
   /** A result of a chat. Only a running run's chat counts, and only its first result. */
   chatResult(chatId: string, result: AssistantChatResult): void {
     try {
-      let row = this.sql.prepare("SELECT * FROM assistant_runs WHERE chat_id = ? AND status = 'running'").get(chatId) as RunRow | undefined;
-      if (!row) {
-        // The chat a move just made may answer before the run is re-pointed: the move row is there first
-        for (const move of this.deps.db.providerMoves({ chatId, state: 'moved', subjectKind: 'assistant_run', limit: 5 })) {
-          if (move.toChat === chatId && this.moved(move)) break;
-        }
-        row = this.sql.prepare("SELECT * FROM assistant_runs WHERE chat_id = ? AND status = 'running'").get(chatId) as RunRow | undefined;
-      }
+      const row = this.sql.prepare("SELECT * FROM assistant_runs WHERE chat_id = ? AND status = 'running'").get(chatId) as RunRow | undefined;
       if (!row) return;
-      // A turn the usage limit cut is the rotation's: it waits for the reset or moves the run to a new chat
+      // A turn the usage limit cut is the rotation's: it waits for the reset
       if (result.isError && result.cause === 'rate-limit' && this.deps.limitHeld?.(chatId)) return;
       this.finish(row, result);
     } catch {
@@ -803,7 +776,7 @@ export class AssistantService {
   chatEnded(chatId: string, error: string | null): void {
     const row = this.sql.prepare("SELECT * FROM assistant_runs WHERE chat_id = ? AND status = 'running'").get(chatId) as RunRow | undefined;
     if (!row) return;
-    // The process the limit took down: the rotation waits for the reset or moves the run
+    // The process the limit took down: the rotation waits for the reset
     if (this.deps.limitHeld?.(chatId)) return;
     this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.ended, error ? `The assistant's chat ended without an answer: ${error}` : "The assistant's chat ended without an answer."));
   }

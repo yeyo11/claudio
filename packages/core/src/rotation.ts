@@ -1,25 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import type { LimitAction, ModelOption, ProjectProvidersSettings, ProviderId, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, ProviderStatus, RotationSettings } from '@agentry/shared';
-import { effortsOf, type ChatService, type ChatWork } from './chat-service.ts';
+import type { LimitWait, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@agentry/shared';
+import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { Db } from './db.ts';
-import { modelMapSubject, type OnLimitSubject, type ProviderPoints, type WorkKind, type WorkSubjectKind } from './decisions/provider-points.ts';
-import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import type { AgentryEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
-import type { CandidateContext, CandidateProvider, CandidateResult } from './providers/candidates.ts';
 import { defaultRotationSettings } from './providers/settings.ts';
 
 /*
- * What happens when a provider reaches its usage limit (docs/plans/multi-provider.md, phase 4,
- * "What happens at a limit"). The chat manager announces `limit-hit` once per attempt; this decides.
+ * What happens when Claude Code reaches its usage limit. The chat manager announces `limit-hit` once
+ * per attempt; this decides.
  *
- * - A person's chat is left alone (decision P4-2): it gets a banner, and nothing spends on another
- *   vendor without a click. `waitFor` and `cancel` are what that click calls for a wait.
- * - Automated work follows the effective setting (the project's, else the global one), and
- *   `provider.on-limit` may choose among the feasible actions the person allowed. `wait` is the floor:
- *   it stands in for any action that cannot happen, and it needs nothing but the chat.
+ * - A person's chat is left alone: it gets a banner, and `waitFor` and `cancel` are what a click on
+ *   it calls.
+ * - Automated work waits for the reset on its own (the only action, plan decision 4 of
+ *   docs/plans/claude-only-fork.md), and gives up after the effective `maxWaitHours` (the project's,
+ *   else the global one) when no reset is known.
  * - A wait is a row in `provider_moves`. A timer in the process that owns the chat claims it at the
  *   reset with a guarded update, so two processes on one data directory replay the turn once, and
  *   `recover()` re-arms the timers of a restarted process.
@@ -43,23 +40,15 @@ export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 export interface RotationDeps {
   db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves'>;
   runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing'>;
-  chats: Pick<ChatService, 'candidates' | 'continueOn'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
   projectProviders: (projectId: string) => ProjectProvidersSettings | null;
   /** The project a directory belongs to */
   projectOf: (dir: string) => string | null;
-  decisions: DecisionAsker | null;
-  points: ProviderPoints | null;
   emit: (event: AgentryEventInput) => void;
-  /**
-   * The run, task or item a chat works for; null for a person's chat. Automated work moves only with
-   * this and `repoint`: a move needs somebody to point the run at the new chat.
-   */
+  /** The run, task or item a chat works for; null for a person's chat */
   work?: (chatId: string) => ChatWork | null;
-  /** Called after automated work moved: re-points the run or the task at the new chat */
-  repoint?: (move: ProviderMove) => void;
   /** A run held to a schema is waited on only when whoever started it waits for the chat (a flow run) */
   awaiting?: (chatId: string) => boolean;
   /** A wait is over: the turn was replayed, it could not be, or a person stopped waiting */
@@ -77,29 +66,15 @@ export function effectiveOnLimit(settings: Pick<ProvidersSettings, 'rotation'>, 
   return { ...base, ...(project?.onLimit ?? {}) };
 }
 
-/** What the registry, the detector and the limits say of every provider, in the shape the candidates read. */
-export function candidateContext(
-  runtime: Pick<ChatManager, 'providers' | 'limits'>,
-  input: { settings: ProvidersSettings; project: ProjectProvidersSettings | null; statuses: readonly ProviderStatus[]; now?: number },
-): CandidateContext {
-  const providers: Record<ProviderId, CandidateProvider | undefined> = {};
-  for (const manifest of runtime.providers.list()) {
-    const status = input.statuses.find((s) => s.id === manifest.id);
-    if (!status) continue;
-    const driver = runtime.providers.driverFor(manifest.id);
-    providers[manifest.id] = {
-      status: { ...status, limit: runtime.limits.get(manifest.id) ?? status.limit ?? null },
-      hasDriver: driver !== null,
-      capabilities: runtime.providers.capabilities(manifest.id),
-      translate: driver ? (policy) => driver.translatePolicy(policy) : null,
-      models: driver?.models() ?? [],
-      efforts: effortsOf(manifest.id, runtime.providers.capabilities(manifest.id)),
-    };
-  }
-  return { settings: input.settings, project: input.project, providers, now: input.now ?? Date.now() };
+/**
+ * The wait for a limit to reset that a chat is in, read from the move rows: what the work shows while
+ * it waits, and what a restart must leave alone, since the rotation re-arms the wait and replays the turn.
+ */
+export function openWaitOf(db: { providerMoves(filter: { chatId?: string; limit?: number }): ProviderMove[] }, chatId: string | null): LimitWait | null {
+  if (!chatId) return null;
+  const open = db.providerMoves({ chatId, limit: 10 }).find((m) => m.fromChat === chatId && (m.state === 'waiting' || m.state === 'resuming'));
+  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id } : null;
 }
-
-const WORK_KIND: Record<WorkSubjectKind, WorkKind> = { flow_run: 'flow-run', task: 'task', assistant_run: 'assistant' };
 
 export class ProviderRotation {
   /** Move id → its timer */
@@ -181,12 +156,12 @@ export class ProviderRotation {
           return;
         }
       }
-      await this.act(run, work, limit);
+      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: null, resetsAt: limit?.resetsAt ?? null, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       this.deps.runtime.notice(run.id, `Handling the usage limit failed: ${why}`);
       // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
-      // wait behind it, nothing would ever end it. Waiting is the floor every action falls back to.
+      // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
       if (!this.waits.has(run.id)) {
         try {
           this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: `handling the limit failed: ${why}`, resetsAt: limit?.resetsAt ?? null, projectId: null });
@@ -196,108 +171,6 @@ export class ProviderRotation {
       }
     } finally {
       this.handling.delete(run.id);
-    }
-  }
-
-  private async act(run: ChatRuntime, work: ChatWork | null, limit: ProviderLimit | null): Promise<void> {
-    const projectId = this.deps.projectOf(run.workingDir ?? run.cwd);
-    const settings = this.deps.settings();
-    const onLimit = effectiveOnLimit(settings, projectId ? this.deps.projectProviders(projectId) : null);
-    const movable = work !== null && this.deps.repoint !== undefined;
-    let candidates: CandidateResult | null = null;
-    if (movable) {
-      try {
-        candidates = this.deps.chats.candidates(run.id);
-      } catch {
-        candidates = null;
-      }
-    }
-    const canMove = !!candidates && candidates.candidates.length > 0 && !candidates.movesCapped;
-    // `wait` is the floor, and an action the person did not allow is never taken
-    const allowed = onLimit.allowed.filter((a) => a === 'wait' || canMove);
-    let action: LimitAction = allowed.includes(onLimit.action) ? onLimit.action : 'wait';
-    let decidedBy: ProviderMoveDecider = 'setting';
-    let decisionId: string | null = null;
-    let reason: string | null = onLimit.action !== 'wait' && !canMove ? this.whyNoMove(candidates, movable) : null;
-
-    const stance = stanceOf(this.deps.decisions, 'provider.on-limit', projectId);
-    if (work && candidates && stance !== 'off' && allowed.length >= 2 && this.deps.points && work.subjectKind !== 'chat') {
-      // A decision that cannot be had leaves the setting in charge, as an unanswered one does
-      const answer = await this.deps.points.onLimit(stance, this.onLimitSubject(run, work, projectId, limit, candidates, allowed)).catch(() => null);
-      if (answer) {
-        action = answer.action;
-        decidedBy = 'decision';
-        decisionId = answer.decisionId;
-      }
-    }
-
-    if (action !== 'wait' && candidates && canMove) {
-      const first = candidates.candidates[0];
-      if (first) {
-        try {
-          const { move } = await this.deps.chats.continueOn(run.id, { provider: first.provider, action, ...(first.model ? { model: first.model } : {}) }, { decidedBy, decisionId, reason: null, resetsAt: limit?.resetsAt ?? null });
-          try {
-            this.deps.repoint?.(move);
-          } catch (error) {
-            // The work already lives on in the new chat: waiting on the old one would run it twice
-            this.deps.runtime.notice(run.id, `The work moved to ${first.provider}, but pointing it at the new chat failed: ${error instanceof Error ? error.message : String(error)}`);
-          }
-          return;
-        } catch (error) {
-          // The floor: a move that cannot happen waits instead of failing the run
-          reason = `the move to ${first.provider} failed: ${error instanceof Error ? error.message : String(error)}`;
-        }
-      }
-    }
-    if (candidates) this.suggestMappings(run, candidates);
-    this.startWait(run, work, { decidedBy, decisionId, reason, resetsAt: limit?.resetsAt ?? null, projectId });
-  }
-
-  private whyNoMove(candidates: CandidateResult | null, movable: boolean): string {
-    if (!movable) return 'this work cannot be moved from here';
-    if (!candidates) return 'no provider could be asked';
-    if (candidates.movesCapped) return 'the work has made all the moves it may';
-    const missing = candidates.excluded.find((e) => e.excluded === 'no-mapping');
-    if (missing) return `no counterpart is mapped for its model on ${missing.provider}`;
-    return 'no other provider can take it';
-  }
-
-  private onLimitSubject(run: ChatRuntime, work: ChatWork, projectId: string | null, limit: ProviderLimit | null, candidates: CandidateResult, allowed: LimitAction[]): OnLimitSubject {
-    const subjectKind = work.subjectKind as WorkSubjectKind;
-    const minutesTo = (iso: string | null | undefined): number | null => (iso ? Math.max(0, Math.round((Date.parse(iso) - this.now()) / 60_000)) : null);
-    const label = (id: ProviderId): string => this.deps.runtime.providers.list().find((m) => m.id === id)?.label ?? id;
-    return {
-      kind: subjectKind,
-      id: work.subjectId,
-      projectId,
-      work: { kind: WORK_KIND[subjectKind], name: run.name },
-      chatId: run.id,
-      progress: { checklistDone: 0, checklistTotal: 0, filesChanged: 0, turns: run.turns, minutes: Math.max(0, Math.round((this.now() - Date.parse(run.createdAt)) / 60_000)) },
-      from: { provider: run.provider ?? LEGACY_PROVIDER, model: run.model, resetsInMin: minutesTo(limit?.resetsAt) },
-      candidates: candidates.candidates.slice(0, 3).map((c) => ({
-        id: c.provider,
-        label: label(c.provider),
-        model: c.model ?? '',
-        utilization: c.utilization === null ? null : Math.round(c.utilization * 100),
-        resetsInMin: minutesTo(c.resetsAt),
-      })),
-      allowed,
-    };
-  }
-
-  /** A run that waits for want of a counterpart asks the model-map point, once per pair a day. */
-  private suggestMappings(run: ChatRuntime, candidates: CandidateResult): void {
-    const points = this.deps.points;
-    const model = run.model;
-    if (!points || !model) return;
-    const stance = stanceOf(this.deps.decisions, 'provider.model-map', null);
-    if (stance === 'off') return;
-    const from = run.provider ?? LEGACY_PROVIDER;
-    const own: ModelOption[] = this.deps.runtime.providers.driverFor(from)?.models() ?? [];
-    for (const excluded of candidates.excluded) {
-      if (excluded.excluded !== 'no-mapping') continue;
-      const subject = modelMapSubject({ provider: from, model }, excluded.provider, own, this.deps.runtime.providers.driverFor(excluded.provider)?.models() ?? []);
-      void points.suggestMapping(stance, subject).catch(() => undefined);
     }
   }
 
@@ -449,18 +322,6 @@ export class ProviderRotation {
     if (end === 'failed') this.deps.runtime.notice(row.fromChat, reason === 'limit-wait-expired' ? 'The wait for the usage limit to reset ran out.' : `The wait ended: ${reason ?? 'it failed'}.`);
     this.deps.ended?.({ ...row, state, reason: reason ?? row.reason }, end, reason);
     return true;
-  }
-
-  /**
-   * A person moved a waiting chat to another provider: the wait closes into the move, quietly. The
-   * work goes on in the new chat, so nothing is told it ended. False when the wait was not open.
-   */
-  supersede(moveId: string, by: Pick<ProviderMove, 'toChat' | 'toProvider' | 'toModel'>): boolean {
-    const row = this.deps.db.providerMove(moveId);
-    if (!row || (row.state !== 'waiting' && row.state !== 'resuming')) return false;
-    const closed = this.deps.db.closeProviderMove(moveId, 'cancelled', new Date(this.now()).toISOString(), { ...by, reason: 'moved' });
-    this.drop(row);
-    return closed;
   }
 
   /** A person stops waiting; the run or task it belonged to then ends stopped. False when the wait was not open. */

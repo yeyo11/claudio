@@ -4,14 +4,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { entryText } from '@agentry/shared';
-import { followUpsOf } from '../src/handoff.ts';
 import { Core } from '../src/index.ts';
 import { encodeProjectId } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
 
 // A message the CLI takes into the turn it is running is written only as an `attachment` line of type
 // `queued_command` (docs/chat-delivery.md). Every reader of the transcript has to see it as the
-// person's message: the page, the export, the search and the handoff of a move.
+// person's message: the page, the export and the search.
 
 const FAKE_QUEUE = fileURLToPath(new URL('./fixtures/fake-claude-queue.mjs', import.meta.url));
 const SESSION = '5d2c8f1a-3b7e-4c09-8a61-2f4e9d0b7c35';
@@ -89,25 +88,4 @@ test('the search of a chat finds a message read mid-turn', async () => {
   } finally {
     close();
   }
-});
-
-test('the handoff of a move carries what the person said mid-turn', async () => {
-  const { core, close } = withAbsorbedMessage();
-  try {
-    const exported = await core.chats.export(SESSION);
-    assert.deepEqual(followUpsOf(exported.entries), ['also list the lint rules']);
-  } finally {
-    close();
-  }
-});
-
-test('the handoff leaves out the lines the CLI writes as the person', () => {
-  const entry = (text: string, uuid: string) => ({ uuid, role: 'user' as const, timestamp: null, model: null, isSidechain: false, parentToolUseId: null, blocks: [{ type: 'text' as const, text }] });
-  const entries = [
-    entry('fix the build', 'u1'),
-    entry('[Request interrupted by user]', 'u2'),
-    entry('<local-command-stdout>ok</local-command-stdout>', 'u3'),
-    entry('and the tests', 'u4'),
-  ];
-  assert.deepEqual(followUpsOf(entries), ['and the tests']);
 });

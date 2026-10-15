@@ -1,16 +1,14 @@
-import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ProviderStatus, ToolPolicy } from '@agentry/shared';
+import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ProviderLimit, ToolPolicy } from '@agentry/shared';
 import type { ChatRuntime, NewChat, RunResult } from '../../chats.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';
-import { candidatesFor, type CandidateContext } from '../../providers/candidates.ts';
 import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engine.ts';
 
 /*
  * The `cli` provider: an agent's CLI and nothing else. One housekeeping chat answers one batch of
  * questions in one turn. It has no tool and no callback: the state is in the prompt and the answers
- * come back as `structured_output`, so the chat gets no API url or token either. It runs on the first
- * ready provider that declares `structuredOutput` and has a model for the configured one (decision 9);
- * with nothing handed to `route` it is Claude Code, as before.
+ * come back as `structured_output`, so the chat gets no API url or token either. It runs on Claude
+ * Code; `route` only says that it is at its limit.
  */
 
 /** The part of the chat runtime this provider drives; the tests hand it the real one over a fake CLI */
@@ -23,13 +21,11 @@ export interface CliRuntime {
 }
 
 /**
- * What a decision chat may do: nothing. It has no tool, so the policy states that outright; a provider
- * can take the chat only where this is enforced, which is what lets it run on another provider
- * (decision 9) without the chat being a person's.
+ * What a decision chat may do: nothing. It has no tool, so the policy states that outright.
  */
 export const DECISION_POLICY: ToolPolicy = { read: { allow: false }, edit: { allow: 'none' }, commands: { allow: 'none' }, network: 'deny', gitPush: 'deny' };
 
-/** Where the chat runs: a provider, and the model of its own that stands for the configured one */
+/** Where the chat runs: the provider, and the model and effort it is started with */
 export interface CliRoute {
   provider: ProviderId;
   model: string;
@@ -40,52 +36,20 @@ export interface CliProviderDeps {
   runtime: CliRuntime;
   settings: { get(): Pick<DecisionSettings, 'cli'> };
   /**
-   * Chooses the provider for one question. A reason means none can take it, and the answer is that
-   * reason now; the decision never waits for a provider's reset. Without it the chat runs on the
-   * default provider, as it did before rotation.
+   * Chooses the route for one question. A reason means Claude Code cannot take it, and the answer is
+   * that reason now; the decision never waits for a reset. Without it the chat runs on the default provider.
    */
   route?: (cli: DecisionSettings['cli']) => CliRoute | { unavailable: DecisionUnavailableReason };
 }
 
 /**
- * The first provider of the person's order that can answer a decision: ready, with a session driver,
- * `structuredOutput`, not at its limit and with a model for the configured one. A decision chat never
- * moves and never waits, so a provider at its limit is simply passed over. With none, the answer is
- * `rate-limited` when a limit is what ruled one out, and `server-error` when nothing was there to try.
+ * The route of a decision chat: Claude Code with the configured model, or `rate-limited` while Claude
+ * Code is at its limit with the reset ahead or unknown. A decision chat never waits for a reset, so
+ * the answer is that reason now.
  */
-export function chooseCliRoute(cli: DecisionSettings['cli'], context: CandidateContext): CliRoute | { unavailable: DecisionUnavailableReason } {
-  const result = candidatesFor(
-    {
-      kind: 'decision',
-      from: null,
-      // The configured model is Claude's (`haiku`): another provider needs the person's mapping for it
-      model: { provider: 'claude-code', id: cli.model },
-      needs: ['structuredOutput'],
-      policy: DECISION_POLICY,
-      nativeRules: false,
-      automated: true,
-      exclude: [],
-      effort: cli.effort,
-    },
-    context,
-  );
-  const first = result.candidates[0];
-  if (first?.model) return { provider: first.provider, model: first.model, effort: first.effort };
-  return { unavailable: result.excluded.some((e) => e.excluded === 'exhausted') ? 'rate-limited' : 'server-error' };
-}
-
-/**
- * The route of a decision chat from the providers as last read. Before they have been read once
- * nothing can be weighed, so Claude Code answers with the configured model, as it did before there
- * were providers to choose from, rather than no provider at all.
- */
-export function decisionRoute(
-  cli: DecisionSettings['cli'],
-  statuses: readonly ProviderStatus[] | null,
-  context: (statuses: ProviderStatus[]) => CandidateContext,
-): CliRoute | { unavailable: DecisionUnavailableReason } {
-  if (!statuses) return { provider: 'claude-code', model: cli.model, effort: cli.effort ?? null };
-  return chooseCliRoute(cli, context([...statuses]));
+export function decisionRoute(cli: DecisionSettings['cli'], limit: Pick<ProviderLimit, 'state' | 'resetsAt'> | null, now: number = Date.now()): CliRoute | { unavailable: DecisionUnavailableReason } {
+  if (limit?.state === 'exhausted' && (limit.resetsAt === null || Date.parse(limit.resetsAt) > now)) return { unavailable: 'rate-limited' };
+  return { provider: 'claude-code', model: cli.model, effort: cli.effort ?? null };
 }
 
 /** How long a stopped chat gets to end before it is removed regardless */

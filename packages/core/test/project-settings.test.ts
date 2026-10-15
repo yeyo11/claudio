@@ -144,12 +144,13 @@ test("a member's shell commands survive the settings document, and a pattern tha
   }
 });
 
-test("a project's provider order and on-limit override are validated, and what is not set inherits", () => {
+test("a project's on-limit override is validated, what is not set inherits, and the order of an old file is dropped", () => {
   const base = defaultProjectSettings('ABC');
-  const parsed = parseProjectSettings({ ...base, providers: { order: ['codex', 'claude-code'], onLimit: { action: 'handoff', maxMoves: 1 } } });
-  assert.deepEqual(parsed.providers, { order: ['codex', 'claude-code'], onLimit: { action: 'handoff', maxMoves: 1 } });
+  const parsed = parseProjectSettings({ ...base, providers: { onLimit: { maxWaitHours: 12 } } });
+  assert.deepEqual(parsed.providers, { onLimit: { maxWaitHours: 12 } });
   assert.equal(parseProjectSettings({ ...base, providers: {} }).providers, undefined, 'an empty override is no override');
-  for (const bad of [[], { order: ['nope'] }, { order: ['codex', 'codex'] }, { onLimit: { maxMoves: 9 } }, { onLimit: { action: 'fly' } }]) {
+  assert.equal(parseProjectSettings({ ...base, providers: { order: ['codex', 'claude-code'] } }).providers, undefined, 'the order of the multi-vendor days is dropped');
+  for (const bad of [[], { onLimit: { maxWaitHours: 9999 } }, { onLimit: { action: 'fly' } }, { onLimit: { action: 'handoff' } }]) {
     assert.throws(() => parseProjectSettings({ ...base, providers: bad }), JSON.stringify(bad));
   }
 });

@@ -1,4 +1,4 @@
-import type { AgentryAssistantMarker, ChatContinuation, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
+import type { AgentryAssistantMarker, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -22,10 +22,6 @@ export interface ChatRecord {
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
   derivedFrom: ChatFork | null;
-  /** The chat this one continues after a move to another provider */
-  continuedFrom?: ChatContinuation | null;
-  /** The chat that continues this one; set when a move leaves it */
-  continuedIn?: ChatContinuation | null;
   /** The first message Agentry sent, for a chat whose transcript has no readable one */
   prompt: string;
   lastText: string | null;
