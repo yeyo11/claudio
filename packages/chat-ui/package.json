@@ -24,6 +24,7 @@
     "./lib/context": "./src/lib/context.tsx",
     "./lib/edit-chips": "./src/lib/edit-chips.ts",
     "./lib/permission-param": "./src/lib/permission-param.ts",
+    "./lib/smooth-text": "./src/lib/smooth-text.ts",
     "./lib/wire-words": "./src/lib/wire-words.ts",
     "./lib/write-prompts": "./src/lib/write-prompts.ts",
     "./lib/slash-commands": "./src/lib/slash-commands.ts",
