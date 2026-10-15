@@ -430,7 +430,7 @@
   "shortcut [isApple, shortcut]",
   "signed-out [SignedOut]",
   "slash-commands [applyCommand, commandNames, matchCommands, slashQuery]",
-  "smooth-text [SmoothReveal, useSmoothText]",
+  "smooth-text [FADE_STEP_MS, FadeCheckpoint, FreshRange, SmoothReveal, freshRanges, useSmoothText, useStreamFade]",
   "source [LIVE_REFRESH_MS, ReviewSource]",
   "steps-model [ScrubDot, conversationHref, currentStep, entryParam, intentParts, patchSpan, plainIntent, sameFileWindow, scrubDots, stepBeside, stepKey, stepPaths, swipeOf]",
   "stick-to-bottom [ScrollVerdict, scrollVerdict, useStickToBottom]",

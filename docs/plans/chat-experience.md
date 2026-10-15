@@ -941,7 +941,7 @@ exactly as received at `off`.
 
 ### CHAT-9 — Fade new words in
 
-Status: proposed. After CHAT-8.
+Status: built 2026-10-15 (no PR yet). Deviations: the hook `useStreamFade` lives in `smooth-text.ts` next to `freshRanges`; `SmoothEntry` passes `fade` (motion `full`) to `StreamingEntry`, which sets `has-fade` on `.streaming-text` and scopes the caret rules with `:not(.has-fade)`. Two steps (0–120 ms, 120–240 ms), as in the sketch. Not checked in a browser.
 
 **Design.** Fade the freshest characters of the streaming block without touching React's DOM, with
 the CSS Custom Highlight API (Chromium, which the web app and the Electron desktop app use;

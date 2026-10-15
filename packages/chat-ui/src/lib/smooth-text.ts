@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
 interface RevealOptions {
   /** How far behind the stream the display may trail, in ms */
@@ -158,4 +158,115 @@ export function useSmoothText(text: string, enabled: boolean, ended: boolean, on
   if (!active) return text;
   // A text that was rewritten shorter must not show what it no longer says
   return text.startsWith(shown) ? shown : text.slice(0, commonPrefix(text, shown));
+}
+
+/** How much text had been rendered at a moment */
+export interface FadeCheckpoint {
+  length: number;
+  at: number;
+}
+
+/** How long each of the two faded steps lasts, in ms */
+export const FADE_STEP_MS = 120;
+
+export interface FreshRange {
+  from: number;
+  to: number;
+  /** 1 is the faintest (just arrived), 2 is nearly settled */
+  level: 1 | 2;
+}
+
+/**
+ * Which stretches of the rendered text arrived recently enough to still be faded. Text added in
+ * the last FADE_STEP_MS is level 1, the step before that level 2, older text is normal. Fresh text
+ * is always at the end while streaming; a checkpoint beyond `renderedLength` is clamped.
+ */
+export function freshRanges(checkpoints: readonly FadeCheckpoint[], now: number, renderedLength: number): FreshRange[] {
+  const ranges: FreshRange[] = [];
+  let before = 0;
+  for (const checkpoint of checkpoints) {
+    const to = Math.min(checkpoint.length, renderedLength);
+    const age = now - checkpoint.at;
+    if (to > before && age < FADE_STEP_MS * 2) {
+      const level = age < FADE_STEP_MS ? 1 : 2;
+      const last = ranges.at(-1);
+      if (last && last.level === level && last.to === before) last.to = to;
+      else ranges.push({ from: before, to, level });
+    }
+    before = Math.max(before, to);
+  }
+  return ranges;
+}
+
+const supportsHighlights = (): boolean => typeof CSS !== 'undefined' && 'highlights' in CSS && typeof Highlight !== 'undefined';
+
+/**
+ * Fades the newest characters of the streaming text in, through the CSS Custom Highlight API: the
+ * browser paints the ranges, so React's DOM is untouched. Does nothing where the API is missing.
+ * Returns whether the fade is in use, so the caller can drop the caret.
+ */
+export function useStreamFade(container: RefObject<HTMLElement | null>, text: string, enabled: boolean): boolean {
+  const supported = useMemo(supportsHighlights, []);
+  const active = enabled && supported;
+  const checkpoints = useRef<FadeCheckpoint[]>([]);
+  const frame = useRef(0);
+
+  const paint = useRef((): void => undefined);
+  paint.current = () => {
+    const root = container.current;
+    if (!root) return;
+    const nodes: { node: Text; start: number }[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let length = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      nodes.push({ node: node as Text, start: length });
+      length += (node as Text).length;
+    }
+    const now = performance.now();
+    // Shorter than before: the block was rewritten, so what was fresh no longer applies
+    if (length < (checkpoints.current.at(-1)?.length ?? 0)) checkpoints.current = [];
+    if (length > (checkpoints.current.at(-1)?.length ?? 0)) checkpoints.current.push({ length, at: now });
+    // Keep the newest checkpoint whatever its age: it marks where the settled text ends
+    checkpoints.current = checkpoints.current.filter((c, i, all) => i === all.length - 1 || now - c.at < FADE_STEP_MS * 2);
+    const fresh = freshRanges(checkpoints.current, now, length);
+    const at = (offset: number): { node: Text; offset: number } | null => {
+      for (let i = nodes.length - 1; i >= 0; i--) {
+        const entry = nodes[i];
+        if (entry && offset >= entry.start) return { node: entry.node, offset: offset - entry.start };
+      }
+      return null;
+    };
+    const ranges: Record<1 | 2, Range[]> = { 1: [], 2: [] };
+    for (const { from, to, level } of fresh) {
+      const a = at(from);
+      const b = at(to);
+      if (!a || !b) continue;
+      const range = new Range();
+      range.setStart(a.node, a.offset);
+      range.setEnd(b.node, b.offset);
+      ranges[level].push(range);
+    }
+    CSS.highlights.set('stream-fresh-1', new Highlight(...ranges[1]));
+    CSS.highlights.set('stream-fresh-2', new Highlight(...ranges[2]));
+    cancelAnimationFrame(frame.current);
+    // Keep stepping until the freshest text has settled, even when no new text arrives
+    frame.current = fresh.length ? requestAnimationFrame(() => paint.current()) : 0;
+  };
+
+  useLayoutEffect(() => {
+    if (active) paint.current();
+    else checkpoints.current = [];
+  }, [text, active]);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(frame.current);
+      if (supported) {
+        CSS.highlights.delete('stream-fresh-1');
+        CSS.highlights.delete('stream-fresh-2');
+      }
+    },
+    [supported],
+  );
+  return active;
 }
