@@ -1162,5 +1162,17 @@
     "title": "Móvil · Ajustes, seguridad y secretos",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DesktopTerminal.html",
+    "title": "Escritorio · Terminales",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTerminal.html",
+    "title": "Móvil · Terminal",
+    "w": 390,
+    "h": 844
   }
 ]
