@@ -9,7 +9,7 @@ import { BRAND_ART } from '../../../packages/ui/src/components/brand-art';
 // The official marks of the programs Agentry names (design system, "Brand marks"): every program
 // it knows has one, a tracker on a host wears its host's, and one it does not know keeps its monogram.
 
-const PROGRAMS = ['github', 'gitlab', 'youtrack', 'claude-code', 'codex', 'copilot', 'gemini', 'opencode'];
+const PROGRAMS = ['github', 'gitlab', 'youtrack', 'claude-code'];
 
 test('every program Agentry names has an official mark, with real art', () => {
   for (const id of PROGRAMS) {
@@ -50,8 +50,8 @@ test('YouTrack draws its gradient with an id of its own, so two marks on a page 
   assert.ok(html.includes(`url(#${ids[0]})`) && html.includes(`url(#${ids[1]})`));
 });
 
-test('the agents and the integrations render the mark, and a program with none keeps its monogram', () => {
-  for (const provider of ['claude-code', 'codex', 'copilot', 'gemini', 'opencode']) {
+test('the agent and the integrations render the mark, and a program with none keeps its monogram', () => {
+  for (const provider of ['claude-code']) {
     assert.match(renderToStaticMarkup(<ProviderMark provider={provider} label={provider} decorative />), /class="brand-mark prov-mark"/, provider);
   }
   assert.match(renderToStaticMarkup(<ProgramMark id="youtrack" label="YouTrack" />), /data-brand="youtrack"/);

@@ -48,10 +48,6 @@
   --brand-github: #181717;
   --brand-gitlab: #fc6d26;
   --brand-claude-code: #d97757;
-  --brand-copilot: #000000;
-  --brand-gemini: #8e75b2;
-  --brand-opencode: #000000;
-  --brand-codex: #000000;
   --on-warn: #1a1204;
   /* The dark theme's red is a light one: white on it reads 2.6:1, the dark ink reads above 8:1 */
   --on-bad: #1a0708;

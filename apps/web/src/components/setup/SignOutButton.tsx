@@ -31,7 +31,7 @@ export function SignOutButton({ tool, label, host, small = false, keyOnly = fals
   const ask = async () => {
     const ok = await confirm({
       title: t('signOut.title', { label: host ?? label }),
-      // A sign-out that only forgets the kept key says so: Copilot may go on working on gh's sign-in
+      // A sign-out that only forgets the kept key says so: the tool may go on working on its own sign-in
       body: host ? t('signOut.bodyHost', { cli: tool, host }) : keyOnly ? t('signOut.bodyKey', { label }) : t('signOut.body', { label }),
       confirmLabel: t('signOut.action'),
       danger: true,

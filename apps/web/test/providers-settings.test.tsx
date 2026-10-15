@@ -13,13 +13,13 @@ import { ToastProvider } from '@agentry/ui/components/Toast';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { DirtyProvider } from '../src/lib/dirty';
-import { effectiveDefault, entryOf, latestCheck, moveBy, moveTo, orderedIds, withEntry, withOrder } from '../src/lib/provider-settings';
+import { entryOf, latestCheck, orderedIds, withEntry } from '../src/lib/provider-settings';
 import { ProvidersTab } from '../src/pages/config/ProvidersTab';
 import { GROUPS, isTab, TAB_LABELS } from '../src/pages/config/settingsTabs';
 
 const status = (id: string, over: Partial<ProviderStatus> = {}): ProviderStatus => ({
   id,
-  label: id === 'claude-code' ? 'Claude Code' : id === 'codex' ? 'Codex' : 'Gemini CLI',
+  label: 'Claude Code',
   state: 'ready',
   reason: null,
   version: '1.0.0',
@@ -33,48 +33,29 @@ const status = (id: string, over: Partial<ProviderStatus> = {}): ProviderStatus 
 });
 
 const settings = (over: Partial<ProvidersSettings> = {}): ProvidersSettings => ({
-  providers: { 'claude-code': { enabled: true, binaryPath: null }, codex: { enabled: true, binaryPath: '/opt/codex' } },
-  order: ['claude-code', 'codex'],
+  providers: { 'claude-code': { enabled: true, binaryPath: '/opt/claude' } },
+  order: ['claude-code'],
   defaultProvider: null,
   ...over,
 });
 
-const LIST = [status('claude-code'), status('codex', { state: 'used-before', reason: 'config-home-only' }), status('gemini')];
+const LIST = [status('claude-code')];
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 test('the list follows the settings, then what the settings have not met, and drops strangers', () => {
-  assert.deepEqual(orderedIds(LIST, settings({ order: ['codex', 'ghost', 'claude-code', 'codex'] })), ['codex', 'claude-code', 'gemini']);
-  assert.deepEqual(orderedIds(LIST, settings({ order: [] })), ['claude-code', 'codex', 'gemini']);
-});
-
-test('moving is by place, stays in the list and leaves the original alone', () => {
-  const order = ['a', 'b', 'c'];
-  assert.deepEqual(moveTo(order, 0, 2), ['b', 'c', 'a']);
-  assert.deepEqual(moveBy(order, 'c', -1), ['a', 'c', 'b']);
-  assert.deepEqual(moveBy(order, 'a', -1), ['a', 'b', 'c']);
-  assert.deepEqual(moveBy(order, 'c', 1), ['a', 'b', 'c']);
-  assert.deepEqual(moveBy(order, 'nope', 1), ['a', 'b', 'c']);
-  assert.deepEqual(order, ['a', 'b', 'c']);
+  assert.deepEqual(orderedIds(LIST, settings({ order: ['ghost', 'claude-code', 'claude-code'] })), ['claude-code']);
+  assert.deepEqual(orderedIds(LIST, settings({ order: [] })), ['claude-code']);
 });
 
 test('a provider the settings never mention is on and searched for', () => {
-  assert.deepEqual(entryOf(settings(), 'gemini'), { enabled: true, binaryPath: null });
+  assert.deepEqual(entryOf(settings({ providers: {} }), 'claude-code'), { enabled: true, binaryPath: null });
 });
 
-test('changing one entry sends the whole document with the order made explicit', () => {
-  const next = withEntry(settings(), ['claude-code', 'codex', 'gemini'], 'gemini', { enabled: false });
-  assert.deepEqual(next.order, ['claude-code', 'codex', 'gemini']);
-  assert.deepEqual(next.providers.gemini, { enabled: false, binaryPath: null });
-  assert.deepEqual(next.providers.codex, { enabled: true, binaryPath: '/opt/codex' });
-  assert.equal(withEntry(settings(), ['codex'], 'codex', { binaryPath: null }).providers.codex?.binaryPath, null);
-});
-
-test('Automatic is the first provider that is on and ready, in the order of the list', () => {
-  assert.equal(effectiveDefault(LIST, settings()), 'claude-code');
-  assert.equal(effectiveDefault(LIST, withEntry(settings(), ['claude-code', 'codex', 'gemini'], 'claude-code', { enabled: false })), 'gemini');
-  assert.equal(effectiveDefault(LIST, settings({ order: ['gemini', 'claude-code', 'codex'] })), 'gemini');
-  assert.equal(effectiveDefault(LIST, withOrder(settings(), ['claude-code', 'codex', 'gemini'], 'codex')), 'codex');
-  assert.equal(effectiveDefault([status('codex', { state: 'signed-out' })], settings()), null);
+test('changing the binary sends the whole document', () => {
+  const next = withEntry(settings(), ['claude-code'], 'claude-code', { binaryPath: '/usr/local/bin/claude' });
+  assert.deepEqual(next.order, ['claude-code']);
+  assert.deepEqual(next.providers['claude-code'], { enabled: true, binaryPath: '/usr/local/bin/claude' });
+  assert.equal(withEntry(settings(), ['claude-code'], 'claude-code', { binaryPath: null }).providers['claude-code']?.binaryPath, null);
 });
 
 test('the newest detection is the one that is shown', () => {
@@ -102,7 +83,7 @@ test('the copy of the tab exists in both languages with the same placeholders', 
   assert.equal(spanish.size, flat(en.providers).length);
 });
 
-test('the page lists every provider with its state, the default select, the count and the handles', async () => {
+test('the page shows Claude Code with its state, when it was checked and the way to read it again', async () => {
   await i18n.changeLanguage('en');
   const client = new QueryClient();
   client.setQueryData(keys.providers, LIST);
@@ -130,14 +111,13 @@ test('the page lists every provider with its state, the default select, the coun
     </QueryClientProvider>,
   );
   const words = text(html);
-  assert.match(words, /3 providers · 2 ready/);
-  assert.match(words, /Default provider/);
-  assert.match(words, /Claude Code Default/);
-  assert.match(words, /Used before/);
+  assert.match(words, /Claude Code/);
+  assert.match(words, /Ready/);
   assert.match(words, /Checked/);
   assert.match(words, /Check again/);
-  assert.equal((html.match(/class="prov-grip"/g) ?? []).length, 3);
-  assert.equal((html.match(/role="switch"/g) ?? []).length, 3);
-  assert.match(html, /aria-label="Turn off Claude Code"/);
-  assert.match(html, /data-provider="codex"[^>]*data-state="used-before"/);
+  // One agent: no order to change, no default to choose, no switch
+  assert.equal((html.match(/class="prov-grip"/g) ?? []).length, 0);
+  assert.equal((html.match(/role="switch"/g) ?? []).length, 0);
+  assert.doesNotMatch(words, /Default provider/);
+  assert.match(html, /data-provider="claude-code"[^>]*data-state="ready"/);
 });

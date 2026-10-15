@@ -196,7 +196,7 @@ export const TOOLS: readonly Tool[] = [
   },
   {
     name: 'list_providers',
-    description: "The agent providers (Claude Code, Codex, Gemini CLI, GitHub Copilot, OpenCode): whether each is ready and why not, its account, and its usage limit per window with the reset. Use it for 'how close am I to the limit' and 'which agents can I use'.",
+    description: "The agent provider (Claude Code): whether it is ready and why not, its account, and its usage limit per window with the reset. Use it for 'how close am I to the limit' and 'which agents can I use'.",
     inputSchema: schema({}),
     // What the detector last read, never a new detection: refreshing runs every installed CLI
     run: async (_args, api) => providerRows(await api.get('/providers')),

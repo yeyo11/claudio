@@ -30,9 +30,8 @@ import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
 import { AssistantGreeting } from './agentry-assistant/Greeting';
 import { ChatLoading } from './chat/ChatLoading';
-import { FlowMovedNote } from './chat/FlowMoved';
 import { ChatHeader, type HeaderActions } from './chat/Header';
-import { ContinuedDivider, ContinuedFrom, HandoffCard, LimitStopped } from './chat/HandoffCard';
+import { LimitStopped } from './chat/LimitStopped';
 import { BlockedComposer, LimitBanner, useLimitState } from './chat/LimitBanner';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
@@ -90,10 +89,7 @@ export function ChatView() {
   const [restore, setRestore] = useState<{ text: string; attachments: ChatPendingAttachment[]; at: number } | null>(null);
   // A message still waiting for the turn is a card over the box, so it is not also a row here
   const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
-  // A chat that continues another starts with the handoff the move sent: a collapsed card of its own, not a message
-  const handoffFirst = chat?.continuedFrom?.action === 'handoff' && transcript.from === 0 ? pendingless[0] : undefined;
-  const handoffText = handoffFirst && handoffFirst.role === 'user' ? handoffFirst.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n') : '';
-  const items = useMemo(() => (handoffText && handoffFirst ? pendingless.filter((entry) => entry !== handoffFirst) : pendingless), [pendingless, handoffText, handoffFirst]);
+  const items = pendingless;
   const limit = useLimitState(chat);
   usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
@@ -314,13 +310,9 @@ export function ChatView() {
             )}
           </div>
         )}
-        <ContinuedFrom chat={chat} />
         {chat.orchestration && <PartOf link={chat.orchestration} />}
         {itemLinks.map((link) => (
           <WorkItemPartOf key={link.item.id} link={link} chatId={chat.id} />
-        ))}
-        {itemLinks.map((link) => (
-          <FlowMovedNote key={link.item.id} link={link} chatId={chat.id} />
         ))}
         <FindBar find={find} />
 
@@ -350,7 +342,6 @@ export function ChatView() {
             )}
             {/* The first message of the assistant's chats, so only where the transcript starts */}
             {chat.agentryAssistant && !transcript.more && <AssistantGreeting />}
-            {handoffText && <HandoffCard chat={chat} text={handoffText} />}
             {items.length === 0 ? (
               !working && <Empty icon={MessageSquare} title={t('view.nothingWritten')} />
             ) : (
@@ -370,8 +361,7 @@ export function ChatView() {
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
             <PermissionPrompts chatId={id} live={live} />
             <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(items)} />
-            {(limit.phase !== 'none' || chat.continuedIn) && <LimitStopped chat={chat} at={chat.executions.at(-1)?.endedAt ?? chat.updatedAt} waiting={limit.phase === 'waiting'} />}
-            {chat.continuedIn && <ContinuedDivider chat={chat} />}
+            {limit.phase !== 'none' && <LimitStopped chat={chat} at={chat.executions.at(-1)?.endedAt ?? chat.updatedAt} waiting={limit.phase === 'waiting'} />}
           </div>
           <AnimatePresence>
             {!follow && (
@@ -445,13 +435,13 @@ export function ChatView() {
             </div>
           </div>
         )}
-        {(limit.phase !== 'none' || chat.continuedIn) && composer !== 'fork' && (
+        {limit.phase !== 'none' && composer !== 'fork' && (
           <div className="lim-zone">
-            {limit.phase !== 'none' && <LimitBanner chat={chat} state={limit} />}
+            <LimitBanner chat={chat} state={limit} />
             <BlockedComposer chat={chat} state={limit} />
           </div>
         )}
-        {composer && composer !== 'fork' && limit.phase === 'none' && !chat.continuedIn && (
+        {composer && composer !== 'fork' && limit.phase === 'none' && (
           // Keyed by the chat: a draft and its files belong to the chat they were written in
           <Composer
             key={chat.id}

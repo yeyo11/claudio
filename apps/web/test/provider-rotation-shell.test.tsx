@@ -2,28 +2,26 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, FlowRun, ProviderLimit, ProviderMove, ProviderStatus } from '@agentry/shared';
+import type { AgentryEvent, ProviderLimit, ProviderStatus } from '@agentry/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
-import { ProviderChain, WaitLine } from '../src/components/ProviderChain';
+import { WaitLine } from '../src/components/WaitLine';
 import { limitDotFacts, ProviderDots } from '../src/components/shell/ProviderDots';
 import { isKnownLimitWindow, limitWindowWord } from '../src/lib/limit-words';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { decisionsOn } from '../src/lib/orchestration-board';
-import { activityOf, movedRunsOf } from '../src/pages/tasks/item/model';
 import { failureReason } from '../src/pages/tasks/item/runs';
 
-// Phase 4 of the providers plan, in the places automated work and the shell say it: the strip a
-// provider's limit takes in the status bar, the chain and the wait of a task, the item's activity
-// when a run moved, and the words of the two new causes.
+// The usage limit, in the places automated work and the shell say it: the strip a provider's limit
+// takes in the status bar, the wait of a task, and the words of the two causes.
 
 const status = (id: string, over: Partial<ProviderStatus> = {}): ProviderStatus => ({
   id,
-  label: id === 'claude-code' ? 'Claude Code' : id === 'codex' ? 'Codex' : 'Copilot',
+  label: 'Claude Code',
   state: 'ready',
   reason: null,
   version: '2.1.282',
@@ -85,12 +83,12 @@ test('near its limit the word comes with the colour, and exhausted says when it 
 });
 
 test('an exhausted provider shows the word, no bar and its reset', () => {
-  const html = bar([status('codex', { state: 'degraded', reason: 'limit-reached' })], [limit('codex', { state: 'exhausted', utilization: 1 })]);
-  assert.match(html, /Codex · limit reached/);
+  const html = bar([status('claude-code', { state: 'degraded', reason: 'limit-reached' })], [limit('claude-code', { state: 'exhausted', utilization: 1 })]);
+  assert.match(html, /Claude Code · limit reached/);
   assert.match(html, /statusbar-bad/);
   assert.match(html, /statusbar-age/);
   assert.doesNotMatch(html, /meter-track/);
-  assert.match(bar([status('codex', { state: 'degraded', reason: 'limit-reached' })], [limit('codex', { state: 'exhausted', utilization: 1 })], 'es'), /Codex · límite agotado/);
+  assert.match(bar([status('claude-code', { state: 'degraded', reason: 'limit-reached' })], [limit('claude-code', { state: 'exhausted', utilization: 1 })], 'es'), /Claude Code · límite agotado/);
   void i18n.changeLanguage('en');
 });
 
@@ -122,32 +120,8 @@ test('window names are worded for the person, and an unknown one is a generic us
 });
 
 test('a provider with no reading, or a stale one, shows no limit at all', () => {
-  const html = bar([status('copilot', { capabilities: [] }), status('claude-code')], [limit('claude-code', { state: 'unknown' })]);
+  const html = bar([status('claude-code')], [limit('claude-code', { state: 'unknown' })]);
   assert.doesNotMatch(html, /meter-track|statusbar-age| %/);
-});
-
-test('the chain of a task is one chip per chat, the newest marked, each opening its chat', () => {
-  void i18n.changeLanguage('en');
-  const client = new QueryClient();
-  client.setQueryData(keys.providers, [status('claude-code'), status('codex')]);
-  const html = renderToStaticMarkup(
-    <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <ProviderChain
-          chain={[
-            { chatId: 'c1', provider: 'claude-code' },
-            { chatId: 'c2', provider: 'codex' },
-          ]}
-          how="moved · handoff"
-        />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-  assert.match(html, /href="\/chats\/c1"/);
-  assert.match(html, /chain-chip now"[^>]*aria-label="Open the chat on Codex"|aria-label="Open the chat on Codex"[^>]*>/);
-  assert.equal((html.match(/class="chain-chip/g) ?? []).length, 2);
-  assert.equal((html.match(/chain-chip now/g) ?? []).length, 1);
-  assert.match(html, /moved · handoff/);
 });
 
 test('a wait says who is waited for and when it resumes, in words, without anything moving', () => {
@@ -178,45 +152,6 @@ test('a task waiting for a reset has no worker to nudge', () => {
   assert.equal(decisionsOn(orch, { id: 't1', status: 'running' } as never).hint, true);
 });
 
-const run = (id: string, over: Partial<FlowRun> = {}): FlowRun => ({ id, role: 'developer', state: 'running', ...over }) as FlowRun;
-const move = (over: Partial<ProviderMove>): ProviderMove => ({
-  id: 'm1',
-  at: '2026-10-02T12:00:00.000Z',
-  subjectKind: 'flow_run',
-  subjectId: 'r1',
-  projectId: 'p1',
-  fromChat: 'c1',
-  toChat: 'c2',
-  fromProvider: 'claude-code',
-  toProvider: 'codex',
-  fromModel: null,
-  toModel: null,
-  action: 'handoff',
-  state: 'moved',
-  decidedBy: 'setting',
-  decisionId: null,
-  resetsAt: null,
-  reason: null,
-  updatedAt: '2026-10-02T12:00:00.000Z',
-  ...over,
-});
-
-test("an item's activity says that a run moved, and ignores waits and moves of other work", () => {
-  const runs = [run('r1')];
-  const moves = [
-    move({}),
-    move({ id: 'm2', action: 'wait', toChat: null, toProvider: null, state: 'waiting' }),
-    move({ id: 'm3', subjectId: 'other' }),
-    move({ id: 'm4', subjectKind: 'task' }),
-  ];
-  const moved = movedRunsOf(runs, moves);
-  assert.deepEqual(moved.map((m) => m.move.id), ['m1']);
-  const entries = activityOf([], [], 'all', [], moved);
-  assert.deepEqual(entries.map((e) => e.kind), ['moved']);
-  // Comments filter hides it, like the rest of the history
-  assert.equal(activityOf([], [], 'comments', [], moved).length, 0);
-});
-
 test('the two new causes are worded in both languages, for the item and the board', () => {
   for (const cause of ['no-provider', 'limit-wait-expired'] as const) {
     const reason = failureReason({ state: 'ended', outcome: 'failed', cause, restarts: 0, stage: 'work', column: 'in_progress' } as never);
@@ -229,17 +164,12 @@ test('the two new causes are worded in both languages, for the item and the boar
   }
 });
 
-test('a move and a wait are worded in the notifications, in the active language', async () => {
+test('a wait is worded in the notifications, in the active language', async () => {
   Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
   const { notificationsFor } = await import('../src/lib/notifications-model.ts');
   await i18n.changeLanguage('en');
   const base = { id: 1, at: '2026-10-02T12:00:00Z', runId: 'r', runName: 'copy', sessionId: null, orchestrationId: null, internal: false };
-  const moved = notificationsFor({ type: 'run.providerMoved', ...base, title: 'copy moved to Codex', from: 'claude-code', to: 'codex', action: 'handoff', decidedBy: 'setting' } as AgentryEvent);
-  assert.equal(moved[0]?.body, 'It went on from a record of what was done.');
   const waiting = notificationsFor({ type: 'run.limitWaiting', ...base, title: 'copy waits', provider: 'claude-code', resetsAt: null } as AgentryEvent);
   assert.equal(waiting[0]?.body, 'It goes on when the limit resets; no reset time is known.');
-  await i18n.changeLanguage('es');
-  const movedEs = notificationsFor({ type: 'run.providerMoved', ...base, title: 'copy', from: 'claude-code', to: 'codex', action: 'restart', decidedBy: 'setting' } as AgentryEvent);
-  assert.equal(movedEs[0]?.body, 'Ha empezado de nuevo con su prompt original.');
   await i18n.changeLanguage('en');
 });

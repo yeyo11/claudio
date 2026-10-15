@@ -1,6 +1,6 @@
 import type { ProviderId, ProviderStatus, ProvidersSettings } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import type { TFunction } from 'i18next';
 import { api, keys } from '../api';
 import { useProviders } from './providers';
@@ -72,21 +72,6 @@ export function useProviderLabel(): (provider: ProviderId) => string {
 }
 
 /**
- * The providers a new chat can start on: enabled and usable, in the person's order with the default
- * first. A provider detected as usable has a session driver. One Agentry cannot check (`no-probe`,
- * Copilot's) is offered too: no probe will ever call it ready, and its first session says whether it
- * is signed in.
- */
-export function useNewChatProviders(): ProviderStatus[] {
-  const { statuses } = useEnabledProviders();
-  const defaultProvider = useQuery({ queryKey: keys.providerSettings, queryFn: () => api.providerSettings() }).data?.defaultProvider;
-  return useMemo(() => {
-    const usable = (statuses ?? []).filter((s) => isUsable(s) || (s.state === 'unknown' && s.reason === 'no-probe'));
-    return defaultProvider ? [...usable.filter((s) => s.id === defaultProvider), ...usable.filter((s) => s.id !== defaultProvider)] : usable;
-  }, [statuses, defaultProvider]);
-}
-
-/**
  * Why an effort cannot be chosen for a provider, or undefined when it can: only a driver that
  * declares `effort` is passed one. An empty id is the default agent (Claude Code); until the list is
  * read the control stays usable, as nothing says otherwise.
@@ -95,9 +80,4 @@ export function useEffortUnavailable(provider: ProviderId | null | undefined): '
   const statuses = useProviders().data;
   const status = statuses?.find((s) => s.id === (provider || 'claude-code'));
   return status && !status.capabilities.includes('effort') ? 'provider' : undefined;
-}
-
-/** What the provider offers for the model picker; nothing is read for an empty id. */
-export function useProviderModels(provider: ProviderId) {
-  return useQuery({ queryKey: keys.providerModels(provider), queryFn: () => api.providerModels(provider), enabled: provider !== '', retry: false });
 }

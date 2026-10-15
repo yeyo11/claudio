@@ -3,7 +3,7 @@ import test from 'node:test';
 import { en, es } from '../src/i18n/resources.ts';
 
 // docs/plans/multi-provider.md, "The copy rule": a string about a chat, a run or an edit names the
-// chat's agent through {{agent}}, so a Codex chat never reads "Claude is editing it". A string about
+// chat's agent through {{agent}}, so the copy never names an agent the chat is not running on. A string about
 // a Claude-only feature keeps the name, and is listed here with the reason, so adding "Claude" to
 // the copy of a chat screen is a decision someone makes on purpose.
 

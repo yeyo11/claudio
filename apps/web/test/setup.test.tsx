@@ -23,7 +23,6 @@ import {
   offersChoice,
   offersSignIn,
   offersSignOut,
-  refusedKey,
   retreat,
   START,
   stepMarks,
@@ -50,10 +49,6 @@ const row = (tool: SetupToolMethods['tool'], methods: Partial<Omit<SetupToolMeth
 });
 const METHODS: SetupToolMethods[] = [
   row('claude-code', { variables: ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'], exclusive: true }),
-  row('codex', { key: 'stdin', device: true }),
-  row('gemini', { variables: ['GEMINI_API_KEY'], signOutKeyOnly: true }),
-  row('copilot', { variables: ['COPILOT_GITHUB_TOKEN'], device: true, deviceVia: { tool: 'gh', host: 'github.com' }, signOutKeyOnly: true }),
-  row('opencode', { variables: ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY'], signOutKeyOnly: true }),
   row('gh', { key: 'stdin', device: true, needsHost: true, defaultHost: 'github.com' }),
   row('glab', { key: 'stdin', device: true, needsHost: true, defaultHost: 'gitlab.com' }),
   row('youtrack', { variables: ['YOUTRACK_TOKEN'], needsHost: true }),
@@ -74,11 +69,11 @@ const SETUP: SetupState = {
 
 const session = (patch: Partial<LoginSession> = {}): LoginSession => ({
   id: 's1',
-  tool: 'codex',
+  tool: 'gh',
   method: 'device',
   host: null,
   state: 'waiting-for-person',
-  url: 'https://auth.openai.com/codex/device',
+  url: 'https://github.com/login/device',
   code: 'K7QM-4XPD',
   startedAt: '2026-10-08T10:00:00Z',
   expiresAt: '2026-10-08T10:15:00Z',
@@ -129,20 +124,19 @@ async function render(node: React.ReactNode): Promise<string> {
 const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 test('a tool with a device code offers it first, then the key; one without offers the key alone', () => {
-  assert.deepEqual(loginMethods(methods('codex')), ['device', 'key']);
+  assert.deepEqual(loginMethods(methods('gh')), ['device', 'key']);
   assert.deepEqual(loginMethods(methods('glab')), ['device', 'key']);
-  assert.deepEqual(loginMethods(methods('gemini')), ['key']);
-  assert.equal(offersChoice(methods('copilot')), true, 'Code / Key heads the panel');
+  assert.deepEqual(loginMethods(methods('claude-code')), ['key']);
+  assert.equal(offersChoice(methods('gh')), true, 'Code / Key heads the panel');
   assert.equal(offersChoice(methods('claude-code')), false, 'no choice where there is one way');
 });
 
 test('only an env tool with several variables asks which one the key goes in', () => {
   assert.deepEqual(variableChoices(methods('claude-code')), ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
-  assert.equal(variableChoices(methods('opencode')).length, 4);
-  assert.deepEqual(variableChoices(methods('gemini')), [], 'one variable: nothing to choose');
-  assert.deepEqual(variableChoices(methods('codex')), [], 'a stdin key has no variable');
+  assert.deepEqual(variableChoices(methods('youtrack')), [], 'one variable: nothing to choose');
+  assert.deepEqual(variableChoices(methods('gh')), [], 'a stdin key has no variable');
   assert.deepEqual(variableLabel('claude-code', 'ANTHROPIC_API_KEY'), { kind: 'copy', key: 'apiKey' });
-  assert.deepEqual(variableLabel('opencode', 'OPENROUTER_API_KEY'), { kind: 'name', name: 'OpenRouter' });
+  assert.deepEqual(variableLabel('youtrack', 'YOUTRACK_TOKEN'), { kind: 'name', name: 'YOUTRACK_TOKEN' });
 });
 
 test('YouTrack keeps its own access form; every other tool uses the shared panel', () => {
@@ -156,7 +150,7 @@ test('a host CLI\'s key is made on the host the person signs in to', () => {
   assert.equal(keyLink('gh', null), 'https://github.com/settings/tokens');
   assert.equal(keyLink('gh', 'https://ghe.acme.io/'), 'https://ghe.acme.io/settings/tokens');
   assert.equal(keyLink('glab', 'gitlab.acme.io'), 'https://gitlab.acme.io/-/user_settings/personal_access_tokens');
-  assert.equal(keyLink('opencode', null), null);
+  assert.equal(keyLink('youtrack', null), null);
 });
 
 test('a failure says why by its code: expired is warn and asks for another code, the rest are bad', () => {
@@ -188,15 +182,14 @@ test('the time left counts down in m:ss and stops at zero', () => {
 test('a row offers Sign in when signed out, and Sign out only where the vendor documents one', () => {
   assert.equal(offersSignIn('signed-out'), true);
   assert.equal(offersSignIn('not-installed'), false);
-  assert.equal(offersSignOut(methods('codex'), 'ready'), true);
-  assert.equal(offersSignOut(methods('copilot'), 'ready', null, false), false, 'a Copilot ready on its own login or on gh\'s has no key here to forget');
-  assert.equal(offersSignOut(methods('copilot'), 'ready', null, true), true, 'with a token kept, Sign out forgets it');
-  assert.equal(offersSignOut(methods('gemini'), 'unknown', 'no-probe', true), true, 'a key kept is all Gemini has');
-  assert.equal(offersSignOut(methods('gemini'), 'unknown', 'no-probe', false), false, 'nothing to sign out of without a key');
-  assert.equal(offersSignIn('unknown', 'no-probe', false), true, 'Gemini with no key kept offers Sign in');
+  assert.equal(offersSignOut(methods('gh'), 'ready'), true);
+  assert.equal(offersSignOut({ ...methods('gh'), signOutKeyOnly: true }, 'ready', null, false), false, 'a tool that works on its own login has no key here to forget');
+  assert.equal(offersSignOut({ ...methods('gh'), signOutKeyOnly: true }, 'ready', null, true), true, 'with a key kept, Sign out forgets it');
+  assert.equal(offersSignOut(methods('gh'), 'unknown', 'no-probe', true), true, 'a key kept is all there is');
+  assert.equal(offersSignIn('unknown', 'no-probe', false), true, 'a tool with nothing to ask and no key kept offers Sign in');
   assert.equal(offersSignIn('unknown', 'no-probe', true), false);
   assert.equal(offersSignIn('unknown', 'probe-timeout'), false);
-  assert.equal(offersSignOut(methods('codex'), 'signed-out'), false);
+  assert.equal(offersSignOut(methods('gh'), 'signed-out'), false);
   assert.equal(offersSignOut(null, 'ready'), false);
 });
 
@@ -227,7 +220,7 @@ test('the ready counts leave out what is not installed', () => {
 test('the summary marks what was skipped plainly, what is not signed in as signed out, and leaves out what is missing', () => {
   const rows = summaryRows({
     access: { mode: 'token', tokenSet: true, readOnly: false },
-    providers: [provider('claude-code', 'Claude Code', 'ready', 'a@b.c'), provider('gemini', 'Gemini CLI', 'signed-out'), provider('opencode', 'OpenCode', 'not-installed')],
+    providers: [provider('claude-code', 'Claude Code', 'signed-out'), provider('claude-code', 'Claude Code', 'not-installed')],
     hosts: [host('github', 'ready', 'yeyo'), host('gitlab', 'signed-out', null)],
     youtrack: { state: 'signed-out', host: null, user: null },
     skipped: ['code'],
@@ -236,8 +229,7 @@ test('the summary marks what was skipped plainly, what is not signed in as signe
     rows.map((r) => [r.id, r.badge, r.where]),
     [
       ['access', 'ready', 'security'],
-      ['claude-code', 'ready', 'providers'],
-      ['gemini', 'signed-out', 'providers'],
+      ['claude-code', 'signed-out', 'providers'],
       ['github', 'ready', 'integrations'],
       ['gitlab', 'skipped', 'integrations'],
       ['youtrack', 'skipped', 'integrations'],
@@ -259,42 +251,16 @@ test('Claude Code\'s panel names claude setup-token inside the sentence, with no
   assert.match(html, /prov-bin signin-panel/);
 });
 
-test('Codex\'s panel heads with Code / Key and the ChatGPT note', async () => {
-  const html = await render(<SignInPanel tool="codex" label="Codex" onClose={() => undefined} />);
+test('GitHub\'s panel heads with Code / Key and asks for the host first', async () => {
+  const html = await render(<SignInPanel tool="gh" label="GitHub" onClose={() => undefined} />);
   assert.match(words(html), /Code Key/);
-  assert.match(words(html), /device code sign-in/);
-  assert.match(html, /chatgpt\.com/);
-  assert.match(words(html), /Asking Codex for a code/, 'opening it on Code asks for one at once');
   assert.doesNotMatch(html, /type="password"/, 'no key field until Key is chosen');
 });
 
-test('Copilot\'s Code says it uses the GitHub sign-in (gh) and asks GitHub for the code', async () => {
-  const html = await render(<SignInPanel tool="copilot" label="GitHub Copilot" onClose={() => undefined} />);
-  assert.match(words(html), /Code Key/);
-  assert.match(words(html), /GitHub Copilot uses your GitHub sign-in \(gh\)\. This code signs gh in to github\.com/);
-  assert.match(words(html), /Asking GitHub for a code/);
-  assert.doesNotMatch(html, /type="password"/);
-});
-
-test('a classic GitHub token is refused for Copilot before it is sent, and only for Copilot', () => {
-  assert.equal(refusedKey('copilot', ' ghp_abc'), 'classicToken');
-  assert.equal(refusedKey('copilot', 'github_pat_11AAAA'), null);
-  assert.equal(refusedKey('copilot', 'gho_oauthFromGh'), null, 'an OAuth token of the gh app is supported');
-  assert.equal(refusedKey('gh', 'ghp_abc'), null, 'gh takes a classic token');
-});
-
-test('Gemini\'s panel has no choice: its key goes in its one variable, kept encrypted', async () => {
-  const html = await render(<SignInPanel tool="gemini" label="Gemini CLI" onClose={() => undefined} />);
-  assert.doesNotMatch(html, /role="radiogroup"/);
-  assert.match(words(html), /Gemini API key/);
-  assert.match(words(html), /Kept encrypted, and only Gemini CLI(&#x27;|')s processes receive it/);
-  assert.match(html, /aistudio\.google\.com/);
-});
-
 test('a code that waits is the one live surface: the link, the code with Copy, the spinner and the time left', async () => {
-  const html = await render(<DeviceCode session={session({ expiresAt: new Date(Date.now() + 14 * 60_000 + 30_000).toISOString() })} label="Codex" />);
+  const html = await render(<DeviceCode session={session({ expiresAt: new Date(Date.now() + 14 * 60_000 + 30_000).toISOString() })} label="GitHub" />);
   assert.match(html, /signin-device live-energy/);
-  assert.match(html, /href="https:\/\/auth\.openai\.com\/codex\/device"/);
+  assert.match(html, /href="https:\/\/github\.com\/login\/device"/);
   assert.match(html, /K7QM-4XPD/);
   assert.match(words(html), /Copy/);
   assert.match(words(html), /Waiting for you to approve/);

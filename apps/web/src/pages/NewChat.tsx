@@ -18,8 +18,9 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { ErrorBox, Field, Segmented, usePageTitle } from '@agentry/ui/components/ui';
 import { PERMISSION_MODES, useModelOptions } from '../components/ui';
 import { EffortField } from '../components/EffortPicker';
-import { useEffortUnavailable, useNewChatProviders, useProviderModels } from '../lib/provider-status';
-import { ProviderMark } from '@agentry/ui/components/ProviderMark';
+import { useEffortUnavailable } from '../lib/provider-status';
+import { CLAUDE_CODE_ID } from '../lib/provider-state';
+import { useProviders } from '../lib/providers';
 import { upperFirst } from '@agentry/chat-ui/lib/agent';
 import { modeLabel } from '@agentry/chat-ui/lib/wire-words';
 import { KeysHint, OptionsPanel, StatusChips } from '@agentry/chat-ui/composer/Composer';
@@ -57,37 +58,18 @@ export function NewChat() {
   const [cwd, setCwd] = useState(params.get('cwd') ?? scope.project?.path ?? '');
   const [model, setModel] = useState('');
   const [effort, setEffort] = useState<Effort | ''>('');
-  const [chosenProvider, setChosenProvider] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [askHere, setAskHere] = useState(true);
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
   const [tools, setTools] = useState<ToolChoices>({});
   const [options, setOptions] = useState(false);
   usePageTitle(t('new.title'));
-  // The default provider leads the list; until the person picks, it is the one that starts the chat
-  const providers = useNewChatProviders();
-  const provider = providers.find((p) => p.id === chosenProvider) ?? providers[0];
-  const providerId = provider?.id ?? '';
+  const provider = useProviders().data?.find((p) => p.id === CLAUDE_CODE_ID);
   const hasMcp = !provider || provider.capabilities.includes('mcp');
-  const effortUnavailable = useEffortUnavailable(providerId);
-  const claude = providerId === '' || providerId === 'claude-code';
+  const effortUnavailable = useEffortUnavailable(CLAUDE_CODE_ID);
   const agent = provider?.label ?? tc('agent.generic');
-  const providerModels = useProviderModels(claude ? '' : providerId);
-  const claudeModels = useModelOptions();
-  const modelOptions = claude
-    ? claudeModels
-    : (providerModels.data ?? []).filter((m) => !m.disabled).map((m) => ({ value: m.value, label: m.label ?? m.value, hint: m.description }));
-  // Every agent takes a model when the chat starts (Copilot as `--model`); one without `setModel`
-  // only cannot change it afterwards, which the hint says
-  const modelFixed = Boolean(provider) && !provider?.capabilities.includes('setModel');
+  const modelOptions = useModelOptions();
   const modes: readonly PermissionMode[] = provider?.permissionModes ?? PERMISSION_MODES;
-  const pickProvider = (id: string) => {
-    setChosenProvider(id);
-    // A model or a mode of the other agent means nothing to this one
-    setModel('');
-    setEffort('');
-    setPermissionMode('');
-  };
   const known = (projects.data ?? []).find((p) => p.path === cwd.trim());
   // The servers offered are the ones the chat will see from its directory
   const toolScope = { projectId: known?.id };
@@ -96,7 +78,6 @@ export function NewChat() {
     mutationFn: () => {
       const opts: NewChatRequest = { prompt: prompt.trim(), permissionPrompts: askHere ? 'host' : 'none' };
       if (files.ids.length) opts.attachments = files.ids;
-      if (providerId) opts.provider = providerId;
       if (cwd.trim()) opts.cwd = cwd.trim();
       if (model.trim()) opts.model = model.trim();
       if (effort && !effortUnavailable) opts.effort = effort;
@@ -128,7 +109,7 @@ export function NewChat() {
   const slash = useSlashMenu({ text: prompt, setText: setPrompt, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, box });
   // The chips: where it runs, with what — the same words the chat's own chips show
   const place = known?.name ?? directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
-  const words = [place, ...(providers.length > 1 ? [agent] : []), model.trim() || tc('newChat.defaultModel'), permissionMode ? modeLabel(permissionMode) : tc('newChat.defaultMode', { mode: defaultModeWord })];
+  const words = [place, model.trim() || tc('newChat.defaultModel'), permissionMode ? modeLabel(permissionMode) : tc('newChat.defaultMode', { mode: defaultModeWord })];
 
   const send = () => {
     if (ready && !start.isPending) start.mutate();
@@ -177,25 +158,7 @@ export function NewChat() {
               options={(projects.data ?? []).filter((p) => p.exists).map((p) => ({ value: p.path, label: p.name, hint: p.path }))}
             />
           </Field>
-          {providers.length > 1 && (
-            <Field label={t('new.agent')} hint={t('new.agentHint')}>
-              <Select
-                aria-label={t('new.agent')}
-                value={providerId}
-                onChange={pickProvider}
-                options={providers.map((p) => ({
-                  value: p.id,
-                  label: (
-                    <span className="new-agent-option">
-                      <ProviderMark provider={p.id} label={p.label} decorative />
-                      {p.label}
-                    </span>
-                  ),
-                }))}
-              />
-            </Field>
-          )}
-          <Field label={t('new.model')} hint={modelFixed ? t('new.modelFixed', { agent }) : t('new.modelHint')}>
+          <Field label={t('new.model')} hint={t('new.modelHint')}>
             <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
           </Field>
           <EffortField value={effort} onChange={setEffort} model={model} use="chat" unavailable={effortUnavailable} />

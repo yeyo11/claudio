@@ -262,16 +262,6 @@
     "discard": "Discard changes",
     "keepEditing": "Keep editing"
   },
-  "providerChain": {
-    "label": "Providers, from the first to the current one",
-    "open": "Open the chat on {{name}}",
-    "moved": {
-      "handoff": "moved · handoff",
-      "restart": "moved · started over"
-    },
-    "keepsPlace": "keeps its place",
-    "noCounterpart": "no counterpart · {{model}}"
-  },
   "limitWait": {
     "title": "Waiting for {{name}}",
     "resumesAt": "resumes at",
@@ -279,12 +269,7 @@
     "why": "It reached its usage limit. It keeps its place and goes on by itself at the reset.",
     "stop": "Stop waiting",
     "stopFailed": "Could not stop waiting",
-    "moveNow": "Move now",
-    "moveNowTitle": "Open its chat to move it to another provider",
-    "badge": "waiting",
-    "noCounterpart": "{{model}} has no counterpart on {{name}}, and the work cannot go there without one.",
-    "itsModel": "Its model",
-    "chooseCounterpart": "Choose the counterpart"
+    "badge": "waiting"
   },
   "notificationText": {
     "waitingPermission": "{{name}} needs your approval to use {{tool}}",
@@ -300,10 +285,6 @@
     "turns_other": "{{count}} turns",
     "rateLimited": "{{name}} hit a rate limit",
     "rateLimitedBody": "The turn stopped because the account ran out of quota.",
-    "movedBody": {
-      "handoff": "It went on from a record of what was done.",
-      "restart": "It started again from its original prompt."
-    },
     "limitWaitingBody": {
       "at": "It goes on when the limit resets, at {{when}}.",
       "unknown": "It goes on when the limit resets; no reset time is known."

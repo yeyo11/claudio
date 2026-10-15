@@ -21,14 +21,14 @@ const REASONS: ProviderReasonCode[] = [
 ];
 
 const status = (over: Partial<ProviderStatus> = {}): ProviderStatus => ({
-  id: 'codex',
-  label: 'Codex',
+  id: 'claude-code',
+  label: 'Claude Code',
   state: 'ready',
   reason: null,
   version: '1.4.2',
   compatibleRange: '^1.0.0',
-  binaryPath: '/usr/local/bin/codex',
-  configHome: '~/.codex',
+  binaryPath: '/usr/local/bin/claude',
+  configHome: '~/.claude',
   account: 'ana@example.com',
   capabilities: [],
   checkedAt: '2026-09-30T10:00:00Z',
@@ -77,14 +77,14 @@ test('each state offers the remedy the prototype shows, one primary at most', ()
   assert.deepEqual(kinds('used-before'), ['choose-binary', 'install']);
   assert.deepEqual(kinds('incompatible'), ['choose-binary', 'install']);
   assert.deepEqual(kinds('unknown'), ['retry']);
-  // Nothing to retry where there is no check: Copilot with only a token in the environment
+  // Nothing to retry where there is no check to run
   assert.deepEqual(actionsFor('unknown', 'no-probe'), []);
   assert.deepEqual(actionsFor('unknown', 'probe-timeout').map((a) => a.kind), ['retry']);
   for (const state of STATES) assert.ok(actionsFor(state).filter((a) => a.primary).length <= 1, state);
 });
 
-test('a vendor page is known for the providers Agentry ships', () => {
-  for (const id of ['claude-code', 'codex', 'gemini', 'copilot']) assert.match(providerLink(id, 'install') ?? '', /^https:\/\//);
+test('a vendor page is known for the provider Agentry drives', () => {
+  assert.match(providerLink('claude-code', 'install') ?? '', /^https:\/\//);
   assert.equal(providerLink('nope', 'install'), null);
 });
 
@@ -106,28 +106,25 @@ test('useProviders reads the cache under the providers key', () => {
 
 test('a row shows the state as a word, the reason and the path in mono', async () => {
   await i18n.changeLanguage('en');
-  const html = render(<ProviderRow status={status({ state: 'degraded', reason: 'version-below-range', version: '2.0.8', id: 'claude-code', label: 'Claude Code' })} isDefault />);
+  const html = render(<ProviderRow status={status({ state: 'degraded', reason: 'version-below-range', version: '2.0.8', id: 'claude-code', label: 'Claude Code' })} />);
   const words = text(html);
   assert.match(words, /Warnings/);
   assert.match(words, /v2\.0\.8 is older than the versions Agentry has been tested with \(\^1\.0\.0\)/);
-  assert.match(words, /Default/);
-  assert.match(html, /prov-meta[^>]*>v2\.0\.8 · \^1\.0\.0 · \/usr\/local\/bin\/codex/);
+  assert.match(html, /prov-meta[^>]*>v2\.0\.8 · \^1\.0\.0 · \/usr\/local\/bin\/claude/);
   assert.match(html, /href="https:\/\/code\.claude\.com\/docs\/en\/setup"/);
 });
 
-test('Sign in opens Settings → Account for Claude Code and the vendor page for the others', async () => {
+test('Sign in opens Settings → Account for Claude Code', async () => {
   await i18n.changeLanguage('en');
   const own = render(<ProviderRow status={status({ id: 'claude-code', label: 'Claude Code', state: 'signed-out', reason: 'missing-credentials' })} />);
   assert.match(own, /data-action="sign-in" href="\/settings\?tab=account"/);
-  const other = render(<ProviderRow status={status({ id: 'copilot', label: 'GitHub Copilot', state: 'signed-out', reason: 'missing-credentials' })} />);
-  assert.match(other, /data-action="sign-in"/);
 });
 
 test('a missing program offers Install, a check that failed offers Retry, and Choose binary needs its handler', async () => {
   await i18n.changeLanguage('es');
   const missing = render(<ProviderRow status={status({ state: 'not-installed', reason: 'binary-not-found', version: null, binaryPath: null, configHome: null, account: null })} />);
   assert.match(text(missing), /No instalado/);
-  assert.match(text(missing), /No hay rastro de Codex en este equipo/);
+  assert.match(text(missing), /No hay rastro de Claude Code en este equipo/);
   assert.match(text(missing), /Instalar/);
   const unknown = render(<ProviderRow status={status({ state: 'unknown', reason: 'probe-timeout' })} onRetry={() => undefined} />);
   assert.match(unknown, /data-action="retry"/);

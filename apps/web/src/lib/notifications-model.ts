@@ -73,7 +73,6 @@ const text: NotificationText = {
   turns: (count) => i18n.t('components:notificationText.turns', { count }),
   rateLimited: (name) => i18n.t('components:notificationText.rateLimited', { name }),
   rateLimitedBody: () => i18n.t('components:notificationText.rateLimitedBody'),
-  movedBody: (action) => i18n.t(`components:notificationText.movedBody.${action}`),
   limitWaitingBody: (resetsAt) => (resetsAt ? i18n.t('components:notificationText.limitWaitingBody.at', { when: resetWhen(resetsAt) }) : i18n.t('components:notificationText.limitWaitingBody.unknown')),
   orchestrationFinished: (name) => i18n.t('components:notificationText.orchestrationFinished', { name }),
   orchestrationFailed: (name) => i18n.t('components:notificationText.orchestrationFailed', { name }),

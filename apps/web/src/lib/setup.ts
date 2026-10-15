@@ -48,25 +48,18 @@ export const offersChoice = (methods: SetupToolMethods): boolean => loginMethods
 
 /**
  * The variables a key may go in, when the person has to choose one (Claude Code's token or API key,
- * OpenCode's four providers). Empty when there is nothing to choose: a stdin tool, or one variable.
+ * a host CLI's several variables). Empty when there is nothing to choose: a stdin tool, or one variable.
  */
 export function variableChoices(methods: SetupToolMethods): string[] {
   return methods.key === 'env' && methods.variables.length > 1 ? methods.variables : [];
 }
 
-/** How a variable is offered in the choice: a word of the copy for Claude Code, the provider for OpenCode. */
+/** How a variable is offered in the choice: a word of the copy for Claude Code, its own name otherwise. */
 export type VariableLabel = { kind: 'copy'; key: 'oauthToken' | 'apiKey' } | { kind: 'name'; name: string };
-
-const OPENCODE_PROVIDER: Record<string, string> = {
-  ANTHROPIC_API_KEY: 'Anthropic',
-  OPENAI_API_KEY: 'OpenAI',
-  GEMINI_API_KEY: 'Google',
-  OPENROUTER_API_KEY: 'OpenRouter',
-};
 
 export function variableLabel(tool: SetupTool, variable: string): VariableLabel {
   if (tool === 'claude-code') return { kind: 'copy', key: variable === 'ANTHROPIC_API_KEY' ? 'apiKey' : 'oauthToken' };
-  return { kind: 'name', name: OPENCODE_PROVIDER[variable] ?? variable };
+  return { kind: 'name', name: variable };
 }
 
 /**
@@ -78,19 +71,12 @@ export function keyLink(tool: SetupTool, host: string | null): string | null {
   switch (tool) {
     case 'claude-code':
       return 'https://code.claude.com/docs/en/authentication';
-    case 'codex':
-      return 'https://platform.openai.com/api-keys';
-    case 'gemini':
-      return 'https://aistudio.google.com/apikey';
-    case 'copilot':
-      return 'https://github.com/settings/personal-access-tokens/new';
     case 'gh':
       return `https://${at || 'github.com'}/settings/tokens`;
     case 'glab':
       return `https://${at || 'gitlab.com'}/-/user_settings/personal_access_tokens`;
     case 'tailscale':
       return TAILSCALE_KEYS_URL;
-    case 'opencode':
     case 'youtrack':
       return null;
   }
@@ -107,9 +93,6 @@ export function installLink(tool: SetupTool): string | null {
   if (tool === 'youtrack') return 'https://www.npmjs.com/package/@jetbrains/youtrack-apps-tools';
   return providerLink(tool, 'install');
 }
-
-/** Codex's device sign-in may have to be allowed in ChatGPT's security settings first (beta). */
-export const CODEX_DEVICE_SETTINGS = 'https://chatgpt.com/#settings/Security';
 
 /** A sign-in still going: the panel shows it and offers Cancel. */
 export const isLive = (session: Pick<LoginSession, 'state'> | null): boolean =>
@@ -152,16 +135,15 @@ export function timeLeft(expiresAt: string, now: number): string {
 
 /**
  * Whether a row offers Sign in: the tool is installed and says it is signed out, or it reads
- * `no-probe` (Gemini, OpenCode: nothing to ask) and Agentry keeps no key for it yet.
+ * `no-probe` (nothing to ask) and Agentry keeps no key for it yet.
  */
 export const offersSignIn = (state: ProviderReadinessState, reason: ProviderReasonCode | null = null, keyStored = false): boolean =>
   state === 'signed-out' || (state === 'unknown' && reason === 'no-probe' && !keyStored);
 
 /**
  * Whether a row offers Sign out: the tool works, or it reads `no-probe` because a key Agentry keeps
- * is all it has (Gemini, OpenCode) and one is kept. Where signing out only forgets that key
- * (`signOutKeyOnly`: Gemini, OpenCode, Copilot) it is offered only while one is kept: a Copilot
- * that works on its own `copilot login` or on gh's sign-in has nothing here to sign out of.
+ * is all it has and one is kept. Where signing out only forgets that key (`signOutKeyOnly`) it is
+ * offered only while one is kept.
  */
 export function offersSignOut(methods: SetupToolMethods | null, state: ProviderReadinessState, reason: ProviderReasonCode | null = null, keyStored = false): boolean {
   if (!methods?.signOut) return false;
@@ -169,15 +151,8 @@ export function offersSignOut(methods: SetupToolMethods | null, state: ProviderR
   return state === 'ready' || state === 'degraded' || (state === 'unknown' && reason === 'no-probe' && keyStored);
 }
 
-/** What the CLI a sign-in borrows is called in the panel: Copilot's Code signs in GitHub's `gh` */
+/** What the CLI a sign-in borrows is called in the panel */
 export const VIA_LABEL: Readonly<Partial<Record<SetupTool, string>>> = { gh: 'GitHub', glab: 'GitLab' };
-
-/**
- * A classic personal access token (`ghp_`), which Copilot does not take (GitHub's docs: fine-grained
- * tokens with the Copilot Requests permission, or an OAuth token of the Copilot or gh app). The
- * server refuses it too; the panel says why before it is sent.
- */
-export const refusedKey = (tool: SetupTool, key: string): 'classicToken' | null => (tool === 'copilot' && key.trim().startsWith('ghp_') ? 'classicToken' : null);
 
 // ---------------------------------------------------------------- Tailscale
 

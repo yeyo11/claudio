@@ -97,18 +97,12 @@
     "pasteKey": "Paste the key",
     "pasteToken": "Paste the token",
     "field": {
-      "codex": "OpenAI API key",
-      "gemini": "Gemini API key",
-      "copilot": "GitHub token",
       "gh": "Personal access token",
       "glab": "Personal access token",
       "tailscale": "Tailscale auth key"
     },
     "link": {
       "claude-code": "How the token is made",
-      "codex": "Create a key at platform.openai.com",
-      "gemini": "Create a key at aistudio.google.com",
-      "copilot": "Create a token at github.com",
       "gh": "Create a token at {{host}}",
       "glab": "Create a token at {{host}}",
       "tailscale": "Create an auth key in the Tailscale admin console"
@@ -116,9 +110,6 @@
     "hint": {
       "envSealed": "Kept encrypted, and only {{label}}'s processes receive it. It is not shown again.",
       "envPlain": "Kept in a file only the server's user can read, and only {{label}}'s processes receive it. It is not shown again.",
-      "opencode": "OpenCode uses the key of the provider you choose; Agentry keeps it and hands it over in that variable.",
-      "codex": "Codex keeps it in its own configuration; Agentry keeps no copy.",
-      "copilot": "A fine-grained token with the Copilot Requests permission; a classic token (ghp_…) does not work.",
       "gh": "With the repo, read:org and workflow scopes. gh keeps it in its own configuration; Agentry keeps no copy.",
       "glab": "With the api and write_repository scopes. glab keeps it in its own configuration; Agentry keeps no copy.",
       "tailscale": "One use is enough: Tailscale keeps this machine signed in with a key of its own, and Agentry keeps no copy. It reaches Tailscale through a file only it can read, removed right after."
@@ -129,12 +120,7 @@
     "saving": "Checking…",
     "cancel": "Cancel",
     "getCode": "Get a code",
-    "codexNote": "If ChatGPT does not let you in with a code, first turn on device code sign-in in your ChatGPT account's security settings.",
-    "codexLink": "Open ChatGPT's settings",
     "viaNote": "{{label}} uses your {{via}} sign-in ({{cli}}). This code signs {{cli}} in to {{host}}, and {{label}} works with it from then on.",
-    "refused": {
-      "classicToken": "Copilot does not take a classic token (ghp_…). Create a fine-grained one with the Copilot Requests permission."
-    },
     "starting": "Asking {{label}} for a code…",
     "startingLink": "Asking {{label}} for a sign-in link…",
     "open": "Open this page on any device:",

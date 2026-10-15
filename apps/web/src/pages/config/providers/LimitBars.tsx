@@ -4,7 +4,7 @@ import { usageTone } from '@agentry/ui/components/motion';
 import { Tag } from '@agentry/ui/components/ui';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { useLimitWindowName } from '../../../lib/limit-words';
-import { limitRows } from './rotation';
+import { limitRows } from '../../../lib/limit-rows';
 
 /**
  * A provider's usage limit inside its row: one thin bar per window in the usage thresholds (neutral

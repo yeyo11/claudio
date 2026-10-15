@@ -3,16 +3,12 @@ import { BrandMark, brandOf } from './BrandMark';
 import { monogramLetters } from './icons';
 
 /*
- * The two letters and the hue of each agent Agentry drives, as the design system draws them
- * (§ ProviderBadge). The hue is never red, green or cyan: those are status and live. A provider
- * that is not here gets its label's letters and one of the hues below, picked from its id.
+ * The two letters and the hue of Claude Code, as the design system draws them (§ ProviderBadge). The
+ * hue is never red, green or cyan: those are status and live. A provider that is not here gets its
+ * label's letters and one of the hues below, picked from its id.
  */
 const MARKS: Record<string, { letters: string; hue: number }> = {
   'claude-code': { letters: 'CC', hue: 24 },
-  copilot: { letters: 'GH', hue: 262 },
-  codex: { letters: 'CX', hue: 215 },
-  gemini: { letters: 'GM', hue: 288 },
-  opencode: { letters: 'OC', hue: 45 },
 };
 
 const SPARE_HUES = [24, 45, 215, 262, 288, 320];
