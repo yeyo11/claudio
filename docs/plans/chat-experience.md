@@ -1155,7 +1155,7 @@ warm idle chat when at the limit.
 
 ### CHAT-14 — The new question goes to the top
 
-Status: proposed. After CHAT-1 (it needs the optimistic row).
+Status: **built** on 2026-10-15, as planned (`composer/turn-spacer.ts`, `turnSpacerHeight` tested as a pure function). A resume's optimistic id is swapped for the last stored user row, since the stored entry arrives under another id. The e2e checks (row 16–40 px from the top; paging specs with `overflow-anchor: none`) are not written yet.
 
 **Design.** On Send, scroll so the new user row sits near the top of the viewport, with a spacer
 under the conversation that fills the rest of the viewport. Because the spacer exactly fills the

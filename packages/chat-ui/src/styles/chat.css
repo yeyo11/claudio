@@ -453,6 +453,8 @@
      and anything too wide for the column (a table, a diagram) scrolls inside its own box */
   overflow: hidden auto;
   overscroll-behavior: contain;
+  /* The turn spacer resizes by itself; the browser's own anchoring would move the view with it */
+  overflow-anchor: none;
   /* One column of reading width in the middle, the scrollbar still at the edge */
   padding: 24px max(12px, calc((100% - 740px) / 2)) 12px;
   /* The times hang beside the column only where there is room for them (styles/transcript.css) */
