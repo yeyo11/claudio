@@ -227,7 +227,8 @@ function TerminalItem() {
     <Tooltip content={t('dock.hint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}\`` })} side="top">
       <button type="button" className={`statusbar-item statusbar-btn${bar.open ? ' is-open' : ''}`} aria-expanded={bar.open} aria-controls={bar.open ? 'terminal-bar' : undefined} aria-label={t('bar.item', { count })} onClick={bar.toggle}>
         <SquareTerminal size={13} strokeWidth={1.75} aria-hidden />
-        <span className="mono">{count}</span>
+        <span>{t('bar.label')}</span>
+        {count > 0 && <span className="mono">{count}</span>}
       </button>
     </Tooltip>
   );
@@ -248,6 +249,8 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
           <span className="ellipsis">{connection.short}</span>
         </NavLink>
       </Tooltip>
+      {/* Beside the account: the shell is the person's own tool, not something running on their behalf */}
+      <TerminalItem />
       <span className="statusbar-spacer" />
       {agents > 0 && (
         <NavLink to="/chats?state=working" className="statusbar-item statusbar-live">
@@ -260,7 +263,6 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
           {now.todayCost === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(now.todayCost) })}
         </NavLink>
       )}
-      <TerminalItem />
       <AccountChip now={now} />
       <ProviderDots limits={now.limits} />
     </footer>

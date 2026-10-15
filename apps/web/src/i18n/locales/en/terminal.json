@@ -159,6 +159,7 @@
     "newIn": "Open a terminal in…",
     "noProjects": "There is no project to open a terminal in.",
     "empty": "No terminal is open. Use + to open one in a project.",
-    "running": "running"
+    "running": "running",
+    "label": "Terminal"
   }
 }
