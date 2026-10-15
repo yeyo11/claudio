@@ -9,7 +9,12 @@ import { count } from './chats.ts';
  */
 export const securityRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/security/auth', () => core.security.config);
-  app.put<{ Body: UpdateAuthConfigRequest }>('/security/auth', (req) => core.security.update(req.body ?? {}));
+  app.put<{ Body: UpdateAuthConfigRequest }>('/security/auth', async (req) => {
+    const config = await core.security.update(req.body ?? {});
+    // A shell is the largest change there is: read-only closes every one, and refuses new ones (the gate)
+    if (config.readOnly) await core.terminals.closeAll('read-only');
+    return config;
+  });
   app.post<{ Body: SetAuthTokenRequest }>('/security/token', (req) => core.security.setToken(req.body ?? {}));
   app.delete('/security/token', () => core.security.clearToken());
 

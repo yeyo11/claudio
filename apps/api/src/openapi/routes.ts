@@ -118,6 +118,11 @@ export const TAGS = [
       "A tunnel through the Tailscale CLI (`tailscale serve`, tailnet-only, never Funnel), so the person's own devices on their tailnet can reach this wrapper at `https://<node>.<tailnet>.ts.net:<port>`. Only opens while the API asks for authentication and Tailscale is installed, signed in and has HTTPS certificates on. Claudio adds one Serve rule on its own port and removes only that rule.",
   },
   {
+    name: 'Terminal',
+    description:
+      "The person's own shell, opened in a project's directory or a chat's worktree. Off until it is turned on, and never for an agent: a chat's token is refused on every route here, reads included, and so is a request from a chat's process. With authentication off it opens only from this machine; from another device it needs the owner's token and, by default, the tunnel (`remote`). Read-only mode refuses all of it. What is typed and printed is never written down: the history keeps who opened what, when, from where and how many bytes, nothing else.",
+  },
+  {
     name: 'Push',
     description:
       'Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. There is no third-party push account — the payload goes out to whatever endpoint the browser handed us. A subscription belongs to an install, not to a person, so every install that registered gets the same notifications.',
@@ -598,6 +603,62 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /push/key': d('Push', 'The VAPID public key to subscribe with', { description: 'The keypair is made on first use and kept as `push.json` in the data directory (mode 600). The private half never leaves the server. `configured: false` means it could not be made and nothing will be sent.', ok: ref('PushKeyInfo') }),
   'GET /push/subscriptions': d('Push', 'Installs registered to be pushed to', { description: 'Endpoints are truncated: a full push endpoint URL is a capability to notify that install. Each row carries the `id` its registration returned, which is how a browser recognises itself in the list.', ok: list('PushSubscriptionSummary') }),
   'POST /push/subscriptions': d('Push', 'Register or refresh a subscription', { description: "The browser's `PushSubscription` JSON plus the notification kinds this install wants (every kind when omitted) and a label for the list. An endpoint that is already registered is refreshed, keeping its `createdAt`.", body: ref('RegisterPushSubscriptionRequest'), ok: ref('PushSubscriptionSummary'), created: true }),
+  // ---- Terminal
+  'GET /terminal': d('Terminal', 'The terminal feature', {
+    description:
+      'Whether the terminal is on and can be opened from here: `enabled`, `available`, and when it is not, the `reason` (`off`, `disabled-by-env`, `pty-missing`, `host-failed`, or what the caller adds: `needs-auth`, `remote-off`, `needs-tunnel`, `from-agent`). The settings come with `sources` (where each value is set: `env` is read-only here), whether the peer-process check can run on this machine (`peerCheck`) and how many shells run. It answers while the feature is off, which is how the person finds out why. `405` in read-only mode and `403` to a chat\'s token.',
+    ok: ref('TerminalStatus'),
+  }),
+  'PUT /terminal/settings': d('Terminal', 'Change the terminal settings', {
+    description:
+      '`enabled`, `remote` (`off`: this machine only, `tunnel`: another device only through the tunnel, `any`: also over the plain LAN address, which sends the token and every keystroke unencrypted), `maxTerminals` (1–32), `idleMinutes` (5–1440), `scrollbackLines` (500–10000), `replayLines`, `shell` (an absolute path listed in `/etc/shells`, or null for the login shell) and `loginShell`. Turning it off closes every terminal and is the one change a caller who could not open one may make. `409 terminal.env-locked` for a value `CLAUDIO_TERMINAL` fixes. Emits `terminal.changed`.',
+    body: obj({
+      enabled: { type: 'boolean' },
+      remote: ref('TerminalRemote'),
+      maxTerminals: { type: 'integer' },
+      idleMinutes: { type: 'integer' },
+      scrollbackLines: { type: 'integer' },
+      replayLines: { type: 'integer' },
+      shell: { type: ['string', 'null'] },
+      loginShell: { type: 'boolean' },
+    }),
+    ok: ref('TerminalStatus'),
+  }),
+  'GET /terminal/history': d('Terminal', 'Terminal sessions and attempts', {
+    description:
+      'Sessions newest first, each with its attachments: who attached, from where, with which `Origin`, when, and how many bytes went each way, never what they were. An attempt the gate or the socket turned away (a chat\'s token, a chat\'s process, a request from another device with authentication off, a bad ticket or `Origin`) is an attachment with `refused` set; one that names no terminal is an entry of its own with an empty `id`.',
+    querystring: obj({ limit: str('Entries on the page, 1–200; default 50'), offset: str('Entries to skip') }),
+    ok: ref('TerminalHistoryPage'),
+  }),
+  'GET /terminals': d('Terminal', 'Open terminals', {
+    description: 'The running terminals and those that ended in the last hour, oldest first. Filter by `project` (a project id) or `chat` (a chat id).',
+    querystring: obj({ project: str('Only the terminals opened for this project'), chat: str('Only the terminals opened for this chat') }),
+    ok: list('Terminal'),
+  }),
+  'POST /terminals': d('Terminal', 'Open a terminal', {
+    description:
+      'A shell in the project\'s directory (`projectId`, and optionally one of its `worktree` paths as `GET /projects/:id/worktrees` lists it) or in the chat\'s worktree (`chatId`): ids go in and the path comes out, never the other way. `cols` and `rows` default to 80 × 24. `409 terminal.limit` past `maxTerminals`, `400 terminal.no-project` for a chat outside any project, `400 terminal.bad-cwd` for a directory that is not one of those. Emits `terminal.changed`.',
+    body: obj({ projectId: str(), worktree: str(), chatId: str(), cols: { type: 'integer' }, rows: { type: 'integer' } }),
+    ok: ref('Terminal'),
+    created: true,
+  }),
+  'GET /terminals/:id': d('Terminal', 'One terminal', { ok: ref('Terminal') }),
+  'POST /terminals/:id/ticket': d('Terminal', "A ticket for the terminal's socket", {
+    description:
+      'The browser\'s `WebSocket` cannot send `Authorization`, so the socket takes a ticket instead of the token: 32 random bytes, valid 30 seconds, good for one connection, and bound to this terminal, the caller and the `Origin` that asked. A new one is asked for on every (re)connect.',
+    ok: ref('TerminalTicket'),
+  }),
+  'GET /terminals/:id/socket': d('Terminal', "The terminal's stream", {
+    description:
+      'A WebSocket, opened with `?ticket=` and an `Origin` that is the page\'s own. Server to client: binary frames are the shell\'s output, text frames are `TerminalServerFrame` (`hello` with the screen to repaint, then the unfinished tail as a binary frame; `size`, `exit`, `closed`). Client to server: binary frames are input (at most 64 KiB each), text frames are `TerminalClientFrame` (`resize`, `ack` of the bytes xterm has parsed, `focus`). Refused before the upgrade with `401` (ticket), `403` (gate, `Origin`), `404`, `405` (read-only), `409`.',
+    querystring: obj({ ticket: str('From `POST /terminals/:id/ticket`') }, ['ticket']),
+    ok: {},
+  }),
+  'DELETE /terminals/:id': d('Terminal', 'Close a terminal', {
+    description: 'Sends SIGHUP, then SIGTERM, then SIGKILL after 3 seconds to the shell\'s process group and what descends from it. Emits `terminal.changed`.',
+    ok: ref('Terminal'),
+  }),
+
   'DELETE /push/subscriptions': d('Push', 'Unregister a subscription', { description: 'By `endpoint` (what a browser turning the switch off knows) or by `id` (what the Settings list shows). `removed: false` when no such install was registered.', body: ref('RemovePushSubscriptionRequest'), ok: obj({ removed: { type: 'boolean' } }, ['removed']) }),
   'POST /push/test': d('Push', 'Send one test notification', { description: 'Proves push works without waiting for a chat to stop. Aimed at one install by `endpoint` or `id`, or at every registered one when the body names none. An endpoint the push service reports as gone (404/410) is deleted and counted in `removed`.', body: ref('SendTestPushRequest'), ok: ref('PushSendResult') }),
 
