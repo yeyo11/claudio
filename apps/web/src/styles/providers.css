@@ -37,14 +37,6 @@
   z-index: 1;
 }
 
-.prov-grip {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 36px;
-  color: var(--fg-3);
-  cursor: grab;
-}
 
 .prov-id {
   display: flex;
@@ -322,15 +314,7 @@
   border-bottom: 0;
 }
 
-.prov-grip {
-  border: 0;
-  background: none;
-  padding: 0;
-}
 
-.prov-grip:active {
-  cursor: grabbing;
-}
 
 .prov-bin .field-error {
   margin: 0;
