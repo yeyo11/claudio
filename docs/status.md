@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-15T20:00:00Z
+updated_at: 2026-10-16T00:00:00Z
 tags:
     - status
     - project-state
@@ -18,7 +18,7 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.1.0** on `feat/claude-only`, the same across all nine packages; release-please restarts from the fresh changelog |
+| Version | **0.1.0** on `main` (merged from `feat/claude-only` on 2026-10-16), the same across all nine packages; release-please restarts from the fresh changelog |
 | Released | Nothing yet: Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444). The repository `yeyo11/claudio` does not exist yet; see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 1,620 tracked `.ts`/`.tsx` files at Agentry 0.37.0, before the fork; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
@@ -109,7 +109,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/mobile.md`](plans/mobile.md) | Shipped — all five tasks, see [Outcome](plans/mobile.md#outcome) |
 | [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Verified — see [Verification](plans/roadmap-completion.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
 | [`plans/post-roadmap.md`](plans/post-roadmap.md) | Verified — see [Verification](plans/post-roadmap.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
-| [`plans/terminal.md`](plans/terminal.md) | Built (2026-10-15): core, API, web, packaging and the e2e/perf files are in; the full `pnpm e2e` run, `docker build`, `pnpm desktop:dist` and the security audit (t8) are still to do. Feature: [terminal.md](terminal.md) |
+| [`plans/terminal.md`](plans/terminal.md) | Built and verified (2026-10-16): core, API, web, packaging, the t8 security audit (T8-1 accepted by the owner with a warning in Settings, T8-2 and T8-3 fixed), `docker build`, `pnpm desktop:dist` and the full `pnpm e2e` run. The terminal lives in the status bar only (owner, 2026-10-15), detaches into its own window and goes full screen. Feature: [terminal.md](terminal.md) |
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
@@ -126,7 +126,12 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/agentry-mcp-server.md`](plans/agentry-mcp-server.md) | Built (2026-10-01): Claudio's own MCP server, `@claudio/mcp`, with 15 read-only tools over the REST API, handed to a chat through `--mcp-config` with the confinement, and packaged as `apps/api/dist/mcp.mjs` and in the desktop app. The write tools (CW-17) and the global assistant chat (CW-18) were built later, see [`agentry-assistant.md`](agentry-assistant.md). See [`agentry-mcp-server.md`](agentry-mcp-server.md) |
 | [`plans/web-packages.md`](plans/web-packages.md) | Landed (#156): the web UI split into `@claudio/ui` (primitives, tokens, controls, renderers) and `@claudio/chat-ui` (the conversation, behind an injected client), with guard tests on the dependency direction and vendor names |
 | [`plans/in-app-setup.md`](plans/in-app-setup.md) | Landed (#228, released in v0.37.0, 2026-10-09). A fresh Claudio, the Docker image above all, is set up from the browser: the setup assistant, a key or a device code for every agent, gh and glab, YouTrack, and the image's own Tailscale; secrets sealed in one vault and handed only to the CLI that reads them. Copilot signs in through its environment and gh (decision 7). See [Outcome](plans/in-app-setup.md#outcome), [setup.md](setup.md) and [security-model.md](security-model.md) |
-| [`plans/chat-experience.md`](plans/chat-experience.md) | Proposed (2026-10-15): a chat that feels as good as ChatGPT's. Nineteen work items (CHAT-1 … CHAT-19) in four phases, from ChatGPT's web chat studied with REA and Claudio's chat read end to end; nothing built yet |
+| [`plans/chat-experience.md`](plans/chat-experience.md) | Built (2026-10-15) except CHAT-19 (reading typography), which waits for the owner |
+| [`plans/claude-only-fork.md`](plans/claude-only-fork.md) | Built (2026-10-15): stages S (strip), A (`@claudio/accounts`) and R (rename) |
+| [`plans/models-per-account.md`](plans/models-per-account.md) | Built (2026-10-15): the model list per account from `initialize`, and the `account.model-fallback` point (ships off) |
+| [`plans/sdk-driver-improvements.md`](plans/sdk-driver-improvements.md) | Built (2026-10-15): D1–D3 and point 9, connectors parts A and B (`POST /connectors/:id/authorise`) |
+| [`plans/project-docs.md`](plans/project-docs.md) | Built (2026-10-15) |
+| [`plans/context-control.md`](plans/context-control.md), [`plans/guards.md`](plans/guards.md), [`plans/review-gate.md`](plans/review-gate.md), [`plans/lessons.md`](plans/lessons.md), [`plans/instruction-evals.md`](plans/instruction-evals.md), [`plans/agent-run-improvements.md`](plans/agent-run-improvements.md) | Planned (2026-10-15), from [reports/ecc.md](reports/ecc.md); open questions resolved. Launch order: context control, guards, review gate, lessons, evals phase 1; the agent-run improvements at any time |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
