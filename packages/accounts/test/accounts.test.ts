@@ -69,7 +69,10 @@ describe('store, dirs and env', () => {
     const d = envFor(s.ref('default'), env());
     assert.equal(d.CLAUDE_CODE_OAUTH_TOKEN, undefined);
     assert.equal(d.ANTHROPIC_API_KEY, undefined);
-    assert.equal(d.CLAUDE_CONFIG_DIR, defaultDir);
+    assert.equal(d.CLAUDE_CONFIG_DIR, env().CLAUDE_CONFIG_DIR, 'the default account keeps the base CLAUDE_CONFIG_DIR');
+    const bare = { ...env() };
+    delete bare.CLAUDE_CONFIG_DIR;
+    assert.equal(envFor(s.ref('default'), bare).CLAUDE_CONFIG_DIR, undefined, 'and sets none when the base had none, so the CLI reads ~/.claude.json');
     const key = await s.add({ kind: 'api-key', alias: 'billing', secret: 'sk-ant-api' });
     const k = envFor(s.ref(key.id), env());
     assert.equal(k.ANTHROPIC_API_KEY, 'sk-ant-api');
@@ -346,7 +349,8 @@ describe('models from initialize', () => {
 
   it('keeps one list per account: a token account lacks what the Max one has', async () => {
     const root2 = join(root, 'accts');
-    const s = new AccountStore({ dataDir: root2, defaultDir, claude: FAKE, env: env() });
+    // The default account's dir is the CLI's own config, which the process names with CLAUDE_CONFIG_DIR
+    const s = new AccountStore({ dataDir: root2, defaultDir, claude: FAKE, env: { ...env(), CLAUDE_CONFIG_DIR: defaultDir } });
     const t = await s.add({ kind: 'token', alias: 'pro', secret: 'sk-ant-oat-x' });
     const pro = (await s.models(t.id)).map((m) => m.value);
     const max = (await s.models('default')).map((m) => m.value);

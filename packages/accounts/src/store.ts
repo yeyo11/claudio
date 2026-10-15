@@ -6,14 +6,14 @@ import { join } from 'node:path';
 import type { Account, AccountKind, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@agentry/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
-import { SECRET_FILE, type AccountRef } from './env.ts';
+import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { identify, type Identity } from './identify.ts';
 import { ModelCache, offers } from './models.ts';
 import { readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
-export const DEFAULT_ID = 'default';
+export { DEFAULT_ID };
 
 export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used' };
 
