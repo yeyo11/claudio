@@ -13,6 +13,7 @@ const PAGES = [
   '/tasks/milestones',
   '/orchestration',
   '/connectors',
+  '/accounts',
   '/settings',
   '/settings?tab=settings',
   '/settings?tab=mcp',
@@ -49,9 +50,10 @@ export default async ({ page, api, check, dirs }) => {
     check(theme === 'dark' ? r + g + b < 200 : r + g + b > 600, `${theme} theme background is ${bg}`);
     await page.shot(`pages-${theme}`);
   }
-  // The Accounts page is gone with claude-swap: its address leads to the providers
-  await page.goto('/accounts', 0);
-  await page.waitFor(`return location.pathname === '/settings' && new URLSearchParams(location.search).get('tab') === 'providers'`, { label: '/accounts redirects to Settings → Providers' });
+  // Claudio rotates between Claude accounts (docs/accounts.md): /accounts is a page of its own again,
+  // not the redirect to Settings → Providers Claudio left when it retired claude-swap
+  await page.goto('/accounts', 900);
+  await page.waitFor(`return location.pathname === '/accounts' && (document.querySelector('main')?.innerText.trim().length ?? 0) > 20`, { label: '/accounts stays on the Accounts page' });
 
   await page.viewport(420, 900);
   for (const path of ['/', '/settings?tab=settings', '/settings?tab=plugins', projectPages[0]]) {

@@ -250,7 +250,7 @@ function Shell() {
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
     { id: 'work', label: t('shell:nav.work'), items: [home, assistant, chats, tasks, orchestrations, schedules] },
-    { id: 'space', label: t('shell:nav.space'), items: [projects, connectors, accounts, usage, settings] },
+    { id: 'space', label: t('shell:nav.space'), items: [projects, accounts, connectors, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
@@ -440,7 +440,7 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[assistant, tasks, projects, ...(terminalAccess ? [terminals] : []), schedules, usage, connectors, settings]}
+            more={[assistant, tasks, projects, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, connectors, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}
