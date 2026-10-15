@@ -72,7 +72,7 @@ test('the resolver judges a suggestion by the mapping the person accepted', () =
   const insert = (id: string, value: string): void => {
     const record: DecisionRecord = {
       id, point: 'account.model-fallback', kind: 'suggest', projectId: null, subjectKind: 'model', subjectId: 'opus', provider: 'cli', model: 'haiku', mode: 'shadow', status: 'answered', unavailable: null,
-      state: { model: 'opus' }, questions: [], answers: { model: { kind: 'choice', value } }, confidence: 0.9, threshold: 0.85, acted: false, visible: false, savedRun: false, latencyMs: 1, inputTokens: 1, costUsd: 0,
+      state: { model: 'opus' }, questions: [], answers: { model: { kind: 'choice', value, probabilities: null, confidence: 0.9 } }, confidence: 0.9, threshold: 0.85, acted: false, visible: false, savedRun: false, latencyMs: 1, inputTokens: 1, costUsd: 0,
       outcome: null, agreed: null, resolvedAt: null, feedback: null, feedbackAt: null, openedAt: null, paletteAction: null, at: '2026-10-15T10:00:00.000Z',
     };
     db.insertDecision(record);
