@@ -29,7 +29,7 @@ async function until(condition, label, limit = 15_000) {
 export default async ({ page, api, check, dirs }) => {
   const made = [];
   try {
-    // A fresh name each run: a project removed from Agentry keeps its items, and importing the same
+    // A fresh name each run: a project removed from Claudio keeps its items, and importing the same
     // folder again would bring them back
     const run = Date.now().toString(36);
     const dir = join(dirs.workspaceDir, `e2e-tasks-review-${run}`);

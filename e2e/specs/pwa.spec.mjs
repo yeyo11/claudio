@@ -1,4 +1,4 @@
-// Agentry as an installed app: a manifest a phone can read, icons it can draw, and a service
+// Claudio as an installed app: a manifest a phone can read, icons it can draw, and a service
 // worker that paints the shell before the network answers.
 //
 // The last third of this spec is the reason it exists. Every page of the UI follows the server

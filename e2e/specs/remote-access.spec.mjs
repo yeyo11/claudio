@@ -63,7 +63,7 @@ export default async ({ page, api, check }) => {
   await page.click(`${TAB} a`, 'Open Security', 1200);
   check((await page.eval('return location.search')) === '?tab=security', 'the warning leads to Security');
 
-  // "Start with Agentry" is saved, and a change made elsewhere reaches the page through the feed
+  // "Start with Claudio" is saved, and a change made elsewhere reaches the page through the feed
   const before = (await api.get('/tunnel')).body.settings.startWithAgentry;
   try {
     await page.goto('/settings?tab=remote', 1500);
@@ -105,7 +105,7 @@ export default async ({ page, api, check }) => {
     const text = await page.text(TAB);
     check(text.includes('Tailscale is not installed'), 'the tab says Tailscale is missing');
     check(await page.eval(`return !!document.querySelector('${TAB} a[href="https://tailscale.com/download"]')`), 'and links to where it is installed');
-    check(!(await page.eval(`return !!document.querySelector('${TAB} [data-testid=tunnel-start], ${TAB} [role=switch]')`)), 'and offers neither the start button nor the start-with-Agentry switch');
+    check(!(await page.eval(`return !!document.querySelector('${TAB} [data-testid=tunnel-start], ${TAB} [role=switch]')`)), 'and offers neither the start button nor the start-with-Claudio switch');
   } finally {
     await remove();
   }

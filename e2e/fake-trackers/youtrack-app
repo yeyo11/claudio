@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A fake youtrack-app for the specs: it answers what Agentry asks, in the shapes and exit codes
+// A fake youtrack-app for the specs: it answers what Claudio asks, in the shapes and exit codes
 // youtrack-app 1.0.3 was recorded to print (packages/core/test/fixtures/recordings/youtrack-app),
 // and never reaches a network. See README.md.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

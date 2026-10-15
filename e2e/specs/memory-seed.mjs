@@ -82,7 +82,7 @@ export async function seedEcosystem({ api, check, dirs }, project) {
   await tie(links, 'docs/specs/links.md', 'spec');
 
   // The CLI's own memory: CLAUDE.md and two memory files
-  const claudeMd = await api.put(`/config/instructions?project=${pid}&variant=shared`, { content: '# Agentry\n\nREST API, web UI and multi-agent orchestration around the Claude Code CLI.\n\n## The one rule\n\nThe CLI only.\n' });
+  const claudeMd = await api.put(`/config/instructions?project=${pid}&variant=shared`, { content: '# Claudio\n\nREST API, web UI and multi-agent orchestration around the Claude Code CLI.\n\n## The one rule\n\nThe CLI only.\n' });
   check(claudeMd.status === 200, `CLAUDE.md was written (${claudeMd.status})`);
   for (const [name, content] of [
     ['MEMORY.md', '- [Tests](tests.md) — core tests take three minutes\n'],

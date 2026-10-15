@@ -1,4 +1,4 @@
-// The review of a chat's changes, read inside Agentry (docs/plans/changes-review.md): opened from
+// The review of a chat's changes, read inside Claudio (docs/plans/changes-review.md): opened from
 // the inspector's summary, the file map and its scopes, one file's diff in Reading, Unified and Side
 // by side, a gap that asks for the whole file, "seen" kept across a reload, and a phone that opens a
 // file as a screen of its own and moves with its bottom bar.

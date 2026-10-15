@@ -12,7 +12,7 @@ export default async ({ page, api, check }) => {
   const text = await page.text('main');
 
   // What the CLI has no command for is said in the page, in words, not left as a gap
-  for (const sentence of ['Agentry talks to Claude Code only through its CLI', 'Web artifacts', 'claude.ai memory', 'no public API and no CLI command']) {
+  for (const sentence of ['Claudio talks to Claude Code only through its CLI', 'Web artifacts', 'claude.ai memory', 'no public API and no CLI command']) {
     check(text.includes(sentence), `the page says: "${sentence}"`);
   }
   check((await api.get('/connectors')).body.unavailable.length === 2, 'the two things out of reach come from the server');

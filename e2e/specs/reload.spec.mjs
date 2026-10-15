@@ -82,10 +82,10 @@ export default async ({ page, api, check }) => {
   const unblock = await page.blockUrls(['*/assets/Usage-*.js']);
   try {
     await page.goto('/usage', 1500);
-    const stale = await page.waitFor(`return (document.querySelector('main')?.innerText ?? '').includes('This page belongs to an older version of Agentry')`, { label: 'the stale page' });
+    const stale = await page.waitFor(`return (document.querySelector('main')?.innerText ?? '').includes('This page belongs to an older version of Claudio')`, { label: 'the stale page' });
     check(stale, 'a missing chunk renders the stale page instead of breaking');
     const banner = await page.waitFor(`return document.querySelector(${JSON.stringify(BANNER)})?.innerText ?? ''`, { label: 'the reload banner for a missing chunk' });
-    check(banner.includes('Agentry was updated.'), `a missing chunk raises the banner: ${banner}`);
+    check(banner.includes('Claudio was updated.'), `a missing chunk raises the banner: ${banner}`);
     const shell = await page.eval(`return !!document.querySelector('.sidebar')`);
     check(shell, 'the rest of the app keeps working around the missing page');
   } finally {

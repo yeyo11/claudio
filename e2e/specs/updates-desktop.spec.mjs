@@ -59,12 +59,12 @@ export default async ({ page, api, check, releases }) => {
       const steps = await page.eval(`return !!document.querySelector('[data-testid^=update-steps]')`);
       check(!steps, 'the desktop window gets its own button, not the commands for other installs');
 
-      await page.click(`${DESKTOP} button`, `Download Agentry ${NEXT}`);
+      await page.click(`${DESKTOP} button`, `Download Claudio ${NEXT}`);
       const bar = await page.waitFor(
         `const bar = document.querySelector(${JSON.stringify(`${DESKTOP} [role=progressbar]`)}); return bar && { name: bar.getAttribute('aria-label'), now: bar.getAttribute('aria-valuenow') }`,
         { label: 'the download progress bar' },
       );
-      check(bar.name === `Downloading Agentry ${NEXT}` && bar.now === '40', `the progress bar has a name and a value: ${JSON.stringify(bar)}`);
+      check(bar.name === `Downloading Claudio ${NEXT}` && bar.now === '40', `the progress bar has a name and a value: ${JSON.stringify(bar)}`);
       const violations = await page.axe({ include: CARD });
       check(violations.length === 0, `the card passes axe while downloading: ${JSON.stringify(violations, null, 2)}`);
 
@@ -74,7 +74,7 @@ export default async ({ page, api, check, releases }) => {
       const question = await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText ?? ''`, { label: 'the live-work question' });
       check(question.includes('2 chats are working, 1 orchestration is running'), `the question says what a restart would stop: ${question}`);
       await page.click('[role=dialog] button', 'Update when I quit');
-      await page.waitFor(cardSays(`Agentry ${NEXT} will be installed the next time you quit.`), { label: 'the scheduled install' });
+      await page.waitFor(cardSays(`Claudio ${NEXT} will be installed the next time you quit.`), { label: 'the scheduled install' });
       const gone = await page.eval(`return !document.querySelector('[role=dialog]')`);
       check(gone, 'the question closes once answered');
 
@@ -101,7 +101,7 @@ export default async ({ page, api, check, releases }) => {
     }
 
     // ---- An app that cannot update itself says why and links the release ----
-    const message = 'This copy of Agentry was not installed from an AppImage or a .deb, so it cannot update itself.';
+    const message = 'This copy of Claudio was not installed from an AppImage or a .deb, so it cannot update itself.';
     remove = await page.onNewDocument(fakeShell({ status: 'unsupported', reason: 'unknown-package', message }));
     try {
       await page.goto('/settings?tab=account', 1500);

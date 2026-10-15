@@ -2,7 +2,7 @@
 // the narrow layout lets that element grow with its content, something else scrolls, the list
 // measures a viewport as tall as the whole log and never moves its window, and the page is blank
 // wherever the reader looks. That is what run pages did at 1100px and below; a chat is what a run
-// page became, so both a chat read from its transcript and one Agentry just started are checked.
+// page became, so both a chat read from its transcript and one Claudio just started are checked.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -46,7 +46,7 @@ export default async ({ page, api, check, dirs }) => {
       check((await page.eval(onScreen('.run-scroll'))) > 0, `the chat still shows rows after scrolling to ${at * 100}% of it`);
     }
 
-    // ---- A chat Agentry started: its log scrolls between a fixed header and composer, never the page ----
+    // ---- A chat Claudio started: its log scrolls between a fixed header and composer, never the page ----
     // Without a login the chat goes nowhere, and its log is short: the height it would reach with a
     // long one is stood in for by a filler, which the stage must not grow to hold.
     const created = await api.post('/chats', { prompt: 'hello', name: 'e2e-mobile-chat' });
@@ -87,7 +87,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return [...document.querySelectorAll('.tabbar-tab')].some((t) => t.getAttribute('href') === '/tasks')`)) === false, 'Tasks is not one of the four tabs');
     await page.click('.tabbar-more', undefined, 600);
     await page.waitFor(`return !!document.querySelector('.more-sheet .more-nav a.more-cell')`, { label: 'the More sheet opens' });
-    // The Agentry assistant opens the sheet (MobileAsistenteAgentryMas), and Tasks is the first section after it
+    // The Claudio assistant opens the sheet (MobileAsistenteAgentryMas), and Tasks is the first section after it
     const firsts = await page.eval(`return [...document.querySelectorAll('.more-sheet .more-nav a.more-cell')].slice(0, 2).map((a) => a.getAttribute('href'))`);
     check(JSON.stringify(firsts) === JSON.stringify(['/assistant', '/tasks']), `the assistant, then Tasks, open the sheet (${JSON.stringify(firsts)})`);
     await page.waitFor(`return document.querySelector('.more-sheet a[href="/tasks"] .more-cell-note')?.textContent.trim() === '2 open'`, {

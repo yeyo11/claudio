@@ -218,7 +218,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(git(bare, 'branch', '--list', state.integration.branch).includes(state.integration.branch), 'the integration branch reached the bare origin, never the real host');
     const strip = await page.eval(`return [...document.querySelectorAll('.card .meta')].map((m) => m.textContent).join(' | ')`);
     check(strip.includes('MR !7') && strip.includes('waiting for merge'), `the card shows the request and its phase (${strip})`);
-    check((await page.eval(`return document.body.innerText`)).includes('Agentry follows the MR on GitLab'), 'and says Agentry follows it on GitLab');
+    check((await page.eval(`return document.body.innerText`)).includes('Claudio follows the MR on GitLab'), 'and says Claudio follows it on GitLab');
     await page.shot('merge-requests-orchestration-after');
     await scan(page, check, 'the orchestration with its merge request');
   } finally {

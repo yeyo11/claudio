@@ -203,7 +203,7 @@ draft_note() {
 }
 
 # Draft notes, as GitLab keeps them: "<id> <the JSON the CLI was given>" per line. The person's own
-# drafts (not Agentry's) are lines a spec writes there; every draft is listed and published alike
+# drafts (not Claudio's) are lines a spec writes there; every draft is listed and published alike
 drafts_json() {
   printf '['
   first=1

@@ -4,7 +4,7 @@
 // Reference screens: DesktopIntegracionesWebhooks*, MobileIntegracionesWebhooks* and DSWebhooks. With E2E_SHOTS
 // set the screens are saved for comparing them with the reference screenshots.
 //
-// 1. Agentry has no public address (the tunnel is tailnet-only, so it never is one), so the card says so and
+// 1. Claudio has no public address (the tunnel is tailnet-only, so it never is one), so the card says so and
 //    offers no action, GitLab's row included.
 // 2. With an address (the page's answer to `GET /projects/:id/webhooks` carries one; everything else is the real
 //    server and the real fake gh): the row offers Register, its dialog shows the address and the nine events and
@@ -257,8 +257,8 @@ export default async ({ page, api, check, dirs }) => {
     check((await actionsOf(ghId)).length === 0, 'a project with no address to register on offers no action');
     check((await actionsOf(glId)).length === 0, 'a GitLab row with no address offers no action either');
     const gitlabRow = await text(rowOf(glId));
-    check(/Meanwhile Agentry reads the pull requests every 2 min/.test(gitlabRow) && !/Not available yet/.test(gitlabRow), `a GitLab row says the same as a GitHub one (${gitlabRow})`);
-    check(/Meanwhile Agentry reads the pull requests every 2 min/.test(await text(rowOf(ghId))), `the row says how the pull requests are read meanwhile (${await text(rowOf(ghId))})`);
+    check(/Meanwhile Claudio reads the pull requests every 2 min/.test(gitlabRow) && !/Not available yet/.test(gitlabRow), `a GitLab row says the same as a GitHub one (${gitlabRow})`);
+    check(/Meanwhile Claudio reads the pull requests every 2 min/.test(await text(rowOf(ghId))), `the row says how the pull requests are read meanwhile (${await text(rowOf(ghId))})`);
     check(!/redeliver/i.test(await text('.wh-card')), 'there is no redelivery');
     await everyScreen('webhooks-no-address-dark', 'Webhooks without an address, dark');
     await setTheme('light');
@@ -272,7 +272,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await actionsOf(ghId)).join(',') === 'register', `an unregistered project offers Register and nothing else (${(await actionsOf(ghId)).join(',')})`);
     check((await text('.wh-card .wh-bar')).includes(ADDRESS) && /Open/.test(await text('.wh-card .wh-bar')), 'the card says where notices arrive, and that it is open');
     check((await actionsOf(glId)).join(',') === 'register', `a GitLab project offers Register too (${(await actionsOf(glId)).join(',')})`);
-    check(/Without a webhook, Agentry reads the pull requests every 2 min/.test(await text(rowOf(ghId))), 'an off row says what a webhook is for');
+    check(/Without a webhook, Claudio reads the pull requests every 2 min/.test(await text(rowOf(ghId))), 'an off row says what a webhook is for');
     await everyScreen('webhooks-off-dark', 'Webhooks with an address, dark');
     await setTheme('light');
     await openIntegrations(ghId, 'off', 'with an address, light');
@@ -289,7 +289,7 @@ export default async ({ page, api, check, dirs }) => {
     const events = await page.eval(`return [...document.querySelectorAll('[role=dialog] .wh-events li .mono')].map((e) => e.textContent)`);
     check(JSON.stringify(events) === JSON.stringify(EVENTS), `and the nine events (${events.join(',')})`);
     check(/32-byte secret/.test(dialogText) && /never shown/i.test(dialogText), 'it says the secret is made, kept and never shown');
-    check(/sooner/i.test(dialogText), 'it says a webhook only makes Agentry read sooner');
+    check(/sooner/i.test(dialogText), 'it says a webhook only makes Claudio read sooner');
     check(!(await page.eval(`return !!document.querySelector('[role=dialog] input, [role=dialog] textarea, [role=dialog] [data-copy]')`)), 'the dialog has no field to type or copy a secret in');
     const own = await page.eval(`return [...document.querySelectorAll('[role=dialog] .btn-primary')].map((b) => b.textContent.trim())`);
     check(own.length === 1 && own[0] === 'Register webhook', `Register is the dialog's one gradient action (${JSON.stringify(own)})`);
@@ -516,7 +516,7 @@ export default async ({ page, api, check, dirs }) => {
     await fresh('instant', 'a healthy hook');
     const instant = await line();
     check(/Instant/.test(instant) && /By webhook/.test(instant) && /last notice/.test(instant), `a healthy hook with a webhook read says Instant and by webhook (${instant})`);
-    check(/only makes Agentry read sooner/.test(instant), `and says a webhook only makes Agentry read sooner (${instant})`);
+    check(/only makes Claudio read sooner/.test(instant), `and says a webhook only makes Claudio read sooner (${instant})`);
     check(await page.eval(`return !!document.querySelector('.item-pr-wait .fresh .badge-ok')`), 'Instant is ok-coloured, with its word');
     check(await page.eval(`return !!document.querySelector('.item-pr-wait .fresh button')`), 'and the person can Refresh');
     await still('instant');

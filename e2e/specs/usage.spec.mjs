@@ -1,7 +1,7 @@
 // Usage and export: cost and tokens over time, by project and by model, with a range picker, the
 // chart's figures also given as a table behind a header toggle (a chart drawn in colour alone fails
 // the accessibility spec), one big figure instead of the tiles on a phone,
-// the custom range typed or picked from Agentry's own calendar, and a chat's transcript downloaded as
+// the custom range typed or picked from Claudio's own calendar, and a chat's transcript downloaded as
 // Markdown and as JSON. A chat is laid out on disk the way the CLI keeps it and removed afterwards,
 // because the chats spec counts what the sandbox holds.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';

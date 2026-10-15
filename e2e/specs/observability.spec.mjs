@@ -122,7 +122,7 @@ export default async ({ page, api, check }) => {
     check(scopes.some((s) => s.includes('Not committed yet')), 'the uncommitted files have their own scope');
     await page.key('Escape');
 
-    // A diff per file, drawn by Agentry's own comparator
+    // A diff per file, drawn by Claudio's own comparator
     await page.goto(`/chats/${SESSION}/changes?file=greet.ts&mode=unified`, 1500);
     await page.waitFor(`return document.querySelector('.changes-review .diff')?.dataset.mode === 'unified' && document.querySelectorAll('.changes-review .diff-row').length > 0`, { label: 'the diff opens' });
     const rows = await page.eval(`return [...document.querySelectorAll('.changes-review .diff-row')].map((r) => [r.className, r.querySelector('.diff-code')?.textContent ?? ''])`);

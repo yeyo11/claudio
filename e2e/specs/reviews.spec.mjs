@@ -154,7 +154,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(byId.get(THREAD_RESOLVED)?.isResolved === true && byId.get(THREAD_RESOLVED)?.resolvedBy === 'hubot', 'the resolved one says who resolved it');
     const outdated = byId.get(THREAD_OUTDATED);
     check(outdated?.isOutdated === true && outdated.line === null && outdated.originalLine === 20, 'the outdated one has no line now and keeps where it was');
-    check(!/<!-- agentry/.test(JSON.stringify(threads)), 'no marker of ours reaches the person');
+    check(!/<!-- claudio/.test(JSON.stringify(threads)), 'no marker of ours reaches the person');
 
     const reply = await api.post(`/change-requests/${crId}/threads/${THREAD_OPEN}/reply`, { body: 'Done, rounding half up now.' });
     check(reply.status === 200 && reply.body.comments.length === 2 && reply.body.comments[1].body.startsWith('Done, rounding'), `a reply reaches the host and comes back in the thread (${reply.status})`);
@@ -523,7 +523,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         await page.goto(`/tasks/${item.key}`, 1500);
         await page.waitFor(`return !!document.querySelector('.item-pr-wait.is-address-done')`, { label: `[${theme}] the follow-up of the push the address made` });
         const done = await page.text('.item-pr-wait.is-address-done');
-        check(done.includes(`Addressed in ${HEAD2.slice(0, 7)}`) && done.includes('Agentry answers and resolves nothing on its own'), `[${theme}] the push the core recorded is offered, and nothing is sent by itself (${done.replace(/\s+/g, ' ').slice(0, 200)})`);
+        check(done.includes(`Addressed in ${HEAD2.slice(0, 7)}`) && done.includes('Claudio answers and resolves nothing on its own'), `[${theme}] the push the core recorded is offered, and nothing is sent by itself (${done.replace(/\s+/g, ' ').slice(0, 200)})`);
         check(!/Addressed in/.test(read('gh.replies')), `[${theme}] and no reply was posted`);
         await axeCheck(page, check, `[${theme}] axe finds nothing on the follow-up`);
         await page.shot(`reviews-followup-${theme}`);
@@ -624,7 +624,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const FIRST = 'First note on the total.';
       const SECOND = 'Second note on the total.';
       const THIRD = 'Third note on the total.';
-      const FOREIGN = '9001 {"note":"A draft of the person own, never saved by Agentry"}\n';
+      const FOREIGN = '9001 {"note":"A draft of the person own, never saved by Claudio"}\n';
 
       // (a) The host publishes fewer notes than were saved: what went out is not sent again, the rest is still the person's
       tune('glab', { publishLimit: 2 });
@@ -638,7 +638,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       check((await wordsOnHost()).filter((b) => b === FIRST).length === 1, 'the note that went out is on the host once, and not among the drafts to send again');
       let stopped = await partlyPost();
       check(stopped.post && stopped.onHost === 0, `nothing saved is left on the host for it (${stopped.onHost})`);
-      // The person's own draft is in the way of nothing here: discarding what Agentry saved never touches it
+      // The person's own draft is in the way of nothing here: discarding what Claudio saved never touches it
       appendFileSync(join(stateDir, 'glab.drafts'), FOREIGN);
       const discardedNone = await api.post(`/change-requests/${mrId}/reviews/${stopped.post.id}/discard-saved`);
       check(discardedNone.status === 200, `the stopped review is settled (${discardedNone.status})`);
@@ -646,7 +646,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       check((await rowsNow()).length === 1, "and the person's unsent note is still a draft");
       rmSync(join(stateDir, 'glab.drafts'), { force: true });
 
-      // (b) A note is refused after others were saved: the saved ones are on the host, beside a draft that is not Agentry's
+      // (b) A note is refused after others were saved: the saved ones are on the host, beside a draft that is not Claudio's
       rmSync(join(stateDir, 'glab.draftposts'), { force: true });
       tune('glab', { publishLimit: undefined, draftFailAfter: 2 });
       await addNote(14, THIRD);
@@ -656,7 +656,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       check((await rowsNow()).length === 2, "both of the person's notes are still drafts");
       appendFileSync(join(stateDir, 'glab.drafts'), FOREIGN);
       stopped = await partlyPost();
-      check(stopped.post && stopped.onHost === 2, `only the notes Agentry saved are counted as its own (${stopped.onHost} of ${hostDrafts().length})`);
+      check(stopped.post && stopped.onHost === 2, `only the notes Claudio saved are counted as its own (${stopped.onHost} of ${hostDrafts().length})`);
       for (const theme of ['dark', 'light']) {
         await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
         for (const visit of ['first load', 'after a reload']) {
@@ -672,18 +672,18 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         await page.shot(`reviews-partly-${theme}`);
       }
 
-      // Publishing sends every draft of the person, so it is refused while one of theirs that Agentry did not save is there
+      // Publishing sends every draft of the person, so it is refused while one of theirs that Claudio did not save is there
       const publishedBefore = publishedCount();
       const refusedPublish = await api.post(`/change-requests/${mrId}/reviews/${stopped.post.id}/publish-saved`);
       check(refusedPublish.status === 409 && refusedPublish.body.code === 'pending-review-exists', `Publish saved is refused while a draft of the person's own is waiting (${refusedPublish.status} ${refusedPublish.body.code})`);
       check(publishedCount() === publishedBefore && hostDrafts().length === 3, 'and nothing was published, theirs included');
-      // Discarding takes back what Agentry saved and only that
+      // Discarding takes back what Claudio saved and only that
       const discarded = await api.post(`/change-requests/${mrId}/reviews/${stopped.post.id}/discard-saved`);
       check(discarded.status === 200, `Discard saved settles it (${discarded.status})`);
       check(hostDrafts().length === 1 && hostDrafts()[0].startsWith('9001 '), `the person's own draft is the one left on the host (${JSON.stringify(hostDrafts())})`);
       check((await rowsNow()).length === 2, 'and both notes are still drafts, to be sent again');
 
-      // (c) Nothing but Agentry's drafts on the host: Publish saved sends them, and only the rows that went out are dropped
+      // (c) Nothing but Claudio's drafts on the host: Publish saved sends them, and only the rows that went out are dropped
       rmSync(join(stateDir, 'glab.drafts'), { force: true });
       rmSync(join(stateDir, 'glab.draftposts'), { force: true });
       const secondTry = await api.post(reviewsUrl, { event: 'comment', body: 'GitLab review, third try', headSha: HEAD2 });
@@ -691,7 +691,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       stopped = await partlyPost();
       const publishedAt = publishedCount();
       const published = await api.post(`/change-requests/${mrId}/reviews/${stopped.post.id}/publish-saved`);
-      check(published.status === 200 && published.body.state === 'posted', `Publish saved posts what Agentry saved (${published.status} ${published.body.state})`);
+      check(published.status === 200 && published.body.state === 'posted', `Publish saved posts what Claudio saved (${published.status} ${published.body.state})`);
       check(publishedCount() === publishedAt + 2 && hostDrafts().length === 0, 'two discussions went out and no draft is left on the host');
       const left = await rowsNow();
       check(left.length === 1 && left[0].body === THIRD, `only the note that went out is dropped; the one never saved stays (${JSON.stringify(left.map((d) => d.body))})`);

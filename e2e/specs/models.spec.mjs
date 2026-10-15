@@ -1,4 +1,4 @@
-// The models a person may pick. Agentry keeps no list of its own: it reads the options the CLI
+// The models a person may pick. Claudio keeps no list of its own: it reads the options the CLI
 // caches in its own state file, which the CLI has already filtered by what the account's
 // subscription allows, so a model added to a plan shows up without a release here.
 import { mkdirSync, writeFileSync } from 'node:fs';

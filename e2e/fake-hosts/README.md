@@ -68,7 +68,7 @@ with the author's 422, and a login that starts with `ghost` exits 0 and adds nob
 approval, moved by `mr approve` and `mr revoke`). glab's draft notes are kept in `glab.drafts` (`<id> <the JSON the CLI was given>` per line, ids from
 7001, `glab.draftseq` and `glab.draftposts` count): a POST saves one, a GET lists them, a DELETE takes
 one off, and `mr note publish` turns every draft there is into a discussion (kept in `glab.published`
-and listed ahead of the scenario's own) and empties the list. A draft of the person's own, which Agentry
+and listed ahead of the scenario's own) and empties the list. A draft of the person's own, which Claudio
 never saved, is a line a spec appends there (`9001 {"note":"..."}`): it is listed and published like
 any other, which is what the publish rule is checked against.
 

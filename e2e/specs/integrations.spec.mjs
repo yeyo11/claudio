@@ -86,12 +86,12 @@ export default async ({ page, api, check, dirs }) => {
     await theme(page, 'dark');
     await page.goto('/settings?tab=integrations', 300);
 
-    // ---- Signed out: the remedy is the sign-in panel inside Agentry, never a command ----
+    // ---- Signed out: the remedy is the sign-in panel inside Claudio, never a command ----
     state('gh', { signedIn: false });
     await checkAgain();
     await page.waitFor(stateIs('github', 'signed-out'), { label: 'gh signed out after Check again' });
     const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { tag: a.tagName, pressed: a.getAttribute('aria-pressed') } : null`);
-    check(signIn?.tag === 'BUTTON' && signIn.pressed === 'false', `signed out offers Sign in, a button that stays in Agentry (${JSON.stringify(signIn)})`);
+    check(signIn?.tag === 'BUTTON' && signIn.pressed === 'false', `signed out offers Sign in, a button that stays in Claudio (${JSON.stringify(signIn)})`);
     await page.click('.prov-row[data-host="github"] [data-action="sign-in"]', undefined, 300);
     await page.waitFor(`return !!document.querySelector('.prov-bin.signin-panel')`, { label: 'the sign-in panel under the row' });
     check((await page.eval(`return document.querySelector('.prov-bin.signin-panel [role="radiogroup"]')?.textContent ?? ''`)).includes('Code'), 'gh offers the device code and a key');
