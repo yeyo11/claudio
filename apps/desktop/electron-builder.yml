@@ -45,9 +45,11 @@ extraResources:
       - server.mjs
       - mcp.mjs
       - terminal-host.mjs
-      # node-pty, staged by the API's bundle script (package.json, lib/ and the Linux x64 prebuild, with
-      # pnpm's symlinks dereferenced). Node's resolution from terminal-host.mjs finds it here
-      - node_modules/node-pty/**
+  # node-pty, staged by the API's bundle script (package.json, lib/ and the Linux x64 prebuild, with pnpm's
+  # symlinks dereferenced). Its own entry: electron-builder drops node_modules/ from a filtered copy, so
+  # listing it in the filter above shipped nothing. Node's resolution from terminal-host.mjs finds it here
+  - from: ../api/dist/node_modules/node-pty
+    to: server/node_modules/node-pty
   - from: ../web/dist
     to: web
   # The window's own icon (src/resources.ts); without it the running window has no _NET_WM_ICON

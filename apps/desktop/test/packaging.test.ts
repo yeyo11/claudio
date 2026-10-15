@@ -13,3 +13,10 @@ test("the .deb does not depend on a tunnel package: Tailscale is the person's to
   // localhost.run's ssh went with the old tunnel
   assert.ok(!packages.includes('openssh-client'), `deb.depends: ${packages.join(', ')}`);
 });
+
+test('node-pty ships beside the terminal host, as its own extraResources entry', () => {
+  // electron-builder drops node_modules/ from a filtered copy, so a filter line under ../api/dist shipped
+  // nothing and the terminal host could not load node-pty in the packaged app
+  assert.match(builder, /- from: \.\.\/api\/dist\/node_modules\/node-pty\n\s+to: server\/node_modules\/node-pty\n/);
+  assert.doesNotMatch(builder, /^\s+- node_modules\/node-pty\/\*\*$/m);
+});
