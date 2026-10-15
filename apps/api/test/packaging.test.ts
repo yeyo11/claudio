@@ -66,7 +66,7 @@ test('the image carries gh, glab and youtrack-app pinned, the two downloads chec
     assert.match(dockerfile, new RegExp(`^ARG ${arg}=[0-9a-f]{64}$`, 'm'), `${arg} is a pinned SHA-256`);
     assert.match(dockerfile, new RegExp(`echo "\\$\\{${arg}\\}  \\$\\{${tool}_tar\\}" \\| sha256sum -c -`), `${tool}'s tarball is checked`);
   }
-  assert.match(dockerfile, /^\s+@jetbrains\/youtrack-apps-tools@\$\{YOUTRACK_APP_VERSION\} \\$/m);
+  assert.match(dockerfile, /^RUN npm install -g @jetbrains\/youtrack-apps-tools@\$\{YOUTRACK_APP_VERSION\} \\$/m);
   assert.match(dockerfile, /gh --version && glab --version/);
   for (const name of ['GH_CONFIG_DIR', 'GLAB_CONFIG_DIR']) {
     assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);
