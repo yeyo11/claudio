@@ -14588,6 +14588,19 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
+          },
+          "account.model-fallback": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
           }
         }
       }
@@ -23062,6 +23075,9 @@
           },
           "issue.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "account.model-fallback": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -23227,6 +23243,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "issue.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "account.model-fallback": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -23471,7 +23490,8 @@
       "notification.urgency",
       "checks.fix",
       "review.triage",
-      "issue.triage"
+      "issue.triage",
+      "account.model-fallback"
     ]
   },
   "DecisionPointKind": {

@@ -164,6 +164,25 @@ export interface ModelFallbacksRequest {
   fallbacks: Array<Pick<ModelFallback, 'from' | 'to'> & Partial<Pick<ModelFallback, 'origin'>>>;
 }
 
+/** The body of `POST /accounts/model-fallbacks/suggest`: the model no account with headroom can run. */
+export interface ModelFallbackSuggestRequest {
+  model: string;
+}
+
+/**
+ * What `account.model-fallback` proposed for a model. `candidates` are the models the accounts
+ * with headroom offer, the same line first and then the tier below; `suggestion` is the one the
+ * point picked, null when it is off, unavailable or answered `none`. Nothing is saved: the person
+ * accepts it with `PUT /accounts/model-fallbacks` and `origin: 'suggestion'`.
+ */
+export interface ModelFallbackSuggestion {
+  model: string;
+  candidates: ModelOption[];
+  suggestion: string | null;
+  confidence: number | null;
+  decisionId: string | null;
+}
+
 /** A provider's models by how fast or how strong they are; what model mapping across providers builds on. */
 export type ModelTier = 'fast' | 'balanced' | 'strong';
 
