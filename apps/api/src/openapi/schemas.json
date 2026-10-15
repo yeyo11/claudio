@@ -448,28 +448,6 @@
         ],
         "description": "Set on a fork: where it started from"
       },
-      "continuedFrom": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ChatContinuation"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The chat this one continues after a provider move; null when it is not a continuation"
-      },
-      "continuedIn": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ChatContinuation"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The chat that continues this one after a provider move; null while none does"
-      },
       "atLimit": {
         "type": "boolean",
         "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
@@ -693,40 +671,6 @@
       "at"
     ],
     "description": "Where a fork came from."
-  },
-  "ChatContinuation": {
-    "type": "object",
-    "properties": {
-      "chatId": {
-        "type": "string"
-      },
-      "provider": {
-        "$ref": "#/components/schemas/ProviderId",
-        "description": "The provider of the chat at the other end"
-      },
-      "action": {
-        "type": "string",
-        "enum": [
-          "handoff",
-          "restart"
-        ]
-      },
-      "at": {
-        "type": "string"
-      },
-      "moveId": {
-        "type": "string",
-        "description": "The  {@link  ProviderMove }  that recorded it"
-      }
-    },
-    "required": [
-      "chatId",
-      "provider",
-      "action",
-      "at",
-      "moveId"
-    ],
-    "description": "The other end of a provider move, as a chat links to it. A move is always a new chat (a session belongs to its provider), so the old chat and the new one point at each other."
   },
   "ChatState": {
     "type": "string",
@@ -2863,13 +2807,6 @@
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider its current chat is on; absent on a task written before providers were chosen"
       },
-      "chain": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/TaskChainEntry"
-        },
-        "description": "The chats the task went through, oldest first, one entry per provider move"
-      },
       "waiting": {
         "anyOf": [
           {
@@ -2984,61 +2921,6 @@
       "interrupted"
     ],
     "description": "`failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the graph can finish without it. `stopped` is someone's decision and is never retried on its own; `interrupted` is a task whose execution a wrapper restart cut off, which is: the chat goes on in a new execution, in the worktree it left, while attempts remain."
-  },
-  "TaskChainEntry": {
-    "type": "object",
-    "properties": {
-      "chatId": {
-        "type": "string"
-      },
-      "provider": {
-        "$ref": "#/components/schemas/ProviderId"
-      },
-      "model": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "effort": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/Effort"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The effort it ran with; null when none was passed, absent on an entry written before it was kept"
-      },
-      "action": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/LimitAction"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "How this chat came to be; the first chat of a task has none"
-      }
-    },
-    "required": [
-      "chatId",
-      "provider",
-      "model",
-      "action"
-    ],
-    "description": "One chat of a task's chain: the provider and model it ran on, and how it got there."
-  },
-  "LimitAction": {
-    "type": "string",
-    "enum": [
-      "handoff",
-      "restart",
-      "wait"
-    ],
-    "description": "What work does when its provider reaches a usage limit."
   },
   "LimitWait": {
     "type": "object",
@@ -4192,13 +4074,6 @@
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider its current chat is on; absent on a task written before providers were chosen"
-      },
-      "chain": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/TaskChainEntry"
-        },
-        "description": "The chats the task went through, oldest first, one entry per provider move"
       },
       "waiting": {
         "anyOf": [
@@ -5618,9 +5493,6 @@
         "$ref": "#/components/schemas/RunRateLimitedEvent"
       },
       {
-        "$ref": "#/components/schemas/RunProviderMovedEvent"
-      },
-      {
         "$ref": "#/components/schemas/RunLimitWaitingEvent"
       },
       {
@@ -6306,91 +6178,6 @@
       "type"
     ],
     "description": "A turn died against the account's rate limit."
-  },
-  "RunProviderMovedEvent": {
-    "type": "object",
-    "properties": {
-      "runId": {
-        "type": "string"
-      },
-      "runName": {
-        "type": "string"
-      },
-      "sessionId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Null until the CLI reports the session id"
-      },
-      "orchestrationId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Set for a worker of an orchestration"
-      },
-      "internal": {
-        "type": "boolean",
-        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
-      },
-      "id": {
-        "type": "number",
-        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
-      },
-      "at": {
-        "type": "string"
-      },
-      "title": {
-        "type": "string",
-        "description": "One line a notification can show as it is"
-      },
-      "type": {
-        "type": "string",
-        "const": "run.providerMoved"
-      },
-      "from": {
-        "$ref": "#/components/schemas/ProviderId"
-      },
-      "to": {
-        "$ref": "#/components/schemas/ProviderId"
-      },
-      "action": {
-        "type": "string",
-        "enum": [
-          "handoff",
-          "restart"
-        ]
-      },
-      "decidedBy": {
-        "$ref": "#/components/schemas/ProviderMoveDecider"
-      }
-    },
-    "required": [
-      "action",
-      "at",
-      "decidedBy",
-      "from",
-      "id",
-      "internal",
-      "orchestrationId",
-      "runId",
-      "runName",
-      "sessionId",
-      "title",
-      "to",
-      "type"
-    ],
-    "description": "Work went on in a new chat on another provider after a limit."
-  },
-  "ProviderMoveDecider": {
-    "type": "string",
-    "enum": [
-      "person",
-      "setting",
-      "decision"
-    ],
-    "description": "Who chose a move: the person, the settings, or a decision point."
   },
   "RunLimitWaitingEvent": {
     "type": "object",
@@ -10262,10 +10049,6 @@
     "type": "string",
     "enum": [
       "claude-code",
-      "codex",
-      "gemini",
-      "copilot",
-      "opencode",
       "gh",
       "glab",
       "youtrack",
@@ -10462,28 +10245,6 @@
           }
         ],
         "description": "Set on a fork: where it started from"
-      },
-      "continuedFrom": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ChatContinuation"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The chat this one continues after a provider move; null when it is not a continuation"
-      },
-      "continuedIn": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ChatContinuation"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The chat that continues this one after a provider move; null while none does"
       },
       "atLimit": {
         "type": "boolean",
@@ -11640,28 +11401,6 @@
           }
         ],
         "description": "Set on a fork: where it started from"
-      },
-      "continuedFrom": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ChatContinuation"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The chat this one continues after a provider move; null when it is not a continuation"
-      },
-      "continuedIn": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ChatContinuation"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The chat that continues this one after a provider move; null while none does"
       },
       "atLimit": {
         "type": "boolean",
@@ -14538,45 +14277,6 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
-          },
-          "provider.on-limit": {
-            "type": "object",
-            "properties": {
-              "mode": {
-                "$ref": "#/components/schemas/DecisionMode",
-                "description": "Absent reads as `off` for every point"
-              },
-              "threshold": {
-                "type": "number",
-                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
-              }
-            }
-          },
-          "provider.pick": {
-            "type": "object",
-            "properties": {
-              "mode": {
-                "$ref": "#/components/schemas/DecisionMode",
-                "description": "Absent reads as `off` for every point"
-              },
-              "threshold": {
-                "type": "number",
-                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
-              }
-            }
-          },
-          "provider.model-map": {
-            "type": "object",
-            "properties": {
-              "mode": {
-                "$ref": "#/components/schemas/DecisionMode",
-                "description": "Absent reads as `off` for every point"
-              },
-              "threshold": {
-                "type": "number",
-                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
-              }
-            }
           }
         }
       }
@@ -14659,28 +14359,27 @@
         "type": "object",
         "properties": {
           "action": {
-            "$ref": "#/components/schemas/LimitAction",
-            "description": "What automated work does at a limit; a person's chat offers it first"
+            "$ref": "#/components/schemas/LimitAction"
           },
           "allowed": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LimitAction"
-            },
-            "description": "What a decision point may choose among; always includes `action`"
+            }
           },
           "maxWaitHours": {
             "type": "number",
             "description": "How long a wait with no known reset lasts before the run fails, 1..48"
-          },
-          "maxMoves": {
-            "type": "number",
-            "description": "Moves per run before it waits, 0..5"
           }
         }
       }
     },
     "description": "What a project overrides of `providers.json`: the order its work picks providers in, and the fields of `rotation.onLimit` it sets itself. The model mapping stays global."
+  },
+  "LimitAction": {
+    "type": "string",
+    "const": "wait",
+    "description": "What work does at a usage limit: it waits for the reset (a switch of account is a later stage)."
   },
   "ProjectTemplate": {
     "type": "object",
@@ -19657,7 +19356,7 @@
       },
       "rotation": {
         "$ref": "#/components/schemas/RotationSettings",
-        "description": "What happens at a usage limit, and the model mapping; absent on a file written before it, read as the defaults"
+        "description": "What happens at a usage limit; absent on a file written before it, read as the defaults"
       }
     },
     "required": [
@@ -19694,181 +19393,29 @@
         "type": "object",
         "properties": {
           "action": {
-            "$ref": "#/components/schemas/LimitAction",
-            "description": "What automated work does at a limit; a person's chat offers it first"
+            "$ref": "#/components/schemas/LimitAction"
           },
           "allowed": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LimitAction"
-            },
-            "description": "What a decision point may choose among; always includes `action`"
+            }
           },
           "maxWaitHours": {
             "type": "number",
             "description": "How long a wait with no known reset lasts before the run fails, 1..48"
-          },
-          "maxMoves": {
-            "type": "number",
-            "description": "Moves per run before it waits, 0..5"
           }
         },
         "required": [
           "action",
           "allowed",
-          "maxWaitHours",
-          "maxMoves"
+          "maxWaitHours"
         ]
-      },
-      "modelMap": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/ModelMapEntry"
-        },
-        "description": "Global only; never filled without a person"
       }
     },
     "required": [
-      "onLimit",
-      "modelMap"
+      "onLimit"
     ]
-  },
-  "ModelMapEntry": {
-    "type": "object",
-    "properties": {
-      "from": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "$ref": "#/components/schemas/ProviderId"
-          },
-          "model": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "model"
-        ]
-      },
-      "to": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "$ref": "#/components/schemas/ProviderId"
-          },
-          "model": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "model"
-        ]
-      },
-      "origin": {
-        "type": "string",
-        "enum": [
-          "person",
-          "decision"
-        ],
-        "description": "`decision`: a suggestion of the `provider.model-map` point that a person accepted"
-      },
-      "at": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "from",
-      "to",
-      "origin",
-      "at"
-    ],
-    "description": "One model standing in for another across two providers."
-  },
-  "ProviderCandidates": {
-    "type": "object",
-    "properties": {
-      "candidates": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "provider": {
-              "$ref": "#/components/schemas/ProviderId"
-            },
-            "model": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "utilization": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "resetsAt": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "provider",
-            "model",
-            "utilization",
-            "resetsAt"
-          ]
-        }
-      },
-      "excluded": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "provider": {
-              "$ref": "#/components/schemas/ProviderId"
-            },
-            "excluded": {
-              "$ref": "#/components/schemas/Exclusion"
-            }
-          },
-          "required": [
-            "provider",
-            "excluded"
-          ]
-        }
-      },
-      "movesCapped": {
-        "type": "boolean",
-        "description": "The work made every move it may: nothing is offered however many are ready"
-      }
-    },
-    "required": [
-      "candidates",
-      "excluded",
-      "movesCapped"
-    ],
-    "description": "`GET /providers/candidates`: who could take a chat at a limit, and why each of the others cannot."
-  },
-  "Exclusion": {
-    "type": "string",
-    "enum": [
-      "disabled",
-      "not-ready",
-      "no-driver",
-      "capability",
-      "policy",
-      "policy-not-portable",
-      "no-mapping",
-      "exhausted",
-      "left-already",
-      "not-in-order"
-    ],
-    "description": "Why a provider cannot take a run, as the candidates say it; the UI words each one."
   },
   "ProviderMove": {
     "type": "object",
@@ -20001,207 +19548,14 @@
       "cancelled"
     ]
   },
-  "ModelMapSuggestion": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "description": "The decision's id: what `POST /providers/model-map/suggestions/:id` answers"
-      },
-      "from": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "$ref": "#/components/schemas/ProviderId"
-          },
-          "model": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "model"
-        ]
-      },
-      "to": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "$ref": "#/components/schemas/ProviderId"
-          },
-          "model": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "model"
-        ]
-      },
-      "at": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "id",
-      "from",
-      "to",
-      "at"
+  "ProviderMoveDecider": {
+    "type": "string",
+    "enum": [
+      "person",
+      "setting",
+      "decision"
     ],
-    "description": "An open `provider.model-map` suggestion: a counterpart the engine proposed that no person has answered yet."
-  },
-  "AnswerModelMapSuggestionRequest": {
-    "type": "object",
-    "properties": {
-      "accept": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "accept"
-    ],
-    "description": "`POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion."
-  },
-  "SuggestModelMapRequest": {
-    "type": "object",
-    "properties": {
-      "from": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "$ref": "#/components/schemas/ProviderId"
-          },
-          "model": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "model"
-        ]
-      },
-      "target": {
-        "$ref": "#/components/schemas/ProviderId",
-        "description": "The provider the counterpart would be on"
-      }
-    },
-    "required": [
-      "from",
-      "target"
-    ],
-    "description": "`POST /providers/model-map/suggest`: ask `provider.model-map` now for a counterpart of one model on one target."
-  },
-  "CswapRetirementState": {
-    "type": "object",
-    "properties": {
-      "notice": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/CswapRetirement"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      }
-    },
-    "required": [
-      "notice"
-    ],
-    "description": "`GET /providers/cswap-retirement`: `notice` is null when there is nothing to say or the person dismissed it."
-  },
-  "CswapRetirement": {
-    "type": "object",
-    "properties": {
-      "found": {
-        "type": "array",
-        "items": {
-          "type": "string",
-          "enum": [
-            "accounts",
-            "account-config",
-            "managed-copy",
-            "cswap-bin"
-          ]
-        }
-      },
-      "managedCopy": {
-        "type": "boolean",
-        "description": "Agentry's own copy of claude-swap is on disk: the one thing the notice offers to remove"
-      },
-      "policyProjects": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Projects that had a rotation policy; their provider order is what applies now"
-      }
-    },
-    "required": [
-      "found",
-      "managedCopy",
-      "policyProjects"
-    ],
-    "description": "What claude-swap left behind, for the one-time notice."
-  },
-  "MoveChatRequest": {
-    "type": "object",
-    "properties": {
-      "provider": {
-        "$ref": "#/components/schemas/ProviderId"
-      },
-      "action": {
-        "type": "string",
-        "enum": [
-          "handoff",
-          "restart"
-        ]
-      },
-      "model": {
-        "type": "string",
-        "description": "A model of the target provider; absent takes the mapped one"
-      }
-    },
-    "required": [
-      "provider",
-      "action"
-    ],
-    "description": "`POST /chats/:id/move`: a person moves a chat that reached a limit."
-  },
-  "HandoffPreview": {
-    "type": "object",
-    "properties": {
-      "text": {
-        "type": "string"
-      },
-      "bytes": {
-        "type": "number"
-      },
-      "provider": {
-        "$ref": "#/components/schemas/ProviderId"
-      },
-      "model": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "sections": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "The headers of the sections the text contains"
-      }
-    },
-    "required": [
-      "text",
-      "bytes",
-      "provider",
-      "model",
-      "sections"
-    ],
-    "description": "`GET /chats/:id/handoff`: the text as it would be sent, built locally and not sent."
+    "description": "Who chose a move: the person, the settings, or a decision point."
   },
   "CodeHostsSettings": {
     "type": "object",
@@ -22935,15 +22289,6 @@
           },
           "issue.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
-          },
-          "provider.on-limit": {
-            "$ref": "#/components/schemas/DecisionPointSettings"
-          },
-          "provider.pick": {
-            "$ref": "#/components/schemas/DecisionPointSettings"
-          },
-          "provider.model-map": {
-            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -23109,15 +22454,6 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "issue.triage": {
-            "$ref": "#/components/schemas/DecisionPointSettings"
-          },
-          "provider.on-limit": {
-            "$ref": "#/components/schemas/DecisionPointSettings"
-          },
-          "provider.pick": {
-            "$ref": "#/components/schemas/DecisionPointSettings"
-          },
-          "provider.model-map": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -23362,10 +22698,7 @@
       "notification.urgency",
       "checks.fix",
       "review.triage",
-      "issue.triage",
-      "provider.on-limit",
-      "provider.pick",
-      "provider.model-map"
+      "issue.triage"
     ]
   },
   "DecisionPointKind": {

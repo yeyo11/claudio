@@ -69,7 +69,7 @@ const ROOT_TYPES = [
   // Settings that change at runtime, and the tunnel
   'AppSettings', 'UpdateAppSettingsRequest', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
   // Providers
-  'ProviderStatus', 'ProvidersSettings', 'ProviderCandidates', 'ProviderMove', 'ModelMapSuggestion', 'AnswerModelMapSuggestionRequest', 'SuggestModelMapRequest', 'CswapRetirementState', 'MoveChatRequest', 'HandoffPreview',
+  'ProviderStatus', 'ProvidersSettings', 'ProviderMove',
   // Code hosts
   'CodeHostStatus', 'CodeHostsSettings', 'TrackerStatus', 'TrackersSettings', 'YoutrackCredentialsStatus', 'PutYoutrackCredentialsRequest', 'SetupState', 'StartLoginRequest', 'LoginSession', 'SignOutResult', 'ProjectTrackerSettings', 'TrackerIssuesPage', 'TrackerImportRequest', 'TrackerImportResult', 'LinkWorkItemIssueRequest', 'ProjectCodeHost', 'ChangeRequest', 'ChangeRequestChecks', 'CheckLog', 'ChecksRerunRequest', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
   // Reviews
