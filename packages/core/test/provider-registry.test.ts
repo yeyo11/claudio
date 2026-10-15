@@ -14,34 +14,24 @@ test('the shipped manifests share no id and no command', () => {
   assert.doesNotThrow(() => new ProviderRegistry());
 });
 
-test('the registry lists the five providers and finds one by id', () => {
+test('the registry lists Claude Code and finds it by id', () => {
   const registry = new ProviderRegistry();
-  assert.deepEqual(
-    registry.list().map((m) => m.id).sort(),
-    ['claude-code', 'codex', 'copilot', 'gemini', 'opencode'],
-  );
-  assert.equal(registry.get('codex')?.commands.names[0], 'codex');
+  assert.deepEqual(registry.list().map((m) => m.id), ['claude-code']);
+  assert.equal(registry.get('claude-code')?.commands.names[0], 'claude');
   assert.equal(registry.get('nope'), undefined);
 });
 
 test('the registry rejects a repeated id or command', () => {
-  const [claude, codex] = PROVIDER_MANIFESTS;
-  assert.ok(claude && codex);
-  assert.throws(() => new ProviderRegistry([claude, { ...codex, id: claude.id }]), /declared twice/);
-  assert.throws(
-    () => new ProviderRegistry([claude, { ...codex, commands: { ...codex.commands, names: ['claude'] } }]),
-    /claimed by both/,
-  );
+  const [claude] = PROVIDER_MANIFESTS;
+  assert.ok(claude);
+  assert.throws(() => new ProviderRegistry([claude, { ...claude }]), /declared twice/);
+  assert.throws(() => new ProviderRegistry([claude, { ...claude, id: 'other' }]), /claimed by both/);
 });
 
-test('only providers with a driver declare capabilities or a tested range', () => {
+test('Claude Code declares its capabilities and a tested range', () => {
   for (const manifest of PROVIDER_MANIFESTS) {
-    if (manifest.id === 'claude-code' || manifest.transport === 'acp' || manifest.id === 'codex') {
-      assert.ok(manifest.capabilities.length > 0 && manifest.versions.range, manifest.id);
-      continue;
-    }
-    assert.deepEqual(manifest.capabilities, [], manifest.id);
-    assert.equal(manifest.versions.range, null, manifest.id);
+    assert.ok(manifest.capabilities.length > 0 && manifest.versions.range, manifest.id);
+    assert.equal(manifest.transport, 'stream-json', manifest.id);
   }
 });
 
@@ -49,24 +39,22 @@ test('driverFor finds the drivers the registry was given and nothing for a provi
   const driver = new ClaudeCodeDriver('claude');
   const registry = new ProviderRegistry(PROVIDER_MANIFESTS, [driver]);
   assert.equal(registry.driverFor('claude-code'), driver);
-  assert.equal(registry.driverFor('codex'), null);
+  assert.equal(registry.driverFor('other'), null);
   assert.equal(new ProviderRegistry().driverFor('claude-code'), null);
   const orphan = Object.assign(new ClaudeCodeDriver('claude'), { manifest: { ...driver.manifest, id: 'nope' } });
   assert.throws(() => new ProviderRegistry(PROVIDER_MANIFESTS, [orphan]), /has no manifest/);
 });
 
-test('the default session provider is the default when it can run chats, else the first in the order that can', () => {
+test('the default session provider is Claude Code when it can run chats', () => {
   const registry = new ProviderRegistry(PROVIDER_MANIFESTS, [new ClaudeCodeDriver('claude')]);
-  const order = ['codex', 'gemini', 'claude-code'];
-  assert.equal(registry.defaultSessionProvider({ order, defaultProvider: null }), 'claude-code');
-  assert.equal(registry.defaultSessionProvider({ order, defaultProvider: 'codex' }), 'claude-code');
-  assert.equal(registry.defaultSessionProvider({ order, defaultProvider: 'claude-code' }), 'claude-code');
-  assert.equal(registry.defaultSessionProvider({ order: ['codex'], defaultProvider: null }), null);
+  assert.equal(registry.defaultSessionProvider({ order: ['claude-code'], defaultProvider: null }), 'claude-code');
+  assert.equal(registry.defaultSessionProvider({ order: ['claude-code'], defaultProvider: 'claude-code' }), 'claude-code');
+  assert.equal(registry.defaultSessionProvider({ order: [], defaultProvider: null }), null);
 });
 
 test('a provider with a manifest and no driver cannot start a chat', () => {
   const config = tempConfig();
   const chats = new ChatManager(config, new Db(config), []);
-  assert.throws(() => chats.start({ prompt: 'hi', provider: 'codex' }), /cannot run chats yet/);
+  assert.throws(() => chats.start({ prompt: 'hi', provider: 'other' }), /cannot run chats yet/);
   assert.throws(() => chats.start({ prompt: 'hi' }), /cannot run chats yet/);
 });

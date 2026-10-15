@@ -1,1 +1,0 @@
-Login failed: Error: Unsupported token type. Use a fine-grained personal access token with the "Copilot Requests" permission, or an OAuth token from the GitHub Copilot CLI or GitHub CLI app.

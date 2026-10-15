@@ -18,15 +18,13 @@ import { detectCli, getAuthStatus } from '../cli.ts';
 import type { AgentryEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
 import { compareVersions } from '../version-check.ts';
-import { ProviderCatalogsStore } from './catalogs.ts';
 import { ClaudeCodeDriver } from './claude-code/driver.ts';
 import type { CapabilityConfirmation, HandshakeResult, ProviderDriver } from './driver.ts';
 import type { ProviderConfigHome, ProviderManifest, ProviderSignedInUsers } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
 import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
-import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
+import { ProviderRegistry } from './registry.ts';
 import { childEnv } from '../child-env.ts';
-import { ghAccount, ghFallbackHost, ghHasToken } from './gh-fallback.ts';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
 export const PROVIDERS_TTL_MS = 5 * 60 * 1000;
@@ -61,17 +59,10 @@ export interface ProviderDetectorDeps {
    * its limit is `degraded` while it lasts, and a handshake that read the limits records them here.
    */
   limits?: ProviderLimits;
-  /** Where the models a handshake listed are kept between runs; defaults to `provider-catalogs.json` in the data directory */
-  catalogs?: ProviderCatalogsStore;
   /** Extra command names tried before a manifest's own, per provider (Claude Code's `CLAUDE_BIN`) */
   commandAliases?: Record<ProviderId, string[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
   resolvePath?: () => Promise<string>;
-  /**
-   * Whether the GitHub CLI on `env`'s PATH holds a token for a host, for a manifest with a
-   * `ghFallback`; `gh auth token` through the code-host execution layer by default
-   */
-  ghHasToken?: (hostname: string, env: NodeJS.ProcessEnv, timeoutMs: number) => Promise<boolean>;
   env?: NodeJS.ProcessEnv;
   home?: string;
   platform?: NodeJS.Platform;
@@ -208,7 +199,6 @@ export class ProviderDetector {
    * incompatible version (that state wins over `signed-out`), and `/health` still has to.
    */
   private readonly signedIn = new Map<ProviderId, boolean>();
-  private readonly catalogs: ProviderCatalogsStore;
   /** Keyed by provider, binary and version: a new version or another binary is read again */
   private readonly handshakes = new Map<string, HandshakeEntry>();
   private pending: Promise<ProviderStatus[]> | null = null;
@@ -233,19 +223,7 @@ export class ProviderDetector {
     this.probeTimeoutMs = deps.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
     this.debounceMs = deps.debounceMs ?? WATCH_DEBOUNCE_MS;
     this.minWatchGapMs = deps.minWatchGapMs ?? WATCH_MIN_GAP_MS;
-    this.catalogs = deps.catalogs ?? new ProviderCatalogsStore(deps.config);
     if (deps.limits) this.useLimits(deps.limits);
-    // The models of the last run serve until this run's handshake has read them again
-    for (const manifest of this.registry.list()) {
-      const cached = this.catalogs.get(manifest.id);
-      if (cached) this.giveCatalog(manifest.id, cached.models);
-      // An agent that names its models only inside a session teaches them from the chats it runs
-      const driver: (ProviderDriver & { watchCatalog?: (listener: (models: ModelOption[]) => void) => void }) | null = this.registry.driverFor(manifest.id);
-      driver?.watchCatalog?.((models) => {
-        const version = this.known()?.find((s) => s.id === manifest.id)?.version ?? cached?.version ?? '';
-        void this.catalogs.set(manifest.id, { version, models }).catch(() => undefined);
-      });
-    }
   }
 
   /**
@@ -577,24 +555,13 @@ export class ProviderDetector {
     // The handshake's version is the agent's own and may read differently from `--version`, so what
     // it confirmed is filed under the version the probe read, the one a status is compared with
     this.registry.confirm(manifest.id, { version, confirmed: result.confirmed, missing: [] }, new Date(this.now()).toISOString());
-    if (result.models.length > 0) {
-      this.giveCatalog(manifest.id, result.models);
-      void this.catalogs.set(manifest.id, { version, models: result.models }).catch(() => undefined);
-    }
     return { permissionModes, handshake: result };
   }
 
   /** A driver for this binary, to ask what it offers and to run its handshake; null for a provider with no driver yet */
   private probeDriver(manifest: ProviderManifest, binaryPath: string): ProviderDriver | null {
     if (manifest.id === 'claude-code') return new ClaudeCodeDriver(binaryPath);
-    const build = DRIVER_TRANSPORTS[manifest.transport];
-    return build ? build({ ...manifest, commands: { ...manifest.commands, names: [binaryPath] } }) : null;
-  }
-
-  /** Hands a catalog to the driver that serves the model picker, when it takes one */
-  private giveCatalog(id: ProviderId, models: ModelOption[]): void {
-    const driver: (ProviderDriver & { setCatalog?: (models: ModelOption[]) => void }) | null = this.registry.driverFor(id);
-    driver?.setCatalog?.(models);
+    return null;
   }
 
   /** Claude Code reads through `detectCli` and `getAuthStatus`, the same two calls the rest of core makes */
@@ -641,19 +608,11 @@ export class ProviderDetector {
       const read = readCredentialsFile(this.locate(probe.file), probe.users);
       if (read.kind === 'ok') return read;
       // A token in the environment signs the CLI in without a file. Where the vendor documents it as
-      // the sign-in for programs (Copilot) it reads as one; elsewhere nothing that costs nothing says
+      // the sign-in for programs it reads as one; elsewhere nothing that costs nothing says
       // whether it is valid, which is the same not knowing as a provider with no probe
       if (manifest.auth.credentialEnv.some((name) => Boolean(env[name]))) {
         if (manifest.auth.credentialEnvSignsIn) return { kind: 'ok', account: null };
         if (read.kind === 'signed-out') return { kind: 'none' };
-      }
-      // The last source the vendor documents: the GitHub CLI's sign-in, asked the way the CLI asks it
-      const fallback = manifest.auth.ghFallback;
-      const host = fallback ? ghFallbackHost(fallback, env) : null;
-      if (host && (await (this.deps.ghHasToken ?? ghHasToken)(host, env, this.probeTimeoutMs).catch(() => false))) {
-        const account = await ghAccount(host, env, this.home, this.platform).catch(() => null);
-        // Named the way a Copilot account on another host is: the login, then where it signs in
-        return { kind: 'ok', account: account && host !== fallback?.hostname ? `${account}@${host}` : account };
       }
       return read;
     }

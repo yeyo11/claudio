@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { ProviderLimit, RateLimitInfo } from '@agentry/shared';
-import { CodexEvents, rateLimitInfo } from '../src/providers/codex/events.ts';
 import type { DriverEvent } from '../src/providers/driver.ts';
 import { LIMIT_WRITE_GAP_MS, ProviderLimits, limitFromInfo, type ProviderLimitStore } from '../src/providers/limits.ts';
 
@@ -38,8 +37,8 @@ const claude = (status: string, windows: RateLimitInfo['windows'], rateLimitType
   observedAt: new Date(T0).toISOString(),
 });
 
-const codexInfo = (used: number, resetsAt: number): RateLimitInfo =>
-  rateLimitInfo({ primary: { usedPercent: used, windowDurationMins: 300, resetsAt }, secondary: { usedPercent: 10, windowDurationMins: 10080, resetsAt: resetsAt + 1 } });
+const usedInfo = (used: number, resetsAt: number): RateLimitInfo =>
+  claude(used >= 100 ? 'rejected' : 'allowed', { '5h': { utilization: used / 100, resetsAt } });
 
 describe('limitFromInfo', () => {
   const reset = seconds(T0 + 3_600_000);
@@ -64,25 +63,6 @@ describe('limitFromInfo', () => {
     assert.equal(limitFromInfo('claude-code', claude('', {}), 'stream', 'x').state, 'unknown');
   });
 
-  it('Codex: its snapshot maps through rateLimitInfo, 100 % is exhausted and 80 % is near', () => {
-    const spent = limitFromInfo('codex', codexInfo(100, reset), 'stream', 'x');
-    assert.deepEqual([spent.state, spent.window, spent.utilization], ['exhausted', '5h', 1]);
-    assert.equal(limitFromInfo('codex', codexInfo(80, reset), 'probe', 'x').state, 'near');
-    assert.equal(limitFromInfo('codex', codexInfo(30, reset), 'probe', 'x').state, 'ok');
-  });
-});
-
-describe('ProviderLimits', () => {
-  it('Codex: the driver event for a spent account becomes an exhausted reading', () => {
-    const events: DriverEvent[] = [];
-    new CodexEvents((e) => events.push(e), () => null).notification('account/rateLimits/updated', {
-      rateLimits: { primary: { usedPercent: 100, windowDurationMins: 300, resetsAt: seconds(T0 + 60_000) }, secondary: null },
-    });
-    const limits = new ProviderLimits(memory().store, clock().now);
-    for (const e of events) limits.observe('codex', e);
-    assert.deepEqual([limits.get('codex')?.state, limits.get('codex')?.source], ['exhausted', 'stream']);
-  });
-
   it('a failure on the limit is exhausted, with the reset of the last reading while it is ahead', () => {
     const time = clock();
     const limits = new ProviderLimits(memory().store, time.now);
@@ -96,8 +76,8 @@ describe('ProviderLimits', () => {
 
   it('a failure with no reading has no reset', () => {
     const limits = new ProviderLimits(memory().store, clock().now);
-    limits.observeFailure('codex');
-    assert.deepEqual([limits.get('codex')?.state, limits.get('codex')?.resetsAt], ['exhausted', null]);
+    limits.observeFailure('other');
+    assert.deepEqual([limits.get('other')?.state, limits.get('other')?.resetsAt], ['exhausted', null]);
   });
 
   it('a result that says it was rate limited counts as a failure', () => {
@@ -109,14 +89,14 @@ describe('ProviderLimits', () => {
   it('a reset in the past reads unknown, and a new reading replaces it', () => {
     const time = clock();
     const limits = new ProviderLimits(memory().store, time.now);
-    limits.observe('codex', { kind: 'rate-limit', info: codexInfo(100, seconds(T0 + 60_000)) });
-    assert.equal(limits.get('codex')?.state, 'exhausted');
+    limits.observe('other', { kind: 'rate-limit', info: usedInfo(100, seconds(T0 + 60_000)) });
+    assert.equal(limits.get('other')?.state, 'exhausted');
     time.tick(61_000);
-    const after = limits.get('codex');
+    const after = limits.get('other');
     assert.deepEqual([after?.state, after?.utilization], ['unknown', null]);
-    assert.equal(limits.raw('codex')?.state, 'exhausted', 'the stored reading stands until a new one');
-    limits.observeProbe('codex', codexInfo(5, seconds(T0 + 20_000_000)));
-    assert.deepEqual([limits.get('codex')?.state, limits.get('codex')?.source], ['ok', 'probe']);
+    assert.equal(limits.raw('other')?.state, 'exhausted', 'the stored reading stands until a new one');
+    limits.observeProbe('other', usedInfo(5, seconds(T0 + 20_000_000)));
+    assert.deepEqual([limits.get('other')?.state, limits.get('other')?.source], ['ok', 'probe']);
   });
 
   it('a stream of events writes on a change of state or window, and otherwise once a minute', () => {
@@ -143,26 +123,26 @@ describe('ProviderLimits', () => {
     const { store } = memory();
     const a = new ProviderLimits(store, clock().now);
     const b = new ProviderLimits(store, clock(T0 + 5000).now);
-    a.observeFailure('codex');
-    assert.equal(b.get('codex')?.state, 'exhausted');
-    b.observeProbe('codex', codexInfo(5, seconds(T0 + 20_000_000)));
-    a.observeFailure('codex'); // stamped earlier than b's reading
-    assert.equal(b.get('codex')?.state, 'ok');
+    a.observeFailure('other');
+    assert.equal(b.get('other')?.state, 'exhausted');
+    b.observeProbe('other', usedInfo(5, seconds(T0 + 20_000_000)));
+    a.observeFailure('other'); // stamped earlier than b's reading
+    assert.equal(b.get('other')?.state, 'ok');
   });
 
   it('tells a listener when the state changes, once', () => {
     const limits = new ProviderLimits(memory().store, clock().now);
     const seen: string[] = [];
     limits.onChange((l) => seen.push(l.state));
-    limits.observeFailure('codex');
-    limits.observeFailure('codex');
+    limits.observeFailure('other');
+    limits.observeFailure('other');
     assert.deepEqual(seen, ['exhausted']);
   });
 
   it('lists the readings that stand', () => {
     const limits = new ProviderLimits(memory().store, clock().now);
-    limits.observeFailure('codex');
+    limits.observeFailure('other');
     limits.observe('claude-code', { kind: 'rate-limit', info: claude('allowed', { '5h': { utilization: 0.1, resetsAt: seconds(T0 + 60_000) } }) });
-    assert.deepEqual(limits.list().map((l) => l.provider), ['claude-code', 'codex']);
+    assert.deepEqual(limits.list().map((l) => l.provider), ['claude-code', 'other']);
   });
 });
