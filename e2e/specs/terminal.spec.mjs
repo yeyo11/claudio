@@ -99,6 +99,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.term-plus', undefined, 800);
     await page.waitFor(`return document.querySelectorAll('.term-tab').length === 2`, { label: 'two tabs' });
     check((await terminalsOf()).length === 2 && (await item()).count === '2', 'the "+" opened a second shell in the chosen project and the item counts two');
+    // The strip scrolls along only when tabs overflow: no vertical scroll and no bar, not even by a pixel
+    const strip = await page.eval(`const e=document.querySelector('.term-tabs'); const c=getComputedStyle(e); return { over: e.scrollHeight - e.clientHeight, bar: e.offsetWidth - e.clientWidth, y: c.overflowY, w: c.scrollbarWidth }`);
+    check(strip.over <= 0 && strip.bar === 0 && strip.y === 'hidden' && strip.w === 'none', `the tab strip has no vertical scroll and no scrollbar (${JSON.stringify(strip)})`);
     const dock = await page.eval(`const r=document.querySelector('.term-dock').getBoundingClientRect(); return { height: r.height, handle: !!document.querySelector('.term-dock-handle') }`);
     check(dock.handle && dock.height >= 160, `the panel has its resize handle and a usable height (${dock.height}px)`);
     // The screen is bounded by the panel: it neither grows nor shrinks on its own (a loop between the fit and the layout did)

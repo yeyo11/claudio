@@ -1608,7 +1608,7 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   (warn, no loop), *Terminó (0)* (neutral), *Terminó con 1* (bad), *Cerrado por inactividad* (warn).
 - **Motion.** The cursor is a steady block; it blinks only at motion `full` with the tab visible, and under
   `subtle`, `off`, `prefers-reduced-motion` or a hidden tab it does not.
-- **Tabs.** `.term-tab` (mono, 36 px) on a `.term-tabs` rail; the open one sits on `--bg-2` and joins the frame.
+- **Tabs.** `.term-tab` (mono, 36 px) on a `.term-tabs` rail; the open one sits on `--bg-2` and joins the frame (the rail's line is an inset shadow, so the strip never overflows or shows a scrollbar; it scrolls along only when tabs overflow).
   A tab shows its close button only when open.
 - **Phone.** A full-screen route, no tab bar: a back button, the terminal's title (mono), the status and a `⋯`
   `Sheet`. The key bar (`.term-keys`, `.term-key`) holds Esc, Tab, ⇧Tab, Ctrl and Alt (sticky: `.on`), the

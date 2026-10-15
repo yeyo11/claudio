@@ -144,9 +144,17 @@
   align-items: flex-end;
   gap: 4px;
   min-width: 0;
+  /* Scrolls along the tabs when they overflow, and never shows a bar or a vertical scroll */
   overflow-x: auto;
-  border-bottom: 1px solid var(--line);
+  overflow-y: hidden;
+  scrollbar-width: none;
+  /* The line is drawn inside the box, so the open tab covers it without a negative margin that would overflow */
+  box-shadow: inset 0 -1px 0 var(--line);
   flex: 1 1 auto;
+}
+
+.term-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .term-tab {
@@ -169,8 +177,6 @@
   color: var(--fg);
   background: var(--bg-2);
   border-color: var(--line);
-  margin-bottom: -1px;
-  padding-bottom: 1px;
 }
 
 .term-tab-main {
