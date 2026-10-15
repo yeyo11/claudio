@@ -1,4 +1,4 @@
-import type { WorkItemPullRequestCi } from '@agentry/shared';
+import type { WorkItemPullRequestCi } from '@claudio/shared';
 import {
   HostParseError,
   type ChangeRequestState,

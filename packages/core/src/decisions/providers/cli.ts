@@ -1,4 +1,4 @@
-import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ProviderLimit, ToolPolicy } from '@agentry/shared';
+import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ProviderLimit, ToolPolicy } from '@claudio/shared';
 import type { ChatRuntime, NewChat, RunResult } from '../../chats.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';

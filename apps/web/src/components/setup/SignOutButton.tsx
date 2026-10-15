@@ -1,10 +1,10 @@
-import type { SetupTool } from '@agentry/shared';
+import type { SetupTool } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
 import { READINESS_KEYS } from '../../lib/setup';
 
 /**

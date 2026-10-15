@@ -1,4 +1,4 @@
-import type { LoginSession, StartLoginRequest } from '@agentry/shared';
+import type { LoginSession, StartLoginRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api, keys } from '../../api';

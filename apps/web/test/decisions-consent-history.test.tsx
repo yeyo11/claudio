@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionPointStats, DecisionRecord } from '@agentry/shared';
+import type { DecisionPointStats, DecisionRecord } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
 import { answerLines, approxTokens, consentProviders, needsConsent, outcomeOf, percent } from '../src/pages/config/decisions/model';

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import type { LimitAction, ProviderId, ProvidersSettings, RotationSettings } from '@agentry/shared';
+import type { LimitAction, ProviderId, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { PROVIDER_MANIFESTS } from './registry.ts';

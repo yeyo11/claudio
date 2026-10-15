@@ -81,7 +81,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   if (desktopScopes.join() !== 'topbar') problems.push(`[1440px] /chats should have one project selector, in the top bar (found: ${desktopScopes.join(', ') || 'none'})`);
 
   // ---------- axe: what opens over the pages ----------
-  await page.eval(`localStorage.removeItem('agentry:project'); return true`);
+  await page.eval(`localStorage.removeItem('claudio:project'); return true`);
   await settle(page, '/');
   await page.key('k', 2);
   await page.waitFor(`return !!document.querySelector('[role=dialog][aria-label="Command palette"]')`, { label: 'palette open' });
@@ -135,7 +135,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   await checkStatusWords(page, ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/connectors'], problems);
 
   // ---------- the keyboard: reachable, named, ringed, in order ----------
-  await page.eval(`localStorage.removeItem('agentry:project'); return true`);
+  await page.eval(`localStorage.removeItem('claudio:project'); return true`);
   await settle(page, '/');
   await page.press('Tab');
   const first = await page.eval(focusInfo);

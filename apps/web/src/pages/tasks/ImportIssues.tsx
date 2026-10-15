@@ -1,18 +1,18 @@
-import type { Project, ProjectTrackerSettings, TrackerIssue, TrackerIssuesPage } from '@agentry/shared';
+import type { Project, ProjectTrackerSettings, TrackerIssue, TrackerIssuesPage } from '@claudio/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bug, Check, ChevronDown, Download, Link2, Lock, Search, Wand2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Checkbox, Sheet } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ErrorBox } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Checkbox, Sheet } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ErrorBox } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { WorkItemKey } from '../../components/work-item-icons';
 import { importKeys, isSelectable, isTrackerBuilt, issueRef, toggleAll, toggleKey, trackerWords, TRIAGE_TONE } from '../../lib/trackers';
 

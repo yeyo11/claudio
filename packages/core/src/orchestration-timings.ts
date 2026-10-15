@@ -9,7 +9,7 @@ import type {
   TaskWait,
   VerificationFix,
   VerificationTimings,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { isRateLimitError } from './chats.ts';
 
 /** What the timings read of a chat: its record's link to the graph, and its executions. */

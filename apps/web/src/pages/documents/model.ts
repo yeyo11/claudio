@@ -1,4 +1,4 @@
-import type { DocumentKind, DocumentNode, DocumentTie, WorkItemLink } from '@agentry/shared';
+import type { DocumentKind, DocumentNode, DocumentTie, WorkItemLink } from '@claudio/shared';
 
 /**
  * The pure part of the Documents tab and of a work item's documents: walking the tree, filtering

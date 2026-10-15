@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { PermissionDecision, PermissionRequest } from '@agentry/shared';
+import type { PermissionDecision, PermissionRequest } from '@claudio/shared';
 
 /** Long enough for someone to read the request and decide; a browser tab is not always in front. */
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;

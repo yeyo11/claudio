@@ -1,4 +1,4 @@
-import type { CodeHostId } from '@agentry/shared';
+import type { CodeHostId } from '@claudio/shared';
 import { githubManifest } from './github/manifest.ts';
 import { gitlabManifest } from './gitlab/manifest.ts';
 import type { CodeHostManifest } from './manifest.ts';

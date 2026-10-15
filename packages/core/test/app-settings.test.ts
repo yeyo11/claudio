@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 import { AppSettingsStore, RuntimeHosts } from '../src/app-settings.ts';
 import { Core } from '../src/index.ts';
 import { loadConfig, type CoreConfig } from '../src/paths.ts';
@@ -17,8 +17,8 @@ function config(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), '
     CLAUDE_BIN: '/nonexistent/claude',
     CSWAP_BIN: '/nonexistent/cswap',
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
-    AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-    AGENTRY_DATA_DIR: join(root, 'data'),
+    CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+    CLAUDIO_DATA_DIR: join(root, 'data'),
     ...env,
   });
 }
@@ -44,7 +44,7 @@ test('an install that sets nothing runs on the defaults it always had, and write
 });
 
 test('an empty variable is not a setting, so a compose file passing VAR= through does not lock the UI', () => {
-  const c = config({ AGENTRY_ALLOWED_HOSTS: '', AGENTRY_MAX_CONCURRENT_RUNS: ' ', AGENTRY_DEFAULT_PERMISSION_MODE: '' });
+  const c = config({ CLAUDIO_ALLOWED_HOSTS: '', CLAUDIO_MAX_CONCURRENT_RUNS: ' ', CLAUDIO_DEFAULT_PERMISSION_MODE: '' });
   assert.equal(c.settingsFromEnv.size, 0);
   assert.deepEqual(new AppSettingsStore(c).get().sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default' });
   // An empty count used to become `Number('') === 0`, a wrapper that could start no run at all
@@ -53,7 +53,7 @@ test('an empty variable is not a setting, so a compose file passing VAR= through
 });
 
 test('a value in the environment beats the file, and the file cannot be written for it', async () => {
-  const c = config({ AGENTRY_MAX_CONCURRENT_RUNS: '3' });
+  const c = config({ CLAUDIO_MAX_CONCURRENT_RUNS: '3' });
   writeFileSync(fileOf(c), JSON.stringify({ maxConcurrentRuns: 20, defaultPermissionMode: 'plan' }));
   const store = new AppSettingsStore(c);
 
@@ -67,9 +67,9 @@ test('a value in the environment beats the file, and the file cannot be written 
   });
 
   const before = readFileSync(fileOf(c), 'utf8');
-  await assert.rejects(store.update({ maxConcurrentRuns: 4 }), /set by the environment \(AGENTRY_MAX_CONCURRENT_RUNS\)/);
+  await assert.rejects(store.update({ maxConcurrentRuns: 4 }), /set by the environment \(CLAUDIO_MAX_CONCURRENT_RUNS\)/);
   // Refused whole: the key the environment does not hold is not written either
-  await assert.rejects(store.update({ defaultPermissionMode: 'auto', maxConcurrentRuns: 4 }), /AGENTRY_MAX_CONCURRENT_RUNS/);
+  await assert.rejects(store.update({ defaultPermissionMode: 'auto', maxConcurrentRuns: 4 }), /CLAUDIO_MAX_CONCURRENT_RUNS/);
   assert.equal(readFileSync(fileOf(c), 'utf8'), before);
   assert.equal(store.defaultPermissionMode, 'plan');
 
@@ -77,7 +77,7 @@ test('a value in the environment beats the file, and the file cannot be written 
 });
 
 test("hosts added in the UI add to the environment's, which stay fixed", async () => {
-  const c = config({ AGENTRY_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
+  const c = config({ CLAUDIO_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
   // A file from before the variable was set still counts, minus what the variable names already
   writeFileSync(fileOf(c), JSON.stringify({ allowedHosts: ['file.example.com', '192.168.1.184'] }));
   const store = new AppSettingsStore(c);
@@ -244,10 +244,10 @@ test('the setup assistant is remembered in the file, refused for a non-boolean, 
   assert.deepEqual([saved.setupSeen, saved.sources.setupSeen], [true, 'file']);
   assert.equal(new AppSettingsStore(c).get().setupSeen, true);
 
-  const owned = config({ AGENTRY_SETUP_SEEN: 'on' });
+  const owned = config({ CLAUDIO_SETUP_SEEN: 'on' });
   const ownedStore = new AppSettingsStore(owned);
   assert.deepEqual([ownedStore.get().setupSeen, ownedStore.get().sources.setupSeen], [true, 'env']);
-  await assert.rejects(ownedStore.update({ setupSeen: true }), /AGENTRY_SETUP_SEEN/);
+  await assert.rejects(ownedStore.update({ setupSeen: true }), /CLAUDIO_SETUP_SEEN/);
 });
 
 test('an install that saw the old first-run Providers step has seen the setup: its stored value and its variable both count', async () => {
@@ -255,8 +255,8 @@ test('an install that saw the old first-run Providers step has seen the setup: i
   writeFileSync(join(c.dataDir, 'app-settings.json'), JSON.stringify({ providersStepSeen: true }));
   assert.deepEqual([new AppSettingsStore(c).get().setupSeen, new AppSettingsStore(c).get().sources.setupSeen], [true, 'file']);
 
-  const old = new AppSettingsStore(config({ AGENTRY_PROVIDERS_STEP_SEEN: 'on' }));
+  const old = new AppSettingsStore(config({ CLAUDIO_PROVIDERS_STEP_SEEN: 'on' }));
   assert.deepEqual([old.get().setupSeen, old.get().sources.setupSeen], [true, 'env']);
   // The new variable wins over the old one
-  assert.equal(new AppSettingsStore(config({ AGENTRY_PROVIDERS_STEP_SEEN: 'on', AGENTRY_SETUP_SEEN: 'off' })).get().setupSeen, false);
+  assert.equal(new AppSettingsStore(config({ CLAUDIO_PROVIDERS_STEP_SEEN: 'on', CLAUDIO_SETUP_SEEN: 'off' })).get().setupSeen, false);
 });

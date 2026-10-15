@@ -1,31 +1,31 @@
-import type { ChatWorkflow, Orchestration, OrchestrationPullRequestPhase, ResumeOrchestrationRequest } from '@agentry/shared';
+import type { ChatWorkflow, Orchestration, OrchestrationPullRequestPhase, ResumeOrchestrationRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookmarkPlus, ChevronRight, Combine, ExternalLink, FolderGit2, GitMerge, GitPullRequest, MessageSquare, Play, Radio, RotateCw, Rocket, Save, Square, Trash2, Waypoints } from 'lucide-react';
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiRequestError, keys, useOrchestration, useProjects } from '../api';
-import { AnimatedNumber } from '@agentry/ui/components/AnimatedNumber';
-import { CodeBlock } from '@agentry/ui/components/CodeBlock';
-import { Collapsible, MoreActions, Switch, type MenuEntry } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { AnimatedNumber } from '@claudio/ui/components/AnimatedNumber';
+import { CodeBlock } from '@claudio/ui/components/CodeBlock';
+import { Collapsible, MoreActions, Switch, type MenuEntry } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { RelaunchPanel } from '../components/RelaunchPanel';
-import { Stepper, type StepItem } from '@agentry/ui/components/Stepper';
-import { useToast } from '@agentry/ui/components/Toast';
-import { RichText } from '@agentry/chat-ui/components/Transcript';
+import { Stepper, type StepItem } from '@claudio/ui/components/Stepper';
+import { useToast } from '@claudio/ui/components/Toast';
+import { RichText } from '@claudio/chat-ui/components/Transcript';
 import { TimingsPanel } from '../components/TimingsPanel';
 import { FailedByChecksNotice, VerificationCard } from '../components/VerificationCard';
 import { WorkflowCard as WorkflowRunCard } from '../components/WorkflowCard';
 import { IntegrationChanges, TaskWork } from '../components/observe/Work';
-import { Card, Empty, ErrorBox, Field, Loading, Segmented, StatusBadge, usePageTitle } from '@agentry/ui/components/ui';
-import { formatCost, formatDateTime, formatNumber, shortPath } from '@agentry/ui/lib/format';
-import { elapsedSince, formatElapsed } from '@agentry/ui/lib/live';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
-import { useClockTick } from '@agentry/ui/lib/motion';
+import { Card, Empty, ErrorBox, Field, Loading, Segmented, StatusBadge, usePageTitle } from '@claudio/ui/components/ui';
+import { formatCost, formatDateTime, formatNumber, shortPath } from '@claudio/ui/lib/format';
+import { elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
+import { useClockTick } from '@claudio/ui/lib/motion';
 import { costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
 import { pullRequestErrorKey } from '../lib/work-items';
@@ -34,7 +34,7 @@ import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest } 
 import { ChangeRequestFreshness } from '../components/ChangeRequestFreshness';
 import { OrchestrationChecks } from '../components/OrchestrationChecks';
 import { OrchestrationMerge, headGradients, useOrchestrationLead } from '../components/OrchestrationMerge';
-import type { StepState } from '@agentry/ui/lib/progress';
+import type { StepState } from '@claudio/ui/lib/progress';
 
 /** The badge tone of each phase of an orchestration's change request: waiting for the person idle, merged ok, failed bad. */
 const PR_PHASE_BADGE: Record<OrchestrationPullRequestPhase, string> = {

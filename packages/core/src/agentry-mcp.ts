@@ -2,13 +2,13 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_SERVER } from '@agentry/mcp';
-import type { ChatToolConfig, McpSelection, PermissionMode } from '@agentry/shared';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import type { ChatToolConfig, McpSelection, PermissionMode } from '@claudio/shared';
 import { writeMcpConfigSync } from './chat-tools.ts';
 import type { ChatConfinement } from './live-chat.ts';
 
 /** The absolute path of the bundled `mcp.mjs`. The API bundle and the desktop app set it; from source it is unset. */
-export const MCP_ENTRY_ENV = 'AGENTRY_MCP_ENTRY';
+export const MCP_ENTRY_ENV = 'CLAUDIO_MCP_ENTRY';
 
 /** What a caller spreads into the options of a chat to hand it Agentry's own MCP server and nothing else. */
 export interface AgentryMcpLaunch {
@@ -24,7 +24,7 @@ export interface AgentryMcpLaunch {
 
 export interface AgentryMcpOptions {
   dataDir: string;
-  /** `AGENTRY_API_URL` of the wrapper that runs the chat; null while the API is not listening */
+  /** `CLAUDIO_API_URL` of the wrapper that runs the chat; null while the API is not listening */
   apiUrl: string | null;
   /** The version the server reports, so a client can tell which Agentry it talks to */
   version: string;
@@ -35,7 +35,7 @@ export interface AgentryMcpOptions {
 
 /**
  * How the CLI starts the server, in each of the three runtimes: the bundled file when the runtime
- * handed one over (`AGENTRY_MCP_ENTRY`: the API bundle and the desktop app), else the source file
+ * handed one over (`CLAUDIO_MCP_ENTRY`: the API bundle and the desktop app), else the source file
  * through `tsx`. Throws rather than return a command the CLI could not start.
  */
 export function mcpCommand(env: NodeJS.ProcessEnv, execPath: string): { command: string; args: string[] } {
@@ -77,22 +77,22 @@ export function agentryMcpSync(opts: AgentryMcpOptions): AgentryMcpLaunch {
   const env = opts.env ?? process.env;
   const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
   const config = writeMcpConfigSync(opts.dataDir, {
-    [AGENTRY_MCP_SERVER]: {
+    [CLAUDIO_MCP_SERVER]: {
       command,
       args,
       env: {
-        AGENTRY_API_URL: opts.apiUrl,
-        AGENTRY_CHAT_ID: '${AGENTRY_CHAT_ID}',
-        AGENTRY_API_TOKEN: '${AGENTRY_API_TOKEN}',
-        AGENTRY_VERSION: opts.version,
+        CLAUDIO_API_URL: opts.apiUrl,
+        CLAUDIO_CHAT_ID: '${CLAUDIO_CHAT_ID}',
+        CLAUDIO_API_TOKEN: '${CLAUDIO_API_TOKEN}',
+        CLAUDIO_VERSION: opts.version,
         // The desktop's Electron binary runs the bundle as Node only with this
         ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
       },
     },
   });
   return {
-    mcp: { servers: [AGENTRY_MCP_SERVER], config },
-    allowedTools: [...AGENTRY_MCP_READ_TOOLS],
+    mcp: { servers: [CLAUDIO_MCP_SERVER], config },
+    allowedTools: [...CLAUDIO_MCP_READ_TOOLS],
     confine: { tools: [], settingSources: [] },
     permissionMode: 'dontAsk',
   };

@@ -1,6 +1,6 @@
-import type { ReviewDraft, ReviewDraftInput, ReviewSide } from '@agentry/shared';
-import { useToast } from '@agentry/ui/components/Toast';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import type { ReviewDraft, ReviewDraftInput, ReviewSide } from '@claudio/shared';
+import { useToast } from '@claudio/ui/components/Toast';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';

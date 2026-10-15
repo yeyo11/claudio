@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AddProjectDocRequest, AgentryLanguage, ConnectorsOverview, ProjectDoc, ProjectDocsOverview, ProjectDocStatus, ToolPolicy } from '@agentry/shared';
+import type { AddProjectDocRequest, AgentryLanguage, ConnectorsOverview, ProjectDoc, ProjectDocsOverview, ProjectDocStatus, ToolPolicy } from '@claudio/shared';
 import type { ChatRuntime, NewChat, RunResult } from './chats.ts';
 import { writeAtomic } from './config/files.ts';
 import { stoppedOnMaxTokens } from './open-items.ts';

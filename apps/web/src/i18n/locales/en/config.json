@@ -34,7 +34,7 @@
       "remote": "Remote access"
     },
     "groups": {
-      "agentry": "Agentry",
+      "claudio": "Agentry",
       "claude": "Claude Code",
       "extensions": "Extensions",
       "system": "System"

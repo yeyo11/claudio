@@ -1,4 +1,4 @@
-import type { ChatExport, ChatOrigin, ChatSummary, ExportFormat, Project, TokenUsage } from '@agentry/shared';
+import type { ChatExport, ChatOrigin, ChatSummary, ExportFormat, Project, TokenUsage } from '@claudio/shared';
 import { chatToMarkdown, count, oneLine, slugOf, usd } from './chat-export.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -6,7 +6,7 @@ import { emptyTokenUsage } from './usage.ts';
  * The chats a project export holds. Housekeeping chats are left out: they are Agentry's own
  * errands (a title, a summary), not work done in the project, and most have no transcript.
  */
-export const EXPORTED_ORIGINS: readonly ChatOrigin[] = ['agentry', 'external', 'orchestration'];
+export const EXPORTED_ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration'];
 
 /**
  * What a project export is made of. The chats are listed up front, because the header needs their

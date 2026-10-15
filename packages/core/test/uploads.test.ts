@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { normalizeMessage } from '@agentry/shared';
+import { normalizeMessage } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { ChatManager } from '../src/chats.ts';
 import { UploadStore, safeName, sniffMediaType } from '../src/uploads.ts';

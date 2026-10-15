@@ -4,15 +4,15 @@ import { createInterface } from 'node:readline';
 import { apiUrlFrom, createClient } from './client.ts';
 import { createServer } from './server.ts';
 
-const baseUrl = apiUrlFrom(process.env.AGENTRY_API_URL);
+const baseUrl = apiUrlFrom(process.env.CLAUDIO_API_URL);
 if (!baseUrl) {
-  process.stderr.write('agentry-mcp: AGENTRY_API_URL is not set; this server only talks to the Agentry that started the chat\n');
+  process.stderr.write('agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Agentry that started the chat\n');
   process.exit(1);
 }
 
 const server = createServer({
-  api: createClient({ baseUrl, token: process.env.AGENTRY_API_TOKEN, chatId: process.env.AGENTRY_CHAT_ID }),
-  version: process.env.AGENTRY_VERSION || 'unknown',
+  api: createClient({ baseUrl, token: process.env.CLAUDIO_API_TOKEN, chatId: process.env.CLAUDIO_CHAT_ID }),
+  version: process.env.CLAUDIO_VERSION || 'unknown',
 });
 
 // Requests are answered in the order they came, so a slow call cannot reorder the replies' lines

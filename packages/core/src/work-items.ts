@@ -56,7 +56,7 @@ import {
   type WorkItemHistoryPullRequest,
   type WorkItemPullRequest,
   type WorkItemWaitReason,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, isMarkdown, pathSegments } from './document-paths.ts';

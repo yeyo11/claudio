@@ -1,4 +1,4 @@
-import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@agentry/shared';
+import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, Plug, ShieldQuestion, X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -11,9 +11,9 @@ import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
 import { useChatPermissions } from '../lib/chats';
 import { PROMPT_PARAM } from '../lib/permission-param';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { RichText } from './Transcript';
-import { ErrorBox, TabPanel, Tabs, useTabGroup } from '@agentry/ui/components/ui';
+import { ErrorBox, TabPanel, Tabs, useTabGroup } from '@claudio/ui/components/ui';
 
 const promptDomId = (permissionId: string) => `prompt-${permissionId}`;
 

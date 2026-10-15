@@ -1,9 +1,9 @@
-import type { WorkItemComment, WorkItemDetail } from '@agentry/shared';
+import type { WorkItemComment, WorkItemDetail } from '@claudio/shared';
 import { Check, Hourglass, Undo2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProjectSettings } from '../../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { useMoveItem, type ItemActions } from './hooks';
 

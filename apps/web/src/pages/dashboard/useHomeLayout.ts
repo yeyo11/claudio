@@ -1,9 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { StoredDashboardLayout } from '@agentry/shared';
+import type { StoredDashboardLayout } from '@claudio/shared';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useDashboardLayout } from '../../api';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import type { DashboardLayout, DashboardScope } from './layout';
 import { resolveLayout } from './registry';
 

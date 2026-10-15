@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskState, PermissionRequest, ProviderLimit, Schedule } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState, PermissionRequest, ProviderLimit, Schedule } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { configCount, SIZE_SPANS, validateLayout, WIDGET_SIZES, type WidgetRule } from '../src/pages/dashboard/layout.ts';

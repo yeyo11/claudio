@@ -10,7 +10,7 @@ import {
   type ExecutionOutcome,
   type HealthSignal,
   type RunStatus,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { slowAfterMs, type UsualDuration } from './commands.ts';
 import { HEALTH_REASONS, oneLine, said, wholeMinutes } from './health-strings.ts';
 
@@ -79,7 +79,7 @@ export function executionOutcome(status: RunStatus, restored = false): Execution
 /** Who has a process on a session right now. */
 export type SessionHolder =
   /** A live process of one of our runs */
-  | 'agentry'
+  | 'claudio'
   /** A CLI process that is not ours: a terminal, an IDE, a background session */
   | 'terminal'
   | 'nobody';
@@ -90,7 +90,7 @@ export type SessionHolder =
  * against us; otherwise nobody does.
  */
 export function sessionHolder(facts: { ownProcess: boolean; foreignProcess: boolean }): SessionHolder {
-  if (facts.ownProcess) return 'agentry';
+  if (facts.ownProcess) return 'claudio';
   return facts.foreignProcess ? 'terminal' : 'nobody';
 }
 
@@ -126,7 +126,7 @@ export function chatControl({ holder, origin, taskRunning = false, deliverable =
           action: 'fork',
         };
   }
-  if (holder === 'agentry') return { mode: 'interactive' };
+  if (holder === 'claudio') return { mode: 'interactive' };
   if (holder === 'terminal') {
     return {
       mode: 'readOnly',

@@ -1,13 +1,13 @@
 // Colour parity between the two engines behind highlight(): every character of a block, in both
 // themes, as @tanstack/highlight plus our painting colours it and as shiki colours it. Shared by
-// the parity test and `pnpm --filter @agentry/web parity`, the report run on demand.
+// the parity test and `pnpm --filter @claudio/web parity`, the report run on demand.
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { createHighlighter, type BundledLanguage } from 'shiki';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-import { highlight, type Highlighted } from '@agentry/ui/components/highlight';
+import { highlight, type Highlighted } from '@claudio/ui/components/highlight';
 
 const THEMES = { light: 'github-light-default', dark: 'github-dark-default' } as const;
 

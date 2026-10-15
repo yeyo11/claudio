@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import { WorkItemError } from '@agentry/core';
-import type { ApproveMemoryProposalRequest, CreateJournalEntryRequest, RejectMemoryProposalRequest } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import { WorkItemError } from '@claudio/core';
+import type { ApproveMemoryProposalRequest, CreateJournalEntryRequest, RejectMemoryProposalRequest } from '@claudio/shared';
 
 // A missing body reaches core as an empty object, so its own validation names the field that is missing
 const bodyOf = <T>(body: T | undefined): T => (body ?? {}) as T;

@@ -1,5 +1,5 @@
-import type { BoardSettings, ProjectTeamRole, ProjectTemplate, ProjectTemplateId } from '@agentry/shared';
-import { WORK_ITEM_TYPES } from '@agentry/shared';
+import type { BoardSettings, ProjectTeamRole, ProjectTemplate, ProjectTemplateId } from '@claudio/shared';
+import { WORK_ITEM_TYPES } from '@claudio/shared';
 
 /*
  * The five built-in templates of docs/plans/project-ecosystem.md, as data. A template carries

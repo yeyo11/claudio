@@ -1,4 +1,4 @@
-import { BOARD_DONE_PAGE, WORK_ITEMS_PAGE, WORK_ITEMS_PAGE_MAX } from '@agentry/shared';
+import { BOARD_DONE_PAGE, WORK_ITEMS_PAGE, WORK_ITEMS_PAGE_MAX } from '@claudio/shared';
 import { statusIndex, type ItemRow } from './work-item-rows.ts';
 import { WorkItemError } from './work-item-validation.ts';
 

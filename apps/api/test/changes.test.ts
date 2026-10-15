@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { AgentryEvent, ChangeSummary, ChatChanges, Checklist, EditStep, FileDiff, Orchestration } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { AgentryEvent, ChangeSummary, ChatChanges, Checklist, EditStep, FileDiff, Orchestration } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // What a worker did on disk, over HTTP: real git worktrees made by real orchestrations, driven by
@@ -50,8 +50,8 @@ before(async () => {
   const config = loadConfig({
     CLAUDE_BIN: FAKE_CLAUDE,
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
-    AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-    AGENTRY_DATA_DIR: join(root, 'data'),
+    CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+    CLAUDIO_DATA_DIR: join(root, 'data'),
   });
   projectsDir = config.projectsDir;
   core = new Core(config);

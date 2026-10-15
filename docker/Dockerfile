@@ -20,8 +20,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY packages packages
 COPY apps apps
-RUN pnpm --filter @agentry/web build \
- && pnpm --filter @agentry/api bundle
+RUN pnpm --filter @claudio/web build \
+ && pnpm --filter @claudio/api bundle
 
 FROM node:26-bookworm-slim
 
@@ -111,7 +111,7 @@ RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
  && rm /tmp/claude-install.sh \
  && claude --version
 # Read by the update check, which compares it with the newest published version
-ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
+ENV CLAUDIO_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 
 # JetBrains' `youtrack-app`, the only way Claudio reaches YouTrack (docs/trackers.md), is pinned like
 # Claude Code, to the version its recordings were made with. It goes to an npm prefix of its own in
@@ -131,21 +131,21 @@ COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
-# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
+# CLAUDIO_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
 # The tunnel is on by default because the entrypoint runs a tailscaled of Claudio's own; it reaches
 # the server on 127.0.0.1, around the published port and the operator's proxy, which is why
-# AGENTRY_TUNNEL=off turns it, and that daemon, off (docs/deploy.md, "The tunnel in Docker").
+# CLAUDIO_TUNNEL=off turns it, and that daemon, off (docs/deploy.md, "The tunnel in Docker").
 ENV NODE_ENV=production \
-    AGENTRY_PID_FILE=/tmp/claudio.pid \
+    CLAUDIO_PID_FILE=/tmp/claudio.pid \
     PORT=8797 \
     HOST=0.0.0.0 \
     CLAUDE_CONFIG_DIR=/home/node/.claude \
-    AGENTRY_WORKSPACE_DIR=/workspace \
-    AGENTRY_DATA_DIR=/data \
-    AGENTRY_DEFAULT_PERMISSION_MODE=bypassPermissions \
+    CLAUDIO_WORKSPACE_DIR=/workspace \
+    CLAUDIO_DATA_DIR=/data \
+    CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
-    AGENTRY_WEB_DIST=/app/web \
-    AGENTRY_DISTRIBUTION=docker \
+    CLAUDIO_WEB_DIST=/app/web \
+    CLAUDIO_DISTRIBUTION=docker \
     # gh and glab keep their sign-ins in their config folders, in plain text where there is no
     # keyring (no container has one): on the volume, and nowhere else
     GH_CONFIG_DIR=/data/provider-homes/gh \

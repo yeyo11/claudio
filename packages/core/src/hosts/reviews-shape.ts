@@ -1,4 +1,4 @@
-import type { ReviewSuggestion } from '@agentry/shared';
+import type { ReviewSuggestion } from '@claudio/shared';
 import { HostParseError } from './code-host.ts';
 import { parseJson } from './json.ts';
 

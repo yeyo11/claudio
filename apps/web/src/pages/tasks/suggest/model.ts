@@ -1,4 +1,4 @@
-import type { AssistantProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal, StartAssistantRunRequest } from '@agentry/shared';
+import type { AssistantProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal, StartAssistantRunRequest } from '@claudio/shared';
 
 /** `?suggest=1` opens Suggest tasks over the board of the selected project. */
 export const SUGGEST_PARAM = 'suggest';

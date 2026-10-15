@@ -1,4 +1,4 @@
-import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, EditStep, TranscriptEntry } from '@agentry/shared';
+import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
 import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,26 +11,26 @@ import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { useStreamFade } from '../lib/smooth-text';
 import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
-import { formatDuration, formatClock, formatDateTime, truncate } from '@agentry/ui/lib/format';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
-import type { ProgressStatus } from '@agentry/ui/lib/progress';
+import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/ui/lib/format';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
+import type { ProgressStatus } from '@claudio/ui/lib/progress';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
-import { CodeBlock } from '@agentry/ui/components/CodeBlock';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
-import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
-import { MoreActions } from '@agentry/ui/components/controls/MoreActions';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { BrandMark, ICON_SM, toolIcon } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { CopyButton } from '@agentry/ui/components/ui';
-import { VirtualList } from '@agentry/ui/components/VirtualList';
-import { copyText } from '@agentry/ui/lib/clipboard';
+import { CodeBlock } from '@claudio/ui/components/CodeBlock';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
+import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { BrandMark, ICON_SM, toolIcon } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { CopyButton } from '@claudio/ui/components/ui';
+import { VirtualList } from '@claudio/ui/components/VirtualList';
+import { copyText } from '@claudio/ui/lib/clipboard';
 
 const RESULT_PREVIEW_CHARS = 6000;
 
-const loadMarkdown = () => import('@agentry/ui/components/Markdown');
+const loadMarkdown = () => import('@claudio/ui/components/Markdown');
 const Markdown = lazy(loadMarkdown);
 /** Starts loading the renderer, so the first answer on the page is never drawn as raw text first. */
 export const preloadMarkdown = (): void => void loadMarkdown();

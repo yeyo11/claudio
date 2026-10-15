@@ -1,8 +1,8 @@
-import type { AssistantResourceKind, AssistantResourceProposal, ConfigResource, Project } from '@agentry/shared';
+import type { AssistantResourceKind, AssistantResourceProposal, ConfigResource, Project } from '@claudio/shared';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useAssistantRuns, useTeam, type Scope } from '../../../api';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import { AI_KINDS, byDecision, proposalRuns, resourceProposals, sectionKinds, type ResourceSection } from './model';
 
 /**

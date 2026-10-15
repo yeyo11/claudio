@@ -1,4 +1,4 @@
-import type { TranscriptSearchResult } from '@agentry/shared';
+import type { TranscriptSearchResult } from '@claudio/shared';
 import type { TranscriptPage, TranscriptSummary } from '../cli-facts.ts';
 import type { SessionStore } from '../sessions.ts';
 import { encodeProjectId } from '../workspace.ts';

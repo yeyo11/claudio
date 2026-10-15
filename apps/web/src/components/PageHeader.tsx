@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
-import { PageHeader as BasePageHeader } from '@agentry/ui/components/ui';
+import { PageHeader as BasePageHeader } from '@claudio/ui/components/ui';
 import { PhoneHeader, useOwnPhoneHeader, type PhoneHeaderProps } from './shell/PhoneHeader';
 
 type PhoneHead = Omit<PhoneHeaderProps, 'title'> & { title?: ReactNode };
 
 /**
- * The page header of `@agentry/ui`, which knows nothing of routes, with how the page heads itself on
+ * The page header of `@claudio/ui`, which knows nothing of routes, with how the page heads itself on
  * a phone: where its route is marked `phoneHeader: 'page'` (shell/phone-header.ts) the top bar is
  * hidden, so `phone` draws the back arrow, the title and the "⋯" sheet in its place.
  */

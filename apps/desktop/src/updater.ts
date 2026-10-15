@@ -10,7 +10,7 @@ import type { LiveSnapshot } from './live.ts';
  * is tested with a fake of the updater's events.
  */
 
-/** The kind of package this app runs from; also AGENTRY_DISTRIBUTION for the server child */
+/** The kind of package this app runs from; also CLAUDIO_DISTRIBUTION for the server child */
 export type Distribution = 'appimage' | 'deb';
 
 export type UnsupportedReason = 'development' | 'read-only' | 'unknown-package' | 'no-elevation';

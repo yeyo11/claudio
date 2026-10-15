@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionPointStats, DecisionStats } from '@agentry/shared';
+import type { DecisionPointStats, DecisionStats } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import i18n, { setLanguage } from '../src/i18n';

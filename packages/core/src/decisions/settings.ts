@@ -8,7 +8,7 @@ import type {
   DecisionSettings,
   ModelFallback,
   ProjectDecisionSettings,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 

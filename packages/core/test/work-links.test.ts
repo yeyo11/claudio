@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@agentry/shared';
+import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { mainCheckout } from '../src/git.ts';
 import { ISSUE_TEXT_MARK } from '../src/trackers/links.ts';

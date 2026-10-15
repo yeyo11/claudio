@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, ProjectTrackerSettings } from '@agentry/shared';
+import type { AgentryEvent, ProjectTrackerSettings } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import type { HostCall, HostResult } from '../src/hosts/code-host.ts';
 import { TrackerError, type TrackerAccess } from '../src/trackers/import.ts';
@@ -50,7 +50,7 @@ function setup(opts: Opts = {}) {
   const access: TrackerAccess = {
     host: 'gitlab',
     hostname: 'gitlab.com',
-    repo: { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry' },
+    repo: { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio' },
     run: async (call) => {
       calls.push(call);
       if (call.args[1] === 'view') return (reads.length > 1 ? reads.shift() : reads[0]) as HostResult;

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import type { CodeHostId, CodeHostsSettings } from '@agentry/shared';
+import type { CodeHostId, CodeHostsSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { CODE_HOST_MANIFESTS } from './registry.ts';

@@ -16,8 +16,8 @@ import type {
   TrackerMappedStatus,
   WorkItemStatus,
   WorkItemType,
-} from '@agentry/shared';
-import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+} from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
 import { parseOnLimit } from './providers/settings.ts';

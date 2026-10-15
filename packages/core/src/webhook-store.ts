@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import type { CodeHostId, WebhookLastResponse, WebhookRegistration, WebhookState } from '@agentry/shared';
+import type { CodeHostId, WebhookLastResponse, WebhookRegistration, WebhookState } from '@claudio/shared';
 
 /** How long a delivery id is remembered: a host retries within hours, never within a week. */
 export const WEBHOOK_DELIVERY_KEEP_MS = 7 * 24 * 60 * 60 * 1000;

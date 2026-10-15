@@ -35,7 +35,7 @@ gh api -i --hostname github.com graphql -f query=query($owner: String!, $repo: S
   rateLimit { cost remaining resetAt }
 } -f owner=yeyo11 -f repo=agentry-probe -F number=12
 gh api --hostname github.com --paginate --slurp repos/yeyo11/agentry-probe/pulls/12/reviews?per_page=100
-gh api --hostname github.com -X POST repos/yeyo11/agentry-probe/pulls/12/reviews --input - <<< {"commit_id":"1edb6cba70c6420d6e75a44963ca93fed97ec760","event":"COMMENT","body":"hello\n\ngeneral\n\n<!-- agentry:11111111-2222-3333-4444-555555555555 -->","comments":[{"path":"probe-r0.txt","line":2,"side":"RIGHT","body":"a line note"}]}
+gh api --hostname github.com -X POST repos/yeyo11/agentry-probe/pulls/12/reviews --input - <<< {"commit_id":"1edb6cba70c6420d6e75a44963ca93fed97ec760","event":"COMMENT","body":"hello\n\ngeneral\n\n<!-- claudio:11111111-2222-3333-4444-555555555555 -->","comments":[{"path":"probe-r0.txt","line":2,"side":"RIGHT","body":"a line note"}]}
 gh api -i --hostname github.com graphql --paginate -f query=query($owner: String!, $repo: String!, $number: Int!, $first: Int!, $endCursor: String) {
   rateLimit { cost remaining resetAt used }
   repository(owner: $owner, name: $repo) {

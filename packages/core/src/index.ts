@@ -67,13 +67,13 @@ import type {
   WorkOnWorkItemRequest,
   WorkOnWorkItemResult,
   FileDiff,
-} from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type AgentryAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@agentry/shared';
+} from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, agentryLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type AgentryAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountStore, DEFAULT_ID, readCache } from '@agentry/accounts';
+import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -341,7 +341,7 @@ export {
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
-const AGENTRY_VERSION = pkg.version;
+const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
@@ -547,7 +547,7 @@ export class Core {
         method: 'POST',
         path: '/api/security/token',
         status: 200,
-        summary: 'Replace the token from AGENTRY_AUTH_TOKEN (AGENTRY_AUTH_TOKEN_RESET)',
+        summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
     this.appSettings = new AppSettingsStore(config, {
@@ -571,7 +571,7 @@ export class Core {
       hosts: this.appSettings.runtimeHosts,
       emit: (event) => this.events.emit(event),
       // What the tunnel does by itself; what a person asks for is audited by the API's own hook
-      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'agentry', status: 200, ...row }),
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
     });
     // The tunnel never outlives the guard: it is closed before the first unguarded request
     this.security.beforeUnguarded = async () => {
@@ -579,7 +579,7 @@ export class Core {
     };
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
-    this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
+    this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
     this.projectSettingsStore = new ProjectSettingsStore(config);
     this.team = new TeamService({
@@ -1183,7 +1183,7 @@ export class Core {
         configDir: this.config.configDir,
         workspaceDir: this.config.workspaceDir,
         defaultPermissionMode: this.appSettings.defaultPermissionMode,
-        version: AGENTRY_VERSION,
+        version: CLAUDIO_VERSION,
       };
       // A read that finished late never replaces a newer one
       if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) {
@@ -1364,12 +1364,12 @@ export class Core {
 
   /** The version this server runs, as every client should expect it */
   get version(): string {
-    return AGENTRY_VERSION;
+    return CLAUDIO_VERSION;
   }
 
   /** Agentry's own MCP server for a chat, and the flags that confine the chat to its read tools. */
   agentryMcp(): Promise<AgentryMcpLaunch> {
-    return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
+    return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
   }
 
   /**
@@ -1400,7 +1400,7 @@ export class Core {
   private assistantChatLaunch(marker: AgentryAssistantMarker): AssistantChatOptions {
     const project = marker.projectId ? this.projectStore.get(marker.projectId) : null;
     const scope = project ? { id: project.id, name: project.name, key: this.projectSettingsStore.stored(project.id, project.name)?.keyPrefix ?? '', path: project.path } : null;
-    const launch = agentryMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
+    const launch = agentryMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
     return assistantChatOptions(launch, agentryAssistantPrompt(scope, marker.language));
   }
 
@@ -1441,7 +1441,7 @@ export class Core {
   async markSetupSeen(): Promise<SetupState> {
     const settings = this.appSettings.get();
     if (!settings.setupSeen && settings.sources.setupSeen === 'env') {
-      throw Object.assign(new Error('setupSeen is set by the environment (AGENTRY_SETUP_SEEN) and cannot be changed here'), { statusCode: 409 });
+      throw Object.assign(new Error('setupSeen is set by the environment (CLAUDIO_SETUP_SEEN) and cannot be changed here'), { statusCode: 409 });
     }
     if (!settings.setupSeen) await this.appSettings.update({ setupSeen: true });
     return this.setupState();
@@ -1453,7 +1453,7 @@ export class Core {
    */
   private tailscaleRefusal(): string | null {
     if (!this.config.tailscaleManaged) return "This machine's Tailscale belongs to it: sign it in with the Tailscale app or tailscale up. Agentry signs in only the Tailscale it runs itself, in its Docker image.";
-    if (!this.config.tunnelEnabled) return 'This Agentry does not offer the tunnel (AGENTRY_TUNNEL is off), so it runs no Tailscale to sign in.';
+    if (!this.config.tunnelEnabled) return 'This Agentry does not offer the tunnel (CLAUDIO_TUNNEL is off), so it runs no Tailscale to sign in.';
     return null;
   }
 
@@ -1843,7 +1843,7 @@ export class Core {
    */
   noteLanguage(header: unknown): void {
     if (typeof header !== 'string') return;
-    const named = header.split(',').some((tag) => (AGENTRY_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
+    const named = header.split(',').some((tag) => (CLAUDIO_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
     if (named) this.language = agentryLanguage(header);
   }
 
@@ -2605,7 +2605,7 @@ export class Core {
     // in one pass, not once per kind
     const [system, chats, { tasks, subagents, workflows }] = await Promise.all([
       this.system(),
-      this.chats.list({ origins: ['agentry', 'external', 'orchestration'] }),
+      this.chats.list({ origins: ['claudio', 'external', 'orchestration'] }),
       this.chats.allActivity(),
     ]);
     return {

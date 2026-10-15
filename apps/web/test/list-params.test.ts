@@ -10,7 +10,7 @@ test('list params: only the page’s own, non-empty parameters are its values', 
 });
 
 test('list params: values are stored per page and per scope', () => {
-  assert.equal(storageKey('chats', 'p1'), 'agentry:filters:chats:p1');
+  assert.equal(storageKey('chats', 'p1'), 'claudio:filters:chats:p1');
   assert.notEqual(storageKey('chats', 'p1'), storageKey('chats', 'all'));
   assert.notEqual(storageKey('chats', 'p1'), storageKey('schedules', 'p1'));
 });

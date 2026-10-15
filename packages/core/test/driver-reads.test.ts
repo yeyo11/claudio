@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { RateLimitInfo } from '@agentry/shared';
+import type { RateLimitInfo } from '@claudio/shared';
 import { ClaudeBranches } from '../src/providers/claude-code/branches.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import type { DriverEvent } from '../src/providers/driver.ts';

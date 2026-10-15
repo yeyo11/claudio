@@ -1,16 +1,16 @@
-import type { Project, ProjectDoc } from '@agentry/shared';
+import type { Project, ProjectDoc } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, FilePlus, Link2, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useConnectors, useProjectDocs } from '../../api';
-import { MoreActions, type MenuEntry } from '@agentry/ui/components/controls';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Empty, ErrorBox, Skeleton } from '@agentry/ui/components/ui';
-import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { MoreActions, type MenuEntry } from '@claudio/ui/components/controls';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { queryView } from '../../lib/query-view';
 
 const STATUS_BADGE = { unread: 'badge-idle', ok: 'badge-ok', unavailable: 'badge-warn' } as const;

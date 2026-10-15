@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { ModelOption, ProviderMove, ProviderMoveState, ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { ModelOption, ProviderMove, ProviderMoveState, ProviderStatus, ProvidersSettings } from '@claudio/shared';
 
 /**
  * Claude Code's detection (served from the detector's cache), a re-detection on demand and the

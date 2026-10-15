@@ -1,12 +1,12 @@
-import type { Effort, Team } from '@agentry/shared';
+import type { Effort, Team } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Combobox, Select } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Field } from '@agentry/ui/components/ui';
+import { Combobox, Select } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Field } from '@claudio/ui/components/ui';
 import { EffortField } from '../../components/EffortPicker';
 import { useEffortUnavailable } from '../../lib/provider-status';
 import { ModelCombobox } from '../../components/ui';

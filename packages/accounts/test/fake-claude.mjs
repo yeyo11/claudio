@@ -31,7 +31,7 @@ if (a === 'auth' && b === 'status') {
   console.log(process.env.FAKE_CLAUDE_VERSION ?? '2.1.300 (Claude Code)');
 } else if (process.argv.includes('--input-format')) {
   // The initialize handshake: the account's model list, no turn. A token account is a Pro-like one.
-  appendFileSync(join(dir, 'initialize-count'), 'x');
+  if (process.env.CLAUDE_CONFIG_DIR) appendFileSync(join(dir, 'initialize-count'), 'x');
   const max = !process.env.CLAUDE_CODE_OAUTH_TOKEN;
   const effort = ['low', 'medium', 'high', 'xhigh', 'max'];
   const models = [

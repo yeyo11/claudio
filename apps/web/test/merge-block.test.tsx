@@ -3,13 +3,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test, { beforeEach } from 'node:test';
-import type { MergeBlockerAction, MergeBlockerCode, MergeState, WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
+import type { MergeBlockerAction, MergeBlockerCode, MergeState, WorkItemDetail, WorkItemPullRequest } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import { setLanguage } from '../src/i18n';
 import enMerge from '../src/i18n/locales/en/merge.json' with { type: 'json' };
@@ -190,9 +190,9 @@ test('a code this version does not know reads as the policy block', () => {
 });
 
 test('the person is told when Agentry turned auto-merge off for a push, and why a host rebase is not offered', () => {
-  const off = text(render(state({ autoMergeOff: { by: 'agentry', at: '2026-10-01T09:30:00Z', why: 'push', pushing: false } })));
+  const off = text(render(state({ autoMergeOff: { by: 'claudio', at: '2026-10-01T09:30:00Z', why: 'push', pushing: false } })));
   assert.match(off, /Agentry turned auto-merge off .* because it pushed to the branch/);
-  const pushing = text(render(state({ autoMergeOff: { by: 'agentry', at: '2026-10-01T09:30:00Z', why: 'push', pushing: true } })));
+  const pushing = text(render(state({ autoMergeOff: { by: 'claudio', at: '2026-10-01T09:30:00Z', why: 'push', pushing: true } })));
   assert.match(pushing, /is pushing to the branch/);
   const update = text(render(state({ autoMergeOff: { by: 'marta', at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
   assert.match(update, /turned off .* by marta for Update from base/);
@@ -285,7 +285,7 @@ test('a request the host merged or closed says so in words, with no raw host wor
 test('who turned auto-merge off for an update reads as you or Agentry, never as local', () => {
   const off = (by: string) => text(render(state({ autoMergeOff: { by, at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
   assert.match(off('local'), /You turned auto-merge off .* for Update from base/);
-  assert.match(off('agentry'), /Agentry turned auto-merge off .* for Update from base/);
+  assert.match(off('claudio'), /Agentry turned auto-merge off .* for Update from base/);
   assert.doesNotMatch(off('local'), /local turned|by local/);
 });
 

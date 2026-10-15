@@ -1,10 +1,10 @@
-import type { FlowStep, WorkItemDetail } from '@agentry/shared';
+import type { FlowStep, WorkItemDetail } from '@claudio/shared';
 import { useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useChatWorkItems, useWorkItemRuns } from '../../api';
 import { WorkItemKey, WorkItemStatusIcon } from '../../components/work-item-icons';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { byChatRole, chatItemRole, criteriaProgress, movesToReviewOnEnd, type ChatItemRole } from '../../lib/work-item-links';
 import { columnMeta, taskPath } from '../../lib/work-items';
 import { failedRunOfChat, linkRun } from '../tasks/item/model';

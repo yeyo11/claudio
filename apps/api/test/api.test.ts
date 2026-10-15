@@ -7,8 +7,8 @@ import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { ChatConflictError, Core, loadConfig } from '@agentry/core';
-import type { PermissionRequest } from '@agentry/shared';
+import { ChatConflictError, Core, loadConfig } from '@claudio/core';
+import type { PermissionRequest } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { allowedOrigin } from '../src/origins.ts';
 
@@ -26,8 +26,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -263,7 +263,7 @@ test('chats are listed with filters that say when they are wrong, and the run, s
   assert.deepEqual((await app.inject('/api/chats')).json(), []);
   assert.equal((await app.inject('/api/chats?state=asleep')).statusCode, 400);
   assert.match((await app.inject('/api/chats?origin=robot')).json().error, /origin must be one of/);
-  assert.equal((await app.inject('/api/chats?origin=agentry,external,orchestration,internal&loose=1&limit=5')).statusCode, 200);
+  assert.equal((await app.inject('/api/chats?origin=claudio,external,orchestration,internal&loose=1&limit=5')).statusCode, 200);
   assert.equal((await app.inject('/api/chats?origin=orchestration&workers=0')).statusCode, 200);
   assert.match((await app.inject('/api/chats?workers=no')).json().error, /workers must be 0 or 1/);
   for (const url of ['/api/runs', '/api/runs/ghost', '/api/sessions', '/api/sessions/ghost', '/api/active', '/api/projects/x/sessions']) {
@@ -503,9 +503,9 @@ test('a stream is read across origins only by an allowed one, whatever Origin it
   const created = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello' }) });
   assert.equal(created.statusCode, 201, created.body);
   const paths = ['/api/events', `/api/chats/${created.json().id as string}/stream`];
-  const previous = process.env.AGENTRY_CORS_ORIGIN;
+  const previous = process.env.CLAUDIO_CORS_ORIGIN;
   try {
-    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com';
+    process.env.CLAUDIO_CORS_ORIGIN = 'https://panel.example.com';
     for (const path of paths) {
       const allowed = await streamHeaders(path, { origin: 'https://panel.example.com' });
       assert.equal(allowed['access-control-allow-origin'], 'https://panel.example.com', path);
@@ -517,14 +517,14 @@ test('a stream is read across origins only by an allowed one, whatever Origin it
       assert.match(String(refused['content-type']), /text\/event-stream/, path);
     }
 
-    delete process.env.AGENTRY_CORS_ORIGIN;
+    delete process.env.CLAUDIO_CORS_ORIGIN;
     for (const path of paths) {
       const nobody = await streamHeaders(path, { origin: 'https://panel.example.com' });
       assert.equal(nobody['access-control-allow-origin'], undefined, path);
     }
   } finally {
-    if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
-    else process.env.AGENTRY_CORS_ORIGIN = previous;
+    if (previous === undefined) delete process.env.CLAUDIO_CORS_ORIGIN;
+    else process.env.CLAUDIO_CORS_ORIGIN = previous;
   }
 });
 
@@ -629,12 +629,12 @@ test('the UI bundle is served unframeable, unsniffable and under a policy that n
 });
 
 test('who may read this API from a browser is decided in one place', async () => {
-  const previous = process.env.AGENTRY_CORS_ORIGIN;
+  const previous = process.env.CLAUDIO_CORS_ORIGIN;
   try {
-    delete process.env.AGENTRY_CORS_ORIGIN;
+    delete process.env.CLAUDIO_CORS_ORIGIN;
     assert.equal(allowedOrigin('https://panel.example.com'), null);
 
-    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com, https://other.example.com';
+    process.env.CLAUDIO_CORS_ORIGIN = 'https://panel.example.com, https://other.example.com';
     assert.equal(allowedOrigin('https://panel.example.com'), 'https://panel.example.com');
     assert.equal(allowedOrigin('https://other.example.com'), 'https://other.example.com');
     assert.equal(allowedOrigin('https://evil.example.com'), null);
@@ -643,17 +643,17 @@ test('who may read this API from a browser is decided in one place', async () =>
     assert.equal(allowedOrigin('panel.example.com'), null);
     assert.equal(allowedOrigin(undefined), null);
 
-    process.env.AGENTRY_CORS_ORIGIN = '*';
+    process.env.CLAUDIO_CORS_ORIGIN = '*';
     assert.equal(allowedOrigin('https://anything.example.com'), 'https://anything.example.com');
     // Nothing to echo, nothing to allow
     assert.equal(allowedOrigin(undefined), null);
     assert.equal(allowedOrigin(''), null);
 
-    process.env.AGENTRY_CORS_ORIGIN = '   ';
+    process.env.CLAUDIO_CORS_ORIGIN = '   ';
     assert.equal(allowedOrigin('https://panel.example.com'), null);
 
     // The plugin answers from the same decision, and only for the origin it was told about
-    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com';
+    process.env.CLAUDIO_CORS_ORIGIN = 'https://panel.example.com';
     const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
     const allowed = await probe.inject({ url: '/api/health', headers: { origin: 'https://panel.example.com' } });
     assert.equal(allowed.headers['access-control-allow-origin'], 'https://panel.example.com');
@@ -661,8 +661,8 @@ test('who may read this API from a browser is decided in one place', async () =>
     assert.equal(refused.headers['access-control-allow-origin'], undefined);
     await probe.close();
   } finally {
-    if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
-    else process.env.AGENTRY_CORS_ORIGIN = previous;
+    if (previous === undefined) delete process.env.CLAUDIO_CORS_ORIGIN;
+    else process.env.CLAUDIO_CORS_ORIGIN = previous;
   }
 });
 
@@ -679,8 +679,8 @@ test('a burst of readers costs one detection, and the open health route spawns n
     loadConfig({
       CLAUDE_BIN: bin,
       CLAUDE_CONFIG_DIR: join(root, 'claude-config'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   let probeApp: FastifyInstance | null = null;

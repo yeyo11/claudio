@@ -13,7 +13,7 @@ import {
   type SetupTool,
   type SetupToolMethods,
   type TailscaleReadinessState,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { providerLink } from './provider-state';
 
 // The in-app setup (docs/plans/in-app-setup.md, docs/setup.md) as plain data: which sign-in a tool

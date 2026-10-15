@@ -3,7 +3,7 @@
 # dialect. They answer only what the Integrations page, a project's readiness and the change request
 # flow ask. See README.md.
 name=$(basename "$0")
-dir="${AGENTRY_DATA_DIR:-.}/fake-hosts"
+dir="${CLAUDIO_DATA_DIR:-.}/fake-hosts"
 file="$dir/$name.json"
 
 read_key() {
@@ -640,7 +640,7 @@ gh_hooks() {
 # spec reads, so it can sign what the host would deliver.
 glab_hook_json() {
   alert=$(read_key hookAlert)
-  printf '{"id":%s,"url":"%s","name":"agentry","alert_status":"%s","token_present":true,"signing_token_present":true}' \
+  printf '{"id":%s,"url":"%s","name":"claudio","alert_status":"%s","token_present":true,"signing_token_present":true}' \
     "$1" "$(sed -n 1p "$dir/glab.hook-$1")" "${alert:-executable}"
 }
 glab_hook_missing() {

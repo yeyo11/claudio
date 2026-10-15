@@ -1,4 +1,4 @@
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useProjects } from '../api';
@@ -12,7 +12,7 @@ import { useProjects } from '../api';
  * makes a link to a project's page work from anywhere. `all` in the address selects no project.
  */
 
-const KEY = 'agentry:project';
+const KEY = 'claudio:project';
 export const PARAM = 'project';
 export const ALL_PROJECTS = 'all';
 

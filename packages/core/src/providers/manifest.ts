@@ -1,4 +1,4 @@
-import type { ProviderCapability, ProviderId, ProviderTransport } from '@agentry/shared';
+import type { ProviderCapability, ProviderId, ProviderTransport } from '@claudio/shared';
 
 /** A directory a provider keeps its state in, and the variable that moves it. */
 export interface ProviderConfigHome {

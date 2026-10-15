@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ConnectorsOverview } from '@agentry/shared';
+import type { ConnectorsOverview } from '@claudio/shared';
 import type { ChatRuntime, NewChat, RunResult } from '../src/chats.ts';
 import { mcpServerPrefix, parseDocUrl, ProjectDocsError, ProjectDocsService, type DocsRuntime } from '../src/project-docs.ts';
 import { tempConfig } from './helpers.ts';

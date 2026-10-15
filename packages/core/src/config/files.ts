@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { ConfigFileVariant, InstructionsDoc, SettingsDoc } from '@agentry/shared';
+import type { ConfigFileVariant, InstructionsDoc, SettingsDoc } from '@claudio/shared';
 import { restoreSecrets } from '../security/redact.ts';
 import { instructionsPath, settingsPath, type ConfigScope } from './scope.ts';
 

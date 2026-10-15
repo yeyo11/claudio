@@ -3,7 +3,7 @@
  *
  * Adding a string
  * 1. Pick the namespace by where the string lives (`common` and `primitives` belong to
- *    @agentry/ui, under packages/ui/src/locales, and `chat` to @agentry/chat-ui, under
+ *    @claudio/ui, under packages/ui/src/locales, and `chat` to @claudio/chat-ui, under
  *    packages/chat-ui/src/locales; the rest are this app's):
  *    - `common`: words shared across the app (`actions.*`, status names, times). A string that
  *      three screens spell the same way belongs here, not copied into each namespace.
@@ -76,10 +76,10 @@
  */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { currentLanguage, storeLanguage, type Language } from '@agentry/ui/i18n/language';
+import { currentLanguage, storeLanguage, type Language } from '@claudio/ui/i18n/language';
 import { defaultNS, en, resources, type Namespace } from './resources';
 
-export { LANGUAGES, type Language } from '@agentry/ui/i18n/language';
+export { LANGUAGES, type Language } from '@claudio/ui/i18n/language';
 
 declare module 'i18next' {
   interface CustomTypeOptions {

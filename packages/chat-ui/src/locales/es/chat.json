@@ -156,13 +156,13 @@
       "interrupted": "Interrumpida"
     },
     "origin": {
-      "agentry": "Agentry",
+      "claudio": "Agentry",
       "external": "Terminal",
       "orchestration": "Orquestación",
       "internal": "Interno"
     },
     "originHint": {
-      "agentry": "Iniciado desde Agentry",
+      "claudio": "Iniciado desde Agentry",
       "external": "Iniciado en una terminal con {{agent}}",
       "orchestration": "Trabaja para una orquestación",
       "internal": "Tareas internas del propio Agentry"
@@ -549,7 +549,7 @@
       "idle": "Inactivo"
     },
     "origin": {
-      "agentry": "Agentry",
+      "claudio": "Agentry",
       "external": "Terminal",
       "orchestration": "Orquestación",
       "internal": "Interno"

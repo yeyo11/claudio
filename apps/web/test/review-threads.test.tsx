@@ -1,7 +1,7 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
-import type { ReviewThread } from '@agentry/shared';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import type { ReviewThread } from '@claudio/shared';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import assert from 'node:assert/strict';
 import test from 'node:test';

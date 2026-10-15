@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { PluginActionRequest } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { PluginActionRequest } from '@claudio/shared';
 
 /** Plugins and marketplaces, delegated to `claude plugin`. Actions return the CLI output verbatim. */
 export const pluginRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

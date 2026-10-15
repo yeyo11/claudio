@@ -1,13 +1,13 @@
-import type { Account } from '@agentry/shared';
+import type { Account } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ChartLine } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Collapsible, Select } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Card, Empty, ErrorBox, Loading, Segmented } from '@agentry/ui/components/ui';
-import { formatDateTime } from '@agentry/ui/lib/format';
+import { Collapsible, Select } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Card, Empty, ErrorBox, Loading, Segmented } from '@claudio/ui/components/ui';
+import { formatDateTime } from '@claudio/ui/lib/format';
 import { accountName } from '../../lib/accounts';
 import { seriesOf, sinceOf, summarise, USAGE_RANGES, type UsageRange } from '../../lib/usage-history';
 import { UsageChart } from './UsageChart';

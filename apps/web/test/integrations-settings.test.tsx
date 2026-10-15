@@ -2,14 +2,14 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CodeHostStatus, CodeHostsSettings, TrackerId, TrackerStatus, TrackersSettings } from '@agentry/shared';
+import type { CodeHostStatus, CodeHostsSettings, TrackerId, TrackerStatus, TrackersSettings } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
-import { TooltipProvider } from '@agentry/ui/components/controls';
-import { ToastProvider } from '@agentry/ui/components/Toast';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
+import { TooltipProvider } from '@claudio/ui/components/controls';
+import { ToastProvider } from '@claudio/ui/components/Toast';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { IntegrationsTab } from '../src/pages/config/IntegrationsTab';
@@ -96,7 +96,7 @@ const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' 
 
 test('Integrations is a tab of the Agentry group, right after Providers', () => {
   assert.ok(isTab('integrations'));
-  const agentry = GROUPS.find((g) => g.id === 'agentry')?.tabs ?? [];
+  const agentry = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
   assert.equal(agentry.indexOf('integrations'), agentry.indexOf('providers') + 1);
   assert.equal(TAB_LABELS.integrations, 'integrations:tab');
 });

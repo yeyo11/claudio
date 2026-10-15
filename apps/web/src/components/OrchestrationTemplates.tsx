@@ -1,16 +1,16 @@
-import type { Effort, OrchestrationSpec, OrchestrationTemplate } from '@agentry/shared';
+import type { Effort, OrchestrationSpec, OrchestrationTemplate } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, Play, TextCursorInput, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useProjects } from '../api';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { Combobox, Tooltip } from '@agentry/ui/components/controls';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Empty, ErrorBox, Field, Loading } from '@agentry/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { Combobox, Tooltip } from '@claudio/ui/components/controls';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Empty, ErrorBox, Field, Loading } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 

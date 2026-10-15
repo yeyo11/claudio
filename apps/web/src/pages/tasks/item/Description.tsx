@@ -1,13 +1,13 @@
-import type { WorkItemDetail } from '@agentry/shared';
+import type { WorkItemDetail } from '@claudio/shared';
 import { Pencil } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CodeEditor } from '../../../components/CodeEditor';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { useDirty } from '../../../lib/dirty';
 import type { ItemActions } from './hooks';
 
-const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
+const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
 
 /** The title as the page's heading, renamed in place: Enter saves, Escape leaves it as it was. */
 export function Title({ item, actions }: { item: WorkItemDetail; actions: ItemActions }) {

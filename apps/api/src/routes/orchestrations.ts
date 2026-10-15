@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseChangeScope, parseDiffContext, summarizeOrchestration, type Core, type DiffOptions } from '@agentry/core';
+import { parseChangeScope, parseDiffContext, summarizeOrchestration, type Core, type DiffOptions } from '@claudio/core';
 import type {
   LaunchOrchestrationTemplateRequest,
   OrchestrationSpec,
@@ -11,7 +11,7 @@ import type {
   TaskHintRequest,
   UpdateOrchestrationTemplateRequest,
   VerifyOrchestrationRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /** The file a diff is asked for: required, since a whole-branch diff is not what the panel opens. */
 /** The file a diff is asked for: one path, which a repeated parameter would make a list of. */

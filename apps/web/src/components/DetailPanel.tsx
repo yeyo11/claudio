@@ -1,20 +1,20 @@
-import type { AgentTranscript, ChatBackgroundTask } from '@agentry/shared';
+import type { AgentTranscript, ChatBackgroundTask } from '@claudio/shared';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { AgentScope } from '@agentry/chat-ui/lib/agent';
-import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
-import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@agentry/chat-ui/lib/chats';
+import { AgentScope } from '@claudio/chat-ui/lib/agent';
+import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@claudio/chat-ui/lib/chats';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
-import { durationBetween, formatCost, formatDateTime, formatDuration, formatNumber } from '@agentry/ui/lib/format';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
-import { CodeBlock } from '@agentry/ui/components/CodeBlock';
-import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ScrollJump } from '@agentry/ui/components/ScrollJump';
-import { RichText, Transcript } from '@agentry/chat-ui/components/Transcript';
-import { BranchStatus, StateBadge } from '@agentry/chat-ui/components/ChatBadges';
-import { ErrorBox, Loading, Tag } from '@agentry/ui/components/ui';
+import { durationBetween, formatCost, formatDateTime, formatDuration, formatNumber } from '@claudio/ui/lib/format';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
+import { CodeBlock } from '@claudio/ui/components/CodeBlock';
+import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ScrollJump } from '@claudio/ui/components/ScrollJump';
+import { RichText, Transcript } from '@claudio/chat-ui/components/Transcript';
+import { BranchStatus, StateBadge } from '@claudio/chat-ui/components/ChatBadges';
+import { ErrorBox, Loading, Tag } from '@claudio/ui/components/ui';
 
 /** A transcript can run to thousands of entries; the newest are what a panel is opened for. */
 const RENDERED_ENTRIES = 300;

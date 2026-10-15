@@ -1,10 +1,10 @@
-import type { ChangedFile, WorkItemDetail } from '@agentry/shared';
+import type { ChangedFile, WorkItemDetail } from '@claudio/shared';
 import { GitBranch, GitCompareArrows } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useProjects, useWorkItemChanges } from '../../../api';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox, Loading } from '@agentry/ui/components/ui';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox, Loading } from '@claudio/ui/components/ui';
 import { reviewLink, reviewPath } from '../../../lib/changes-summary';
 import { totalsOf } from '../../../lib/observe';
 import { diffstat, pathParts } from './model';

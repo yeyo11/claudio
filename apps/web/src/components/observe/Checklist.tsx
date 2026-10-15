@@ -1,10 +1,10 @@
-import type { Checklist as ChecklistData } from '@agentry/shared';
+import type { Checklist as ChecklistData } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { CircleCheck, CircleDashed, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { checklistProgress } from '../../lib/observe';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox } from '@agentry/ui/components/ui';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox } from '@claudio/ui/components/ui';
 
 const ICON = { completed: CircleCheck, in_progress: Loader, pending: CircleDashed } as const;
 

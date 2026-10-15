@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { ChatSummary, TranscriptEntry } from '@agentry/shared';
+import type { ChatSummary, TranscriptEntry } from '@claudio/shared';
 import { Changes } from '../src/changes.ts';
 import { addedDiff, unifiedOf } from '../src/edit-steps.ts';
 import { SessionStore } from '../src/sessions.ts';

@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { CodeHostsSettings, PullRequestReadiness } from '@agentry/shared';
+import type { CodeHostsSettings, PullRequestReadiness } from '@claudio/shared';
 import { defaultCodeHostsSettings } from '../src/hosts/settings.ts';
 import { projectReadiness, REMOTES_DOCS_URL, type ReadinessDeps } from '../src/hosts/readiness.ts';
 import { adapterOf, answer, ghHosts, scripted, type Script } from './hosts/stub-adapters.ts';

@@ -1,8 +1,8 @@
-import type { MergeState } from '@agentry/shared';
+import type { MergeState } from '@claudio/shared';
 import { CircleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { autoMergeOffKey } from '../lib/merge';
 
 /**

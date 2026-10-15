@@ -1,5 +1,5 @@
 // Generates src/openapi/schemas.json (OpenAPI component schemas) from the shared TypeScript types,
-// so the API reference can never drift from the contract. Run: pnpm --filter @agentry/api openapi:schemas
+// so the API reference can never drift from the contract. Run: pnpm --filter @claudio/api openapi:schemas
 import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

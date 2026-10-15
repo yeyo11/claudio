@@ -142,7 +142,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return location.search.includes('q=Third') && document.querySelectorAll('[data-item-id]').length === 1`, { label: 'the search comes back on a later visit' });
     await page.eval(`const i = document.querySelector('.workitem-search input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, ''); i.dispatchEvent(new Event('input', { bubbles: true })); return true`);
     await page.waitFor(`return !location.search.includes('q=') && document.querySelectorAll('[data-item-id]').length > 1`, { label: 'emptying the search takes it out of the address' });
-    check((await page.eval(`return Object.keys(localStorage).filter((k) => k.startsWith('agentry:filters:tasks:')).length`)) === 0, 'and out of what the list keeps');
+    check((await page.eval(`return Object.keys(localStorage).filter((k) => k.startsWith('claudio:filters:tasks:')).length`)) === 0, 'and out of what the list keeps');
 
     // ---- selection and "Orchestrate" ----
     await page.goto(`/tasks?project=${project.id}`, 1200);
@@ -259,7 +259,7 @@ export default async ({ page, api, check, dirs }) => {
     check(foot.tabbar === 0 && foot.gap < 40, `the tab bar steps aside while choosing, and the bar sits at the bottom (${JSON.stringify(foot)})`);
   } finally {
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     // Later specs count the projects
     for (const id of made) await api.del(`/projects/${id}`).catch(() => {});
   }

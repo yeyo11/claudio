@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { SetCredentialsRequest } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { SetCredentialsRequest } from '@claudio/shared';
 
 export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   // The only route reachable with no credential: it reports the last state observed and never goes

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent } from '@claudio/shared';
 
 /** What a source hands the bus: the bus stamps `id` and `at`. */
 export type AgentryEventInput = AgentryEvent extends infer E ? (E extends AgentryEvent ? Omit<E, 'id' | 'at'> : never) : never;

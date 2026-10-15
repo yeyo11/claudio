@@ -1,11 +1,11 @@
-import type { AssistantRun, AssistantRunDetail, Project } from '@agentry/shared';
+import type { AssistantRun, AssistantRunDetail, Project } from '@claudio/shared';
 import { CircleAlert, CircleX, Info, Sparkle } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { AssistantMark, LiveRunHead, RunFacts, RunFindings, RunSources, SuggestionWait } from '../../components/assistant/run';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Empty, ErrorBox } from '@agentry/ui/components/ui';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Empty, ErrorBox } from '@claudio/ui/components/ui';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
 import { proposalsOf, readSummary, tally } from './model';
 import { MemberProposalRow, ResourceProposalRow, SectionHead, useDecide, WorkItemProposalRow } from './proposals';

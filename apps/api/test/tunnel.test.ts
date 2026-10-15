@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { AuditPage, TunnelStatus } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { AuditPage, TunnelStatus } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The whole wrapper, listening on loopback, behind the fake `tailscale` the core tests use. What
@@ -47,8 +47,8 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
       TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
   );

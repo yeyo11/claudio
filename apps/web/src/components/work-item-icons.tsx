@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import type { WorkItemPriority, WorkItemRef, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import type { WorkItemPriority, WorkItemRef, WorkItemStatus, WorkItemType } from '@claudio/shared';
 import { columnMeta, priorityMeta } from '../lib/work-items';
-import { nameHue } from '@agentry/ui/components/icons';
+import { nameHue } from '@claudio/ui/components/icons';
 
 // ---------- work items: the marks every Tasks screen draws the same way (styles/work-item-marks.css)
 

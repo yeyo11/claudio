@@ -3,9 +3,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
-import { ToastProvider } from '@agentry/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { ToastProvider } from '@claudio/ui/components/Toast';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
@@ -14,10 +14,10 @@ import { AppChatUi } from './lib/chat-ui';
 import { registerServiceWorker } from './lib/pwa';
 import { watchChunkErrors } from './lib/reload';
 import './lib/theme'; // applies the stored theme before the first paint
-import '@agentry/ui/lib/motion'; // stamps the motion level before anything has a chance to animate
+import '@claudio/ui/lib/motion'; // stamps the motion level before anything has a chance to animate
 import './lib/desktop'; // marks the desktop app's window before the first paint, so the title bar never jumps
 import './styles.css';
-import '@agentry/ui/controls.css';
+import '@claudio/ui/controls.css';
 import './observe.css';
 
 // Before anything lazy is asked for: the first chunk a stale page misses may be the first it loads

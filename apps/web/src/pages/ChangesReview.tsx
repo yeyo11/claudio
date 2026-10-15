@@ -1,4 +1,4 @@
-import type { ChangedFile, ChangeSummary, EditStep } from '@agentry/shared';
+import type { ChangedFile, ChangeSummary, EditStep } from '@claudio/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ChevronLeft, Copy, Crosshair } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -26,11 +26,11 @@ import { LIVE_REFRESH_MS, type ReviewSource } from '../components/changes/source
 import { StepScrubber, StepsLens } from '../components/changes/steps/StepsLens';
 import { currentStep } from '../components/changes/steps/steps-model';
 import '../components/changes/changes.css';
-import { Menu, MoreActions, Tooltip, type MenuEntry } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Menu, MoreActions, Tooltip, type MenuEntry } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import {
   effectiveMode,
   isMode,
@@ -48,7 +48,7 @@ import { openChangeRequestId } from '../lib/review-lines';
 import { AgentProviderScope, useAgentCopy } from '../lib/agent-name';
 import { useWidth } from '../lib/use-width';
 import { isLive, taskPath } from '../lib/work-items';
-import { copyText } from '@agentry/ui/lib/clipboard';
+import { copyText } from '@claudio/ui/lib/clipboard';
 
 // The review screen (docs/plans/changes-review.md): one page for a chat, a task and the integration
 // branch. Each route builds a ReviewSource and draws the same screen, whose Result lens is the file

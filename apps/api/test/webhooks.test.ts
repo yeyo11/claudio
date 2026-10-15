@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 import { WEBHOOK_BODY_LIMIT } from '../src/routes/webhooks.ts';
 
@@ -28,8 +28,8 @@ async function wrapper(t: { after: (fn: () => Promise<void> | void) => void }): 
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   const nudged: string[][] = [];

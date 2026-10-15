@@ -10,8 +10,8 @@ import { ChevronLeft, ChevronRight, Download, ExternalLink, X } from 'lucide-rea
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { formatBytes } from '@agentry/ui/lib/format';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { formatBytes } from '@claudio/ui/lib/format';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 
 export interface MediaItem {
   name: string;

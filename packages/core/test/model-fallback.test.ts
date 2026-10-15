@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { DecisionRecord, ModelFallback } from '@agentry/shared';
+import type { DecisionRecord, ModelFallback } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';
@@ -14,7 +14,7 @@ import { tempConfig } from './helpers.ts';
 
 function store() {
   const root = mkdtempSync(join(tmpdir(), 'agentry-fallbacks-'));
-  const config = loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(root, 'claude'), AGENTRY_WORKSPACE_DIR: join(root, 'ws'), AGENTRY_DATA_DIR: join(root, 'data') });
+  const config = loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(root, 'claude'), CLAUDIO_WORKSPACE_DIR: join(root, 'ws'), CLAUDIO_DATA_DIR: join(root, 'data') });
   return { fallbacks: new ModelFallbackStore(config), dir: config.dataDir };
 }
 

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@claudio/shared';
 import { Db, WORK_ITEMS_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';

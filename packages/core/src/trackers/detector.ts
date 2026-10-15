@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os';
-import type { CodeHostId, CodeHostStatus, TrackerId, TrackerReason, TrackerState, TrackerStatus, TrackersSettings } from '@agentry/shared';
+import type { CodeHostId, CodeHostStatus, TrackerId, TrackerReason, TrackerState, TrackerStatus, TrackersSettings } from '@claudio/shared';
 import type { CodeHostAdapter, HostCall } from '../hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, probeHostVersion, type HostRun, type HostRunWhere } from '../hosts/detector.ts';
 import { runHostCall } from '../hosts/exec.ts';

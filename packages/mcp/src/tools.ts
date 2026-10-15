@@ -164,7 +164,7 @@ export const TOOLS: readonly Tool[] = [
     inputSchema: schema({
       project: str('Only the chats of this project id'),
       state: str('Only chats in this state', { enum: ['working', 'waiting', 'idle'] }),
-      origin: str('Comma separated origins: agentry, external, orchestration, internal'),
+      origin: str('Comma separated origins: claudio, external, orchestration, internal'),
       limit: int('How many chats', 1, PAGE_MAX),
     }),
     run: async (args, api) => chatRows(await api.get('/chats', pick(args, ['project', 'state', 'origin', 'limit']))),

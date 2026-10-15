@@ -1,15 +1,15 @@
-import type { Chat, Effort, PermissionMode } from '@agentry/shared';
+import type { Chat, Effort, PermissionMode } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatToolsPicker } from '../../components/ChatToolsPicker';
 import { EffortField } from '../../components/EffortPicker';
 import { useEffortUnavailable } from '../../lib/provider-status';
-import { Select } from '@agentry/ui/components/controls';
-import { ErrorBox, Tag } from '@agentry/ui/components/ui';
+import { Select } from '@claudio/ui/components/controls';
+import { ErrorBox, Tag } from '@claudio/ui/components/ui';
 import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
 import { api, keys } from '../../api';
-import type { StartChoices } from '@agentry/chat-ui/lib/context';
+import type { StartChoices } from '@claudio/chat-ui/lib/context';
 
 /*
  * The controls built on Radix selects, in one module so the chat page can load them lazily.

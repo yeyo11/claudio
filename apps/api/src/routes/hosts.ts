@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { CodeHostStatus, CodeHostsSettings } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { CodeHostStatus, CodeHostsSettings } from '@claudio/shared';
 
 /**
  * The code hosts Agentry reaches through their own CLI (gh, glab): what detection found, served

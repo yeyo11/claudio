@@ -1,4 +1,4 @@
-import type { ChatContext, ChatHealth, ChatState, HealthLevel, HealthSignal, HealthSignalKind, SupervisorProposal, TaskLimits } from '@agentry/shared';
+import type { ChatContext, ChatHealth, ChatState, HealthLevel, HealthSignal, HealthSignalKind, SupervisorProposal, TaskLimits } from '@claudio/shared';
 import { chatHealth, HUNG_COMMAND_MS, stateFromRun, type HealthFacts } from './chat-model.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { commandKind, usualDuration, type UsualDuration } from './commands.ts';
@@ -259,7 +259,7 @@ export class HealthMonitor {
 
   constructor(
     private readonly deps: HealthMonitorDeps,
-    private readonly intervalMs = Number(process.env.AGENTRY_HEALTH_INTERVAL_MS ?? 15_000),
+    private readonly intervalMs = Number(process.env.CLAUDIO_HEALTH_INTERVAL_MS ?? 15_000),
   ) {}
 
   start(): void {

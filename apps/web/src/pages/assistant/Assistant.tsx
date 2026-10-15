@@ -1,10 +1,10 @@
-import type { AssistantRunDetail, Project } from '@agentry/shared';
+import type { AssistantRunDetail, Project } from '@claudio/shared';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { useAssistantRun, useAssistantRuns, useProjects } from '../../api';
-import { Empty, ErrorBox, Skeleton, usePageTitle } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Empty, ErrorBox, Skeleton, usePageTitle } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useProjectScope } from '../../lib/project-scope';
 import { DesktopAssistant } from './Desktop';
 import { followingRun, latestRun } from './model';

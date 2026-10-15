@@ -9,7 +9,7 @@
  * whatever the account adds follows.
  *
  * The full, account-filtered list is read from the CLI's `initialize` handshake by
- * `@agentry/accounts` and cached per account; when it is there it replaces everything below, which
+ * `@claudio/accounts` and cached per account; when it is there it replaces everything below, which
  * stays for a CLI that has not answered yet and for data written before it.
  *
  * The aliases carry no label in that file, so the name of the model an alias stands for ("Sonnet 5"
@@ -20,7 +20,7 @@
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ModelOption, ModelTier } from '@agentry/shared';
+import type { ModelOption, ModelTier } from '@claudio/shared';
 import { writeAtomic } from '../../config/files.ts';
 
 /**

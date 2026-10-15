@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { Check, ChangeRequestChecks, ChangeRequestKind, CheckLog, CheckAnnotation, ChecksRerunRequest, HostReason, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, ChangeRequestChecks, ChangeRequestKind, CheckLog, CheckAnnotation, ChecksRerunRequest, HostReason, WorkItemPullRequestCi } from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { ChangeRequestSnapshotRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';

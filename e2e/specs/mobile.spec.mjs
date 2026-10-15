@@ -102,7 +102,7 @@ export default async ({ page, api, check, dirs }) => {
     check(overflow <= 1, `[390px /tasks] nothing scrolls sideways (${overflow}px)`);
   } finally {
     await page.viewport(1440, 900);
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
     // Later specs count the seeded chats
     await api.del(`/chats/${SESSION}`);

@@ -21,7 +21,7 @@ const BUILD = 'dev';
 const SHELL = [];
 /* shell:end */
 
-const CACHE = `agentry-shell-${BUILD}`;
+const CACHE = `claudio-shell-${BUILD}`;
 const SHELL_PATHS = new Set(SHELL);
 
 /**
@@ -71,7 +71,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((names) => Promise.all(names.filter((name) => name.startsWith('agentry-shell-') && name !== CACHE).map((name) => caches.delete(name))))
+      .then((names) => Promise.all(names.filter((name) => name.startsWith('claudio-shell-') && name !== CACHE).map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
@@ -110,7 +110,7 @@ const HANDOFF_MS = 600;
 
 const PUSH_ICON = '/icons/icon-192.png';
 
-/** The key a test push starts with: `TEST_PUSH_KEY_PREFIX` in @agentry/shared, asserted equal in the tests. */
+/** The key a test push starts with: `TEST_PUSH_KEY_PREFIX` in @claudio/shared, asserted equal in the tests. */
 const TEST_PUSH_KEY_PREFIX = 'push:test:';
 
 /** Pushes through this service are held to WebKit's rule that every push shows a notification. */
@@ -119,7 +119,7 @@ const APPLE_PUSH_HOST = /(^|\.)push\.apple\.com$/;
 /**
  * The MagicDNS names Tailscale gives a node (`<node>.<tailnet>.ts.net`, packages/core/src/tunnel.ts;
  * the tests assert the two agree). The tunnel's address is stable, but it can still move: the node
- * renamed in the admin console, or another port (`AGENTRY_TUNNEL_PORT`). An install made on the old
+ * renamed in the admin console, or another port (`CLAUDIO_TUNNEL_PORT`). An install made on the old
  * one outlives it: the push subscription does not change, and the worker keeps receiving pushes for
  * an origin that no longer answers.
  */
@@ -162,7 +162,7 @@ async function notify(data) {
     body: (payload && payload.body) || (fallback && fallback.body) || '',
     // The dedupe key the page uses for its own list: a chat that asks twice replaces its
     // notification instead of stacking a second one on the lock screen.
-    tag: (payload && payload.key) || 'agentry',
+    tag: (payload && payload.key) || 'claudio',
     renotify: Boolean(payload && payload.priority === 'high'),
     requireInteraction: Boolean(payload && payload.priority === 'high'),
     icon: PUSH_ICON,
@@ -279,7 +279,7 @@ function handOff(client, path) {
       resolve(true);
     };
     try {
-      client.postMessage({ type: 'agentry:open', href: path }, [channel.port2]);
+      client.postMessage({ type: 'claudio:open', href: path }, [channel.port2]);
     } catch {
       clearTimeout(timer);
       resolve(false);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_WRITE_TOOLS, AGENTRY_MCP_WRITE_TOOL_NAMES, isAgentryMcpWriteTool } from '../src/names.ts';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES, isAgentryMcpWriteTool } from '../src/names.ts';
 import { createClient, type FetchLike } from '../src/client.ts';
 import { createServer } from '../src/server.ts';
 
@@ -33,10 +33,10 @@ function stub(routes: Record<string, { status?: number; body: unknown }>) {
 const item = { id: 'item_one', key: 'AGN-7', title: 'Cart', status: 'todo', description: 'long text that is not echoed', history: [1, 2, 3] };
 
 test('the write tools are named and never pre-allowed', () => {
-  assert.equal(AGENTRY_MCP_WRITE_TOOL_NAMES.length, 9);
-  for (const tool of AGENTRY_MCP_WRITE_TOOLS) {
+  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 9);
+  for (const tool of CLAUDIO_MCP_WRITE_TOOLS) {
     assert.ok(isAgentryMcpWriteTool(tool));
-    assert.ok(!AGENTRY_MCP_READ_TOOLS.includes(tool));
+    assert.ok(!CLAUDIO_MCP_READ_TOOLS.includes(tool));
   }
 });
 
@@ -75,7 +75,7 @@ test('each tool sends its one route, its body and the token', async () => {
     assert.ok(s.seen.every((r) => r.authorization === 'Bearer tok'), name);
     covered.push(name);
   }
-  assert.deepEqual(covered, [...AGENTRY_MCP_WRITE_TOOL_NAMES]);
+  assert.deepEqual(covered, [...CLAUDIO_MCP_WRITE_TOOL_NAMES]);
 });
 
 test('a key is resolved through the by-key route, an id is not', async () => {

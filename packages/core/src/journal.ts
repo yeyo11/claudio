@@ -9,7 +9,7 @@ import {
   type WorkItemActor,
   type WorkItemRef,
   type WorkItemSource,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, pathSegments } from './document-paths.ts';

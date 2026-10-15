@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { CodeHostsSettings } from '@agentry/shared';
+import type { CodeHostsSettings } from '@claudio/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { CodeHostDetector, hostnamesOfAuthJson, type CodeHostDetectorDeps } from '../src/hosts/detector.ts';
 import { defaultCodeHostsSettings } from '../src/hosts/settings.ts';

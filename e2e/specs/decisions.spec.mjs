@@ -24,7 +24,7 @@ const SUBSCRIPTION = {
 
 const theme = (page, name) =>
   page.eval(
-    `localStorage.setItem('agentry-theme', ${JSON.stringify(name)}); return true`,
+    `localStorage.setItem('claudio-theme', ${JSON.stringify(name)}); return true`,
   );
 const onPoint = (rest) => `[data-point="${POINT}"] ${rest}`;
 // The point groups start folded (a person opens the ones they work on): unfold them all before a
@@ -292,7 +292,7 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
   } finally {
     // Leave the sandbox as it was: other specs count what it holds
     await page
-      .eval(`localStorage.removeItem('agentry-theme'); return true`)
+      .eval(`localStorage.removeItem('claudio-theme'); return true`)
       .catch(() => {});
     await page.viewport(1440, 1000).catch(() => {});
     await api

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { NotificationKind } from '@agentry/shared';
+import type { NotificationKind } from '@claudio/shared';
 import { api } from '../api';
 import i18n from '../i18n';
 import { getPrefs, KINDS } from './notifications';

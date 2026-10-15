@@ -1,4 +1,4 @@
-import { envFor, type AccountRef } from '@agentry/accounts';
+import { envFor, type AccountRef } from '@claudio/accounts';
 import type { SecretVault } from './secret-vault.ts';
 import { exclusiveVariables } from './setup/methods.ts';
 

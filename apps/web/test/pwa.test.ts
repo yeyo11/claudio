@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { buildServiceWorker, shellId } from '../scripts/sw-shell.ts';
-import { TEST_PUSH_KEY_PREFIX } from '@agentry/shared';
+import { TEST_PUSH_KEY_PREFIX } from '@claudio/shared';
 import { PUSH_STATE_CACHE, PUSH_STATE_KEY } from '../src/lib/push-model.ts';
 
 const WEB = path.join(import.meta.dirname, '..');
@@ -342,10 +342,10 @@ test('a hashed asset of the shell is served from the cache, one from another bui
 });
 
 test('a new build takes over: the previous shell cache is dropped and nothing else is', async () => {
-  const worker = load(SHELL, { seeded: ['agentry-shell-oldbuild', 'some-other-cache'] });
+  const worker = load(SHELL, { seeded: ['claudio-shell-oldbuild', 'some-other-cache'] });
   await worker.install();
   await worker.activate();
-  assert.deepEqual([...worker.caches.stores.keys()].sort(), [`agentry-shell-${shellId([...SHELL].sort().concat('test'))}`, 'some-other-cache']);
+  assert.deepEqual([...worker.caches.stores.keys()].sort(), [`claudio-shell-${shellId([...SHELL].sort().concat('test'))}`, 'some-other-cache']);
   assert.ok(worker.claimed(), 'and it claims the pages already open');
 });
 
@@ -518,7 +518,7 @@ test('a click hands the path to a page that is open, which routes it in place', 
   await worker.click({ href: WAITING.href });
   const client = worker.clients[0];
   assert.equal(client?.focused, true);
-  assert.deepEqual(client?.messages.map((message) => ({ ...(message as object) })), [{ type: 'agentry:open', href: '/chats/run1?prompt=p1' }]);
+  assert.deepEqual(client?.messages.map((message) => ({ ...(message as object) })), [{ type: 'claudio:open', href: '/chats/run1?prompt=p1' }]);
   // Reloading it would throw away whatever is half-typed in a composer
   assert.equal(client?.navigated, null);
   assert.deepEqual(worker.opened, []);
@@ -602,7 +602,7 @@ test('the worker and the page name the same cache for the state they share', () 
   assert.match(SOURCE, new RegExp(`const PUSH_STATE_KEY = '${PUSH_STATE_KEY}';`));
   assert.match(SOURCE, new RegExp(`const TEST_PUSH_KEY_PREFIX = '${TEST_PUSH_KEY_PREFIX}';`));
   // The shell cache is dropped on every new build; this one holds what a rotation needs and is not
-  assert.ok(!PUSH_STATE_CACHE.startsWith('agentry-shell-'));
+  assert.ok(!PUSH_STATE_CACHE.startsWith('claudio-shell-'));
 });
 
 // ---------- After the tunnel's address changed ----------

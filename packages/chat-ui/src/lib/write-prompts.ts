@@ -1,7 +1,7 @@
 import i18n, { type TOptions } from 'i18next';
 
 /*
- * The prompts of the assistant's write tools (`mcp__agentry__<name>`), said in the person's words.
+ * The prompts of the assistant's write tools (`mcp__claudio__<name>`), said in the person's words.
  * The title is what the call would do and the detail is what it carries, built from the input: a
  * tool's wire name, a field name or a status code never reaches the screen.
  */
@@ -12,7 +12,7 @@ export interface WritePrompt {
   detail: string;
 }
 
-const PREFIX = 'mcp__agentry__';
+const PREFIX = 'mcp__claudio__';
 const KEY = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
 
 const str = (input: Record<string, unknown>, key: string): string => {

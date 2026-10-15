@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@agentry/shared';
+import type { AgentryEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@claudio/shared';
 import type { ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
@@ -40,7 +40,7 @@ const slow: HealthSignal = { kind: 'no-progress', level: 'warn', reason: 'No cha
 const looping: HealthSignal = { kind: 'loop', level: 'bad', reason: 'The same call four times.' };
 
 const chatOf = (id: string, over: Partial<ChatRuntime> = {}): ChatRuntime =>
-  ({ id, name: `chat ${id}`, cwd: '/work', workingDir: '/work/tree', origin: 'agentry', orchestrationId: null, ...over }) as ChatRuntime;
+  ({ id, name: `chat ${id}`, cwd: '/work', workingDir: '/work/tree', origin: 'claudio', orchestrationId: null, ...over }) as ChatRuntime;
 
 const task: TaskContext = { orchestrationId: 'orch-1', taskId: 'build', taskName: 'Build it', limits: null, elapsedMs: 0, spentUsd: 0 };
 

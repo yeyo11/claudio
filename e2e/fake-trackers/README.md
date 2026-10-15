@@ -9,10 +9,10 @@ It answers in the shapes and exit codes youtrack-app 1.0.3 was recorded to print
 (`packages/core/test/fixtures/recordings/youtrack-app/NOTES.md`): `--version`, `rest request` on
 `/api/users/me`, the issue list with its `project:` query and paging, one issue, and a `State`
 field write. Anything else exits 4 with `is not part of the fake`. Every call is appended to
-`$AGENTRY_DATA_DIR/fake-trackers/youtrack.calls` with the address and whether a token was set, never
+`$CLAUDIO_DATA_DIR/fake-trackers/youtrack.calls` with the address and whether a token was set, never
 the token itself, so a spec can check that the token stayed out of argv.
 
-What it answers is read from `$AGENTRY_DATA_DIR/fake-trackers/youtrack.json`, which a State write
+What it answers is read from `$CLAUDIO_DATA_DIR/fake-trackers/youtrack.json`, which a State write
 also updates:
 
 | Key | Default | Effect |

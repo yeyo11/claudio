@@ -24,7 +24,7 @@ interface Minted {
 const sha256 = (value: string): Buffer => createHash('sha256').update(value, 'utf8').digest();
 
 /**
- * The credentials Agentry hands the CLI processes it spawns (`AGENTRY_API_TOKEN`), so a chat can
+ * The credentials Agentry hands the CLI processes it spawns (`CLAUDIO_API_TOKEN`), so a chat can
  * call the wrapper that started it when the API is guarded.
  *
  * In memory only, and only as hashes: nothing here reaches `auth.json`, SQLite or a log, so a

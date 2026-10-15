@@ -2,9 +2,9 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionPointInfo, DecisionSettings } from '@agentry/shared';
+import type { DecisionPointInfo, DecisionSettings } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import i18n from '../src/i18n';
 import { PointRow } from '../src/pages/config/DecisionsTab';
 import { GROUPS, resolveTab } from '../src/pages/config/settingsTabs';
@@ -52,7 +52,7 @@ test.beforeEach(async () => {
 });
 
 test('Decisions sits in the Agentry group and the Supervisor tab is gone from System', () => {
-  const agentry = GROUPS.find((group) => group.id === 'agentry');
+  const agentry = GROUPS.find((group) => group.id === 'claudio');
   assert.ok(agentry?.tabs.includes('decisions'));
   assert.ok(!GROUPS.some((group) => (group.tabs as readonly string[]).includes('supervisor')));
 });

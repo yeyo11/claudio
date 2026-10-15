@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, LoginSession, SetupTool } from '@agentry/shared';
+import type { AgentryEvent, LoginSession, SetupTool } from '@claudio/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { SecretVault } from '../src/secret-vault.ts';
 import { DEVICE_PATTERNS, readDeviceLine } from '../src/setup/device-patterns.ts';

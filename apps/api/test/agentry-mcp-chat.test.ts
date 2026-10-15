@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { Project, WorkItem } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { Project, WorkItem } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // A chat confined to Agentry's read tools answers from the wrapper that runs it: the fake CLI starts
@@ -29,8 +29,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -58,10 +58,10 @@ async function ask(prompt: string) {
 }
 
 test('a confined chat answers how an item is going from the wrapper that runs it', async () => {
-  const { result, blocks } = await ask(`FAKE-MCP-CALL agentry get_work_item {"item":"${item.key}"}\nhow is ${item.key} going?`);
+  const { result, blocks } = await ask(`FAKE-MCP-CALL claudio get_work_item {"item":"${item.key}"}\nhow is ${item.key} going?`);
   assert.equal(result.isError, false, result.result);
   const call = blocks.find((b) => b.type === 'tool_use');
-  assert.equal(call?.type === 'tool_use' ? call.name : null, 'mcp__agentry__get_work_item');
+  assert.equal(call?.type === 'tool_use' ? call.name : null, 'mcp__claudio__get_work_item');
   const answer = blocks.find((b) => b.type === 'tool_result');
   assert.ok(answer?.type === 'tool_result' && !answer.isError, 'the tool answered');
   assert.match(answer.content, /Cart loses items/);

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { AgentryEvent, StreamHelloEvent, StreamResyncEvent } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { AgentryEvent, StreamHelloEvent, StreamResyncEvent } from '@claudio/shared';
 import { openStream } from '../sse.ts';
 
 export const eventRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

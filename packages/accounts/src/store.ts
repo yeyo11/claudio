@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountKind, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@agentry/shared';
+import type { Account, AccountKind, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';

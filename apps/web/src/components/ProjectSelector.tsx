@@ -1,7 +1,7 @@
 import { Folder } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Select } from '@agentry/ui/components/controls/Select';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Select } from '@claudio/ui/components/controls/Select';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 
 /**

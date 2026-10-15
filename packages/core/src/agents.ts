@@ -1,4 +1,4 @@
-import { entryText, normalizeMessage, type TokenUsage, type TranscriptEntry } from '@agentry/shared';
+import { entryText, normalizeMessage, type TokenUsage, type TranscriptEntry } from '@claudio/shared';
 import type { JsonlFold } from './jsonl-cache.ts';
 import { emptyTokenUsage, UsageFold } from './usage.ts';
 

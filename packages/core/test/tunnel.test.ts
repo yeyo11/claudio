@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AuthMode, TunnelStatus } from '@agentry/shared';
+import type { AuthMode, TunnelStatus } from '@claudio/shared';
 import { RuntimeHosts } from '../src/app-settings.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { parseTailscaleVersion, readinessFromStatus, servePortUse, TunnelManager, TunnelRefusedError, type TunnelDeps } from '../src/tunnel.ts';

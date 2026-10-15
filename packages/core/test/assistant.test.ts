@@ -14,7 +14,7 @@ import type {
   ProjectSettings,
   ProjectTeamMember,
   ProviderMove,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, assistantTitle, MODEL_CHOICE, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
 import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { partialJson, resourceDraft } from '../src/assistant-draft.ts';

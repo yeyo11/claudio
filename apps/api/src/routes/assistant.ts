@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { assistantLanguage, type Core } from '@agentry/core';
-import type { AcceptAssistantProposalRequest, StartAgentryAssistantChatRequest, StartAssistantRunRequest } from '@agentry/shared';
+import { assistantLanguage, type Core } from '@claudio/core';
+import type { AcceptAssistantProposalRequest, StartAgentryAssistantChatRequest, StartAssistantRunRequest } from '@claudio/shared';
 import { chatWriteContext } from './work-items.ts';
 
 /**

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { previewCron, type Core } from '@agentry/core';
-import type { CreateScheduleRequest, UpdateScheduleRequest } from '@agentry/shared';
+import { previewCron, type Core } from '@claudio/core';
+import type { CreateScheduleRequest, UpdateScheduleRequest } from '@claudio/shared';
 
 /** Recurring chats and orchestrations. The definitions are JSON, the history is rows. */
 export const scheduleRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

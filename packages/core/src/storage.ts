@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
-import type { AgentryDistribution, StorageKind, StorageLocation, StorageReport } from '@agentry/shared';
+import type { AgentryDistribution, StorageKind, StorageLocation, StorageReport } from '@claudio/shared';
 
 /**
  * Whether the folders that hold the wrapper's state would survive replacing the container, read from

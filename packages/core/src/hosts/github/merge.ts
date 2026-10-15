@@ -1,4 +1,4 @@
-import type { HostReason, MergeMethod } from '@agentry/shared';
+import type { HostReason, MergeMethod } from '@claudio/shared';
 import {
   HostParseError,
   type ChangeRequestState,

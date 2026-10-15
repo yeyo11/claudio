@@ -1,4 +1,4 @@
-import type { DecisionAnswer, DecisionPointId, DecisionProviderId } from '@agentry/shared';
+import type { DecisionAnswer, DecisionPointId, DecisionProviderId } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';

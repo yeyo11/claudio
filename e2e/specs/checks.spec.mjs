@@ -122,7 +122,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // ---- The item page, desktop, both themes ----
     for (const theme of ['dark', 'light']) {
       await page.goto(`/tasks/${item.key}`, 1500);
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       await page.goto(`/tasks/${item.key}`, 1500);
       await page.waitFor(`return document.querySelectorAll('.checks .check-row').length >= 2`, { timeout: 30_000, label: `[${theme}] the checks list` });
       const rows = await page.eval(
@@ -216,7 +216,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---- A phone: the log is a Sheet, the menu is a Sheet, the targets are 44 px ----
     await page.viewport(390, 844);
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.goto(`/tasks/${item.key}`, 1500);
     await page.waitFor(`return !!document.querySelector('.checks .check-row')`, { timeout: 30_000, label: 'the checks on a phone' });
     const heights = await page.eval(`return [...document.querySelectorAll('.checks .check-main, .checks .check-more, .checks .checks-actions .btn')].map((e) => Math.round(e.getBoundingClientRect().height))`);
@@ -314,7 +314,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     writeFileSync(fake.scripts, '{}');
     for (const file of ['gh.json', 'gh.checks', 'gh.created', 'gh.next']) rmSync(join(stateDir, file), { force: true });
     await api.post('/hosts/refresh').catch(() => {});

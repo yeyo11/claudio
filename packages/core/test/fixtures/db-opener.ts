@@ -8,8 +8,8 @@ if (!root) throw new Error('usage: db-opener <root>');
 const config = loadConfig({
   CSWAP_BIN: '/nonexistent/cswap',
   CLAUDE_CONFIG_DIR: `${root}/claude`,
-  AGENTRY_WORKSPACE_DIR: `${root}/workspace`,
-  AGENTRY_DATA_DIR: `${root}/data`,
+  CLAUDIO_WORKSPACE_DIR: `${root}/workspace`,
+  CLAUDIO_DATA_DIR: `${root}/data`,
 });
 process.stdout.write('opening\n');
 new Db(config).close();

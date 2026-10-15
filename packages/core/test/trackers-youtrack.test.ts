@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, CodeHostStatus, ProjectTrackerSettings } from '@agentry/shared';
+import type { AgentryEvent, CodeHostStatus, ProjectTrackerSettings } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { classifyCall, reasonOf } from '../src/hosts/classify.ts';
 import { HostParseError, type HostCall, type HostRepo } from '../src/hosts/code-host.ts';

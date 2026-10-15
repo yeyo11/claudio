@@ -1,11 +1,11 @@
-import type { DocumentKind } from '@agentry/shared';
+import type { DocumentKind } from '@claudio/shared';
 import { FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useDocuments } from '../../../api';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Skeleton } from '@agentry/ui/components/ui';
-import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Skeleton } from '@claudio/ui/components/ui';
+import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { mainTie } from '../../documents/model';
 import { useRoleName } from '../../team/RoleAvatar';
 import { configCount } from '../layout';

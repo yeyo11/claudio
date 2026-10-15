@@ -1,4 +1,4 @@
-import type { ChatModelTokens, ChatProject, UsageReport, UsageTotals } from '@agentry/shared';
+import type { ChatModelTokens, ChatProject, UsageReport, UsageTotals } from '@claudio/shared';
 import { addTokenUsage, emptyTokenUsage, type DayTokens } from './usage.ts';
 
 /** What one chat spent, as the report reads it: where it belongs and what it spent on which day. */

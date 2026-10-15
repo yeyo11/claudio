@@ -11,7 +11,7 @@ import type {
   ReviewSide,
   ReviewThread,
   WorkItemPullRequestCi,
-} from '@agentry/shared';
+} from '@claudio/shared';
 
 /**
  * One call to a CLI, as an adapter describes it. An adapter never runs anything: it returns this

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_WRITE_TOOL_NAMES } from '@agentry/mcp';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '@claudio/mcp';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -68,13 +68,13 @@ function assertConfined(argv: string, language: 'English' | 'Spanish' = 'English
   assert.ok(args.includes('--setting-sources='), 'no settings file');
   assert.ok(args.includes('--strict-mcp-config'), 'only the agentry server');
   assert.equal(args.filter((a) => a.startsWith('--mcp-config=')).length, 1);
-  assert.ok(args.includes(`--allowedTools=${AGENTRY_MCP_READ_TOOLS.join(',')}`), 'the read tools and nothing else');
+  assert.ok(args.includes(`--allowedTools=${CLAUDIO_MCP_READ_TOOLS.join(',')}`), 'the read tools and nothing else');
   assert.ok(!args.includes('--add-dir'), 'no uploads directory');
   assert.ok(!args.includes('--allow-dangerously-skip-permissions'), 'never to be switched to bypass');
   assert.match(argv, /--permission-mode manual/);
   assert.match(argv, /--permission-prompt-tool stdio/);
   assert.ok(!/bypassPermissions|acceptEdits|dontAsk/.test(argv));
-  assert.ok(!args.some((a) => a.startsWith('--allowedTools=') && AGENTRY_MCP_WRITE_TOOL_NAMES.some((n) => a.includes(n))), 'no write tool is allowed ahead of time');
+  assert.ok(!args.some((a) => a.startsWith('--allowedTools=') && CLAUDIO_MCP_WRITE_TOOL_NAMES.some((n) => a.includes(n))), 'no write tool is allowed ahead of time');
   assert.match(argv, /--append-system-prompt You are the Agentry assistant/);
   assert.match(argv, new RegExp(`Answer in ${language}`));
   assert.ok(!argv.includes('ignore everything above'));
@@ -111,7 +111,7 @@ test('an assistant chat starts confined, on sonnet, in the project in scope, wit
     assert.equal(env?.url, API);
     assert.ok(env?.token, 'the per-chat API token the MCP server calls the API with');
     assert.deepEqual((await core.chats.get(chat.id))?.agentryAssistant, { projectId: project.id, language: 'es' });
-    assert.equal(core.runtime.get(chat.id)?.tools?.allowedTools.length, AGENTRY_MCP_READ_TOOLS.length);
+    assert.equal(core.runtime.get(chat.id)?.tools?.allowedTools.length, CLAUDIO_MCP_READ_TOOLS.length);
   } finally {
     cleanup(core);
     rmSync(dir, { recursive: true, force: true });
@@ -171,7 +171,7 @@ test('a restart picks the chat up confined again, in the language it started wit
     assertConfined(picked, 'Spanish');
     const file = picked.split(' ').find((a) => a.startsWith('--mcp-config='))?.slice('--mcp-config='.length) ?? '';
     const written = JSON.parse(readFileSync(file, 'utf8')) as { mcpServers: Record<string, { env: Record<string, string> }> };
-    assert.equal(written.mcpServers.agentry?.env.AGENTRY_API_URL, 'http://127.0.0.1:34332/api');
+    assert.equal(written.mcpServers.claudio?.env.CLAUDIO_API_URL, 'http://127.0.0.1:34332/api');
   } finally {
     cleanup(core);
   }

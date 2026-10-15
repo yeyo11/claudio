@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import test, { after } from 'node:test';
-import type { ChangeRequestChecks, Check, DecisionAnswer, DecisionRecord, WorkItem } from '@agentry/shared';
+import type { ChangeRequestChecks, Check, DecisionAnswer, DecisionRecord, WorkItem } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { ChecksFix } from '../src/decisions/checks-fix.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';

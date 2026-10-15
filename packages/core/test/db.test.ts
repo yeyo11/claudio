@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { DecisionRecord, Execution, ProviderMove } from '@agentry/shared';
+import type { DecisionRecord, Execution, ProviderMove } from '@claudio/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
 import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
@@ -38,7 +38,7 @@ const chat = (id: string, createdAt: string, executions: Execution[] = [executio
     name: id,
     cwd: '/tmp',
     workingDir: null,
-    origin: 'agentry',
+    origin: 'claudio',
     orchestrationId: null,
     orchestrationTaskId: null,
     derivedFrom: null,

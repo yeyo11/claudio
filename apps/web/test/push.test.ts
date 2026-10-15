@@ -101,7 +101,7 @@ test('the VAPID key reaches subscribe() as the bytes it was, whatever base64 it 
 
 test('this browser knows which row of the device list is itself', async () => {
   const endpoint = 'https://updates.push.services.mozilla.com/wpush/v2/abcdef';
-  // The same derivation as `idOfEndpoint` in @agentry/core, which is what filed the row
+  // The same derivation as `idOfEndpoint` in @claudio/core, which is what filed the row
   assert.equal(await subscriptionId(endpoint), createHash('sha256').update(endpoint).digest('hex').slice(0, 16));
   assert.notEqual(await subscriptionId(endpoint), await subscriptionId(`${endpoint}2`));
 });

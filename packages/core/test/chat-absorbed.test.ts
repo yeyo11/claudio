@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { entryText } from '@agentry/shared';
+import { entryText } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { encodeProjectId } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';

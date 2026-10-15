@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { Execution, MessageDelivery } from '@agentry/shared';
+import type { Execution, MessageDelivery } from '@claudio/shared';
 import { ChatManager, ChatRefusal } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
@@ -167,7 +167,7 @@ test('a chat restored with messages the agent had not taken says they were lost'
           name: 'c1',
           cwd: config.workspaceDir,
           workingDir: null,
-          origin: 'agentry',
+          origin: 'claudio',
           orchestrationId: null,
           orchestrationTaskId: null,
           derivedFrom: null,

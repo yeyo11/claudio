@@ -61,8 +61,8 @@ test('a project scope on the config dir hides the credentials as the user scope 
   const home = mkdtempSync(join(tmpdir(), 'agentry-home-'));
   const config = loadConfig({
     CLAUDE_CONFIG_DIR: join(home, '.claude'),
-    AGENTRY_WORKSPACE_DIR: join(home, 'workspace'),
-    AGENTRY_DATA_DIR: join(home, 'data'),
+    CLAUDIO_WORKSPACE_DIR: join(home, 'workspace'),
+    CLAUDIO_DATA_DIR: join(home, 'data'),
   });
   const explorer = new ConfigExplorer(config.configDir);
   mkdirSync(join(config.configDir, 'projects'), { recursive: true });

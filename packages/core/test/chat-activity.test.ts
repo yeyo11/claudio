@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, ChatActivity } from '@agentry/shared';
+import type { AgentryEvent, ChatActivity } from '@claudio/shared';
 import { activityKey, activityTarget, ChatActivityTracker } from '../src/chat-activity.ts';
 import { ChatManager, type ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
@@ -102,7 +102,7 @@ function runtime(activity: ChatActivity | null): ChatRuntime {
     name: 'demo',
     cwd: '/work',
     workingDir: '/work',
-    origin: 'agentry',
+    origin: 'claudio',
     derivedFrom: null,
     model: null,
     permissionMode: 'manual',

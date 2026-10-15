@@ -1,17 +1,17 @@
-import type { AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@agentry/shared';
+import type { AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@claudio/shared';
 import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Switch } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { Switch } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { QrCode } from '../../components/QrCode';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
@@ -176,7 +176,7 @@ export function TunnelPanel({
     );
   }
 
-  // Off by the deploy (AGENTRY_TUNNEL, off in the image): only whoever runs Agentry can change that,
+  // Off by the deploy (CLAUDIO_TUNNEL, off in the image): only whoever runs Agentry can change that,
   // so a start button would only ever answer 409
   if (!status.enabled) {
     return (
@@ -186,7 +186,7 @@ export function TunnelPanel({
           <ShieldAlert {...ICON} className="alert-icon" />
           <div className="alert-body">
             <strong>{t('remote.disabled.title')}</strong>
-            <div className="small">{t('remote.disabled.body', { variable: 'AGENTRY_TUNNEL=on' })}</div>
+            <div className="small">{t('remote.disabled.body', { variable: 'CLAUDIO_TUNNEL=on' })}</div>
           </div>
         </div>
       </Card>

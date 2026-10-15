@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { MotionLevel } from '@agentry/ui/lib/motion';
+import type { MotionLevel } from '@claudio/ui/lib/motion';
 
 // The motion level decides whether anything on screen loops. What matters is that it is decided
 // before the first paint, that the operating system's answer beats the stored one, and that a
@@ -19,7 +19,7 @@ let instance = 0;
 async function load({ reduced = false, stored }: { reduced?: boolean; stored?: string } = {}): Promise<Loaded> {
   const root = { dataset: {} as Record<string, string> };
   const store = new Map<string, string>();
-  if (stored !== undefined) store.set('agentry-motion', stored);
+  if (stored !== undefined) store.set('claudio-motion', stored);
   const handlers = new Map<string, Set<() => void>>();
   const listen = (type: string, fn: () => void) => {
     const set = handlers.get(type) ?? new Set();
@@ -75,10 +75,10 @@ test('choosing a level stores it, and choosing the default stops storing anythin
   const { root, stored, setMotionPreference } = await load();
   setMotionPreference('subtle');
   assert.equal(root.dataset.motion, 'subtle');
-  assert.equal(stored.get('agentry-motion'), 'subtle');
+  assert.equal(stored.get('claudio-motion'), 'subtle');
   setMotionPreference('full');
   assert.equal(root.dataset.motion, 'full');
-  assert.equal(stored.has('agentry-motion'), false);
+  assert.equal(stored.has('claudio-motion'), false);
 });
 
 test('a hidden tab is marked, so the stylesheet can pause every loop, and unmarked on return', async () => {

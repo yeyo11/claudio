@@ -1,13 +1,13 @@
-import type { SupervisorConfig } from '@agentry/shared';
+import type { SupervisorConfig } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Switch } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, Field, Skeleton } from '@agentry/ui/components/ui';
+import { NumberInput, Switch } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, ErrorBox, Field, Skeleton } from '@claudio/ui/components/ui';
 import { ModelCombobox } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 

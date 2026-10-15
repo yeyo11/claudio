@@ -2,7 +2,7 @@ import * as RadixPopover from '@radix-ui/react-popover';
 import { useEffect, useId, useMemo, useState, type ReactElement, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { applyCommand, commandNames, matchCommands, slashQuery } from '../lib/slash-commands';
-import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
+import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
 
 /** What the menu needs of the box it completes: to put the chosen command in, and the focus back. */
 export interface SlashTarget {

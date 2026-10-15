@@ -1,4 +1,4 @@
-import type { AgentryDistribution } from '@agentry/shared';
+import type { AgentryDistribution } from '@claudio/shared';
 
 /**
  * What the Updates card offers, decided from what kind of install the server is and from where the

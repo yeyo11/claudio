@@ -1,4 +1,4 @@
-import type { DocumentNode, DocumentTie, WorkItemLink } from '@agentry/shared';
+import type { DocumentNode, DocumentTie, WorkItemLink } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {

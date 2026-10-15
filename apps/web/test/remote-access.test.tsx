@@ -3,15 +3,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import type { AppSettings, AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@agentry/shared';
+import type { AppSettings, AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
-import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
-import { ToastProvider } from '@agentry/ui/components/Toast';
-import { ConfirmProvider } from '@agentry/ui/components/Dialog';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { ToastProvider } from '@claudio/ui/components/Toast';
+import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { patchSettings, targetsFor } from '../src/lib/events';
 import { encodeQr, formatBits, reedSolomon } from '../src/lib/qr';
@@ -244,7 +244,7 @@ test('the Tailscale Agentry runs is signed in from the tab, never with a command
 test('a deploy that turned the tunnel off says who can turn it on, and offers no button', () => {
   const html = panel(status('stopped', { enabled: false }));
   assert.match(html, /tunnel-disabled/);
-  assert.ok(text(html).includes('AGENTRY_TUNNEL=on'));
+  assert.ok(text(html).includes('CLAUDIO_TUNNEL=on'));
   assert.doesNotMatch(html, /tunnel-start/);
 });
 
@@ -346,15 +346,15 @@ test('a setting the environment set is shown read-only, naming its variable', ()
   client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }, { env: ['*.devtunnels.ms'], file: ['agentry.example.com'] }));
   const html = wrap(<AppSettingsCards />, client);
   assert.ok(text(html).includes('set by the environment'));
-  assert.ok(html.includes('AGENTRY_ALLOWED_HOSTS'));
-  assert.ok(html.includes('AGENTRY_DEFAULT_PERMISSION_MODE'));
+  assert.ok(html.includes('CLAUDIO_ALLOWED_HOSTS'));
+  assert.ok(html.includes('CLAUDIO_DEFAULT_PERMISSION_MODE'));
   // The environment's hosts are a tagged list; the ones added here stay editable beside them
   assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text">set by the environment/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>agentry\.example\.com<\/textarea>/);
   assert.ok(text(html).includes('beside the ones from the environment'));
   // The mode's picker is disabled; the run limit stays editable
   assert.match(html, /role="combobox"[^>]*disabled=""[^>]*class="select-trigger/);
-  assert.doesNotMatch(html, /AGENTRY_MAX_CONCURRENT_RUNS/);
+  assert.doesNotMatch(html, /CLAUDIO_MAX_CONCURRENT_RUNS/);
 });
 
 test("the tunnel's host is listed read-only while it is lent, and is not in the field", () => {
@@ -363,7 +363,7 @@ test("the tunnel's host is listed read-only while it is lent, and is not in the 
   const html = wrap(<AppSettingsCards />, client);
   assert.match(html, /<span class="mono">abc123\.lhr\.life<\/span><span class="badge badge-muted"><span class="badge-text">tunnel, while it is open/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*><\/textarea>/);
-  assert.doesNotMatch(html, /AGENTRY_ALLOWED_HOSTS/);
+  assert.doesNotMatch(html, /CLAUDIO_ALLOWED_HOSTS/);
 });
 
 test('settings nobody pinned are editable', () => {

@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { TrackersSettings } from '@agentry/shared';
+import type { TrackersSettings } from '@claudio/shared';
 import { CodeHostDetector } from '../src/hosts/detector.ts';
 import { defaultCodeHostsSettings } from '../src/hosts/settings.ts';
 import { TrackerDetector, type TrackerDetectorDeps } from '../src/trackers/detector.ts';

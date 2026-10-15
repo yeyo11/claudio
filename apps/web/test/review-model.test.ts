@@ -1,4 +1,4 @@
-import type { ChangedFile, ChangeSummary, DecisionRecord, EditStep } from '@agentry/shared';
+import type { ChangedFile, ChangeSummary, DecisionRecord, EditStep } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {

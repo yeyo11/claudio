@@ -1,4 +1,4 @@
-import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@agentry/shared';
+import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@claudio/shared';
 
 // What a provider's state looks like and what can be done about it, as plain data: the row, the
 // first-run step and the status bar all read it, and a test reads it without a page.

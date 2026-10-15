@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { PutTeamMemberRequest, TeamFromTemplateRequest } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { PutTeamMemberRequest, TeamFromTemplateRequest } from '@claudio/shared';
 
 /**
  * A project's team. A member is a CLI agent file plus the metadata Agentry keeps beside it; these

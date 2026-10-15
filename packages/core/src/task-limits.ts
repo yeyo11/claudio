@@ -1,4 +1,4 @@
-import type { OrchestrationTaskState, TaskLimits } from '@agentry/shared';
+import type { OrchestrationTaskState, TaskLimits } from '@claudio/shared';
 import { SOFT_LIMIT } from './health.ts';
 
 // What a task of an orchestration may spend. The cost ceiling is the CLI's (`--max-budget-usd` ends

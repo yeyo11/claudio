@@ -1,10 +1,10 @@
-import type { FlowRun, TeamMember } from '@agentry/shared';
+import type { FlowRun, TeamMember } from '@claudio/shared';
 import { Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Monogram } from '@agentry/ui/components/icons';
+import { Monogram } from '@claudio/ui/components/icons';
 import { WorkItemKey, WorkItemStatusIcon } from '../../components/work-item-icons';
-import { timeAgo } from '@agentry/ui/lib/format';
+import { timeAgo } from '@claudio/ui/lib/format';
 import { columnMeta, taskPath } from '../../lib/work-items';
 import { runNote, runStep, runTimeOf } from './model';
 import { RoleAvatar, useRoleName } from './RoleAvatar';

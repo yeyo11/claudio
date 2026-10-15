@@ -34,7 +34,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Name of the Secret holding AGENTRY_SECRET_KEY, or empty when none was given */}}
+{{/* Name of the Secret holding CLAUDIO_SECRET_KEY, or empty when none was given */}}
 {{- define "claudio.secretKeySecret" -}}
 {{- if .Values.secretKey.existingSecret -}}
 {{- .Values.secretKey.existingSecret -}}

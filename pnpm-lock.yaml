@@ -30,13 +30,13 @@ importers:
 
   apps/api:
     dependencies:
-      '@agentry/accounts':
+      '@claudio/accounts':
         specifier: workspace:*
         version: link:../../packages/accounts
-      '@agentry/core':
+      '@claudio/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@fastify/compress':
@@ -73,7 +73,7 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@agentry/core':
+      '@claudio/core':
         specifier: workspace:*
         version: link:../../packages/core
       electron-updater:
@@ -92,13 +92,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@agentry/chat-ui':
+      '@claudio/chat-ui':
         specifier: workspace:*
         version: link:../../packages/chat-ui
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@agentry/ui':
+      '@claudio/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@codemirror/lang-javascript':
@@ -207,7 +207,7 @@ importers:
 
   packages/accounts:
     dependencies:
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -217,10 +217,10 @@ importers:
 
   packages/chat-ui:
     dependencies:
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../shared
-      '@agentry/ui':
+      '@claudio/ui':
         specifier: workspace:*
         version: link:../ui
       '@lezer/highlight':
@@ -296,13 +296,13 @@ importers:
 
   packages/core:
     dependencies:
-      '@agentry/accounts':
+      '@claudio/accounts':
         specifier: workspace:*
         version: link:../accounts
-      '@agentry/mcp':
+      '@claudio/mcp':
         specifier: workspace:*
         version: link:../mcp
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../shared
       '@typesafe-ai/sdk':
@@ -318,13 +318,13 @@ importers:
 
   packages/mcp:
     devDependencies:
-      '@agentry/api':
+      '@claudio/api':
         specifier: workspace:*
         version: link:../../apps/api
-      '@agentry/core':
+      '@claudio/core':
         specifier: workspace:*
         version: link:../core
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../shared
       fastify:
@@ -338,7 +338,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@agentry/shared':
+      '@claudio/shared':
         specifier: workspace:*
         version: link:../shared
       '@radix-ui/react-checkbox':

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { EFFORT_LEVELS, isEffort, type Commit, type VerificationSpec } from '@agentry/shared';
+import { EFFORT_LEVELS, isEffort, type Commit, type VerificationSpec } from '@claudio/shared';
 import { git } from './git.ts';
 import { processTable, terminateTree } from './processes.ts';
 import { pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';

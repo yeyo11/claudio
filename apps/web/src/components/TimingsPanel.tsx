@@ -1,12 +1,12 @@
-import type { Orchestration, OrchestrationPhaseName, OrchestrationTimings, TaskWait } from '@agentry/shared';
+import type { Orchestration, OrchestrationPhaseName, OrchestrationTimings, TaskWait } from '@claudio/shared';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOrchestrationTimings } from '../api';
-import { formatDuration } from '@agentry/ui/lib/format';
+import { formatDuration } from '@claudio/ui/lib/format';
 import { phaseCells, phaseTone, timingsPhaseKey, WAIT_TONE } from '../lib/orchestration-timings';
-import { Collapsible } from '@agentry/ui/components/controls';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Tag } from '@agentry/ui/components/ui';
+import { Collapsible } from '@claudio/ui/components/controls';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Tag } from '@claudio/ui/components/ui';
 
 /**
  * On a link of the critical path, a gap shorter than this is scheduling, not a wait worth a word:

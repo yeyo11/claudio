@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { ProviderId, ProviderStatus, ProvidersSettings } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { TFunction } from 'i18next';

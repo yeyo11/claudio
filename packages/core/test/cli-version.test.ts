@@ -79,7 +79,7 @@ test('two checks at once are one request', async () => {
 });
 
 test('only an exact version counts as pinned', () => {
-  const pinned = (value: string) => new CliVersionWatch(tempConfig(), { env: { AGENTRY_CLAUDE_CODE_PINNED: value } }).pinned;
+  const pinned = (value: string) => new CliVersionWatch(tempConfig(), { env: { CLAUDIO_CLAUDE_CODE_PINNED: value } }).pinned;
   assert.equal(pinned('2.1.278'), '2.1.278');
   assert.equal(pinned('latest'), null);
   assert.equal(pinned('stable'), null);
@@ -89,7 +89,7 @@ test('only an exact version counts as pinned', () => {
 test('the registry can be pointed elsewhere for a mirror', async () => {
   const seen: string[] = [];
   const watch = new CliVersionWatch(tempConfig(), {
-    env: { AGENTRY_CLI_REGISTRY_URL: 'https://mirror.example/claude-code/latest' },
+    env: { CLAUDIO_CLI_REGISTRY_URL: 'https://mirror.example/claude-code/latest' },
     fetch: (async (url: string | URL | Request) => {
       seen.push(String(url));
       return new Response(JSON.stringify({ version: '2.1.300' }));
@@ -100,7 +100,7 @@ test('the registry can be pointed elsewhere for a mirror', async () => {
 });
 
 test('the daily check can be switched off and leaves no timer behind', () => {
-  const watch = new CliVersionWatch(tempConfig(), { env: { AGENTRY_CLI_UPDATE_CHECK: 'off' } });
+  const watch = new CliVersionWatch(tempConfig(), { env: { CLAUDIO_CLI_UPDATE_CHECK: 'off' } });
   watch.startDaily();
   const on = new CliVersionWatch(tempConfig(), { env: {} });
   on.startDaily();

@@ -1,4 +1,4 @@
-import type { WorkItem, WorkItemFilter } from '@agentry/shared';
+import type { WorkItem, WorkItemFilter } from '@claudio/shared';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useListParams } from '../../../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../../../lib/project-scope';

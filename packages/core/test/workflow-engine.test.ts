@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { Orchestration } from '@agentry/shared';
+import type { Orchestration } from '@claudio/shared';
 import type { WorkflowRun } from '../src/cli-facts.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';

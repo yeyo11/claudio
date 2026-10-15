@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /** Claude Code's per-project file memory (<configDir>/projects/<directory>/memory/*.md), addressed by project id. */
 export const memoryRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

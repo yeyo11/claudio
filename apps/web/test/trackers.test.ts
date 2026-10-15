@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, CodeHostStatus, TrackerIssue, TrackerStatus } from '@agentry/shared';
+import type { AgentryEvent, CodeHostStatus, TrackerIssue, TrackerStatus } from '@claudio/shared';
 import { api, keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
 import {

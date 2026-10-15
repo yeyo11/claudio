@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ReviewThread } from '@agentry/shared';
+import type { ReviewThread } from '@claudio/shared';
 import { addressable, answeredWith, countThreads, followUp, isReviewFix, noteHeadOf, partlyPost, pinNoteHead, reviewedHead } from '../src/lib/reviews';
 
 // The rules the item page's review block and its address follow-up stand on (docs/plans/code-hosts.md,

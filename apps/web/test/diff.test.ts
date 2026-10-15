@@ -42,7 +42,7 @@ test('parsing numbers every line on the side it exists on and drops the file hea
   assert.deepEqual([first!.oldStart, first!.oldLines, first!.newStart, first!.newLines], [1, 9, 1, 12]);
   assert.equal(first!.lines.length, 14);
   assert.deepEqual(first!.lines[0], { kind: 'ctx', text: "import { execFileSync } from 'node:child_process';", old: 1, new: 1 });
-  assert.deepEqual(first!.lines[1], { kind: 'del', text: "import type { ChangedFile, Commit } from '@agentry/shared';", old: 2, new: null });
+  assert.deepEqual(first!.lines[1], { kind: 'del', text: "import type { ChangedFile, Commit } from '@claudio/shared';", old: 2, new: null });
   assert.equal(first!.lines[2]!.new, 2);
   assert.equal(first!.lines[2]!.old, null);
   // No line of the header leaks in as content

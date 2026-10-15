@@ -1,4 +1,4 @@
-import type { LimitWait, Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { LimitWait, Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Ban,
@@ -30,28 +30,28 @@ import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useDetailPanel } from '../lib/detail';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
-import { durationBetween, formatCost } from '@agentry/ui/lib/format';
-import { useClockTick } from '@agentry/ui/lib/motion';
+import { durationBetween, formatCost } from '@claudio/ui/lib/format';
+import { useClockTick } from '@claudio/ui/lib/motion';
 import { canRerun, dependantsOf } from '../lib/orchestration-v2';
 import { orchestrationProgress } from '../lib/orchestration-steps';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { healthReason } from '../lib/server-strings';
 import { withoutKey } from '../lib/work-item-links';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
-import { Collapsible, Tooltip } from '@agentry/ui/components/controls';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
+import { Collapsible, Tooltip } from '@claudio/ui/components/controls';
 import { DecisionMark } from './DecisionMark';
 import { WaitLine } from './WaitLine';
 import { useProviderLabel } from '../lib/provider-status';
-import { useConfirm } from '@agentry/ui/components/Dialog';
+import { useConfirm } from '@claudio/ui/components/Dialog';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { HealthBadge } from './observe/Health';
-import { motion, useReducedMotion } from '@agentry/ui/components/motion';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { RichText } from '@agentry/chat-ui/components/Transcript';
-import { ErrorBox, Field, statusText } from '@agentry/ui/components/ui';
+import { motion, useReducedMotion } from '@claudio/ui/components/motion';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { RichText } from '@claudio/chat-ui/components/Transcript';
+import { ErrorBox, Field, statusText } from '@claudio/ui/components/ui';
 
 /**
  * A status is always its icon and its word, never a colour alone. `held` is the synthesis waiting on

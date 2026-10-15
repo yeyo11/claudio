@@ -63,7 +63,7 @@ test('seen is kept per source and file, and a file that changes again is unseen'
   assert.deepEqual(readSeen('chat:2', s), {}, 'another source has its own');
   seen = markSeen(seen, a, null, false);
   writeSeen('chat:1', seen, s);
-  assert.equal(s.data.has('agentry-review-seen:v1:chat:1'), false, 'an empty map is removed');
+  assert.equal(s.data.has('claudio-review-seen:v1:chat:1'), false, 'an empty map is removed');
 });
 
 test('a mark made before the diff was read holds whatever the diff is', () => {
@@ -74,16 +74,16 @@ test('a mark made before the diff was read holds whatever the diff is', () => {
 
 test('garbage in the store reads as nothing seen', () => {
   const s = memory();
-  s.data.set('agentry-review-seen:v1:chat:1', '{not json');
+  s.data.set('claudio-review-seen:v1:chat:1', '{not json');
   assert.deepEqual(readSeen('chat:1', s), {});
-  s.data.set('agentry-review-seen:v1:chat:1', JSON.stringify({ 'a.ts': 5, 'b.ts': { sig: 'modified:1:0', hash: 7 } }));
+  s.data.set('claudio-review-seen:v1:chat:1', JSON.stringify({ 'a.ts': 5, 'b.ts': { sig: 'modified:1:0', hash: 7 } }));
   assert.deepEqual(readSeen('chat:1', s), { 'b.ts': { sig: 'modified:1:0', hash: null } });
 });
 
 test('the oldest sources are forgotten past the cap', () => {
   const s = memory();
   for (let i = 0; i < 65; i++) writeSeen(`chat:${i}`, { 'a.ts': { sig: 'x', hash: null } }, s);
-  assert.equal(s.data.has('agentry-review-seen:v1:chat:0'), false);
-  assert.equal(s.data.has('agentry-review-seen:v1:chat:64'), true);
-  assert.equal((JSON.parse(s.data.get('agentry-review-seen:v1') ?? '[]') as string[]).length, 60);
+  assert.equal(s.data.has('claudio-review-seen:v1:chat:0'), false);
+  assert.equal(s.data.has('claudio-review-seen:v1:chat:64'), true);
+  assert.equal((JSON.parse(s.data.get('claudio-review-seen:v1') ?? '[]') as string[]).length, 60);
 });

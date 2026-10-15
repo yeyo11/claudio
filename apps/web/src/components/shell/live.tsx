@@ -1,4 +1,4 @@
-import type { Overview } from '@agentry/shared';
+import type { Overview } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -6,12 +6,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { useFallbackInterval } from '../../lib/events';
 import { liveSummary, type LiveItem, type LiveSummary } from '../../lib/shell-live';
-import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
-import { Menu, type MenuEntry } from '@agentry/ui/components/controls/Menu';
-import { ICON } from '@agentry/ui/components/icons';
-import { StatusDot } from '@agentry/ui/components/motion';
-import { ProgressBar } from '@agentry/ui/components/ProgressBar';
-import { Spinner } from '@agentry/ui/components/Spinner';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
+import { Menu, type MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { ICON } from '@claudio/ui/components/icons';
+import { StatusDot } from '@claudio/ui/components/motion';
+import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { Spinner } from '@claudio/ui/components/Spinner';
 
 /** How many chats of each state the shell asks for: it lists what is live, not the history. */
 const LIVE_LIMIT = 10;

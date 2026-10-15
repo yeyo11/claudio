@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ReviewDraft, ReviewThread } from '@agentry/shared';
+import type { ReviewDraft, ReviewThread } from '@claudio/shared';
 import { parseUnified } from '../src/lib/diff';
 import { draftAnchor, draftsByLine, draftsInFile, newLineText } from '../src/lib/review-lines';
 import { groupThreads, lineKey } from '../src/lib/reviews';

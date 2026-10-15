@@ -1,4 +1,4 @@
-import type { AgentryAssistantMarker, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
+import type { AgentryAssistantMarker, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@claudio/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -141,7 +141,7 @@ export function chatsFromRuns(runs: readonly LegacyRun[]): ConvertedRuns {
         name: last.name,
         cwd: last.cwd,
         workingDir: last.workingDir ?? null,
-        origin: last.internal ? 'internal' : last.orchestrationId ? 'orchestration' : 'agentry',
+        origin: last.internal ? 'internal' : last.orchestrationId ? 'orchestration' : 'claudio',
         orchestrationId: last.orchestrationId,
         orchestrationTaskId: last.orchestrationTaskId,
         derivedFrom: null,

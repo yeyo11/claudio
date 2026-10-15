@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const gl = (file: string): string => readFileSync(join(here, 'fixtures/recordings/glab/1.120.0', file), 'utf8');
 const GOLDEN = join(here, 'fixtures/golden/phase2');
 
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 const ghRepo: HostRepo = { host: 'github.com', path: 'acme/shop', owner: 'acme', name: 'shop' };
 
 const ok = (stdout: string): HostResult => ({ exitCode: 0, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1 });

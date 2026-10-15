@@ -1,4 +1,4 @@
-import type { ChangeRequestThreads, ReviewThread } from '@agentry/shared';
+import type { ChangeRequestThreads, ReviewThread } from '@claudio/shared';
 import { stanceOf, type DecisionAsker } from './stance.ts';
 
 /*

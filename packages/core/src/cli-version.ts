@@ -1,4 +1,4 @@
-import type { CliVersionInfo } from '@agentry/shared';
+import type { CliVersionInfo } from '@claudio/shared';
 import type { CoreConfig } from './paths.ts';
 import { VERSION, VersionCheck, compareVersions, type VersionCheckOptions } from './version-check.ts';
 
@@ -24,7 +24,7 @@ export class CliVersionWatch extends VersionCheck<Stored> {
       config,
       {
         file: 'cli-version.json',
-        offSwitch: 'AGENTRY_CLI_UPDATE_CHECK',
+        offSwitch: 'CLAUDIO_CLI_UPDATE_CHECK',
         empty: { latest: null, checkedAt: null },
         parse: (saved) => ({
           latest: typeof saved.latest === 'string' ? saved.latest : null,
@@ -37,7 +37,7 @@ export class CliVersionWatch extends VersionCheck<Stored> {
 
   /** The version the image was built with, when it pinned an exact one. */
   get pinned(): string | null {
-    const value = this.env.AGENTRY_CLAUDE_CODE_PINNED?.trim();
+    const value = this.env.CLAUDIO_CLAUDE_CODE_PINNED?.trim();
     return value && VERSION.test(value) ? value : null;
   }
 
@@ -55,7 +55,7 @@ export class CliVersionWatch extends VersionCheck<Stored> {
   }
 
   protected async fetchLatest(): Promise<Stored> {
-    const url = this.env.AGENTRY_CLI_REGISTRY_URL || REGISTRY_URL;
+    const url = this.env.CLAUDIO_CLI_REGISTRY_URL || REGISTRY_URL;
     const res = await this.fetchFn(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`the registry answered ${res.status}`);
     const body = (await res.json()) as { version?: unknown };

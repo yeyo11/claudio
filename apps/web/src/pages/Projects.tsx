@@ -1,23 +1,23 @@
-import type { Project, ProjectCandidate } from '@agentry/shared';
+import type { Project, ProjectCandidate } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useChats, useProjectCandidates, useProjects } from '../api';
-import { Menu, Sheet, type MenuEntry } from '@agentry/ui/components/controls';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { Menu, Sheet, type MenuEntry } from '@claudio/ui/components/controls';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../components/work-item-icons';
-import { ListToolbar } from '@agentry/ui/components/ListToolbar';
-import { StatusDot } from '@agentry/ui/components/motion';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Loading, Tag } from '@agentry/ui/components/ui';
+import { ListToolbar } from '@claudio/ui/components/ListToolbar';
+import { StatusDot } from '@claudio/ui/components/motion';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, Empty, ErrorBox, Loading, Tag } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
-import { intlLocale } from '@agentry/ui/i18n/language';
-import { formatDate, formatDateTime, formatNumber, timeAgo, toMs } from '@agentry/ui/lib/format';
+import { intlLocale } from '@claudio/ui/i18n/language';
+import { formatDate, formatDateTime, formatNumber, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { matchesText, PROJECT_SORTERS, type ProjectSort } from '../lib/lists';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { GLOBAL_SCOPE, useListParams } from '../lib/list-params';
 import { useProjectScope } from '../lib/project-scope';
 import { NEW_PROJECT_PATH } from '../lib/work-items';
@@ -333,7 +333,7 @@ export function Projects() {
   // The card that stands out is the project the top bar has selected; with All projects none does
   const { projectId: activeId } = useProjectScope();
   // A project is live while a chat under it is working: that, and only that, gets the pinging dot
-  const working = useChats({ state: 'working', origin: ['agentry', 'external', 'orchestration'] });
+  const working = useChats({ state: 'working', origin: ['claudio', 'external', 'orchestration'] });
   const liveIds = new Set((working.data ?? []).flatMap((chat) => (chat.project ? [chat.project.id] : [])));
   // Candidates are always there to offer; the page decides how loudly, and only asks once it knows
   const candidates = useProjectCandidates(!isLoading);

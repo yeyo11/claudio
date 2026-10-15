@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
-import { BOARD_DONE_PAGE } from '@agentry/shared';
+import type { BoardColumn, WorkItem, WorkItemStatus } from '@claudio/shared';
+import { BOARD_DONE_PAGE } from '@claudio/shared';
 import { boardTotal, childProgress, DONE_SHOWN, doneLimitFor, foldColumn, holdsPart, newestDoneFirst, nextDoneShown } from '../src/pages/tasks/board/model.ts';
 import { listGroups, listMore } from '../src/pages/tasks/list-model.ts';
 

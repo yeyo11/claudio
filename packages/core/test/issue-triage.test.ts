@@ -35,7 +35,7 @@ function setup() {
   const access: TrackerAccess = {
     host: 'gitlab',
     hostname: 'gitlab.com',
-    repo: { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry' },
+    repo: { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio' },
     run: async (call: HostCall) => ok(call.args[1] === 'list' ? recorded('iss_list') : recorded('iss_view')),
   };
   const service = new TrackerImportService({

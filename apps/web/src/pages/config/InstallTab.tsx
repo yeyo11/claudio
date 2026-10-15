@@ -1,9 +1,9 @@
 import { Bell, ChevronRight, Download, Share, ShieldAlert, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Empty } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Empty } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useInstallState } from '../../lib/pwa';
 
 /**

@@ -1,9 +1,9 @@
-import type { WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
+import type { WorkItemDetail, WorkItemPullRequest } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, ExternalLink, GitPullRequest, Hourglass, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { api, keys } from '../../../api';
 import { ChangeRequestFreshness } from '../../../components/ChangeRequestFreshness';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';

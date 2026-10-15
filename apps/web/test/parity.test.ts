@@ -1,6 +1,6 @@
 // The floors the colours of the lighter highlighter are held to, language by language: how many
 // of the characters a reader sees it colours exactly as shiki colours them with the same themes.
-// `pnpm --filter @agentry/web parity` reports what the rest are; the differences left at these
+// `pnpm --filter @claudio/web parity` reports what the rest are; the differences left at these
 // floors are listed in src/components/highlight.ts.
 import assert from 'node:assert/strict';
 import test from 'node:test';

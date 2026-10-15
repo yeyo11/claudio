@@ -1,5 +1,5 @@
 import { relative } from 'node:path';
-import type { ChatActivity } from '@agentry/shared';
+import type { ChatActivity } from '@claudio/shared';
 import { oneLine } from './health-strings.ts';
 
 /*

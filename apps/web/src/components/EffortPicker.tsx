@@ -1,11 +1,11 @@
 import type { TFunction } from 'i18next';
-import { COSTLY_EFFORTS, EFFORT_LEVELS, effortRecommendation, type Effort, type EffortUse } from '@agentry/shared';
+import { COSTLY_EFFORTS, EFFORT_LEVELS, effortRecommendation, type Effort, type EffortUse } from '@claudio/shared';
 import type { ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Field } from '@agentry/ui/components/ui';
+import { Field } from '@claudio/ui/components/ui';
 import { effortLevelsOf, useModelCatalog } from './ui';
-import { Select, type SelectOption } from '@agentry/ui/components/controls/Select';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { Select, type SelectOption } from '@claudio/ui/components/controls/Select';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /** Why the picker cannot be used: the provider has no effort, or the engine takes the orchestration's alone. */
 export type EffortUnavailable = 'provider' | 'workflow';

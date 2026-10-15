@@ -1,7 +1,7 @@
 // A newer Agentry shows up where a person looks: the Updates card in Settings, with the way to take
 // it for this install, and a dot on the Settings entry that never goes in the bell. The release
-// comes from the fixture run.mjs serves for AGENTRY_RELEASES_URL; the harness sets
-// AGENTRY_DISTRIBUTION=docker, so the card offers the Docker commands.
+// comes from the fixture run.mjs serves for CLAUDIO_RELEASES_URL; the harness sets
+// CLAUDIO_DISTRIBUTION=docker, so the card offers the Docker commands.
 
 const CARD = '[data-testid=updates-card]';
 const SIDEBAR_SETTINGS = '.sidebar .nav-link[href^="/settings"]';

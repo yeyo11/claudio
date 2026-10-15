@@ -1,9 +1,9 @@
-import type { DocumentNode } from '@agentry/shared';
+import type { DocumentNode } from '@claudio/shared';
 import { ChevronRight, FileText, Folder } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { formatNumber } from '@claudio/ui/lib/format';
 
 /**
  * The documents folder as a tree (`.tree-row` of editors.css): folders open and close, the open

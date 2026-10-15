@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { ProviderReadinessState, ProviderStatus } from '@agentry/shared';
+import type { ProviderReadinessState, ProviderStatus } from '@claudio/shared';
 import { en, es } from '../src/i18n/resources';
 import { nothingFound, shouldShowSetup } from '../src/lib/first-run';
 

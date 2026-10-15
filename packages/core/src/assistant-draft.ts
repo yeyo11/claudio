@@ -1,4 +1,4 @@
-import type { AssistantResourceDraft, AssistantResourceKind } from '@agentry/shared';
+import type { AssistantResourceDraft, AssistantResourceKind } from '@claudio/shared';
 
 /**
  * "Create with AI" while it runs: the one resource as the chat writes it. The CLI streams a

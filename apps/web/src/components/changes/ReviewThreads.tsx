@@ -1,9 +1,9 @@
-import type { ChangeRequestThreads, ReviewComment, ReviewSide, ReviewThread } from '@agentry/shared';
-import { RichText } from '@agentry/chat-ui/components/Transcript';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import type { ChangeRequestThreads, ReviewComment, ReviewSide, ReviewThread } from '@claudio/shared';
+import { RichText } from '@claudio/chat-ui/components/Transcript';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ICON_SM, Monogram } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, MessageSquare, MessageSquarePlus, RotateCcw } from 'lucide-react';
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';

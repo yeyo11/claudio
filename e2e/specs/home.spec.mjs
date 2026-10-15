@@ -100,7 +100,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('[role=option]', 'All projects', 800);
     await page.waitFor(allProjects, { label: 'All projects again' });
   } finally {
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`);
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`);
     await api.del(`/projects/${id}`);
   }
 };

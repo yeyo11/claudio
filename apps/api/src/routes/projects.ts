@@ -1,8 +1,8 @@
 import { Readable } from 'node:stream';
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import { projectExportFilename, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@agentry/core';
-import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import { projectExportFilename, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
+import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
 export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

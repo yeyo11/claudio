@@ -3,8 +3,8 @@
 //
 //   node scripts/orchestration-timings.mjs [id…] [--min-tasks N] [--json]
 //
-// Reads a running Agentry at AGENTRY_API_URL (the API root, e.g. http://127.0.0.1:8797/api), sending
-// AGENTRY_API_TOKEN as a Bearer token when it is set. Everything comes from the API: the graphs'
+// Reads a running Agentry at CLAUDIO_API_URL (the API root, e.g. http://127.0.0.1:8797/api), sending
+// CLAUDIO_API_TOKEN as a Bearer token when it is set. Everything comes from the API: the graphs'
 // timings (GET /orchestrations/:id/timings) and, for the breakdown inside the workers, the
 // transcripts the CLI wrote, read through GET /chats/:id/export?format=json. No dependencies.
 
@@ -43,15 +43,15 @@ for (let i = 0; i < args.length; i++) {
   ids.push(arg);
 }
 
-const base = process.env.AGENTRY_API_URL?.replace(/\/+$/, '');
+const base = process.env.CLAUDIO_API_URL?.replace(/\/+$/, '');
 if (!base) {
   fail(
-    'AGENTRY_API_URL is not set. Point it at the API of the Agentry to measure, e.g.\n' +
-      '  AGENTRY_API_URL=http://127.0.0.1:8797/api node scripts/orchestration-timings.mjs\n' +
+    'CLAUDIO_API_URL is not set. Point it at the API of the Agentry to measure, e.g.\n' +
+      '  CLAUDIO_API_URL=http://127.0.0.1:8797/api node scripts/orchestration-timings.mjs\n' +
       'A chat started by Agentry has it already. No port is guessed: a desktop app and a dev server often run side by side.',
   );
 }
-const headers = process.env.AGENTRY_API_TOKEN ? { authorization: `Bearer ${process.env.AGENTRY_API_TOKEN}` } : {};
+const headers = process.env.CLAUDIO_API_TOKEN ? { authorization: `Bearer ${process.env.CLAUDIO_API_TOKEN}` } : {};
 
 function fail(message) {
   process.stderr.write(`orchestration-timings: ${message}\n`);
@@ -65,7 +65,7 @@ async function get(path) {
   } catch (err) {
     fail(`could not reach ${base}${path}: ${err.cause?.message ?? err.message}`);
   }
-  if (res.status === 401 || res.status === 403) fail(`${base} refused the request (${res.status}): set AGENTRY_API_TOKEN`);
+  if (res.status === 401 || res.status === 403) fail(`${base} refused the request (${res.status}): set CLAUDIO_API_TOKEN`);
   if (!res.ok) throw Object.assign(new Error(`${path} answered ${res.status}`), { status: res.status });
   return res.json();
 }

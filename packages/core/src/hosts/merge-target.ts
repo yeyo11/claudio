@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import type { CodeHostId } from '@agentry/shared';
+import type { CodeHostId } from '@claudio/shared';
 import { aheadCount, conflictedPaths, identity, mergeInProgress, refExists, uncommittedFiles } from '../git.ts';
 import type { MergeCodeHostAdapter } from './code-host.ts';
 import type { ChecksTarget } from './checks-service.ts';

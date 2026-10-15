@@ -1,4 +1,4 @@
-import type { SetupTool, SetupToolMethods } from '@agentry/shared';
+import type { SetupTool, SetupToolMethods } from '@claudio/shared';
 
 /**
  * How each tool signs in, and only through what its vendor ships for programs (the one rule). The

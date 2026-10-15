@@ -3,8 +3,8 @@ import { Check, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
 import { api, keys } from '../api';
 import { BACKUP_POLL_MINUTES, freshnessLine, isHealthy, lastHeardAt, liveRegistration, spanWords } from '../lib/webhooks';
 

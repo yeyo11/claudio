@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AuthStatus, CliInfo, TokenSource } from '@agentry/shared';
+import type { AuthStatus, CliInfo, TokenSource } from '@claudio/shared';
 import type { CliSession } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { childEnv } from './child-env.ts';

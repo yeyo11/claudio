@@ -36,8 +36,8 @@ export type TabId = keyof typeof TAB_LABELS;
  * is extended with, and the machine it runs on. The `?tab=` ids are the old flat ones, so every
  * deep link (the palette, the update dot, the docs) still lands where it did.
  */
-export const GROUPS: ReadonlyArray<{ id: 'agentry' | 'claude' | 'extensions' | 'system'; tabs: readonly TabId[] }> = [
-  { id: 'agentry', tabs: ['appearance', 'notifications', 'account', 'providers', 'integrations', 'decisions'] },
+export const GROUPS: ReadonlyArray<{ id: 'claudio' | 'claude' | 'extensions' | 'system'; tabs: readonly TabId[] }> = [
+  { id: 'claudio', tabs: ['appearance', 'notifications', 'account', 'providers', 'integrations', 'decisions'] },
   { id: 'claude', tabs: ['instructions', 'settings', 'memory', 'rules', 'output-styles'] },
   { id: 'extensions', tabs: ['mcp', 'plugins', 'skills', 'agents', 'commands', 'workflows', 'tools'] },
   { id: 'system', tabs: ['files', 'install', 'security', 'remote'] },

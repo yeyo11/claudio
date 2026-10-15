@@ -25,7 +25,7 @@ const out = (dir: string, label: string): string => readFileSync(join(recordings
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
 const ytScope: HostRepo = { host: 'https://acme.youtrack.cloud', path: 'AGP', owner: '', name: 'AGP' };
-const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 
 /** The recordings were made with `-R owner/repo`; Agentry pins the host, so the pin is taken off to find the recorded argv. */
 function unpin(call: HostCall, repo: HostRepo): string[] {

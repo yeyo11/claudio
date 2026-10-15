@@ -6,10 +6,10 @@ import { keys as queryKeys } from '../api';
 import { browserPermission, enableBrowserNotifications, KINDS, LEVELS, setPrefs, useNotificationPrefs, type NotificationLevel } from '../lib/notifications';
 import { disablePush, enablePush, ensurePushConfigured, syncPush, usePushState } from '../lib/push';
 import type { PushBlocker } from '../lib/push-model';
-import { Select } from '@agentry/ui/components/controls/Select';
-import { Switch } from '@agentry/ui/components/controls/Toggle';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
+import { Select } from '@claudio/ui/components/controls/Select';
+import { Switch } from '@claudio/ui/components/controls/Toggle';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
 
 /**
  * What a person is told when push cannot work here. Each of these is a state in which the browser's

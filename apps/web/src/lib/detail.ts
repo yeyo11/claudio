@@ -1,14 +1,14 @@
 import { useCallback, useMemo } from 'react';
-import { DETAIL_PARAM, decodeDetail, encodeDetail, type DetailRef } from '@agentry/shared';
+import { DETAIL_PARAM, decodeDetail, encodeDetail, type DetailRef } from '@claudio/shared';
 import { useSearchParams } from 'react-router-dom';
 
 /*
- * The side panel as a place in the address bar. The encoding itself moved to `@agentry/shared`, so
+ * The side panel as a place in the address bar. The encoding itself moved to `@claudio/shared`, so
  * that the notification mapping the server also runs can build the same links; what is left here is
  * the hook that turns one into a navigation.
  */
 
-export { DETAIL_PARAM, decodeDetail, detailHref, encodeDetail, type DetailRef } from '@agentry/shared';
+export { DETAIL_PARAM, decodeDetail, detailHref, encodeDetail, type DetailRef } from '@claudio/shared';
 
 /**
  * The panel is part of the address (`?detail=…`), so opening one is a navigation: Back closes it

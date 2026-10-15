@@ -1,13 +1,13 @@
-import type { TokenSource } from '@agentry/shared';
+import type { TokenSource } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useAccounts } from '../../api';
 import { accountName } from '../../lib/accounts';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Card, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { SignInPanel } from '../../components/setup/SignInPanel';
 import { CliCard } from './CliCard';
 import { UpdatesCard } from './UpdatesCard';

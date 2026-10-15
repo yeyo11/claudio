@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CommandRule, ToolPolicy } from '@agentry/shared';
+import type { CommandRule, ToolPolicy } from '@claudio/shared';
 import { commandRules, editRules, translateClaudePolicy } from '../src/providers/claude-code/policy.ts';
 import {
   LEGACY_ASSISTANT_RULES,

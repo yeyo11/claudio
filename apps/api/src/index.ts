@@ -1,5 +1,5 @@
 import { rmSync, writeFileSync } from 'node:fs';
-import { resolveUserPath } from '@agentry/core';
+import { resolveUserPath } from '@claudio/core';
 import { startServer } from './server.ts';
 
 // The terminal's PATH, also when this was started from a service or a desktop session
@@ -24,7 +24,7 @@ const server = await startServer({ port, host, portFallback: false }).catch((err
 
 // The container healthcheck cannot restart an unhealthy container by itself: it finds this
 // process through the file, because PID 1 is an init or a package manager, not the server
-const pidFile = process.env.AGENTRY_PID_FILE;
+const pidFile = process.env.CLAUDIO_PID_FILE;
 if (pidFile) {
   writeFileSync(pidFile, String(process.pid));
   process.on('exit', () => rmSync(pidFile, { force: true }));

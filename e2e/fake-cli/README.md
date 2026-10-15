@@ -10,9 +10,9 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 - **In a spec:** `export const fakeCli = true;`. `e2e/run.mjs` runs those specs after every other
   one, on a server restarted with `e2e/fake-cli` first on `PATH` and `CLAUDE_BIN` set to its
   `claude` (the API puts the login shell's `PATH` first, so `PATH` alone can find the real CLI), the
-  sandbox's config directory and `AGENTRY_HEALTH_INTERVAL_MS=500`. The spec's context gains
+  sandbox's config directory and `CLAUDIO_HEALTH_INTERVAL_MS=500`. The spec's context gains
   `fakeCli: { bin, log, scripts }`, and `dirs.configDir` is always the sandbox's. `scripts` is the
-  path `AGENTRY_FAKE_CLI_SCRIPTS` names: write it to script a turn whose prompt the spec does not
+  path `CLAUDIO_FAKE_CLI_SCRIPTS` names: write it to script a turn whose prompt the spec does not
   type, such as an assistant run's. Specs without the marker keep the real CLI.
 - **Elsewhere** (a recorder, a demo instance): put this directory first on `PATH` of the wrapper, or
   set `CLAUDE_BIN` to `e2e/fake-cli/claude`. `scripts/record-media.mjs` (`pnpm media`) does the
@@ -22,20 +22,20 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `AGENTRY_FAKE_CLI_LOG` | none | A file the fake appends JSON lines to (see below) |
-| `AGENTRY_FAKE_CLI_HEARTBEAT_MS` | `30000` (the CLI's own pace) | How often a running command sends `tool_progress`; `0` sends none. The sandbox sets `500` |
-| `AGENTRY_FAKE_CLI_ELAPSED_S` | `0` | Seconds added to every heartbeat's `elapsed_time_seconds` |
-| `AGENTRY_FAKE_CLI_TURN_COST_USD` | `0` | Added to `total_cost_usd` per turn (the CLI's total is per process) |
-| `AGENTRY_FAKE_CLI_SCRIPTS` | none | A JSON object `{ "<text>": "<script>" }`: a message containing one of the texts is played as its script instead (see below) |
-| `AGENTRY_FAKE_CLI_VERSION` | `2.1.1-fake` | The version it reports, for a recording that should not say "fake" in its footer |
-| `AGENTRY_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
-| `AGENTRY_FAKE_CLI_TRANSCRIPT` | none | `1` writes a transcript (see below); so does `"@transcript": true` in the scripts file, for a spec, which cannot set the server's environment |
+| `CLAUDIO_FAKE_CLI_LOG` | none | A file the fake appends JSON lines to (see below) |
+| `CLAUDIO_FAKE_CLI_HEARTBEAT_MS` | `30000` (the CLI's own pace) | How often a running command sends `tool_progress`; `0` sends none. The sandbox sets `500` |
+| `CLAUDIO_FAKE_CLI_ELAPSED_S` | `0` | Seconds added to every heartbeat's `elapsed_time_seconds` |
+| `CLAUDIO_FAKE_CLI_TURN_COST_USD` | `0` | Added to `total_cost_usd` per turn (the CLI's total is per process) |
+| `CLAUDIO_FAKE_CLI_SCRIPTS` | none | A JSON object `{ "<text>": "<script>" }`: a message containing one of the texts is played as its script instead (see below) |
+| `CLAUDIO_FAKE_CLI_VERSION` | `2.1.1-fake` | The version it reports, for a recording that should not say "fake" in its footer |
+| `CLAUDIO_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
+| `CLAUDIO_FAKE_CLI_TRANSCRIPT` | none | `1` writes a transcript (see below); so does `"@transcript": true` in the scripts file, for a spec, which cannot set the server's environment |
 
 ## Subcommands
 
 | Invocation | Output |
 | --- | --- |
-| `--version`, `-v` | `2.1.1-fake (Claude Code)`, or `AGENTRY_FAKE_CLI_VERSION` |
+| `--version`, `-v` | `2.1.1-fake (Claude Code)`, or `CLAUDIO_FAKE_CLI_VERSION` |
 | `auth status [--json]` | `{"loggedIn":true,"authMethod":"fake","apiProvider":"firstParty"}` |
 | `agents [--json]` | `[]` |
 | `mcp list` | `No MCP servers configured. …` |
@@ -51,7 +51,7 @@ event), `--model` (`sonnet` → `claude-sonnet-5`; a full name is kept), `--perm
 is the `cwd` of its `init`; outside one it says so on stderr and works in place.
 
 **On start:** `{"type":"system","subtype":"init", cwd, model, permissionMode, tools:["Bash"], mcp_servers:[], claude_code_version, …}`.
-No transcript is written to the config directory, unless `AGENTRY_FAKE_CLI_TRANSCRIPT=1` or the
+No transcript is written to the config directory, unless `CLAUDIO_FAKE_CLI_TRANSCRIPT=1` or the
 scripts file has `"@transcript": true` (read when the process starts) and `CLAUDE_CONFIG_DIR` is set:
 then it appends to `$CLAUDE_CONFIG_DIR/projects/<cwd with every non-alphanumeric as ->/<session>.jsonl`
 what CLI 2.1 writes there: a `user` line per prompt a turn starts with, the `assistant` and
@@ -68,7 +68,7 @@ its turn starts, or right after the tool result it was absorbed at. That is how 
 (docs/reports/chat-audit/server.md, "Confirmed on the CLI"). The log's `stdin` event carries the `uuid`.
 
 **A user message** (`{"type":"user","message":{"content": string | blocks}}`) starts a turn when none
-is running. When `AGENTRY_FAKE_CLI_SCRIPTS` has a key the text contains, the script under that key is
+is running. When `CLAUDIO_FAKE_CLI_SCRIPTS` has a key the text contains, the script under that key is
 read instead, so a page shows the prompt a person would have written (a worker's prompt is its task
 inside the orchestrator's own words, hence "contains"). The text is read line by line:
 
@@ -80,7 +80,7 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   the output (or `Exit code N` / the signal), `is_error` when it did not exit 0.
 - `say: <text>` — one assistant text block, in its place among the calls.
 - `read: <path>` — one `Read` call (`input: { file_path }`, the path resolved against the working
-  directory), held open for `AGENTRY_FAKE_CLI_READ_MS` (default 400) and answered with the file's
+  directory), held open for `CLAUDIO_FAKE_CLI_READ_MS` (default 400) and answered with the file's
   first 4000 characters, or `(file not found)`. It is what makes a page say "Reading <path>".
 - `json: <JSON on one line>` — the turn's `structured_output`, what `--json-schema` makes the CLI
   return beside its text: an assistant run's answer. A turn with a `json:` line and no `say:` ends
@@ -128,7 +128,7 @@ with a `control_response`:
   `subtype: "error_during_execution"`, `is_error: true`. The process stays up for the next message.
 - `set_permission_mode` (also emits `system`/`status` with the mode) and `set_model` — success.
 - `mcp_status` — `{ mcpServers }`: a local server `docs` (connected, two tools) and a connector
-  `claude.ai Calendar` (scope `claudeai`, `needs-auth`), or the list in `AGENTRY_FAKE_CLI_MCP` (JSON).
+  `claude.ai Calendar` (scope `claudeai`, `needs-auth`), or the list in `CLAUDIO_FAKE_CLI_MCP` (JSON).
 - `mcp_toggle` (`serverName`, `enabled`) — success, and the server reads `disabled` (or its old status
   again) in the next `mcp_status`, for this process only; an unknown name is an error.
 - anything else — `subtype: "error"`, never silence.
@@ -138,7 +138,7 @@ emitted) and exits 0. SIGTERM, SIGINT and SIGHUP kill the running command's tree
 
 ## The log
 
-With `AGENTRY_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid` (the fake's) and
+With `CLAUDIO_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid` (the fake's) and
 `event`:
 
 | `event` | Fields |

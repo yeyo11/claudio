@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account } from '@agentry/shared';
+import type { Account } from '@claudio/shared';
 import { envFor } from './env.ts';
 import { login } from './login.ts';
 import { AccountStore } from './store.ts';
@@ -33,7 +33,7 @@ const USAGE = `claudio-accounts <command>
   pick [--json]                         the account new work would start on
   run <account> -- <claude args>        start claude with that account's environment
 
-Options: --data-dir DIR (default $AGENTRY_DATA_DIR or ~/.config/Agentry/data)`;
+Options: --data-dir DIR (default $CLAUDIO_DATA_DIR or ~/.config/Agentry/data)`;
 
 /** Both name and id answer to an account: aliases and emails are what people type. */
 function resolve(accounts: readonly Account[], ref: string | undefined): Account {
@@ -81,7 +81,7 @@ export async function main(argv: readonly string[], io: Io, cli: CliEnv): Promis
   const dashes = args.indexOf('--');
   const passthrough = dashes === -1 ? [] : args.splice(dashes).slice(1);
   try {
-    const dataDir = option(args, '--data-dir') ?? cli.env.AGENTRY_DATA_DIR ?? join(homedir(), '.config', 'Agentry', 'data');
+    const dataDir = option(args, '--data-dir') ?? cli.env.CLAUDIO_DATA_DIR ?? join(homedir(), '.config', 'Agentry', 'data');
     const json = flag(args, '--json');
     const command = args.shift();
     if (!command || command === 'help' || command === '--help') {

@@ -1,17 +1,17 @@
-import type { ApprovalState, ChangeRequestReviewers, ReviewDraft, ReviewEvent, WorkItemPullRequest } from '@agentry/shared';
+import type { ApprovalState, ChangeRequestReviewers, ReviewDraft, ReviewEvent, WorkItemPullRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, ExternalLink, Info, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ApiRequestError, api, keys } from '../../../api';
-import { Sheet } from '@agentry/ui/components/controls';
-import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM, monogramLetters, nameHue } from '@agentry/ui/components/icons';
-import { Spinner } from '@agentry/ui/components/Spinner';
-import { useToast } from '@agentry/ui/components/Toast';
-import { Segmented } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Sheet } from '@claudio/ui/components/controls';
+import { Dialog, useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM, monogramLetters, nameHue } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
+import { useToast } from '@claudio/ui/components/Toast';
+import { Segmented } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import {
   approvalsProgress,
   canSubmit,

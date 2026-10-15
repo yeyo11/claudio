@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 
 /**
  * The optional supervisor: its settings, and what a person does with a hint it proposed for a worker.

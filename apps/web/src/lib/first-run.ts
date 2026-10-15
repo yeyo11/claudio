@@ -1,4 +1,4 @@
-import type { ProviderStatus, SetupState } from '@agentry/shared';
+import type { ProviderStatus, SetupState } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, keys } from '../api';

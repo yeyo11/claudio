@@ -8,7 +8,7 @@ import type {
   DecisionScope,
   DecisionScoreQuestion,
   DecisionSubjectKind,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { DECISION_POINT_IDS } from './settings.ts';
 
 /*

@@ -32,7 +32,7 @@ import {
   type WorkItemPullRequestCi,
   type WorkItemStatus,
   type WorkItemType,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { fixStage, type FixStage } from './change-requests';
 
 // ---------- where things are ----------

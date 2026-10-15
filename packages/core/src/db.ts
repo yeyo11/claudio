@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@agentry/shared';
+import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@claudio/shared';
 import type {
   AuditEntry,
   AuditFilter,
@@ -35,7 +35,7 @@ import type {
   SupervisorProposal,
   SupervisorProposalStatus,
   UsageHistoryPoint,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
 import { pruneWebhookDeliveries } from './webhook-store.ts';

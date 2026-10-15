@@ -1,15 +1,15 @@
-import type { ChangedFile, EditStep } from '@agentry/shared';
+import type { ChangedFile, EditStep } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { AlignJustify, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Copy, Link2, Sparkle, TextQuote } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { blockStarts, diffHash, foldFull, openGap, parseUnified, type Gap, type ParsedDiff } from '../../lib/diff';
-import { formatDateTime } from '@agentry/ui/lib/format';
+import { formatDateTime } from '@claudio/ui/lib/format';
 import type { ReviewMode } from '../../lib/review-state';
-import { Checkbox, MoreActions, type MenuEntry } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Checkbox, MoreActions, type MenuEntry } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { ScrollingBlockRail } from './BlockRail';
 import { DiffView } from './DiffView';
 import { DraftsChip, useDraftNotes } from './DraftNotes';
@@ -19,7 +19,7 @@ import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThr
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
-import { copyText } from '@agentry/ui/lib/clipboard';
+import { copyText } from '@claudio/ui/lib/clipboard';
 
 // One file of the review: its header, the why line, and the diff with its block rail. It reads the
 // diff in the review's scope, and the whole file (`context=full`) once, when a gap is opened that the

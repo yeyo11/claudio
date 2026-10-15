@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { notificationsFor as englishDraftsFor, waitingDrafts as englishWaitingDrafts, type AgentryEvent } from '@agentry/shared';
+import { notificationsFor as englishDraftsFor, waitingDrafts as englishWaitingDrafts, type AgentryEvent } from '@claudio/shared';
 
 /*
  * The words a notification is born with come from two places: i18next in the browser, and the
- * English built into `@agentry/shared` for the push sender, which has no language of its own. They
+ * English built into `@claudio/shared` for the push sender, which has no language of its own. They
  * are the same sentences written twice, so this holds them together: every event below goes
  * through both and must come out saying exactly the same thing.
  */

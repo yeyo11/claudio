@@ -1,4 +1,4 @@
-import type { PermissionDecision } from '@agentry/shared';
+import type { PermissionDecision } from '@claudio/shared';
 import type { SessionIO } from '../driver.ts';
 
 /** A control request the CLI has not answered by then is not going to be answered */

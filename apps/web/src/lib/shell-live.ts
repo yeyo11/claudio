@@ -4,11 +4,11 @@
  * (what counts as live, in what order, how an orchestration's progress is counted) are tested
  * without a browser.
  */
-import type { ChatState, OrchestrationStatus, OrchestrationTaskStatus, ProviderLimit, ProviderStatus } from '@agentry/shared';
+import type { ChatState, OrchestrationStatus, OrchestrationTaskStatus, ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { phoneHeaderOf } from '../components/shell/phone-header';
-import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
-import type { TickerActivity } from '@agentry/ui/lib/live';
-import type { ProgressCounts } from '@agentry/ui/lib/progress';
+import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import type { TickerActivity } from '@claudio/ui/lib/live';
+import type { ProgressCounts } from '@claudio/ui/lib/progress';
 
 /** The part of a chat summary the shell reads. `activity` arrives with the live-activity work. */
 export interface LiveChatInput {

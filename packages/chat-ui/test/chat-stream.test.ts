@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Chat, ChatDetail, TranscriptEntry } from '@agentry/shared';
+import type { Chat, ChatDetail, TranscriptEntry } from '@claudio/shared';
 import { appendStreamed, dropOptimistic, isOptimistic, optimisticEntry, spliceTail } from '../src/lib/chat-stream';
 
 const entry = (uuid: string, role: 'user' | 'assistant', text: string, timestamp: string): TranscriptEntry => ({

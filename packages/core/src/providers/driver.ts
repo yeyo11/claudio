@@ -1,4 +1,4 @@
-import type { AccountRef } from '@agentry/accounts';
+import type { AccountRef } from '@claudio/accounts';
 import type {
   Attachment,
   EffectiveEnvironment,
@@ -13,7 +13,7 @@ import type {
   RunEvent,
   ToolPolicy,
   TranscriptEntry,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../cli-facts.ts';
 import type { ChatConfinement, NewChat } from '../live-chat.ts';
 import type { NeutralRequest } from '../policy-judge.ts';
@@ -126,7 +126,7 @@ export interface SessionLaunch {
   account?: AccountRef;
 }
 
-/** The process to start. `ChatManager` adds `AGENTRY_CHAT_ID`, `AGENTRY_API_URL` and the minted token itself. */
+/** The process to start. `ChatManager` adds `CLAUDIO_CHAT_ID`, `CLAUDIO_API_URL` and the minted token itself. */
 export interface LaunchPlan {
   bin: string;
   args: string[];

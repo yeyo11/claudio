@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { ChangeRequestThreads, Orchestration, ReviewThread, WorkItem } from '@agentry/shared';
+import type { ChangeRequestThreads, Orchestration, ReviewThread, WorkItem } from '@claudio/shared';
 import { flowPrompt, reviewFixPrompt } from '../src/flow.ts';
 import { ReviewsError, type ReviewsService } from '../src/hosts/reviews-service.ts';
 import { runHostCall } from '../src/hosts/exec.ts';

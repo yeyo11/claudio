@@ -16,7 +16,7 @@ import {
   type BackgroundTaskOutput,
   type TranscriptEntry,
   type TranscriptSearchResult,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { toChatTask } from './chat-branches.ts';
 import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';

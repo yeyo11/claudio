@@ -1,10 +1,10 @@
 // Colour parity of the TanStack path against shiki, on this repository's own files: how many of
 // the characters a reader sees are coloured the same, per language, and what the rest are.
 //
-//   pnpm --filter @agentry/web parity              every language, the ten biggest differences each
-//   pnpm --filter @agentry/web parity typescript css --all  those languages, every difference
-//   pnpm --filter @agentry/web parity --fixtures   only the frozen corpus the parity test holds
-//   pnpm --filter @agentry/web parity --context    each difference with lines it happens on
+//   pnpm --filter @claudio/web parity              every language, the ten biggest differences each
+//   pnpm --filter @claudio/web parity typescript css --all  those languages, every difference
+//   pnpm --filter @claudio/web parity --fixtures   only the frozen corpus the parity test holds
+//   pnpm --filter @claudio/web parity --context    each difference with lines it happens on
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

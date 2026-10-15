@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@agentry/shared';
+import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { Orchestrator, PLAN_SCHEMA, PLANNER_GRAPH_GUIDANCE, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
-import type { Account, AccountLoginSession, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@agentry/shared';
+import { Core, loadConfig } from '@claudio/core';
+import type { Account, AccountLoginSession, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The accounts over HTTP, against the accounts package's fake `claude`, which honours
@@ -23,8 +23,8 @@ before(async () => {
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
-      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
-      AGENTRY_DATA_DIR: join(root, 'data'),
+      CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),
+      CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -212,7 +212,7 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
   const dir = mkdtempSync(join(tmpdir(), 'agentry-api-accounts-sec-'));
   mkdirSync(join(dir, 'claude')); // the fake CLI writes its probe counter there
   const secured = new Core(
-    loadConfig({ CLAUDE_BIN: FAKE_CLAUDE, CLAUDE_CONFIG_DIR: join(dir, 'claude'), AGENTRY_WORKSPACE_DIR: join(dir, 'workspace'), AGENTRY_DATA_DIR: join(dir, 'data') }),
+    loadConfig({ CLAUDE_BIN: FAKE_CLAUDE, CLAUDE_CONFIG_DIR: join(dir, 'claude'), CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'), CLAUDIO_DATA_DIR: join(dir, 'data') }),
   );
   const guarded = await buildApp(secured, { logLevel: 'silent', webDist: join(dir, 'no-ui') });
   try {

@@ -1,4 +1,4 @@
-import type { AgentryEvent, HostReason, IssueRef, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, WorkItem } from '@agentry/shared';
+import type { AgentryEvent, HostReason, IssueRef, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, WorkItem } from '@claudio/shared';
 import { reasonOf } from '../hosts/classify.ts';
 import type { HostCall, HostRepo } from '../hosts/code-host.ts';
 import type { HostResult } from '../hosts/exec.ts';

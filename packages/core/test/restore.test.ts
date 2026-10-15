@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { RunEvent } from '@agentry/shared';
+import type { RunEvent } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
@@ -65,7 +65,7 @@ function previousWrapper(sessionId: string, updatedAt = new Date().toISOString()
           name: 'coordinator',
           cwd: config.workspaceDir,
           workingDir: config.workspaceDir,
-          origin: 'agentry',
+          origin: 'claudio',
           orchestrationId: null,
           orchestrationTaskId: null,
           derivedFrom: null,

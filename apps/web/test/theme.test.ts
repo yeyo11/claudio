@@ -24,7 +24,7 @@ test('effective theme: only system follows the OS', () => {
 /** Runs index.html's pre-paint script against a stored value and returns what it stamped. */
 function prePaint(stored: string | null | Error): string | undefined {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  const script = /<script>([\s\S]*?agentry-theme[\s\S]*?)<\/script>/.exec(html)?.[1];
+  const script = /<script>([\s\S]*?claudio-theme[\s\S]*?)<\/script>/.exec(html)?.[1];
   assert.ok(script, 'index.html keeps an inline pre-paint theme script');
   const dataset: Record<string, string> = {};
   runInNewContext(script, {

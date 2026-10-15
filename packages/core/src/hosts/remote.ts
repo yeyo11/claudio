@@ -1,4 +1,4 @@
-import type { ProjectCodeHostRemote } from '@agentry/shared';
+import type { ProjectCodeHostRemote } from '@claudio/shared';
 
 /**
  * A remote as Agentry reads it. The user and the secret of the URL are dropped while parsing and

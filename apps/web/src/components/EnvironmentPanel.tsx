@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useFallbackInterval } from '../lib/feed';
-import { timeAgo } from '@agentry/ui/lib/format';
-import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
-import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { timeAgo } from '@claudio/ui/lib/format';
+import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 
 const MCP_TONE: Record<string, string> = { connected: 'ok', failed: 'bad', 'needs-auth': 'warn', pending: 'muted' };
 

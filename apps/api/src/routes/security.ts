@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { AuditFilter, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { AuditFilter, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@claudio/shared';
 import { count } from './chats.ts';
 
 /**

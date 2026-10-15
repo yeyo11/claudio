@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
-import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_READ_TOOL_NAMES, AGENTRY_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_READ_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
 import { ApiError, createClient } from '../src/client.ts';
 import { RESULT_MAX_CHARS, createServer, render } from '../src/server.ts';
 import { TOOLS } from '../src/tools.ts';
@@ -22,19 +22,19 @@ const rpc = (server: ReturnType<typeof createServer>, method: string, params?: u
 test('the catalogue is the list of names, and every tool has a description and a strict schema', async () => {
   assert.deepEqual(
     TOOLS.map((t) => t.name),
-    [...AGENTRY_MCP_READ_TOOL_NAMES],
+    [...CLAUDIO_MCP_READ_TOOL_NAMES],
   );
-  assert.deepEqual(WRITE_TOOLS.map((t) => t.name), [...AGENTRY_MCP_WRITE_TOOL_NAMES]);
-  assert.deepEqual(AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_READ_TOOL_NAMES.map((n) => `mcp__agentry__${n}`));
+  assert.deepEqual(WRITE_TOOLS.map((t) => t.name), [...CLAUDIO_MCP_WRITE_TOOL_NAMES]);
+  assert.deepEqual(CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_READ_TOOL_NAMES.map((n) => `mcp__claudio__${n}`));
   const server = createServer({ api: createClient({ baseUrl: 'http://x/api', fetch: injectFetch(s.app) }), version: '1.2.3' });
   const listed = (await rpc(server, 'tools/list')).result.tools as Array<{ name: string; description: string; inputSchema: { additionalProperties: unknown } }>;
-  assert.deepEqual(listed.map((t) => t.name), [...AGENTRY_MCP_READ_TOOL_NAMES, ...AGENTRY_MCP_WRITE_TOOL_NAMES]);
+  assert.deepEqual(listed.map((t) => t.name), [...CLAUDIO_MCP_READ_TOOL_NAMES, ...CLAUDIO_MCP_WRITE_TOOL_NAMES]);
   for (const tool of listed) {
     assert.ok(tool.description.length > 10, tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
   }
   const init = (await rpc(server, 'initialize', { protocolVersion: '2024-11-05' })).result;
-  assert.deepEqual([init.protocolVersion, init.serverInfo, init.capabilities], ['2024-11-05', { name: 'agentry', version: '1.2.3' }, { tools: {} }]);
+  assert.deepEqual([init.protocolVersion, init.serverInfo, init.capabilities], ['2024-11-05', { name: 'claudio', version: '1.2.3' }, { tools: {} }]);
   assert.equal((await rpc(server, 'initialize', { protocolVersion: '1999-01-01' })).result.protocolVersion, '2025-06-18');
   assert.equal((await rpc(server, 'nope')).error.code, -32601);
   assert.equal(JSON.parse((await server.handleLine('{not json')) ?? '').error.code, -32700);
@@ -68,7 +68,7 @@ test('every tool is called once and answers with the seeded data', async () => {
   assert.equal(chat.isError, true);
   assert.match(chat.text, /404/);
   const covered = new Set([...calls.map(([n]) => n), 'get_chat']);
-  assert.deepEqual([...covered].sort(), [...AGENTRY_MCP_READ_TOOL_NAMES].sort());
+  assert.deepEqual([...covered].sort(), [...CLAUDIO_MCP_READ_TOOL_NAMES].sort());
 });
 
 test('get_work_item merges the item, its history, links and flow runs, by key in any case or by id', async () => {

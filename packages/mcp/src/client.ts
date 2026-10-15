@@ -7,7 +7,7 @@ export type FetchLike = (
 ) => Promise<{ status: number; text(): Promise<string> }>;
 
 export interface ClientOptions {
-  /** `AGENTRY_API_URL`, which already ends in `/api` */
+  /** `CLAUDIO_API_URL`, which already ends in `/api` */
   baseUrl: string;
   token?: string | undefined;
   chatId?: string | undefined;

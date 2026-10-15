@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { RunEvent } from '@agentry/shared';
+import type { RunEvent } from '@claudio/shared';
 import { LiveChat } from '../src/live-chat.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { tempConfig } from './helpers.ts';
@@ -16,7 +16,7 @@ test('the first partial of a block goes out at once, the rest at most one per th
     const chat = LiveChat.restore(
       {
         record: {
-          id: 'c1', name: 'c1', cwd: config.workspaceDir, workingDir: null, origin: 'agentry', orchestrationId: null,
+          id: 'c1', name: 'c1', cwd: config.workspaceDir, workingDir: null, origin: 'claudio', orchestrationId: null,
           orchestrationTaskId: null, derivedFrom: null, prompt: 'first', lastText: null, model: null,
           permissionMode: 'manual', permissionPrompts: 'none', createdAt: at, updatedAt: at,
         },

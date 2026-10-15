@@ -3,7 +3,7 @@
  * tracker it offers, and what goes to `PUT /projects/:id/tracker`. No React, tested without a
  * browser (test/project-tracker.test.ts).
  */
-import type { CodeHostId, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, TrackerStatus } from '@agentry/shared';
+import type { CodeHostId, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, TrackerStatus } from '@claudio/shared';
 import { canChooseTracker, hasNamedStatuses, isTrackerBuilt, setMapped, trackerTone, YOUTRACK_DEFAULT_STATES, type TrackerTone } from '../../lib/trackers';
 
 export interface TrackerDraft {

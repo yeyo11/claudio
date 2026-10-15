@@ -2,7 +2,7 @@
  * What is live in the local server, reduced to what the tray, the taskbar progress and the badge
  * show. Pure and free of Electron, so the rules are tested with plain data.
  *
- * The shapes below are the parts of `@agentry/shared`'s `Overview`, `ChatSummary` and
+ * The shapes below are the parts of `@claudio/shared`'s `Overview`, `ChatSummary` and
  * `Orchestration` the shell reads, declared structurally: the desktop package only talks to the
  * server over HTTP and does not depend on the workspace types.
  */

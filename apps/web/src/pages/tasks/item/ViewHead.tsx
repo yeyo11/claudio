@@ -1,23 +1,23 @@
-import type { WorkItemDetail } from '@agentry/shared';
+import type { WorkItemDetail } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, ExternalLink, Link2, MessageSquare, Play, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../../api';
-import { MoreActions } from '@agentry/ui/components/controls';
-import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
-import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { MoreActions } from '@claudio/ui/components/controls';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemStatusIcon } from '../../../components/work-item-icons';
-import { useToast } from '@agentry/ui/components/Toast';
+import { useToast } from '@claudio/ui/components/Toast';
 import { columnMeta, returnPath, returnState, taskPath } from '../../../lib/work-items';
 import { useLeadingAction, workOnItNeutral } from './lead';
 import { useMoveItem, type ItemActions } from './hooks';
 import { deleteWarning, workOnBlocker } from './model';
 import { ITEM_PANEL_PARAM } from './Panel';
 import { WorkOnDialog } from './WorkOn';
-import { copyText } from '@agentry/ui/lib/clipboard';
+import { copyText } from '@claudio/ui/lib/clipboard';
 
 /** Where a work item is shown: its own page, or the panel the board opens beside itself. */
 export type ItemVariant = 'page' | 'panel';

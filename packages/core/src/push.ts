@@ -20,7 +20,7 @@ import {
   type PushSendResult,
   type PushSubscriptionSummary,
   type RegisterPushSubscriptionRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import type { Db, PushSubscriptionRecord } from './db.ts';
@@ -32,7 +32,7 @@ import type { CoreConfig } from './paths.ts';
  * keypair and posts the encrypted payload to whatever endpoint the browser handed us, so a
  * self-hosted Agentry behind a NAT still reaches a phone: the connection is outbound.
  *
- * What is worth a notification is not decided here. `notificationsFor` in `@agentry/shared` is the
+ * What is worth a notification is not decided here. `notificationsFor` in `@claudio/shared` is the
  * same function the browser runs on the same event, which is the only way the in-page toast and the
  * push on a lock screen can be guaranteed to agree.
  *
@@ -359,7 +359,7 @@ export class PushService {
    * change — every subscription was taken out against it — but the claim is only an address a push
    * service can complain to, and an install whose stored one is refused (Apple answers `403
    * BadJwtToken` to a `sub` that names no real domain) has to be able to fix it by setting
-   * `AGENTRY_PUSH_SUBJECT` and restarting, rather than by throwing its keypair and every registered
+   * `CLAUDIO_PUSH_SUBJECT` and restarting, rather than by throwing its keypair and every registered
    * phone away.
    */
   private withSubject(doc: PushDoc): PushDoc {

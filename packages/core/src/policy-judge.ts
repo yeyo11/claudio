@@ -1,4 +1,4 @@
-import type { CommandRule, ToolPolicy } from '@agentry/shared';
+import type { CommandRule, ToolPolicy } from '@claudio/shared';
 
 /** What an agent asks to do, in Agentry's words; each driver maps its protocol's request onto it. */
 export interface NeutralRequest {

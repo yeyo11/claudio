@@ -1,4 +1,4 @@
-import type { Checklist, ChecklistItem, TouchedFile, TranscriptEntry } from '@agentry/shared';
+import type { Checklist, ChecklistItem, TouchedFile, TranscriptEntry } from '@claudio/shared';
 
 /** A tool call read back from a transcript, paired with what came of it. */
 export interface ToolCall {

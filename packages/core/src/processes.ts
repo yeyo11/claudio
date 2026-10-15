@@ -50,7 +50,7 @@ export function streamJsonProcesses(): CliProcess[] {
 }
 
 /**
- * Processes of the same user that Agentry started, found by the `AGENTRY_CHAT_ID` the manager puts
+ * Processes of the same user that Agentry started, found by the `CLAUDIO_CHAT_ID` the manager puts
  * in every spawn's environment: the agents that speak a protocol on stdio carry no session id in
  * argv, so this is how a chat's process is told from a stranger's. Linux only; `[]` elsewhere, and
  * for a process whose environment cannot be read (another user's).
@@ -67,7 +67,7 @@ export function agentryChildren(): Array<{ pid: number; chatId: string; argv: st
     if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
     try {
       const environ = readFileSync(`/proc/${name}/environ`, 'utf8').split('\0');
-      const chatId = environ.find((entry) => entry.startsWith('AGENTRY_CHAT_ID='))?.slice('AGENTRY_CHAT_ID='.length);
+      const chatId = environ.find((entry) => entry.startsWith('CLAUDIO_CHAT_ID='))?.slice('CLAUDIO_CHAT_ID='.length);
       if (!chatId) continue;
       const argv = readFileSync(`/proc/${name}/cmdline`, 'utf8').split('\0').filter(Boolean);
       if (argv.length > 0) found.push({ pid: Number(name), chatId, argv });

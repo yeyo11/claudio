@@ -1,5 +1,5 @@
-import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskSpec, OrchestrationTaskState, OrchestrationTaskSummary } from '@agentry/shared';
-import { currentStepIndex, type ProgressCounts, type StepState } from '@agentry/ui/lib/progress';
+import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskSpec, OrchestrationTaskState, OrchestrationTaskSummary } from '@claudio/shared';
+import { currentStepIndex, type ProgressCounts, type StepState } from '@claudio/ui/lib/progress';
 import { pullRequestHeld } from './orchestration-v2';
 
 /**

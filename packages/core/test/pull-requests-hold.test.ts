@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { Orchestration } from '@agentry/shared';
+import type { Orchestration } from '@claudio/shared';
 import { runHostCall } from '../src/hosts/exec.ts';
 import type { MergeService } from '../src/hosts/merge-service.ts';
 import { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';

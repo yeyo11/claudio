@@ -1,4 +1,4 @@
-import type { HealthSignal, TaskLimits } from '@agentry/shared';
+import type { HealthSignal, TaskLimits } from '@claudio/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
 

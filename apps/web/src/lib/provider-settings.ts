@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderSettingsEntry, ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { ProviderId, ProviderSettingsEntry, ProviderStatus, ProvidersSettings } from '@claudio/shared';
 
 // Pure edits of `providers.json`: the page builds the next document with these and sends it whole,
 // so a test can read every rule (what a missing entry means, what an order does with strangers)

@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DecisionRecord } from '@agentry/shared';
+import type { DecisionRecord } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DecisionMarkOf } from '../src/components/DecisionMark';
 import i18n from '../src/i18n';

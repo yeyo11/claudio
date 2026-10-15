@@ -1,4 +1,4 @@
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import {
   Activity,
   BookText,
@@ -26,11 +26,11 @@ import {
 } from 'lucide-react';
 import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
-import { Segmented } from '@agentry/ui/components/ui';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Segmented } from '@claudio/ui/components/ui';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { FabStandIn } from '../../components/shell/Fab';
 import { Dashboard, type WidgetFrame } from './Dashboard';
 import { addableWidgets, addWidget, moveWidgetTo, positionOf, presentWidgets, removeWidget, resizeWidget, sameLayout, shiftWidget, widgetsInArea } from './edit';

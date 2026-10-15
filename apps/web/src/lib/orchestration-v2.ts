@@ -1,8 +1,8 @@
-import type { Effort, Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
+import type { Effort, Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@claudio/shared';
 
 // The spec a graph is read back as, and the rules for starting one over, are the server's too: they
-// live in @agentry/shared so a schedule filled here starts what a relaunch there would.
-export { canRelaunch, canRerun, cleanTask, limitsOf, rerunBlockedByPullRequest, specOfOrchestration, specOfTask } from '@agentry/shared';
+// live in @claudio/shared so a schedule filled here starts what a relaunch there would.
+export { canRelaunch, canRerun, cleanTask, limitsOf, rerunBlockedByPullRequest, specOfOrchestration, specOfTask } from '@claudio/shared';
 
 /** The tasks that start over with `taskId`: itself and everything that depends on it, directly or not. */
 export function dependantsOf(tasks: OrchestrationTaskState[], taskId: string): string[] {

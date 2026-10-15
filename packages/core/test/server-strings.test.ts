@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { HealthSignal, Localized } from '@agentry/shared';
+import type { HealthSignal, Localized } from '@claudio/shared';
 import { chatHealth, HUNG_COMMAND_MS, type HealthFacts } from '../src/chat-model.ts';
 import { usualDuration } from '../src/commands.ts';
 import { CONNECTOR_GUIDE, CONNECTOR_LIMITS } from '../src/connectors.ts';

@@ -1,12 +1,12 @@
 import * as RadixSelect from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { useModelOptions } from './ui';
-import type { ComboboxOption } from '@agentry/ui/components/controls/Combobox';
-import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
-import { Sheet } from '@agentry/ui/components/controls/Sheet';
+import type { ComboboxOption } from '@claudio/ui/components/controls/Combobox';
+import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { Sheet } from '@claudio/ui/components/controls/Sheet';
 
 /** One model as the picker says it: the value a file stores, and the name the CLI gives it today. */
 export interface ModelPick {

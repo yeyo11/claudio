@@ -1,5 +1,5 @@
 import { constants, createPublicKey, verify as verifySignature, type KeyObject, type VerifyKeyObjectInput } from 'node:crypto';
-import type { OidcConfig } from '@agentry/shared';
+import type { OidcConfig } from '@claudio/shared';
 
 /**
  * JWT validation against the issuer's JWKS, with no dependency: Node can build a public key from a

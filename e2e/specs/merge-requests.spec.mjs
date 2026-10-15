@@ -119,7 +119,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     await page.goto('/', 300);
     for (const theme of ['dark', 'light']) {
-      await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+      await page.eval(`localStorage.setItem('claudio-theme', '${theme}'); return true`);
       await page.goto(`/tasks?project=${projectId}`, 1500);
       await page.waitFor(`return !!document.querySelector('${card(open.id)}')`, { label: `[${theme}] the open MR's strip` });
       const strip = (item) => page.eval(`const s = document.querySelector('${card(item.id)}'); return s ? { text: s.textContent, ci: s.querySelector('.pr-ci')?.dataset.ci ?? null, link: s.querySelector('a[href^="https://gitlab.com"]')?.getAttribute('href') ?? null } : null`);
@@ -145,7 +145,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     }
 
     // ---- The same item on a phone ----
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.viewport(390, 844);
     await page.goto(`/tasks/${open.key}`, 1500);
     await page.waitFor(`return !!document.querySelector('.item-pr-wait')`, { label: 'the MR panel on a phone' });
@@ -224,7 +224,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     writeFileSync(fake.scripts, '{}');
     rmSync(join(stateDir, 'glab.json'), { force: true });
     rmSync(join(stateDir, 'glab.created'), { force: true });

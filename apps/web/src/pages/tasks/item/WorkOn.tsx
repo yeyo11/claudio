@@ -1,4 +1,4 @@
-import type { Effort, PermissionMode, WorkItem, WorkOnWorkItemRequest } from '@agentry/shared';
+import type { Effort, PermissionMode, WorkItem, WorkOnWorkItemRequest } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
@@ -6,10 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useOverview } from '../../../api';
 import { ChatToolsPicker, type ToolChoices } from '../../../components/ChatToolsPicker';
-import { Select, Switch } from '@agentry/ui/components/controls';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { ErrorBox, Field } from '@agentry/ui/components/ui';
+import { Select, Switch } from '@claudio/ui/components/controls';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { ErrorBox, Field } from '@claudio/ui/components/ui';
 import { EffortField } from '../../../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 

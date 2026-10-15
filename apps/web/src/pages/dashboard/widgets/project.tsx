@@ -1,12 +1,12 @@
-import type { ResourceKind } from '@agentry/shared';
+import type { ResourceKind } from '@claudio/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { GitBranch, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../../api';
 import { ProjectExportCard } from '../../../components/ProjectExport';
-import { Skeleton } from '@agentry/ui/components/ui';
-import { formatNumber } from '@agentry/ui/lib/format';
+import { Skeleton } from '@claudio/ui/components/ui';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { configCount } from '../layout';
 import { excerpt } from '../model';
 import type { WidgetProps } from '../registry';

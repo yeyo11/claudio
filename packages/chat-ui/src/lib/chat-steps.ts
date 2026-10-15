@@ -1,4 +1,4 @@
-import type { ContentBlock, TranscriptEntry } from '@agentry/shared';
+import type { ContentBlock, TranscriptEntry } from '@claudio/shared';
 
 /*
  * How a transcript reads on the chat page: a turn with twenty tool calls is one step that says

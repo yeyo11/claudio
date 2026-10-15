@@ -1,10 +1,10 @@
-import type { ReviewDraft, ReviewDraftInput, ReviewSide } from '@agentry/shared';
+import type { ReviewDraft, ReviewDraftInput, ReviewSide } from '@claudio/shared';
 import { Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sheet } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { Sheet } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { lineLabel } from '../../lib/reviews';
 
 /** Where a note is left: a line (or range) of a file, or the whole change request when `path` is null. */

@@ -1,4 +1,4 @@
-import type { Project } from '@agentry/shared';
+import type { Project } from '@claudio/shared';
 import { useChats, useOrchestrations, useOverview, useUsage } from '../../api';
 import { inProject } from '../../lib/project-scope';
 import { limitSummary, type LimitSummary } from './model';
@@ -15,7 +15,7 @@ export const localDay = (d: Date = new Date()) => `${d.getFullYear()}-${pad(d.ge
 export const NEW_ORCHESTRATION_PATH = '/orchestration?new=1';
 
 /** The chats that wait for a person, workers of an orchestration included. */
-export const WAITING_ORIGINS = ['agentry', 'external', 'orchestration'] as const;
+export const WAITING_ORIGINS = ['claudio', 'external', 'orchestration'] as const;
 
 export interface HomePulse {
   loading: boolean;

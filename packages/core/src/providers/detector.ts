@@ -13,7 +13,7 @@ import type {
   ProviderReadinessState,
   ProviderStatus,
   ProvidersSettings,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { detectCli, getAuthStatus } from '../cli.ts';
 import type { AgentryEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';

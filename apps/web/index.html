@@ -28,7 +28,7 @@
       // means dark, which is also what the bare :root tokens paint if this never runs.
       var theme = 'dark';
       try {
-        var stored = localStorage.getItem('agentry-theme');
+        var stored = localStorage.getItem('claudio-theme');
         if (stored === 'light' || stored === 'dark' || stored === 'system') theme = stored;
       } catch (e) {}
       document.documentElement.dataset.theme = theme;

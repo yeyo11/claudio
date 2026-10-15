@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const SESSION = 'e2e-review-session';
-const SEEN_KEY = `agentry-review-seen:v1:chat:${SESSION}`;
+const SEEN_KEY = `claudio-review-seen:v1:chat:${SESSION}`;
 const MODE_KEY = 'agentry-diff-mode';
 
 const line = (o) => JSON.stringify(o);

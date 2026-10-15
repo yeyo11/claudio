@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { LimitWait, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@agentry/shared';
+import type { LimitWait, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';

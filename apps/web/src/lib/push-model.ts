@@ -1,4 +1,4 @@
-import type { NotificationKind } from '@agentry/shared';
+import type { NotificationKind } from '@claudio/shared';
 
 /*
  * The part of Web Push that is a pure function of where the page is running: whether this browser
@@ -134,7 +134,7 @@ export function applicationServerKey(publicKey: string): Uint8Array<ArrayBuffer>
 
 /**
  * The id the server files this endpoint under — `sha256(endpoint)`, first 16 hex characters, the
- * same derivation as `idOfEndpoint` in `@agentry/core`. Computed here rather than remembered from
+ * same derivation as `idOfEndpoint` in `@claudio/core`. Computed here rather than remembered from
  * the registration, so a page that has only just loaded still knows which row of the list is the
  * device it is running on.
  */

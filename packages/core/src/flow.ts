@@ -11,7 +11,7 @@ import {
   FLOW_RUNS_PAGE_MAX,
   FLOW_STAGE_OF_COLUMN,
   isEffort,
-  AGENTRY_LANGUAGES,
+  CLAUDIO_LANGUAGES,
   flowStepOf,
   MAX_CONTINUATIONS,
   MAX_FLOW_RESTARTS,
@@ -58,7 +58,7 @@ import {
   type WorkItemRef,
   type WorkItemSource,
   type WorkItemStatus,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
@@ -598,7 +598,7 @@ function checkCommandText(c: CheckCommand): string {
 
 /** The language a run's chat is titled in, as it was stored; English for a run stored before it was kept. */
 function runLanguage(row: Pick<RunRow, 'language'>): AgentryLanguage {
-  return AGENTRY_LANGUAGES.find((language) => language === row.language) ?? 'en';
+  return CLAUDIO_LANGUAGES.find((language) => language === row.language) ?? 'en';
 }
 
 /**

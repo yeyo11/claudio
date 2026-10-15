@@ -56,7 +56,7 @@ import {
   type UsageBucket,
   type UsageReport,
   type UsageSeries,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
 import { gitRaw } from './git.ts';
@@ -101,7 +101,7 @@ const RECENT_ENDED_EXTERNAL = 20;
 const RECENT_ENDED_WINDOW_MS = 24 * 3_600_000;
 
 /** The origins a chat list shows unless asked for more: workers and housekeeping have their own homes. */
-export const DEFAULT_ORIGINS: readonly ChatOrigin[] = ['agentry', 'external'];
+export const DEFAULT_ORIGINS: readonly ChatOrigin[] = ['claudio', 'external'];
 
 /**
  * A chat that could not start for a reason of the server's (the CLI could not be spawned, a callback
@@ -523,7 +523,7 @@ export class ChatService {
 
   /**
    * The chat as a send needs it. A process of ours makes the chat interactive whatever the CLI's list
-   * says (`sessionHolder` → 'agentry'), so the send does not wait for that list, which can mean
+   * says (`sessionHolder` → 'claudio'), so the send does not wait for that list, which can mean
    * spawning `claude agents --json`. Anything else takes the full read.
    */
   private async summaryForSend(id: string): Promise<ChatSummary | null> {

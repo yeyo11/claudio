@@ -1,4 +1,4 @@
-import type { CodeHostId } from '@agentry/shared';
+import type { CodeHostId } from '@claudio/shared';
 import type { CodeHostAdapter } from '../../src/hosts/code-host.ts';
 import type { HostCall, HostResult } from '../../src/hosts/exec.ts';
 import type { HostRun } from '../../src/hosts/detector.ts';

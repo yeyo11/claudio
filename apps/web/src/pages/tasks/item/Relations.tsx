@@ -1,13 +1,13 @@
-import type { WorkItemRef, WorkItemRelation, WorkItemRelationType } from '@agentry/shared';
+import type { WorkItemRef, WorkItemRelation, WorkItemRelationType } from '@claudio/shared';
 import { Plus, Search, X } from 'lucide-react';
 import { useDeferredValue, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useWorkItemList } from '../../../api';
-import { Dialog } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemKey, WorkItemStatusIcon } from '../../../components/work-item-icons';
-import { Segmented } from '@agentry/ui/components/ui';
+import { Segmented } from '@claudio/ui/components/ui';
 import { columnMeta, taskPath } from '../../../lib/work-items';
 
 /**

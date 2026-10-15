@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseChangeScope, WorkItemError, type Core, type WorkItemCommentContext } from '@agentry/core';
-import { agentryLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+import { parseChangeScope, WorkItemError, type Core, type WorkItemCommentContext } from '@claudio/core';
+import { agentryLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import type {
   CheckAcceptanceCriterionRequest,
   CreateMilestoneRequest,
@@ -19,7 +19,7 @@ import type {
   UpdateWorkItemRequest,
   WorkItemFilter,
   WorkOnWorkItemRequest,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 /**

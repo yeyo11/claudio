@@ -10,7 +10,7 @@ import type {
   OrchestrationTaskState,
   Overview,
   RunUpdatedEvent,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { keys } from '../src/api';
 import { patchActivity, patchOrchestrationTask, patchRun, runState, targetsFor } from '../src/lib/events';
 

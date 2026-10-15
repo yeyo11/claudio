@@ -1,4 +1,4 @@
-import type { ProjectModule } from '@agentry/shared';
+import type { ProjectModule } from '@claudio/shared';
 
 /**
  * A project's own tabs, each at `/?view=<id>`, in the order the strip draws them after Resumen (the

@@ -1,5 +1,5 @@
 {
-  "name": "@agentry/core",
+  "name": "@claudio/core",
   "version": "0.37.1",
   "private": true,
   "type": "module",
@@ -12,9 +12,9 @@
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   },
   "dependencies": {
-    "@agentry/accounts": "workspace:*",
-    "@agentry/mcp": "workspace:*",
-    "@agentry/shared": "workspace:*",
+    "@claudio/accounts": "workspace:*",
+    "@claudio/mcp": "workspace:*",
+    "@claudio/shared": "workspace:*",
     "@typesafe-ai/sdk": "0.6.0",
     "web-push": "^3.6.7"
   },

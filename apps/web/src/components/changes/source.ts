@@ -1,4 +1,4 @@
-import type { ChangeSummary, EditStep, FileDiff } from '@agentry/shared';
+import type { ChangeSummary, EditStep, FileDiff } from '@claudio/shared';
 import type { ChangeScope, DiffOptions } from '../../api';
 
 /**

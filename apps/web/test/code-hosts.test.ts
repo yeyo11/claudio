@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, CodeHostStatus, OrchestrationPullRequest } from '@agentry/shared';
+import type { AgentryEvent, CodeHostStatus, OrchestrationPullRequest } from '@claudio/shared';
 import { changeRequestRef, changeRequestWords } from '../src/lib/code-hosts';
 import { targetsFor } from '../src/lib/events';
 

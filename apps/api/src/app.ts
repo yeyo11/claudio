@@ -7,7 +7,7 @@ import cors from '@fastify/cors';
 import etag from '@fastify/etag';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core } from '@claudio/core';
 import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
@@ -121,7 +121,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // The UI never needs CORS: in dev it goes through the Vite proxy and in production it is served
   // from this same origin. Enable it only for external browser clients, and from the same list
   // the hijacked streams read, so there is one answer to who may read this API.
-  if (process.env.AGENTRY_CORS_ORIGIN) {
+  if (process.env.CLAUDIO_CORS_ORIGIN) {
     await app.register(cors, { origin: (origin, cb) => cb(null, allowedOrigin(origin) !== null) });
   }
 
@@ -213,7 +213,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   );
 
   // In production the API also serves the built UI (single container, single port).
-  const webDist = resolve(options.webDist ?? process.env.AGENTRY_WEB_DIST ?? resolve(here, '../../web/dist'));
+  const webDist = resolve(options.webDist ?? process.env.CLAUDIO_WEB_DIST ?? resolve(here, '../../web/dist'));
   if (existsSync(webDist)) {
     const headers = Object.entries(uiHeaders(webDist));
     await app.register(fastifyStatic, {

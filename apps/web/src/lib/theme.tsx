@@ -8,7 +8,7 @@ import { syncDesktopTitleBar } from './desktop';
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
 
-export const THEME_STORAGE_KEY = 'agentry-theme';
+export const THEME_STORAGE_KEY = 'claudio-theme';
 export const DEFAULT_THEME: ThemePreference = 'dark';
 
 /** What a stored value means: anything unknown, or nothing at all, is the default. */

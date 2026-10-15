@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { WorkItemLink, WorkItemLinkRole } from '@agentry/shared';
+import type { WorkItemLink, WorkItemLinkRole } from '@claudio/shared';
 import { documentsLine, documentSyncMessage, syncItemDocuments, withDocumentsLine } from '../src/item-documents.ts';
 import { itemWorktree, type ItemPlace } from '../src/work-links.ts';
 

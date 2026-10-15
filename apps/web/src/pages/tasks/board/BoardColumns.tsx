@@ -1,9 +1,9 @@
-import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import type { BoardColumn, WorkItem, WorkItemStatus } from '@claudio/shared';
+import { WORK_ITEM_STATUSES } from '@claudio/shared';
 import { ChevronDown, Plus, TriangleAlert } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemStatusIcon } from '../../../components/work-item-icons';
 import { columnMeta } from '../../../lib/work-items';
 import type { LiveSources } from './LiveLine';

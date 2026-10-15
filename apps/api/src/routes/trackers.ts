@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
-import type { TrackerStatus, TrackersSettings, YoutrackCredentialsStatus } from '@agentry/shared';
+import type { Core } from '@claudio/core';
+import type { TrackerStatus, TrackersSettings, YoutrackCredentialsStatus } from '@claudio/shared';
 
 /**
  * The issue trackers Agentry reads and writes through a CLI: what detection found, derived from the

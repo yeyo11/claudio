@@ -4,7 +4,7 @@
  * the word, the number's prefix and the host's own name from here, so none writes "GitHub" for a
  * project that lives elsewhere. No React: tested without a browser (test/code-hosts.test.ts).
  */
-import type { CodeHostId } from '@agentry/shared';
+import type { CodeHostId } from '@claudio/shared';
 
 export interface ChangeRequestWords {
   /** `tasks` namespace: the short noun, "PR" or "MR" */

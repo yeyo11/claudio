@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import type { DocumentNode, WorkItemLink } from '@agentry/shared';
+import type { DocumentNode, WorkItemLink } from '@claudio/shared';
 import { DOCUMENT_LINKS_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { documentPath, DocumentPathError } from '../src/document-paths.ts';
 import { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, titleOf } from '../src/documents.ts';

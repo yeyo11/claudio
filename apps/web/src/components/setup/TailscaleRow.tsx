@@ -1,7 +1,7 @@
-import type { SetupTailscaleSummary } from '@agentry/shared';
+import type { SetupTailscaleSummary } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { ProgramMark } from '@agentry/ui/components/BrandMark';
-import { Tag } from '@agentry/ui/components/ui';
+import { ProgramMark } from '@claudio/ui/components/BrandMark';
+import { Tag } from '@claudio/ui/components/ui';
 import { tailscaleActions, tailscaleSignedIn, tailscaleTone } from '../../lib/setup';
 import { SignInPanel, SignInSheet } from './SignInPanel';
 import { SignOutButton } from './SignOutButton';

@@ -1,10 +1,10 @@
-import type { OrchestrationEngine, OrchestrationTaskSpec } from '@agentry/shared';
+import type { OrchestrationEngine, OrchestrationTaskSpec } from '@claudio/shared';
 import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { limitsOf } from '../lib/orchestration-v2';
-import { NumberInput } from '@agentry/ui/components/controls';
-import { Field } from '@agentry/ui/components/ui';
+import { NumberInput } from '@claudio/ui/components/controls';
+import { Field } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';

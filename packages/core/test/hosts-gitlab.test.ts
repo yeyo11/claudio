@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { WorkItemPullRequestCi } from '@agentry/shared';
+import type { WorkItemPullRequestCi } from '@claudio/shared';
 import { classifyCall } from '../src/hosts/classify.ts';
 import { HostParseError, type ChangeRequestView, type HostRepo } from '../src/hosts/code-host.ts';
 import { spawnHostCall, type HostCall } from '../src/hosts/exec.ts';
@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const recorded = (name: string): string => readFileSync(join(here, 'fixtures/recordings/glab/1.120.0', name), 'utf8');
 const FAKE = join(here, 'fixtures/fake-glab.sh');
 
-const repo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
+const repo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'claudio', projectId: 87089091 };
 const URL_FORM = 'https://gitlab.com/yeyo11/agentry';
 
 const withView = (patch: Record<string, unknown>): string => JSON.stringify({ ...(JSON.parse(recorded('mrview10.out')) as object), ...patch });

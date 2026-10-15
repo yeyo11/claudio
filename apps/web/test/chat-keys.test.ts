@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { keys } from '../src/api';
-import { chatKeys } from '@agentry/chat-ui/lib/context';
+import { chatKeys } from '@claudio/chat-ui/lib/context';
 
 test('the chat keys keep their shape', () => {
   assert.deepEqual(keys.chats, ['chats']);

@@ -4,7 +4,7 @@
  * browser (test/trackers.test.ts). Issue text itself is untrusted and never passes through here
  * as anything but a string to draw as text.
  */
-import type { IssueRef, IssueSyncState, IssueTriageMark, TrackerId, TrackerIssue, TrackerMappedStatus, TrackerSettingsEntry, TrackerStatus, TrackersSettings } from '@agentry/shared';
+import type { IssueRef, IssueSyncState, IssueTriageMark, TrackerId, TrackerIssue, TrackerMappedStatus, TrackerSettingsEntry, TrackerStatus, TrackersSettings } from '@claudio/shared';
 
 /** The order every list draws the trackers in: the host trackers, then the ones with a CLI of their own. */
 export const TRACKER_IDS: readonly TrackerId[] = ['github-issues', 'gitlab-issues', 'youtrack'];

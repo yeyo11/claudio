@@ -1,4 +1,4 @@
-import type { ProviderCapability } from '@agentry/shared';
+import type { ProviderCapability } from '@claudio/shared';
 import { satisfiesRange } from '../detector.ts';
 import type { CapabilityConfirmation, SessionInit } from '../driver.ts';
 import { claudeCodeManifest } from './manifest.ts';

@@ -1,4 +1,4 @@
-import type { Board, WorkItem } from '@agentry/shared';
+import type { Board, WorkItem } from '@claudio/shared';
 import { useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api, keys } from '../../../api';

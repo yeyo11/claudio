@@ -37,7 +37,7 @@ test('a revoked chat token and a stranger are refused, and revoking one leaves t
 
 test('a chat token is honoured only under a guard and only from a local chat', async () => {
   const config = tempConfig();
-  const auth = new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'owner-token-owner-token-1234' });
+  const auth = new AuthStore(config, { CLAUDIO_AUTH_TOKEN: 'owner-token-owner-token-1234' });
   const token = auth.chatTokens.mint('chat-9');
   assert.equal(auth.chatActorFor(token, true), 'chat:chat-9');
   assert.equal(auth.chatActorFor(token, false), null);
@@ -51,7 +51,7 @@ test('a chat token is honoured only under a guard and only from a local chat', a
 
 test('no chat token or hash of one reaches auth.json or the data dir', () => {
   const config = tempConfig();
-  const core = new Core({ ...config, authEnv: { AGENTRY_AUTH_TOKEN: 'owner-token-owner-token-1234' } });
+  const core = new Core({ ...config, authEnv: { CLAUDIO_AUTH_TOKEN: 'owner-token-owner-token-1234' } });
   try {
     const token = core.security.chatTokens.mint('chat-1');
     const hash = createHash('sha256').update(token).digest('hex');

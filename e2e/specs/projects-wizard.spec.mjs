@@ -161,7 +161,7 @@ export default async ({ page, api, check, dirs }) => {
     check(overflow <= 2, `the phone project page does not scroll sideways (${overflow}px)`);
   } finally {
     await page.viewport(1440, 900);
-    await page.eval(`localStorage.removeItem('agentry:project'); return true`);
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`);
     for (const id of made) await api.del(`/projects/${id}`);
   }
 };

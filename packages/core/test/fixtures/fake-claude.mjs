@@ -41,8 +41,8 @@
 //
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
-//   FAKE_CLAUDE_ENVS=<file>       appends one JSON line `{ url, token }` per spawn: the AGENTRY_API_URL and
-//                                 AGENTRY_API_TOKEN the process was given
+//   FAKE_CLAUDE_ENVS=<file>       appends one JSON line `{ url, token }` per spawn: the CLAUDIO_API_URL and
+//                                 CLAUDIO_API_TOKEN the process was given
 //   FAKE_CLAUDE_ACCOUNTS=<file>   appends one JSON line `{ dir, oauth, apiKey, authToken }` per spawn: the account variables
 //                                 the process was given, which are the account it runs on
 //   FAKE_CLAUDE_LIMITED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies against
@@ -64,7 +64,7 @@ const args = process.argv.slice(2);
 // Reading an account's model list (the `initialize` handshake and the version before it) is not a
 // chat's process: the logs below count what chats spawn
 const probe = args[0] === '--version' || args.join(' ') === '-p --input-format stream-json --output-format stream-json --verbose';
-if (process.env.FAKE_CLAUDE_ENVS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.AGENTRY_API_URL ?? null, token: process.env.AGENTRY_API_TOKEN ?? null })}\n`);
+if (process.env.FAKE_CLAUDE_ENVS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.CLAUDIO_API_URL ?? null, token: process.env.CLAUDIO_API_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_ACCOUNTS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ACCOUNTS, `${JSON.stringify({ dir: process.env.CLAUDE_CONFIG_DIR ?? null, oauth: process.env.CLAUDE_CODE_OAUTH_TOKEN ?? null, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_SPAWNS && !probe) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close, and a

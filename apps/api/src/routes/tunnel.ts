@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { TunnelStatus } from '@agentry/shared';
-import type { Core } from '@agentry/core';
+import type { TunnelStatus } from '@claudio/shared';
+import type { Core } from '@claudio/core';
 
 /**
  * How long a reply gets to leave before the stop takes the Serve rule away. `finish` only says

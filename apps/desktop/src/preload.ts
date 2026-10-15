@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from './ipc.ts';
 
 // The main process hands the app version over as a renderer argument (see webPreferences.additionalArguments)
-const VERSION_ARG = '--agentry-version=';
+const VERSION_ARG = '--claudio-version=';
 const version = process.argv.find((arg) => arg.startsWith(VERSION_ARG))?.slice(VERSION_ARG.length) ?? '';
 
 /*

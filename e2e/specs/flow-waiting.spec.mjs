@@ -54,7 +54,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---- a desktop, dark: Escape keeps today's behaviour ----
     await page.viewport(1440, 900);
     await page.goto(flowScreen, 800);
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.goto(flowScreen, 1500);
     await page.waitFor(`return !!document.querySelector('.flow-auto [role=switch]')`, { label: 'the Flow screen' });
     await saveSwitch('.team-toolbar .btn-primary', true);
@@ -82,7 +82,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- light: "Start them" queues one run per card, as the person ----
     await saveSwitch('.team-toolbar .btn-primary', false);
-    await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
     await page.goto(flowScreen, 1500);
     await page.waitFor(`return !!document.querySelector('.flow-auto [role=switch]')`, { label: 'the Flow screen, light' });
     await saveSwitch('.team-toolbar .btn-primary', true);
@@ -95,7 +95,7 @@ export default async ({ page, api, check, dirs }) => {
     check(started.total === 3 && started.runs.every((r) => r.queuedBy === 'person'), `one run per card, queued by the person (${started.runs.map((r) => `${r.item?.title}:${r.queuedBy}`)})`);
 
     // ---- a phone: a sheet, primary first, 44 px actions ----
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     await page.viewport(390, 844);
     await page.goto(flowScreen, 1500);
     await page.waitFor(`return !!document.querySelector('.flow-auto [role=switch]')`, { label: 'the phone Flow screen' });
@@ -113,7 +113,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await runs()).total === before, '"Only new ones" starts nothing');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.setItem('agentry-theme', 'dark'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     for (const id of made) await api.del(`/projects/${id}`).catch(() => {});
   }
 };

@@ -1,11 +1,11 @@
-import type { Account } from '@agentry/shared';
+import type { Account } from '@claudio/shared';
 import { CircleCheck, CirclePause, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { MoreActions, type MenuItem } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
-import { usageTone } from '@agentry/ui/components/motion';
-import { Tag } from '@agentry/ui/components/ui';
-import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { MoreActions, type MenuItem } from '@claudio/ui/components/controls';
+import { ICON_SM } from '@claudio/ui/components/icons';
+import { usageTone } from '@claudio/ui/components/motion';
+import { Tag } from '@claudio/ui/components/ui';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { accountExhausted, accountName, isDefaultAccount, timeToReset, usagePct, windowRows, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */

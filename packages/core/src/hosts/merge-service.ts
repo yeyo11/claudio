@@ -15,7 +15,7 @@ import type {
   MergeMethod,
   MergeRequestBody,
   MergeState,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import type { AgentryEventInput } from '../events.ts';
 import { changeRequestMergeOf, type ChangeRequestMergeRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';
@@ -57,7 +57,7 @@ const SETTLE_ROUNDS = 3;
 const REBASE_WAIT = 5_000;
 const REBASE_ROUNDS = 12;
 /** Who the disarm that precedes Agentry's own push is recorded as */
-const AGENTRY = 'agentry';
+const AGENTRY = 'claudio';
 /** What the audit row of a disarm Agentry did on its own account says, which is also how the state finds it again */
 const OFF_DETAIL: Record<AutoMergeOffWhy, string> = {
   push: 'turned off before Agentry pushed: arm it again afterwards',

@@ -1,13 +1,13 @@
-import type { AssistantRun, AssistantRunDetail, Project } from '@agentry/shared';
+import type { AssistantRun, AssistantRunDetail, Project } from '@claudio/shared';
 import { ChevronRight, Clock, RefreshCw, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { LiveRunHead, RunFacts, RunFindings, RunSources } from '../../components/assistant/run';
-import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
-import { Segmented } from '@agentry/ui/components/ui';
+import { Segmented } from '@claudio/ui/components/ui';
 import { projectPath, proposalsOf, stageOf, tally } from './model';
 import { MemberProposalRow, SECTION_ICON, useDecide } from './proposals';
 import { Describe, DoneLine, EmptyLine, NoRun, ResourcesCard, TasksCard, TeamCard } from './cards';

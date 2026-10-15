@@ -7,10 +7,10 @@ import { useSyncExternalStore } from 'react';
 
 // Replaced by Vite's `define` with the root package.json's version (vite.config.ts). Under the unit
 // tests nothing replaces it, and `typeof` is the one way to read an undeclared name without throwing.
-declare const __AGENTRY_VERSION__: string | undefined;
+declare const __CLAUDIO_VERSION__: string | undefined;
 
 /** The Agentry version this bundle was built from; empty when the build did not say. */
-export const BUILD_VERSION: string = typeof __AGENTRY_VERSION__ === 'string' ? __AGENTRY_VERSION__ : '';
+export const BUILD_VERSION: string = typeof __CLAUDIO_VERSION__ === 'string' ? __CLAUDIO_VERSION__ : '';
 
 /**
  * The version the server moved to, or null when the page is current. A server older than the

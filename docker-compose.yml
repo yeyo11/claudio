@@ -4,7 +4,7 @@
 #   docker compose --profile tls up -d     the same, plus a TLS-terminating proxy on :80 and :443
 #
 # The tls profile is for reaching Claudio from another machine. Turn on authentication first
-# (AGENTRY_AUTH_MODE=token and AGENTRY_AUTH_TOKEN in .env): the proxy encrypts, it does not
+# (CLAUDIO_AUTH_MODE=token and CLAUDIO_AUTH_TOKEN in .env): the proxy encrypts, it does not
 # authenticate. docs/deploy.md has the details, including the headers the proxy passes.
 services:
   claudio:
@@ -50,7 +50,7 @@ services:
     # every recreate would eventually lock you out of a renewal
     environment:
       # A public name gets a Let's Encrypt certificate; `localhost` gets one from Caddy's local CA
-      AGENTRY_DOMAIN: ${AGENTRY_DOMAIN:-localhost}
+      CLAUDIO_DOMAIN: ${CLAUDIO_DOMAIN:-localhost}
     ports:
       - "${PROXY_HTTP_PORT:-80}:80"
       - "${PROXY_HTTPS_PORT:-443}:443"

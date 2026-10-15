@@ -1,4 +1,4 @@
-import type { Project, ProjectModule, ProjectTemplate, ProjectTemplateId } from '@agentry/shared';
+import type { Project, ProjectModule, ProjectTemplate, ProjectTemplateId } from '@claudio/shared';
 import { useMemo } from 'react';
 import { useProjectCandidates } from '../../api';
 import { deriveKeyPrefix, folderNameFor, prefixProblem } from './model';

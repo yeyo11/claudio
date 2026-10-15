@@ -1,4 +1,4 @@
-# @agentry/accounts
+# @claudio/accounts
 
 Several Claude accounts for Claudio, reached only through what Claude Code ships for programs:
 one `CLAUDE_CONFIG_DIR` per account, the account chosen per process, `claude auth login` and
@@ -15,6 +15,6 @@ rests on: [docs/reports/accounts-a0.md](../../docs/reports/accounts-a0.md).
 - `identify.ts`, `login.ts`: through the CLI
 - `usage.ts`: stream and cache readings, stamped, and the latest per account (`limits.json`)
 - `choose.ts`: pure choice of the account for new work
-- `cli.ts`: the `claudio-accounts` binary (`--data-dir` or `AGENTRY_DATA_DIR`)
+- `cli.ts`: the `claudio-accounts` binary (`--data-dir` or `CLAUDIO_DATA_DIR`)
 
 The ideas come from claude-swap by Onur Cetinkol (MIT, © 2026); no code is copied.

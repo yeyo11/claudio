@@ -1,6 +1,6 @@
-import type { Account, AccountLimit } from '@agentry/shared';
-import { currentLanguage, intlLocale } from '@agentry/ui/i18n/language';
-import { formatDuration, toMs } from '@agentry/ui/lib/format';
+import type { Account, AccountLimit } from '@claudio/shared';
+import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
+import { formatDuration, toMs } from '@claudio/ui/lib/format';
 
 /** What a person calls an account: its alias, else the email the CLI reported, else its id. */
 export const accountName = (account: Pick<Account, 'alias' | 'email' | 'id'>): string => account.alias ?? account.email ?? account.id;

@@ -15,10 +15,10 @@ import type {
   Overview,
   PermissionRequest,
   Schedule,
-} from '@agentry/shared';
+} from '@claudio/shared';
 import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 import { filesOf } from '../documents/model';
-import type { ProgressCounts, ProgressStatus, StepState } from '@agentry/ui/lib/progress';
+import type { ProgressCounts, ProgressStatus, StepState } from '@claudio/ui/lib/progress';
 
 /** What a chat stopped for, described so the component words it in the active language. */
 export interface WaitingReason {

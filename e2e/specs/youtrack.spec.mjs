@@ -52,7 +52,7 @@ export default async ({ page, api, check, dirs }) => {
        for (const el of root.querySelectorAll('.grad-text')) if (!el.closest('.grad-border') && el.getClientRects().length) seen.add(el);
        return seen.size`,
     );
-  const setTheme = (theme) => page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(theme)}); return true`);
+  const setTheme = (theme) => page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
   const waitState = async (state, label) => {
     await page.waitFor(`return document.querySelector('[data-tracker="youtrack"]')?.dataset.state === ${JSON.stringify(state)}`, { timeout: 20_000, label });
   };

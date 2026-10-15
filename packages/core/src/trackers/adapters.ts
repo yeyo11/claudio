@@ -1,4 +1,4 @@
-import type { TrackerId } from '@agentry/shared';
+import type { TrackerId } from '@claudio/shared';
 import { githubIssuesAdapter } from './github-issues/adapter.ts';
 import { gitlabIssuesAdapter } from './gitlab-issues/adapter.ts';
 import type { TrackerAdapter } from './tracker.ts';

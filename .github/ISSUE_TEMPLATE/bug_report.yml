@@ -47,7 +47,7 @@ body:
       required: true
 
   - type: input
-    id: agentry-version
+    id: claudio-version
     attributes:
       label: Agentry version or commit
     validations:
