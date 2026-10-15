@@ -1614,8 +1614,21 @@ screen) and `MobileTerminal.html` (the full-screen route with its key bar), dark
   `Sheet`. The key bar (`.term-keys`, `.term-key`) holds Esc, Tab, ⇧Tab, Ctrl and Alt (sticky: `.on`), the
   arrows, `|` `~` `/` `-` and ^C ^D ^L ^R; every key is ≥ 44 px, the bar scrolls sideways and sits above the
   keyboard. The terminal's own text stays at 12 px, but its hidden input is 16 px so iOS does not zoom.
-- **Dock.** On the chat page the terminal is a bottom dock under the transcript with a `.term-dock-handle`
-  resize bar, toggled by an icon button; the same frame, header and status.
+- **Panel above the status bar.** The terminal lives in the status bar. A **Terminal item** (`.statusbar-btn`: the
+  `SquareTerminal` icon and the number of running shells in mono, tabular) sits beside the usage and the
+  account; it is a button with an accessible name ("Terminal (2 en marcha)") and `aria-expanded`, in `--fg-3`
+  and `--fg` while the panel is open. It never moves or lights up: a shell is not an agent working. Clicking it,
+  the chat header's Terminal button and `Ctrl+\`` toggle `.term-dock.term-bar-panel`, a labelled region docked
+  above the status bar on **every page**: `--bg-1`, a hairline `--line` on top, a `.term-dock-handle` resize bar
+  (drag or arrow keys; height and open state are remembered per browser), the tabs (one per terminal, named
+  after its project or folder, with its status word), a **"+"** (`.term-plus`, an `icon-btn`) and a hide
+  button, then the open terminal in its frame. "+" opens a shell in the project chosen in the top bar; with
+  All projects it is a `Menu` of projects (a `Sheet` on a phone). Esc hides the panel unless the focus is in
+  xterm, a menu, a dialog or the search field. The panel has no gradient: the page keeps its own. A phone has
+  no status bar and no panel: its terminals are reached from the More sheet and open full screen.
+- **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
+  chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
+  fit follows the host's box only.
 - **Notes.** What limits the terminal (this machine only, the tunnel and a token from another device) is a
   `.term-note` line in `--warn` with an icon, never an illustration: the page has content.
 - **Copy.** "Terminal" is feminine in Spanish ("la terminal"); buttons in the infinitive ("Nueva terminal",

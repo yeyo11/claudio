@@ -58,10 +58,23 @@ rows, shown in the card's history table.
 
 ## Where it is in the UI
 
-- the chat header's Terminal button and `Ctrl+\`` open a dock under the transcript;
+- **The status bar.** A Terminal item (icon and the number of running shells) next to the usage and the
+  account toggles a panel docked above the status bar, on every page. The panel holds all the terminals:
+  one tab per terminal (named after its project or folder, with its status), switch, X to close and "+"
+  to open another. "+" opens in the project chosen in the top bar; with All projects it is a menu of the
+  projects. It is resizable by its handle, remembers open or closed and its height in the browser, and Esc
+  hides it unless focus is inside a terminal. `Ctrl+\`` toggles it from anywhere.
+- the chat header's Terminal button shows the same panel on a terminal in the chat's directory (it opens one
+  when the chat has none);
 - the project page (`/terminals?project=`), reached from the project card and header and from the
-  palette ("Open terminal in …");
-- on a phone, `/terminals/:id` is a full screen with a key bar (Esc, Tab, arrows, sticky Ctrl and Alt).
+  palette ("Open terminal in …"); with All projects it lists every terminal;
+- on a phone there is no status bar: More → Terminals, and `/terminals/:id` is a full screen with a key bar
+  (Esc, Tab, arrows, sticky Ctrl and Alt).
+
+**Closing.** X (`DELETE /terminals/:id`) ends the shell and removes the terminal from the list at once,
+and forgets one that already ended. A terminal that ended by itself (the shell exited, idle, a server
+restart) stays listed as "Cerrado" with "Abrir de nuevo" until X dismisses it, or an hour passes. The
+history table keeps every session either way.
 
 Every entry stays hidden unless `GET /terminal` says `available`. Colours come from the `--term-*`
 tokens, in both themes; the cursor blinks only at motion level `full`.

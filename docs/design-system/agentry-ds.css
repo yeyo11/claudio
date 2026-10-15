@@ -2270,6 +2270,10 @@ a.cont-from:hover { color: var(--fg); }
 .term-key { flex: 0 0 auto; min-width: var(--touch); height: var(--touch); padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); font-family: var(--mono); font-size: 13px; }
 .term-key.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .term-search { width: 220px; }
+/* The panel above the status bar, and the status bar's Terminal item (a button: icon and a mono count) */
+.term-bar-panel { display: flex; flex-direction: column; flex: none; min-height: 0; overflow: hidden; padding: 0 28px 10px; border-top: 1px solid var(--line); background: var(--bg-1); }
+.statusbar-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.statusbar-btn:hover, .statusbar-btn.is-open { color: var(--fg); }
 .term-dock-handle { height: 8px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .term-dock-handle::before { content: ''; width: 36px; height: 3px; border-radius: var(--r-full); background: var(--line-2); }
 .term-ansi { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
