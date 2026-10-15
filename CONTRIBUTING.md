@@ -87,6 +87,13 @@ pnpm --filter @agentry/api openapi:schemas
 
 Every route must carry a summary and a tag — there is a test that enforces it.
 
+Each package's `test` script runs through `scripts/test-tmp.mjs`, which points `TMPDIR` at a
+directory of the run's own and removes it when the run ends, however it ends. Create scratch dirs
+with `mkdtempSync(join(tmpdir(), …))`, never under a hard-coded `/tmp`, and they are cleaned even
+when a test forgets to. Before it, verifications left about 21,000 dirs (9.6 GB) in `/tmp` in three
+hours and filled the tmpfs mid-run (2026-10-15). A command run outside `pnpm test` (a single file
+with `npx tsx --test`) is not wrapped: prefix it with `node scripts/test-tmp.mjs` from the repo root.
+
 A feature or a decision that is worth remembering is worth a document: write it under `docs/`
 (plans in `docs/plans/`) in the same pull request that builds it. Where the project stands today is
 [docs/status.md](docs/status.md), and how the documents are indexed for semantic search is

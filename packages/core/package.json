@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
+    "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   },
   "dependencies": {
     "@agentry/accounts": "workspace:*",
