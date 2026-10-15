@@ -465,14 +465,14 @@ test("a work item's changes in a project that is a linked worktree leave out the
   writeFileSync(join(project, 'feature.txt'), 'the project was already here\n');
   commitAll(project, 'feature');
   const item = join(repo, '.claude', 'worktrees', 'task-agn-1');
-  addWorktree(repo, item, 'task/agn-1', headCommit(project));
+  addWorktree(repo, item, 'claudio-task/agn-1', headCommit(project));
   writeFileSync(join(item, 'item.txt'), "the item's work\n");
   commitAll(item, 'item');
 
   const { changes } = service(repo, base, item);
-  const live = changes.itemChanges(project, { worktree: item, branch: 'task/agn-1' });
+  const live = changes.itemChanges(project, { worktree: item, branch: 'claudio-task/agn-1' });
   assert.deepEqual(live?.files.map((f) => f.path), ['item.txt']);
   removeWorktree(repo, item, true);
-  const byName = changes.itemChanges(project, { worktree: item, branch: 'task/agn-1' });
+  const byName = changes.itemChanges(project, { worktree: item, branch: 'claudio-task/agn-1' });
   assert.deepEqual(byName?.files.map((f) => f.path), ['item.txt']);
 });

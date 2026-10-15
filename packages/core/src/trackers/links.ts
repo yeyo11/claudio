@@ -1,7 +1,7 @@
 import type { CodeHostId, IssueRef, ProjectTrackerSettings, TrackerId } from '@agentry/shared';
 
 // How a change request names the issues of its work item (docs/plans/code-hosts.md, phase 5 and
-// matrix F9). The item's branch stays `task/<key>`; the issue travels in the title and the body,
+// matrix F9). The item's branch stays `claudio-task/<key>`; the issue travels in the title and the body,
 // which is what each tracker's own integration links by.
 
 /** The host whose CLI and sign-in a tracker reuses; null for a tracker with its own CLI. */

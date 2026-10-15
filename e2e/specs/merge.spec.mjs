@@ -134,7 +134,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, approved_at, opened_at, checked_at, created_at, updated_at, host, hostname)
          VALUES (?, ?, ?, 'open', ?, ?, ?, 'main', 'passing', '[]', ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, it.id, projectId, number, url, `task/${it.key.toLowerCase()}`, now, now, now, now, now, host, host === 'gitlab' ? 'gitlab.com' : 'github.com');
+      .run(id, it.id, projectId, number, url, `claudio-task/${it.key.toLowerCase()}`, now, now, now, now, now, host, host === 'gitlab' ? 'gitlab.com' : 'github.com');
     writer.prepare("UPDATE work_items SET waiting = 'merge' WHERE id = ?").run(it.id);
     writer.close();
     return id;
@@ -214,7 +214,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const block = await page.eval(
         `const b = document.querySelector('.mg'); return { head: b.querySelector('.mg-head')?.textContent ?? '', labels: [...b.querySelectorAll('.rv-label')].map((l) => l.textContent.trim()), methods: [...b.querySelectorAll('.segment')].map((s) => s.textContent.trim()), box: !!b.querySelector('.mg-check'), subject: !!b.querySelector('input[aria-label="Commit subject"]'), badge: b.querySelector('.badge-ok')?.textContent ?? '' }`,
       );
-      check(block.head.includes('Merge') && block.head.includes('task/') && block.head.includes(HEAD.slice(0, 7)), `[${theme}] the head names the request, the branches and the commit it will merge (${block.head})`);
+      check(block.head.includes('Merge') && block.head.includes('claudio-task/') && block.head.includes(HEAD.slice(0, 7)), `[${theme}] the head names the request, the branches and the commit it will merge (${block.head})`);
       check(block.methods.join('|') === 'Squash|Merge commit', `[${theme}] the repository's allowed methods are the segmented control, squash first (${block.methods})`);
       check(block.labels.includes('Method') && block.labels.includes('Message') && block.labels.includes('Branch') && block.box && block.subject, `[${theme}] the rows are method, message and branch box (${block.labels})`);
       check(block.badge.includes('ready to merge'), `[${theme}] the badge says it with a word (${block.badge})`);
@@ -563,7 +563,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     open(glProject.id, behind, 9, 'gitlab');
     // The checkout has pushed what it has: the branch's remote-tracking ref is where its head is, so a rebase on GitLab
     // loses nothing here (without it Agentry cannot say, and offers its own update instead)
-    git(glRoot, 'update-ref', `refs/remotes/origin/task/${behind.key.toLowerCase()}`, 'HEAD');
+    git(glRoot, 'update-ref', `refs/remotes/origin/claudio-task/${behind.key.toLowerCase()}`, 'HEAD');
     scenario('glab', { ci: 'passing', mergeDetail: 'need_rebase' });
     await visit(behind, 'a branch behind its base', '.mg .mb-note[data-reason="behind"]');
     {

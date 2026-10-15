@@ -13,7 +13,7 @@
 		?Referrer-Policy no-referrer
 	}
 
-	reverse_proxy agentry:8787 {
+	reverse_proxy claudio:8797 {
 		# The event stream (/api/events) and the chat streams are long-lived responses: without this
 		# Caddy buffers them and the UI sees nothing until the connection closes
 		flush_interval -1

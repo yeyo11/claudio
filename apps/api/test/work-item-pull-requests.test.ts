@@ -54,7 +54,7 @@ async function createItem(projectId: string, body: Record<string, unknown>): Pro
 /** An item in review with one commit of work on its own branch and worktree, as "Work on it" leaves it. */
 async function reviewed(projectId: string, path: string): Promise<WorkItem> {
   const item = await createItem(projectId, { title: 'Fix the cart total', description: 'Off by one.', acceptanceCriteria: [{ text: 'The total adds up' }] });
-  const branch = `task/${item.key.toLowerCase()}`;
+  const branch = `claudio-task/${item.key.toLowerCase()}`;
   const worktree = join(path, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
   git(path, 'worktree', 'add', '-q', '-b', branch, worktree, 'HEAD');
   writeFileSync(join(worktree, 'cart.ts'), 'export const total = 2;\n');
@@ -117,7 +117,7 @@ test('approving an item in review answers 202, opens one PR, and a second call a
   assert.equal(detail.pullRequest?.number, 7);
   assert.equal(detail.pullRequest?.url, 'https://github.com/acme/shop/pull/7');
   assert.deepEqual(detail.pullRequestReadiness, { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null });
-  assert.equal(git(remote, 'rev-parse', `task/${item.key.toLowerCase()}`).length, 40, 'the branch was pushed');
+  assert.equal(git(remote, 'rev-parse', `claudio-task/${item.key.toLowerCase()}`).length, 40, 'the branch was pushed');
 
   const second = await approve(item.id);
   assert.equal(second.statusCode, 200, second.body);
@@ -213,7 +213,7 @@ test('an approval whose update conflicts answers 202, pushes nothing and sends t
   const moved = detail.history.filter((e) => e.change === 'status').pop();
   assert.equal(moved?.actor.kind, 'person');
   assert.equal(moved?.cause?.event, 'pr.conflict');
-  const branches = execFileSync('git', ['-C', remote, 'branch', '--list', `task/${item.key.toLowerCase()}`], { encoding: 'utf8' }).trim();
+  const branches = execFileSync('git', ['-C', remote, 'branch', '--list', `claudio-task/${item.key.toLowerCase()}`], { encoding: 'utf8' }).trim();
   assert.equal(branches, '', 'nothing was pushed');
 
   // Out of review now: a second approval is refused until it comes back

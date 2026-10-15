@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Agentry
+Name=Claudio
 GenericName=Claude Code Control Panel
 Comment=Desktop UI for Claude Code agents: runs, sessions and multi-agent orchestration
-Exec=agentry %U
-Icon=agentry
+Exec=claudio %U
+Icon=claudio
 Terminal=false
 Categories=Development;
 Keywords=Claude;Claude Code;AI;agents;orchestration;
-StartupWMClass=agentry
+StartupWMClass=claudio

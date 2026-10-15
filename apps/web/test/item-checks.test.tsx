@@ -26,7 +26,7 @@ const check = (over: Partial<Check>): Check => ({
 });
 
 const pr = (over: Partial<WorkItemPullRequest> = {}): WorkItemPullRequest => ({
-  id: 'cr1', phase: 'open', host: 'gitlab', number: 12, ref: '!12', url: 'https://gitlab.com/acme/shop/-/merge_requests/12', branch: 'task/agn-26', base: 'main', ci: 'failing',
+  id: 'cr1', phase: 'open', host: 'gitlab', number: 12, ref: '!12', url: 'https://gitlab.com/acme/shop/-/merge_requests/12', branch: 'claudio-task/agn-26', base: 'main', ci: 'failing',
   conflicts: [], error: null, openedAt: '2026-10-01T09:00:00Z', closedAt: null, checkedAt: '2026-10-01T10:00:00Z', ...over,
 });
 

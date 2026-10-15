@@ -9882,7 +9882,7 @@
       },
       "port": {
         "type": "number",
-        "description": "The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8443 by default)"
+        "description": "The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8444 by default)"
       },
       "settings": {
         "$ref": "#/components/schemas/TunnelSettings"
@@ -15132,7 +15132,7 @@
           "string",
           "null"
         ],
-        "description": "The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case"
+        "description": "The item's own git worktree, once something worked on it, on branch `claudio-task/<key>` in lower case"
       },
       "branch": {
         "type": [
@@ -15530,7 +15530,7 @@
       },
       "branch": {
         "type": "string",
-        "description": "The item's branch, `task/<key>`"
+        "description": "The item's branch, `claudio-task/<key>`"
       },
       "base": {
         "type": "string",
@@ -15932,7 +15932,7 @@
           "string",
           "null"
         ],
-        "description": "The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case"
+        "description": "The item's own git worktree, once something worked on it, on branch `claudio-task/<key>` in lower case"
       },
       "branch": {
         "type": [

@@ -139,7 +139,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
           `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, approved_at, opened_at, checked_at, created_at, updated_at)
            VALUES (?, ?, ?, 'open', 7, 'https://github.com/acme/shop/pull/7', ?, 'main', 'passing', '[]', ?, ?, ?, ?, ?)`,
         )
-        .run(crId, item.id, projectId, `task/${item.key.toLowerCase()}`, now, now, now, now, now);
+        .run(crId, item.id, projectId, `claudio-task/${item.key.toLowerCase()}`, now, now, now, now, now);
       writer.prepare("UPDATE work_items SET waiting = 'merge' WHERE id = ?").run(item.id);
       writer.close();
     }
@@ -310,7 +310,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.viewport(1440, 900);
 
     // ---- 4b. Reachable from a screen ----
-    const branch = `task/${item.key.toLowerCase()}`;
+    const branch = `claudio-task/${item.key.toLowerCase()}`;
     git(root, 'checkout', '-q', '-b', branch);
     writeFileSync(join(root, 'src', 'cart.ts'), cartSource(true));
     git(root, 'commit', '-q', '-am', 'round the total');
@@ -563,7 +563,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
             `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, url, branch, base, ci, conflicts, approved_at, opened_at, checked_at, created_at, updated_at, host, hostname)
              VALUES (?, ?, ?, 'open', 7, 'https://gitlab.com/acme/shop/-/merge_requests/7', ?, 'main', 'passing', '[]', ?, ?, ?, ?, ?, 'gitlab', 'gitlab.com')`,
           )
-          .run(mrId, labItem.id, labProject, `task/${labItem.key.toLowerCase()}`, now, now, now, now, now);
+          .run(mrId, labItem.id, labProject, `claudio-task/${labItem.key.toLowerCase()}`, now, now, now, now, now);
         writer.prepare("UPDATE work_items SET waiting = 'merge' WHERE id = ?").run(labItem.id);
         writer.close();
       }

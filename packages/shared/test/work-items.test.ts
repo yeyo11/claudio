@@ -55,7 +55,7 @@ test('a prefix a clash left with a digit is still a valid prefix', () => {
 });
 
 test('an item is worked on a lower case task branch', () => {
-  assert.equal(workItemBranch('AGN-12'), 'task/agn-12');
+  assert.equal(workItemBranch('AGN-12'), 'claudio-task/agn-12');
 });
 
 test('a value list cannot drift from its union, in either direction', () => {

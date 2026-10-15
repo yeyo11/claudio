@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "agentry.fullname" . }}
+  name: {{ include "claudio.fullname" . }}
   labels:
-    {{- include "agentry.labels" . | nindent 4 }}
+    {{- include "claudio.labels" . | nindent 4 }}
   annotations:
     # Uninstalling the release must not delete the account setup, the transcripts and the projects
     helm.sh/resource-policy: keep

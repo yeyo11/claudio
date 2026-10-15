@@ -86,7 +86,7 @@ test('the VAPID keypair is made on first use and only its public half is ever ha
   const doc = JSON.parse(readFileSync(file, 'utf8')) as { publicKey: string; privateKey: string; subject: string };
   assert.equal(doc.publicKey, first.publicKey);
   assert.ok(doc.privateKey);
-  assert.equal(doc.subject, 'https://github.com/yeyo11/agentry');
+  assert.equal(doc.subject, 'https://github.com/yeyo11/claudio');
 
   // Every subscription is taken out against one public key: a second call must not replace it
   assert.deepEqual(await push.keyInfo(), first);
@@ -254,10 +254,10 @@ test('the configured subject replaces the one stored beside the keypair, keypair
   reopened.register({ endpoint: ENDPOINT, keys, label: 'iPhone' });
   await reopened.test({ endpoint: ENDPOINT });
 
-  assert.equal(sent.at(-1)?.subject, 'https://github.com/yeyo11/agentry', 'the claim in force, not the one the file was written with');
+  assert.equal(sent.at(-1)?.subject, 'https://github.com/yeyo11/claudio', 'the claim in force, not the one the file was written with');
   await reopened.idle();
   const stored = JSON.parse(readFileSync(file, 'utf8')) as { publicKey: string; subject: string };
-  assert.equal(stored.subject, 'https://github.com/yeyo11/agentry', 'and the file is caught up for the next boot');
+  assert.equal(stored.subject, 'https://github.com/yeyo11/claudio', 'and the file is caught up for the next boot');
   assert.equal(stored.publicKey, made.publicKey, 'every registered install was taken out against this key: it cannot change');
   reopened.close();
 });

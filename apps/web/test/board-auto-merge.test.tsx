@@ -42,7 +42,7 @@ const item = (): WorkItem => ({
     phase: 'open',
     number: 12,
     url: 'https://gitlab.com/acme/shop/-/merge_requests/12',
-    branch: 'task/agn-1',
+    branch: 'claudio-task/agn-1',
     base: 'main',
     ci: 'pending',
     conflicts: [],

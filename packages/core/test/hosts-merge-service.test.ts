@@ -52,7 +52,7 @@ const ghRepoJson = (o: Record<string, unknown> = {}): string =>
 const ghView = (o: Record<string, unknown> = {}): string =>
   JSON.stringify({
     id: 'PR_kwDOU1zIIM8AAAABGIG01w', number: 12, url: 'https://github.com/yeyo11/agentry-probe/pull/12', state: 'OPEN', isDraft: false,
-    headRefOid: GH_HEAD, headRefName: 'task/cw-1', baseRefName: 'main', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', reviewDecision: '', autoMergeRequest: null, ...o,
+    headRefOid: GH_HEAD, headRefName: 'claudio-task/cw-1', baseRefName: 'main', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', reviewDecision: '', autoMergeRequest: null, ...o,
   });
 const armedOn = { mergeMethod: 'SQUASH', enabledAt: '2026-10-01T10:00:00Z', enabledBy: { login: PERSON } };
 
@@ -60,7 +60,7 @@ const glRepoJson = (o: Record<string, unknown> = {}): string =>
   JSON.stringify({ merge_method: 'merge', squash_option: 'default_off', only_allow_merge_if_pipeline_succeeds: false, remove_source_branch_after_merge: false, merge_trains_enabled: false, ci_config_path: '', ...o });
 const glView = (o: Record<string, unknown> = {}): string =>
   JSON.stringify({
-    iid: 12, web_url: 'https://gitlab.com/yeyo11/agentry/-/merge_requests/12', state: 'opened', draft: false, sha: GL_HEAD, source_branch: 'task/cw-1', target_branch: 'main',
+    iid: 12, web_url: 'https://gitlab.com/yeyo11/agentry/-/merge_requests/12', state: 'opened', draft: false, sha: GL_HEAD, source_branch: 'claudio-task/cw-1', target_branch: 'main',
     detailed_merge_status: 'mergeable', has_conflicts: false, merge_when_pipeline_succeeds: false,
     head_pipeline: { id: 7, status: 'success', sha: GL_HEAD, source: 'merge_request_event' }, ...o,
   });
@@ -119,7 +119,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
     adapter: host === 'github' ? githubAdapter : gitlabAdapter,
     repo: host === 'github' ? ghRepo : glRepo,
     number: 12,
-    branch: 'task/cw-1',
+    branch: 'claudio-task/cw-1',
     base: 'main',
     run,
     ...(options.fileAt ? { fileAt: options.fileAt } : {}),
@@ -444,7 +444,7 @@ test('GitHub Merge: the head guard and the method go to the host, the person is 
     done = true;
     return ok();
   });
-  h.answer(/branches\/task%2Fcw-1$/, failed(1, 'Not Found', { http: { status: 404, headers: {} } }));
+  h.answer(/branches\/claudio-task%2Fcw-1$/, failed(1, 'Not Found', { http: { status: 404, headers: {} } }));
   const outcome = await h.service.merge('cr-1', squash(GH_HEAD, { deleteBranch: true, subject: 'Add the cart (#12)', body: 'Closes the loop.' }), PERSON);
   assert.equal(outcome.merged, true);
   assert.equal(outcome.branchDeleted, true);

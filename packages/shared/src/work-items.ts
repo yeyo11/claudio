@@ -287,7 +287,7 @@ export function parseWorkItemKey(key: string): { prefix: string; number: number 
 
 /** The branch an item is worked on: `task/agn-12`. Lower case, as git refs usually are. */
 export function workItemBranch(key: string): string {
-  return `task/${key.toLowerCase()}`;
+  return `claudio-task/${key.toLowerCase()}`;
 }
 
 /**

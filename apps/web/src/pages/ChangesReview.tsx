@@ -155,7 +155,7 @@ export function IntegrationChangesReview() {
 }
 
 /**
- * A work item's own worktree and branch (`task/<key>`), which several chats may have worked in one
+ * A work item's own worktree and branch (`claudio-task/<key>`), which several chats may have worked in one
  * after another: no single transcript holds its steps, so it is reviewed by its result alone.
  */
 export function WorkItemChangesReview() {

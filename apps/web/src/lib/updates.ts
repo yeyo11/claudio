@@ -108,7 +108,7 @@ export function updateRoute({
  * and the repository's own compose file, which builds the image instead of pulling one.
  */
 export const DOCKER_UPDATE_WAYS = [
-  { way: 'run', command: 'docker pull ghcr.io/yeyo11/agentry' },
+  { way: 'run', command: 'docker pull ghcr.io/yeyo11/claudio' },
   { way: 'compose', command: 'docker compose pull && docker compose up -d' },
   { way: 'checkout', command: 'git pull && docker compose up -d --build' },
 ] as const;
@@ -120,7 +120,7 @@ export const DOCKER_UPDATE_WAYS = [
  * is a different folder from wherever the command is run next.
  */
 export const DOCKER_RUN_COMMAND =
-  'docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 -v agentry-config:/home/node/.claude -v agentry-data:/data -v agentry-workspace:/workspace ghcr.io/yeyo11/agentry';
+  'docker run -d --init --name claudio --restart unless-stopped -p 127.0.0.1:8797:8797 -v claudio-config:/home/node/.claude -v claudio-data:/data -v claudio-workspace:/workspace ghcr.io/yeyo11/claudio';
 /** What follows `docker pull`: the old container goes, the volumes stay */
-export const DOCKER_REPLACE_COMMAND = `docker stop agentry && docker rm agentry && ${DOCKER_RUN_COMMAND}`;
+export const DOCKER_REPLACE_COMMAND = `docker stop claudio && docker rm claudio && ${DOCKER_RUN_COMMAND}`;
 export const SOURCE_UPDATE_COMMAND = 'git pull && pnpm install && pnpm build';

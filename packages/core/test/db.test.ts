@@ -505,7 +505,7 @@ test('pull requests stored before the code hosts read as github, with a ref, and
   migrate(raw, CODE_HOSTS_SCHEMA_VERSION - 1);
   const insert = raw.prepare(
     `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, branch, base, approved_at, created_at, updated_at)
-     VALUES (?, 'i', 'p', 'open', 12, 'task/CW-1', 'main', ?, ?, ?)`,
+     VALUES (?, 'i', 'p', 'open', 12, 'claudio-task/CW-1', 'main', ?, ?, ?)`,
   );
   insert.run('old', at(1), at(1), at(1));
   migrate(raw);
@@ -585,7 +585,7 @@ test('pull requests stored before the checks have no fix, and the snapshot table
   raw
     .prepare(
       `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, branch, base, approved_at, created_at, updated_at)
-       VALUES ('old', 'i', 'p', 'open', 12, 'task/CW-1', 'main', ?, ?, ?)`,
+       VALUES ('old', 'i', 'p', 'open', 12, 'claudio-task/CW-1', 'main', ?, ?, ?)`,
     )
     .run(at(1), at(1), at(1));
   raw

@@ -13,8 +13,8 @@ import { ErrorBox, Field } from '@agentry/ui/components/ui';
 import { EffortField } from '../../../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 
-/** The branch "Work on it" works on, as the API names it: `task/<key>` in lower case. */
-export const taskBranch = (key: string) => `task/${key.toLowerCase()}`;
+/** The branch "Work on it" works on, as the API names it: `claudio-task/<key>` in lower case. */
+export const taskBranch = (key: string) => `claudio-task/${key.toLowerCase()}`;
 
 /**
  * "Work on it": a chat in the item's own worktree, prompted with its description and criteria, with

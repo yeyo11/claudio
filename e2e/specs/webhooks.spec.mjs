@@ -490,7 +490,7 @@ export default async ({ page, api, check, dirs }) => {
       prId,
       item.id,
       ghId,
-      `task/${item.key.toLowerCase()}`,
+      `claudio-task/${item.key.toLowerCase()}`,
       now,
       now,
       now,

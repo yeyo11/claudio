@@ -116,7 +116,7 @@ async function failing(flowOn = true): Promise<Fixture> {
     merge: disarming(disarmed),
     onChecksFailing: (n) => notices.push(n),
   });
-  return { s, service, stub: st, item, notices, remoteHead: () => sh(s.r.remote, 'rev-parse', 'task/cw-1'), disarmed };
+  return { s, service, stub: st, item, notices, remoteHead: () => sh(s.r.remote, 'rev-parse', 'claudio-task/cw-1'), disarmed };
 }
 
 /** The Developer's run: a commit in the item's worktree, then the flow's own moves. */
@@ -254,11 +254,11 @@ test('a failed push leaves the fix waiting, with the reason, and the next click 
     // Someone else moved the branch on the host: a plain push is refused, never forced
     const other = join(f.s.r.root, 'rival');
     sh(f.s.r.root, 'clone', '-q', f.s.r.remote, other);
-    sh(other, 'checkout', '-q', 'task/cw-1');
+    sh(other, 'checkout', '-q', 'claudio-task/cw-1');
     write(other, 'elsewhere.ts', 'export const x = 1;\n');
     sh(other, 'add', '-A');
     sh(other, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'elsewhere');
-    sh(other, 'push', '-q', 'origin', 'task/cw-1');
+    sh(other, 'push', '-q', 'origin', 'claudio-task/cw-1');
     await assert.rejects(f.service.pushFix(f.item.id), (err: { reason: string }) => err.reason === 'push');
     assert.equal(row(f)?.fixState, 'awaiting-push');
     assert.equal(row(f)?.error?.code, 'push');

@@ -89,7 +89,7 @@ test('the storage report names the three folders, and says nothing is checked ou
 
 test('the image no longer installs claude-swap or uv, and no packaging file mounts its data', () => {
   assert.doesNotMatch(dockerfile, /claude-swap|cswap|uv-install/i);
-  for (const file of ['docker-compose.yml', 'deploy/helm/agentry/templates/deployment.yaml', '.env.example']) {
+  for (const file of ['docker-compose.yml', 'deploy/helm/claudio/templates/deployment.yaml', '.env.example']) {
     assert.doesNotMatch(readFileSync(resolve(here, '../../..', file), 'utf8'), /claude-swap|cswap/i, file);
   }
 });
@@ -294,17 +294,17 @@ test('the compose file, the .env example and the chart all say how to turn the t
   assert.match(read('docker-compose.yml'), /^\s+env_file: \.env$/m);
   assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=off$/m);
 
-  const values = read('deploy/helm/agentry/values.yaml');
+  const values = read('deploy/helm/claudio/values.yaml');
   assert.match(values, /^tunnel:\n {2}enabled: true$/m, 'the chart offers the tunnel as the image does');
   // Written whatever the value, so a release that says "off" is off even on an image that changed its default
-  assert.match(read('deploy/helm/agentry/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
+  assert.match(read('deploy/helm/claudio/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
 });
 
 test('the chart\'s default image is the release this checkout is, so a plain helm install is not an old one', () => {
   const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
   const { version } = JSON.parse(read('package.json')) as { version: string };
-  assert.match(read('deploy/helm/agentry/values.yaml'), new RegExp(`^  tag: "${version.replace(/\./g, '\\.')}" # x-release-please-version$`, 'm'));
-  assert.ok((JSON.parse(read('release-please-config.json')) as { packages: Record<string, { 'extra-files': Array<{ path: string }> }> }).packages['.']?.['extra-files'].some((file) => file.path === 'deploy/helm/agentry/values.yaml'), 'release-please moves it');
+  assert.match(read('deploy/helm/claudio/values.yaml'), new RegExp(`^  tag: "${version.replace(/\./g, '\\.')}" # x-release-please-version$`, 'm'));
+  assert.ok((JSON.parse(read('release-please-config.json')) as { packages: Record<string, { 'extra-files': Array<{ path: string }> }> }).packages['.']?.['extra-files'].some((file) => file.path === 'deploy/helm/claudio/values.yaml'), 'release-please moves it');
 });
 
 test('the MCP server is bundled on its own, imports only node: built-ins, and the desktop package ships it beside server.mjs', { timeout: 120_000 }, async () => {

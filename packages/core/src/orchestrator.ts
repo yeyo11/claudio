@@ -237,7 +237,7 @@ function checkoutOf(cwd: string): Checkout {
   return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '', home: mainTopLevel(cwd) };
 }
 
-/** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
+/** `claudio/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
 function integrationBranch(orch: Orchestration): string {
   const slug = orch.name
     .toLowerCase()
@@ -245,7 +245,7 @@ function integrationBranch(orch: Orchestration): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
-  return `agentry/${slug || 'orchestration'}-${orch.id.slice(0, 8)}`;
+  return `claudio/${slug || 'orchestration'}-${orch.id.slice(0, 8)}`;
 }
 
 /** Worktrees branch from a commit, so an empty repository cannot have any. */
@@ -1484,7 +1484,7 @@ ${quoted}
 
   /**
    * Builds the one branch a worktree graph delivers: every completed task's branch merged, in
-   * dependency order, into `agentry/<name>` from the commit the graph started on. A conflict is
+   * dependency order, into `claudio/<name>` from the commit the graph started on. A conflict is
    * handed to an integrator agent in that branch's worktree, and the result is checked rather than
    * trusted. Never throws: whatever happens is recorded on `orch.integration`.
    */

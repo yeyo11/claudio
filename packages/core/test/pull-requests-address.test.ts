@@ -89,7 +89,7 @@ async function withThreads(flowOn = true): Promise<Fixture> {
     reviews: st.reviews,
     flowOn: () => flowOn,
   });
-  return { s, service, stub: st, item, remoteHead: () => sh(s.r.remote, 'rev-parse', 'task/cw-1') };
+  return { s, service, stub: st, item, remoteHead: () => sh(s.r.remote, 'rev-parse', 'claudio-task/cw-1') };
 }
 
 function developerAddresses(f: Fixture): void {

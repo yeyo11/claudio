@@ -87,7 +87,7 @@ function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; mana
   return { root, manager, hosts, events, audit, security, calls, node, setNode, record: join(root, 'data', 'tunnel', 'serve-rule.json') };
 }
 
-const ours = (port = 8443, target = TARGET) => ({ TCP: { [String(port)]: { HTTPS: true } }, Web: { [`${NODE}:${port}`]: { Handlers: { '/': { Proxy: target } } } } });
+const ours = (port = 8444, target = TARGET) => ({ TCP: { [String(port)]: { HTTPS: true } }, Web: { [`${NODE}:${port}`]: { Handlers: { '/': { Proxy: target } } } } });
 
 async function openTunnel(r: Rig): Promise<TunnelStatus> {
   await r.manager.start();
@@ -110,15 +110,15 @@ test('the version and the readiness come from the CLI output as measured on 1.10
 });
 
 test("only an HTTPS listener with one `/` proxy to this server is Agentry's; anything else on the port is the person's", () => {
-  assert.equal(servePortUse({}, 8443, NODE, TARGET), 'free');
-  assert.equal(servePortUse({ TCP: { '443': { HTTPS: true } }, Web: { [`${NODE}:443`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:3000' } } } } }, 8443, NODE, TARGET), 'free');
-  assert.equal(servePortUse(ours(), 8443, NODE, TARGET), 'match');
-  assert.equal(servePortUse(ours(8443, `${TARGET}/`), 8443, NODE, TARGET), 'match');
-  assert.equal(servePortUse(ours(8443, 'http://127.0.0.1:3000'), 8443, NODE, TARGET), 'other');
-  const withPath = { TCP: ours().TCP, Web: { [`${NODE}:8443`]: { Handlers: { '/': { Proxy: TARGET }, '/grafana': { Proxy: 'http://127.0.0.1:3000' } } } } };
-  assert.equal(servePortUse(withPath, 8443, NODE, TARGET), 'other');
-  assert.equal(servePortUse({ TCP: { '8443': { TCPForward: '127.0.0.1:22' } } }, 8443, NODE, TARGET), 'other');
-  assert.equal(servePortUse({ Foreground: { session: ours() } }, 8443, NODE, TARGET), 'other');
+  assert.equal(servePortUse({}, 8444, NODE, TARGET), 'free');
+  assert.equal(servePortUse({ TCP: { '443': { HTTPS: true } }, Web: { [`${NODE}:443`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:3000' } } } } }, 8444, NODE, TARGET), 'free');
+  assert.equal(servePortUse(ours(), 8444, NODE, TARGET), 'match');
+  assert.equal(servePortUse(ours(8444, `${TARGET}/`), 8444, NODE, TARGET), 'match');
+  assert.equal(servePortUse(ours(8444, 'http://127.0.0.1:3000'), 8444, NODE, TARGET), 'other');
+  const withPath = { TCP: ours().TCP, Web: { [`${NODE}:8444`]: { Handlers: { '/': { Proxy: TARGET }, '/grafana': { Proxy: 'http://127.0.0.1:3000' } } } } };
+  assert.equal(servePortUse(withPath, 8444, NODE, TARGET), 'other');
+  assert.equal(servePortUse({ TCP: { '8444': { TCPForward: '127.0.0.1:22' } } }, 8444, NODE, TARGET), 'other');
+  assert.equal(servePortUse({ Foreground: { session: ours() } }, 8444, NODE, TARGET), 'other');
 });
 
 test('start is refused under mode none, and the Serve config is never touched', async (t) => {
@@ -204,12 +204,12 @@ test("the node's name joins the allowlist once the rule reads back, and stop lea
 
   const active = await openTunnel(r);
   assert.equal(active.state, 'active');
-  assert.equal(active.url, `https://${NODE}:8443`);
+  assert.equal(active.url, `https://${NODE}:8444`);
   assert.ok(active.since);
   assert.deepEqual(r.hosts.list(), [NODE]);
   assert.deepEqual(r.node().serve, { TCP: { ...theirs.TCP, ...ours().TCP }, Web: { ...theirs.Web, ...ours().Web } });
   assert.ok(existsSync(r.record), 'the rule is recorded, so a crash cannot leave it behind unnoticed');
-  assert.ok(r.calls().includes(`serve --bg --yes --https=8443 ${TARGET}`));
+  assert.ok(r.calls().includes(`serve --bg --yes --https=8444 ${TARGET}`));
   assert.deepEqual(r.events.map((s) => s.state), ['starting', 'verifying', 'active']);
   assert.ok(r.events.every((s) => (s.state === 'active') === (s.url !== null)));
 
@@ -223,12 +223,12 @@ test("the node's name joins the allowlist once the rule reads back, and stop lea
 });
 
 test('a port that already serves something else is left alone, and the tunnel says so', async (t) => {
-  const theirs = ours(8443, 'http://127.0.0.1:3000');
+  const theirs = ours(8444, 'http://127.0.0.1:3000');
   const r = rig(t, { node: { serve: theirs } });
   const status = await openTunnel(r);
   assert.equal(status.state, 'failed');
   assert.equal(status.reason?.code, 'tunnel.portTaken');
-  assert.deepEqual(status.reason?.params, { port: '8443' });
+  assert.deepEqual(status.reason?.params, { port: '8444' });
   assert.deepEqual(r.node().serve, theirs);
   assert.ok(!r.calls().some((call) => call.includes('--bg') || call.endsWith('off')));
   assert.deepEqual(r.hosts.list(), []);
@@ -269,11 +269,11 @@ test('a rule a crash left behind is taken away on the next start, and one someon
 
   // The same record, but the port now holds the person's rule: the record goes, their rule stays
   writeFileSync(next.record, record);
-  next.setNode({ serve: ours(8443, 'http://127.0.0.1:3000') });
+  next.setNode({ serve: ours(8444, 'http://127.0.0.1:3000') });
   const third = rig(t, { root, attach: false });
   third.manager.attach(8787);
   await until(() => !existsSync(third.record), 'the stale record dropped');
-  assert.deepEqual(third.node().serve, ours(8443, 'http://127.0.0.1:3000'));
+  assert.deepEqual(third.node().serve, ours(8444, 'http://127.0.0.1:3000'));
 });
 
 test('shutdown takes the rule away before the process goes', async (t) => {
@@ -306,8 +306,8 @@ test('a node renamed while the tunnel is open moves the allowed host with it', a
   await openTunnel(r);
   const renamed = 'renamed.tail0000.ts.net';
   const serve = r.node().serve as { TCP: unknown; Web: Record<string, unknown> };
-  r.setNode({ dnsName: `${renamed}.`, certDomains: [renamed], serve: { TCP: serve.TCP, Web: { [`${renamed}:8443`]: serve.Web[`${NODE}:8443`] } } });
-  await until(() => r.manager.status().url === `https://${renamed}:8443`, 'the new name');
+  r.setNode({ dnsName: `${renamed}.`, certDomains: [renamed], serve: { TCP: serve.TCP, Web: { [`${renamed}:8444`]: serve.Web[`${NODE}:8444`] } } });
+  await until(() => r.manager.status().url === `https://${renamed}:8444`, 'the new name');
   assert.deepEqual(r.hosts.list(), [renamed]);
   await r.manager.stop();
   assert.deepEqual(r.node().serve, {});

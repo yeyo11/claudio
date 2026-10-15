@@ -41,7 +41,7 @@ export interface CoreConfig {
   tailscaleManaged: boolean;
   /** The node name a managed `tailscaled` signs in with, from `AGENTRY_TAILSCALE_HOSTNAME`; `agentry` by default */
   tailscaleHostname: string;
-  /** The HTTPS port of Agentry's `tailscale serve` rule, from `AGENTRY_TUNNEL_PORT`; 8443 by default */
+  /** The HTTPS port of Agentry's `tailscale serve` rule, from `AGENTRY_TUNNEL_PORT`; 8444 by default */
   tunnelPort: number;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
@@ -142,7 +142,7 @@ function parseYes(value: string | undefined): boolean {
  * Anything else stops the wrapper rather than reaching the CLI.
  */
 function parseTailscaleHostname(value: string | undefined): string {
-  if (!isSet(value)) return 'agentry';
+  if (!isSet(value)) return 'claudio';
   const name = value.trim().toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error(`AGENTRY_TAILSCALE_HOSTNAME: '${value}' is not a host name (letters, digits and dashes, at most 63)`);
   return name;
@@ -150,7 +150,7 @@ function parseTailscaleHostname(value: string | undefined): string {
 
 /** A port that is not a port is refused at startup rather than guessed: it decides where a rule lands in the node's shared Serve config. */
 function parseTunnelPort(value: string | undefined): number {
-  if (!isSet(value)) return 8443;
+  if (!isSet(value)) return 8444;
   const port = Number(value.trim());
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`AGENTRY_TUNNEL_PORT: '${value}' is not a port between 1 and 65535`);
   return port;
@@ -263,7 +263,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     defaultPermissionMode: isSet(env.AGENTRY_DEFAULT_PERMISSION_MODE) ? (env.AGENTRY_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
     setupSeen: setupSeenFromEnv(env) ?? DEFAULT_APP_SETTINGS.setupSeen,
     maxConcurrentRuns: isSet(env.AGENTRY_MAX_CONCURRENT_RUNS) ? Number(env.AGENTRY_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
-    pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/agentry',
+    pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/claudio',
     allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
     settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]) || (key === 'setupSeen' && isSet(env[OLD_SETUP_SEEN_ENV])))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,

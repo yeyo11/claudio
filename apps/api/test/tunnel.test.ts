@@ -63,7 +63,7 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
   const { port } = app.server.address() as AddressInfo;
   const remote = (path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<number> =>
     new Promise((resolve) => {
-      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host: `${NODE}:8443` } }, (res) => {
+      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host: `${NODE}:8444` } }, (res) => {
         res.resume();
         resolve(res.statusCode ?? 0);
       });
@@ -103,7 +103,7 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     // A source install's Tailscale is the machine's, never signed in by Agentry
     managed: false,
     tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
-    port: 8443,
+    port: 8444,
     settings: { startWithAgentry: false },
   });
 });
@@ -124,7 +124,7 @@ test('the tailnet name is answered while active, and refused again once it stops
   // Before the tunnel, the node's name is not one this wrapper answers to
   assert.equal(await w.remote('/api/overview', auth), 421);
   const active = await openTunnel(w, token);
-  assert.equal(active.url, `https://${NODE}:8443`);
+  assert.equal(active.url, `https://${NODE}:8444`);
   assert.equal(await w.remote('/api/overview', auth), 200);
   // The host is let in, the guard still is not skipped
   assert.equal(await w.remote('/api/overview'), 401);

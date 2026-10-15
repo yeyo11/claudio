@@ -73,7 +73,7 @@ const recordedOutputs: RecordedOutputs = {
     { name: 'none', stdout: '[]', expect: [] },
     {
       name: 'one open',
-      stdout: '[{"number":7,"url":"https://github.com/acme/shop/pull/7","state":"OPEN","headRefName":"task/ab","baseRefName":"main","isCrossRepository":false}]',
+      stdout: '[{"number":7,"url":"https://github.com/acme/shop/pull/7","state":"OPEN","headRefName":"claudio-task/ab","baseRefName":"main","isCrossRepository":false}]',
       expect: [{ number: 7, url: 'https://github.com/acme/shop/pull/7', state: 'open' }],
     },
     {
@@ -166,11 +166,11 @@ test('github adapter: the calls are today’s arguments, pinned', () => {
   assert.deepEqual(githubAdapter.version().args, ['--version']);
   assert.deepEqual(githubAdapter.authStatus('github.com').args, ['auth', 'status', '--json', 'hosts']);
   assert.deepEqual(githubAdapter.defaultBranch(repo).args, ['api', '--hostname', 'github.com', 'repos/acme/shop']);
-  assert.deepEqual(githubAdapter.create(repo, { head: 'task/ab', base: 'main', title: 'T', body: 'B' }).args, [
-    'pr', 'create', '-R', 'github.com/acme/shop', '--head', 'task/ab', '--base', 'main', '--title', 'T', '--body-file', '-',
+  assert.deepEqual(githubAdapter.create(repo, { head: 'claudio-task/ab', base: 'main', title: 'T', body: 'B' }).args, [
+    'pr', 'create', '-R', 'github.com/acme/shop', '--head', 'claudio-task/ab', '--base', 'main', '--title', 'T', '--body-file', '-',
   ]);
-  assert.deepEqual(githubAdapter.find(repo, { head: 'task/ab', base: 'main' }).args, [
-    'pr', 'list', '-R', 'github.com/acme/shop', '--head', 'task/ab', '--base', 'main', '--state', 'all', '--limit', '2',
+  assert.deepEqual(githubAdapter.find(repo, { head: 'claudio-task/ab', base: 'main' }).args, [
+    'pr', 'list', '-R', 'github.com/acme/shop', '--head', 'claudio-task/ab', '--base', 'main', '--state', 'all', '--limit', '2',
     '--json', 'number,url,state,headRefName,baseRefName,isCrossRepository',
   ]);
   assert.deepEqual(githubAdapter.view({ ...repo, host: 'github.example.com' }, 12).args, [
@@ -213,11 +213,11 @@ test('github adapter: the fake gh answers version, auth per host, the default br
   const branch = await runFake(githubAdapter.defaultBranch(repo), state);
   assert.equal(githubAdapter.parseDefaultBranch(branch.stdout), 'main');
 
-  assert.deepEqual(githubAdapter.parseFind((await runFake(githubAdapter.find(repo, { head: 'task/cw-1', base: 'main' }), state)).stdout), []);
-  const created = await runFake(githubAdapter.create(repo, { head: 'task/cw-1', base: 'main', title: 'T', body: 'the body\n' }), state);
+  assert.deepEqual(githubAdapter.parseFind((await runFake(githubAdapter.find(repo, { head: 'claudio-task/cw-1', base: 'main' }), state)).stdout), []);
+  const created = await runFake(githubAdapter.create(repo, { head: 'claudio-task/cw-1', base: 'main', title: 'T', body: 'the body\n' }), state);
   assert.equal(created.exitCode, 0);
   assert.equal(readFileSync(join(state, 'body-7'), 'utf8'), 'the body\n');
-  assert.deepEqual(githubAdapter.parseFind((await runFake(githubAdapter.find(repo, { head: 'task/cw-1', base: 'main' }), state)).stdout), [
+  assert.deepEqual(githubAdapter.parseFind((await runFake(githubAdapter.find(repo, { head: 'claudio-task/cw-1', base: 'main' }), state)).stdout), [
     { number: 7, url: 'https://github.com/acme/shop/pull/7', state: 'open' },
   ]);
 });

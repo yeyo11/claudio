@@ -4,7 +4,7 @@ import type { CoreConfig } from './paths.ts';
 import { VERSION, VersionCheck, compareVersions, type VersionCheckOptions } from './version-check.ts';
 
 // `latest` never answers with a draft or a pre-release, so an edge build is never offered
-const RELEASES_URL = 'https://api.github.com/repos/yeyo11/agentry/releases/latest';
+const RELEASES_URL = 'https://api.github.com/repos/yeyo11/claudio/releases/latest';
 const DISTRIBUTIONS: readonly AgentryDistribution[] = ['docker', 'appimage', 'deb'];
 
 interface Stored {
@@ -79,7 +79,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
     const url = this.env.AGENTRY_RELEASES_URL || RELEASES_URL;
     const res = await this.fetchFn(url, {
       // GitHub refuses a request without a user-agent
-      headers: { accept: 'application/vnd.github+json', 'user-agent': `agentry/${this.current}` },
+      headers: { accept: 'application/vnd.github+json', 'user-agent': `claudio/${this.current}` },
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`);

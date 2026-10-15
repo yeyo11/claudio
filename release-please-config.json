@@ -52,7 +52,7 @@
         },
         {
           "type": "generic",
-          "path": "deploy/helm/agentry/values.yaml"
+          "path": "deploy/helm/claudio/values.yaml"
         }
       ]
     }
