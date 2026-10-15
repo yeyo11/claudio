@@ -266,11 +266,10 @@ export function targetsFor(event: AgentryEvent): Target[] {
       ];
     case 'run.accountRotated':
     case 'account.switched':
-      // The accounts panel itself arrives with its screen; until then these refresh what shows the current account
-      return [[keys.overview, NOW], [keys.chats, LISTS]];
+      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit
-      return [[keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
+      return [[keys.accounts, NOW], [keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
     case 'task.started':
     case 'task.ended':
       return [[keys.tasks, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, LISTS], [keys.overview, OVERVIEW]];

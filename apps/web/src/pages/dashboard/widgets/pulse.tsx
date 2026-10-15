@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useOverview } from '../../../api';
+import { useAccounts, useOverview } from '../../../api';
+import { accountName, usagePct } from '../../../lib/accounts';
 import { ProgressRing, usageTone } from '@agentry/ui/components/motion';
 import { Spinner } from '@agentry/ui/components/Spinner';
 import { Skeleton } from '@agentry/ui/components/ui';
@@ -129,7 +130,12 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
   const { limits } = useHomePulse(project);
   const heading = `${id}-title`;
   const five = limits.fiveHour;
-  const email = overview.data?.system.auth.email ?? null;
+  const accounts = useAccounts().data ?? [];
+  const currentAccount = accounts.find((a) => a.id === overview.data?.accounts?.current);
+  // The account new work starts on; the CLI's own login when no account is known yet
+  const email = currentAccount ? accountName(currentAccount) : (overview.data?.system.auth.email ?? null);
+  // The other accounts, each with the share of its binding window: a limit is per account
+  const others = accounts.filter((a) => a.id !== currentAccount?.id && a.enabled && a.signedIn).map((a) => ({ id: a.id, name: accountName(a), pct: usagePct(a.limits), exhausted: a.limits?.state === 'exhausted' }));
   const tone = five ? usageTone(five.pct) : 'neutral';
   return (
     <section className="card kpi limits-card" aria-labelledby={heading}>
@@ -144,7 +150,7 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
           ) : null}
           <span className="limits-text">
             {email && (
-              <Link to="/settings?tab=providers" className="limits-account strong ellipsis">
+              <Link to="/accounts" className="limits-account strong ellipsis">
                 {email}
               </Link>
             )}
@@ -155,6 +161,11 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
               <>
                 {five.resetsAt !== null && <span className="kpi-sub mono">{t('kpis.resets', { when: timeUntil(five.resetsAt / 1000) })}</span>}
                 {limits.weekly && <span className="kpi-sub mono">{t('kpis.weekly', { pct: limits.weekly.pct })}</span>}
+                {others.length > 0 && (
+                  <span className="kpi-sub mono ellipsis">
+                    {others.map((o) => `${o.name} ${o.exhausted ? t('kpis.accountExhausted') : o.pct === null ? '–' : `${o.pct}%`}`).join(' · ')}
+                  </span>
+                )}
                 <span className="limits-phone mono">
                   {[t('kpis.fiveHourShort', { pct: five.pct }), limits.weekly ? t('kpis.weeklyShort', { pct: limits.weekly.pct }) : null].filter(Boolean).join(' · ')}
                 </span>

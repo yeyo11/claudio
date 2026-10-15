@@ -1,5 +1,16 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  Account,
+  AccountLoginCodeRequest,
+  AccountLoginSession,
+  AccountsSettings,
+  AddLoginAccountRequest,
+  AddTokenAccountRequest,
+  RotationEvent,
+  RotationPolicy,
+  RotationPolicyRequest,
+  UpdateAccountRequest,
+  UsageHistoryPoint,
   AcceptAssistantProposalRequest,
   AddressReviewRequest,
   AgentryReleaseInfo,
@@ -941,6 +952,24 @@ export const api = {
   removePush: (body: RemovePushSubscriptionRequest) => request<{ removed: boolean }>('/push/subscriptions', { method: 'DELETE', body }),
   /** No body at all means every registered install; `{ id }` the one row a person aimed at */
   testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
+  accounts: (o: ReadOptions = {}) => request<Account[]>('/accounts', o),
+  /** A `login` account: answers the sign-in session the CLI runs in the account's own dir */
+  addLoginAccount: (body: AddLoginAccountRequest) => request<AccountLoginSession>('/accounts', { method: 'POST', body }),
+  addTokenAccount: (body: AddTokenAccountRequest) => request<Account>('/accounts/token', { method: 'POST', body }),
+  updateAccount: (id: string, body: UpdateAccountRequest) => request<Account>(`/accounts/${enc(id)}`, { method: 'PATCH', body }),
+  removeAccount: (id: string) => request<{ deleted: true }>(`/accounts/${enc(id)}`, { method: 'DELETE' }),
+  accountLogin: (id: string, o: ReadOptions = {}) => request<AccountLoginSession>(`/accounts/logins/${enc(id)}`, o),
+  accountLoginCode: (id: string, body: AccountLoginCodeRequest) => request<AccountLoginSession>(`/accounts/logins/${enc(id)}/code`, { method: 'POST', body }),
+  cancelAccountLogin: (id: string) => request<AccountLoginSession>(`/accounts/logins/${enc(id)}`, { method: 'DELETE' }),
+  accountsSettings: (o: ReadOptions = {}) => request<AccountsSettings>('/accounts/settings', o),
+  putAccountsSettings: (body: Partial<AccountsSettings>) => request<AccountsSettings>('/accounts/settings', { method: 'PUT', body }),
+  accountPolicies: (o: ReadOptions = {}) => request<RotationPolicy[]>('/accounts/policies', o),
+  createAccountPolicy: (body: RotationPolicyRequest) => request<RotationPolicy>('/accounts/policies', { method: 'POST', body }),
+  updateAccountPolicy: (id: string, body: RotationPolicyRequest) => request<RotationPolicy>(`/accounts/policies/${enc(id)}`, { method: 'PUT', body }),
+  deleteAccountPolicy: (id: string) => request<{ deleted: true }>(`/accounts/policies/${enc(id)}`, { method: 'DELETE' }),
+  accountUsageHistory: (query: { account?: string; window?: 'five_hour' | 'seven_day'; since?: string; limit?: number } = {}, o: ReadOptions = {}) =>
+    request<UsageHistoryPoint[]>(`/accounts/usage-history${qs({ account: query.account, window: query.window, since: query.since, limit: query.limit === undefined ? undefined : String(query.limit) })}`, o),
+  accountEvents: (limit = 500, o: ReadOptions = {}) => request<RotationEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`, o),
   providers: (o: ReadOptions = {}) => request<ProviderStatus[]>('/providers', o),
   provider: (id: string, o: ReadOptions = {}) => request<ProviderStatus>(`/providers/${enc(id)}`, o),
   /** What the provider's driver offers for the model picker */
@@ -1020,6 +1049,12 @@ export const keys = {
   cliVersion: ['cli-version'] as const,
   release: ['release'] as const,
   storage: ['storage'] as const,
+  accounts: ['accounts'] as const,
+  accountsSettings: ['accounts', 'settings'] as const,
+  accountPolicies: ['accounts', 'policies'] as const,
+  accountEvents: ['accounts', 'events'] as const,
+  accountLogin: (id: string) => ['accounts', 'login', id] as const,
+  accountUsage: (account: string, window: string, since: string) => ['accounts', 'usage', account, window, since] as const,
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
   providerModels: (id: string) => ['providers', id, 'models'] as const,
@@ -1235,6 +1270,10 @@ export function useMergeState(id: string | undefined, enabled = true) {
     refetchInterval: (query) => mergeRefetchMs(query.state.data) || fallback,
   });
 }
+
+/** The accounts, default first; the server reads them again from disk, so one added in a terminal shows up. */
+export const useAccounts = (enabled = true) =>
+  useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts({ signal }), refetchInterval: useFallbackInterval(), enabled });
 
 export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: useFallbackInterval() });
 
