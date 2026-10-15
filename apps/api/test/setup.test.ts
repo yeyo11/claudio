@@ -48,11 +48,10 @@ test('the setup state says what is done: access, agents, hosts, YouTrack, the me
   const state = res.json<SetupState>();
   assert.equal(state.seen, false);
   assert.deepEqual(state.access, { mode: 'none', tokenSet: false, readOnly: false });
-  // Only the enabled agents: the test turns the others off
   assert.deepEqual(state.providers.map((p) => p.id), ['claude-code']);
   assert.deepEqual(state.hosts.map((h) => [h.id, h.cli]), [['github', 'gh'], ['gitlab', 'glab']]);
   assert.equal(state.youtrack.configured, false);
-  assert.deepEqual(state.methods.map((m) => m.tool), ['claude-code', 'codex', 'gemini', 'copilot', 'opencode', 'gh', 'glab', 'youtrack', 'tailscale']);
+  assert.deepEqual(state.methods.map((m) => m.tool), ['claude-code', 'gh', 'glab', 'youtrack', 'tailscale']);
   // A source install's Tailscale is the machine's: its state shows, and it is not Agentry's to sign in
   assert.deepEqual(state.tailscale, { enabled: true, managed: false, state: 'ready', host: 'agentry-test.tail0000.ts.net' });
   // A source install without AGENTRY_SECRET_KEY keeps plain values, as before
@@ -67,23 +66,6 @@ test('finishing or skipping the assistant is recorded once, in the app settings'
   assert.equal(JSON.parse(readFileSync(join(root, 'data', 'app-settings.json'), 'utf8')).setupSeen, true);
 });
 
-test('a key for an agent that reads its environment is kept sealed away and never answered back', async () => {
-  const secret = 'AIza-api-test-never-echoed';
-  const res = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'gemini', method: 'key', secret }) });
-  assert.equal(res.statusCode, 201, res.body);
-  const session = res.json<LoginSession>();
-  assert.deepEqual([session.tool, session.method, session.state], ['gemini', 'key', 'succeeded']);
-  assert.ok(!res.body.includes(secret));
-  assert.deepEqual(core.vault.get('gemini'), { GEMINI_API_KEY: secret });
-  assert.equal(process.env.GEMINI_API_KEY === secret, false);
-  assert.ok(!JSON.stringify(events).includes(secret));
-  assert.equal((await app.inject(`/api/setup/logins/${session.id}`)).json<LoginSession>().state, 'succeeded');
-
-  const out = await app.inject({ method: 'DELETE', url: '/api/setup/credentials/gemini' });
-  assert.deepEqual(out.json<SignOutResult>(), { tool: 'gemini', host: null, signedOut: true, reason: null });
-  assert.equal(core.vault.has('gemini'), false);
-});
-
 test('the Claude credential of /auth/credentials lands in the vault and not in the server\'s environment', async () => {
   const before = process.env.ANTHROPIC_API_KEY;
   assert.equal((await app.inject({ method: 'PUT', url: '/api/auth/credentials', ...json({ apiKey: 'sk-ant-api-test' }) })).statusCode, 200);
@@ -93,14 +75,7 @@ test('the Claude credential of /auth/credentials lands in the vault and not in t
   assert.equal(core.vault.has('claude-code'), false);
 });
 
-test('a device sign-in of a CLI that is not there ends cli-missing, and can be read and cancelled', async () => {
-  const res = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'codex', method: 'device' }) });
-  assert.equal(res.statusCode, 201);
-  const session = res.json<LoginSession>();
-  assert.deepEqual([session.state, session.error, session.url, session.code], ['failed', 'cli-missing', null, null]);
-  assert.equal((await app.inject(`/api/setup/logins/${session.id}`)).json<LoginSession>().error, 'cli-missing');
-  assert.equal((await app.inject({ method: 'DELETE', url: `/api/setup/logins/${session.id}` })).json<LoginSession>().state, 'failed');
-  assert.ok(events.some((e) => e.type === 'login.updated' && e.login.id === session.id && e.login.state === 'failed'));
+test('a sign-in session that does not exist is a 404 to read and to cancel', async () => {
   assert.equal((await app.inject('/api/setup/logins/nope')).statusCode, 404);
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/setup/logins/nope' })).statusCode, 404);
 });
@@ -108,8 +83,7 @@ test('a device sign-in of a CLI that is not there ends cli-missing, and can be r
 test('a bad sign-in request is a 400 whose message never carries the key', async () => {
   for (const body of [
     { tool: 'jira', method: 'key', secret: 'x' },
-    { tool: 'gemini', method: 'device' },
-    { tool: 'codex', method: 'key', secret: 'has a space' },
+    { tool: 'gh', method: 'key', secret: 'has a space' },
     { tool: 'gh', method: 'key', secret: 'ghp_x', host: '-oProxyCommand=x' },
   ]) {
     const res = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json(body) });
@@ -119,29 +93,11 @@ test('a bad sign-in request is a 400 whose message never carries the key', async
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/setup/credentials/jira' })).statusCode, 400);
 });
 
-test('a Copilot token is kept for Copilot\'s environment, a classic one is refused, and signing out forgets it', async () => {
-  const classic = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'copilot', method: 'key', secret: 'ghp_classicNeverEchoed' }) });
-  assert.equal(classic.statusCode, 400);
-  assert.ok(!classic.body.includes('ghp_classicNeverEchoed'));
-  assert.equal(core.vault.has('copilot'), false);
-
-  const secret = 'github_pat_11AAAA_api_never_echoed';
-  const res = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'copilot', method: 'key', secret }) });
-  assert.equal(res.statusCode, 201, res.body);
-  assert.ok(!res.body.includes(secret));
-  assert.deepEqual(core.vault.get('copilot'), { COPILOT_GITHUB_TOKEN: secret });
-  assert.equal((await app.inject('/api/setup')).json<SetupState>().methods.find((m) => m.tool === 'copilot')?.deviceVia?.tool, 'gh');
-
-  const out = await app.inject({ method: 'DELETE', url: '/api/setup/credentials/copilot' });
-  assert.deepEqual(out.json<SignOutResult>(), { tool: 'copilot', host: null, signedOut: true, reason: null });
-  assert.equal(core.vault.has('copilot'), false);
-});
-
 test('read-only mode refuses every setup write, and the state stays readable', async () => {
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ readOnly: true }) })).statusCode, 200);
   try {
-    assert.equal((await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'gemini', method: 'key', secret: 'k' }) })).statusCode, 405);
-    assert.equal((await app.inject({ method: 'DELETE', url: '/api/setup/credentials/gemini' })).statusCode, 405);
+    assert.equal((await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'gh', method: 'key', secret: 'k' }) })).statusCode, 405);
+    assert.equal((await app.inject({ method: 'DELETE', url: '/api/setup/credentials/gh' })).statusCode, 405);
     assert.equal((await app.inject({ method: 'POST', url: '/api/setup/seen' })).statusCode, 405);
     assert.equal((await app.inject('/api/setup')).statusCode, 200);
   } finally {
@@ -164,14 +120,14 @@ test("a chat's token reads the setup state but cannot start, read or cancel a si
     assert.equal((await app.inject(fromChat('GET', '/api/setup'))).statusCode, 200);
     for (const [method, url, body] of [
       ['POST', '/api/setup/seen', undefined],
-      ['POST', '/api/setup/logins', { tool: 'gemini', method: 'key', secret: 'evil' }],
+      ['POST', '/api/setup/logins', { tool: 'gh', method: 'key', secret: 'evil' }],
       ['GET', '/api/setup/logins/some-id', undefined],
       ['DELETE', '/api/setup/logins/some-id', undefined],
-      ['DELETE', '/api/setup/credentials/gemini', undefined],
+      ['DELETE', '/api/setup/credentials/gh', undefined],
     ] as const) {
       assert.equal((await app.inject(fromChat(method, url, body))).statusCode, 403, `${method} ${url}`);
     }
-    assert.equal(core.vault.has('gemini'), false);
+    assert.equal(core.vault.has('gh'), false);
   } finally {
     await app.inject({ method: 'PUT', url: '/api/security/auth', remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}`, 'content-type': 'application/json' }, payload: JSON.stringify({ mode: 'none' }) });
   }

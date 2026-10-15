@@ -630,10 +630,10 @@ or an answer; every write, and reading a sign-in, is refused to a chat's token. 
 | --- | --- | --- |
 | GET | `/setup` | `{ seen, access, providers, hosts, youtrack, tailscale, methods, secrets }`: the auth mode, each enabled agent's readiness and whether a key is kept for it, each code host's CLI and the hosts it is signed in to, YouTrack, the Tailscale behind Remote access (offered, run by Agentry, its readiness and node name), the sign-in methods per tool, and whether the vault is sealed and its key sits beside the data |
 | POST | `/setup/seen` | Record that the setup assistant was finished or skipped (`setupSeen` in `app-settings.json`); `409` when the environment sets it off |
-| POST | `/setup/logins` | `{ tool, method: 'key' \| 'device', host?, secret?, variable? }`. A key goes on stdin to the CLI's own login (Codex, gh, glab), into a 0600 file named in `tailscale up --auth-key=file:` and removed after (Tailscale), or into the vault (Claude Code, Gemini, Copilot as `COPILOT_GITHUB_TOKEN`, OpenCode, YouTrack), and the answer comes once it ended; a classic `ghp_` token for Copilot is a `400`. A device sign-in answers at once; `login.updated` carries the URL and the code (Tailscale's login URL has none), then the end, decided by the tool's readiness probe. Copilot's device sign-in is gh's to github.com, whose token Copilot falls back to. Expires after 15 minutes. Tailscale only where Agentry runs its daemon (the image), `409` elsewhere |
+| POST | `/setup/logins` | `{ tool, method: 'key' \| 'device', host?, secret?, variable? }`. A key goes on stdin to the CLI's own login (gh, glab), into a 0600 file named in `tailscale up --auth-key=file:` and removed after (Tailscale), or into the vault (Claude Code, YouTrack), and the answer comes once it ended. A device sign-in answers at once; `login.updated` carries the URL and the code (Tailscale's login URL has none), then the end, decided by the tool's readiness probe. Expires after 15 minutes. Tailscale only where Agentry runs its daemon (the image), `409` elsewhere |
 | GET | `/setup/logins/:id` | One sign-in: state, URL and code, `error` code, readiness after it ended |
 | DELETE | `/setup/logins/:id` | Cancel it; the command's process group is killed |
-| DELETE | `/setup/credentials/:tool?host=` | Sign out: `codex logout`, `gh`/`glab auth logout --hostname`, `claude auth logout` plus the vault, `tailscale logout` after the tunnel closes, or the vault alone (Copilot's forgets only the token Agentry keeps, never gh's sign-in) |
+| DELETE | `/setup/credentials/:tool?host=` | Sign out: `gh`/`glab auth logout --hostname`, `claude auth logout` plus the vault, `tailscale logout` after the tunnel closes, or the vault alone |
 
 ### Security
 
@@ -663,46 +663,21 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | POST | `/tunnel/start` | Adds Agentry's `tailscale serve` rule on `port`; `409` while the auth mode is `none` or where `enabled` is false, `failed` with the reason when Tailscale is not ready or the port serves something else. The address shows, and the node's exact name joins the allowlist, once the rule reads back from the Serve config |
 | POST | `/tunnel/stop` | Takes the name off the allowlist and removes only Agentry's Serve rule; turning the auth mode to `none` does it first |
 
-### Usage limits and rotation between providers
+### Usage limits and waiting
 
-Each provider is used with the account its own CLI is signed in to, and Agentry never swaps
-accounts. What it does when one reaches its usage limit is the person's choice, in Settings →
-Providers (global, with an override per project): **continue** on the next ready provider with a
-handoff (what was asked, what was done, what is left, built from the transcript and the worktree's
-git state), **restart** there from the original prompt, or **wait** for the reset. The default is
-to wait, and nothing goes to another vendor until the settings say so.
+Claude Code is used with the account its own CLI is signed in to. At a usage limit Agentry waits for
+the reset; it never sends the work to another vendor.
 
-- **A person's chat** at a limit is never moved on its own: `limit-hit` raises a banner offering the
-  feasible actions, the setting's first, and a click calls `POST /chats/:id/move` or
+- **A person's chat** at a limit raises a banner (`limit-hit`); a click on wait calls
   `POST /chats/:id/wait`.
-- **Automated work** (flow runs, orchestration tasks, the assistant) does what the setting allows,
-  and `wait` is the floor when a move cannot happen: no ready provider, none that carries the
-  work's tool rules over, no model mapped for it, or every move already made.
-- **A move is a new chat** on the next provider in the same worktree, linked both ways
-  (`continuedFrom` / `continuedIn`); the run, task or item points to the newest.
-- **The model mapping** says which model of one provider stands in for a model of another. It starts
-  empty: the first limit with no mapping waits and says why, and `provider.model-map` may suggest a
-  counterpart, which only a person's accept writes.
+- **Automated work** (flow runs, orchestration tasks, the assistant) waits on its own.
 - **A wait** is a row, so two processes on one data directory replay a turn once and a restart picks
   it up again; with no reset time known it ends at `maxWaitHours`.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/providers/candidates?chatId=` | Who could take the chat's work, each with its model and use of the binding window, and the others with the reason they cannot (`excluded`); `movesCapped` when the work has made every move it may |
-| GET | `/providers/moves?chatId=&projectId=&state=&limit=` | Moves and waits, newest first; `waiting` and `resuming` rows are the open waits |
-| POST | `/providers/moves/:id/cancel` | Stop waiting: a flow run or task then ends `stopped`. `409` when the wait is over. Not open to a chat's token |
-| GET | `/providers/model-map/suggestions` | Open `provider.model-map` suggestions: a counterpart nobody has answered yet |
-| POST | `/providers/model-map/suggest` | `{ from: { provider, model }, target }` — a person pressing Suggest: asks `provider.model-map` now and answers the suggestion. `204` when nothing was suggested, `409` when the point is off. Not open to a chat's token |
-| POST | `/providers/model-map/suggestions/:id` | `{ accept }` — accepting writes the entry (`origin: decision`), dismissing only closes it; either reaches the decision as feedback. `409` when the model already has a counterpart. Not open to a chat's token |
-| GET | `/providers/cswap-retirement` | `{ notice }`: what claude-swap left behind (null when there is nothing or it was dismissed) |
-| POST | `/providers/cswap-retirement/dismiss` | Do not show the notice again. Not open to a chat's token |
-| DELETE | `/providers/cswap-retirement/managed-copy` | Remove Agentry's own copy of claude-swap and nothing else. Not open to a chat's token |
-
-**Coming from claude-swap.** Earlier versions rotated between several Claude accounts through
-[claude-swap](https://github.com/realiti4/claude-swap), and that is gone, with the `/accounts`
-routes. The account claude-swap left active stays the one Claude Code uses; the notice names it,
-lists the projects that had a rotation policy (their provider order is what applies now) and offers
-to remove Agentry's copy of the tool. claude-swap's own data is never touched.
+| GET | `/limits/waits?chatId=&projectId=&state=&limit=` | Waits, newest first; `waiting` and `resuming` rows are the open waits |
+| POST | `/limits/waits/:id/cancel` | Stop waiting: a flow run or task then ends `stopped`. `409` when the wait is over. Not open to a chat's token |
 
 ### Projects
 
@@ -1004,8 +979,6 @@ dismiss.
 | GET | `/chats/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
 | POST | `/chats/:id/resume` | Body: `ResumeChatRequest` (`prompt`, same options as a new chat). Adds an execution to the same chat, which keeps its id. Decided on the server at this moment from the CLI's own session list and the process table: a chat born in a terminal that nothing holds is adopted and stays `external`; one a terminal holds, or that belongs to an orchestration, is refused with `409` and the reason. A resume that names no `mcp` writes the `--mcp-config` file again from the current definition of the same servers, so an edited URL or a rotated token is picked up |
 | POST | `/chats/:id/fork` | Body: `ForkChatRequest`. Continues in a copy: a new chat with the same history that records `derivedFrom` and leaves the original untouched. Allowed on any chat. The copy inherits the source's preset, tools and MCP servers unless the request picks others, so it cannot quietly gain what the source was denied |
-| GET | `/chats/:id/handoff?provider=&model=` | The handoff text exactly as a move would send it, built here from the transcript and the git state and sent nowhere; `409` when that provider cannot take the chat |
-| POST | `/chats/:id/move` | Body: `MoveChatRequest` (`provider`, `action`: `handoff` \| `restart`, `model?`). A person's click: starts a new chat on that provider in the same worktree, linked both ways, and closes an open wait. `409` when the chat is working and has not reached a limit, was moved already, or the provider cannot take it. Not open to a chat's token |
 | POST | `/chats/:id/wait` | A person chooses to wait for the reset: opens a wait (`ProviderMove`), `409` when the chat is not at a limit or is waiting already. Not open to a chat's token |
 | POST | `/chats/:id/messages` | `{ text, attachments?, id? }` — another turn for a chat with a live execution (`409` otherwise: resume it). `attachments` are upload ids from `POST /uploads`; `id` is a UUID the client chooses, so a retry is written once. Answers the chat with `message`: its id and how it was taken (`written` into the running turn, `started`, `held` for the next process). The stream says when the agent takes it or when it is lost (`delivery` events), and the chat lists what still waits (`pending`) |
 | POST | `/chats/:id/stop` | Stop what is working on it: the execution Agentry runs, or a background session the CLI holds (`claude stop`). The conversation is kept |
@@ -1502,9 +1475,6 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
   make your phone wait.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
-- A handoff carries the transcript's text to the next agent, which may be another vendor's. The
-  preview (`GET /chats/:id/handoff`) shows exactly what is sent, long tool output is left out and
-  secrets are masked, but nothing is sent until the settings or a click say so.
 
 ## Contributing
 
