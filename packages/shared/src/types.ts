@@ -4844,7 +4844,7 @@ export interface SessionsChangedEvent extends AgentryEventBase {
 }
 
 /**
- * An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not
+ * An agent provider, by the id its manifest declares (`claude-code`). A string and not
  * a closed union, so adding a provider is adding a folder in core and never a change here.
  */
 export type ProviderId = string;
@@ -6313,11 +6313,9 @@ export interface SetupToolMethods {
   /** Whether the vendor documents a device-code sign-in Agentry runs */
   device: boolean;
   /**
-   * The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to the host Copilot
-   * uses (github.com, or the GitHub Enterprise Cloud host `COPILOT_GH_HOST` or `GH_HOST` names),
-   * whose token Copilot falls back to (GitHub's documented order). `POST /setup/logins` with the
-   * tool's `device` starts that tool's session, and the session names it. `host` is null when that
-   * variable names no host, and the sign-in is then refused. Null for every other tool.
+   * The device sign-in is another tool's; `POST /setup/logins` with the tool's `device` starts that
+   * tool's session, and the session names it. Null for every tool now: none of the remaining ones
+   * borrows another's sign-in.
    */
   deviceVia: { tool: SetupTool; host: string | null } | null;
   /** Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address */
@@ -6327,8 +6325,7 @@ export interface SetupToolMethods {
   /** False where there is no way to sign out from a program */
   signOut: boolean;
   /**
-   * Signing out only forgets the key Agentry keeps (Gemini, OpenCode, Copilot), so it is offered
-   * only while one is kept: Copilot's own sign-in, or the GitHub CLI's it falls back to, is not Agentry's to undo.
+   * Signing out only forgets the key Agentry keeps, so it is offered only while one is kept.
    */
   signOutKeyOnly: boolean;
 }
@@ -6367,7 +6364,7 @@ export interface LoginSession {
   error: LoginErrorCode | null;
   /**
    * What the tool's readiness said once the sign-in ended: true signed in, false not, null when the
-   * vendor offers no probe (Gemini) or it was not read
+   * vendor offers no probe or it was not read
    */
   ready: boolean | null;
 }
@@ -6380,7 +6377,7 @@ export interface StartLoginRequest {
   host?: string;
   /** The key or token, for `key`; write-only */
   secret?: string;
-  /** For a tool that takes the key in one of several variables (Claude Code, OpenCode): which one */
+  /** For a tool that takes the key in one of several variables (Claude Code): which one */
   variable?: string;
 }
 
@@ -6389,7 +6386,7 @@ export interface SignOutResult {
   tool: SetupTool;
   host: string | null;
   signedOut: boolean;
-  /** `unsupported`: the vendor documents no sign-out command (Copilot). `cli-refused`/`cli-missing`: the command failed or is not there. */
+  /** `unsupported`: the vendor documents no sign-out command. `cli-refused`/`cli-missing`: the command failed or is not there. */
   reason: 'unsupported' | 'cli-refused' | 'cli-missing' | null;
 }
 
@@ -6412,7 +6409,7 @@ export interface SetupProviderSummary {
   state: ProviderReadinessState;
   reason: ProviderReasonCode | null;
   account: string | null;
-  /** A key Agentry keeps for it in the vault (Claude Code, Gemini, OpenCode) */
+  /** A key Agentry keeps for it in the vault (Claude Code) */
   keyStored: boolean;
 }
 
