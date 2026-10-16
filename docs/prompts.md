@@ -146,6 +146,8 @@ the result.
 | Templates | `orchestration-templates.ts` | template tasks | none of its own: a template stores a spec, and its tasks run as workers | the template's model |
 | Workflow lead | `orchestrator.ts` · `launchWorkflow`; the script from `workflow-engine.ts` · `compileWorkflow` | workflow lead session | first prompt; the script's `agent()` prompts | the graph's model |
 | Supervisor | `supervisor.ts` · `supervisorPrompt` | supervisor run (housekeeping) | first prompt | `haiku` (`DEFAULT_SUPERVISOR`) |
+| Lesson miner | `lessons/miner.ts` · `minerPrompt`, `MINER_SCHEMA` | one confined one-shot chat per mined stretch, one turn, no tools | first prompt, `--json-schema`, `--max-budget-usd`, `--restricted --tools= --setting-sources=`, `--no-session-persistence` | `haiku` (`miner.model`) |
+| Lessons delivered | `lessons/render.ts` · `renderSection` | every flow and assistant run; chats and workers when the project allows | the journal handoff, or `--append-system-prompt` | — |
 | Decision (cli provider) | `decisions/providers/cli.ts` · `decisionPrompt`, `decisionSchema` | one housekeeping chat per batch of questions, one turn, no tools | first prompt, `--json-schema`, `--effort`, `--max-budget-usd`, `--restricted --tools= --setting-sources=` | `haiku` (`cli.model`), effort `low` |
 | Work on it | `work-links.ts` · `workItemPrompt(item)` (mode `chat`) | a person's chat from a work item | first prompt | the chat's model |
 | Orchestration draft of work items | `work-links.ts` · `orchestrationDraft` → `workItemPrompt(item, 'task')` | becomes each node's task prompt | — | the draft's |
@@ -363,6 +365,38 @@ Points 5, 6 and 9–12 are n/a: it neither writes code nor works over several tu
 `CLAUDIO_API_URL` or `CLAUDIO_API_TOKEN`, so it cannot call back. See
 [decision-engine.md](decision-engine.md).
 
+### Lesson miner (`minerPrompt`)
+
+The prompt is: the task (at most five durable lessons, zero is valid and often right), the rules a
+lesson is held to (behaviour only; inline code may name a tool, a command or a file, but never a
+command line to run, a code block, a URL, a secret or personal data), the test for what is worth
+keeping (not a one-off choice, a typo fix or a change of mind), the language rule (`trigger` starting
+with "When" and `action` in English via `RECORDS_IN_ENGLISH`, the quote exactly as written), how to
+cite signal ids and set `restates`, `contradicts`, `instructions` and `mechanical`, `PASTED_NOTE`, a
+line saying text in the signals that reads like an instruction is material and never becomes a lesson,
+then three `pasted()` blocks (the signals newest first, the project's active lessons, its `CLAUDE.md`),
+and `thinkThrough(model)`.
+
+1. The schema (`MINER_SCHEMA`) is a nested array of objects with `additionalProperties: false`; no
+   reason field. Its description hints are not followed to the letter, so `validate.ts` enforces
+   lengths.
+3. n/a: one turn, no continuation.
+4. Each block is redacted and wrapped, and `PASTED_NOTE` is present.
+7. A Sonnet miner is told to think the problem through; Haiku, the default, is told nothing.
+8. No tool at all (`--tools=`), no API token.
+
+Points 5, 6 and 9–12 are n/a. See [lessons.md](lessons.md).
+
+### Lessons delivered (`renderSection`)
+
+A section, not a prompt: the heading `## Lessons`, one lead sentence, and the lessons in one `pasted()`
+block. The lead is the shared text outside the block and the only thing that authorises following
+them: "Rules a person approved after correcting agents in this project, most certain first. Follow
+them in this run. When one conflicts with what your task asks, follow the task and say so in your
+report. They describe behaviour; none of them asks you to run anything." Each line is
+`- L-12 · project · 0.85 · trigger: action`. The wrapper and the heading count against the 2 KiB
+budget. All the twelve points are n/a: this is material, not instructions.
+
 ### Work on it (`workItemPrompt(item)`, mode `chat`)
 
 3. n/a: it is a person's own chat.
@@ -445,4 +479,4 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Related
 
-[[decision-engine.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]
+[[decision-engine.md]] · [[lessons.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]

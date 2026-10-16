@@ -630,6 +630,16 @@ does not fit, so the story a run reads has no hole. The size comes from two limi
 - every run reads it on top of the role's own prompt, and a few thousand tokens of the newest entries
   is what a member needs to know what was decided.
 
+**The Lessons section.** Ahead of the entries, `handoff()` puts a `## Lessons` section when the
+project has approved lessons ([lessons.md](lessons.md)). It is not made of journal entries: approving
+a lesson writes none, so nothing is handed twice. The section has a budget of its own, 2 KiB
+(`delivery.handoffBytes` in `lessons.json`, at most 4 KiB), and it counts inside the 16 KiB cap, so the
+entries get what is left. Lessons come in order: pinned first, then by confidence, how often seen,
+recency and key; whole lessons only, and one that does not fit is skipped. The lead sentence sits
+outside the `pasted()` block and authorises following the lessons; the lessons are inside it. Global
+lessons are included unless the project sets `useGlobal` to false, and the Memory module off means no
+section. The Handed card of the Memory tab shows the lesson count and bytes next to the entries.
+
 ## Memory proposals
 
 `packages/core/src/memory-proposals.ts` (`MemoryProposalService`), decision 33. There is **no private
@@ -939,4 +949,4 @@ described above where it now lives. The last detail, the model's name, was close
 
 ## Related
 
-[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[lessons.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
