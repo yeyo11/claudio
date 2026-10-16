@@ -108,6 +108,22 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   them. One with neither answers `Heard: <its first line>`. Every turn ends with a `result` event
   (`subtype: "success"`, `is_error: false`, `num_turns: 1`, `total_cost_usd`, `result`).
 
+**`/compact`** — a user message that starts with `/compact` (a button's, with its focus text and the
+note instructions, or a typed one) is not a model turn. It plays `replay/compact-manual.jsonl`:
+`system/status` `compacting`, `CLAUDIO_FAKE_CLI_COMPACT_MS` later (1500) the status that ends it
+(`compact_result: success`), `system/compact_boundary` (`trigger: manual`, `pre_tokens`, the recorded
+`post_tokens` 1655), the summary (the recording's, as a `user` line), the
+`<local-command-stdout>Compacted </local-command-stdout>` line, and a `result`. With a transcript on,
+the session file gets the boundary (camelCase, the same uuid), the summary with `isCompactSummary`, the
+command and its output. A text with `FAKE-COMPACT-FAIL` fails as `replay/compact-failed.jsonl`: the
+status with `compact_result: failed` and `compact_error`, a new `init`, the synthetic "Compaction
+canceled." line, a `result`. `FAKE-COMPACT-SLOW` waits 30 s, for an `interrupt` to cut, which fails the
+compaction the same way. A message sent meanwhile is answered after it, like any queued one.
+
+`"@context": <tokens>` in the scripts file (read when the process starts) is what the assistant
+lines' `usage.input_tokens` report, which is what the chat's meter reads from the transcript (10 by
+default). A compaction brings it down to the recorded `post_tokens`.
+
 **A `review.triage` question** (a prompt with lines `<thread id>: Who should take this review comment…`)
 is answered with no script: the structured output marks the first thread `agent` and the others
 `person`, so a spec turns the point on and sees the marks in the address dialog.
@@ -127,6 +143,11 @@ with a `control_response`:
   `The user interrupted this command.` (`is_error: true`), and the turn ends with a `result` of
   `subtype: "error_during_execution"`, `is_error: true`. The process stays up for the next message.
 - `set_permission_mode` (also emits `system`/`status` with the mode) and `set_model` — success.
+- `get_context_usage` (`detail`: `summary` or `full`, `full` when absent; anything else is the recorded
+  error `get_context_usage: detail must be 'summary' or 'full'`) — the answer recorded in
+  `packages/core/test/fixtures/recordings/claude/context-usage-<detail>.json`, read from there on
+  each request, with 93 MCP tools on two servers (`alpha` 47, `beta` 46, all loaded) so the panel's
+  warning shows. After a `/compact` the total is the boundary's `post_tokens`.
 - `mcp_status` — `{ mcpServers }`: a local server `docs` (connected, two tools) and a connector
   `claude.ai Calendar` (scope `claudeai`, `needs-auth`), or the list in `CLAUDIO_FAKE_CLI_MCP` (JSON).
 - `mcp_toggle` (`serverName`, `enabled`) — success, and the server reads `disabled` (or its old status
