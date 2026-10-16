@@ -1,6 +1,6 @@
 import type { AssistantProposal, AssistantResourceProposal, AssistantTeamMemberProposal, AssistantWorkItemProposal } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Package, SquareCheck, Undo2, Users, X, Zap, Terminal, SquareSlash, Pencil } from 'lucide-react';
+import { Check, Package, SquareCheck, Undo2, Users, X, Zap, Terminal, SquareSlash, ScrollText, Pencil } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -35,7 +35,7 @@ type Decide = ReturnType<typeof useDecide>;
 
 /** The icon a section or a proposed resource is known by. */
 export const SECTION_ICON = { team: Users, resources: Package, tasks: SquareCheck } as const;
-const RESOURCE_ICON = { agents: Terminal, skills: Zap, commands: SquareSlash } as const;
+const RESOURCE_ICON = { agents: Terminal, skills: Zap, commands: SquareSlash, rules: ScrollText } as const;
 
 /** A card's head: its icon, its name, the tally in mono, and a note at its right. */
 export function SectionHead({ section, tally, note }: { section: keyof typeof SECTION_ICON; tally?: ReactNode; note?: ReactNode }) {

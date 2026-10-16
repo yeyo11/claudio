@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, CircleAlert, ExternalLink, Minus, RefreshCw,
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { api, keys } from '../../../api';
+import { api, keys, useWorkItemRuns } from '../../../api';
 import { MoreActions, Sheet, type MenuEntry } from '@claudio/ui/components/controls';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -27,6 +27,7 @@ import {
 } from '../../../lib/change-requests';
 import { isReviewFix } from '../../../lib/reviews';
 import { CiBadge, useChangeRequestWords } from '../board/PullRequest';
+import { FixVerdicts } from './FixVerdicts';
 import { CheckLogBody, CheckLogPanel, CheckMarkIcon, checkFacts, markBadge } from './CheckLog';
 import type { LeadingAction } from './model';
 
@@ -226,6 +227,9 @@ export function Checks({ pr, itemId, lead }: { pr: WorkItemPullRequest | null | 
   const qc = useQueryClient();
   const toast = useToast();
   const list = useChangeRequestChecks(pr);
+  // The newest fix's call on each check, from the flow's Developer run that reported them
+  const runs = useWorkItemRuns(itemId, !!pr);
+  const verdicts = runs.data?.find((r) => r.stage === 'work' && r.checks?.length)?.checks ?? [];
   const [openId, setOpenId] = useState<string | null>(null);
   const [fixing, setFixing] = useState(false);
   const id = pr?.phase === 'open' ? pr.id : undefined;
@@ -337,6 +341,7 @@ export function Checks({ pr, itemId, lead }: { pr: WorkItemPullRequest | null | 
       </div>
 
       <FixState pr={pr} lead={lead === 'push'} pushing={push.isPending} onPush={() => push.mutate()} />
+      {fixStage(pr) && <FixVerdicts verdicts={verdicts} />}
 
       {limitedUntil && (
         <div className="check-limit" role="note">

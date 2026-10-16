@@ -119,6 +119,7 @@ export function sameFlow(a: ProjectFlowSettings, b: ProjectFlowSettings): boolea
     a.maxBounces === b.maxBounces &&
     (a.maxParallel ?? null) === (b.maxParallel ?? null) &&
     (a.maxCostUsd ?? null) === (b.maxCostUsd ?? null) &&
+    (a.plateau ?? 'observe') === (b.plateau ?? 'observe') &&
     FLOW_COLUMNS.every((status) => (a.columns[status] ?? '') === (b.columns[status] ?? ''))
   );
 }

@@ -420,6 +420,7 @@ function targetOf(value: unknown): MemoryProposalTarget {
     }
     return { kind, file, section: null };
   }
+  if (kind === 'rule') throw new WorkItemError('rule targets are not supported yet', 400);
   if (kind === 'instructions') {
     const section = typeof v.section === 'string' ? v.section.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim() : '';
     if (section.length > SECTION_MAX) throw new WorkItemError(`target.section is longer than ${String(SECTION_MAX)} characters`, 400);

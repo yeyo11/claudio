@@ -30,7 +30,7 @@ export const ASSISTANT_PROPOSAL_STATUSES = valuesOf<AssistantProposalStatus>()([
 
 export const ASSISTANT_PROPOSAL_ACTIONS = valuesOf<AssistantProposalAction>()(['accepted', 'discarded', 'restored']);
 
-export const ASSISTANT_RESOURCE_KINDS = valuesOf<AssistantResourceKind>()(['agents', 'skills', 'commands']);
+export const ASSISTANT_RESOURCE_KINDS = valuesOf<AssistantResourceKind>()(['agents', 'skills', 'commands', 'rules']);
 
 export const ASSISTANT_SOURCE_KINDS = valuesOf<AssistantSourceKind>()([
   'file',

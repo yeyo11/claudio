@@ -2767,6 +2767,13 @@
           "null"
         ],
         "description": "The planner run whose draft filled the form it was launched from; lets `orchestration.model` compare its suggestion"
+      },
+      "spendPass": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The local day (`YYYY-MM-DD`) a person let this graph run past the daily spend cap; its tasks start until the day ends. Person only: a chat's token cannot grant it."
       }
     },
     "required": [
@@ -2967,6 +2974,13 @@
       "clockCostUsd": {
         "type": "number",
         "description": "What the task had cost when that clock started, so a cost limit counts from the same moment"
+      },
+      "lastErrorSignature": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The normalised signature of the error the task's last failed attempt ended with, so a retry that fails the same way is recognised and not repeated; internal, kept in the stored document."
       }
     },
     "required": [
@@ -3746,6 +3760,17 @@
           }
         ],
         "description": "The effort the fixer ran with; null when none was passed, absent before it was kept"
+      },
+      "fixed": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationFixedLocation"
+        },
+        "description": "Each error the fixer reported fixing (`[FIXED] path:line: note`), at most 50; absent before it was read"
+      },
+      "stop": {
+        "$ref": "#/components/schemas/VerificationFixStop",
+        "description": "Why no further attempt was made after this one; absent when the loop went on or ended on its own limits"
       }
     },
     "required": [
@@ -3757,6 +3782,63 @@
       "costUsd"
     ],
     "description": "One attempt of the verification fixer."
+  },
+  "VerificationFixedLocation": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "line": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "note": {
+        "type": "string",
+        "description": "What was wrong, at most 200 characters"
+      }
+    },
+    "required": [
+      "path",
+      "line",
+      "note"
+    ],
+    "description": "One error a fixer fixed. `line` is null when it named none; the path is shown as text, never resolved to a file."
+  },
+  "VerificationFixStop": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/FixStopKind"
+      },
+      "note": {
+        "type": "string"
+      },
+      "by": {
+        "type": "string",
+        "enum": [
+          "fixer",
+          "claudio"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "note",
+      "by"
+    ],
+    "description": "Why a fixer's loop ended early: the fixer said so (`by: 'fixer'`) or Claudio saw it from the outside."
+  },
+  "FixStopKind": {
+    "type": "string",
+    "enum": [
+      "same-error",
+      "more-errors",
+      "design"
+    ],
+    "description": "The three conditions after which more fixing attempts stop helping."
   },
   "VerificationCommand": {
     "type": "object",
@@ -4059,6 +4141,13 @@
         ],
         "description": "The planner run whose draft filled the form it was launched from; lets `orchestration.model` compare its suggestion"
       },
+      "spendPass": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The local day (`YYYY-MM-DD`) a person let this graph run past the daily spend cap; its tasks start until the day ends. Person only: a chat's token cannot grant it."
+      },
       "tasks": {
         "type": "array",
         "items": {
@@ -4229,6 +4318,13 @@
       "clockCostUsd": {
         "type": "number",
         "description": "What the task had cost when that clock started, so a cost limit counts from the same moment"
+      },
+      "lastErrorSignature": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The normalised signature of the error the task's last failed attempt ended with, so a retry that fails the same way is recognised and not repeated; internal, kept in the stored document."
       },
       "id": {},
       "name": {},
@@ -5728,6 +5824,12 @@
       },
       {
         "$ref": "#/components/schemas/LoginUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SpendChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SpendAlertEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -9090,6 +9192,20 @@
           "null"
         ],
         "description": "For `instructions`: the heading it goes under; null appends at the end"
+      },
+      "paths": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For `rule`: the globs, relative to the project, the rule is for (1 to 10); null or absent for the other kinds"
       }
     },
     "required": [
@@ -9104,9 +9220,10 @@
     "enum": [
       "instructions",
       "memory",
-      "journal"
+      "journal",
+      "rule"
     ],
-    "description": "Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section` when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`, appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal."
+    "description": "Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section` when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`, appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal; `rule`, a path-scoped rule file of the project's `.claude/rules/` (`file`, loaded by the CLI only for the files `paths` matches), which keeps guidance that concerns part of the project out of `CLAUDE.md`."
   },
   "DocumentChangedEvent": {
     "type": "object",
@@ -9569,7 +9686,8 @@
     "enum": [
       "agents",
       "skills",
-      "commands"
+      "commands",
+      "rules"
     ],
     "description": "The resources an assistant proposes or creates: the ones a project's `.claude/` holds as Markdown."
   },
@@ -9634,6 +9752,13 @@
         "type": "boolean",
         "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `CLAUDIO_PROVIDERS_STEP_SEEN`, still count."
       },
+      "dailySpendCapUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "What all of Claudio's automation may spend in a local day, in USD, summing the cost the CLI reports for each result. A start gate, not a kill switch: over it new automated work waits and nothing running is stopped. Null (the default) is no cap; otherwise above 0 and at most 100,000, in cents."
+      },
       "sources": {
         "type": "object",
         "properties": {
@@ -9648,13 +9773,17 @@
           },
           "setupSeen": {
             "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "dailySpendCapUsd": {
+            "$ref": "#/components/schemas/AppSettingSource"
           }
         },
         "required": [
           "allowedHosts",
           "maxConcurrentRuns",
           "defaultPermissionMode",
-          "setupSeen"
+          "setupSeen",
+          "dailySpendCapUsd"
         ],
         "description": "For `allowedHosts`, the highest layer that names any host (`env`, then `file`, then `default`); it does not make the list read-only, `allowedHostLayers` does that per host."
       },
@@ -9665,6 +9794,7 @@
     "required": [
       "allowedHostLayers",
       "allowedHosts",
+      "dailySpendCapUsd",
       "defaultPermissionMode",
       "maxConcurrentRuns",
       "setupSeen",
@@ -10640,6 +10770,226 @@
       "timeout"
     ],
     "description": "Why a sign-in failed, as a code and never as what the CLI printed. `cli-missing`: the tool's binary was not found. `spawn-failed`: it could not be started. `cli-refused`: the CLI exited with an error. `no-code`: a device sign-in ended before it showed a URL and a code. `not-signed-in`: the command finished but the tool's readiness still says signed out. `timeout`: a key login did not finish in time and was stopped."
+  },
+  "SpendChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "spend.changed"
+      },
+      "spend": {
+        "$ref": "#/components/schemas/SpendState"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "spend",
+      "title",
+      "type"
+    ],
+    "description": "The day's spend crossed a level, a cap changed, a pass was granted or the day turned."
+  },
+  "SpendState": {
+    "type": "object",
+    "properties": {
+      "day": {
+        "type": "string",
+        "description": "Local `YYYY-MM-DD`"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "The server's resolved time zone, so a client can say whose midnight this is"
+      },
+      "capUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "spentUsd": {
+        "type": "number"
+      },
+      "share": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "`spentUsd / capUsd`; null with no cap"
+      },
+      "level": {
+        "$ref": "#/components/schemas/SpendLevel"
+      },
+      "blocked": {
+        "type": "boolean",
+        "description": "Whether new automated work waits"
+      },
+      "resetsAt": {
+        "type": "string",
+        "description": "The next local midnight (ISO 8601), when the day's spend starts again from zero"
+      },
+      "unreported": {
+        "type": "number",
+        "description": "Results today that carried no cost, which the sum cannot include"
+      },
+      "byPurpose": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "type": "number"
+          },
+          "flow": {
+            "type": "number"
+          },
+          "orchestration": {
+            "type": "number"
+          },
+          "planner": {
+            "type": "number"
+          },
+          "fixer": {
+            "type": "number"
+          },
+          "integrator": {
+            "type": "number"
+          },
+          "synthesis": {
+            "type": "number"
+          },
+          "assistant": {
+            "type": "number"
+          },
+          "decision": {
+            "type": "number"
+          },
+          "supervisor": {
+            "type": "number"
+          },
+          "schedule": {
+            "type": "number"
+          },
+          "other": {
+            "type": "number"
+          }
+        }
+      },
+      "byAccountKind": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "number"
+          },
+          "token": {
+            "type": "number"
+          },
+          "apiKey": {
+            "type": "number"
+          },
+          "unknown": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "login",
+          "token",
+          "apiKey",
+          "unknown"
+        ],
+        "description": "For subscription accounts (`login`, `token`) the figure is the API price of the use, not a bill"
+      },
+      "waiting": {
+        "type": "object",
+        "properties": {
+          "flowRuns": {
+            "type": "number"
+          },
+          "orchestrationTasks": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "flowRuns",
+          "orchestrationTasks"
+        ]
+      }
+    },
+    "required": [
+      "day",
+      "timezone",
+      "capUsd",
+      "spentUsd",
+      "share",
+      "level",
+      "blocked",
+      "resetsAt",
+      "unreported",
+      "byPurpose",
+      "byAccountKind",
+      "waiting"
+    ],
+    "description": "Today's spend against the cap (`GET /spend`), in the server's local day."
+  },
+  "SpendLevel": {
+    "type": "string",
+    "enum": [
+      "off",
+      "ok",
+      "warn",
+      "bad",
+      "exhausted"
+    ],
+    "description": "Follows the usage bars: neutral below 60 %, warn from 60 %, bad from 75 %, exhausted at 100 %; off with no cap."
+  },
+  "SpendAlertEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "spend.alert"
+      },
+      "level": {
+        "type": "string",
+        "enum": [
+          "warn",
+          "exhausted"
+        ]
+      },
+      "spend": {
+        "$ref": "#/components/schemas/SpendState"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "level",
+      "spend",
+      "title",
+      "type"
+    ],
+    "description": "Spend reached 75 % or 100 % of the cap; emitted once per day and level, whichever process saw it first."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -13162,6 +13512,10 @@
       "pending": {
         "type": "boolean",
         "description": "The call has no result yet: the chat is still working on it"
+      },
+      "risk": {
+        "$ref": "#/components/schemas/ToolRisk",
+        "description": "How risky the call is, scored from its input and the chat's directory; absent when `low`, so a client draws a tag only where there is something to say. A reading aid: nothing is blocked by it."
       }
     },
     "required": [
@@ -13189,6 +13543,65 @@
       "NotebookEdit"
     ],
     "description": "The tools whose calls become the steps of the Step by step lens."
+  },
+  "ToolRisk": {
+    "type": "object",
+    "properties": {
+      "level": {
+        "$ref": "#/components/schemas/ToolRiskLevel"
+      },
+      "score": {
+        "type": "number",
+        "description": "0–100, for ordering only"
+      },
+      "factors": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ToolRiskFactor"
+        },
+        "description": "Heaviest first, so the first one is the word a tag shows"
+      },
+      "reason": {
+        "type": "string",
+        "description": "One English line with the part of the input that made it fire, for state and logs"
+      },
+      "reasonCode": {
+        "type": "string",
+        "description": "`risk.<first factor>`, or `risk.none` when nothing fired"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams",
+        "description": "`{ command | path | tool }`, clipped"
+      }
+    },
+    "required": [
+      "level",
+      "score",
+      "factors",
+      "reason",
+      "reasonCode"
+    ]
+  },
+  "ToolRiskLevel": {
+    "type": "string",
+    "enum": [
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "ToolRiskFactor": {
+    "type": "string",
+    "enum": [
+      "irreversible",
+      "history-rewrite",
+      "leaves-machine",
+      "privilege",
+      "outside-workdir",
+      "secrets",
+      "sensitive-path",
+      "wide-scope"
+    ]
   },
   "CancelCommandRequest": {
     "type": "object",
@@ -14769,9 +15182,12 @@
         "type": "string",
         "description": "One line on what it answers for"
       },
-      "agent": {
-        "type": "string",
-        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The CLI tools its agent file allows, as  {@link  ProjectTeamRole.tools } ; absent means all of them"
       },
       "writes": {
         "type": "array",
@@ -14786,6 +15202,10 @@
           "type": "string"
         },
         "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
       },
       "effort": {
         "$ref": "#/components/schemas/Effort",
@@ -14841,6 +15261,10 @@
       "checksFixAttempts": {
         "type": "number",
         "description": "Fixes of failing checks Claudio may start on its own for one head commit (`checks.fix`). Absent reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it."
+      },
+      "plateau": {
+        "$ref": "#/components/schemas/FlowPlateauMode",
+        "description": "What the flow does when two verify rounds in a row improve no criterion. `observe` (the default when absent) only records a `plateau` signal, \"would have stopped here\", so the rule can be judged on real runs before it ends anything; `stop` makes the card wait for a person; `off` does not look. Like `maxBounces`, it can only end a loop sooner."
       }
     },
     "required": [
@@ -14849,6 +15273,15 @@
       "maxBounces"
     ],
     "description": "The flow by column. Each column may have a responsible role that acts when a card enters it; agents move cards, and a person approves `done`. Only while `enabled` and the Team module is on."
+  },
+  "FlowPlateauMode": {
+    "type": "string",
+    "enum": [
+      "observe",
+      "stop",
+      "off"
+    ],
+    "description": "What the flow does about a plateau of verify rounds; see  {@link  ProjectFlowSettings.plateau } ."
   },
   "ProjectDocumentsSettings": {
     "type": "object",
@@ -15349,6 +15782,13 @@
           "$ref": "#/components/schemas/ProjectTeamRole"
         },
         "description": "The starting team, offered when the Team module is switched on and there is nothing in the project to read"
+      },
+      "optionalTeam": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectTeamRole"
+        },
+        "description": "Roles the template offers without adding them: \"Add the template's team\" with no `roles` adds `team` only, and a person or the assistant picks these by name. Empty when it offers none."
       }
     },
     "required": [
@@ -15357,7 +15797,8 @@
       "description",
       "modules",
       "board",
-      "team"
+      "team",
+      "optionalTeam"
     ],
     "description": "A built-in template: configuration, not only switches. `name` and `description` are the English copy; a client that knows the `id` shows its own translation."
   },
@@ -15374,6 +15815,27 @@
       "responsibility": {
         "type": "string",
         "description": "One line on what it answers for"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The CLI tools the role may use (`Read`, `Grep`, `Bash`…), written into its agent file's `tools:` line, which the CLI enforces wherever it loads the file, a subagent included. Absent means all of them."
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Where a template's role may write, as  {@link  ProjectTeamMember.writes }  reads it; absent means no limit of Claudio's"
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The shell commands a template's role may run, as  {@link  ProjectTeamMember.commands }  reads them; absent means none are restricted"
       }
     },
     "required": [
@@ -15516,6 +15978,11 @@
           }
         ],
         "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
+      },
+      "waitingCause": {
+        "type": "string",
+        "const": "plateau",
+        "description": "Why it waits for bounces when that was the plateau rule (`flow.plateau`) and not the limit, so the board can say \"no improvement in two rounds\"; absent for every other wait."
       },
       "pullRequest": {
         "anyOf": [
@@ -16316,6 +16783,11 @@
           }
         ],
         "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
+      },
+      "waitingCause": {
+        "type": "string",
+        "const": "plateau",
+        "description": "Why it waits for bounces when that was the plateau rule (`flow.plateau`) and not the limit, so the board can say \"no improvement in two rounds\"; absent for every other wait."
       },
       "pullRequest": {
         "anyOf": [
@@ -17767,9 +18239,12 @@
         "type": "string",
         "description": "One line on what it answers for"
       },
-      "agent": {
-        "type": "string",
-        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The CLI tools its agent file allows, as  {@link  ProjectTeamRole.tools } ; absent means all of them"
       },
       "writes": {
         "type": "array",
@@ -17784,6 +18259,10 @@
           "type": "string"
         },
         "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
       },
       "effort": {
         "$ref": "#/components/schemas/Effort",
@@ -18086,6 +18565,13 @@
           "string",
           "null"
         ]
+      },
+      "checks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowCheckVerdict"
+        },
+        "description": "On a run that fixed failing checks, what the Developer decided about each; absent on other runs"
       }
     },
     "required": [
@@ -18171,6 +18657,42 @@
     ],
     "description": "Another run as a run refers to it: enough to say what it did and open its chat."
   },
+  "FlowCheckVerdict": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "cause": {
+        "type": "string",
+        "enum": [
+          "branch",
+          "not-branch",
+          "uncertain"
+        ]
+      },
+      "fixed": {
+        "type": "boolean"
+      },
+      "locations": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Where the Developer changed things for this check, as `path:line` (at most 20, each at most 200 characters)"
+      },
+      "stopped": {
+        "$ref": "#/components/schemas/FixStopKind",
+        "description": "Set when the Developer stopped before the check was fixed, and why"
+      }
+    },
+    "required": [
+      "name",
+      "cause",
+      "fixed"
+    ],
+    "description": "The Developer's call on one failing check of a fix: this branch caused it, did not, or it is unclear."
+  },
   "TeamFromTemplateRequest": {
     "type": "object",
     "properties": {
@@ -18201,7 +18723,8 @@
         "type": "array",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Where a template's role may write, as  {@link  ProjectTeamMember.writes }  reads it; absent means no limit of Claudio's"
       },
       "commands": {
         "anyOf": [
@@ -18216,6 +18739,20 @@
           }
         ],
         "description": "Absent or null leaves the shell unrestricted in the work stage ( {@link  ProjectTeamMember.commands } )"
+      },
+      "tools": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null leaves every tool allowed ( {@link  ProjectTeamMember.tools } ); at most 30 names, each a tool name with an optional `(pattern)`"
       },
       "effort": {
         "anyOf": [
@@ -19797,9 +20334,12 @@
         "type": "string",
         "description": "One line on what it answers for"
       },
-      "agent": {
-        "type": "string",
-        "description": "Name of the agent file it would write in `.claude/agents/`, without `.md`"
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The CLI tools the role may use (`Read`, `Grep`, `Bash`…), written into its agent file's `tools:` line, which the CLI enforces wherever it loads the file, a subagent included. Absent means all of them."
       },
       "writes": {
         "type": "array",
@@ -19807,6 +20347,17 @@
           "type": "string"
         },
         "description": "Paths or globs it may write; empty means nothing but work items (\"writes: nothing, only tasks\")"
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The shell commands a template's role may run, as  {@link  ProjectTeamMember.commands }  reads them; absent means none are restricted"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file it would write in `.claude/agents/`, without `.md`"
       },
       "fromTemplate": {
         "type": "boolean",
@@ -20281,7 +20832,9 @@
           },
           "role": {},
           "model": {},
-          "responsibility": {}
+          "responsibility": {},
+          "tools": {},
+          "commands": {}
         }
       },
       "resource": {
@@ -20360,6 +20913,13 @@
       "setupSeen": {
         "type": "boolean",
         "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `CLAUDIO_PROVIDERS_STEP_SEEN`, still count."
+      },
+      "dailySpendCapUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "What all of Claudio's automation may spend in a local day, in USD, summing the cost the CLI reports for each result. A start gate, not a kill switch: over it new automated work waits and nothing running is stopped. Null (the default) is no cap; otherwise above 0 and at most 100,000, in cents."
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
@@ -24489,7 +25049,8 @@
       "max-tokens",
       "server-error",
       "network",
-      "invalid-answer"
+      "invalid-answer",
+      "spend-cap"
     ],
     "description": "Why a provider gave no answer; the point then runs today's behaviour"
   },

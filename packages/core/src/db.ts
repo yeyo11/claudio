@@ -847,6 +847,57 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    WHERE CASE WHEN json_valid(json) THEN json_extract(json, '$.origin') = 'agentry' ELSE 0 END;
    UPDATE audit SET actor = 'claudio' WHERE actor = 'agentry';
    UPDATE change_request_merges SET requested_by = 'claudio' WHERE requested_by = 'agentry';`,
+  // docs/plans/agent-run-improvements.md. The daily spend cap sums a ledger of rows, one per result
+  // that reported a cost, because two processes share a data dir and a turn's cost must land on the
+  // day it was spent (the Usage report puts a whole execution on the day it ended). The alerts are
+  // one row per local day and level, so two processes raise each one once. The fix verdicts of a
+  // `checks.fix` run are kept as JSON beside its other results, and a path-scoped rule proposal keeps
+  // its globs as a JSON array (null for every other target).
+  `CREATE TABLE spend_ledger (
+     seq              INTEGER PRIMARY KEY AUTOINCREMENT,
+     at               TEXT NOT NULL,
+     chat_id          TEXT NOT NULL,
+     execution_id     TEXT NOT NULL,
+     usd              REAL NOT NULL,
+     reported         INTEGER NOT NULL,
+     purpose          TEXT NOT NULL,
+     account          TEXT,
+     account_kind     TEXT,
+     project_id       TEXT,
+     orchestration_id TEXT
+   );
+   CREATE INDEX spend_ledger_at ON spend_ledger (at);
+   CREATE TABLE spend_alerts (
+     day   TEXT NOT NULL,
+     level TEXT NOT NULL,
+     at    TEXT NOT NULL,
+     PRIMARY KEY (day, level)
+   );
+   ALTER TABLE flow_runs ADD COLUMN checks TEXT;
+   ALTER TABLE memory_proposals ADD COLUMN target_paths TEXT;`,
+  // The day of the upgrade starts from what was really spent: one ledger row per execution that
+  // ended today (the server's local day, from date parts so a DST day is its real length) with a
+  // cost. Their purpose is not known, so it reads `other`.
+  (db) => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const insert = db.prepare("INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose) VALUES (?, ?, ?, ?, 1, 'other')");
+    const rows = db.prepare('SELECT id, chat_id, json FROM executions').all() as Array<{ id: string; chat_id: string; json: string }>;
+    for (const row of rows) {
+      let doc: { endedAt?: unknown; costUsd?: unknown };
+      try {
+        doc = JSON.parse(row.json) as typeof doc;
+      } catch {
+        // One unreadable execution must not stop the upgrade
+        continue;
+      }
+      if (typeof doc.endedAt !== 'string' || typeof doc.costUsd !== 'number' || !(doc.costUsd > 0)) continue;
+      const ended = Date.parse(doc.endedAt);
+      if (Number.isNaN(ended) || ended < start || ended >= end) continue;
+      insert.run(doc.endedAt, row.chat_id, row.id, doc.costUsd);
+    }
+  },
 ];
 
 /**
@@ -855,6 +906,8 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
  */
 /** The migration that priced Jev's rows from their tokens: a test starts a database from just before it */
 export const JEV_COST_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes("provider = 'jev' AND cost_usd IS NULL")) + 1;
+/** The version that added the spend ledger and its alerts, for the test that upgrades a database from the one before */
+export const SPEND_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE spend_ledger')) + 1;
 export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
 
 /** The version that added the flow's runs, for the test that upgrades a database from the one before */

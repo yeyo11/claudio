@@ -75,7 +75,7 @@ test('a proposal refreshes the proposals; approving it also reads back what it w
     type: 'memory.proposal',
     proposalId: 'm1',
     action,
-    target: { kind, file: kind === 'memory' ? 'tests.md' : null, section: null },
+    target: { kind, file: kind === 'memory' ? 'tests.md' : null, section: null, paths: null },
     role: 'developer',
     itemId: 'i1',
   });

@@ -81,7 +81,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   const dir = opts.dir ?? repo();
   const state = {
     settings: opts.settings ?? settingsWith(),
-    resources: { agents: [] as string[], skills: [] as string[], commands: [] as string[] },
+    resources: { agents: [] as string[], skills: [] as string[], commands: [] as string[], rules: [] as string[] },
     instructions: null as string | null,
     git: { branch: 'main', commits: ['a1b2c3d 2026-09-20 Add the webhook'], changes: [' M src/a.ts'], moreChanges: 0 } as AssistantGit | null,
   };
@@ -203,7 +203,7 @@ function assistantBrief(): AssistantBrief {
     templateName: 'software',
     templateTeam: [],
     team: [],
-    resources: { agents: [], skills: [], commands: [] },
+    resources: { agents: [], skills: [], commands: [], rules: [] },
     workItems: [],
     moreWorkItems: 0,
     milestones: [],
@@ -774,7 +774,7 @@ test('the prompt and the schema say what a run is and is not', () => {
     templateName: null,
     templateTeam: [],
     team: [],
-    resources: { agents: [], skills: [], commands: [] },
+    resources: { agents: [], skills: [], commands: [], rules: [] },
     workItems: [{ key: 'AGN-45', type: 'story', status: 'backlog', title: 'Saved filters' }],
     moreWorkItems: 3,
     milestones: [],
@@ -805,7 +805,7 @@ test('every kind of run proposes in English, naming what it proposes, while a Sp
     templateName: null,
     templateTeam: [],
     team: [],
-    resources: { agents: [], skills: [], commands: [] },
+    resources: { agents: [], skills: [], commands: [], rules: [] },
     workItems: [],
     moreWorkItems: 0,
     milestones: [],

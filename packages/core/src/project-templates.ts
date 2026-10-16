@@ -32,6 +32,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     modules: [],
     board: OPEN_BOARD,
     team: [],
+    optionalTeam: [],
   },
   {
     id: 'software',
@@ -41,6 +42,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     // Small limits on the two columns a team of agents fills fastest, so a pile-up shows early
     board: { types: [...WORK_ITEM_TYPES], columnLimits: { in_progress: 3, in_review: 2 } },
     team: SOFTWARE_TEAM,
+    optionalTeam: [],
   },
   {
     id: 'library',
@@ -50,6 +52,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     // A library has users of its API rather than product stories
     board: { types: ['epic', 'task', 'bug'], columnLimits: { in_progress: 2 } },
     team: [ARCHITECT, DEVELOPER, QA],
+    optionalTeam: [],
   },
   {
     id: 'research',
@@ -58,6 +61,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     modules: ['board', 'documents', 'memory'],
     board: { types: ['epic', 'task'], columnLimits: {} },
     team: [RESEARCHER, WRITER, REVIEWER],
+    optionalTeam: [],
   },
   {
     id: 'custom',
@@ -67,6 +71,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     board: OPEN_BOARD,
     // Offered if the Team module is switched on later; the most complete team is the useful default
     team: SOFTWARE_TEAM,
+    optionalTeam: [],
   },
 ];
 

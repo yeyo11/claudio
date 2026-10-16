@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
-import { DEFAULT_CHECKS_FIX_ATTEMPTS, DEFAULT_FLOW_MAX_PARALLEL, MAX_CHECKS_FIX_ATTEMPTS, type ChangeRequestChecks, type CheckLog, type WorkItem } from '@claudio/shared';
+import { DEFAULT_CHECKS_FIX_ATTEMPTS, DEFAULT_FLOW_MAX_PARALLEL, MAX_CHECKS_FIX_ATTEMPTS, type ChangeRequestChecks, type CheckLog, type FlowCheckVerdict, type WorkItem } from '@claudio/shared';
 import type { FlowProject } from '../flow.ts';
 import { failingChecks, type ChecksFailingNotice, type FixChecksResult } from '../pull-requests.ts';
 import type { DecisionOutcome } from './engine.ts';
@@ -26,6 +26,8 @@ export interface ChecksFixDeps {
   checks: { list(id: string): Promise<ChangeRequestChecks>; log(id: string, checkId: string): Promise<CheckLog> };
   pullRequests: { fixChecks(itemId: string, origin: 'decision'): Promise<FixChecksResult>; fixAttemptsFor(itemId: string, headSha: string | null): number };
   item(itemId: string): WorkItem | null;
+  /** Writes a comment on the item as the flow; absent, a refusal is silent */
+  comment?(itemId: string, body: string): void;
   project(projectId: string): FlowProject | null;
 }
 
@@ -36,6 +38,15 @@ function endOf(text: string, bytes: number): string {
   const cut = buf.subarray(buf.length - bytes).toString('utf8').replace(/^�+/, '');
   const newline = cut.indexOf('\n');
   return newline >= 0 && newline < cut.length - 1 ? cut.slice(newline + 1) : cut;
+}
+
+function verdictsOf(json: string | null): FlowCheckVerdict[] {
+  try {
+    const parsed: unknown = json ? JSON.parse(json) : [];
+    return Array.isArray(parsed) ? (parsed as FlowCheckVerdict[]).filter((c) => !!c && typeof c.name === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 export class ChecksFix {
@@ -69,6 +80,8 @@ export class ChecksFix {
   }
 
   private async decide(notice: ChecksFailingNotice, item: WorkItem, stance: 'watch' | 'wait'): Promise<void> {
+    const failing = await this.failingNames(notice);
+    if (!this.historyAllows(item, failing)) return;
     if (!this.hasRoom(notice, item)) return;
     const data = await this.stateOf(notice, item);
     if (!data) return;
@@ -88,6 +101,49 @@ export class ChecksFix {
     } catch {
       // refused (a fix under way, a busy card, nothing failing any more): today's behaviour stands
     }
+  }
+
+  /** The names of the checks failing now; empty when the list is unavailable, which `stateOf` then ends */
+  private async failingNames(notice: ChecksFailingNotice): Promise<string[]> {
+    try {
+      return failingChecks((await this.deps.checks.list(notice.id)).checks).map((c) => c.name);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * What the item's earlier fixes say about starting another on its own. False, with one comment on
+   * the item, when the newest fix stopped for a design decision on a check that fails now, or when the
+   * last two fixes each reported a check fixed and it is failing again: a third would be the third
+   * attempt at the same thing. A person's "Fix checks" never comes through here.
+   */
+  private historyAllows(item: WorkItem, failing: readonly string[]): boolean {
+    if (!failing.length) return true;
+    let fixes: { checks: string | null; summary: string | null }[];
+    try {
+      fixes = this.deps.sql
+        .prepare("SELECT checks, summary FROM flow_runs WHERE item_id = ? AND stage = 'work' AND checks IS NOT NULL ORDER BY seq DESC LIMIT 2")
+        .all(item.id) as { checks: string | null; summary: string | null }[];
+    } catch {
+      return true;
+    }
+    const verdicts = fixes.map((f) => ({ checks: verdictsOf(f.checks), summary: f.summary }));
+    const newest = verdicts[0];
+    const design = newest?.checks.find((c) => c.stopped === 'design' && failing.includes(c.name));
+    if (newest && design) {
+      const note = newest.summary?.trim().replace(/\s+/g, ' ').slice(0, 200);
+      this.deps.comment?.(item.id, `Claudio did not start another fix: the last fix stopped for a design decision${note ? `: ${note}` : `: \`${design.name}\` needs a person to decide`}`);
+      return false;
+    }
+    if (verdicts.length === 2) {
+      const again = failing.find((name) => verdicts.every((v) => v.checks.some((c) => c.name === name && c.fixed)));
+      if (again) {
+        this.deps.comment?.(item.id, `Claudio did not start another fix: \`${again}\` failed again after two fixes`);
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Attempts for this head below the project's limit, a place in the flow's parallel runs, and a budget not yet reached */

@@ -261,6 +261,9 @@
     "costPhone": "Coste máximo por ejecución",
     "costHintPhone": "Vacío, sin límite. Con un límite, la ejecución que lo alcanza falla y lo comenta en su tarea.",
     "bouncesHint": "los que QA devuelve antes de que te espere",
+    "plateauTitle": "Parar si dos rondas no mejoran",
+    "plateauHint": "Cuando QA encuentra sin cumplir los mismos criterios dos rondas seguidas, la tarea te espera en vez de rebotar otra vez. Desactivado, Claudio solo lo anota en un comentario y rebota como siempre.",
+    "plateauHintShort": "sin mejora tras dos rondas: te espera",
     "seeRuns": "Ver ejecuciones",
     "limitsFoot": "Con un límite de coste, la ejecución que lo alcanza se detiene, falla y lo comenta en su tarea. Las tareas devueltas están en Actividad, con el filtro Devueltas."
   },
