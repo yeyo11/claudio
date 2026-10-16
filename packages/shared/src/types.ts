@@ -7584,6 +7584,18 @@ export interface EvalFileListItem extends EvalFile {
   latestRun: EvalRunSummary | null;
 }
 
+/**
+ * The checkout's repository state, for the evals screens: `git` false is "not a repository", and
+ * `sha` null with `git` true is "no commit yet". `uncommitted` names the eval files the repository
+ * does not have as they are on disk (untracked or changed).
+ */
+export interface EvalHead {
+  git: boolean;
+  sha: string | null;
+  subject: string | null;
+  uncommitted: string[];
+}
+
 /** One eval file; `consented` says whether the person accepted this very content (consent is per SHA). */
 export interface EvalFileDetail extends EvalFile {
   consented: boolean;

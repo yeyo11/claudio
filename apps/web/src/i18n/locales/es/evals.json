@@ -1,0 +1,461 @@
+{
+  "title": "Evaluaciones",
+  "run": {
+    "passed": "Superada",
+    "failed": "Fallida",
+    "capped": "Cortada por el tope",
+    "interrupted": "Interrumpida",
+    "running": "En ejecución",
+    "waiting": "Esperando el reinicio",
+    "cancelled": "Cancelada",
+    "queued": "En cola",
+    "back": "Volver",
+    "summary": "Resumen de la ejecución",
+    "cost": "{{spent}} de {{ceiling}}",
+    "samples": "intentos",
+    "announce": "{{done}} de {{total}} intentos terminados",
+    "counts": {
+      "done_one": "{{count}} superado",
+      "done_other": "{{count}} superados",
+      "failed_one": "{{count}} fallido",
+      "failed_other": "{{count}} fallidos",
+      "running_one": "{{count}} en ejecución",
+      "running_other": "{{count}} en ejecución",
+      "pending_one": "{{count}} en cola",
+      "pending_other": "{{count}} en cola",
+      "skipped_one": "{{count}} sin puntuar",
+      "skipped_other": "{{count}} sin puntuar"
+    },
+    "stop": "Detener",
+    "cancel": "Cancelar ejecución",
+    "cancelFailed": "No se ha podido cancelar la ejecución",
+    "resume": "Reanudar",
+    "resumeTitle": "¿Reanudar esta ejecución?",
+    "resumeBody_one": "{{count}} intento no se ejecutó. Reanudar puede gastar hasta {{cost}} en total.",
+    "resumeBody_other": "{{count}} intentos no se ejecutaron. Reanudar puede gastar hasta {{cost}} en total.",
+    "resumeConfirm": "Reanudar · hasta {{cost}}",
+    "resumeFailed": "No se ha podido reanudar la ejecución"
+  },
+  "list": {
+    "new": "Nueva evaluación",
+    "invalid": "Archivo no válido",
+    "notCommitted": "Sin commitear",
+    "cases_one": "{{count}} caso",
+    "cases_other": "{{count}} casos",
+    "problems_one": "{{count}} problema",
+    "problems_other": "{{count}} problemas",
+    "scored": "{{passed}}/{{of}} casos",
+    "never": "Sin ejecutar",
+    "empty": {
+      "title": "Aún no hay evaluaciones",
+      "body": "Una evaluación da a un archivo de agente, una skill, una regla o CLAUDE.md unos prompts y comprueba las llamadas a herramientas de Claude, para saber si un cambio hace que siga mejor o peor sus instrucciones."
+    },
+    "notGit": {
+      "title": "Este proyecto no es un repositorio git",
+      "body": "Una evaluación fija un commit y ejecuta cada intento sobre él. Convierte la carpeta en un repositorio git y haz un primer commit para usar evaluaciones."
+    },
+    "noCommit": {
+      "title": "Aún no hay un commit que fijar",
+      "body": "Una evaluación fija un commit y ejecuta cada intento sobre él. Haz un primer commit en este repositorio para usar evaluaciones."
+    },
+    "evaluate": "Evaluar este cambio",
+    "forAgent": "Evaluaciones de {{agent}}",
+    "showAll": "Mostrar todas",
+    "noneForAgent": "Aún no hay ninguna evaluación que mida a {{agent}}."
+  },
+  "invalid": {
+    "title": "Este archivo no se puede ejecutar",
+    "body": "Claudio lista el archivo que no puede leer, con el motivo, y nunca lo ejecuta. Corrígelo en el repositorio o quítalo desde aquí."
+  },
+  "matcher": {
+    "glob": "Glob",
+    "equals": "Igual a",
+    "contains": "Contiene",
+    "regex": "Regex",
+    "mode": "Cómo se compara {{field}}",
+    "flags": "flags",
+    "flagsLabel": "Flags de la regex de {{field}}"
+  },
+  "call": {
+    "tool": "Herramienta o herramientas, p. ej. Edit, MultiEdit",
+    "toolLabel": "Herramienta de {{call}}",
+    "command": "Comando",
+    "path": "Ruta",
+    "outcome": {
+      "default": "Cualquier resultado",
+      "ok": "Con éxito",
+      "error": "Con error",
+      "denied": "Denegada",
+      "any": "Cualquier resultado"
+    },
+    "outcomeLabel": "Resultado de {{call}}",
+    "scope": {
+      "default": "Agente principal",
+      "main": "Agente principal",
+      "sub": "Subagentes",
+      "any": "Cualquier agente"
+    },
+    "scopeLabel": "Quién hace {{call}}",
+    "inputKept_one": "{{count}} comprobación de entrada, se edita en JSON",
+    "inputKept_other": "{{count}} comprobaciones de entrada, se editan en JSON"
+  },
+  "expect": {
+    "row": "Comprobación {{n}}",
+    "kindLabel": "Tipo de la comprobación {{n}}",
+    "remove": "Quitar la comprobación {{n}}",
+    "kind": {
+      "called": "Llamada",
+      "not-called": "Nunca llamada",
+      "before": "Antes de",
+      "after": "Después de",
+      "sequence": "Secuencia",
+      "text": "Texto final",
+      "file": "Archivo",
+      "touched": "Tocado",
+      "command": "Comando"
+    },
+    "hint": {
+      "called": "Ocurre una llamada, las veces que se pida",
+      "not-called": "Ninguna llamada coincide",
+      "before": "Una llamada va antes que otra",
+      "after": "Una llamada va después de otra",
+      "sequence": "Las llamadas ocurren en este orden",
+      "text": "La respuesta final coincide",
+      "file": "Un archivo existe o contiene algo",
+      "touched": "Una ruta cambió, o no",
+      "command": "Un comando ejecutado en el carril termina como se espera"
+    },
+    "call": "Llamada",
+    "min": "Al menos",
+    "max": "Como máximo",
+    "anchor": "La llamada de referencia",
+    "ifAnchor": "Solo cuando ocurre la de referencia",
+    "step": "Paso {{n}}",
+    "addStep": "Añadir un paso",
+    "removeStep": "Quitar el último paso",
+    "strict": "Nada puede ir entre los pasos",
+    "text": "Texto final",
+    "file": "Ruta del archivo",
+    "exists": {
+      "default": "No se comprueba si existe",
+      "true": "Debe existir",
+      "false": "No debe existir"
+    },
+    "existsLabel": "Si el archivo debe existir",
+    "contains": "Contenido",
+    "touchedPath": "Ruta",
+    "touched": {
+      "true": "Debe tocarse",
+      "false": "No debe tocarse"
+    },
+    "touchedLabel": "Si la ruta debe tocarse",
+    "run": "Comando",
+    "runHint": "Se ejecuta en esta máquina, en el carril, cuando aceptas el archivo",
+    "exitCode": "Código de salida",
+    "timeoutSeconds": "Tiempo límite (s)"
+  },
+  "editor": {
+    "back": "Evaluaciones",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar {{name}}?",
+    "deleteBody": "El archivo se quita de la carpeta del repositorio. Las ejecuciones ya hechas siguen en el historial.",
+    "deleteFailed": "No se ha podido eliminar la evaluación",
+    "newTitle": "Nueva evaluación",
+    "view": "Vista del editor",
+    "form": "Formulario",
+    "jsonInvalid": "El JSON no se puede leer como una evaluación",
+    "jsonLabel": "El archivo de la evaluación en JSON",
+    "changedOnDisk": "El archivo cambió en el disco",
+    "changedBody": "No es el archivo que abriste (un pull u otro editor lo cambió). Recárgalo y pierde tus cambios, o sobrescríbelo con los tuyos.",
+    "shaYours": "el tuyo",
+    "shaDisk": "en el disco",
+    "reload": "Recargar",
+    "overwrite": "Sobrescribir",
+    "saveFailed": "No se ha podido guardar la evaluación",
+    "problems": "El archivo no se guardó",
+    "discardBody": "Salir descarta lo que cambiaste en esta evaluación.",
+    "saved": "Evaluación guardada",
+    "saving": "Guardando…",
+    "save": "Guardar",
+    "sections": {
+      "eval": "Evaluación",
+      "target": "Qué mide",
+      "runAs": "Ejecutar como",
+      "pin": "Commit",
+      "limits": "Intentos y límites",
+      "cases_one": "{{count}} caso",
+      "cases_other": "{{count}} casos"
+    },
+    "title": "Título",
+    "english": "Los prompts, los títulos y las notas se escriben en inglés. Las palabras de una persona se quedan como las escribió.",
+    "fileName": "Nombre del archivo",
+    "name": {
+      "pattern": "Minúsculas, dígitos y guiones, empezando por una letra o un dígito.",
+      "taken": "Ya existe una evaluación con este nombre."
+    },
+    "targetKind": "Tipo",
+    "kind": {
+      "agent": "Archivo de agente",
+      "skill": "Skill",
+      "rule": "Regla",
+      "instructions": "CLAUDE.md"
+    },
+    "targetScope": "Ámbito",
+    "scope": {
+      "project": "Este proyecto",
+      "user": "Tu carpeta de usuario"
+    },
+    "userScope": "Un archivo de usuario se mide tal como está: no se puede fijar ni proponer.",
+    "targetName": "Nombre",
+    "targetNamePlaceholder": "Elige o escribe un nombre",
+    "runAsNote": "Un miembro del equipo se ejecuta con las reglas del flujo para la etapa, como en el tablero.",
+    "runAsAgent": "Agente",
+    "runAsNobody": "Sin agente",
+    "runAsStage": "Etapa",
+    "stageDefault": "Implementar (predeterminada)",
+    "stage": {
+      "refine": "Refinar",
+      "work": "Implementar",
+      "verify": "Verificar"
+    },
+    "runAsModel": "Modelo",
+    "runAsEffort": "Esfuerzo",
+    "effortDefault": "El del modelo",
+    "pin": "Commit fijado",
+    "pinHint": "Un SHA completo de 40 caracteres: el nombre de una rama se movería.",
+    "pinHead": "Fijar en HEAD",
+    "samples": "Intentos por caso",
+    "samplesHint": "Con dos o más se distingue un caso inestable de uno que falla.",
+    "perSample": "Tope de coste por intento (USD)",
+    "timeout": "Tiempo límite por intento (min)",
+    "ceiling": "Tope de coste de una ejecución (USD)",
+    "ceilingHint": "El diálogo de inicio puede bajarlo, nunca subirlo.",
+    "setup": "Comando de preparación",
+    "setupWarn": "Ejecuta el código de este repositorio en esta máquina.",
+    "policyKept": "Esta evaluación lleva su propia política de herramientas, que se edita en JSON.",
+    "addCase": "Añadir un caso",
+    "caseUntitled": "(sin id)",
+    "expectCount_one": "{{count}} comprobación",
+    "expectCount_other": "{{count}} comprobaciones",
+    "caseProblems_one": "{{count}} problema",
+    "caseProblems_other": "{{count}} problemas",
+    "caseId": "Id del caso",
+    "caseTitle": "Título del caso",
+    "casePin": "Commit de este caso",
+    "casePinHint": "Déjalo vacío para usar el commit de la evaluación.",
+    "prompt": "Prompt",
+    "promptHint": "Se envía como único mensaje del intento, hasta {{max}} caracteres.",
+    "expectations": "Comprobaciones",
+    "addExpectation": "Añadir una comprobación",
+    "removeCase": "Quitar el caso",
+    "run": "Ejecutar evaluación",
+    "saveFirst": "Guarda antes la evaluación: una ejecución usa el archivo tal como está en disco."
+  },
+  "notice": {
+    "waiting": {
+      "title": "Esperando a que se reinicie un límite de uso",
+      "until": "Mientras tanto no se gasta nada. Continúa a las {{time}}.",
+      "body": "Mientras tanto no se gasta nada. Continúa cuando se reinicie el límite."
+    },
+    "capped_one": "Detenida en el tope; {{count}} intento sin ejecutar.",
+    "capped_other": "Detenida en el tope; {{count}} intentos sin ejecutar.",
+    "interrupted_one": "Interrumpida; {{count}} intento sin ejecutar.",
+    "interrupted_other": "Interrumpida; {{count}} intentos sin ejecutar.",
+    "failed": "La ejecución falló",
+    "cancelled": "Esta ejecución se canceló."
+  },
+  "variant": {
+    "pinned": "Commit fijado",
+    "current": "Archivo actual",
+    "proposed": "Texto propuesto"
+  },
+  "matrix": {
+    "title": "Casos",
+    "caption": "Intentos por caso y variante",
+    "case": "Caso",
+    "compared": "Comparación",
+    "flaky": "Inestable",
+    "empty": "Aún no hay intentos.",
+    "attempt": "Intento {{attempt}}: {{state}}"
+  },
+  "cell": {
+    "passed": "Superado",
+    "failed": "Fallido",
+    "running": "En ejecución",
+    "queued": "En cola",
+    "notScored": "Sin puntuar"
+  },
+  "verdict": {
+    "regressed": "Empeora",
+    "improved": "Mejora",
+    "same": "Igual"
+  },
+  "sample": {
+    "title": "{{case}} · {{variant}} · intento {{attempt}}",
+    "description": "Las llamadas que hizo Claude, lo que encontraron las comprobaciones y su respuesta final.",
+    "calls": "Llamadas",
+    "noCalls": "No se registró ninguna llamada.",
+    "subagent": "subagente",
+    "outcome": {
+      "ok": "Correcta",
+      "error": "Error",
+      "denied": "Denegada",
+      "open": "Sin resultado"
+    },
+    "truncated": "Solo se guardan las primeras llamadas; las comprobaciones se ejecutaron sobre todas.",
+    "checks": "Comprobaciones",
+    "noChecks": "No se ejecutó ninguna comprobación.",
+    "evidence": "Llamada #{{seq}}",
+    "finalText": "Respuesta final",
+    "noText": "No se registró una respuesta final.",
+    "notScored": "Sin puntuar",
+    "why": {
+      "limit": "Un límite de uso detuvo este intento. No dice nada del objetivo y se vuelve a ejecutar desde cero.",
+      "interrupted": "La ejecución se interrumpió antes de que terminara este intento.",
+      "cancelled": "La ejecución se canceló antes de que terminara este intento.",
+      "skipped": "La ejecución se detuvo en su tope antes de este intento.",
+      "infra": "Falló algo ajeno al objetivo (el CLI, el worktree o la preparación), así que el intento no dice nada de él."
+    },
+    "fact": {
+      "cost": "Coste",
+      "duration": "Duración",
+      "turns": "Turnos",
+      "account": "Cuenta",
+      "model": "Modelo",
+      "cli": "CLI",
+      "pin": "Commit fijado"
+    }
+  },
+  "history": {
+    "open": "Historial",
+    "title": "Ejecuciones",
+    "titleFor": "Ejecuciones de {{name}}",
+    "filter": "Variante",
+    "allVariants": "Todas las variantes",
+    "empty": "Esta evaluación aún no se ha ejecutado.",
+    "emptyFiltered": "Ninguna ejecución usó esta variante.",
+    "more": "Mostrar más",
+    "compareWith": "Comparar con…",
+    "compareTwo": "Comparar estas dos",
+    "stopPicking": "Hecho",
+    "pickTwo_one": "Elige dos ejecuciones para comparar. {{count}} elegida.",
+    "pickTwo_other": "Elige dos ejecuciones para comparar. {{count}} elegidas.",
+    "pick": "Elegir la ejecución de {{when}}",
+    "compareTitle": "Comparación",
+    "compareCaption": "Casos de dos ejecuciones en la variante {{variant}}",
+    "closeCompare": "Cerrar comparación",
+    "noShared": "Estas ejecuciones no comparten ninguna variante, así que no se pueden poner sus casos lado a lado.",
+    "differ": "Estas ejecuciones se pueden comparar menos de lo que parece",
+    "differs": {
+      "definition": "El archivo de la evaluación cambió entre ambas.",
+      "model": "Se ejecutaron con modelos distintos.",
+      "cli": "Se ejecutaron con versiones distintas del CLI.",
+      "account": "Se ejecutaron con cuentas distintas."
+    }
+  },
+  "start": {
+    "title": "Ejecutar «{{title}}»",
+    "titleBare": "Ejecutar evaluación",
+    "notReady": "La estimación aún no está lista.",
+    "failed": "No se ha podido iniciar la ejecución",
+    "openEditor": "Abrir la evaluación",
+    "cancel": "Cancelar",
+    "starting": "Iniciando…",
+    "run": "Ejecutar evaluación · hasta {{cost}}",
+    "variants": "Qué ejecutar",
+    "variant": {
+      "pinned": "Commit fijado",
+      "current": "Archivo actual",
+      "proposed": "Texto propuesto"
+    },
+    "variantHint": {
+      "pinned": "El objetivo tal como estaba en el commit de la evaluación.",
+      "current": "El objetivo tal como está ahora en la copia de trabajo, guardado o no.",
+      "proposed": "Texto que escribes o pegas aquí. Nunca se guarda en un archivo."
+    },
+    "userScopeHint": "Un archivo de tu carpeta de usuario se mide tal como está.",
+    "proposedLabel": "Texto propuesto de {{path}}",
+    "proposedAria": "Texto propuesto",
+    "proposedFromMember": "Es el texto sin guardar de la página del miembro.",
+    "proposedSame": "El texto propuesto es el archivo actual, así que solo se ejecuta uno de los dos.",
+    "proposedEmpty": "Escribe o pega el texto que quieres probar.",
+    "cases": "Casos",
+    "samples": "Intentos por caso",
+    "account": "Cuenta",
+    "accountAuto": "Elegida automáticamente",
+    "accountHint": "Una cuenta fijada espera en su límite en lugar de cambiar.",
+    "nothing": "Elige qué ejecutar.",
+    "estimating": "Estimando el coste…",
+    "estimate": {
+      "title": "Estimación",
+      "line_one": "{{count}} intento · hasta {{cost}}",
+      "line_other": "{{count}} intentos · hasta {{cost}}",
+      "typical": "normalmente {{cost}}"
+    },
+    "warning": {
+      "dirty-checkout": "La copia de trabajo tiene cambios sin commitear. Solo se usa el texto actual del objetivo; los demás cambios sin commitear no entran en la evaluación.",
+      "large-checkout": "El repositorio es grande, así que preparar cada worktree tarda más.",
+      "target-absent": "El archivo objetivo no existe en una de las variantes, que se ejecuta sin archivo.",
+      "models-differ": "Las variantes se ejecutarán con modelos distintos.",
+      "user-scope": "Esta ejecución lee el objetivo de tu carpeta de usuario.",
+      "pin-behind-head": "El commit fijado está por detrás de HEAD. Se ejecuta igualmente sobre el fijado."
+    },
+    "consent": {
+      "title": "Revisa lo que ejecuta esta evaluación",
+      "body": "Es posible que otra persona haya escrito este archivo. No se ejecuta nada hasta que aceptes lo de abajo.",
+      "prompts_one": "{{count}} prompt",
+      "prompts_other": "{{count}} prompts",
+      "commands_one": "{{count}} comando",
+      "commands_other": "{{count}} comandos",
+      "accept": "Entiendo que esto se ejecuta en este equipo"
+    },
+    "refused": {
+      "pin-missing": {
+        "title": "Falta el commit fijado",
+        "fix": "Puede que se haya recogido como basura o que se reescribiera el historial. Abre la evaluación y fíjala a HEAD."
+      },
+      "target-missing": {
+        "title": "El archivo objetivo no existe",
+        "fix": "El agente con el que se ejecuta esta evaluación no tiene archivo. Abre la evaluación y corrige el objetivo."
+      },
+      "not-git": {
+        "title": "Este proyecto no es un repositorio git",
+        "fix": "Una evaluación se ejecuta sobre un commit fijado. Convierte antes la carpeta en un repositorio."
+      },
+      "no-commit": {
+        "title": "No hay un commit sobre el que ejecutar",
+        "fix": "Haz un primer commit en este repositorio."
+      },
+      "lanes-root-contaminated": {
+        "title": "Hay un CLAUDE.md por encima de la carpeta de worktrees",
+        "fix": "Se filtraría en todas las variantes. Muévelo o quítalo: {{detail}}"
+      },
+      "user-scope-proposal": {
+        "title": "No se puede proponer un archivo de usuario",
+        "fix": "Una propuesta nunca se escribe en tu carpeta de usuario. Desmarca el texto propuesto."
+      },
+      "eval-running": {
+        "title": "Ya hay una evaluación en ejecución en este proyecto",
+        "fix": "Espera a que termine o cancélala, y luego inicia esta."
+      },
+      "cost-not-confirmed": {
+        "title": "El tope ha cambiado",
+        "fix": "Se ha actualizado la estimación. Comprueba el nuevo tope y vuelve a ejecutar."
+      },
+      "consent-needed": {
+        "title": "El archivo cambió desde que lo revisaste",
+        "fix": "Se ha actualizado la estimación. Revisa lo que ejecuta y acepta de nuevo."
+      },
+      "team-off": {
+        "title": "El módulo Equipo está desactivado",
+        "fix": "Actívalo en los ajustes del proyecto para usar evaluaciones."
+      }
+    }
+  },
+  "member": {
+    "evaluate": "Evaluar este cambio",
+    "new": "Nueva evaluación",
+    "needsChange": "Cambia primero el archivo del agente: una evaluación compara un cambio.",
+    "tooLarge": "El archivo es demasiado grande para pasárselo a una evaluación (256 KiB como máximo)."
+  }
+}

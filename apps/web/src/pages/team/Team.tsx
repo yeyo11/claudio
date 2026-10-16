@@ -13,6 +13,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { assistantEntry } from '../home/ProjectHead';
 import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
+import { EvalsSection } from './evals/Section';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
 import { MemberCells, MemberGrid, MoreRoles, ProposeButton, TeamEmpty, useProposeTeam } from './Members';
@@ -36,7 +37,7 @@ function summaryHref(params: URLSearchParams): string {
  * project and what it holds, the way back and "⋯".
  */
 export function ProjectTeam({ project }: { project: Project }) {
-  const { t } = useTranslation(['team', 'home', 'projects', 'assistant']);
+  const { t } = useTranslation(['team', 'home', 'projects', 'assistant', 'evals']);
   const phone = useMediaQuery(NARROW);
   const navigate = useNavigate();
   const guard = useLeaveGuard();
@@ -129,6 +130,7 @@ export function ProjectTeam({ project }: { project: Project }) {
           },
           { value: 'flow', label: t('flow.title') },
           { value: 'activity', label: t('log.title') },
+          { value: 'evals', label: t('evals:title') },
         ]}
       />
     </div>
@@ -145,6 +147,14 @@ export function ProjectTeam({ project }: { project: Project }) {
         phone={phone}
         head={(action) => header(action)}
       />
+    );
+
+  if (section === 'evals')
+    return (
+      <div className={phone ? 'team-page is-phone' : 'team-page'}>
+        {header()}
+        <EvalsSection projectId={project.id} team={data} switcher={switcher} />
+      </div>
     );
 
   if (section === 'flow')

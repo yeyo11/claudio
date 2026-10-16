@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import { EVAL_LIMITS, type EvalComparison, type EvalDefinition, type EvalEstimate, type EvalFileDetail, type EvalFileListItem, type EvalRun, type EvalRunPage, type EvalRunSummary, type EvalSampleDetail, type Project } from '@claudio/shared';
+import { EVAL_LIMITS, type EvalComparison, type EvalDefinition, type EvalEstimate, type EvalFileDetail, type EvalFileListItem, type EvalHead, type EvalRun, type EvalRunPage, type EvalRunSummary, type EvalSampleDetail, type Project } from '@claudio/shared';
 import { EvalStore } from '../../../packages/core/src/evals/store.ts';
 import { buildApp } from '../src/app.ts';
 
@@ -130,6 +130,26 @@ test('the list needs the Team module, and reads files with their problems and ne
   assert.equal(listed[0]?.definition, null);
   assert.ok((listed[0]?.problems.length ?? 0) > 0);
   assert.equal(listed[1]?.latestRun?.id, 'r-done');
+});
+
+test('the head route says what Pin to HEAD pins and which eval files the repository does not have', async (t) => {
+  const w = await wrapper();
+  t.after(finish(w));
+  const url = `/api/projects/${w.project.id}/eval-head`;
+  assert.equal((await w.app.inject('/api/projects/nope/eval-head')).statusCode, 404);
+  assert.deepEqual((await w.app.inject(url)).json(), { git: true, sha: w.head, subject: 'init', uncommitted: [] });
+
+  await put(w, 'runs-tests', definition(w.head));
+  assert.deepEqual((await w.app.inject(url)).json<EvalHead>().uncommitted, ['runs-tests']);
+  git(w.project.path, 'add', '.');
+  git(w.project.path, 'commit', '-q', '-m', 'add the eval');
+  assert.deepEqual((await w.app.inject(url)).json<EvalHead>().uncommitted, []);
+  await put(w, 'runs-tests', definition(w.head, { title: 'Changed' }), (await w.app.inject(evalUrl(w, 'runs-tests'))).json<EvalFileDetail>().sha);
+  assert.deepEqual((await w.app.inject(url)).json<EvalHead>().uncommitted, ['runs-tests']);
+
+  git(w.project.path, 'update-ref', '-d', 'HEAD');
+  assert.deepEqual((await w.app.inject(url)).json(), { git: true, sha: null, subject: null, uncommitted: [] });
+  assert.deepEqual((await w.app.inject(`/api/projects/${w.plain.id}/eval-head`)).json<EvalHead>().git, true);
 });
 
 test('a file is written strictly, guarded by the SHA that was read, read back and removed', async (t) => {

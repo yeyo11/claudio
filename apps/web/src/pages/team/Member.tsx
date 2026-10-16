@@ -1,10 +1,10 @@
 import type { Effort, Project, TeamMember } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, Pencil, Undo2, UserMinus } from 'lucide-react';
+import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, FlaskConical, Pencil, Undo2, UserMinus } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
-import { api, keys, useMemoryProposals } from '../../api';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { api, keys, useEvalFiles, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MoreActions, Tooltip } from '@claudio/ui/components/controls';
 import { EffortPicker } from '../../components/EffortPicker';
@@ -18,6 +18,7 @@ import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
+import { evalsForAgent, stashProposed } from './evals/run-model';
 import { AnswersFor, FileState } from './Members';
 import { frontmatterProblem } from '../config/frontmatter';
 import {
@@ -28,6 +29,7 @@ import {
   sameCommands,
   sameWrites,
   stageOf,
+  teamSearch,
   writeScope,
   writesFor,
   type CommandScope,
@@ -67,14 +69,16 @@ function useAgentFile(projectId: string, member: TeamMember) {
  * through the team route and the file through the resources route, the one a terminal would read.
  */
 export function MemberPage({ project, member, backHref }: { project: Project; member: TeamMember; backHref: string }) {
-  const { t } = useTranslation(['team', 'config']);
+  const { t } = useTranslation(['team', 'config', 'evals']);
   const roleName = useRoleName();
   const name = roleName(member.role);
   const phone = useMediaQuery(NARROW);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const toast = useToast();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
+  const evalFiles = useEvalFiles(project.id);
   const file = useAgentFile(project.id, member);
   const memoryOn = project.modules.includes('memory');
   const proposals = useMemoryProposals(memoryOn ? project.id : null, 'pending');
@@ -155,6 +159,17 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       (ok) => ok && remove.mutate(),
     );
 
+  // The unsaved text goes to the evals in this tab's session storage and is cleared once the start
+  // dialog has used it; an agent with no eval yet is offered "New eval" instead
+  const hasEvals = evalsForAgent(evalFiles.data ?? [], member.agent).length > 0;
+  const evaluate = () => {
+    if (!stashProposed(sessionStorage, project.id, member.agent, now.content)) {
+      toast.error(t('evals:member.tooLarge'));
+      return;
+    }
+    navigate({ search: teamSearch(params, { section: 'evals', member: null, eval: null, run: null, for: member.agent }) });
+  };
+
   const stage = member.columns[0] ? stageOf(member.columns[0]) : null;
   const unsaved = dirty && (
     <Tag tone="warn">
@@ -163,6 +178,10 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   );
   const actions = (
     <>
+      <button type="button" className="btn" disabled={!fileChanged || frontmatter !== null} onClick={evaluate} title={fileChanged ? undefined : t('evals:member.needsChange')}>
+        <FlaskConical {...ICON_SM} />
+        {hasEvals ? t('evals:member.evaluate') : t('evals:member.new')}
+      </button>
       <button type="button" className="btn" disabled={!dirty || save.isPending} onClick={() => setDraft({})}>
         <Undo2 {...ICON_SM} />
         {t('config:shared.discard')}

@@ -212,6 +212,18 @@ import type {
   SupervisorProposal,
   SystemInfo,
   TaskHintRequest,
+  EvalComparison,
+  EvalEstimate,
+  EvalFileDetail,
+  EvalFileListItem,
+  EvalHead,
+  EvalRun,
+  EvalRunPage,
+  EvalRunRequest,
+  EvalRunSummary,
+  EvalSampleDetail,
+  EvalVariant,
+  PutEvalFileRequest,
   Team,
   TeamFromTemplateRequest,
   TeamMember,
@@ -295,6 +307,8 @@ export class ApiRequestError extends Error {
   readonly postId?: string;
   /** Today's spend, on a refusal at the daily cap (`code: 'spend-cap'`) */
   readonly spend?: SpendState;
+  /** The fields a refused write names, `path: reason` each (an eval file that does not parse) */
+  problems?: string[];
 
   constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
@@ -398,7 +412,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
       }
       throw new ApiRequestError(i18n.t('components:spendCap.declined'), res.status, undefined, 'spend-cap', undefined, spend);
     }
-    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    const problems = (err as { problems?: unknown }).problems;
+    const refusal = new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
+    throw refusal;
   }
   return json as T;
 }
@@ -950,6 +967,35 @@ export const api = {
     request<Milestone>(`/milestones/${enc(milestoneId)}`, { method: 'PATCH', body: req }),
   deleteMilestone: (milestoneId: string) => request<{ ok: true }>(`/milestones/${enc(milestoneId)}`, { method: 'DELETE' }),
   // ---- team, flow, journal, memory proposals and documents (docs/plans/project-ecosystem.md, orchestration 3)
+  // ---- instruction evals (docs/plans/instruction-evals.md); `eval.run` and `eval.sample` refresh them
+  evalFiles: (projectId: string, o?: ReadOptions) => request<EvalFileListItem[]>(`/projects/${enc(projectId)}/evals`, o),
+  evalFile: (projectId: string, name: string, o?: ReadOptions) => request<EvalFileDetail>(`/projects/${enc(projectId)}/evals/${enc(name)}`, o),
+  putEvalFile: (projectId: string, name: string, req: PutEvalFileRequest) =>
+    request<EvalFileDetail>(`/projects/${enc(projectId)}/evals/${enc(name)}`, { method: 'PUT', body: req }),
+  deleteEvalFile: (projectId: string, name: string) => request<{ ok: true }>(`/projects/${enc(projectId)}/evals/${enc(name)}`, { method: 'DELETE' }),
+  evalHead: (projectId: string, o?: ReadOptions) => request<EvalHead>(`/projects/${enc(projectId)}/eval-head`, o),
+  estimateEval: (projectId: string, name: string, req: EvalRunRequest, o?: ReadOptions) =>
+    request<EvalEstimate>(`/projects/${enc(projectId)}/evals/${enc(name)}/estimate`, { ...o, method: 'POST', body: req }),
+  consentEval: (projectId: string, name: string, sha: string) =>
+    request<{ ok: true }>(`/projects/${enc(projectId)}/evals/${enc(name)}/consent`, { method: 'POST', body: { sha } }),
+  startEval: (projectId: string, name: string, req: EvalRunRequest) =>
+    request<EvalRunSummary>(`/projects/${enc(projectId)}/evals/${enc(name)}/runs`, { method: 'POST', body: req }),
+  evalRuns: (projectId: string, q: { eval?: string; before?: string; limit?: number } = {}, o?: ReadOptions) => {
+    const query = new URLSearchParams();
+    if (q.eval) query.set('eval', q.eval);
+    if (q.before) query.set('before', q.before);
+    if (q.limit) query.set('limit', String(q.limit));
+    const text = query.toString();
+    return request<EvalRunPage>(`/projects/${enc(projectId)}/eval-runs${text ? `?${text}` : ''}`, o);
+  },
+  evalRun: (runId: string, o?: ReadOptions) => request<EvalRun>(`/eval-runs/${enc(runId)}`, o),
+  evalSample: (runId: string, sampleId: string, o?: ReadOptions) => request<EvalSampleDetail>(`/eval-runs/${enc(runId)}/samples/${enc(sampleId)}`, o),
+  evalCompare: (runId: string, base: EvalVariant, other: EvalVariant, o?: ReadOptions) =>
+    request<EvalComparison>(`/eval-runs/${enc(runId)}/compare?base=${base}&other=${other}`, o),
+  cancelEvalRun: (runId: string) => request<EvalRunSummary>(`/eval-runs/${enc(runId)}/cancel`, { method: 'POST' }),
+  resumeEvalRun: (runId: string, confirmMaxCostUsd: number) =>
+    request<EvalRunSummary>(`/eval-runs/${enc(runId)}/resume`, { method: 'POST', body: { confirmMaxCostUsd } }),
+  deleteEvalRun: (runId: string) => request<{ ok: true }>(`/eval-runs/${enc(runId)}`, { method: 'DELETE' }),
   team: (projectId: string, o?: ReadOptions) => request<Team>(`/projects/${enc(projectId)}/team`, o),
   teamFromTemplate: (projectId: string, req: TeamFromTemplateRequest = {}) =>
     request<Team>(`/projects/${enc(projectId)}/team/from-template`, { method: 'POST', body: req }),
@@ -1292,6 +1338,16 @@ export const keys = {
   milestone: (milestoneId: string) => ['milestones', 'one', milestoneId] as const,
   // ---- team, flow, journal, memory proposals and documents. One prefix per project for each, so an
   // event of that project reaches every page and filter of it
+  // Under 'evals', the prefix `eval.run` and `eval.sample` refresh
+  evals: (projectId: string) => ['evals', projectId] as const,
+  evalFile: (projectId: string, name: string) => ['evals', projectId, 'file', name] as const,
+  evalHead: (projectId: string) => ['evals', projectId, 'head'] as const,
+  evalRuns: (projectId: string, name: string | null) => ['evals', projectId, 'runs', name ?? ''] as const,
+  evalRun: (runId: string) => ['evals', 'run', runId] as const,
+  evalSample: (runId: string, sampleId: string) => ['evals', 'run', runId, 'sample', sampleId] as const,
+  evalCompare: (runId: string, base: string, other: string) => ['evals', 'run', runId, 'compare', base, other] as const,
+  // Not under 'evals': a sample finishing must not re-price a dialog the person is reading
+  evalEstimate: (projectId: string, name: string, request: string) => ['eval-estimate', projectId, name, request] as const,
   team: (projectId: string) => ['team', projectId] as const,
   flow: (projectId: string) => ['flow', projectId] as const,
   // Under `flow`, so every event that refreshes the flow refreshes the cards waiting for it
@@ -1590,6 +1646,55 @@ export const useTeam = (projectId: string | null) =>
     queryFn: ({ signal }) => api.team(projectId ?? '', { signal }),
     enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
+  });
+
+// ---------- instruction evals ----------
+
+export const useEvalFiles = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.evals(projectId ?? ''),
+    queryFn: ({ signal }) => api.evalFiles(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useEvalFile = (projectId: string, name: string | null) =>
+  useQuery({
+    queryKey: keys.evalFile(projectId, name ?? ''),
+    queryFn: ({ signal }) => api.evalFile(projectId, name ?? '', { signal }),
+    enabled: name !== null,
+  });
+
+export const useEvalHead = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.evalHead(projectId ?? ''),
+    queryFn: ({ signal }) => api.evalHead(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+  });
+
+export const useEvalRun = (runId: string | null) =>
+  useQuery({
+    queryKey: keys.evalRun(runId ?? ''),
+    queryFn: ({ signal }) => api.evalRun(runId ?? '', { signal }),
+    enabled: runId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** An eval's runs (or the project's, with no name), newest first, a page at a time. */
+export const useEvalHistory = (projectId: string, name: string | null) =>
+  useInfiniteQuery({
+    queryKey: keys.evalRuns(projectId, name),
+    queryFn: ({ signal, pageParam }) => api.evalRuns(projectId, { ...(name ? { eval: name } : {}), limit: 20, ...(pageParam ? { before: pageParam } : {}) }, { signal }),
+    initialPageParam: '',
+    getNextPageParam: (last: EvalRunPage) => last.next ?? undefined,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useEvalSample =(runId: string, sampleId: string | null) =>
+  useQuery({
+    queryKey: keys.evalSample(runId, sampleId ?? ''),
+    queryFn: ({ signal }) => api.evalSample(runId, sampleId ?? '', { signal }),
+    enabled: sampleId !== null,
   });
 
 export const useFlow = (projectId: string | null) =>
