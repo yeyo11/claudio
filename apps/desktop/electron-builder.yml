@@ -22,6 +22,10 @@ publish:
   owner: yeyo11
   repo: claudio
 
+# Clears group and other write permission from the packed tree, whatever the builder's umask: the guards
+# refuse a group-writable guard.mjs (scripts/after-pack.mjs)
+afterPack: ./scripts/after-pack.mjs
+
 directories:
   output: release
   buildResources: build

@@ -359,7 +359,9 @@ because the top bar is (`--topbar-h`): change one and change the other.
 `desktop:dist` writes `Claudio-<version>-x86_64.AppImage` and `Claudio-<version>-amd64.deb` to
 `apps/desktop/release/`. The first run downloads Electron and the packaging tools from GitHub, so it
 needs network access. The packaging is configured in `apps/desktop/electron-builder.yml`, which also ships the terminal host
-and `node-pty` as `extraResources`.
+and `node-pty` as `extraResources`. An `afterPack` hook (`apps/desktop/scripts/after-pack.mjs`) then clears group and other write
+permission from the packed tree: files keep the builder's mode, and under umask 002 a group-writable
+`guard.mjs` made the guards refuse to start any worker.
 
 ## How releases publish it
 
