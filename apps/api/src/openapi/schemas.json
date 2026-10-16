@@ -8377,6 +8377,8 @@
       "subagents",
       "mcp",
       "worktreeFlag",
+      "settingsFlag",
+      "hookEvents",
       "budgetLimit",
       "effort",
       "costReport",

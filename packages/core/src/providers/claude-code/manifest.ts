@@ -43,6 +43,9 @@ export const claudeCodeManifest: ProviderManifest = {
     'subagents',
     'mcp',
     'worktreeFlag',
+    // `--settings` and `--include-hook-events`, which loading the guards' hooks needs (docs/plans/guards.md, D1)
+    'settingsFlag',
+    'hookEvents',
     'budgetLimit',
     'effort',
     'costReport',

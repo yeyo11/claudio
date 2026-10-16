@@ -5538,6 +5538,8 @@ export type ProviderCapability =
   | 'subagents'
   | 'mcp'
   | 'worktreeFlag'
+  | 'settingsFlag'
+  | 'hookEvents'
   | 'budgetLimit'
   | 'effort'
   | 'costReport'

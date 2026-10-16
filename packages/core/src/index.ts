@@ -219,7 +219,18 @@ export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins
 export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
-export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
+export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
+export { type GuardFiles, startGuardSweep, sweepGuardFiles, writeGuardFiles } from './guards/files.ts';
+export {
+  GUARD_ENTRY_ENV,
+  GuardPreflight,
+  GuardUnavailableError,
+  type GuardUnavailableCode,
+  type PreflightInput,
+  checkGuardPreflight,
+  runGuardSelfTest,
+} from './guards/preflight.ts';
+export { guardsWeakened,projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
