@@ -1338,6 +1338,23 @@ project's Memory module on.
 | GET | `/projects/:id/memory/proposals?status=` | The team's memory proposals, newest first, by status |
 | POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text` (and, for a `rule` target, another `file`), and write it to its target: `CLAUDE.md`, a memory file, the journal, or a path-scoped rule in `.claude/rules/<file>` (new, appended when its paths are the same, 409 when they differ); a chat's token gets 403 |
 | POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written; a chat's token gets 403 |
+| GET | `/projects/:id/lessons?status=` | A project's lessons (`active` by default, or `proposed`, `retired`, `rejected`, `superseded`, `all`) and what a run is handed now (`handed`) |
+| GET | `/projects/:id/lessons/export` | Every lesson of the project, any status, as a JSON download; nothing reads lessons back in |
+| GET | `/projects/:id/lessons/jobs?limit=` | The project's lesson mining jobs, newest first (20 by default, 100 at most) |
+| GET | `/lessons/global?status=` | Global lessons, with what a chat outside any project is handed |
+| GET | `/lessons/settings` | The global lesson settings (`lessons.json`) |
+| PUT | `/lessons/settings` | Change them, with a partial body; 400 names a field out of range; a chat's token gets 403 |
+| GET | `/lessons/:lessonId` | One lesson, with its evidence |
+| PATCH | `/lessons/:lessonId` | Edit its `trigger` and `action`, or pin it — body `{ trigger?, action?, pinned? }`; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/confirm` | Say it still holds; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/retire` | Stop handing it to runs; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/restore` | Hand a retired lesson again; a chat's token gets 403 |
+| DELETE | `/lessons/:lessonId` | Delete a lesson that is not waiting for a decision; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/promote` | Make an active project lesson global; answers the global one; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/demote` | Move a global lesson back to its project — body `{ projectId? }`; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/instructions` | Propose the lesson for `CLAUDE.md` as an `instructions` proposal — body `{ section? }`; a chat's token gets 403 |
+| POST | `/memory-proposals/:proposalId/preview` | The diff an `instructions` proposal would make to `CLAUDE.md`, with its sha256 to send back as `previewOf` on approve — body `{ text? }` |
+| POST | `/chats/:id/lessons/mine` | Look for lessons in a chat now, 202 with the job; one run per chat per 10 minutes; a chat's token gets 403 |
 
 ### Plugins
 

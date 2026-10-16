@@ -57,6 +57,7 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'team.assign': 'teamAssign',
   'memory.triage': 'memoryTriage',
   'journal.relevance': 'journalRelevance',
+  'lesson.mine': 'lessonMine',
   'assistant.rerank': 'assistantRerank',
   'assistant.sources': 'assistantSources',
   'orchestration.retry': 'orchestrationRetry',

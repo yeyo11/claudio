@@ -1665,6 +1665,8 @@ export interface ProjectSettings {
   providers?: ProjectProvidersSettings;
   /** Guards for interactive chats started in this project; the flow's are in `flow.guards` */
   guards?: ProjectGuardSettings;
+  /** What lessons this project's runs are handed; a missing field takes the default */
+  lessons?: ProjectLessonsSettings;
 }
 
 /**
@@ -2893,13 +2895,141 @@ export interface JournalEntry {
   createdAt: string;
 }
 
+// Lessons: what a person's corrections taught, kept as rows because they accumulate and decay.
+
+/** proposed: waits for the person; active: handed to runs; retired: kept, not handed; rejected: refused, never proposed again; superseded: replaced by its global copy */
+export type LessonStatus = 'proposed' | 'active' | 'retired' | 'rejected' | 'superseded';
+/** Why a lesson stopped being handed */
+export type LessonRetiredReason = 'person' | 'decayed' | 'instructions' | 'merged' | 'contradicted';
+/** What the person did that a lesson rests on */
+export type LessonSignalKind = 'correction' | 'hint' | 'denied' | 'cancelled' | 'reverted' | 'rewound' | 'interrupted' | 'repeated-error' | 'rejected-proposal';
+
+export interface LessonEvidence {
+  id: string;
+  signal: LessonSignalKind;
+  /** The person's own words, as written (any language), redacted; empty for a denial without a message */
+  quote: string;
+  /** What the agent had just done, in English, redacted: "Edit src/cart.ts", "Bash: npm install" */
+  context: string;
+  chatId: string | null;
+  /** Filled in when read: null when the chat is gone, which the UI says */
+  chatTitle: string | null;
+  /** The transcript line it points at, for the chat's "jump to" link */
+  entryUuid: string | null;
+  at: string;
+}
+
+export interface Lesson {
+  id: string;
+  /** `L-<seq>`, stable, what runs and people refer to */
+  key: string;
+  /** Null for a global lesson */
+  projectId: string | null;
+  status: LessonStatus;
+  /** When it applies: English, starting with "When", at most 160 characters */
+  trigger: string;
+  /** What to do or avoid then: at most 240 characters, behaviour only */
+  action: string;
+  /** Stored base confidence, 0.3 to 0.95 */
+  confidence: number;
+  /** After decay, as of the read; what delivery compares */
+  effectiveConfidence: number;
+  /** Whether it is handed to runs now */
+  delivered: boolean;
+  seenCount: number;
+  pinned: boolean;
+  /** About one command, tool or path: a candidate for a guard rule (plans/guards.md) */
+  mechanical: boolean;
+  /** The miner said it conflicts with CLAUDE.md */
+  conflictsWithInstructions: boolean;
+  /** The lesson it contradicts, when the person kept both */
+  contradicts: string | null;
+  /** A project lesson that overrides this global one in its project */
+  overrides: string | null;
+  /** For a global lesson: the project lesson it was promoted from */
+  promotedFrom: string | null;
+  /** Active lessons in other projects that say the same (similarity rule), counted when read */
+  alsoInProjects: number;
+  retiredReason: LessonRetiredReason | null;
+  proposalId: string | null;
+  /** The pending or decided `instructions` proposal made from it */
+  instructionsProposalId: string | null;
+  evidence: LessonEvidence[];
+  proposedBy: WorkItemActor;
+  decidedBy: WorkItemActor | null;
+  decidedAt: string | null;
+  editedAt: string | null;
+  lastSeenAt: string;
+  lastConfirmedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonList {
+  lessons: Lesson[];
+  /** What a run in this project is handed now */
+  handed: { lessons: number; bytes: number; budget: number; overBudget: number };
+}
+
+export interface UpdateLessonRequest { trigger?: string; action?: string; pinned?: boolean }
+export interface RetireLessonRequest { reason?: string }
+export interface DemoteLessonRequest { projectId?: string }
+export interface LessonInstructionsRequest { section?: string | null }
+
+export type LessonJobStatus = 'queued' | 'deferred' | 'running' | 'done' | 'skipped' | 'failed' | 'cancelled';
+export type LessonJobTrigger = 'run-ended' | 'rejected-proposal' | 'manual';
+/** Why a finished job proposed nothing, or what it dropped */
+export type LessonJobOutcome = 'proposed' | 'nothing' | 'shadow' | 'gate-no' | 'gate-unavailable' | 'daily-cap' | 'rate-limited' | 'invalid-output' | 'interrupted' | 'chat-removed' | 'over-budget';
+export interface LessonJob {
+  id: string;
+  projectId: string;
+  chatId: string | null;
+  trigger: LessonJobTrigger;
+  status: LessonJobStatus;
+  outcome: LessonJobOutcome | null;
+  signals: number;
+  candidates: number;
+  proposed: number;
+  merged: number;
+  /** Candidates dropped, by reason (`command-like`, `secret`, `url`, `suspicious`, `not-english`, `restates-instructions`, `duplicate-rejected`, `no-signal`, `too-long`, `empty`) */
+  dropped: Record<string, number>;
+  costUsd: number | null;
+  decisionId: string | null;
+  attempts: number;
+  nextAt: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** `lessons.json`: the global settings document */
+export interface LessonSettings {
+  manualMining: boolean;
+  miner: { model: string; effort: Effort | null; maxCostUsd: number; deadlineSeconds: number };
+  caps: { perProjectDailyUsd: number; globalDailyUsd: number; perChatMinMinutes: number; perProjectDailyJobs: number };
+  confidence: { approveFloor: number; deliverAt: number; seenStep: number; confirmStep: number; max: number };
+  decay: { graceDays: number; periodDays: number; step: number; retireBelow: number };
+  delivery: { handoffBytes: number; looseChats: boolean };
+  signals: { repeatedErrorsTrigger: boolean };
+}
+
+/** In the project's settings document (`ProjectSettings.lessons`) */
+export interface ProjectLessonsSettings {
+  /** Interactive chats in the project get the Lessons section (default true) */
+  deliverToChats: boolean;
+  /** Orchestration workers, the integrator, the fixer and the planner get it (default true) */
+  deliverToWorkers: boolean;
+  /** Global lessons are handed in this project too (default true) */
+  useGlobal: boolean;
+}
+
 /** `GET /projects/:id/journal?limit=&before=`, newest first. */
 export interface JournalPage {
   entries: JournalEntry[];
   /** Every entry of the project */
   total: number;
   /** What a flow run is handed: the newest entries that fit the cap */
-  handed: { entries: number; bytes: number };
+  handed: { entries: number; bytes: number; lessons: number; lessonBytes: number };
   /** Pass as `before` for the next page; null on the last */
   nextBefore: string | null;
 }
@@ -2919,9 +3049,11 @@ export interface CreateJournalEntryRequest {
  * appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal;
  * `rule`, a path-scoped rule file of the project's `.claude/rules/` (`file`, loaded by the CLI only
  * for the files `paths` matches), which keeps guidance that concerns part of the project out of
- * `CLAUDE.md`.
+ * `CLAUDE.md`; `lesson`, a row of the lessons store (`MemoryProposal.lesson`), which approval makes
+ * active. Only the lesson miner proposes it: a lesson rests on a person's correction, so flow runs
+ * and chats cannot.
  */
-export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal' | 'rule';
+export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal' | 'rule' | 'lesson';
 
 /** Flat rather than a union so it maps onto one row; the fields that do not apply are null. */
 export interface MemoryProposalTarget {
@@ -2962,14 +3094,44 @@ export interface MemoryProposal {
   rejectReason: string | null;
   /** The journal entry an approval to the journal wrote */
   journalEntryId: string | null;
+  /** Filled in when read, for `target.kind === 'lesson'`: the lesson and its evidence, which the card shows */
+  lesson: Lesson | null;
+  /** Set for an `instructions` proposal made from a lesson, so the lesson can be retired once it is approved */
+  lessonId: string | null;
   createdAt: string;
 }
 
 export interface ApproveMemoryProposalRequest {
   /** The text to write instead of the proposed one */
   text?: string;
+  /** For a `lesson` proposal: the person's edit of it, kept in their words */
+  lesson?: { trigger: string; action: string };
+  /** For a `lesson` proposal: approve it by folding it into this existing lesson instead of adding one */
+  mergeInto?: string;
+  /** For a `lesson` proposal: contradicted lessons to retire with the approval */
+  retire?: string[];
+  /** For a `lesson` proposal: keep a contradicted lesson too, marking both */
+  keepBoth?: boolean;
+  /** For an `instructions` proposal made from a lesson: the sha256 of the `CLAUDE.md` the person saw the diff against, so a file that changed since is refused */
+  previewOf?: string;
   /** For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths */
   file?: string;
+}
+
+/** What approving an `instructions` proposal would do to `CLAUDE.md`, shown as a diff before anything is written. */
+export interface MemoryProposalPreview {
+  path: 'CLAUDE.md';
+  exists: boolean;
+  /** Of the file as read, which the approval sends back as `previewOf` */
+  sha256: string;
+  /** Unified text, drawn by `DiffView` */
+  diff: string;
+  bytesAfter: number;
+}
+
+export interface PreviewMemoryProposalRequest {
+  /** The text to preview instead of the proposed one, while the person edits it */
+  text?: string;
 }
 
 export interface RejectMemoryProposalRequest {
@@ -6925,6 +7087,27 @@ export interface JournalChangedEvent extends ClaudioEventBase {
   itemId: string | null;
 }
 
+export type LessonChangeAction =
+  | 'proposed' | 'approved' | 'rejected' | 'edited' | 'confirmed' | 'pinned'
+  | 'retired' | 'restored' | 'deleted' | 'promoted' | 'demoted' | 'merged';
+
+/** A lesson changed. `projectId` is null for a global lesson, which every project's list shows. */
+export interface LessonChangedEvent extends ClaudioEventBase {
+  type: 'lesson.changed';
+  projectId: string | null;
+  lessonId: string;
+  action: LessonChangeAction;
+}
+
+/** A mining job moved on, so the Lessons tab can show it without polling. */
+export interface LessonJobEvent extends ClaudioEventBase {
+  type: 'lesson.job';
+  projectId: string;
+  jobId: string;
+  status: LessonJobStatus;
+  outcome: LessonJobOutcome | null;
+}
+
 export type MemoryProposalAction = 'created' | 'approved' | 'rejected';
 
 /**
@@ -7556,6 +7739,8 @@ export type ClaudioEvent =
   | ProjectRemovedEvent
   | TeamChangedEvent
   | JournalChangedEvent
+  | LessonChangedEvent
+  | LessonJobEvent
   | MemoryProposalEvent
   | DocumentChangedEvent
   | FlowRunEvent
@@ -7620,6 +7805,7 @@ export type DecisionPointId =
   | 'assistant.rerank'
   | 'assistant.sources'
   | 'journal.relevance'
+  | 'lesson.mine'
   | 'board.triage'
   | 'team.assign'
   | 'flow.scope-drift'

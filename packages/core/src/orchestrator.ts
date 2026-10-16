@@ -109,6 +109,9 @@ import type { GuardLauncher } from './guards/launch.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
+/** How the hint a person sends a worker begins; the lessons' signals recognise it by this */
+export const ORCHESTRATION_HINT_PREFIX = 'A hint from the person following this orchestration:';
+
 /** The planner's own name, which is how a past planner run is recognised later. */
 export const PLANNER_RUN_NAME = 'orchestration-planner';
 // The objective is read back out of the prompt when recovering a draft, so both halves are built
@@ -3309,7 +3312,7 @@ ${quoted}
     );
     if (!text?.trim()) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
-    this.runs.send(task.runId, `A hint from the person following this orchestration:\n\n${text.trim()}`);
+    this.runs.send(task.runId, `${ORCHESTRATION_HINT_PREFIX}\n\n${text.trim()}`);
     return orch;
   }
 
