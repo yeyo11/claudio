@@ -22,6 +22,9 @@ export const chatClient: ChatClient = {
   taskOutput: api.taskOutput,
   chatMcp: api.chatMcp,
   toggleChatMcp: api.toggleChatMcp,
+  accounts: () => api.accounts(),
+  accountModels: (id) => api.accountModels(id),
+  switchChatAccount: api.switchChatAccount,
   streamUrl: (chatId, since) => withToken(`${BASE}/chats/${enc(chatId)}/stream?since=${since}`),
   contentUrl: (uploadId) => withToken(`${BASE}/uploads/${enc(uploadId)}/content`),
 };

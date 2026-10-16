@@ -10,6 +10,7 @@ import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { AttachmentsState } from '../components/Attachments';
 import { useAgentName } from '../lib/agent';
 import { chatKeys, useChatUi } from '../lib/context';
+import { AccountPicker } from './AccountPicker';
 import { OptionsPanel } from './OptionsPanel';
 
 /** What each status reads as, in the design system's status colours. */
@@ -78,6 +79,7 @@ export function ComposerMenu({
               </button>
             )}
           </div>
+          <AccountPicker chat={chat} />
           <section className="composer-menu-section" aria-labelledby={`servers-${chat.id}`}>
             <h3 id={`servers-${chat.id}`} className="section-label">
               {t('composerMenu.servers')}

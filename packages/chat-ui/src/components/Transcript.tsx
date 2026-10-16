@@ -1,5 +1,5 @@
 import type { ChatChildren, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
-import { Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import { ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -113,7 +113,7 @@ function RowTime({ at }: { at: string | null }) {
   );
 }
 
-const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX };
+const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, account: ArrowRightLeft };
 
 /**
  * Something the system said, not the person: a strip in the machine's own voice — mono, in the
