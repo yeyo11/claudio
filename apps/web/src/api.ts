@@ -112,7 +112,6 @@ import type {
   FlowRun,
   FlowRunPage,
   FlowSpendPass,
-  FlowSpendPass,
   FlowRunQuery,
   FlowStartWaitingResult,
   FlowWaiting,
