@@ -168,6 +168,10 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { LessonMiningQueue, storeProposer } from './lessons/queue.ts';
+import { runMiner } from './lessons/miner.ts';
+import { LessonStore } from './lessons/store.ts';
+import { DEFAULT_LESSON_SETTINGS, LessonSettingsStore } from './lessons/settings.ts';
 import { SignalRecorder } from './lessons/signals.ts';
 import { ChecksFix } from './decisions/checks-fix.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
@@ -421,6 +425,8 @@ export class Core {
   readonly decisions: DecisionEngine;
   /** The `lesson_signals` rows a transcript cannot tell: a person's deny, a rewind, a rejected proposal */
   readonly lessonSignals: SignalRecorder;
+  /** Turns a chat's corrections into lesson proposals, one miner run at a time (docs/plans/lessons.md, "Mining") */
+  readonly lessonQueue: LessonMiningQueue;
   private readonly decisionResolvers: DecisionResolvers;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
@@ -892,7 +898,59 @@ export class Core {
       const proposal = this.memoryProposals.find(event.proposalId);
       if (!proposal?.rejectReason || !proposal.source?.chatId) return;
       this.lessonSignals.rejectedProposal({ chatId: proposal.source.chatId, projectId: proposal.projectId }, proposal.rejectReason, `Proposal: ${proposal.text.slice(0, 200)}`);
+      void this.lessonQueue.rejectedProposal(proposal.source.chatId);
     });
+    const lessonStore = new LessonStore({ db: this.db });
+    // `lessons.json` is read asynchronously; the queue asks synchronously, so it reads a copy at most 10 s old
+    const lessonSettingsFile = new LessonSettingsStore(config);
+    let lessonSettings = DEFAULT_LESSON_SETTINGS;
+    let lessonSettingsAt = 0;
+    const currentLessonSettings = () => {
+      if (Date.now() - lessonSettingsAt > 10_000) {
+        lessonSettingsAt = Date.now();
+        void lessonSettingsFile.get().then((read) => (lessonSettings = read), () => undefined);
+      }
+      return lessonSettings;
+    };
+    this.lessonQueue = new LessonMiningQueue({
+      db: this.db,
+      settings: currentLessonSettings,
+      store: lessonStore,
+      proposer: storeProposer(lessonStore),
+      decisions: this.decisions,
+      chat: async (chatId) => {
+        const chat = await this.chats.get(chatId);
+        if (!chat) return null;
+        return {
+          id: chat.id,
+          projectId: chat.project?.id ?? null,
+          origin: chat.origin,
+          internal: chat.origin === 'internal',
+          confined: false,
+          assistant: !!chat.claudioAssistant,
+          live: chat.execution !== null && chat.state !== 'idle',
+          driven: chat.origin === 'orchestration' || this.flow.ownsChat(chat.id),
+        };
+      },
+      memoryOn: (projectId) => {
+        const record = this.projectStore.get(projectId);
+        return !!record && !!this.projectSettingsStore.stored(projectId, record.name)?.modules.includes('memory');
+      },
+      entries: async (chatId) => (await this.sessions.getSession(chatId, { limit: 1000 }))?.entries ?? [],
+      corrections: (chatId) => this.sessions.corrections(chatId),
+      rows: (chatId) => this.lessonSignals.forChat(chatId),
+      instructions: async (projectId) => {
+        const record = this.projectStore.get(projectId);
+        const file = record ? join(record.path, 'CLAUDE.md') : null;
+        return file && existsSync(file) ? await readFile(file, 'utf8') : null;
+      },
+      projectKey: (projectId) => this.projectStore.get(projectId)?.name ?? projectId,
+      mine: (input, opts) => runMiner({ runtime: this.runtime, settings: currentLessonSettings }, input, opts),
+      limitResetsAt: () => this.limitReadings().find((l) => l.resetsAt)?.resetsAt ?? null,
+      emit: (event) => this.events.emit(event),
+    });
+    this.events.observe((event) => this.lessonQueue.observe(event));
+    this.lessonQueue.start();
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
@@ -2860,6 +2918,7 @@ export class Core {
     this.healthMonitor.stop();
     this.providers.close();
     this.hosts.close();
+    this.lessonQueue.stop();
     this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();

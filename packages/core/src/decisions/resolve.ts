@@ -345,6 +345,20 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     return verdict(cited.length === 0, cited.length ? `${cited.length} entry(ies) judged irrelevant were then cited` : 'No entry judged irrelevant was cited', { cited: cited.map((e) => e.id) });
   },
 
+  'lesson.mine': (row, sql) => {
+    // A shadow gate never starts a miner, and a "no" leaves nothing a later event could confirm.
+    // Only lessons born in the job count: a sighting added to an older lesson is not a proposal
+    if (row.mode !== 'active' || !yes(row.answers?.mine)) return null;
+    const job = sql.prepare('SELECT id, status, started_at FROM lesson_jobs WHERE decision_id = ?').get(row.id) as { id: string; status: string; started_at: string | null } | undefined;
+    if (!job || job.status !== 'done') return null;
+    const made = sql
+      .prepare('SELECT DISTINCT l.id, l.status FROM lessons l JOIN lesson_evidence e ON e.lesson_id = l.id WHERE e.job_id = ? AND l.created_at >= ?')
+      .all(job.id, job.started_at ?? '') as unknown as Array<{ id: string; status: string }>;
+    if (made.some((l) => l.status === 'proposed')) return null;
+    const approved = made.filter((l) => l.status !== 'rejected').length;
+    return verdict(approved > 0, approved > 0 ? 'A proposed lesson was approved' : made.length ? 'Every proposed lesson was rejected' : 'The miner proposed nothing', { proposed: made.length, approved });
+  },
+
   'board.triage': (row, sql) => {
     if (!row.subjectId) return null;
     const dup = row.answers?.duplicate;
@@ -487,7 +501,7 @@ RESOLVERS['changes.unexplained-hunk'] = viaItemOfChat;
 export const RESOLVED_POINTS: readonly DecisionPointId[] = Object.keys(RESOLVERS) as DecisionPointId[];
 
 /** The events after which an outcome may have become known */
-const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|assistant\.|supervisor\.|run\.ended$|health\.)/;
+const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|lesson\.|assistant\.|supervisor\.|run\.ended$|health\.)/;
 
 const SWEEP_MAX = 500;
 const SWEEP_EVERY_MS = 5 * 60_000;
