@@ -10,6 +10,8 @@ import type {
   ChatNoteSource,
   ChatNoteState,
   ChatSessionNote,
+  CollaboratorsKind,
+  CollaboratorsPath,
   CompactionFailure,
   CompactionOrigin,
   CompactionState,
@@ -30,6 +32,7 @@ import type {
   DecisionSubjectKind,
   DecisionUnavailableReason,
   EffectiveEnvironment,
+  EndpointId,
   Execution,
   Orchestration,
   OrchestrationSpec,
@@ -1277,6 +1280,48 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    ALTER TABLE eval_runs ADD COLUMN gate_detail TEXT;`,
   // Phase 2: the eval an assistant `evals` run drafts cases for
   `ALTER TABLE assistant_runs ADD COLUMN eval_name TEXT;`,
+  // Collaborators (docs/plans/collaborators.md §4.3): the copies of what teammates share, their
+  // presence, the joins a member relays and the invite secrets an owner has spent. The roster chain,
+  // links and cursors are a document per group (`collab/groups-store.ts`), not rows
+  `CREATE TABLE collab_records (
+     owner_id TEXT NOT NULL,
+     share_key TEXT NOT NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('chats','memory','journal','documents','artifacts','board')),
+     record_id TEXT NOT NULL,
+     version TEXT NOT NULL,
+     json TEXT NOT NULL,
+     synced_at TEXT NOT NULL,
+     PRIMARY KEY (owner_id, share_key, kind, record_id)
+   );
+   CREATE TABLE collab_transcript_lines (
+     owner_id TEXT NOT NULL,
+     share_key TEXT NOT NULL,
+     session_id TEXT NOT NULL,
+     seq INTEGER NOT NULL,
+     line TEXT NOT NULL,
+     PRIMARY KEY (owner_id, share_key, session_id, seq)
+   );
+   CREATE TABLE collab_peers (
+     endpoint_id TEXT PRIMARY KEY,
+     last_seen_at TEXT NOT NULL,
+     path TEXT CHECK (path IN ('direct','relay'))
+   );
+   CREATE TABLE collab_join_requests (
+     group_id TEXT NOT NULL,
+     from_endpoint_id TEXT NOT NULL,
+     sealed TEXT NOT NULL,
+     relayed_by TEXT,
+     expires_at TEXT,
+     received_at TEXT NOT NULL,
+     forwarded_at TEXT,
+     PRIMARY KEY (group_id, from_endpoint_id)
+   );
+   CREATE TABLE collab_used_invites (
+     group_id TEXT NOT NULL,
+     secret_hash TEXT NOT NULL,
+     used_at TEXT NOT NULL,
+     PRIMARY KEY (group_id, secret_hash)
+   );`,
 ];
 
 /**
@@ -1355,6 +1400,8 @@ export const LESSONS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === '
 /** The migration that added the instruction evals' tables: a test starts a database from just before it */
 export const EVALS_V2_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_judgements')) + 1;
 export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
+/** The migration that added the Collaborators tables: a test starts a database from just before it */
+export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_records')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -2959,4 +3006,332 @@ function decisionWhere(filter: DecisionFilter): { where: string[]; params: SQLIn
   add('at >= ?', filter.since);
   add('at <= ?', filter.until);
   return { where, params };
+}
+
+// ---------- Collaborators ----------
+
+/** A copied record as the receiving side stores it: `json` is the record as the owner served it. */
+export interface CollabRecord {
+  ownerId: EndpointId;
+  shareKey: string;
+  kind: CollaboratorsKind;
+  recordId: string;
+  /** The owner's version of the record (`updatedAt` + id, mtime + sha256, `seq`…), compared on reconcile */
+  version: string;
+  json: string;
+  syncedAt: string;
+}
+
+/** One copy, `(owner, share key)`: what a teammate's install shares under one key. */
+export interface CollabShareRef {
+  ownerId: EndpointId;
+  shareKey: string;
+}
+
+export interface CollabPeer {
+  endpointId: EndpointId;
+  lastSeenAt: string;
+  /** How the last connection travelled; null when it is not known */
+  path: CollaboratorsPath | null;
+}
+
+/** A join held for an owner: relayed by a member, or on the owner's install until a person answers. */
+export interface CollabJoinRequest {
+  groupId: string;
+  fromEndpointId: EndpointId;
+  /** `{secret, name, label, endpointId}` sealed to the owner's key; opaque to everyone else */
+  sealed: string;
+  /** The member that relayed it; null when it came straight to this install */
+  relayedBy: EndpointId | null;
+  /** The invite's expiry as the joiner sent it in the clear, so a relay can drop it; null when unknown */
+  expiresAt: string | null;
+  receivedAt: string;
+  /** When a relaying member handed it to the owner; null until then */
+  forwardedAt: string | null;
+}
+
+interface CollabRecordRow {
+  owner_id: string;
+  share_key: string;
+  kind: string;
+  record_id: string;
+  version: string;
+  json: string;
+  synced_at: string;
+}
+
+interface CollabPeerRow {
+  endpoint_id: string;
+  last_seen_at: string;
+  path: CollaboratorsPath | null;
+}
+
+interface CollabJoinRow {
+  group_id: string;
+  from_endpoint_id: string;
+  sealed: string;
+  relayed_by: string | null;
+  expires_at: string | null;
+  received_at: string;
+  forwarded_at: string | null;
+}
+
+const collabRecordOf = (r: CollabRecordRow): CollabRecord => ({
+  ownerId: r.owner_id,
+  shareKey: r.share_key,
+  kind: r.kind as CollaboratorsKind,
+  recordId: r.record_id,
+  version: r.version,
+  json: r.json,
+  syncedAt: r.synced_at,
+});
+
+const collabPeerOf = (r: CollabPeerRow): CollabPeer => ({ endpointId: r.endpoint_id, lastSeenAt: r.last_seen_at, path: r.path });
+
+const collabJoinOf = (r: CollabJoinRow): CollabJoinRequest => ({
+  groupId: r.group_id,
+  fromEndpointId: r.from_endpoint_id,
+  sealed: r.sealed,
+  relayedBy: r.relayed_by,
+  expiresAt: r.expires_at,
+  receivedAt: r.received_at,
+  forwardedAt: r.forwarded_at,
+});
+
+/**
+ * The rows of Collaborators (§4.3), over the shared connection like `work-items.ts`: the copies a
+ * receiver keeps, peers' presence, relayed joins and spent invite secrets. Copies are keyed by the
+ * owner's endpoint id and share key, never by a local project id, since a share matches a local
+ * project only through its key or a manual link, and may match none.
+ */
+export class CollabStore {
+  constructor(private readonly sql: DatabaseSync) {}
+
+  private tx<T>(fn: () => T): T {
+    this.sql.exec('BEGIN');
+    try {
+      const out = fn();
+      this.sql.exec('COMMIT');
+      return out;
+    } catch (err) {
+      this.sql.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  // records
+
+  /** Stores a batch of one kind as pulled, replacing what an earlier pull left under the same ids. */
+  upsertRecords(
+    share: CollabShareRef,
+    kind: CollaboratorsKind,
+    records: ReadonlyArray<{ recordId: string; version: string; json: string }>,
+    syncedAt: string,
+  ): void {
+    if (!records.length) return;
+    const upsert = this.sql.prepare(
+      `INSERT INTO collab_records (owner_id, share_key, kind, record_id, version, json, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (owner_id, share_key, kind, record_id) DO UPDATE SET version = excluded.version, json = excluded.json, synced_at = excluded.synced_at`,
+    );
+    this.tx(() => {
+      for (const r of records) upsert.run(share.ownerId, share.shareKey, kind, r.recordId, r.version, r.json, syncedAt);
+    });
+  }
+
+  record(share: CollabShareRef, kind: CollaboratorsKind, recordId: string): CollabRecord | null {
+    const row = this.sql
+      .prepare('SELECT * FROM collab_records WHERE owner_id = ? AND share_key = ? AND kind = ? AND record_id = ?')
+      .get(share.ownerId, share.shareKey, kind, recordId) as CollabRecordRow | undefined;
+    return row ? collabRecordOf(row) : null;
+  }
+
+  records(share: CollabShareRef, kind: CollaboratorsKind): CollabRecord[] {
+    const rows = this.sql
+      .prepare('SELECT * FROM collab_records WHERE owner_id = ? AND share_key = ? AND kind = ? ORDER BY record_id')
+      .all(share.ownerId, share.shareKey, kind) as unknown as CollabRecordRow[];
+    return rows.map(collabRecordOf);
+  }
+
+  /** Every stored id of a kind with its version, for the catalog reconcile to compare with the owner's. */
+  recordVersions(share: CollabShareRef, kind: CollaboratorsKind): Map<string, string> {
+    const rows = this.sql
+      .prepare('SELECT record_id, version FROM collab_records WHERE owner_id = ? AND share_key = ? AND kind = ?')
+      .all(share.ownerId, share.shareKey, kind) as unknown as Array<{ record_id: string; version: string }>;
+    return new Map(rows.map((r) => [r.record_id, r.version]));
+  }
+
+  /** Drops records the owner no longer lists; returns how many went. */
+  deleteRecords(share: CollabShareRef, kind: CollaboratorsKind, recordIds: readonly string[]): number {
+    if (!recordIds.length) return 0;
+    const del = this.sql.prepare('DELETE FROM collab_records WHERE owner_id = ? AND share_key = ? AND kind = ? AND record_id = ?');
+    return this.tx(() => recordIds.reduce((n, id) => n + Number(del.run(share.ownerId, share.shareKey, kind, id).changes), 0));
+  }
+
+  /** How many records of each kind a copy holds; a kind with none is left out. */
+  recordCounts(share: CollabShareRef): Partial<Record<CollaboratorsKind, number>> {
+    const rows = this.sql
+      .prepare('SELECT kind, COUNT(*) AS n FROM collab_records WHERE owner_id = ? AND share_key = ? GROUP BY kind')
+      .all(share.ownerId, share.shareKey) as unknown as Array<{ kind: CollaboratorsKind; n: number }>;
+    return Object.fromEntries(rows.map((r) => [r.kind, r.n]));
+  }
+
+  /** Every copy held, from records or transcripts, so a leave or an unshare can find what to drop. */
+  shares(): CollabShareRef[] {
+    const rows = this.sql
+      .prepare(
+        `SELECT owner_id, share_key FROM collab_records
+         UNION SELECT owner_id, share_key FROM collab_transcript_lines
+         ORDER BY owner_id, share_key`,
+      )
+      .all() as unknown as Array<{ owner_id: string; share_key: string }>;
+    return rows.map((r) => ({ ownerId: r.owner_id, shareKey: r.share_key }));
+  }
+
+  /** Deletes a whole copy, records and transcripts: the owner stopped sharing it, or the group was left. */
+  dropShare(share: CollabShareRef): void {
+    this.tx(() => {
+      this.sql.prepare('DELETE FROM collab_records WHERE owner_id = ? AND share_key = ?').run(share.ownerId, share.shareKey);
+      this.sql.prepare('DELETE FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ?').run(share.ownerId, share.shareKey);
+    });
+  }
+
+  // transcripts
+
+  /**
+   * Appends the lines pulled after the stored offset and returns the next seq. The byte offset is a
+   * cursor in the group document, written after this returns: a crash between the two pulls the same
+   * bytes again, so a caller that knows where those bytes began passes `fromSeq` and they replace
+   * what is held from there instead of being appended twice.
+   */
+  appendTranscriptLines(share: CollabShareRef, sessionId: string, lines: readonly string[], fromSeq?: number): number {
+    const insert = this.sql.prepare('INSERT OR REPLACE INTO collab_transcript_lines (owner_id, share_key, session_id, seq, line) VALUES (?, ?, ?, ?, ?)');
+    return this.tx(() => {
+      if (fromSeq !== undefined) {
+        this.sql
+          .prepare('DELETE FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ? AND session_id = ? AND seq >= ?')
+          .run(share.ownerId, share.shareKey, sessionId, fromSeq);
+      }
+      // Counted after the delete, so a `fromSeq` past the end appends without leaving a gap
+      let next = this.transcriptLineCount(share, sessionId);
+      for (const line of lines) insert.run(share.ownerId, share.shareKey, sessionId, next++, line);
+      return next;
+    });
+  }
+
+  /** Lines oldest first after `after` (a seq, exclusive), at most `limit`. */
+  transcriptLines(share: CollabShareRef, sessionId: string, opts: { after?: number; limit?: number } = {}): Array<{ seq: number; line: string }> {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 500), 1), 5_000);
+    const rows = this.sql
+      .prepare('SELECT seq, line FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ? AND session_id = ? AND seq > ? ORDER BY seq LIMIT ?')
+      .all(share.ownerId, share.shareKey, sessionId, opts.after ?? -1, limit) as unknown as Array<{ seq: number; line: string }>;
+    return rows.map((r) => ({ seq: r.seq, line: r.line }));
+  }
+
+  /** How many lines are held, which is also the next seq: seqs start at 0 and have no gaps. */
+  transcriptLineCount(share: CollabShareRef, sessionId: string): number {
+    const row = this.sql
+      .prepare('SELECT COALESCE(MAX(seq) + 1, 0) AS n FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ? AND session_id = ?')
+      .get(share.ownerId, share.shareKey, sessionId) as { n: number };
+    return row.n;
+  }
+
+  deleteTranscript(share: CollabShareRef, sessionId: string): void {
+    this.sql.prepare('DELETE FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ? AND session_id = ?').run(share.ownerId, share.shareKey, sessionId);
+  }
+
+  // peers
+
+  /** Records a connection to a peer; a `path` of null keeps the one stored. */
+  seePeer(endpointId: EndpointId, at: string, path: CollaboratorsPath | null): void {
+    this.sql
+      .prepare(
+        `INSERT INTO collab_peers (endpoint_id, last_seen_at, path) VALUES (?, ?, ?)
+         ON CONFLICT (endpoint_id) DO UPDATE SET last_seen_at = excluded.last_seen_at, path = COALESCE(excluded.path, collab_peers.path)`,
+      )
+      .run(endpointId, at, path);
+  }
+
+  peer(endpointId: EndpointId): CollabPeer | null {
+    const row = this.sql.prepare('SELECT * FROM collab_peers WHERE endpoint_id = ?').get(endpointId) as CollabPeerRow | undefined;
+    return row ? collabPeerOf(row) : null;
+  }
+
+  peers(): CollabPeer[] {
+    return (this.sql.prepare('SELECT * FROM collab_peers ORDER BY endpoint_id').all() as unknown as CollabPeerRow[]).map(collabPeerOf);
+  }
+
+  forgetPeer(endpointId: EndpointId): void {
+    this.sql.prepare('DELETE FROM collab_peers WHERE endpoint_id = ?').run(endpointId);
+  }
+
+  // join requests
+
+  /** Holds a join; the same joiner asking again for the same group replaces its earlier request. */
+  putJoinRequest(request: Omit<CollabJoinRequest, 'forwardedAt'>): void {
+    this.sql
+      .prepare(
+        `INSERT OR REPLACE INTO collab_join_requests (group_id, from_endpoint_id, sealed, relayed_by, expires_at, received_at, forwarded_at)
+         VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+      )
+      .run(request.groupId, request.fromEndpointId, request.sealed, request.relayedBy, request.expiresAt, request.receivedAt);
+  }
+
+  joinRequest(groupId: string, fromEndpointId: EndpointId): CollabJoinRequest | null {
+    const row = this.sql.prepare('SELECT * FROM collab_join_requests WHERE group_id = ? AND from_endpoint_id = ?').get(groupId, fromEndpointId) as
+      | CollabJoinRow
+      | undefined;
+    return row ? collabJoinOf(row) : null;
+  }
+
+  /** Oldest first; `pending` keeps those not forwarded yet, which is what a relay still has to deliver. */
+  joinRequests(opts: { groupId?: string; pending?: boolean } = {}): CollabJoinRequest[] {
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (opts.groupId !== undefined) {
+      where.push('group_id = ?');
+      params.push(opts.groupId);
+    }
+    if (opts.pending) where.push('forwarded_at IS NULL');
+    const rows = this.sql
+      .prepare(`SELECT * FROM collab_join_requests ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY received_at, from_endpoint_id`)
+      .all(...params) as unknown as CollabJoinRow[];
+    return rows.map(collabJoinOf);
+  }
+
+  markJoinForwarded(groupId: string, fromEndpointId: EndpointId, at: string): void {
+    this.sql.prepare('UPDATE collab_join_requests SET forwarded_at = ? WHERE group_id = ? AND from_endpoint_id = ?').run(at, groupId, fromEndpointId);
+  }
+
+  deleteJoinRequest(groupId: string, fromEndpointId: EndpointId): void {
+    this.sql.prepare('DELETE FROM collab_join_requests WHERE group_id = ? AND from_endpoint_id = ?').run(groupId, fromEndpointId);
+  }
+
+  /** Drops the requests already forwarded and those whose invite expired by `now`; returns how many went. */
+  pruneJoinRequests(now: string): number {
+    const result = this.sql.prepare('DELETE FROM collab_join_requests WHERE forwarded_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at <= ?)').run(now);
+    return Number(result.changes);
+  }
+
+  // used invites
+
+  /**
+   * Spends an invite secret: true the first time, false when it was already spent. The insert is what
+   * decides, so two joins racing with one secret cannot both get true, in one process or in two.
+   */
+  useInvite(groupId: string, secretHash: string, at: string): boolean {
+    const result = this.sql.prepare('INSERT OR IGNORE INTO collab_used_invites (group_id, secret_hash, used_at) VALUES (?, ?, ?)').run(groupId, secretHash, at);
+    return Number(result.changes) === 1;
+  }
+
+  isInviteUsed(groupId: string, secretHash: string): boolean {
+    return this.sql.prepare('SELECT 1 FROM collab_used_invites WHERE group_id = ? AND secret_hash = ?').get(groupId, secretHash) !== undefined;
+  }
+
+  /** Forgets the rows of a group this install left: its relayed joins and spent secrets. */
+  dropGroup(groupId: string): void {
+    this.tx(() => {
+      this.sql.prepare('DELETE FROM collab_join_requests WHERE group_id = ?').run(groupId);
+      this.sql.prepare('DELETE FROM collab_used_invites WHERE group_id = ?').run(groupId);
+    });
+  }
 }
