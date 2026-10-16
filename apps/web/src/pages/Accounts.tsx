@@ -12,6 +12,7 @@ import { formatDateTime, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { accountName, sortAccounts } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
+import { SignInAgainDialog } from './accounts/SignInAgainDialog';
 import { ModelFallbacksCard } from './accounts/ModelFallbacksCard';
 import { PoliciesCard } from './accounts/PoliciesCard';
 import { RotationCard } from './accounts/RotationCard';
@@ -39,8 +40,10 @@ export function Accounts() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [signingIn, setSigningIn] = useState<string | null>(null);
   // The dialog refocuses whenever its onClose changes, so it gets the same function every render
   const closeAdd = useCallback(() => setAdding(false), []);
+  const closeSignIn = useCallback(() => setSigningIn(null), []);
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: keys.accounts });
     void queryClient.invalidateQueries({ queryKey: keys.overview });
@@ -64,8 +67,28 @@ export function Accounts() {
   if (!data) return null;
 
   const accounts = sortAccounts(data);
+  const signingAgain = data.find((a) => a.id === signingIn) ?? null;
   const current = overview.data?.accounts?.current ?? null;
   const lastRead = data.reduce<string | null>((latest, a) => ((toMs(a.limits?.observedAt) ?? 0) > (toMs(latest) ?? 0) ? (a.limits?.observedAt ?? latest) : latest), null);
+  // The rotation's own reasons are said in words; any other text (a wait's cause) is shown as it was recorded
+  const reasonText = (reason: string | null): string | null => {
+    switch (reason) {
+      case 'limit':
+        return t('reason.limit');
+      case 'threshold':
+        return t('reason.threshold');
+      case 'person':
+        return t('reason.person');
+      case 'disabled':
+        return t('reason.disabled');
+      case 'signed-out':
+        return t('reason.signed-out');
+      case 'auth':
+        return t('reason.auth');
+      default:
+        return reason;
+    }
+  };
   const nameOfId = (id: string | null) => {
     const found = data.find((a) => a.id === id);
     return found ? accountName(found) : id;
@@ -119,6 +142,7 @@ export function Accounts() {
       />
 
       {adding && <AddAccountDialog onClose={closeAdd} onAdded={refresh} />}
+      {signingAgain && <SignInAgainDialog key={signingAgain.id} account={signingAgain} onClose={closeSignIn} onDone={refresh} />}
 
       {accounts.length === 0 ? (
         <Empty illustration="signed-out" tone="warn" title={t('page.none')} action={addButton}>
@@ -127,7 +151,7 @@ export function Accounts() {
       ) : (
         <ul className="account-grid">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} current={account.id === current} busy={busy} onToggle={() => toggle(account.id)} onRemove={() => remove(account.id)} />
+            <AccountCard key={account.id} account={account} current={account.id === current} busy={busy} onToggle={() => toggle(account.id)} onRemove={() => remove(account.id)} onSignInAgain={() => setSigningIn(account.id)} />
           ))}
         </ul>
       )}
@@ -162,8 +186,8 @@ export function Accounts() {
                   {timeAgo(event.ts)}
                 </span>
                 <span className="break">
-                  {event.from && event.to ? `${nameOfId(event.from)} → ${nameOfId(event.to)}` : (event.reason ?? event.detail ?? '')}
-                  {event.from && event.to && event.reason ? ` · ${event.reason}` : ''}
+                  {event.from && event.to ? `${nameOfId(event.from)} → ${nameOfId(event.to)}` : (reasonText(event.reason) ?? event.detail ?? '')}
+                  {event.from && event.to && event.reason ? ` · ${reasonText(event.reason)}` : ''}
                 </span>
               </li>
             ))}

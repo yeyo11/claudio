@@ -12,6 +12,8 @@ interface Entry {
   cli: CliLogin;
   /** The sign-in ended because it was cancelled, not because the CLI failed */
   cancelled: boolean;
+  /** A sign-in again of an account that already existed: it stays whatever the outcome */
+  existing: boolean;
   timers: NodeJS.Timeout[];
 }
 
@@ -33,18 +35,32 @@ export class AccountLogins {
   /** Adds the account and starts its sign-in. */
   async start(request: { alias?: string; email?: string }): Promise<AccountLoginSession> {
     const added = await this.store.add({ kind: 'login', alias: request.alias ?? null });
-    const email = request.email?.trim();
-    const cli = login(this.store.ref(added.id), { claude: this.claude, ...(email ? { email } : {}) });
+    return this.run(added.id, request.email, false);
+  }
+
+  /** Signs an existing `login` account in again, in its own dir, e.g. when its session expired. */
+  async restart(accountId: string): Promise<AccountLoginSession> {
+    const ref = this.store.ref(accountId);
+    if (ref.kind !== 'login') throw fail(400, `account ${accountId} is not a login account`);
+    for (const entry of this.entries.values()) {
+      if (entry.session.accountId === accountId && !entry.session.endedAt) return { ...entry.session };
+    }
+    return this.run(accountId, undefined, true);
+  }
+
+  private run(accountId: string, emailInput: string | undefined, existing: boolean): AccountLoginSession {
+    const email = emailInput?.trim();
+    const cli = login(this.store.ref(accountId), { claude: this.claude, ...(email ? { email } : {}) });
     const session: AccountLoginSession = {
       id: randomUUID(),
-      accountId: added.id,
+      accountId,
       state: 'starting',
       url: null,
       startedAt: new Date().toISOString(),
       endedAt: null,
       account: null,
     };
-    const entry: Entry = { session, cli, cancelled: false, timers: [] };
+    const entry: Entry = { session, cli, cancelled: false, existing, timers: [] };
     this.entries.set(session.id, entry);
     entry.timers.push(setTimeout(() => this.cancel(session.id), EXPIRES_MS));
     void cli.url.then((url) => {
@@ -64,14 +80,16 @@ export class AccountLogins {
     if (!entry.cancelled && code === 0) {
       try {
         account = await this.store.refresh(session.accountId);
+        if (entry.existing) await this.store.clearAuthFailed(session.accountId);
+        account = this.store.get(session.accountId);
         if (account.signedIn) state = 'succeeded';
       } catch {
         // The account is gone (removed while the CLI ran) or the CLI cannot say: it did not sign in
       }
     }
     if (state !== 'succeeded') {
-      // An account that never signed in is an empty dir nobody can use
-      await this.store.remove(session.accountId).catch(() => undefined);
+      // An account that never signed in is an empty dir nobody can use; one that existed stays
+      if (!entry.existing) await this.store.remove(session.accountId).catch(() => undefined);
       account = null;
     }
     session.state = state;
