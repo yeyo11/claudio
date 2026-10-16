@@ -108,8 +108,9 @@ export function StatusBadge({ status, title }: { status: string; title?: string 
 /** Tones that carry a verdict get its icon too; the others are labels and stay plain. */
 const TAG_ICON: Record<string, LucideIcon> = { ok: CircleCheck, warn: TriangleAlert, bad: TriangleAlert };
 
-export function Tag({ children, tone = 'muted' }: { children: ReactNode; tone?: string }) {
-  const Icon = TAG_ICON[tone];
+/** `icon` stands in for the tone's own, for a tag whose verdict has a more exact mark (a shield for risk). */
+export function Tag({ children, tone = 'muted', icon }: { children: ReactNode; tone?: string; icon?: LucideIcon }) {
+  const Icon = icon ?? TAG_ICON[tone];
   return (
     <span className={`badge badge-${tone}`}>
       {Icon && <Icon size={12} strokeWidth={2} aria-hidden />}

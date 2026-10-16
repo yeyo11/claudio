@@ -159,3 +159,27 @@ test('a chat with no transcript yet lists the edits its process streamed, withou
   ]);
   await assert.rejects(changes.chatSteps('nope'), /chat not found/);
 });
+
+test('a step carries its risk when the call is not low: CI config is medium, a path outside the checkout is high', async () => {
+  const { root, file, changes } = setup(false);
+  const patch = { structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+b'] }] };
+  writeFileSync(
+    file,
+    [
+      prompt('u0', 'edit'),
+      say('1', [use('ci', 'Edit', { file_path: join(root, '.github', 'workflows', 'ci.yml') })]),
+      result('r1', 'ci', patch),
+      say('2', [use('plain', 'Edit', { file_path: join(root, 'src', 'a.ts') })]),
+      result('r2', 'plain', patch),
+      say('3', [use('out', 'Write', { file_path: '/etc/hosts', content: 'x' })]),
+      result('r3', 'out', { type: 'create', content: 'x', structuredPatch: [] }),
+    ].join(''),
+  );
+  const [ci, plain, out] = await changes.chatSteps('sess');
+  assert.equal(ci?.risk?.level, 'medium');
+  assert.deepEqual(ci?.risk?.factors, ['sensitive-path']);
+  // Low is absent, not a risk of level low
+  assert.equal(plain?.risk, undefined);
+  assert.equal(out?.risk?.level, 'high');
+  assert.equal(out?.risk?.factors[0], 'outside-workdir');
+});

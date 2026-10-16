@@ -143,7 +143,26 @@
     "asThen": "tal como quedó en ese momento",
     "sameFile": "Este archivo, paso a paso",
     "seeResult": "Ver cómo quedó",
-    "thisOne": "este"
+    "thisOne": "este",
+    "risk": {
+      "level": {
+        "high": "Riesgo alto",
+        "medium": "Riesgo medio"
+      },
+      "factor": {
+        "irreversible": "Irreversible",
+        "history-rewrite": "Reescribe el historial",
+        "leaves-machine": "Sale de esta máquina",
+        "privilege": "Con privilegios",
+        "outside-workdir": "Fuera del directorio de trabajo",
+        "secrets": "Lee secretos",
+        "sensitive-path": "Archivo sensible",
+        "wide-scope": "Alcance amplio"
+      },
+      "reason": "{{level}}: {{factors}}",
+      "highCount_one": "{{count}} paso de riesgo alto",
+      "highCount_other": "{{count}} pasos de riesgo alto"
+    }
   },
   "thread": {
     "label": "Hilo de revisión en {{where}}",

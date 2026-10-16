@@ -412,3 +412,9 @@ test('supervisor.intervene: an unavailable provider asks for the hint at once', 
   assert.equal((await s.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
   assert.equal(s.rows()[0]?.unavailable, 'no-quota');
 });
+
+test('notification.urgency: the state may carry the risk of the chat\'s recent calls, at state version 2', () => {
+  const urgency = decisionPoint('notification.urgency');
+  assert.ok(urgency?.fields.includes('risk'));
+  assert.equal(urgency?.stateVersion, 2);
+});
