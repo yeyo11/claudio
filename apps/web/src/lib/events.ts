@@ -141,6 +141,8 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'login.updated': true,
   'spend.changed': true,
   'spend.alert': true,
+  'eval.run': true,
+  'eval.sample': true,
 };
 
 /**
@@ -445,6 +447,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'spend.alert':
       // The status bar, the Usage line and the wait lines read the day's spend: the next reading is theirs
       return [[keys.spend, NOW]];
+    // The Evals screens (a later task) key their queries under 'evals'
+    case 'eval.run':
+    case 'eval.sample':
+      return [[['evals'], NOW]];
   }
 }
 

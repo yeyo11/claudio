@@ -89,6 +89,8 @@ const ROOT_TYPES = [
   // The decision engine
   'DecisionSettings', 'DecisionSettingsUpdate', 'DecisionCredentialsUpdate', 'DecisionCredentialsResult', 'DecisionTestRequest', 'DecisionTestResult',
   'DecisionPointInfo', 'DecisionPreview', 'DecisionConsentRequest', 'DecisionRecord', 'DecisionPage', 'DecisionPageQuery', 'DecisionFilter',
+  // Instruction evals
+  'EvalDefinition', 'EvalFile', 'EvalRunRequest', 'EvalEstimate', 'EvalRun', 'EvalRunSummary', 'EvalSample', 'EvalCall', 'EvalCheck', 'EvalComparison',
   'DecisionFeedbackRequest', 'DecisionPaletteActionRequest', 'DecisionNotificationOpenedRequest', 'DecisionNotificationOpenedResult', 'DecisionClearResult', 'DecisionStats', 'DecisionPaletteRequest', 'DecisionPaletteResult',
 ];
 
