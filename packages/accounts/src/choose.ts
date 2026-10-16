@@ -108,6 +108,14 @@ export function choose(
   // Nobody better: an account over the threshold but not out still beats stopping
   if (current !== null && usable(current)) return { account: current, reason: null, waitUntil: null };
 
+  // The current account is out (or there is none): the margin keeps a chat from flapping between two
+  // accounts near the threshold, it is not a reason to stop while another one still has room. Any
+  // account that is not out beats waiting for a reset (2026-10-16: three tasks waited an hour while
+  // two accounts at 83 % and 90 % could have gone on)
+  const spare = order.filter((id) => id !== current && usable(id));
+  const fallback = settings.strategy === 'least-used' ? [...spare].sort((a, b) => (util(a) ?? UNKNOWN_RANK) - (util(b) ?? UNKNOWN_RANK))[0] : spare[0];
+  if (fallback) return { account: fallback, reason: current === null ? null : reasonFor(), waitUntil: null };
+
   // Only an account that can run the model is worth waiting for: another one coming back changes nothing
   const resets = order.filter((id) => ready(id) && runs(id)).map((id) => exhaustedUntil(limits[id] ?? null, now)).filter((t): t is number => t !== null);
   return { account: null, reason: null, waitUntil: resets.length ? Math.min(...resets) : null };

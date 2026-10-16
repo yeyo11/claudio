@@ -237,6 +237,17 @@ describe('choose', () => {
     ...extra,
   });
 
+  it('off an account that is out, takes one over the margin rather than wait, and still waits when every one is out', () => {
+    const opts = { current: 'a', now: NOW };
+    // 83 % and 90 % are over the margin (80 %) and at the threshold: neither was a candidate, and the chat waited
+    assert.equal(choose(accts, { a: lim(1), b: lim(0.83), c: lim(0.9) }, settings, opts).account, 'b', 'the emptier of the two with room');
+    assert.equal(choose(accts, { a: lim(1), b: lim(0.83), c: lim(0.9) }, settings, opts).reason, 'limit');
+    // An account merely near the threshold still keeps its chat: the margin is about flapping, and it holds
+    assert.equal(choose(accts, { a: lim(0.92), b: lim(0.85), c: lim(0.9) }, settings, { ...opts, lastSwitchAt: NOW - 3600_000 }).account, 'a', 'no move between accounts that are all near the threshold');
+    const allOut = choose(accts, { a: lim(1), b: lim(1), c: lim(1) }, settings, opts);
+    assert.equal(allOut.account, null, 'with every account out there is nothing to move to');
+  });
+
   it('skips an account that cannot run the chat\'s model, and waits for one that can', () => {
     const canRun = (id: string): boolean => id === 'c';
     const opts = { current: 'a', now: NOW, model: 'opus', canRun };
