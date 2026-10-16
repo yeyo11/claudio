@@ -4863,6 +4863,18 @@ export interface Account {
   enabled: boolean;
   /** `claude auth status` says it is logged in */
   signedIn: boolean;
+  /**
+   * Whether the sign-in can be relied on: `expired` after a run on it failed to authenticate,
+   * `incomplete` when its credentials file has no refresh token (a broken copy), `ok` when neither
+   * is so and the account is signed in, `unknown` when nothing says either way. Anything but `ok`
+   * or `unknown` makes `signedIn` false.
+   */
+  signInState: AccountSignInState;
+  /**
+   * ISO time a run on it failed because the CLI could not authenticate; cleared when the account
+   * signs in again. Absent while it can authenticate
+   */
+  authFailedAt?: string;
   /** Null until something was read */
   limits: AccountLimit | null;
 }
@@ -4882,6 +4894,9 @@ export interface AccountsSettings {
   cooldownSeconds: number;
   strategy: AccountStrategy;
 }
+
+/** How far an account's sign-in can be trusted. */
+export type AccountSignInState = 'ok' | 'expired' | 'incomplete' | 'unknown';
 
 /** Why the chosen account changed. */
 export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out';

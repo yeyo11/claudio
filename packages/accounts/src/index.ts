@@ -1,7 +1,7 @@
 export { choose, type Candidate, type Choice, type ChooseOptions } from './choose.ts';
 export { HISTORY, prepareAccountDir, removeLinks, SHARED_SETTINGS } from './dirs.ts';
 export { ACCOUNT_VARS, envFor, readSecret, SECRET_FILE, type AccountRef } from './env.ts';
-export { identify, parseAuthStatus, type Identity } from './identify.ts';
+export { CREDENTIALS_FILE, identify, parseAuthStatus, readCredentials, type CredentialsReading, type Identity } from './identify.ts';
 export { cliVersion, ModelCache, offers, parseInitialize, readInitialize, type InitializeAccount, type Initialized, type ModelsEntry, type ModelsOptions } from './models.ts';
 export { login, type LoginSession } from './login.ts';
 export { AccountStore, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';

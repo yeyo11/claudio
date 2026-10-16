@@ -1,10 +1,12 @@
-import type { AccountLimit, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
+import type { AccountLimit, AccountSignInState, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
 
 /** What `choose` needs of an account; the rest of it is not its business. */
 export interface Candidate {
   id: string;
   enabled: boolean;
   signedIn: boolean;
+  /** An expired or incomplete sign-in is never a candidate, whatever `signedIn` says; absent means usable */
+  signInState?: AccountSignInState;
 }
 
 export interface ChooseOptions {
@@ -45,6 +47,8 @@ export interface Choice {
 /** An unknown reading is allowed, but ranks behind any account known to have room. */
 const UNKNOWN_RANK = 0.5;
 
+const signInUsable = (a: Candidate): boolean => a.signInState === undefined || a.signInState === 'ok' || a.signInState === 'unknown';
+
 function exhaustedUntil(limit: AccountLimit | null, now: number): number | null {
   if (!limit || limit.state !== 'exhausted' || !limit.resetsAt) return null;
   const t = Date.parse(limit.resetsAt);
@@ -74,7 +78,7 @@ export function choose(
   const order = (opts.policy?.order ?? accounts.map((a) => a.id)).filter((id) => byId.has(id));
   const ready = (id: string): boolean => {
     const a = byId.get(id);
-    return !!a && a.enabled && a.signedIn && order.includes(id);
+    return !!a && a.enabled && a.signedIn && signInUsable(a) && order.includes(id);
   };
   const util = (id: string): number | null => {
     const l = limits[id];
@@ -91,7 +95,7 @@ export function choose(
   const reasonFor = (): AccountSwitchReason => {
     const a = current ? byId.get(current) : undefined;
     if (!a || !a.enabled) return 'disabled';
-    if (!a.signedIn) return 'signed-out';
+    if (!a.signedIn || !signInUsable(a)) return 'signed-out';
     return out(a.id) ? 'limit' : 'threshold';
   };
 

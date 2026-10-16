@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountKind, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
+import type { Account, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
-import { identify, type Identity } from './identify.ts';
+import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
 import { ModelCache, offers } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
@@ -27,12 +27,14 @@ interface StoredAccount {
   enabled: boolean;
   links: string[];
   identity: Identity;
+  /** ISO time a run on it failed because the CLI could not authenticate; absent while it can */
+  authFailedAt?: string;
 }
 
 interface Stored {
   settings: AccountsSettings;
   /** The CLI's own dir is not stored as an account, only what a person changed about it */
-  default: { enabled: boolean; alias: string | null; identity: Identity };
+  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string };
   accounts: StoredAccount[];
   policies: RotationPolicy[];
 }
@@ -84,6 +86,7 @@ function parse(doc: Record<string, unknown>): Stored {
         enabled: a.enabled !== false,
         links: Array.isArray(a.links) ? a.links.filter((l): l is string => typeof l === 'string') : [],
         identity: parseIdentity(a.identity),
+        ...(typeof a.authFailedAt === 'string' && a.authFailedAt ? { authFailedAt: a.authFailedAt } : {}),
       });
     }
   }
@@ -95,7 +98,9 @@ function parse(doc: Record<string, unknown>): Stored {
     : [];
   return {
     settings: parseSettings(doc.settings),
-    default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY } },
+    default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY },
+      ...(typeof def.authFailedAt === 'string' && def.authFailedAt ? { authFailedAt: def.authFailedAt } : {}),
+    },
     accounts,
     policies,
   };
@@ -162,7 +167,9 @@ export class AccountStore {
 
   list(now: number = Date.now()): Account[] {
     const d = this.stored.default;
-    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity): Account => {
+    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined): Account => {
+      const authFailedAt = failedAt !== undefined && !this.signedInSince(id, kind, failedAt) ? failedAt : undefined;
+      const signInState = this.signInState(id, kind, identity, authFailedAt);
       // An identity never read from the CLI (the default account starts out assumed signed in) is
       // completed from the account block of the last `initialize` the model cache stored: what the
       // CLI said about this account, read from a file, with no process started for it
@@ -179,14 +186,35 @@ export class AccountStore {
         organization: identity.organization ?? cli?.organization ?? null,
         plan: identity.plan ?? cli?.subscriptionType ?? null,
         enabled,
-        signedIn: identity.signedIn,
+        // `claude auth status` keeps saying logged in after the OAuth session expired: the failed run and the credentials file know better
+        signedIn: identity.signedIn && (signInState === 'ok' || signInState === 'unknown'),
+        signInState,
+        ...(authFailedAt ? { authFailedAt } : {}),
         limits: this.readings.limit(id, now),
       };
     };
     return [
-      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity),
-      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity)),
+      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt),
+      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt)),
     ];
+  }
+
+  private signInState(id: string, kind: AccountKind, identity: Identity, authFailedAt: string | undefined): AccountSignInState {
+    if (authFailedAt !== undefined) return 'expired';
+    const credentials = kind === 'login' ? readCredentials(this.dirOf(id)) : null;
+    if (credentials && !credentials.complete) return 'incomplete';
+    // A login with no credentials file to look at (a keychain, a signed-out dir) is taken as the CLI said
+    return identity.signedIn && (kind !== 'login' || credentials) ? 'ok' : 'unknown';
+  }
+
+  /** Whether the credentials file was written after the sign-in failed: `claude auth login` or a copied file. Only its time is read. */
+  private signedInSince(id: string, kind: AccountKind, failedAt: string): boolean {
+    if (kind !== 'login') return false;
+    try {
+      return statSync(join(this.dirOf(id), CREDENTIALS_FILE)).mtimeMs > Date.parse(failedAt);
+    } catch {
+      return false;
+    }
   }
 
   get(id: string): Account {
@@ -255,10 +283,35 @@ export class AccountStore {
     let identity: Identity;
     if (ref.kind === 'login') identity = await identify(ref, { claude: this.claude, env: this.env });
     else identity = { ...NO_IDENTITY, signedIn: true };
-    if (id === DEFAULT_ID) this.stored.default.identity = identity;
-    else this.find(id).identity = identity;
+    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    entry.identity = identity;
+    // A sign-in newer than the failure ends it; the list already reads it so, this drops the stale mark
+    if (entry.authFailedAt !== undefined && this.signedInSince(id, ref.kind, entry.authFailedAt)) delete entry.authFailedAt;
     await this.save();
     return this.get(id);
+  }
+
+  /**
+   * A run on the account failed because the CLI could not authenticate (an expired OAuth session, a
+   * revoked token): it lists as `expired` and signed out, so `choose` skips it, until it is signed in
+   * again. Stored, since `claude auth status` keeps saying it is logged in. False when it was marked
+   * already and nothing has signed it in since.
+   */
+  async markAuthFailed(id: string, at: number = Date.now()): Promise<boolean> {
+    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    if (entry.authFailedAt !== undefined && !this.signedInSince(id, this.ref(id).kind, entry.authFailedAt)) return false;
+    entry.authFailedAt = new Date(at).toISOString();
+    await this.save();
+    return true;
+  }
+
+  /** The account authenticated again (a run on it succeeded): it is no longer expired. False when it was not marked. */
+  async clearAuthFailed(id: string): Promise<boolean> {
+    const entry = id === DEFAULT_ID ? this.stored.default : this.stored.accounts.find((x) => x.id === id);
+    if (!entry || entry.authFailedAt === undefined) return false;
+    delete entry.authFailedAt;
+    await this.save();
+    return true;
   }
 
   /**

@@ -22,6 +22,7 @@ const account = (id: string, over: Partial<Account> = {}): Account => ({
   plan: null,
   enabled: true,
   signedIn: true,
+  signInState: 'ok',
   limits: null,
   ...over,
 });
