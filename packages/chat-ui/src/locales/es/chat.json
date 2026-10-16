@@ -96,7 +96,20 @@
     "authorise": "Cómo autorizarlo",
     "turnOn": "Activar {{name}}",
     "turnOff": "Desactivar {{name}}",
-    "serversPersist": "El cambio se aplica al momento y el CLI lo guarda para esta carpeta: los chats nuevos de aquí también lo tendrán."
+    "serversPersist": "El cambio se aplica al momento y el CLI lo guarda para esta carpeta: los chats nuevos de aquí también lo tendrán.",
+    "account": {
+      "title": "Cuenta",
+      "inUse": "En uso",
+      "disabled": "Desactivada",
+      "signedOut": "Sesión caducada",
+      "exhausted": "Agotada",
+      "exhaustedUntil": "Agotada hasta las {{time}}",
+      "noModel": "No ofrece {{model}}",
+      "whenTurnEnds": "Al terminar este turno",
+      "pending": "El chat pasará a esta cuenta cuando termine el turno actual.",
+      "undo": "Deshacer",
+      "used": "{{percent}} % de la ventana usado"
+    }
   },
   "controls": {
     "permissionModeNew": "Modo de permisos de la nueva ejecución",
@@ -412,7 +425,8 @@
       "command": "Comando",
       "output": "Salida del comando",
       "interrupt": "Interrumpido",
-      "compaction-failed": "No se ha podido compactar"
+      "compaction-failed": "No se ha podido compactar",
+      "account": "Cuenta cambiada a"
     }
   },
   "agent": {

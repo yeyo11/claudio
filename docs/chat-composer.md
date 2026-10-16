@@ -62,6 +62,15 @@ The root element is `[role=textbox][aria-multiline=true]` with the box's `aria-l
 - **Attach files.**
 - **Commands and skills** (when the CLI reported any): starts a `/` in the box, which opens the
   slash menu.
+- **Account** (above the servers, shown with two or more accounts). One row per account: its name,
+  plan, a usage bar of its binding window (neutral, warn from 60 %, bad from 75 % or exhausted) and
+  its state in words, the chat's own marked "In use". A disabled, signed-out or exhausted account,
+  or one that does not offer the chat's model, is shown disabled with the reason and stays
+  focusable. Choosing a row on an idle chat moves it at once; on a working chat the row says "When
+  this turn ends" and an "Undo" button cancels it until then. The list is a `menu` of
+  `menuitemradio` rows (`AccountPicker.tsx`, rules in `lib/account-choice.ts`), 44 px high on a
+  phone. The switch itself is described in [accounts.md](accounts.md) and
+  [plans/chat-account-switch.md](plans/chat-account-switch.md).
 - **Servers and connectors.** For a chat with a live process, its MCP servers as the process
   reports them now, claude.ai connectors included, each with its status, its tool count and a
   switch. A connector waiting for its authorisation links to the Connectors page, which says how to
@@ -104,6 +113,9 @@ chat; the tool preset still is.
 - `e2e/specs/composer.spec.mjs` (fake CLI): Shift+Enter, the draft after a reload, Enter sends and
   empties the box, ArrowUp/ArrowDown, the "+" menu's two servers, the connector's link, and the
   switch reaching the process.
+- `packages/chat-ui/test/account-choice.test.ts`: the order of an account row's states.
+- `e2e/specs/chat-account-switch.spec.mjs` (fake CLI): the Account section, an idle switch, a
+  switch queued while the chat works, and the exhausted account disabled with its reason.
 - The fake CLI answers `mcp_status` and `mcp_toggle` ([e2e/fake-cli/README.md](../e2e/fake-cli/README.md)).
 - The e2e driver's `fill` writes into a contenteditable through `execCommand('insertText')`, and
   the specs that read the box (`chat`, `chat-page`, `chats`, `paging`, `slash-menu`,

@@ -94,6 +94,15 @@ Accounts page and the status bar card show "Sign-in expired" with a "Sign in aga
 - **A retry** of an orchestration task resumes the same chat, but the account is chosen again at
   that launch: an exhausted or expired one is skipped, and the chat's own account is kept only if it
   is usable. A limit hit on the retry moves the turn like any other.
+- **On demand**, the person moves a chat from the Account section of the composer's "+" menu
+  (`POST /chats/:id/account`, [chat-composer.md](chat-composer.md)). It is a new execution of the
+  same session with `--resume` under the chosen account's config directory or token, as at a limit.
+  An idle chat moves at once (a live process is ended between turns); a working chat queues the
+  choice (`chat.pendingAccount`) and takes it when the turn ends, never interrupting it. Naming the
+  chat's own account cancels a pending switch. A disabled, signed-out or exhausted account, one that
+  does not offer the chat's model, or the chat's own account is refused with a 409 and a `code`.
+  The choice is not a pin: the rotation can still move the chat at a limit. It is recorded as a
+  rotation event with `reason: 'person'`. Only the person may do it; a chat's own token gets 403.
 
 Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 
@@ -115,6 +124,8 @@ The unit tests run against `packages/accounts/test/fake-claude.mjs`, which honou
 line, and the chat is replayed on another account; one starting with `fake-expired` fails to sign in on
 the `FAKE-AUTH-EXPIRED-ACCOUNT` line, and the chat moves with the account marked "Sign-in expired".
 The retry is guarded in core by `packages/core/test/orchestration-retry-account.test.ts`.
+`e2e/specs/chat-account-switch.spec.mjs` covers the on-demand switch from the "+" menu: idle, while
+working, and an exhausted account shown disabled.
 
 ## Related
 

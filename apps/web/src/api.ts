@@ -57,6 +57,8 @@ import type {
   ChatContextUsage,
   ChatMcpServers,
   ChatMcpToggle,
+  SwitchChatAccountRequest,
+  SwitchChatAccountResponse,
   ChatSessionNote,
   CompactChatRequest,
   ContextDetail,
@@ -562,6 +564,8 @@ export const api = {
   chatMcp: (id: string) => request<ChatMcpServers>(`/chats/${enc(id)}/mcp`),
   toggleChatMcp: (id: string, name: string, enabled: boolean) =>
     request<ChatMcpServers>(`/chats/${enc(id)}/mcp/${enc(name)}`, { method: 'PUT', body: { enabled } satisfies ChatMcpToggle }),
+  switchChatAccount: (id: string, accountId: string) =>
+    request<SwitchChatAccountResponse>(`/chats/${enc(id)}/account`, { method: 'POST', body: { accountId } satisfies SwitchChatAccountRequest }),
   deleteChat: (id: string) => request<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),
   // ---- context control (docs/plans/context-control.md)
   chatContext: (id: string, detail: ContextDetail = 'summary') => request<ChatContextUsage>(`/chats/${enc(id)}/context${qs({ detail })}`),

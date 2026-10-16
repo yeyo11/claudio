@@ -1,5 +1,6 @@
 import { createContext, useContext, type ComponentType, type ReactElement, type ReactNode } from 'react';
 import type {
+  Account,
   AgentTranscript,
   Attachment,
   BackgroundTaskOutput,
@@ -12,10 +13,12 @@ import type {
   ChatSummary,
   ForkChatRequest,
   McpSelection,
+  ModelOption,
   PermissionMode,
   PermissionDecision,
   PermissionRequest,
   ResumeChatRequest,
+  SwitchChatAccountResponse,
 } from '@claudio/shared';
 import { RUN_TAG } from './chat-pages';
 
@@ -47,6 +50,12 @@ export interface ChatClient {
   chatMcp(id: string): Promise<ChatMcpServers>;
   /** Switches one of them on or off in the running process */
   toggleChatMcp(id: string, name: string, enabled: boolean): Promise<ChatMcpServers>;
+  /** The accounts a chat could run on */
+  accounts(): Promise<Account[]>;
+  /** The models one account offers */
+  accountModels(id: string): Promise<ModelOption[]>;
+  /** Moves the chat to another account: at once when idle, when the turn ends when working; the current account cancels a pending move */
+  switchChatAccount(id: string, accountId: string): Promise<SwitchChatAccountResponse>;
   /** The SSE URL of one chat's stream, with the token when the wrapper is guarded. */
   streamUrl(chatId: string, since: number): string;
   /** Where an upload's bytes are served (`/api/uploads/:id/content` today). */

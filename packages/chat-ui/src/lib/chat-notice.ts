@@ -1,3 +1,5 @@
+import type { RunEvent } from '@claudio/shared';
+
 /**
  * The messages nobody typed.
  *
@@ -8,7 +10,7 @@
  * page can show them as what they are — something the system said, next to the conversation.
  */
 
-export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed';
+export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed' | 'account';
 
 export interface Notice {
   kind: NoticeKind;
@@ -33,6 +35,21 @@ function taskNotice(raw: string): Notice {
   return { kind: 'task', status: status || undefined, detail: summary || inner(raw, 'task-id'), body: file };
 }
 
+/** The tag Claudio's own line for a person's account switch travels in; the CLI never writes it. */
+export const ACCOUNT_SWITCH_TAG = 'claudio-account-switch';
+
+/** The text of the transcript line "Switched to X": a notice of the page's own, not a message of the CLI. */
+export const accountSwitchText = (name: string): string => `<${ACCOUNT_SWITCH_TAG}>${name}</${ACCOUNT_SWITCH_TAG}>`;
+
+/**
+ * The account a person switched the chat to, when the event says so. The `data` of a notice is
+ * Claudio's own words (never a provider's), which is why it may be read here.
+ */
+export function switchedAccount(e: RunEvent): string | null {
+  const data = e.kind === 'notice' ? e.data : undefined;
+  return data?.reason === 'person' && typeof data.account === 'string' ? data.account : null;
+}
+
 /**
  * The notices in one message and the prose left around them: a person's message that carries a
  * reminder is still their message, so only what they wrote stays in the bubble.
@@ -46,6 +63,7 @@ export function readNotices(text: string): { prose: string; notices: Notice[] } 
       return '';
     });
   };
+  take(ACCOUNT_SWITCH_TAG, (raw) => ({ kind: 'account', detail: raw, body: '' }));
   take('task-notification', (raw) => taskNotice(raw));
   take('system-reminder', (raw) => ({ kind: 'reminder', detail: firstLine(raw), body: rest(raw) }));
   // The CLI's own error for a compaction that did not happen: the line says so, its words are the fold

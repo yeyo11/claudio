@@ -419,6 +419,8 @@ export class ChatService {
       derivedFrom: runtime?.derivedFrom ?? null,
       ...(runtime?.claudioAssistant ? { claudioAssistant: runtime.claudioAssistant } : {}),
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
+      ...(runtime?.account ? { account: runtime.account } : {}),
+      ...(runtime?.pendingAccount ? { pendingAccount: runtime.pendingAccount } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
       state,
       control,
@@ -914,6 +916,12 @@ export class ChatService {
     if (update.model !== undefined) this.gate(this.deps.runtime.get(id)?.provider, {}, { setModel: true });
     await this.deps.runtime.updateSettings(id, update);
     return this.require(id);
+  }
+
+  /** Moves a chat to another account on a person's request; `pending` while the running turn has to end first. */
+  async switchAccount(id: string, accountId: string, actor: string): Promise<{ chat: ChatSummary; pending: boolean }> {
+    const { pending } = await this.deps.runtime.switchAccount(id, accountId, actor);
+    return { chat: await this.require(id), pending };
   }
 
   /** The MCP servers of the chat's live process; `live: false` when no process of ours runs it. */

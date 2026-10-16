@@ -218,6 +218,8 @@ export interface ChatRuntime {
   account?: string | null;
   /** The chat was started on an account on purpose and keeps it while it can run */
   accountPinned?: boolean;
+  /** The account a person chose while a turn ran; it takes over when the turn ends */
+  pendingAccount?: string | null;
   /** The process's state, as the stream reports it: a chat's own state is derived from it */
   status: RunStatus;
   pid: number | null;
@@ -455,6 +457,10 @@ export class LiveChat {
   account: string | null = null;
   /** The account the rotation moved the chat to: the next process takes it instead of choosing, once */
   forcedAccount: string | null = null;
+  /** Why `forcedAccount` was set; `limit` unless a person chose it */
+  forcedReason: 'limit' | 'person' = 'limit';
+  /** The account a person chose while a turn runs, applied when its result arrives */
+  pendingAccount: string | null = null;
 
   constructor(
     /** The session id */
@@ -665,6 +671,7 @@ export class LiveChat {
       permissionMode: this.permissionMode,
       ...(this.account ? { account: this.account } : {}),
       ...(this.opts.account ? { accountPinned: true } : {}),
+      ...(this.pendingAccount ? { pendingAccount: this.pendingAccount } : {}),
       status: this.status,
       pid: this.alive ? (this.proc?.pid ?? null) : null,
       processStartedAt: this.alive ? this.procStartedAt : null,

@@ -34,6 +34,18 @@ function inodeOf(table: string, local: number, remote: number): string | null {
   return null;
 }
 
+/** Whether a process has ended and only waits to be reaped: it holds no descriptors, and the kernel refuses to list them (EACCES) */
+function finished(pid: number): boolean {
+  try {
+    const stat = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
+    // The state follows the command name, which may itself contain spaces and parentheses
+    const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3);
+    return state === 'Z' || state === 'X';
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Which process opened a loopback connection, as far as it matters: whether it is a chat's, or one
  * Claudio started on an agent's behalf (`CLAUDIO_AGENT_RUN`). Under
@@ -93,8 +105,8 @@ export class PeerCheck {
       try {
         names = readdirSync(`/proc/${String(pid)}/fd`);
       } catch (error) {
-        // Gone since the table was read is fine; a directory this user may not read is not
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'ESRCH') sealed = false;
+        // Gone since the table was read is fine, and so is a zombie; a directory this user may not read is not
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'ESRCH' && !finished(pid)) sealed = false;
         continue;
       }
       for (const name of names) {

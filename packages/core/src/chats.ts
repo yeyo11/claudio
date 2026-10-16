@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   type AccountSwitchReason,
+  type AccountSwitchRefusalCode,
   type ClaudioAssistantMarker,
   type ChatActivity,
   type Attachment,
@@ -92,6 +93,17 @@ export function limitedTail(executions: readonly Execution[]): string[] {
  * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong
  * while a chat starts is the server's (`ChatStartError`).
  */
+/** Why a chat's account cannot be switched: the codes of `POST /chats/:id/account`, plus the two unknowns (404). */
+export class AccountSwitchRefusal extends Error {
+  constructor(
+    readonly code: AccountSwitchRefusalCode | 'chat-not-found' | 'account-not-found',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AccountSwitchRefusal';
+  }
+}
+
 export class ChatRefusal extends Error {
   constructor(
     message: string,
@@ -108,7 +120,7 @@ const MAX_LIMIT_REPLAYS = 1;
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'clearAuthFailed' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels'>;
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'clearAuthFailed' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels' | 'canRun'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -223,6 +235,9 @@ export class ChatManager extends EventEmitter {
     this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);
     this.limits = new ProviderLimits(db);
     this.defaults = config;
+    // A switch asked for while a turn ran takes effect when its result arrives
+    // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
+    this.on('chat-result', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
     this.modelIds = new ModelAliasIds(config.dataDir);
     for (const driver of drivers) {
@@ -1241,14 +1256,18 @@ export class ChatManager extends EventEmitter {
   private chooseAccount(chat: LiveChat): AccountRef | null {
     const store = this.accounts;
     if (!store) return null;
+    // A switch still waiting for the turn to end applies now: no process is left to wait for
+    if (chat.pendingAccount) this.moveTo(chat, chat.pendingAccount, 'person');
     const moved = chat.forcedAccount;
+    const movedFor = chat.forcedReason;
     chat.forcedAccount = null;
+    chat.forcedReason = 'limit';
     const at = Date.now();
     let to: string;
     let reason: AccountSwitchReason | null = null;
     if (moved) {
       to = moved;
-      reason = 'limit';
+      reason = movedFor;
     } else {
       const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
       const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, now: at, model: chat.model });
@@ -1577,6 +1596,95 @@ export class ChatManager extends EventEmitter {
   limitOf(id: string): ProviderLimit | null {
     const chat = this.chats.get(id);
     return chat ? this.limits.get(chat.provider) : null;
+  }
+
+  /**
+   * Switches the account of a chat on a person's request. An idle chat moves at once (a live process
+   * is ended between turns, the next message resumes the session under the new account); a working
+   * one keeps its turn and moves when the turn ends. Naming the current account cancels a pending
+   * switch. The choice is not a pin: the rotation still moves the chat at a limit.
+   */
+  async switchAccount(id: string, accountId: string, actor: string): Promise<{ chat: ChatRuntime; pending: boolean }> {
+    const chat = this.chats.get(id);
+    const store = this.accounts;
+    if (!chat) throw new AccountSwitchRefusal('chat-not-found', 'chat not found');
+    if (!store) throw new AccountSwitchRefusal('account-not-found', 'no accounts are configured');
+    let account;
+    try {
+      account = store.get(accountId);
+    } catch {
+      throw new AccountSwitchRefusal('account-not-found', `account ${accountId} not found`);
+    }
+    if (accountId === (chat.account ?? DEFAULT_ID)) {
+      if (!chat.pendingAccount) throw new AccountSwitchRefusal('same-account', 'the chat already runs on this account');
+      chat.pendingAccount = null;
+      this.persist();
+      return { chat: chat.summary(), pending: false };
+    }
+    if (accountId === chat.pendingAccount) return { chat: chat.summary(), pending: true };
+    if (!account.enabled) throw new AccountSwitchRefusal('disabled', `account ${accountId} is disabled`);
+    if (!account.signedIn) throw new AccountSwitchRefusal('signed-out', `account ${accountId} is signed out`);
+    const resets = account.limits?.state === 'exhausted' && account.limits.resetsAt ? Date.parse(account.limits.resetsAt) : null;
+    const out = resets !== null && resets > Date.now();
+    if (out || chat.limitedAccounts.has(accountId)) {
+      throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out ? ` until ${account.limits?.resetsAt}` : ''}`);
+    }
+    // The lists the check looks at may not have been read yet (no turn, no tokens)
+    await store.warmModels();
+    if (chat.model && chat.model !== 'default' && !store.canRun(accountId, chat.model)) {
+      throw new AccountSwitchRefusal('model-unavailable', `account ${accountId} does not offer ${chat.model}`);
+    }
+    if (chat.status === 'busy' || chat.status === 'starting') {
+      chat.pendingAccount = accountId;
+      this.persist();
+      return { chat: chat.summary(), pending: true };
+    }
+    await this.endProcessBetweenTurns(chat);
+    this.moveTo(chat, accountId, actor);
+    return { chat: chat.summary(), pending: false };
+  }
+
+  /** Applies the switch that waited for the turn, once the turn has ended and the chat is idle. */
+  private async applyPendingAccount(id: string): Promise<void> {
+    const chat = this.chats.get(id);
+    const to = chat?.pendingAccount;
+    // A limited turn is the rotation's: it replays on an account of its own, and the choice waits for the next result
+    if (!chat || !to || chat.rateLimited || chat.status === 'busy' || chat.status === 'starting') return;
+    await this.endProcessBetweenTurns(chat);
+    // Another message may have started a turn while the process was closing
+    if (chat.pendingAccount === to && !chat.alive) this.moveTo(chat, to, 'person');
+  }
+
+  /** Ends an idle chat's process the way its idle timeout does: the input closes and the CLI exits by itself. */
+  private async endProcessBetweenTurns(chat: LiveChat): Promise<void> {
+    const proc = chat.proc;
+    if (!chat.alive || !proc) return;
+    const closed = once(proc, 'close');
+    chat.session?.endInput();
+    const gave = await Promise.race([closed.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 5000).unref())]);
+    if (!gave) {
+      proc.kill('SIGTERM');
+      await closed;
+    }
+  }
+
+  /** Sets the account the chat's next execution runs on and records the move (decision 6 of chat-account-switch). */
+  private moveTo(chat: LiveChat, to: string, actor: string): void {
+    const from = chat.account;
+    chat.pendingAccount = null;
+    chat.account = to;
+    chat.forcedAccount = to;
+    chat.forcedReason = 'person';
+    // A chat started on an account keeps its pin semantics, on the new account
+    if (chat.opts.account) chat.opts.account = to;
+    this.persist();
+    try {
+      this.db.appendRotationEvent({ ts: new Date().toISOString(), event: 'switch', from, to, reason: 'person', detail: chat.name, data: { chatId: chat.id, actor } });
+    } catch {
+      // A closed database (shutting down) is not the switch's to report
+    }
+    this.bus?.emit({ type: 'account.switched', title: `${chat.name} moves from ${from ?? DEFAULT_ID} to ${to}`, from, to, reason: 'person' });
+    this.notice(chat.id, `Switched to account ${to}.`, { account: to, from, reason: 'person' });
   }
 
   /**

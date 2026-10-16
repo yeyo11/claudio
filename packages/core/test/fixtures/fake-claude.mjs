@@ -5,6 +5,7 @@
 //   FAKE-WRITE <file> <content>   writes a file and leaves it uncommitted, like most workers
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
 //   FAKE-HANG                     never answers, like a worker someone has to stop
+//   FAKE-SLEEP <ms>               waits that long before the turn goes on, so a test can act while it works
 //   FAKE-FAIL <message>           ends the turn with an error result
 //   FAKE-FAIL-ONCE <message>      fails like that, and every later turn of the session succeeds and
 //                                 answers `retried: <the prompt it got>`
@@ -150,7 +151,7 @@ async function mcpCall(server, tool, input, sessionId) {
 
 const lines = createInterface({ input: process.stdin });
 let handled = false;
-lines.on('line', (line) => {
+lines.on('line', async (line) => {
   if (!line.trim()) return;
   // The handshake, no turn: the models the account offers. FAKE_CLAUDE_LITE_DIRS lists the config dirs
   // of accounts without opus, as a Pro plan is
@@ -186,6 +187,8 @@ lines.on('line', (line) => {
     }
   }
 
+  const nap = /^FAKE-SLEEP (\d+)$/m.exec(prompt);
+  if (nap) await new Promise((resolve) => setTimeout(resolve, Number(nap[1])));
   if (/^FAKE-HANG$/m.test(prompt)) return;
   if (/^FAKE-BUDGET$/m.test(prompt)) {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
