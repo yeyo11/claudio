@@ -1,0 +1,29 @@
+{
+  "invalidDetail": {
+    "request": {
+      "subtype": "get_context_usage",
+      "detail": "bogus"
+    },
+    "answer": {
+      "type": "control_response",
+      "response": {
+        "subtype": "error",
+        "request_id": "x0-4",
+        "error": "get_context_usage: detail must be 'summary' or 'full'"
+      }
+    }
+  },
+  "unknownSubtype": {
+    "request": {
+      "subtype": "x0_invented_subtype"
+    },
+    "answer": {
+      "type": "control_response",
+      "response": {
+        "subtype": "error",
+        "request_id": "x0-5",
+        "error": "Unsupported control request subtype: x0_invented_subtype"
+      }
+    }
+  }
+}
