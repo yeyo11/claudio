@@ -1112,6 +1112,10 @@ export interface Chat {
    * a restart it is absent, and the page falls back on the provider's reading.
    */
   atLimit?: boolean;
+  /** Id of the {@link Account} the chat's last process ran on, or the one it was switched to; absent without accounts */
+  account?: string | null;
+  /** The account a person chose while a turn was running: it takes over when the turn ends; null when none waits */
+  pendingAccount?: string | null;
   state: ChatState;
   control: ChatControl;
   /** The live execution, when Claudio has a process on the chat; also the last of `executions` */
@@ -4881,6 +4885,20 @@ export interface AccountsSettings {
   /** Seconds an account that hit a limit is left alone, when its reset is unknown */
   cooldownSeconds: number;
   strategy: AccountStrategy;
+}
+
+/** `POST /chats/:id/account`: the account the chat's next execution runs on. The chat's current one cancels a pending switch. */
+export interface SwitchChatAccountRequest {
+  accountId: string;
+}
+
+/** Why an account cannot be chosen for a chat. */
+export type AccountSwitchRefusalCode = 'disabled' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account';
+
+/** `pending`: the chat is working, so the switch waits for its turn to end. */
+export interface SwitchChatAccountResponse {
+  chat: ChatSummary;
+  pending: boolean;
 }
 
 /** Why the chosen account changed. */

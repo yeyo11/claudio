@@ -528,6 +528,20 @@
         "type": "boolean",
         "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
       },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the  {@link  Account }  the chat's last process ran on, or the one it was switched to; absent without accounts"
+      },
+      "pendingAccount": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The account a person chose while a turn was running: it takes over when the turn ends; null when none waits"
+      },
       "state": {
         "$ref": "#/components/schemas/ChatState"
       },
@@ -11493,6 +11507,20 @@
         "type": "boolean",
         "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
       },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the  {@link  Account }  the chat's last process ran on, or the one it was switched to; absent without accounts"
+      },
+      "pendingAccount": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The account a person chose while a turn was running: it takes over when the turn ends; null when none waits"
+      },
       "state": {
         "$ref": "#/components/schemas/ChatState"
       },
@@ -13013,6 +13041,20 @@
       "atLimit": {
         "type": "boolean",
         "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of the  {@link  Account }  the chat's last process ran on, or the one it was switched to; absent without accounts"
+      },
+      "pendingAccount": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The account a person chose while a turn was running: it takes over when the turn ends; null when none waits"
       },
       "state": {
         "$ref": "#/components/schemas/ChatState"
