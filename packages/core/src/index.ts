@@ -115,7 +115,8 @@ import { useVaultForChildren } from './child-env.ts';
 import { SecretVault } from './secret-vault.ts';
 import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
-import { Db } from './db.ts';
+import { CollabStore, Db } from './db.ts';
+import { CollaboratorsService, collabHostSettings, uploadIdsIn } from './collab/index.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
@@ -242,6 +243,7 @@ export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
+export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
 export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
@@ -498,6 +500,8 @@ export class Core {
   readonly security: AuthStore;
   /** The person's own shells: opened by them, never driven by an agent. See docs/plans/terminal.md */
   readonly terminals: TerminalService;
+  /** Teammates' Claudios sharing projects read only, peer to peer (docs/plans/collaborators.md) */
+  readonly collaborators: CollaboratorsService;
   /**
    * The settings that change at runtime (`app-settings.json` under the environment), and the exact
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
@@ -1454,6 +1458,46 @@ export class Core {
     });
     // Shells a previous server left running (it was killed hard) end before any new one opens
     this.terminals.reapStrays();
+    // The serving side is handed reads only: nothing below can start a chat, a run or a flow
+    const projectOfDir = (dir: string): string | null => this.projectOf(resolve(dir)).project?.id ?? null;
+    this.collaborators = new CollaboratorsService({
+      config,
+      store: new CollabStore(this.db.connection),
+      vault: this.vault,
+      emit: (event) => this.events.emit(event),
+      projects: () => this.projectStore.list(),
+      projectSettings: this.projectSettingsStore,
+      ...collabHostSettings(),
+      log: (message) => console.warn(message),
+      sources: {
+        projects: () => this.projectStore.list(),
+        worktreeOf: (dir) => this.locator.worktreeOf(dir),
+        chats: () => this.db.loadChats().map((stored) => stored.record),
+        liveChats: () => new Map(this.runtime.list().filter((chat) => chat.pid !== null).map((chat) => [chat.id, chat.activity])),
+        transcriptFile: async (sessionId) => {
+          const summary = await this.sessions.summary(sessionId);
+          return summary ? join(config.projectsDir, summary.projectId, `${summary.id}.jsonl`) : null;
+        },
+        memory: { list: (projectId) => this.memoryFiles(projectId) },
+        journal: this.journal,
+        documents: this.documents,
+        workItems: this.workItems,
+        uploadsOfChat: (chatId) => uploadIdsIn(this.runtime.messages(chatId) ?? [], this.uploads.dir),
+        uploads: this.uploads,
+        orchestrations: (projectId) =>
+          this.orchestrator
+            .list()
+            .filter((o) => !!o.finalResult && projectOfDir(o.cwd) === projectId)
+            .map((o) => ({ id: o.id, name: o.name, finalResult: o.finalResult ?? '', updatedAt: o.endedAt ?? o.createdAt })),
+        planDrafts: (projectId) =>
+          this.db.planDrafts(100).filter((draft) => {
+            const cwd = this.db.planDraft(draft.runId)?.cwd;
+            return !!cwd && projectOfDir(cwd) === projectId;
+          }),
+        events: { subscribe: (listener) => this.events.observe(listener) },
+      },
+    });
+    void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${error instanceof Error ? error.message : String(error)}`));
   }
 
   /** The run, task or item a chat works for: what makes its limit the rotation's. Null for a person's chat. */
@@ -3193,6 +3237,7 @@ export class Core {
     this.rotation.close();
     // The rows that say the shells ended are written before this returns, while the database is open
     void this.terminals.shutdown();
+    void this.collaborators.dispose();
     this.runtime.stopAll();
     this.db.close();
   }
