@@ -12904,6 +12904,27 @@
       "total"
     ]
   },
+  "SpendCapRefusal": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "spend-cap"
+      },
+      "spend": {
+        "$ref": "#/components/schemas/SpendState"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "spend"
+    ],
+    "description": "The 409 body of a person's request refused at the cap."
+  },
   "ModelFallback": {
     "type": "object",
     "properties": {

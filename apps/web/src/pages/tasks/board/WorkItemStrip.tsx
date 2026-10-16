@@ -19,6 +19,7 @@ import { AutoMergeNote } from './AutoMergeNote';
 import type { LiveSources } from './LiveLine';
 import { CiBadge, NotReadyNote, reasonValues, useBoardReadiness, useChangeRequestWords, useOpenPullRequest } from './PullRequest';
 import { useBoardTeam } from './team';
+import { SpendQueuedLine } from '../../../components/SpendWait';
 import { useMoveWorkItem } from './useMoveWorkItem';
 
 const MARK = { size: 13, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -367,7 +368,13 @@ export function WorkItemStrip({
   }
   // No live region on a failure: a board with several would announce them all on load. The word and
   // the icon say it where the card is read.
-  return <div className={className}>{body}</div>;
+  return (
+    <>
+      <div className={className}>{body}</div>
+      {/* The queue is the cap's while it is reached: say so under the card, where a limit's wait says its own */}
+      {strip.kind === 'queued' && <SpendQueuedLine />}
+    </>
+  );
 }
 
 /** The causes of a failed run, which the strip words; a cancellation's cause is never a failure's reason. */

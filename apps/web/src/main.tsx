@@ -6,6 +6,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { SpendCapProvider } from './components/SpendCapDialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -41,9 +42,11 @@ const router = createBrowserRouter([
       <TooltipProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <AppChatUi>
-              <App />
-            </AppChatUi>
+            <SpendCapProvider>
+              <AppChatUi>
+                <App />
+              </AppChatUi>
+            </SpendCapProvider>
           </ConfirmProvider>
         </ToastProvider>
       </TooltipProvider>

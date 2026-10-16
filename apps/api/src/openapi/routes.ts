@@ -77,6 +77,7 @@ export const TAGS = [
   { name: 'Events', description: 'One Server-Sent Events stream announcing every change, so clients do not have to poll.' },
   { name: 'Chats', description: 'Claude Code conversations, one per session id: resumed in place, forked into copies, each with the executions Claudio ran on it.' },
   { name: 'Orchestration', description: 'A DAG of tasks, each executed by its own Claude worker.' },
+  { name: 'Usage', description: "What Claudio's automation spent today against the daily spend cap (`dailySpendCapUsd` in `GET /settings/app`). The chat usage report is `GET /usage`, under Chats." },
   { name: 'Schedules', description: 'Cron-like recurring chats and orchestrations, with the history of what each run produced. A slot missed while Claudio was down is skipped, never replayed.' },
   { name: 'Configuration', description: 'Settings, instructions, MCP servers and markdown resources, per user or per project (`?project=`).' },
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
@@ -293,6 +294,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     }),
     ok: list('ChatSummary'),
   }),
+  'GET /spend': d('Usage', "Today's spend against the daily cap", { description: "The sum of the `total_cost_usd` each `result` reported today (the server's local day), against the cap: `level` is `off` with no cap, `ok` below 60 %, `warn` from 60 %, `bad` from 75 % and `exhausted` from 100 %, and `blocked` says whether new work waits. `unreported` counts results without a cost, which are never estimated. A chat's token may read it.", ok: ref('SpendState') }),
   'GET /usage': d('Chats', 'What the chats spent, per day, per project and per orchestration', {
     description:
       'Tokens come from the transcripts, so they cover every chat, subagents included, and are kept per model with the variant suffix whole. The cost is what the CLI reported (`total_cost_usd`), which exists only for chats Claudio launched: nothing is estimated from a price table, `costUsd` is `null` when nothing reported one, and `chatsWithoutCost` counts the chats a total leaves out. A day is a calendar day where the server runs; a cost is put on the day its execution ended.',
@@ -537,6 +539,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /orchestrations/:id/verify': d('Orchestration', 'Run the graph\'s checks on the integration branch', { description: 'Runs `verification.commands` in order on the merged branch, each under its time limit (an entry that is a list is a parallel group: its commands run at the same time, each row carries the entry\'s index as `group`, and the next entry starts when all of them have ended), and records the outcome on `verification`: `passed`, `fixed` (with the fixer\'s commits) or `failed` (with a report). With a fixer, a failing command goes to an agent whose rules come from Claudio, told the spec files its output reports as failed (`✗ <file>` lines), up to `maxAttempts` times; one attempt covers every failed command of a group and counts against each, and every command runs again from the first after a fix. It runs by itself when a worktree graph finishes; this runs it by hand, or again after the branch changed. Give `verification` to check a graph launched without any. Returns at once; follow `verification.status`. Before the commands comes an install step, as its own row with `install: true`: `verification.install` when it is a command, none when it is `null`, and otherwise the one the lockfile of the worktree asks for (`pnpm-lock.yaml`: `pnpm install --frozen-lockfile`, `package-lock.json`: `npm ci`, `yarn.lock`: `yarn install --frozen-lockfile`). `maxCostUsd` caps what the fixer spends over its attempts, passed to the CLI as `--max-budget-usd` with what is left; once spent the outcome is `failed`, and `verification.costUsd` says what it cost. With `failGraph`, failed checks leave the orchestration `failed` with `error` set, and passing them again brings it back to `completed`. Refused while the graph runs or waits, without a merged integration branch, and while the checks already run. Stopping the orchestration stops them.', body: ref('VerifyOrchestrationRequest'), ok: ref('Orchestration') }),
   'POST /orchestrations/:id/pull-request': d('Orchestration', 'Push the integration branch and open a pull request', { description: "Pushes the integrated branch to `origin` and opens a pull request (GitHub) or merge request (GitLab) with the project's host CLI, using the objective and final report as its body. The project's readiness is checked first: a project that cannot open one is refused with 409 and its `reason` (`not-git`, `no-remote`, `unsupported-host`, `no-default-branch`, `cli-missing`, `cli-incompatible`, `cli-signed-out`), and nothing is pushed; so is a branch with no commit ahead of the default branch (`nothing-to-propose`). A second call while one is being opened or is open is answered with the one already there. When the host fails after the push, the branch stays pushed and `detail` says why no request was opened. The row it opens, `pullRequest` (host, `ref`, number, URL, phase, CI), is watched until it is merged or closed and announced with `orchestration.pull-request`. Refused while the checks run, and when they failed on a graph launched with `verification.failGraph`.", ok: ref('OrchestrationPullRequestAnswer') }),
   'POST /orchestrations/:id/worktrees/prune': d('Orchestration', "Remove the graph's worktrees", { description: 'Branches are always kept, so committed work survives. A worktree with uncommitted changes is left alone and reported unless `force` is set.', body: obj({ force: str('Remove even with uncommitted changes') }), ok: obj({ results: str('One entry per task: removed, and why not when it was kept') }) }),
+  'POST /orchestrations/:id/spend-pass': d('Orchestration', "Let a graph run past today's spend cap", { description: "Sets the graph's pass to today (`spendPass`, the server's local day) so its tasks start although the daily cap was reached; tomorrow it is under that day's cap. Answers the orchestration. Refused to a chat's token with `403`.", ok: ref('Orchestration') }),
   'POST /orchestrations/:id/stop': d('Orchestration', 'Stop all workers', { ok: ref('Orchestration') }),
 
   // ---- Configuration
@@ -721,6 +724,31 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
 };
 
+/**
+ * The routes a person's request starts work on, which answer `409 spend-cap` over the daily cap
+ * (`X-Claudio-Spend-Override: 1`, described once in the document's introduction, lets the person's
+ * request through). A message to a chat that is mid-turn is let in whatever the cap says.
+ */
+const SPEND_GATED = new Set([
+  'POST /chats',
+  'POST /chats/:id/messages',
+  'POST /chats/:id/resume',
+  'POST /chats/:id/fork',
+  'POST /workflows/saved/run',
+  'POST /orchestrations',
+  'POST /orchestrations/plan',
+  'POST /orchestrations/plan/start',
+  'POST /orchestrations/templates/:templateId/launch',
+  'POST /orchestrations/:id/resume',
+  'POST /orchestrations/:id/relaunch',
+  'POST /orchestrations/:id/verify',
+  'POST /orchestrations/:id/tasks/:taskId/retry',
+  'POST /orchestrations/:id/tasks/:taskId/retry-clean',
+  'POST /orchestrations/:id/tasks/:taskId/rerun',
+  'POST /projects/:id/assistant/runs',
+  'POST /assistant/chats',
+]);
+
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */
 export function routeSchema(method: string, path: string): Json | null {
   const doc = ROUTE_DOCS[`${method} ${path}`];
@@ -728,13 +756,15 @@ export function routeSchema(method: string, path: string): Json | null {
   const pathParams = [...path.matchAll(/:(\w+)/g)].map((m) => m[1] as string);
   const params = doc.params ?? (pathParams.length ? obj(Object.fromEntries(pathParams.map((p) => [p, str()])), pathParams) : undefined);
   const error = { description: 'Invalid request or not found', content: { 'application/json': { schema: ref('ApiError') } } };
+  const gated = SPEND_GATED.has(`${method} ${path}`);
   return {
     tags: doc.tags,
     summary: doc.summary,
-    ...(doc.description ? { description: doc.description } : {}),
+    ...(doc.description || gated ? { description: `${doc.description ?? ''}${gated ? `${doc.description ? '\n\n' : ''}Over the daily spend cap it answers \`409\` with \`code: 'spend-cap'\` and the day's \`spend\`; send \`X-Claudio-Spend-Override: 1\` (see the introduction) to go on.` : ''}` } : {}),
     ...(params ? { params: { ...params, required: pathParams } } : {}),
     ...(doc.querystring ? { querystring: doc.querystring } : {}),
     ...(doc.body ? { body: doc.body } : {}),
+    ...(gated ? { headers: obj({ 'x-claudio-spend-override': str('`1` goes on past the daily spend cap; ignored on a request authenticated by a chat\'s token', { enum: ['1'] }) }) } : {}),
     ...(doc.produces ? { produces: [doc.produces] } : {}),
     response: {
       [doc.created ? 201 : 200]: doc.produces
@@ -742,6 +772,7 @@ export function routeSchema(method: string, path: string): Json | null {
         : { description: 'Success', content: { 'application/json': { schema: doc.ok ?? {} } } },
       400: error,
       ...(pathParams.length || doc.querystring ? { 404: error } : {}),
+      ...(gated ? { 409: { description: 'Daily spend cap reached (`code: spend-cap`), or a conflict', content: { 'application/json': { schema: ref('SpendCapRefusal') } } } } : {}),
     },
   };
 }

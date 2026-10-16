@@ -2065,3 +2065,10 @@
     align-items: flex-start;
   }
 }
+
+/* The quiet way past the daily cap, at the end of its wait line */
+.wait-line .spend-wait-go {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--fg-2);
+}
