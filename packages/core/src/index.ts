@@ -79,6 +79,8 @@ import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
+import { GuardLauncher } from './guards/launch.ts';
+import type { ChatGuardPlan } from './live-chat.ts';
 import { GuardSettingsStore } from './guards/settings.ts';
 import { GuardEventStore } from './guards/events.ts';
 import { SpendGate } from './spend.ts';
@@ -231,6 +233,7 @@ export {
   checkGuardPreflight,
   runGuardSelfTest,
 } from './guards/preflight.ts';
+export { type GuardRequest, GuardLauncher, guardFailure } from './guards/launch.ts';
 export { GuardEventStore, type GuardEventFilter } from './guards/events.ts';
 export { decide as decideGuard } from './guards/decide.ts';
 export { DEFAULT_LIMITS as GUARD_DEFAULT_LIMITS, type GuardRulesFile } from './guards/input.ts';
@@ -467,6 +470,8 @@ export class Core {
   readonly appSettings: AppSettingsStore;
   /** The global guard settings, `guards.json` (docs/plans/guards.md); the same store is `core.guards` */
   readonly guards: GuardSettingsStore;
+  /** Resolves, checks and writes the guard of every launch path (docs/plans/guards.md) */
+  readonly guardLauncher: GuardLauncher;
   /** The guards' audit trail, `guard_events` (docs/plans/guards.md) */
   readonly guardEvents: GuardEventStore;
   /** Each Home's layout, per project and for All projects: `dashboard-layouts.json` */
@@ -681,6 +686,14 @@ export class Core {
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
+    this.guardLauncher = new GuardLauncher({
+      dataDir: config.dataDir,
+      settings: this.guards,
+      capabilities: () => PROVIDER_MANIFESTS.find((m) => m.id === LEGACY_PROVIDER)?.capabilities ?? [],
+    });
+    this.orchestrator.guards = this.guardLauncher;
+    // A broken guard is known before the first launch; the orchestrator's launches cannot wait for the self-test
+    this.guardLauncher.warm();
     this.spend = new SpendGate({
       db: this.db,
       cap: () => this.appSettings.dailySpendCapUsd,
@@ -798,6 +811,7 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
+      guardsForChat: (cwd) => this.guardsForChat(cwd),
       compact: (chat) => this.context.availability(chat),
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
@@ -2256,6 +2270,16 @@ export class Core {
       // The short "carry on" prompt of a restart keeps to itself: the chat was already told
       if (line && !launch.continuing) prompt = withDocumentsLine(prompt, line);
     }
+    // Guarded or not by the stage's override, the project and the global settings; a guard that cannot run fails the run before a chat exists
+    const guards = await this.guardLauncher.prepare({
+      kind: 'flow',
+      stage: run.stage,
+      cwd: place?.cwd ?? record.path,
+      worktree: place?.cwd ?? null,
+      mainCheckout: record.path,
+      project: await this.projectSettings(item.projectId),
+      policy: { commands: launch.policy.commands.allow !== 'none', edits: launch.policy.edit.allow !== 'none' },
+    });
     const options = {
       model: member.model,
       ...effortOption(effort),
@@ -2279,7 +2303,7 @@ export class Core {
       // Before onStart, so the run never sees the compaction's chat, result or exit. It runs under the
       // run's own policy and budget (so a push stays denied), and never fails the run: one that does
       // not happen leaves the chat as it was
-      await this.context.compactAndWait(launch.resumeChatId, { flowRunId: run.id, options: { ...options, agent: member.agent, agentsFile } });
+      await this.context.compactAndWait(launch.resumeChatId, { flowRunId: run.id, options: { ...options, agent: member.agent, agentsFile, guards } });
     }
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
@@ -2287,7 +2311,7 @@ export class Core {
       // A chat goes on with the last execution's effort unless the run gives one
       onStart(chatId, LEGACY_PROVIDER, this.effortPassed(options.effort) ?? (resumed ? usedEffort(resumed) : null));
       try {
-        await this.chats.resume(chatId, { ...options, prompt }, extras);
+        await this.chats.resume(chatId, { ...options, prompt }, { ...extras, guards });
         link(chatId);
         return;
       } catch (err) {
@@ -2296,10 +2320,23 @@ export class Core {
         // otherwise falls through to a chat of its own
       }
     }
-    await this.chats.create({ ...options, ...extras, provider: LEGACY_PROVIDER, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path }, (started) => {
-      onStart(started.id, LEGACY_PROVIDER, usedEffort(started));
-      link(started.id);
-    });
+    await this.chats.create(
+      { ...options, ...extras, provider: LEGACY_PROVIDER, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path },
+      (started) => {
+        onStart(started.id, LEGACY_PROVIDER, usedEffort(started));
+        link(started.id);
+      },
+      undefined,
+      guards,
+    );
+  }
+
+  /** A person's chat in `cwd`: guarded when its project opted in. Null leaves it as it always ran. */
+  private async guardsForChat(cwd: string): Promise<ChatGuardPlan | null> {
+    const project = this.projectOf(resolve(cwd)).project;
+    if (!project) return null;
+    const settings = await this.projectSettings(project.id);
+    return this.guardLauncher.prepare({ kind: 'chat', cwd: resolve(cwd), mainCheckout: this.projectStore.get(project.id)?.path ?? null, project: settings, interactive: true });
   }
 
   /**

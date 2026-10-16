@@ -2996,6 +2996,10 @@
         ],
         "description": "Where a worker's permission prompts go"
       },
+      "guards": {
+        "$ref": "#/components/schemas/GuardOverride",
+        "description": "The graph's guard override, from the spec it was launched with; absent inherits the global settings"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -3189,6 +3193,37 @@
       "stopped"
     ],
     "description": "`waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides."
+  },
+  "GuardOverride": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Absent inherits; `false` switches the guard off for the graph or stage (shown as \"Guards off\")"
+      },
+      "rules": {
+        "type": "object",
+        "properties": {
+          "no-verify": {
+            "type": "boolean"
+          },
+          "push": {
+            "type": "boolean"
+          },
+          "destructive": {
+            "type": "boolean"
+          },
+          "secrets": {
+            "type": "boolean"
+          },
+          "protect-configs": {
+            "type": "boolean"
+          }
+        },
+        "description": "Merged over the global rules; `integrity` cannot be named"
+      }
+    },
+    "description": "What a graph or a flow stage changes of the global settings; absent fields inherit."
   },
   "OrchestrationTaskState": {
     "type": "object",
@@ -4399,6 +4434,10 @@
         ],
         "description": "Where a worker's permission prompts go"
       },
+      "guards": {
+        "$ref": "#/components/schemas/GuardOverride",
+        "description": "The graph's guard override, from the spec it was launched with; absent inherits the global settings"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -4943,37 +4982,6 @@
       "name",
       "tasks"
     ]
-  },
-  "GuardOverride": {
-    "type": "object",
-    "properties": {
-      "enabled": {
-        "type": "boolean",
-        "description": "Absent inherits; `false` switches the guard off for the graph or stage (shown as \"Guards off\")"
-      },
-      "rules": {
-        "type": "object",
-        "properties": {
-          "no-verify": {
-            "type": "boolean"
-          },
-          "push": {
-            "type": "boolean"
-          },
-          "destructive": {
-            "type": "boolean"
-          },
-          "secrets": {
-            "type": "boolean"
-          },
-          "protect-configs": {
-            "type": "boolean"
-          }
-        },
-        "description": "Merged over the global rules; `integrity` cannot be named"
-      }
-    },
-    "description": "What a graph or a flow stage changes of the global settings; absent fields inherit."
   },
   "OrchestrationTaskSpec": {
     "type": "object",

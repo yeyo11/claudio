@@ -109,6 +109,17 @@ core ── web ─┬─ web-review
 
 The hint reads "3 stages in series · core → web → web-review", with no notice.
 
+## Guards
+
+Workers, the integration, the synthesis, the verification fixer and the workflow engine run with
+[guards](guards.md) when `automated` is on (the default). The planner does not. A graph can carry
+`guards: { enabled?, rules? }`, set in the launch form's *Rules* sheet, which stores only what
+differs from the global settings; `integrity` cannot be switched. A worker's guard root is its task
+worktree. If a guard cannot run, the task fails before any CLI starts with
+`guard-unavailable (<problem>): could not start the worker: …`. A task that was blocked shows an
+"N blocked" chip that opens its chat at the first notice.
+
 ## Related
 
+[[guards.md]] ·
 [[plans/orchestration-speed.md]] · [[plans/graph-shape.md]] · [[plans/worker-checks.md]] · [[design-system.md]]

@@ -3706,6 +3706,8 @@ export interface Orchestration {
   allowedTools: string[];
   /** Where a worker's permission prompts go */
   permissionPrompts: 'host' | 'none';
+  /** The graph's guard override, from the spec it was launched with; absent inherits the global settings */
+  guards?: GuardOverride;
   createdAt: string;
   endedAt: string | null;
   tasks: OrchestrationTaskState[];

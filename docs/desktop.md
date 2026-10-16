@@ -235,6 +235,11 @@ does is logged to `desktop.log`.
 `~/.config` is `$XDG_CONFIG_HOME` if you set it. The workspace can be moved by starting the app
 with `CLAUDIO_WORKSPACE_DIR` set. Each run can still use any project directory.
 
+The packaged app carries `guard.mjs` in `<resources>/server/`, beside `server.mjs`, and the server
+finds it through `CLAUDIO_GUARD_ENTRY` ([guards.md](guards.md)). The AppImage is a read-only mount and
+the `.deb` installs under a root-owned directory, so the agent cannot edit it. Guard files and per-run
+scratch folders go under the data folder (`guards/`, `tmp/`).
+
 The **File** menu opens the data, workspace and logs folders (press `Alt` if the menu bar is
 hidden). Each log is rotated when the app starts once it passes 5 MB, keeping the last three.
 
@@ -374,4 +379,4 @@ release.
 
 ## Related
 
-[[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[tunnel.md]]
+[[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[tunnel.md]]

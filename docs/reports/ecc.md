@@ -242,6 +242,8 @@ guard rule by the person: "never run `npm`" becomes a deny pattern.
 
 ### ★3 Guard hooks through `--settings`
 
+**Status (2026-10-16): built.** Planned in [plans/guards.md](../plans/guards.md); the feature is described in [guards.md](../guards.md).
+
 **Goal.** A small set of deterministic guards that hold whatever the permission mode is. Prompts are
 forgotten some of the time; hooks run every time.
 
