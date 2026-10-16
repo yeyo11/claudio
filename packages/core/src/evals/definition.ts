@@ -6,8 +6,9 @@ import {
   EVAL_CALL_SCOPES,
   EVAL_CASE_ID_PATTERN,
   EVAL_DIR,
-  EVAL_FILE_VERSION,
+  EVAL_FILE_VERSIONS,
   EVAL_KINDS,
+  EVAL_PRESSURES,
   EVAL_LIMITS,
   EVAL_NAME_PATTERN,
   EVAL_OUTCOMES,
@@ -16,6 +17,7 @@ import {
   EVAL_SCOPES,
   EVAL_STAGES,
   EXPECTATION_KINDS,
+  EXPECTATION_KINDS_V2,
   type EvalDefinition,
   type EvalFile,
   type EvalTarget,
@@ -57,6 +59,8 @@ type Json = Record<string, unknown>;
 /** Collects problems as `path: reason`; a validator keeps going so one pass lists them all. */
 class Problems {
   readonly list: string[] = [];
+  /** Whether the file is version 2: only then are prompts, mustHold, k and judged expectations allowed */
+  v2 = false;
   add(path: string, reason: string): void {
     this.list.push(`${path}: ${reason}`);
   }
@@ -244,9 +248,30 @@ function filePath(p: Problems, value: unknown, path: string): void {
   } else if (/[*?{}[\]]/.test(value)) p.add(path, 'must be a plain path, not a glob');
 }
 
+/** A judged expectation: the statement the judge checks, its model, and the examples it is calibrated on. */
+function judged(p: Problems, value: Json, path: string): void {
+  const L = EVAL_LIMITS;
+  text(p, value.statement, at(path, 'statement'), L.judgeStatementChars.min, L.judgeStatementChars.max);
+  if (value.model !== undefined) text(p, value.model, at(path, 'model'), 1, 200);
+  if (value.examples === undefined) return;
+  if (!Array.isArray(value.examples) || value.examples.length > L.judgeExamples.max) {
+    p.add(at(path, 'examples'), `must be a list of at most ${L.judgeExamples.max} examples`);
+    return;
+  }
+  value.examples.forEach((e, i) => {
+    const ep = `${at(path, 'examples')}[${i}]`;
+    const o = object(p, e, ep, ['calls', 'final', 'pass']);
+    if (!o) return;
+    if (!Array.isArray(o.calls) || o.calls.length > L.callsPerSample) p.add(at(ep, 'calls'), `must be a list of at most ${L.callsPerSample} call summaries`);
+    else o.calls.forEach((c, j) => text(p, c, `${at(ep, 'calls')}[${j}]`, 1, L.callInputBytes));
+    if (typeof o.final !== 'string' || o.final.length > L.resultTextBytes) p.add(at(ep, 'final'), `must be a string of at most ${L.resultTextBytes} characters`);
+    boolean(p, o.pass, at(ep, 'pass'));
+  });
+}
+
 function expectation(p: Problems, value: unknown, path: string): void {
   if (!isObject(value)) return p.add(path, 'must be an object');
-  const kind = oneOf(p, value.kind, at(path, 'kind'), EXPECTATION_KINDS);
+  const kind = oneOf(p, value.kind, at(path, 'kind'), p.v2 ? EXPECTATION_KINDS_V2 : EXPECTATION_KINDS);
   if (!kind) return;
   const fields: Record<string, readonly string[]> = {
     called: ['call', 'min', 'max'],
@@ -258,6 +283,7 @@ function expectation(p: Problems, value: unknown, path: string): void {
     file: ['path', 'exists', 'contains'],
     touched: ['path', 'expect'],
     command: ['run', 'exitCode', 'timeoutSeconds'],
+    judged: ['statement', 'model', 'examples'],
   };
   object(p, value, path, ['kind', ...(fields[kind] ?? [])]);
   const callAt = (key: string) => call(p, value[key], at(path, key));
@@ -299,6 +325,9 @@ function expectation(p: Problems, value: unknown, path: string): void {
       matcher(p, value.path, at(path, 'path'));
       boolean(p, value.expect, at(path, 'expect'));
       break;
+    case 'judged':
+      judged(p, value, path);
+      break;
     case 'command':
       text(p, value.run, at(path, 'run'), 1, EVAL_LIMITS.promptChars.max);
       if (value.exitCode !== undefined) integer(p, value.exitCode, at(path, 'exitCode'), 0, 255);
@@ -308,13 +337,25 @@ function expectation(p: Problems, value: unknown, path: string): void {
 }
 
 function evalCase(p: Problems, value: unknown, path: string, seen: Set<string>): void {
-  const o = object(p, value, path, ['id', 'title', 'prompt', 'pin', 'expect']);
+  const o = object(p, value, path, p.v2 ? ['id', 'title', 'prompt', 'prompts', 'mustHold', 'pin', 'expect'] : ['id', 'title', 'prompt', 'pin', 'expect']);
   if (!o) return;
   if (typeof o.id !== 'string' || !EVAL_CASE_ID_PATTERN.test(o.id)) p.add(at(path, 'id'), 'must be lowercase letters, digits and dashes, up to 48, starting with a letter or digit');
   else if (seen.has(o.id)) p.add(at(path, 'id'), `duplicates another case (${o.id})`);
   else seen.add(o.id);
   if (o.title !== undefined) text(p, o.title, at(path, 'title'), EVAL_LIMITS.titleChars.min, EVAL_LIMITS.titleChars.max);
-  text(p, o.prompt, at(path, 'prompt'), EVAL_LIMITS.promptChars.min, EVAL_LIMITS.promptChars.max);
+  const { min: pmin, max: pmax } = EVAL_LIMITS.promptChars;
+  if (p.v2 && o.prompts !== undefined) {
+    const pr = object(p, o.prompts, at(path, 'prompts'), EVAL_PRESSURES);
+    if (pr) {
+      const neutral = text(p, pr.neutral, at(path, 'prompts.neutral'), pmin, pmax);
+      for (const level of ['supportive', 'competing'] as const) {
+        if (pr[level] !== undefined) text(p, pr[level], at(path, `prompts.${level}`), pmin, pmax);
+      }
+      // `prompt` is the neutral prompt; a file may carry both only when they agree
+      if (o.prompt !== undefined && neutral !== null && o.prompt !== neutral) p.add(at(path, 'prompt'), 'must equal prompts.neutral when both are given');
+    }
+  } else text(p, o.prompt, at(path, 'prompt'), pmin, pmax);
+  if (o.mustHold !== undefined) boolean(p, o.mustHold, at(path, 'mustHold'));
   if (o.pin !== undefined) pin(p, o.pin, at(path, 'pin'));
   const { min, max } = EVAL_LIMITS.expectPerCase;
   if (!Array.isArray(o.expect) || o.expect.length < min || o.expect.length > max) {
@@ -325,12 +366,13 @@ function evalCase(p: Problems, value: unknown, path: string, seen: Set<string>):
 /** Every problem of a value as an eval definition, without throwing. Empty means it parses. */
 export function evalDefinitionProblems(value: unknown): string[] {
   const p = new Problems();
-  const o = object(p, value, '', ['version', 'title', 'target', 'runAs', 'pin', 'samples', 'limits', 'policy', 'setup', 'cases']);
-  if (!o) return p.list.map((m) => m.replace(/^: /, ''));
-  if (o.version !== EVAL_FILE_VERSION) {
+  if (isObject(value) && !(EVAL_FILE_VERSIONS as readonly unknown[]).includes(value.version)) {
     p.add('version', 'unsupported-version');
     return p.list;
   }
+  p.v2 = isObject(value) && value.version === 2;
+  const o = object(p, value, '', p.v2 ? ['version', 'title', 'target', 'runAs', 'pin', 'samples', 'k', 'limits', 'policy', 'setup', 'cases'] : ['version', 'title', 'target', 'runAs', 'pin', 'samples', 'limits', 'policy', 'setup', 'cases']);
+  if (!o) return p.list.map((m) => m.replace(/^: /, ''));
   text(p, o.title, 'title', EVAL_LIMITS.titleChars.min, EVAL_LIMITS.titleChars.max);
   const t = target(p, o.target);
   if (o.runAs !== undefined) {
@@ -347,7 +389,13 @@ export function evalDefinitionProblems(value: unknown): string[] {
   }
   pin(p, o.pin, 'pin');
   const L = EVAL_LIMITS;
-  if (o.samples !== undefined) integer(p, o.samples, 'samples', L.samples.min, L.samples.max);
+  const n = o.samples === undefined ? null : integer(p, o.samples, 'samples', L.samples.min, p.v2 ? L.metricSamples.max : L.samples.max);
+  if (o.k !== undefined) {
+    const k = integer(p, o.k, 'k', 1, L.metricSamples.max);
+    // k is read against n scored samples, so it may not exceed the n the file asks for (default 5)
+    const limit = n ?? L.metricSamples.default;
+    if (k !== null && k > limit) p.add('k', `must not exceed samples (${limit})`);
+  }
   if (o.limits !== undefined) {
     const l = object(p, o.limits, 'limits', ['maxCostUsdPerSample', 'timeoutMinutes', 'maxCostUsd']);
     if (l) {
@@ -367,6 +415,11 @@ export function evalDefinitionProblems(value: unknown): string[] {
   return p.list;
 }
 
+/** A version 2 case with `prompts` always carries `prompt` too, the neutral one, so readers need no second path. */
+export function normalizeEvalDefinition(definition: EvalDefinition): EvalDefinition {
+  return { ...definition, cases: definition.cases.map((c) => (c.prompts ? { ...c, prompt: c.prompts.neutral } : c)) };
+}
+
 /** Strict: throws {@link EvalFileError} listing every problem. The write path uses this. */
 export function parseEvalDefinition(value: unknown): EvalDefinition {
   const problems = evalDefinitionProblems(value);
@@ -374,7 +427,7 @@ export function parseEvalDefinition(value: unknown): EvalDefinition {
     const unsupported = problems.length === 1 && problems[0] === 'version: unsupported-version';
     throw new EvalFileError(unsupported ? 'unsupported-version' : 'invalid', problems.join('; '), problems);
   }
-  return value as EvalDefinition;
+  return normalizeEvalDefinition(value as EvalDefinition);
 }
 
 export const sha256 = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex');
@@ -431,7 +484,7 @@ function describe(name: string, path: string, loaded: NonNullable<Awaited<Return
     return { name, path, sha: loaded.sha, definition: null, problems: ['file: not valid JSON'] };
   }
   const problems = evalDefinitionProblems(value);
-  return { name, path, sha: loaded.sha, definition: problems.length ? null : (value as EvalDefinition), problems };
+  return { name, path, sha: loaded.sha, definition: problems.length ? null : normalizeEvalDefinition(value as EvalDefinition), problems };
 }
 
 /** List, read, write and delete the eval files of a project. */

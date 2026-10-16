@@ -1202,6 +1202,12 @@
       "invalid": "Enter an amount above 0 and up to {{max}}.",
       "saved": "Daily spend cap saved",
       "savedOff": "Daily spend cap turned off"
+    },
+    "evals": {
+      "title": "Instruction evals, phase 2",
+      "intro": "Pressure levels, judged expectations, the promotion gate and case drafting. Off, those routes and screens stay hidden.",
+      "switch": "Turn on phase 2 of instruction evals",
+      "saved": "Instruction evals settings saved"
     }
   }
 }

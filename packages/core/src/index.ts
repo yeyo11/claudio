@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ClaudioLanguage,
@@ -151,7 +151,8 @@ import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { agentsDefinitionFile } from './agents-file.ts';
-import { EvalConsents, EvalDefinitionStore } from './evals/definition.ts';
+import { EvalConsents, EvalDefinitionStore, EvalFileError, evalTargetPath } from './evals/definition.ts';
+import { EvalJudge } from './evals/judge.ts';
 import { EvalRunner } from './evals/runner.ts';
 import { EvalService } from './evals/service.ts';
 import { EvalStore } from './evals/store.ts';
@@ -1120,6 +1121,19 @@ export class Core {
       saveResource: async (project, scope, kind, name, content) => {
         await this.resources.save(this.assistantScope(project, scope), kind, name, content);
       },
+      evalFile: async (project, name) => {
+        const file = await this.evals.file(project.id, name).catch((err: unknown) => {
+          if (err instanceof EvalFileError && err.code === 'not-found') return null;
+          throw err;
+        });
+        if (!file) return null;
+        const target = file.definition?.target;
+        const targetPath = target && target.scope === 'project' ? relative(project.path, evalTargetPath(target, project.path, config)).split(sep).join('/') : null;
+        return { file, targetPath };
+      },
+      appendEvalCase: async (project, name, evalCase, ifMatch) => {
+        await this.evals.appendCase(project.id, name, evalCase, ifMatch);
+      },
       emit: (event) => this.events.emit(event),
       decisions: this.decisions,
     });
@@ -1217,6 +1231,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
       projectPath: evalProjectPath,
       maxConcurrentRuns: () => this.runtime.defaults.maxConcurrentRuns,
+      judgeFor: (maxCostUsd) => new EvalJudge({ runtime: this.runtime, maxCostUsd }),
       memberRun: (projectId, agent, stage) => {
         const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
         const member = settings?.team?.members.find((m) => m.agent === agent);

@@ -1,11 +1,15 @@
 import {
   EVAL_LIMITS,
+  EVAL_PRESSURES,
   EVAL_VARIANTS,
   type EvalDefinition,
   type EvalFileListItem,
   type EvalRun,
   type EvalRunRequest,
   type EvalRunSummary,
+  type EvalCellMetrics,
+  type EvalGate,
+  type EvalPressure,
   type EvalSample,
   type EvalVariant,
 } from '@claudio/shared';
@@ -54,6 +58,34 @@ export function evalsForAgent(files: readonly EvalFileListItem[], agent: string)
   return files.filter((file) => file.definition?.target.kind === 'agent' && file.definition.target.name === agent);
 }
 
+/** The proposed text a gate hands to the member's editor, whose Save the person still presses. */
+export const saveKey = (projectId: string, agent: string): string => `claudio.evals.save.${projectId}.${agent}`;
+
+export function stashSave(store: Store, projectId: string, agent: string, text: string): boolean {
+  try {
+    store.setItem(saveKey(projectId, agent), text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function peekSave(store: Store, projectId: string, agent: string): string | null {
+  try {
+    return store.getItem(saveKey(projectId, agent));
+  } catch {
+    return null;
+  }
+}
+
+export function clearSave(store: Store, projectId: string, agent: string): void {
+  try {
+    store.removeItem(saveKey(projectId, agent));
+  } catch {
+    /* storage unavailable: nothing was kept */
+  }
+}
+
 // ---------- the start dialog ----------
 
 export interface StartForm {
@@ -64,6 +96,8 @@ export interface StartForm {
   skipped: ReadonlySet<string>;
   samples: number | undefined;
   account: string;
+  /** Phase 2: the pressure levels to run; `neutral` alone is the Phase 1 run */
+  pressures: ReadonlySet<EvalPressure>;
 }
 
 export type ProposedState = 'empty' | 'same' | 'different';
@@ -89,7 +123,16 @@ export function startRequest(form: StartForm, def: EvalDefinition, current: stri
     ...(cases.length < def.cases.length ? { cases } : {}),
     ...(form.samples !== undefined && form.samples !== (def.samples ?? EVAL_LIMITS.samples.default) ? { samples: form.samples } : {}),
     ...(form.account ? { account: form.account } : {}),
+    ...(levelsOf(form.pressures).length > 0 && !(form.pressures.size === 1 && form.pressures.has('neutral')) ? { pressures: levelsOf(form.pressures) } : {}),
   };
+}
+
+/** The levels of a set, in the order a person reads them. */
+export const levelsOf = (set: ReadonlySet<EvalPressure>): EvalPressure[] => EVAL_PRESSURES.filter((p) => set.has(p));
+
+/** The levels the file has prompts for; `neutral` always. Only these can be asked of a run. */
+export function levelsAvailable(def: Pick<EvalDefinition, 'cases'>): EvalPressure[] {
+  return EVAL_PRESSURES.filter((level) => level === 'neutral' || def.cases.some((c) => (level === 'supportive' ? c.prompts?.supportive : c.prompts?.competing)));
 }
 
 /** A request without the ceiling, to key an estimate: what the person is yet to confirm is not part of the question. */
@@ -147,7 +190,7 @@ export const runResumable = (run: Pick<EvalRunSummary, 'state' | 'outcome'>): bo
 export function latestTries(samples: readonly EvalSample[]): EvalSample[] {
   const newest = new Map<string, EvalSample>();
   for (const sample of samples) {
-    const key = `${sample.caseId}\u0000${sample.variant}\u0000${sample.attempt}`;
+    const key = `${sample.caseId}\u0000${sample.variant}\u0000${sample.pressure ?? 'neutral'}\u0000${sample.attempt}`;
     const known = newest.get(key);
     if (!known || sample.try > known.try) newest.set(key, sample);
   }
@@ -192,8 +235,8 @@ export function isFlaky(attempts: readonly Pick<EvalSample, 'state' | 'outcome'>
 }
 
 /** A row per case of the file as run, a column per variant of the run. */
-export function runMatrix(run: Pick<EvalRun, 'definition' | 'variants' | 'samples'>): MatrixRow[] {
-  const tries = latestTries(run.samples);
+export function runMatrix(run: Pick<EvalRun, 'definition' | 'variants' | 'samples'>, pressure?: EvalPressure): MatrixRow[] {
+  const tries = latestTries(run.samples).filter((sample) => pressure === undefined || (sample.pressure ?? 'neutral') === pressure);
   return run.definition.cases
     .filter((c) => tries.some((sample) => sample.caseId === c.id))
     .map((c) => ({
@@ -255,7 +298,7 @@ export function sharedVariant(a: { variants: readonly EvalVariant[] }, b: { vari
 
 const score = (run: Pick<EvalRun, 'samples'>, caseId: string, variant: EvalVariant): { passed: number; scored: number } | null => {
   const states = latestTries(run.samples)
-    .filter((sample) => sample.caseId === caseId && sample.variant === variant)
+    .filter((sample) => sample.caseId === caseId && sample.variant === variant && (sample.pressure ?? 'neutral') === 'neutral')
     .map(cellState)
     .filter((state) => state === 'passed' || state === 'failed');
   return states.length === 0 ? null : { passed: states.filter((state) => state === 'passed').length, scored: states.length };
@@ -286,3 +329,111 @@ export function comparisonWarnings(a: EvalRun, b: EvalRun): ComparisonWarning[] 
   if ((a.account ?? '') !== (b.account ?? '')) warnings.push('account');
   return warnings;
 }
+
+// ---------- Phase 2: metrics, trend, gate ----------
+
+/** Wilson 95 % interval around c / n (the same one the server reads); the whole range with no sample. */
+export function wilson(c: number, n: number): { low: number; high: number } {
+  if (n <= 0) return { low: 0, high: 1 };
+  const z2 = 1.96 * 1.96;
+  const p = c / n;
+  const denom = 1 + z2 / n;
+  const centre = (p + z2 / (2 * n)) / denom;
+  const margin = (1.96 * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+  return { low: Math.max(0, centre - margin), high: Math.min(1, centre + margin) };
+}
+
+/** pass@k, at least one of k passes: 1 − C(n−c, k) / C(n, k). */
+export function passAtK(n: number, c: number, k: number): number {
+  if (n - c < k) return 1;
+  let none = 1;
+  for (let i = 0; i < k; i++) none *= (n - c - i) / (n - i);
+  return 1 - none;
+}
+
+/** pass^k, all k pass: C(c, k) / C(n, k). */
+export function passHatK(n: number, c: number, k: number): number {
+  if (c < k) return 0;
+  let all = 1;
+  for (let i = 0; i < k; i++) all *= (c - i) / (n - i);
+  return all;
+}
+
+/** A rate as a percentage, rounded: "62 %". */
+export const percent = (rate: number): string => `${Math.round(rate * 100)} %`;
+
+/**
+ * The cells of a run read as metrics: a case, a variant and a pressure level, over the newest try
+ * of each attempt. Only passed and failed samples count toward n; a judge that failed is counted apart.
+ */
+export function runCells(run: Pick<EvalRun, 'definition' | 'samples'>): EvalCellMetrics[] {
+  const mustHold = new Set(run.definition.cases.filter((c) => c.mustHold).map((c) => c.id));
+  const cells = new Map<string, { caseId: string; variant: EvalVariant; pressure: EvalPressure; outcomes: (EvalSample['outcome'])[] }>();
+  for (const sample of latestTries(run.samples)) {
+    const pressure = sample.pressure ?? 'neutral';
+    const id = `${sample.caseId}\u0000${sample.variant}\u0000${pressure}`;
+    const cell = cells.get(id) ?? { caseId: sample.caseId, variant: sample.variant, pressure, outcomes: [] };
+    cell.outcomes.push(sample.state === 'ended' ? sample.outcome : null);
+    cells.set(id, cell);
+  }
+  return [...cells.values()].map((cell) => {
+    const scored = cell.outcomes.filter((o) => o === 'passed' || o === 'failed');
+    const n = scored.length;
+    const c = scored.filter((o) => o === 'passed').length;
+    const k = Math.min(Math.max(1, Math.floor(run.definition.k ?? EVAL_LIMITS.metricK.default)), n);
+    return {
+      caseId: cell.caseId,
+      variant: cell.variant,
+      pressure: cell.pressure,
+      n,
+      c,
+      k,
+      passAtK: n === 0 ? null : passAtK(n, c, k),
+      passHatK: n === 0 ? null : passHatK(n, c, k),
+      interval: wilson(c, n),
+      unjudged: cell.outcomes.filter((o) => o === 'unjudged').length,
+      mustHold: mustHold.has(cell.caseId),
+    };
+  });
+}
+
+/** Whether the metrics are worth their own section: a version 2 file, another pressure level, or enough samples to read a rate. */
+export const showsMetrics = (run: Pick<EvalRun, 'definition' | 'pressures'>): boolean =>
+  run.definition.version === 2 || run.pressures.some((p) => p !== 'neutral');
+
+/** The supportive rate minus the competing rate: "how much pressure it takes to break the rule". Null unless both were scored. */
+export function pressureDrop(cells: readonly EvalCellMetrics[], caseId: string, variant: EvalVariant): number | null {
+  const rate = (pressure: EvalPressure) => {
+    const cell = cells.find((x) => x.caseId === caseId && x.variant === variant && x.pressure === pressure);
+    return cell && cell.n > 0 ? cell.c / cell.n : null;
+  };
+  const high = rate('supportive');
+  const low = rate('competing');
+  return high === null || low === null ? null : high - low;
+}
+
+export interface TrendPoint {
+  runId: string;
+  at: string;
+  passed: number;
+  of: number;
+  rate: number;
+  interval: { low: number; high: number };
+}
+
+/**
+ * The pass-rate trend of an eval: cases with every scored sample passing, over the cases with one,
+ * per run, oldest first. It reads the variant asked for, else the one a person most likely cares
+ * about. A run that scored nothing is left out rather than drawn as zero.
+ */
+export function trendPoints(runs: readonly EvalRunSummary[], variant: EvalVariant | 'all'): TrendPoint[] {
+  return [...runs]
+    .reverse()
+    .flatMap((run) => {
+      const scored = variant === 'all' ? (run.scored.current ?? run.scored.proposed ?? run.scored.pinned) : run.scored[variant];
+      return scored && scored.of > 0 ? [{ runId: run.id, at: run.createdAt, passed: scored.passed, of: scored.of, rate: scored.passed / scored.of, interval: wilson(scored.passed, scored.of) }] : [];
+    });
+}
+
+/** The proposed text of a run, from its variant info; null when it was not kept (above 256 KiB) or there is none. */
+export const proposedTextOf = (run: Pick<EvalRun, 'variantInfo'>): string | null => run.variantInfo.find((v) => v.variant === 'proposed')?.content ?? null;

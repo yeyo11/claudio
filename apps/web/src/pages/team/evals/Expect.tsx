@@ -1,10 +1,12 @@
 import { Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { EVAL_LIMITS } from '@claudio/shared';
 import { Combobox, Select, Switch } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import {
   blankExpect,
   EXPECTATION_KIND_LIST,
+  EXPECTATION_KIND_LIST_V2,
   KNOWN_TOOLS,
   type CallForm,
   type ExpectForm,
@@ -108,12 +110,15 @@ export function ExpectRow({
   onRemove,
   errors,
   index,
+  phase2 = false,
 }: {
   value: ExpectForm;
   onChange: (next: ExpectForm) => void;
   onRemove: () => void;
   errors: string[];
   index: number;
+  /** Offers the judged expectation; a file that already has one always shows it */
+  phase2?: boolean;
 }) {
   const { t } = useTranslation('evals');
   const set = (patch: Partial<ExpectForm>) => onChange({ ...value, ...patch });
@@ -125,7 +130,7 @@ export function ExpectRow({
           value={value.kind}
           // Switching the kind keeps what the person typed for the others: a slip is undone by switching back
           onChange={(kind) => onChange({ ...value, kind })}
-          options={EXPECTATION_KIND_LIST.map((kind) => ({ value: kind, label: t(`expect.kind.${kind}`), hint: t(`expect.hint.${kind}`) }))}
+          options={(phase2 || value.kind === 'judged' ? EXPECTATION_KIND_LIST_V2 : EXPECTATION_KIND_LIST).map((kind) => ({ value: kind, label: t(`expect.kind.${kind}`), hint: t(`expect.hint.${kind}`) }))}
           aria-label={t('expect.kindLabel', { n: index + 1 })}
           className="evals-expect-kind"
         />
@@ -234,6 +239,27 @@ export function ExpectRow({
                 <input className="mono" inputMode="numeric" value={value.timeoutSeconds} onChange={(event) => set({ timeoutSeconds: event.target.value })} />
               </label>
             </div>
+          </>
+        )}
+        {value.kind === 'judged' && (
+          <>
+            <label className="field">
+              <span className="field-label">{t('expect.statement')}</span>
+              <textarea
+                rows={2}
+                className={invalid ? 'is-invalid' : ''}
+                value={value.statement}
+                maxLength={EVAL_LIMITS.judgeStatementChars.max}
+                onChange={(event) => set({ statement: event.target.value })}
+                aria-label={t('expect.statement')}
+              />
+              <span className="field-hint">{t('expect.statementHint')}</span>
+            </label>
+            <label className="field">
+              <span className="field-label">{t('expect.judgeModel')}</span>
+              <input className="mono" value={value.judgeModel} onChange={(event) => set({ judgeModel: event.target.value })} placeholder="haiku" spellCheck={false} />
+            </label>
+            {value.examples && <span className="field-hint mono">{t('expect.examplesKept', { count: value.examples.length })}</span>}
           </>
         )}
         {errors.map((error) => (

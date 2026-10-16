@@ -40,6 +40,7 @@ const DEF: EvalDefinition = {
 const s = (id: number, over: Partial<EvalSample>): EvalSample => ({
   id: `s${id}`,
   runId: 'r',
+  pressure: 'neutral',
   caseId: 'a',
   variant: 'current',
   attempt: 1,
@@ -84,15 +85,15 @@ test('a proposal identical to the current file keeps one variant; an empty one i
   assert.equal(proposedState('', 'a'), 'empty');
   assert.equal(proposedState('a', 'a'), 'same');
   assert.equal(proposedState('b', 'a'), 'different');
-  const form = { variants: new Set(['current', 'proposed'] as const), proposed: 'a', skipped: new Set<string>(), samples: undefined, account: '' };
+  const form = { variants: new Set(['current', 'proposed'] as const), proposed: 'a', skipped: new Set<string>(), samples: undefined, account: '', pressures: new Set(['neutral'] as const) };
   assert.deepEqual(startRequest(form, DEF, 'a', 3).variants, ['current']);
   assert.equal(startRequest(form, DEF, 'a', 3).proposed, undefined);
 });
 
 test('the request repeats the ceiling and sends a case subset, samples and account only when they differ', () => {
-  const form = { variants: new Set(['pinned', 'proposed'] as const), proposed: 'new', skipped: new Set(['b']), samples: 3, account: 'acc' };
+  const form = { variants: new Set(['pinned', 'proposed'] as const), proposed: 'new', skipped: new Set(['b']), samples: 3, account: 'acc', pressures: new Set(['neutral'] as const) };
   assert.deepEqual(startRequest(form, DEF, 'old', 4.5), { variants: ['pinned', 'proposed'], confirmMaxCostUsd: 4.5, proposed: 'new', cases: ['a'], samples: 3, account: 'acc' });
-  const plain = { variants: new Set(['pinned'] as const), proposed: '', skipped: new Set<string>(), samples: 2, account: '' };
+  const plain = { variants: new Set(['pinned'] as const), proposed: '', skipped: new Set<string>(), samples: 2, account: '', pressures: new Set(['neutral'] as const) };
   assert.deepEqual(startRequest(plain, DEF, null, 1), { variants: ['pinned'], confirmMaxCostUsd: 1 });
   assert.equal(canStart({ variants: [], confirmMaxCostUsd: 0 }), false);
   assert.equal(canStart({ variants: ['pinned'], cases: [], confirmMaxCostUsd: 0 }), false);

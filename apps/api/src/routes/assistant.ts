@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { assistantLanguage, type Core } from '@claudio/core';
 import type { AcceptAssistantProposalRequest, StartClaudioAssistantChatRequest, StartAssistantRunRequest } from '@claudio/shared';
 import { chatWriteContext } from './work-items.ts';
-import { spendGate } from './spend.ts';
+import { fromChat, spendGate } from './spend.ts';
 
 /**
  * The project assistant: read-only runs through the CLI that propose a team, resources and work
@@ -11,6 +11,11 @@ import { spendGate } from './spend.ts';
  */
 export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.post<{ Params: { id: string }; Body: StartAssistantRunRequest }>('/projects/:id/assistant/runs', { preHandler: spendGate(core) }, async (req, reply) => {
+    // Drafting eval cases is Phase 2 and a person's call, as `POST /projects/:id/evals/:name/draft-cases`
+    if (req.body?.kind === 'evals') {
+      if (fromChat(req)) return reply.code(403).send({ error: "a chat's token cannot draft eval cases" });
+      if (!core.appSettings.evalsPhase2) return reply.code(409).send({ error: "the instruction evals' Phase 2 is off: turn on evalsPhase2 in the app settings", code: 'evals-phase2-off' });
+    }
     // The chat's title is written in the language the person reads Claudio in, which the web sends
     const run = await core.assistant.start(req.params.id, req.body ?? {}, assistantLanguage(req.headers['accept-language']));
     return reply.code(201).send(run);

@@ -8,6 +8,8 @@ import {
   type EvalDefinition,
   type EvalExpectation,
   type EvalExpectationKind,
+  type EvalJudgeExample,
+  type EvalPressure,
   type EvalFileListItem,
   type EvalRunSummary,
   type EvalStringMatcher,
@@ -61,17 +63,27 @@ export interface ExpectForm {
   run: string;
   exitCode: string;
   timeoutSeconds: string;
+  /** Judged: the statement a model checks, the judge's model, and the calibration examples (edited in the JSON view) */
+  statement: string;
+  judgeModel: string;
+  examples: EvalJudgeExample[] | null;
 }
 
 export interface CaseForm {
   id: string;
   title: string;
   prompt: string;
+  /** Phase 2: the other two pressure levels; `prompt` is the neutral one */
+  promptSupportive: string;
+  promptCompeting: string;
+  mustHold: boolean;
   pin: string;
   expect: ExpectForm[];
 }
 
 export interface EvalForm {
+  /** Kept so a version 2 file stays one; a version 1 file becomes 2 only when a v2 field is used */
+  version: 1 | 2;
   title: string;
   targetKind: EvalTargetKind;
   targetScope: 'project' | 'user';
@@ -82,6 +94,7 @@ export interface EvalForm {
   runAsEffort: '' | Effort;
   pin: string;
   samples: string;
+  k: string;
   maxCostUsdPerSample: string;
   timeoutMinutes: string;
   maxCostUsd: string;
@@ -95,6 +108,11 @@ export interface EvalForm {
 export const KNOWN_TOOLS = ['Read', 'Edit', 'MultiEdit', 'Write', 'Bash', 'Glob', 'Grep', 'Task', 'Skill', 'WebFetch', 'WebSearch', 'NotebookEdit', 'TodoWrite', 'mcp__*'] as const;
 
 export const EXPECTATION_KIND_LIST: readonly EvalExpectationKind[] = ['called', 'not-called', 'before', 'after', 'sequence', 'text', 'file', 'touched', 'command'];
+
+/** Phase 2 adds the judged expectation, offered only while its switch is on (a file that has one always shows it). */
+export const EXPECTATION_KIND_LIST_V2: readonly EvalExpectationKind[] = [...EXPECTATION_KIND_LIST, 'judged'];
+
+export const PRESSURE_LIST: readonly EvalPressure[] = ['supportive', 'neutral', 'competing'];
 
 // ---------- matchers ----------
 
@@ -175,6 +193,9 @@ export function blankExpect(kind: EvalExpectationKind = 'called'): ExpectForm {
     run: '',
     exitCode: '',
     timeoutSeconds: '',
+    statement: '',
+    judgeModel: '',
+    examples: null,
   };
 }
 
@@ -215,6 +236,11 @@ export function expectForm(e: EvalExpectation): ExpectForm {
       form.run = e.run;
       form.exitCode = e.exitCode === undefined ? '' : String(e.exitCode);
       form.timeoutSeconds = e.timeoutSeconds === undefined ? '' : String(e.timeoutSeconds);
+      break;
+    case 'judged':
+      form.statement = e.statement;
+      form.judgeModel = e.model ?? '';
+      form.examples = e.examples ?? null;
       break;
   }
   return form;
@@ -259,20 +285,51 @@ export function expectationOf(form: ExpectForm): EvalExpectation {
       const timeoutSeconds = numberOf(form.timeoutSeconds);
       return { kind: 'command', run: form.run, ...(exitCode !== undefined ? { exitCode } : {}), ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}) };
     }
+    case 'judged':
+      return { kind: 'judged', statement: form.statement, ...(form.judgeModel ? { model: form.judgeModel } : {}), ...(form.examples && form.examples.length > 0 ? { examples: form.examples } : {}) };
   }
 }
 
 // ---------- the file ----------
 
 export function caseForm(c: EvalCase): CaseForm {
-  return { id: c.id, title: c.title ?? '', prompt: c.prompt, pin: c.pin ?? '', expect: c.expect.map(expectForm) };
+  return {
+    id: c.id,
+    title: c.title ?? '',
+    prompt: c.prompts?.neutral ?? c.prompt,
+    promptSupportive: c.prompts?.supportive ?? '',
+    promptCompeting: c.prompts?.competing ?? '',
+    mustHold: c.mustHold === true,
+    pin: c.pin ?? '',
+    expect: c.expect.map(expectForm),
+  };
 }
+
+/** The pressure levels a case writes a prompt for. `neutral` is always one. */
+export const pressuresOf = (c: Pick<CaseForm, 'promptSupportive' | 'promptCompeting'>): EvalPressure[] => [
+  ...(c.promptSupportive.trim() ? (['supportive'] as const) : []),
+  'neutral',
+  ...(c.promptCompeting.trim() ? (['competing'] as const) : []),
+];
+
+/** Whether a case uses a field only a version 2 file may carry. */
+export const caseIsV2 = (c: CaseForm): boolean => c.promptSupportive.trim() !== '' || c.promptCompeting.trim() !== '' || c.mustHold || c.expect.some((e) => e.kind === 'judged');
 
 export function caseOf(form: CaseForm): EvalCase {
   return {
     id: form.id,
     ...(form.title ? { title: form.title } : {}),
     prompt: form.prompt,
+    ...(form.promptSupportive.trim() || form.promptCompeting.trim()
+      ? {
+          prompts: {
+            ...(form.promptSupportive.trim() ? { supportive: form.promptSupportive } : {}),
+            neutral: form.prompt,
+            ...(form.promptCompeting.trim() ? { competing: form.promptCompeting } : {}),
+          },
+        }
+      : {}),
+    ...(form.mustHold ? { mustHold: true } : {}),
     ...(form.pin ? { pin: form.pin } : {}),
     expect: form.expect.map(expectationOf),
   };
@@ -281,6 +338,7 @@ export function caseOf(form: CaseForm): EvalCase {
 export function formFromDefinition(def: EvalDefinition): EvalForm {
   const text = (n: number | undefined) => (n === undefined ? '' : String(n));
   return {
+    version: def.version,
     title: def.title,
     targetKind: def.target.kind,
     targetScope: def.target.scope,
@@ -291,6 +349,7 @@ export function formFromDefinition(def: EvalDefinition): EvalForm {
     runAsEffort: def.runAs?.effort ?? '',
     pin: def.pin,
     samples: text(def.samples),
+    k: text(def.k),
     maxCostUsdPerSample: text(def.limits?.maxCostUsdPerSample),
     timeoutMinutes: text(def.limits?.timeoutMinutes),
     maxCostUsd: text(def.limits?.maxCostUsd),
@@ -316,13 +375,16 @@ export function definitionFromForm(form: EvalForm): EvalDefinition {
     ...(total !== undefined ? { maxCostUsd: total } : {}),
   };
   const samples = numberOf(form.samples);
+  const k = numberOf(form.k);
+  const v2 = form.version === 2 || k !== undefined || (samples !== undefined && samples > EVAL_LIMITS.samples.max) || form.cases.some(caseIsV2);
   return {
-    version: 1,
+    version: v2 ? 2 : 1,
     title: form.title,
     target: { kind: form.targetKind, scope: form.targetScope, name: form.targetName },
     ...(Object.keys(runAs).length > 0 ? { runAs } : {}),
     pin: form.pin,
     ...(samples !== undefined ? { samples } : {}),
+    ...(k !== undefined ? { k } : {}),
     ...(Object.keys(limits).length > 0 ? { limits } : {}),
     ...(form.policy ? { policy: form.policy } : {}),
     ...(form.setup.trim() ? { setup: form.setup } : {}),
@@ -484,3 +546,37 @@ export function targetPath(target: EvalDefinition['target']): string {
       return target.scope === 'user' ? `~/.claude/${target.name}` : target.name;
   }
 }
+
+// ---------- drafted cases ----------
+
+const matcherGist = (m: EvalStringMatcher): string => (typeof m === 'string' ? m : 'equals' in m ? m.equals : 'contains' in m ? m.contains : `/${m.regex}/${m.flags ?? ''}`);
+
+const callGist = (c: EvalCallMatcher): string =>
+  [Array.isArray(c.tool) ? c.tool.join('|') : c.tool, c.command ? matcherGist(c.command) : undefined, c.path ? matcherGist(c.path) : undefined].filter(Boolean).join(' ');
+
+/** One expectation in a line, as a drafted case lists it: what is asked, never how it is stored. */
+export function expectGist(e: EvalExpectation): string {
+  switch (e.kind) {
+    case 'called':
+    case 'not-called':
+      return callGist(e.call);
+    case 'before':
+    case 'after':
+      return `${callGist(e.call)} ↔ ${callGist(e.anchor)}`;
+    case 'sequence':
+      return e.calls.map(callGist).join(' → ');
+    case 'text':
+      return matcherGist(e.match);
+    case 'file':
+      return e.path;
+    case 'touched':
+      return matcherGist(e.path);
+    case 'command':
+      return e.run;
+    case 'judged':
+      return e.statement;
+  }
+}
+
+/** The commands a case would run: accepting a case that has one changes the file's SHA, so consent is asked again. */
+export const commandsOfCase = (c: Pick<EvalCase, 'expect'>): string[] => c.expect.flatMap((e) => (e.kind === 'command' ? [e.run] : []));

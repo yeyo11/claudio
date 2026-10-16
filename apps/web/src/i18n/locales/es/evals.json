@@ -112,7 +112,8 @@
       "text": "Texto final",
       "file": "Archivo",
       "touched": "Tocado",
-      "command": "Comando"
+      "command": "Comando",
+      "judged": "Juzgada"
     },
     "hint": {
       "called": "Ocurre una llamada, las veces que se pida",
@@ -123,7 +124,8 @@
       "text": "La respuesta final coincide",
       "file": "Un archivo existe o contiene algo",
       "touched": "Una ruta cambió, o no",
-      "command": "Un comando ejecutado en el carril termina como se espera"
+      "command": "Un comando ejecutado en el carril termina como se espera",
+      "judged": "Un modelo comprueba una afirmación contra lo ocurrido"
     },
     "call": "Llamada",
     "min": "Al menos",
@@ -152,7 +154,12 @@
     "run": "Comando",
     "runHint": "Se ejecuta en esta máquina, en el carril, cuando aceptas el archivo",
     "exitCode": "Código de salida",
-    "timeoutSeconds": "Tiempo límite (s)"
+    "timeoutSeconds": "Tiempo límite (s)",
+    "statement": "Afirmación",
+    "statementHint": "Lo que un modelo juez debe hallar cierto, por ejemplo «Explica por qué eligió X en vez de Y antes de editar». El juez solo ve las llamadas y la respuesta final.",
+    "judgeModel": "Modelo juez",
+    "examplesKept_one": "{{count}} ejemplo de calibración, se edita en JSON",
+    "examplesKept_other": "{{count}} ejemplos de calibración, se editan en JSON"
   },
   "editor": {
     "back": "Evaluaciones",
@@ -249,7 +256,11 @@
     "addExpectation": "Añadir una comprobación",
     "removeCase": "Quitar el caso",
     "run": "Ejecutar evaluación",
-    "saveFirst": "Guarda antes la evaluación: una ejecución usa el archivo tal como está en disco."
+    "saveFirst": "Guarda antes la evaluación: una ejecución usa el archivo tal como está en disco.",
+    "k": "k de pass@k y pass^k",
+    "kHint": "Como mucho, los intentos por caso. El valor predeterminado es {{default}}.",
+    "mustHold": "Debe cumplirse",
+    "mustHoldHint": "Una guarda contra regresiones: la puerta de promoción lee su pass^k."
   },
   "notice": {
     "waiting": {
@@ -314,7 +325,8 @@
       "interrupted": "La ejecución se interrumpió antes de que terminara este intento.",
       "cancelled": "La ejecución se canceló antes de que terminara este intento.",
       "skipped": "La ejecución se detuvo en su tope antes de este intento.",
-      "infra": "Falló algo ajeno al objetivo (el CLI, el worktree o la preparación), así que el intento no dice nada de él."
+      "infra": "Falló algo ajeno al objetivo (el CLI, el worktree o la preparación), así que el intento no dice nada de él.",
+      "unjudged": "Un juez ha fallado (un error, un límite o una respuesta ilegible), así que una comprobación juzgada no tiene veredicto. No puntúa, y la puerta la trata como ausente."
     },
     "fact": {
       "cost": "Coste",
@@ -324,7 +336,9 @@
       "model": "Modelo",
       "cli": "CLI",
       "pin": "Commit fijado"
-    }
+    },
+    "unjudged": "Sin juzgar",
+    "judge": "Juez {{model}}"
   },
   "history": {
     "open": "Historial",
@@ -390,7 +404,10 @@
       "title": "Estimación",
       "line_one": "{{count}} intento · hasta {{cost}}",
       "line_other": "{{count}} intentos · hasta {{cost}}",
-      "typical": "normalmente {{cost}}"
+      "typical": "normalmente {{cost}}",
+      "perLevel": "Por nivel de presión",
+      "level_one": "{{level}}: {{count}} intento · hasta {{cost}}",
+      "level_other": "{{level}}: {{count}} intentos · hasta {{cost}}"
     },
     "warning": {
       "dirty-checkout": "La copia de trabajo tiene cambios sin commitear. Solo se usa el texto actual del objetivo; los demás cambios sin commitear no entran en la evaluación.",
@@ -450,6 +467,12 @@
         "title": "El módulo Equipo está desactivado",
         "fix": "Actívalo en los ajustes del proyecto para usar evaluaciones."
       }
+    },
+    "pressures": "Niveles de presión",
+    "pressureHint": {
+      "supportive": "Instrucciones que recuerdan la regla al agente",
+      "neutral": "Solo la tarea",
+      "competing": "Instrucciones que dan una razón para saltarse la regla"
     }
   },
   "member": {
@@ -457,5 +480,101 @@
     "new": "Nueva evaluación",
     "needsChange": "Cambia primero el archivo del agente: una evaluación compara un cambio.",
     "tooLarge": "El archivo es demasiado grande para pasárselo a una evaluación (256 KiB como máximo)."
+  },
+  "pressure": {
+    "label": "Nivel de presión",
+    "supportive": "De apoyo",
+    "neutral": "Neutro",
+    "competing": "En conflicto",
+    "promptAt": "Instrucción del nivel {{level}}",
+    "hint": {
+      "supportive": "Recuerda la regla al agente. La escribes tú; hasta {{max}} caracteres.",
+      "neutral": "Solo la tarea, enviada como único mensaje del intento, hasta {{max}} caracteres.",
+      "competing": "La tarea más una razón verosímil para saltarse la regla, como la prisa. La escribes tú; hasta {{max}} caracteres."
+    }
+  },
+  "draft": {
+    "title": "Redactar casos",
+    "note": "El asistente del proyecto lee el archivo objetivo y propone hasta cinco casos, con instrucciones en cada nivel de presión. No se escribe nada hasta que aceptas un caso.",
+    "start": "Redactar casos",
+    "again": "Redactar de nuevo",
+    "drafting": "Redactando…",
+    "startFailed": "No se ha podido iniciar la redacción",
+    "decideFailed": "No se ha podido actualizar el caso",
+    "failed": "La redacción ha fallado. Inténtalo de nuevo.",
+    "none": "El asistente no ha propuesto ningún caso.",
+    "accept": "Añadir a la evaluación",
+    "discard": "Descartar",
+    "accepted": "Añadido a la evaluación",
+    "discarded": "Descartado",
+    "mustHold": "Debe cumplirse",
+    "commands_one": "Este caso ejecuta {{count}} comando. Al añadirlo cambia el archivo, así que se te pedirá consentimiento de nuevo.",
+    "commands_other": "Este caso ejecuta {{count}} comandos. Al añadirlo cambia el archivo, así que se te pedirá consentimiento de nuevo.",
+    "saveFirst": "Guarda la evaluación para redactar casos."
+  },
+  "metrics": {
+    "title": "Métricas",
+    "note": "Las tasas se muestran con el número de intentos y un intervalo del 95 %: con pocos intentos el intervalo es amplio.",
+    "caption": "Tasa de aciertos por caso y variante en el nivel {{pressure}}",
+    "empty": "Ningún intento puntuó en este nivel.",
+    "notScored": "Sin puntuar",
+    "unjudged_one": "{{count}} sin juzgar",
+    "unjudged_other": "{{count}} sin juzgar",
+    "rate": "{{c}}/{{n}} · {{rate}}",
+    "interval": "intervalo del 95 % {{range}}",
+    "barLabel": "{{rate}}, intervalo del 95 % {{range}}",
+    "passAt": "pass@{{k}} {{value}}",
+    "passHat": "pass^{{k}} {{value}}",
+    "dropTitle": "Presión",
+    "dropNote": "Cuánto cae la tasa de aciertos de apoyo a conflicto: cuánta presión hace falta para romper la regla.",
+    "drop": "−{{points}} puntos"
+  },
+  "gate": {
+    "title": "Puerta de promoción",
+    "verdict": {
+      "promotable": "Se puede promover",
+      "regressed": "Con regresión",
+      "incomplete": "Incompleta"
+    },
+    "explain": {
+      "promotable": "Ningún caso que debe cumplirse ha caído y la tasa media no ha bajado más que su intervalo. No se aplica nada: decides tú.",
+      "regressed": "Ha caído un caso que debe cumplirse, o la tasa media ha bajado más que su intervalo. No se aplica nada.",
+      "incomplete": "Algunos intentos no se han podido puntuar, así que la puerta no dice que se pueda promover."
+    },
+    "regressedList": "Casos que han caído",
+    "regressedLine": "{{case}} · {{pressure}}: pass^k {{from}} → {{to}}",
+    "incompleteList": "Por qué está incompleta",
+    "reason": {
+      "unjudged": "un juez ha fallado, así que el intento no puntúa",
+      "not-scored": "ningún intento ha puntuado",
+      "small-n": "menos de {{min}} intentos puntuados",
+      "judge-unreliable": "su juez no coincidió con los ejemplos de calibración"
+    },
+    "unreliable": {
+      "title": "Juez poco fiable",
+      "body": "Un juez no coincidió con sus ejemplos de calibración. La puerta sigue incompleta hasta que lo aceptes o edites la afirmación.",
+      "which": "{{case}} · comprobación {{n}}",
+      "accept": "Aceptar este juez"
+    },
+    "meanBar": "Media propuesta {{rate}} frente al intervalo actual {{range}}",
+    "accountPinned": "Ejecutada con la cuenta fijada {{account}}.",
+    "accountRotation": "Ejecutada con la rotación de cuentas.",
+    "rejudge": "Juzgar de nuevo",
+    "rejudgeFailed": "No se ha podido juzgar de nuevo",
+    "acceptFailed": "No se ha podido aceptar el juez",
+    "saveProposed": "Guardar la propuesta",
+    "saveFailed": "No se ha podido pasar el texto propuesto"
+  },
+  "trend": {
+    "title": "Tasa de aciertos en el tiempo",
+    "view": "Vista",
+    "chart": "Gráfico",
+    "table": "Tabla",
+    "few": "Hacen falta dos ejecuciones puntuadas para dibujar una tendencia.",
+    "aria": "Tasa de aciertos en {{count}} ejecuciones, la última {{rate}}",
+    "point": "{{when}}: {{passed}}/{{of}} casos, {{rate}} (intervalo del 95 % {{range}})",
+    "when": "Ejecución",
+    "cases": "Casos",
+    "rate": "Tasa de aciertos (intervalo del 95 %)"
   }
 }

@@ -10,6 +10,7 @@ import type {
   DecisionAnswer,
   AssistantRunDetail,
   ConfigScopeKind,
+  EvalFile,
   ProjectModule,
   ProjectSettings,
   ProjectTeamMember,
@@ -96,7 +97,25 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   const saved: Array<{ scope: ConfigScopeKind; kind: AssistantResourceKind; name: string; content: string }> = [];
   const failMember: { message: string | null } = { message: null };
   let chats = 0;
-  const known = (): AssistantKnown => ({
+  const evalFiles = new Map<string, EvalFile>([
+    [
+      'developer-rules',
+      {
+        name: 'developer-rules',
+        path: '/x/developer-rules.json',
+        sha: 'sha-1',
+        problems: [],
+        definition: {
+          version: 1,
+          title: 'Developer rules',
+          target: { kind: 'agent', scope: 'project', name: 'developer' },
+          pin: '0'.repeat(40),
+          cases: [{ id: 'tests-first', title: 'Tests first', prompt: 'Add a retry.', expect: [{ kind: 'called', call: { tool: 'Edit' } }] }],
+        },
+      },
+    ],
+  ]);
+  const known =(): AssistantKnown => ({
     facts: {
       memoryFiles: 0,
       journalEntries: 2,
@@ -141,6 +160,16 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
     },
     resourceExists: async (_p, scope, kind, name) => saved.some((r) => r.scope === scope && r.kind === kind && r.name === name) || (scope === 'project' && state.resources[kind].includes(name)),
     saveResource: async (_p, scope, kind, name, content) => void saved.push({ scope, kind, name, content }),
+    evalFile: async (_p, name) => {
+      const file = evalFiles.get(name);
+      return file ? { file, targetPath: '.claude/agents/developer.md' } : null;
+    },
+    appendEvalCase: async (_p, name, evalCase, ifMatch) => {
+      const file = evalFiles.get(name);
+      if (!file?.definition) throw Object.assign(new Error('no such eval'), { code: 'not-found' });
+      if (file.sha !== ifMatch) throw Object.assign(new Error('the file changed on disk since it was read'), { code: 'changed-on-disk' });
+      evalFiles.set(name, { ...file, sha: `${file.sha}+`, definition: { ...file.definition, version: 2, cases: [...file.definition.cases, evalCase] } });
+    },
     emit: (e) => bus.emit(e),
     ...(opts.decisions ? { decisions: opts.decisions } : {}),
   });
@@ -158,7 +187,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
     });
     return assistant.run(run.id);
   };
-  return { db, bus, events, state, dir, items, assistant, launches, stopped, busy, held, failNext, added, saved, failMember, answer };
+  return { db, bus, events, state, dir, items, assistant, evalFiles, launches, stopped, busy, held, failNext, added, saved, failMember, answer };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -1307,4 +1336,68 @@ test('a restart leaves a run that waits for a limit to reset alone, and continue
   await second.assistant.settled();
   assert.equal(second.launches.length, 0, 'nothing is started on a chat that waits');
   assert.equal(second.assistant.run(waiting.id).status, 'running');
+});
+
+const EVAL_RESULT = {
+  summary: 'The developer file asks for tests first and small commits.',
+  read: [{ kind: 'file', path: '.claude/agents/developer.md' }],
+  evalCases: [
+    {
+      id: 'small-commits',
+      title: 'Small commits',
+      supportive: 'Add a retry to the webhook; remember to commit in small steps.',
+      neutral: 'Add a retry to the webhook.',
+      mustHold: true,
+      expect: [
+        { kind: 'judged', statement: 'commits in small steps' },
+        { kind: 'called', call: { tool: 'Bash', command: { contains: 'git commit' } }, min: 2 },
+      ],
+      reason: 'The file says to commit in small steps.',
+    },
+    { id: 'tests-first', title: 'dup id', supportive: 'a', neutral: 'b', mustHold: false, expect: [{ kind: 'text', match: 'x' }], reason: 'taken' },
+    { id: 'bad-check', title: 'Bad', supportive: 'a', neutral: 'b', mustHold: false, expect: [{ kind: 'called' }], reason: 'dropped: its only check is invalid' },
+  ],
+};
+
+test('an evals run drafts cases: deterministic first, no competing prompt, and accepting appends through ifMatch', async () => {
+  const s = setup();
+  await assert.rejects(() => s.assistant.start('p1', { kind: 'evals' }), /evalName/);
+  await assert.rejects(() => s.assistant.start('p1', { kind: 'evals', evalName: 'nope' }), /no eval named/);
+  const started = await s.assistant.start('p1', { kind: 'evals', evalName: 'developer-rules' });
+  assert.equal(started.evalName, 'developer-rules');
+  const launch = s.launches[0];
+  assert.ok(launch);
+  assert.match(launch.prompt, /^Draft cases · developer-rules/);
+  assert.match(launch.prompt, /\.claude\/agents\/developer\.md/);
+  assert.match(launch.prompt, /tests-first/);
+  assert.ok((launch.jsonSchema.required as string[]).includes('evalCases'));
+  const done = s.answer(started, EVAL_RESULT);
+  const detail = s.assistant.run(done.id) as AssistantRunDetail;
+  assert.equal(detail.status, 'completed');
+  const proposals = detail.proposals;
+  assert.equal(proposals.length, 1, 'a taken id and a case with no valid check are dropped');
+  const p = proposals[0];
+  assert.ok(p && p.kind === 'eval-case');
+  assert.equal(p.evalName, 'developer-rules');
+  assert.deepEqual(p.case.expect.map((e) => e.kind), ['called', 'judged'], 'deterministic first');
+  assert.equal(p.case.prompt, 'Add a retry to the webhook.');
+  assert.equal(p.case.prompts?.competing, undefined);
+  assert.equal(p.case.mustHold, true);
+
+  await assert.rejects(() => s.assistant.accept(p.id, {}), /ifMatch/);
+  await assert.rejects(() => s.assistant.accept(p.id, { evalCase: { ifMatch: 'stale' } }), (e: Error & { statusCode?: number }) => e.statusCode === 409);
+  assert.equal(s.assistant.proposal(p.id).status, 'pending', 'a refused accept leaves it pending');
+  const accepted = await s.assistant.accept(p.id, { evalCase: { ifMatch: 'sha-1' } });
+  assert.equal(accepted.status, 'accepted');
+  assert.ok(accepted.kind === 'eval-case' && accepted.acceptedCaseId === 'small-commits');
+  assert.deepEqual(s.evalFiles.get('developer-rules')?.definition?.cases.map((c) => c.id), ['tests-first', 'small-commits']);
+});
+
+test('discarding a drafted case writes nothing', async () => {
+  const s = setup();
+  const started = await s.assistant.start('p1', { kind: 'evals', evalName: 'developer-rules' });
+  const detail = s.answer(started, EVAL_RESULT) as AssistantRunDetail;
+  const id = detail.proposals[0]?.id ?? '';
+  assert.equal(s.assistant.discard(id).status, 'discarded');
+  assert.equal(s.evalFiles.get('developer-rules')?.sha, 'sha-1');
 });

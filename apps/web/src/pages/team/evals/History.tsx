@@ -9,7 +9,8 @@ import { formatCost, timeAgo } from '@claudio/ui/lib/format';
 import { useEvalHistory, useEvalRun } from '../../../api';
 import { RunTag } from './List';
 import { casesScored, runWord } from './model';
-import { compareRuns, comparisonWarnings, sharedVariant } from './run-model';
+import { compareRuns, comparisonWarnings, sharedVariant, trendPoints } from './run-model';
+import { PassTrend } from './Trend';
 
 type Filter = EvalVariant | 'all';
 
@@ -182,6 +183,11 @@ export function EvalHistory({ projectId, name, onBack, onOpenRun }: { projectId:
       </div>
       {picking && <p className="field-hint">{t('history.pickTwo', { count: picked.length })}</p>}
       {comparing && <ComparePanel ids={comparing} onClose={() => setComparing(null)} />}
+      {history.data && runs.length > 0 && (
+        <section className="card evals-section" aria-label={t('trend.title')}>
+          <PassTrend points={trendPoints(runs, filter)} />
+        </section>
+      )}
       <section className="card evals-list-card">{body}</section>
       {history.hasNextPage && (
         <div className="list-more">

@@ -121,7 +121,7 @@ test('the newest run is a word with an icon, "n/m cases", when and cost', () => 
     client.setQueryData(keys.evals('p'), [
       file('good', {
         latestRun: {
-          id: 'r', projectId: 'p', evalName: 'good', definitionSha: 'x', variants: ['current'], samplesPerCase: 2, account: null, state: 'ended', outcome: 'completed', reason: null,
+          id: 'r', projectId: 'p', evalName: 'good', definitionSha: 'x', variants: ['current'], samplesPerCase: 2, pressures: ['neutral'], account: null, state: 'ended', outcome: 'completed', reason: null,
           resetsAt: null, maxCostUsd: 1, costUsd: 0.42, counts: { passed: 1, failed: 1 }, scored: { current: { passed: 1, of: 2 } },
           createdAt: '2026-10-16T10:00:00Z', startedAt: '2026-10-16T10:00:00Z', endedAt: '2026-10-16T10:05:00Z',
         },
