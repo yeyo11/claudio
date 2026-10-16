@@ -1755,6 +1755,26 @@ Claudio. Methods: Código, Clave. Waiting: "Esperando a que lo apruebes", "caduc
 step, "Omitido" on a summary line. The `en` source follows the same structure ("Back", "Skip", "Continue", "Sign in",
 "Code", "Key", "Waiting for you to approve").
 
+### Guards: the Settings card and its locked rule
+
+Settings → Security → Guards (`GuardsCard`, `?tab=security#guards`) sits after the app-settings cards and before the audit
+log. A `Card` with the status `Tag` (shield icon and a word: ok "activas", warn "observando", bad "no disponibles") and,
+under the intro, one `.guard-status` line in the same colour. Then, in this order: the `Switch` of the automated runs, the
+rule list, the `Switch` of "Solo observar" with a warn hint, the protected-files textarea (only while `protect-configs` is
+on, with "Restaurar valores predeterminados"), "Probar un comando" and "Bloqueos recientes". There is no illustration: the
+card sits beside other content.
+
+- `.guard-rules` is one bordered list; each `.guard-rule` holds a `Switch` with the rule's name, its id in mono on the right,
+  and a one-line description under it.
+- **The locked rule** (`.guard-rule.is-locked`, `integrity`): a lock icon, the name and a neutral `Tag` "Siempre activa"
+  instead of a `Switch`. It is a word, so a screen reader announces it without a control.
+- "Probar un comando" is a `Select` (Bash, Write, Edit), a mono input at 16 px on a phone and the primary "Probar". Its
+  `.guard-result` is an `aria-live="polite"` region: ok `Tag` "Pasa", or warn `Tag` "Se bloquearía" with the rule in mono and
+  the reason.
+- `.guard-event` rows (time in mono and tabular, rule, outcome `Tag`, excerpt, link to the chat) wrap on a phone and never
+  scroll sideways. A block is warn; `missing`, `unarmed` and `error` are bad; `observed` and `allowed-once` are neutral.
+- Nothing moves: a block is not a live state.
+
 ### Terminal: the person's own shell
 
 The terminal ([plans/terminal.md](plans/terminal.md), §4) is the person's own shell, not an agent working. The

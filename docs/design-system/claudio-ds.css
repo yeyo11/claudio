@@ -2447,3 +2447,14 @@ a.cont-from:hover { color: var(--fg); }
 .chat-launch-facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-launch-open { flex: none; }
 /* ---------- end of Tool rows and live branches ---------- */
+/* ---------- Guards: the Settings card ---------- */
+.guard-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; }
+.guard-status.is-ok { color: var(--ok); } .guard-status.is-warn { color: var(--warn); } .guard-status.is-bad { color: var(--bad); }
+.guard-rules { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.guard-rule { padding: 10px 12px; } .guard-rule + .guard-rule { border-top: 1px solid var(--line); }
+.guard-rule-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.guard-rule-locked { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--fg-2); }
+.guard-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 24px; }
+.guard-event { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 0; min-width: 0; font-variant-numeric: tabular-nums; }
+.guard-event + .guard-event { border-top: 1px solid var(--line); }
+/* ---------- end of Guards: the Settings card ---------- */

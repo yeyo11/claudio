@@ -111,6 +111,7 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | English | Spanish |
 |---|---|
 | Save | Guardar |
+| guard (the program that checks an agent's calls) | guarda, las guardas; "the guard blocked it" → "la guarda lo ha bloqueado"; never "guardia" or "protección" |
 | Cancel | Cancelar |
 | Delete | Eliminar |
 | Remove | Quitar |
