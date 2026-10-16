@@ -7,7 +7,7 @@ import { StatusDot } from '@claudio/ui/components/motion';
 import { Card, Tag } from '@claudio/ui/components/ui';
 import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { useJoinRequests } from '../../lib/api/collaborators';
-import { initialOf, presenceWord, sortMembers } from './model';
+import { initialOf, presenceWord, shortId, sortMembers } from './model';
 
 export interface GroupActions {
   onRemove: (group: Group, member: GroupMember) => void;
@@ -83,7 +83,9 @@ export function GroupCard({ group, busy, actions }: { group: Group; busy: boolea
                   )}
                   {member.self && <Tag>{t('groups.you')}</Tag>}
                 </span>
-                {member.label && <span className="small muted mono ellipsis">{member.label}</span>}
+                <span className="small muted mono ellipsis" title={member.endpointId}>
+                  {[member.label, shortId(member.endpointId)].filter(Boolean).join(' · ')}
+                </span>
               </span>
               {presence && (
                 <span className="collab-presence small">
@@ -120,6 +122,10 @@ export function GroupCard({ group, busy, actions }: { group: Group; busy: boolea
                   <strong className="ellipsis">{request.name}</strong>
                   <span className="small muted">
                     {[request.label, request.relayedBy ? t('joinRequests.relayedBy', { name: request.relayedBy.name }) : t('joinRequests.direct')].filter(Boolean).join(' · ')}
+                    {' · '}
+                    <span className="mono" title={request.from}>
+                      {shortId(request.from)}
+                    </span>
                     {' · '}
                     <span title={formatDateTime(request.receivedAt)}>
                       <Clock {...ICON_SM} aria-hidden className="collab-inline-icon" /> {timeAgo(request.receivedAt)}

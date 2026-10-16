@@ -192,9 +192,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     await cleo.page.click('[data-testid=collab-join]', undefined, 600);
     await cleo.page.fill('[data-testid=collab-join-invite]', relayed.body.text);
     await cleo.page.click('[data-testid=collab-join-submit]', undefined, 800);
-    // Ana cannot be reached, so the request is left with Ben. The invite carries his id and ticket but
-    // not his name, so Cleo's install can only say which member holds it by what the roster later says
-    await cleo.page.waitFor(`return (document.querySelector('.collab-join-waiting')?.innerText ?? '').includes('Ana is offline. Your request has been left with')`, {
+    // Ana cannot be reached, so the request is left with Ben. The invite carries his name next to his
+    // id and ticket, so Cleo's install names him before it holds the roster, his short id beside it
+    await cleo.page.waitFor(`return (document.querySelector('.collab-join-waiting')?.innerText ?? '').includes('Ana is offline. Your request has been left with Ben (')`, {
       label: 'Cleo told her request waits with a member',
       timeout: 90_000,
     });

@@ -227,6 +227,9 @@ test('a group lists its members with the owner chip and presence in words, and t
   assert.ok(words.includes('3 members'));
   assert.equal((html.match(/data-testid="collab-member"/g) ?? []).length, 3);
   assert.ok(words.includes('Owner'));
+  // Each member by name, with the short endpoint id in mono as the secondary line
+  assert.ok(words.includes(`Ana laptop · ${shortId(ANA)}`));
+  assert.match(html, new RegExp(`class="small muted mono ellipsis" title="${LUIS}">${shortId(LUIS)}<`));
   assert.ok(words.includes('Online · relay'));
   // Luis was last seen two hours ago, in the words the app's formatter uses
   assert.ok(words.includes(`Last seen ${timeAgo(ago(2 * 3_600_000))}`));
@@ -260,7 +263,7 @@ test("the owner's join requests show who relayed them, with Accept and Deny as d
   assert.equal((html.match(/data-testid="collab-join-request"/g) ?? []).length, 1);
   const words = text(html);
   assert.ok(words.includes('Join requests'));
-  assert.ok(words.includes('laptop · relayed by Ana'));
+  assert.ok(words.includes(`laptop · relayed by Ana · ${shortId('e'.repeat(64))}`));
   assert.ok(words.includes('Accept') && words.includes('Deny'));
   assert.equal(gradients(html), 1);
 });
@@ -268,7 +271,8 @@ test("the owner's join requests show who relayed them, with Accept and Deny as d
 test('a join waiting for the owner says who holds it, with a way to cancel', () => {
   const pending: PendingJoin = { groupId: 'g2', groupName: 'Mobile', owner: { endpointId: LUIS, name: 'Luis' }, relayedBy: { endpointId: ANA, name: 'Ana' }, sentAt: ago(0), expiresAt: ago(-86_400_000) };
   const html = wrap(<PendingJoinRow pending={pending} busy={false} onCancel={() => {}} />);
-  assert.ok(text(html).includes('Luis is offline. Your request has been left with Ana and will be accepted when Luis is back.'));
+  assert.ok(text(html).includes(`Luis is offline. Your request has been left with Ana ( ${shortId(ANA)} ) and will be accepted when Luis is back.`));
+  assert.match(html, new RegExp(`<span class="mono" title="${ANA}">${shortId(ANA)}</span>`));
   assert.ok(text(html).includes('Cancel request'));
   const sent = wrap(<PendingJoinRow pending={{ ...pending, relayedBy: null }} busy={false} onCancel={() => {}} />);
   assert.ok(text(sent).includes('Connecting to Luis…'));

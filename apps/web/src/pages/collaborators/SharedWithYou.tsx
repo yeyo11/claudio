@@ -6,6 +6,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Empty } from '@claudio/ui/components/ui';
 import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
+import { PendingWords } from './dialogs';
 import { byPerson, kindCounts, localProjectOf, sharedTabPath, syncWord, type SyncKey } from './model';
 import { ToneText } from './YouCard';
 
@@ -159,9 +160,7 @@ export function PendingJoinRow({ pending, busy, onCancel }: { pending: PendingJo
       <div className="collab-pending-text">
         <strong className="ellipsis">{pending.groupName}</strong>
         <span className="small">
-          {pending.relayedBy
-            ? t('pending.waiting', { owner: pending.owner.name, member: pending.relayedBy.name })
-            : t('pending.connecting', { owner: pending.owner.name })}
+          <PendingWords pending={pending} />
         </span>
         <span className="small muted" title={formatDateTime(pending.expiresAt)}>
           {t('pending.expires', { when: formatDateTime(pending.expiresAt) })}

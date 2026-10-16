@@ -84,7 +84,7 @@
   },
   "pending": {
     "connecting": "Connecting to {{owner}}…",
-    "waiting": "{{owner}} is offline. Your request has been left with {{member}} and will be accepted when {{owner}} is back.",
+    "waiting": "{{owner}} is offline. Your request has been left with {{member}} (<id>{{memberId}}</id>) and will be accepted when {{owner}} is back.",
     "cancel": "Cancel request",
     "expires": "The invite expires {{when}}"
   },

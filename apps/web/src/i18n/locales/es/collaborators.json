@@ -84,7 +84,7 @@
   },
   "pending": {
     "connecting": "Conectando con {{owner}}…",
-    "waiting": "{{owner}} no está conectado. Tu solicitud se ha dejado con {{member}} y se aceptará cuando {{owner}} vuelva.",
+    "waiting": "{{owner}} no está conectado. Tu solicitud se ha dejado con {{member}} (<id>{{memberId}}</id>) y se aceptará cuando {{owner}} vuelva.",
     "cancel": "Cancelar la solicitud",
     "expires": "La invitación caduca el {{when}}"
   },

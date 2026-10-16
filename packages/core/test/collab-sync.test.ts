@@ -274,6 +274,9 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   const pending = await cleo.service.join(relayedInvite.text);
   assert.equal(pending.state, 'pending');
   assert.equal(pending.state === 'pending' ? pending.pending.relayedBy?.endpointId : null, benId);
+  // Cleo holds no roster yet: the invite's relay names tell her who holds the request
+  assert.equal(pending.state === 'pending' ? pending.pending.relayedBy?.name : null, 'Ben');
+  assert.equal(cleo.service.groupList().pendingJoins[0]?.relayedBy?.name, 'Ben');
   assert.equal(cleo.service.groupList().pendingJoins.length, 1);
   // The relaying member carries an opaque request, never the secret
   const held = ben.store.joinRequest(group.id, cleoId);
@@ -285,9 +288,10 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
     const list = ana.service.joinRequests(group.id);
     return list.length ? list : null;
   });
-  assert.deepEqual(requests.map((r) => [r.from, r.name, r.relayedBy?.endpointId]), [[cleoId, 'Cleo', benId]]);
+  assert.deepEqual(requests.map((r) => [r.from, r.name, r.relayedBy?.endpointId, r.relayedBy?.name]), [[cleoId, 'Cleo', benId, 'Ben']]);
   assert.ok(ana.events.some((e) => e.type === 'collaborators.join-request'));
   await ana.service.acceptJoin(group.id, cleoId);
+  assert.ok(ana.events.some((e) => e.type === 'collaborators.changed' && e.title === `Cleo joined ${group.name}`));
   await until('Cleo is in', () => cleo.service.groupList().groups.some((g) => g.id === group.id && g.members.some((m) => m.endpointId === cleoId)));
   assert.equal(cleo.service.groupList().pendingJoins.length, 0);
   await until('Cleo syncs Ana too', () => cleo.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY }).journal);

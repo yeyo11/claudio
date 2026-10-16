@@ -1,7 +1,7 @@
 import type { Group, GroupInvite, JoinGroupResult, PendingJoin, Project, SharedProject } from '@claudio/shared';
 import { TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Select } from '@claudio/ui/components/controls/Select';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON } from '@claudio/ui/components/icons';
@@ -11,6 +11,7 @@ import { formatDateTime } from '@claudio/ui/lib/format';
 import { MAX_QR_VERSION } from '@claudio/ui/lib/qr';
 import { QrCode } from '../../components/QrCode';
 import { collaboratorsApi, useCollaboratorsMutation } from '../../lib/api/collaborators';
+import { shortId } from './model';
 
 /**
  * What an invite shows once made: the text and its QR code, the expiry, the owner's presence rule
@@ -88,11 +89,29 @@ export function InviteDialog({ groups, onClose }: { groups: readonly Group[]; on
 
 /** The words of a join that has to wait: who holds the request until the owner is back. */
 export function JoinWaiting({ pending }: { pending: PendingJoin }) {
-  const { t } = useTranslation('collaborators');
   return (
     <p className="collab-join-waiting" role="status">
-      {pending.relayedBy ? t('pending.waiting', { owner: pending.owner.name, member: pending.relayedBy.name }) : t('pending.connecting', { owner: pending.owner.name })}
+      <PendingWords pending={pending} />
     </p>
+  );
+}
+
+/** Who a waiting join is with, by name; the holding member's short endpoint id follows in mono. */
+export function PendingWords({ pending }: { pending: PendingJoin }) {
+  const { t } = useTranslation('collaborators');
+  return (
+    <>
+      {pending.relayedBy ? (
+        <Trans
+          t={t}
+          i18nKey="pending.waiting"
+          values={{ owner: pending.owner.name, member: pending.relayedBy.name, memberId: shortId(pending.relayedBy.endpointId) }}
+          components={{ id: <span className="mono" title={pending.relayedBy.endpointId} /> }}
+        />
+      ) : (
+        t('pending.connecting', { owner: pending.owner.name })
+      )}
+    </>
   );
 }
 

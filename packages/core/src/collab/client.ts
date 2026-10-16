@@ -9,6 +9,7 @@ import type { GroupsStore } from './groups-store.ts';
 import type { HostReplyPart } from './host-client.ts';
 import type { HostTarget } from './host/protocol.ts';
 import type { Invite } from './invite.ts';
+import { shortEndpoint } from './names.ts';
 import { compareHeads, headOf, isEndpointId, verifyJoinerChain, type RosterHead, type RosterVersion } from './roster.ts';
 import { isSessionId, isTicket, rawLength, type CatalogEntry, type WireErrorCode, type WireReply } from './wire.ts';
 
@@ -249,6 +250,8 @@ export interface SyncDeps {
   /** The shares a peer lists changed: one appeared or went */
   sharesChanged(owner: string): void;
   log(message: string): void;
+  /** A peer in a log line, by its roster name; the start of its endpoint id when absent */
+  who?(endpointId: string): string;
   /** How often a connected peer's catalog is read again to find removed records (§4.1) */
   reconcileMs?: number;
   /** The first wait before an unreachable peer is tried again; it doubles up to `reconcileMs` */
@@ -311,6 +314,10 @@ export class SyncClient {
     for (const owner of this.catalog.owners()) {
       for (const share of this.catalog.of(owner)) this.shares.set(stateKey(owner, share.shareKey), { owner, share, lastSyncedAt: null, error: null });
     }
+  }
+
+  private who(id: string): string {
+    return this.deps.who?.(id) ?? shortEndpoint(id);
   }
 
   private get askOptions(): AskOptions {
@@ -445,7 +452,7 @@ export class SyncClient {
       for (const share of this.sharesOf(peer.id)) share.error = why ?? null;
       peer.failures = 64;
     }
-    this.deps.log(`collab: sync with ${peer.id.slice(0, 10)} failed: ${describe(error)}`);
+    this.deps.log(`collab: sync with ${this.who(peer.id)} failed: ${describe(error)}`);
   }
 
   // ---------- One run ----------
@@ -501,7 +508,7 @@ export class SyncClient {
         throw error;
       });
     } catch (error) {
-      this.deps.log(`collab: telling ${id.slice(0, 10)} failed: ${describe(error)}`);
+      this.deps.log(`collab: telling ${this.who(id)} failed: ${describe(error)}`);
       if (peer && error instanceof PeerError && error.code === 'unreachable') this.start(peer);
     }
   }
@@ -805,7 +812,7 @@ export class SyncClient {
           if (!state || !state.share.kinds.includes(k)) continue;
           await this.pullKind(peer.id, state, k);
         }
-      }).catch((error: unknown) => this.deps.log(`collab: pulling from ${peer.id.slice(0, 10)} failed: ${describe(error)}`));
+      }).catch((error: unknown) => this.deps.log(`collab: pulling from ${this.who(peer.id)} failed: ${describe(error)}`));
     }, this.deps.debounceMs ?? DEBOUNCE_MS);
   }
 

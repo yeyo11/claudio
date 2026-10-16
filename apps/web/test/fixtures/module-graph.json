@@ -353,7 +353,7 @@
   "desktop [DesktopBridge, DesktopUpdatesBridge, TitleBarTheme, desktopClasses, syncDesktopTitleBar, titleBarTheme, useDesktopNavigation]",
   "detail [DETAIL_PARAM, DetailRef, decodeDetail, detailHref, encodeDetail, useDetailPanel]",
   "detail [DETAIL_PARAM, DetailRef, decodeDetail, detailHref, encodeDetail]",
-  "dialogs [CreateGroupDialog, InviteDialog, InviteView, JoinDialog, JoinWaiting, LinkDialog]",
+  "dialogs [CreateGroupDialog, InviteDialog, InviteView, JoinDialog, JoinWaiting, LinkDialog, PendingWords]",
   "diff [Block, BlockMark, DiffLine, DiffRow, DiffStats, DiffStatus, Gap, GapRow, Hunk, HunkItem, LineKind, LineRow, ParsedDiff, Pill, RowOptions, SeamRow, SplitCell, SplitRow, blockStarts, blocksOf, diffHash, foldFull, openGap, parseUnified, readingRows, splitRows, statsOf, unifiedRows, whereOf, withoutEdgeGaps]",
   "dirty [DirtyProvider, DirtyScope, useDirty, useDirtyKeys, useLeaveGuard]",
   "documents [DocumentsWidget]",

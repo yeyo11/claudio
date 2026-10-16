@@ -63,6 +63,7 @@ import {
   transferOwnership,
   type RosterVersion,
 } from './roster.ts';
+import { describeMember, nameOf, rosterChangeTitle } from './names.ts';
 import { CollabServer, type HeldGroup, type JoinPort, type ReplySink } from './serve.ts';
 import { CollaboratorsSettingsStore } from './settings.ts';
 import { isValidShareKey, listRemotes, preferredRemote, shareIdOf, shareKeyFor } from './share-key.ts';
@@ -241,6 +242,7 @@ export class CollaboratorsService {
       synced: (owner, shareKey, kind) => this.emitSynced(owner, shareKey, kind),
       sharesChanged: () => this.changed('links'),
       log: (message) => this.log(message),
+      who: (id) => this.who(id),
       ...(deps.reconcileMs !== undefined ? { reconcileMs: deps.reconcileMs } : {}),
       ...(deps.retryMs !== undefined ? { retryMs: deps.retryMs } : {}),
       ...(deps.debounceMs !== undefined ? { debounceMs: deps.debounceMs } : {}),
@@ -501,8 +503,14 @@ export class CollaboratorsService {
     return null;
   }
 
-  private memberName(id: string): string {
-    return this.memberEntry(id)?.name ?? short(id);
+  /** A member by the name its newest roster version gives it; `hints` name who no roster held here lists yet */
+  private memberName(id: string, hints?: Readonly<Record<string, string>>): string {
+    return nameOf(this.chains.values(), id, hints) ?? short(id);
+  }
+
+  /** A member in a log line: its name and the start of its endpoint id */
+  private who(id: string): string {
+    return describeMember(nameOf(this.chains.values(), id), id);
   }
 
   private requireChain(groupId: string): RosterVersion[] {
@@ -587,7 +595,7 @@ export class CollaboratorsService {
       }
     }
     this.refreshPeers();
-    this.changed('roster', groupId);
+    this.changed('roster', groupId, null, rosterChangeTitle(prev, head));
   }
 
   /** The owner signs the next version, stores it and tells every member it can reach */
@@ -633,7 +641,7 @@ export class CollaboratorsService {
           if (held && theirs) this.conflicts.set(groupId, { version: held.version, hashes: [headOf([held]).hash, headOf([theirs]).hash].sort() });
           this.changed('roster', groupId);
         }
-        this.log(`collab: a roster from ${short(from)} was refused: ${error instanceof Error ? error.message : String(error)}`);
+        this.log(`collab: a roster from ${this.who(from)} was refused: ${error instanceof Error ? error.message : String(error)}`);
         return;
       }
       if (next.length > chain.length) await this.commit(groupId, next);
@@ -785,7 +793,7 @@ export class CollaboratorsService {
       groupId: p.invite.groupId,
       groupName: p.invite.groupName,
       owner: { endpointId: p.invite.owner, name: p.invite.ownerName },
-      relayedBy: p.relayedBy ? { endpointId: p.relayedBy, name: this.memberName(p.relayedBy) } : null,
+      relayedBy: p.relayedBy ? { endpointId: p.relayedBy, name: this.memberName(p.relayedBy, { ...p.invite.relayNames, [p.invite.owner]: p.invite.ownerName }) } : null,
       sentAt: p.sentAt,
       expiresAt: p.invite.expiresAt,
     };
@@ -853,7 +861,7 @@ export class CollaboratorsService {
       leave: async (from, group) => {
         const head = this.chains.get(group.groupId)?.at(-1);
         if (head && head.owner === this.endpointId() && from !== head.owner && isMember(head, from)) {
-          await this.removeMember(group.groupId, from).catch((error: unknown) => this.log(`collab: removing ${short(from)} who left failed: ${error instanceof Error ? error.message : String(error)}`));
+          await this.removeMember(group.groupId, from).catch((error: unknown) => this.log(`collab: removing ${this.who(from)} who left failed: ${error instanceof Error ? error.message : String(error)}`));
         }
         return { type: 'ack' };
       },
@@ -1113,7 +1121,7 @@ export class CollaboratorsService {
       const linked = this.linkOf(share.shareKey);
       out.push({
         owner,
-        ownerName: member?.name ?? short(owner),
+        ownerName: this.memberName(owner),
         ownerLabel: member?.label ?? null,
         groupIds: share.groupIds.filter((g) => this.chains.has(g)),
         shareKey: share.shareKey,
@@ -1264,8 +1272,8 @@ export class CollaboratorsService {
 
   // ---------- Events ----------
 
-  private changed(scope: CollaboratorsChangeScope, groupId: string | null = null, projectId: string | null = null): void {
-    this.deps.emit({ type: 'collaborators.changed', title: 'Collaborators changed', scope, groupId, projectId });
+  private changed(scope: CollaboratorsChangeScope, groupId: string | null = null, projectId: string | null = null, title: string | null = null): void {
+    this.deps.emit({ type: 'collaborators.changed', title: title ?? 'Collaborators changed', scope, groupId, projectId });
   }
 
   private emitSynced(owner: string, shareKey: string, kind: CollaboratorsKind): void {

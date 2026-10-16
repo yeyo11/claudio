@@ -39,6 +39,11 @@ export interface Invite {
   ticket: string;
   /** Up to three other members the owner's install saw online, to relay a join through. */
   relays: string[];
+  /**
+   * The display names of the members in `relays`, by endpoint id, so a joiner whose request a member
+   * holds names that member before it has the roster. Absent from invites made before it existed.
+   */
+  relayNames?: Record<string, string>;
   inviteId: string;
   /** 128 bits, hex. */
   secret: string;
@@ -91,6 +96,13 @@ export function createInvite(input: {
   const expiresAt = new Date(now.getTime() + (input.ttlMs ?? INVITE_TTL_MS)).toISOString();
   const inviteId = randomBytes(16).toString('hex');
   const ownerName = input.head.members.find((m) => m.endpointId === owner)?.name ?? '';
+  const relays = (input.relays ?? []).slice(0, MAX_RELAY_TICKETS);
+  const relayNames: Record<string, string> = {};
+  for (const entry of relays) {
+    const id = relayId(entry);
+    const name = input.head.members.find((m) => m.endpointId === id)?.name;
+    if (id && name) relayNames[id] = name;
+  }
   return {
     v: 1,
     groupId: input.head.groupId,
@@ -98,11 +110,25 @@ export function createInvite(input: {
     owner,
     ownerName,
     ticket: input.ticket,
-    relays: (input.relays ?? []).slice(0, MAX_RELAY_TICKETS),
+    relays,
+    ...(Object.keys(relayNames).length ? { relayNames } : {}),
     inviteId,
     secret: secretFor(input.seed, { groupId: input.head.groupId, inviteId, expiresAt }),
     expiresAt,
   };
+}
+
+/** The endpoint id a `relays` entry (`<endpointId>` or `<endpointId>:<ticket>`) names; null when it names none. */
+function relayId(entry: string): string | null {
+  const id = entry.split(':', 1)[0];
+  return isEndpointId(id) ? id : null;
+}
+
+/** `relayNames` as an invite may carry it: names of members its `relays` list, and nothing else. */
+function isRelayNames(value: unknown, relays: readonly string[]): value is Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const listed = new Set(relays.map(relayId));
+  return Object.entries(value).every(([id, name]) => listed.has(id) && isText(name) && name.trim() !== '');
 }
 
 export function encodeInvite(invite: Invite): string {
@@ -143,7 +169,8 @@ export function decodeInvite(text: string): Invite {
     || !Array.isArray(r.relays) || r.relays.length > MAX_RELAY_TICKETS || !r.relays.every((t) => isText(t, MAX_TICKET) && t !== '')
     || typeof r.inviteId !== 'string' || !HEX_16.test(r.inviteId)
     || typeof r.secret !== 'string' || !HEX_16.test(r.secret)
-    || !isTime(r.expiresAt)) {
+    || !isTime(r.expiresAt)
+    || (r.relayNames !== undefined && !isRelayNames(r.relayNames, r.relays))) {
     throw new InviteFormatError('The invite is damaged');
   }
   return {
@@ -154,6 +181,7 @@ export function decodeInvite(text: string): Invite {
     ownerName: r.ownerName,
     ticket: r.ticket,
     relays: [...r.relays],
+    ...(r.relayNames !== undefined ? { relayNames: { ...r.relayNames } } : {}),
     inviteId: r.inviteId,
     secret: r.secret,
     expiresAt: r.expiresAt,
