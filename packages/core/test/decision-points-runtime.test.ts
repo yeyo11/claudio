@@ -418,3 +418,45 @@ test('notification.urgency: the state may carry the risk of the chat\'s recent c
   assert.ok(urgency?.fields.includes('risk'));
   assert.equal(urgency?.stateVersion, 2);
 });
+
+// ---------- review.depth ----------
+
+const GATE: VerificationSpec = { commands: ['true'], fixer: false, maxAttempts: 1, e2eSpecs: false, review: { fixer: false } };
+const REVIEWED = [{ id: 'api', prompt: 'FAKE-WRITE api.txt server' }];
+const light = replying(() => 'light');
+
+test('review.depth: off runs the full review and asks nothing', async () => {
+  const g = await graph('review.depth', 'off', light);
+  const orch = await g.run({ verification: GATE, tasks: REVIEWED });
+  assert.equal(orch.verification?.review?.status, 'passed');
+  assert.equal(orch.verification?.review?.depth, 'full');
+  assert.equal(g.calls.length, 0);
+});
+
+test('review.depth: shadow records the answer and runs the full review', async () => {
+  const g = await graph('review.depth', 'shadow', light);
+  const orch = await g.run({ verification: GATE, tasks: REVIEWED });
+  assert.equal(orch.verification?.review?.depth, 'full');
+  assert.equal(g.rows().length, 1);
+  assert.equal(g.rows()[0]?.acted, false);
+  // The state holds only the point's fields
+  const state = g.calls[0]?.state as { files: number; paths: string[]; securityHit: boolean; dimensions: string[]; estimateUsd: number };
+  assert.deepEqual(Object.keys(state).sort(), ['added', 'deleted', 'dimensions', 'estimateUsd', 'files', 'paths', 'securityHit']);
+  assert.deepEqual(state.paths, ['api.txt']);
+});
+
+test('review.depth: active acts above the threshold, a graph that fixed its depth is not asked, and an unavailable provider is full', async () => {
+  const g = await graph('review.depth', 'active', light);
+  assert.equal((await g.run({ verification: GATE, tasks: REVIEWED })).verification?.review?.depth, 'light');
+  assert.equal(g.rows()[0]?.acted, true);
+
+  const set = await graph('review.depth', 'active', light);
+  const orch = await set.run({ verification: { ...GATE, review: { fixer: false, depth: 'full' } }, tasks: REVIEWED });
+  assert.equal(orch.verification?.review?.depth, 'full');
+  assert.equal(set.calls.length, 0);
+
+  const unsure = await graph('review.depth', 'active', replying(() => 'light', 0.5));
+  assert.equal((await unsure.run({ verification: GATE, tasks: REVIEWED })).verification?.review?.depth, 'full');
+  const none = await graph('review.depth', 'active', noQuota);
+  assert.equal((await none.run({ verification: GATE, tasks: REVIEWED })).verification?.review?.depth, 'full');
+});

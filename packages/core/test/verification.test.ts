@@ -9,7 +9,7 @@ import type { Orchestration, VerificationSpec } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator, verificationSteps } from '../src/orchestrator.ts';
-import { e2eSpecsChecks, e2eSpecsPrompt, E2E_SPECS_TASK_ID, errorCount, failedSpecs, failureSignature, fixerPrompt, installStep, normalizeVerification, parseFixerReport, runCommand, tail, workerChecks } from '../src/verification.ts';
+import { e2eSpecsChecks, e2eSpecsPrompt, E2E_SPECS_TASK_ID, errorCount, failedSpecs, failureSignature, fixerPrompt, FIXER_RULES, reviewFixerPrompt, installStep, normalizeVerification, parseFixerReport, runCommand, tail, workerChecks } from '../src/verification.ts';
 import { specOfOrchestration } from '@claudio/shared';
 import { tempConfig } from './helpers.ts';
 
@@ -1031,4 +1031,68 @@ test('a graph stored before the timings were recorded still loads, with none of 
   assert.equal(orch?.verification?.commands[0]?.runs, undefined);
   assert.equal(orch?.synthesisStartedAt, undefined);
   db.close();
+});
+
+// ---------- the review gate ----------
+
+test('verification.review is validated bound by bound, with a message that names the bound', () => {
+  const spec = (review: unknown, commands: unknown = ['true']) => ({ commands, fixer: false, maxAttempts: 1, review }) as unknown as VerificationSpec;
+  const bad: Array<[unknown, RegExp]> = [
+    [{ maxFixRounds: 6 }, /verification\.review\.maxFixRounds must be a whole number from 0 to 5/],
+    [{ maxFixRounds: 1.5 }, /maxFixRounds must be a whole number/],
+    [{ maxCostUsd: 0 }, /maxCostUsd must be a number of dollars greater than zero/],
+    [{ maxRunCostUsd: -1 }, /maxRunCostUsd must be a number of dollars greater than zero/],
+    [{ timeoutMinutes: 61 }, /timeoutMinutes must be a whole number of minutes from 1 to 60/],
+    [{ timeoutMinutes: 0 }, /timeoutMinutes must be a whole number of minutes from 1 to 60/],
+    [{ concurrency: 7 }, /concurrency must be a whole number from 1 to 6/],
+    [{ depth: 'skip' }, /depth must be light or full/],
+    [{ fixer: 'yes' }, /fixer must be true or false/],
+    [{ dimensions: { security: 'maybe' } }, /security must be auto, always or off/],
+    [{ dimensions: { tests: 1 } }, /dimensions\.tests must be true or false/],
+    [{ models: { reviewer: '' } }, /models\.reviewer must be a non-empty model name/],
+    [{ exclude: ['/abs'] }, /relative to the repository top/],
+    [{ exclude: ['a/../b'] }, /hold no "\.\."/],
+    [{ exclude: Array.from({ length: 51 }, (_, i) => `f${String(i)}`) }, /at most 50 globs/],
+    [{ exclude: ['x'.repeat(201)] }, /at most 200 characters/],
+    ['yes', /review must be an object/],
+  ];
+  for (const [review, message] of bad) assert.throws(() => normalizeVerification(spec(review)), message, JSON.stringify(review).slice(0, 60));
+  const good = normalizeVerification(spec({ depth: 'light', maxFixRounds: 0, exclude: [' dist/** '], models: { verifier: ' opus ' }, dimensions: { security: 'always' } }));
+  assert.deepEqual(good?.review, { depth: 'light', maxFixRounds: 0, exclude: ['dist/**'], models: { verifier: 'opus' }, dimensions: { security: 'always' } });
+  assert.equal(normalizeVerification({ commands: ['true'], fixer: false, maxAttempts: 1 })?.review, undefined);
+});
+
+test('empty commands are accepted only with a review', () => {
+  assert.throws(() => normalizeVerification({ commands: [], fixer: false, maxAttempts: 1 }), /needs at least one command/);
+  assert.deepEqual(normalizeVerification({ commands: [], fixer: false, maxAttempts: 1, review: {} })?.commands, []);
+});
+
+test('the review fixer carries the check fixer’s rules word for word, and each finding inside pasted content', () => {
+  const check = fixerPrompt({
+    objective: 'o',
+    branch: 'b',
+    worktree: '/w',
+    commands: ['true'],
+    failed: [{ command: 'true', failure: 'f', output: '' }],
+    attempt: 1,
+    maxAttempts: 1,
+    earlier: [],
+    tasks: [],
+    timeoutMinutes: 1,
+  });
+  const prompt = reviewFixerPrompt({
+    objective: 'add the api',
+    branch: 'claudio/x',
+    worktree: '/w',
+    commands: ['pnpm test', ['a', 'b']],
+    findings: [{ title: 'Drops input', path: 'src/a.ts', line: 4, evidence: 'the loop', failureScenario: 'empty input', verdictReason: 'it does' }],
+    round: 1,
+    maxFixRounds: 2,
+    tasks: [],
+  });
+  assert.ok(check.includes(FIXER_RULES) && prompt.includes(FIXER_RULES));
+  assert.match(prompt, /Drops input\n<pasted_content id="[0-9a-f]{8}">\nWhere: src\/a\.ts:4\nEvidence: the loop\nFailure scenario: empty input\nThe verifier's reason: it does\n/);
+  assert.match(prompt, /A finding you believe is wrong: do not change code for it/);
+  assert.match(prompt, /Do not edit `\.claude\/agents\/claudio-review-\*`/);
+  assert.match(prompt, /at the same time: a \| b/);
 });

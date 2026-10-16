@@ -226,6 +226,7 @@ export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptio
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatRefusal } from './chats.ts';
+export { ReviewStoreError } from './review-store.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';

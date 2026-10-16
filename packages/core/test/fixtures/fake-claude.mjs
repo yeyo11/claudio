@@ -43,6 +43,7 @@
 //   FAKE-RESULT-REVIEW[-<DIMENSION>] <json>  the findings a reviewer answers (the dimension in lower
 //                                 case, as the prompt names it); without a line, zero findings
 //   FAKE-REVIEW-CLEAN-IF <file>   a reviewer whose checkout has that file answers zero findings: a fix landed
+//   FAKE-REVIEW-IF <file> <json> a reviewer whose checkout has that file answers that instead: a fix made it worse
 //   FAKE-REVIEW-INVALID           a reviewer ends successfully with no structured output
 //   FAKE-REVIEW-SLOW <ms>         a reviewer or verifier waits that long before answering
 //   FAKE-REVIEW-VERDICT <status>  what the verifier answers for every claim; default confirmed
@@ -263,10 +264,15 @@ lines.on('line', (line) => {
         const dimension = /Your dimension is `(\w+)`/.exec(prompt)?.[1] ?? '';
         const scripted = new RegExp(`^FAKE-RESULT-REVIEW-${dimension.toUpperCase()} (.*)$`, 'm').exec(prompt) ?? /^FAKE-RESULT-REVIEW (.*)$/m.exec(prompt);
         const zero = { findings: [], coverage: { complete: true } };
-        const output = scripted && !(clean && existsSync(join(dir, clean[1]))) ? JSON.parse(scripted[1]) : zero;
+        const worse = /^FAKE-REVIEW-IF (\S+) (.*)$/m.exec(prompt);
+        let output = scripted && !(clean && existsSync(join(dir, clean[1]))) ? JSON.parse(scripted[1]) : zero;
+        if (worse && existsSync(join(dir, worse[1]))) output = JSON.parse(worse[2]);
         return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: output });
       }
-      const status = /^FAKE-REVIEW-VERDICT (\w+)$/m.exec(prompt)?.[1] ?? 'confirmed';
+      // A claim re-asked after a fix, with the file the fix leaves behind present, is gone
+      const mended = /^FAKE-REVIEW-CLEAN-IF (\S+)$/m.exec(prompt);
+      const gone = mended && existsSync(join(dir, mended[1])) && prompt.includes('still present at the current head');
+      const status = gone ? 'refuted' : (/^FAKE-REVIEW-VERDICT (\w+)$/m.exec(prompt)?.[1] ?? 'confirmed');
       const verdicts = [...prompt.matchAll(/^Claim (f\d+)\./gm)].map((m) => ({ id: m[1], status, reason: `fake verifier: ${status}` }));
       return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: { verdicts } });
     };
