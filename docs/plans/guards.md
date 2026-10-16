@@ -2095,7 +2095,9 @@ the e2e spec.
 - `.guard-rules` and `.guard-rule` are styled in both the Settings card and the rules Sheet with
   different rules; they need one definition.
 - A checkout under umask 002 leaves the guard program group-writable and preflight refuses it: guards
-  report `entry-untrusted` there until the files are made 0644 or the bundle is used.
+  report `entry-untrusted` there until the files are made 0644 or the bundle is used. The desktop
+  package clears the bit when it is packed, and `e2e/run.mjs` clears it on the guard's entry before
+  the server starts, so a flow run in an e2e spec is not refused on a machine whose umask is 002.
 - The Helm chart README has no line about the read-only `guard.mjs`.
 
 ## Related
