@@ -10,10 +10,12 @@ import type {
   ProjectLessonsSettings,
   ProjectProvidersSettings,
   ProjectSettings,
+  ProjectSharingSettings,
   ProjectTeamMember,
   ProjectTeamSettings,
   ProjectTemplateId,
   ProjectTrackerSettings,
+  ShareKeyInUseError,
   TrackerId,
   TrackerMappedStatus,
   WorkItemStatus,
@@ -386,7 +388,62 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
   }
   if (input.guards !== undefined && input.guards !== null) settings.guards = parseGuards(input.guards);
   if (input.lessons !== undefined && input.lessons !== null) settings.lessons = parseLessons(input.lessons);
+  if (input.sharing !== undefined && input.sharing !== null) settings.sharing = parseSharing(input.sharing);
   return settings;
+}
+
+/** A group id is the hex sha256 of its signed genesis (docs/plans/collaborators.md §3.3). */
+const GROUP_ID = /^[0-9a-f]{64}$/;
+const MAX_SHARE_GROUPS = 20;
+const SHARE_KEY_MIN = 3;
+const SHARE_KEY_MAX = 200;
+/** A git remote's name, as `git remote` lists them */
+const REMOTE_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
+
+/**
+ * Collaborators' part of the document. The key is checked for length and printable characters only:
+ * a default key keeps the case (and whatever else) of a self-hosted git path, so the stricter rule
+ * for a key a person types (`isValidShareKey`) belongs to the route that takes one, not to the
+ * document that stores either kind.
+ */
+export function parseSharing(value: unknown): ProjectSharingSettings {
+  if (!isObject(value)) throw new Error('sharing must be an object');
+  if (!Array.isArray(value.groups)) throw new Error('sharing.groups must be a list');
+  if (value.groups.length > MAX_SHARE_GROUPS) throw new Error(`sharing.groups has at most ${String(MAX_SHARE_GROUPS)} groups`);
+  const groups: string[] = [];
+  for (const group of value.groups as unknown[]) {
+    if (typeof group !== 'string' || !GROUP_ID.test(group)) throw new Error('sharing.groups holds group ids');
+    if (!groups.includes(group)) groups.push(group);
+  }
+  const key = value.shareKey;
+  if (typeof key !== 'string' || key.length < SHARE_KEY_MIN || key.length > SHARE_KEY_MAX || key.trim() !== key || /\p{Cc}/u.test(key)) {
+    throw new Error(`sharing.shareKey must be ${String(SHARE_KEY_MIN)} to ${String(SHARE_KEY_MAX)} printable characters`);
+  }
+  const sharing: ProjectSharingSettings = { groups, shareKey: key };
+  if (value.remote !== undefined && value.remote !== null) {
+    if (typeof value.remote !== 'string' || !REMOTE_NAME.test(value.remote)) throw new Error('sharing.remote must be a git remote name');
+    sharing.remote = value.remote;
+  }
+  return sharing;
+}
+
+/**
+ * Another project of this install already shares under the key: the second one cannot, or the serving
+ * side would have two projects behind one key (§3.4). The API answers it with a 409 and `body()`.
+ */
+export class ShareKeyInUse extends Error {
+  readonly code = 'share-key-in-use';
+  constructor(
+    readonly shareKey: string,
+    readonly projectId: string,
+    readonly projectName: string,
+  ) {
+    super(`share key ${shareKey} is already used by project ${projectName}`);
+  }
+
+  body(): ShareKeyInUseError {
+    return { error: this.message, code: this.code, projectId: this.projectId, projectName: this.projectName };
+  }
 }
 
 /** The three delivery switches: a missing one is on, and one that is not true or false is refused */
@@ -438,6 +495,8 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (guards) settings.guards = guards;
   const lessons = attempt(() => (raw.lessons == null ? null : parseLessons(raw.lessons)), null);
   if (lessons) settings.lessons = lessons;
+  const sharing = attempt(() => (raw.sharing == null ? null : parseSharing(raw.sharing)), null);
+  if (sharing) settings.sharing = sharing;
   return settings;
 }
 
@@ -474,6 +533,15 @@ export interface CreatedSettings {
 }
 
 const ID = /^[A-Za-z0-9-]+$/;
+
+/** The key a stored document shares under, when its sharing part validates. */
+function shareKeyIn(settings: Record<string, unknown>): string | null {
+  try {
+    return settings.sharing == null ? null : parseSharing(settings.sharing).shareKey;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * `project-settings/<projectId>.json` in the data directory. Read from disk on every call rather than
@@ -617,6 +685,8 @@ export class ProjectSettingsStore {
       if (this.clashes(project.id, settings.keyPrefix, active, (id) => this.readDoc(id))) {
         throw new Error(`key ${settings.keyPrefix} is already used by another project`);
       }
+      const before = this.readDoc(project.id)?.settings;
+      this.checkShareKey(project.id, isObject(before) ? shareKeyIn(before) : null, settings.sharing?.shareKey ?? null, active);
       await this.writeDoc(project, settings);
     });
   }
@@ -641,6 +711,7 @@ export class ProjectSettingsStore {
       if (after.keyPrefix !== current.keyPrefix && this.clashes(project.id, after.keyPrefix, active, (id) => this.readDoc(id))) {
         throw new Error(`key ${after.keyPrefix} is already used by another project`);
       }
+      this.checkShareKey(project.id, current.sharing?.shareKey ?? null, after.sharing?.shareKey ?? null, active);
       if (!settingsChanges(current, after).length) return { before: current, after: current };
       const raw = this.readDoc(project.id)?.settings;
       // A file that does not parse has no part worth keeping: the whole document is written
@@ -706,6 +777,31 @@ export class ProjectSettingsStore {
       const doc = docOf(p.id);
       return !!doc && this.prefixOf(doc) === prefix;
     });
+  }
+
+  /**
+   * The project imported now that shares under `shareKey`, other than `projectId`: what the Sharing
+   * section names as `keyInUse`. Only stored keys count; a default not stored yet is the caller's to
+   * compare. Removed projects' documents are skipped, as for prefixes: nothing serves them.
+   */
+  shareKeyHolder(projectId: string, shareKey: string, active: readonly ProjectRecord[]): ProjectRecord | null {
+    return (
+      active.find((p) => {
+        if (p.id === projectId) return false;
+        const settings = this.readDoc(p.id)?.settings;
+        return isObject(settings) && shareKeyIn(settings) === shareKey;
+      }) ?? null
+    );
+  }
+
+  /**
+   * Refuses a key another project holds, when the key changes. A key kept as it was is not checked
+   * again, so a clash a hand edit made does not stop the person from changing the project's groups.
+   */
+  private checkShareKey(projectId: string, before: string | null, after: string | null, active: readonly ProjectRecord[]): void {
+    if (after === null || after === before) return;
+    const holder = this.shareKeyHolder(projectId, after, active);
+    if (holder) throw new ShareKeyInUse(after, holder.id, holder.name);
   }
 
   private takenPrefixes(exceptId: string, docs: readonly SettingsDoc[]): Set<string> {
