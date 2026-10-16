@@ -150,8 +150,8 @@ test('every refusal of the expectation grammar names its field path', () => {
   refused(at(8, (e) => (e.timeoutSeconds = 0)), 'cases[0].expect[8].timeoutSeconds');
 });
 
-test('a version other than 1 is unsupported-version', () => {
-  const doc = { ...valid(), version: 2 };
+test('a version other than 1 or 2 is unsupported-version', () => {
+  const doc = { ...valid(), version: 3 };
   assert.deepEqual(evalDefinitionProblems(doc), ['version: unsupported-version']);
   assert.throws(() => parseEvalDefinition(doc), (e) => e instanceof EvalFileError && e.code === 'unsupported-version');
 });
@@ -317,4 +317,59 @@ test('a damaged consents file consents to nothing', async () => {
   assert.equal(await consents.has('/p', 'a', sha256('x')), false);
   await consents.grant('/p', 'a', sha256('x'));
   assert.equal(await consents.has('/p', 'a', sha256('x')), true);
+});
+
+function v2(change: (doc: Doc) => void = () => {}): Doc {
+  const doc = valid();
+  doc.version = 2;
+  change(doc);
+  return doc;
+}
+
+test('a version 2 file takes prompts, mustHold, k and judged; the parsed case carries the neutral prompt', () => {
+  const doc = v2((d) => {
+    d.samples = 6;
+    d.k = 4;
+    delete d.cases[0].prompt;
+    d.cases[0].prompts = { supportive: 'Remember to run the tests. Fix it.', neutral: 'Fix the failing test.', competing: 'Urgent, keep it quick. Fix it.' };
+    d.cases[0].mustHold = true;
+    d.cases[0].expect.push({ kind: 'judged', statement: 'Explains why before editing', model: 'haiku', examples: [{ calls: ['Read a.ts'], final: 'done', pass: false }] });
+  });
+  assert.deepEqual(evalDefinitionProblems(doc), []);
+  const parsed = parseEvalDefinition(doc);
+  assert.equal(parsed.cases[0]?.prompt, 'Fix the failing test.');
+  assert.equal(parsed.cases[0]?.prompts?.competing, 'Urgent, keep it quick. Fix it.');
+});
+
+test('a version 1 file refuses every v2 field and keeps its limits', () => {
+  const refusedAt = (change: (d: Doc) => void, path: string) =>
+    assert.ok(broken(change).some((m) => m.startsWith(`${path}:`)), `${path} in ${broken(change).join('; ')}`);
+  refusedAt((d) => (d.k = 2), 'k');
+  refusedAt((d) => (d.cases[0].mustHold = true), 'cases[0].mustHold');
+  refusedAt((d) => (d.cases[0].prompts = { neutral: 'x' }), 'cases[0].prompts');
+  refusedAt((d) => d.cases[0].expect.push({ kind: 'judged', statement: 'x' }), 'cases[0].expect[9].kind');
+  refusedAt((d) => (d.samples = 6), 'samples');
+  assert.deepEqual(evalDefinitionProblems(valid()), []);
+});
+
+test('version 2 refuses what is out of bounds', () => {
+  const refusedAt = (change: (d: Doc) => void, path: string) => {
+    const problems = evalDefinitionProblems(v2(change));
+    assert.ok(problems.some((m) => m.startsWith(`${path}:`)), `${path} in ${problems.join('; ')}`);
+  };
+  refusedAt((d) => (d.samples = 11), 'samples');
+  refusedAt((d) => ((d.samples = 2), (d.k = 3)), 'k');
+  refusedAt((d) => (d.k = 6), 'k'); // n defaults to 5
+  refusedAt((d) => (d.cases[0].prompts = { supportive: 'x' }), 'cases[0].prompts.neutral');
+  refusedAt((d) => (d.cases[0].prompts = { neutral: 'a', loud: 'b' }), 'cases[0].prompts.loud');
+  refusedAt((d) => (d.cases[0].prompts = { neutral: 'other' }), 'cases[0].prompt');
+  refusedAt((d) => (d.cases[0].mustHold = 'yes'), 'cases[0].mustHold');
+  refusedAt((d) => d.cases[0].expect.push({ kind: 'judged', statement: '' }), 'cases[0].expect[9].statement');
+  refusedAt((d) => d.cases[0].expect.push({ kind: 'judged', statement: 'x', extra: 1 }), 'cases[0].expect[9].extra');
+  refusedAt((d) => d.cases[0].expect.push({ kind: 'judged', statement: 'x', examples: [{ calls: [], final: '', pass: 'no' }] }), 'cases[0].expect[9].examples[0].pass');
+  refusedAt(
+    (d) => d.cases[0].expect.push({ kind: 'judged', statement: 'x', examples: Array.from({ length: 7 }, () => ({ calls: [], final: '', pass: true })) }),
+    'cases[0].expect[9].examples',
+  );
+  assert.deepEqual(evalDefinitionProblems(v2((d) => (d.samples = 10))), []);
 });

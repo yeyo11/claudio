@@ -104,6 +104,7 @@ test("a running assistant's live line follows its chat's activity, without a ref
       'team-member': { total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 },
       resource: { total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 },
       'work-item': { total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 },
+      'eval-case': { total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 },
     },
     costUsd: 0.03,
     durationMs: null,

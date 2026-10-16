@@ -881,7 +881,7 @@ export class AssistantService {
       const proposals = rows.map((r) => this.proposalOf(r)).map((p) => ({
         id: p.id,
         kind: p.kind,
-        title: p.kind === 'team-member' ? roleTitle(p.member.role) : p.kind === 'resource' ? p.resource.name : p.workItem.title,
+        title: p.kind === 'team-member' ? roleTitle(p.member.role) : p.kind === 'resource' ? p.resource.name : p.kind === 'eval-case' ? (p.case.title ?? p.case.id) : p.workItem.title,
         summary: p.reason.slice(0, SUMMARY_MAX),
       }));
       const outcome = await engine.ask(
@@ -1100,6 +1100,8 @@ export class AssistantService {
       await this.deps.saveResource(project, scope, r.kind, name, content);
       return { saved: { scope, name, path: assistantResourcePath(r.kind, name, scope) } };
     }
+    // Accepting a drafted eval case is task f6's; the contract exists before the service does
+    if (proposal.kind === 'eval-case') throw new AssistantError('eval case drafts cannot be accepted yet', 409);
     const w = { ...proposal.workItem, ...edits.workItem };
     const epicId = w.type === 'epic' ? null : w.epicId && this.deps.items.find(w.epicId)?.type === 'epic' ? w.epicId : null;
     const run = this.row(proposal.runId);
@@ -1344,7 +1346,7 @@ export class AssistantService {
   }
 
   private announceProposal(proposal: AssistantProposal, action: AssistantProposalAction): void {
-    const label = proposal.kind === 'team-member' ? roleTitle(proposal.member.role) : proposal.kind === 'resource' ? proposal.resource.name : proposal.workItem.title;
+    const label = proposal.kind === 'team-member' ? roleTitle(proposal.member.role) : proposal.kind === 'resource' ? proposal.resource.name : proposal.kind === 'eval-case' ? (proposal.case.title ?? proposal.case.id) : proposal.workItem.title;
     const saved = proposal.kind === 'resource' ? proposal.saved : null;
     try {
       this.deps.emit({
@@ -1398,7 +1400,7 @@ function systemPrompt(journal: string, instructions: string | null): string {
 
 function emptyCounts(): Record<AssistantProposalKind, AssistantProposalCount> {
   const zero = (): AssistantProposalCount => ({ total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 });
-  return { 'team-member': zero(), resource: zero(), 'work-item': zero() };
+  return { 'team-member': zero(), resource: zero(), 'work-item': zero(), 'eval-case': zero() };
 }
 
 function emptyMember(): ProposedTeamMember {
