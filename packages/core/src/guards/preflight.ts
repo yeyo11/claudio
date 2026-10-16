@@ -207,6 +207,20 @@ export class GuardPreflight {
     await this.selfTest(input.launch);
   }
 
+  /**
+   * The checks for a launch that cannot wait: every one that needs no process, and a self-test that
+   * passed before. A launch with none yet fails and starts one, so the next finds it done; one that
+   * went stale keeps counting while a fresh one runs.
+   */
+  verifyNow(input: PreflightInput): void {
+    checkGuardPreflight(input);
+    const { launch } = input;
+    const key = [launch.execPath, launch.entry, launch.electron, launch.nodeVersion].join('\0');
+    const at = this.passed.get(key);
+    if (at === undefined || (this.deps.now ?? Date.now)() - at >= (this.deps.ttlMs ?? SELF_TEST_TTL_MS)) void this.selfTest(launch).catch(() => {});
+    if (at === undefined) throw new GuardUnavailableError('self-test-failed', 'the guard self-test has not passed yet; it runs now, so try again in a moment');
+  }
+
   /** At server start, so a broken guard is known before the first launch */
   async selfTest(launch: GuardLaunch): Promise<void> {
     const key = [launch.execPath, launch.entry, launch.electron, launch.nodeVersion].join('\0');

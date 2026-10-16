@@ -69,6 +69,7 @@ import type { Db } from './db.ts';
 import { flatten } from './health.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { RECORDS_IN_ENGLISH, roleTitle, roleTitleIn } from './team.ts';
+import { GuardUnavailableError } from './guards/preflight.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { openWaitOf } from './rotation.ts';
 import { workItemPrompt } from './work-links.ts';
@@ -1560,7 +1561,9 @@ export class FlowService {
         return;
       }
       // Failed before any chat was touched: a restart's chat is not what went wrong
-      if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
+      // The guard cannot run: nothing was spawned, so this is a failure to start whichever round it was
+      if (err instanceof GuardUnavailableError) this.end(row.id, 'failed', null, `guard-unavailable (${err.code}): ${message}`, 'not-started');
+      else if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
       else if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
       else this.end(row.id, 'failed', null, message, 'not-started');
     }

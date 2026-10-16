@@ -109,6 +109,8 @@ export interface ChatGuardPlan {
   rulesSha256: string;
   /** A person is in the chat: a tool call with no marker stops the process but ends no run as failed, and the next turn waits for them */
   interactive?: boolean;
+  /** The run's own scratch dir (`<data>/tmp/<id>`), exported as `TMPDIR` and removed when the run ends; the rules name it */
+  tmpDir?: string;
 }
 
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
@@ -194,6 +196,8 @@ export interface ExecutionExtras {
    */
   handBack?: boolean;
   confine?: ChatConfinement | null;
+  /** The guard this execution runs under; `null` drops it. Only core's launch paths pass it, never a request body */
+  guards?: ChatGuardPlan | null;
   /** Why this execution spends, for the daily spend ledger; left out, the chat keeps the purpose it had */
   purpose?: SpendPurpose;
   /**

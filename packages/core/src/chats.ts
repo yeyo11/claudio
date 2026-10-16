@@ -3,8 +3,8 @@ import { DEFAULT_ID, readingFromEvent, readingFromFailure, type AccountRef, type
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
-import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   type AccountSwitchReason,
@@ -698,7 +698,7 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack' | 'purpose'>, source: AdoptedChat): ChatRuntime {
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack' | 'purpose' | 'guards'>, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     const known = this.chats.get(sourceId);
     const driver = known?.driver ?? this.driverFor(request.provider);
@@ -808,6 +808,10 @@ export class ChatManager extends EventEmitter {
     if (options.confine !== undefined) {
       if (options.confine === null) delete opts.confine;
       else opts.confine = options.confine;
+    }
+    if (options.guards !== undefined) {
+      if (options.guards === null) delete opts.guards;
+      else opts.guards = options.guards;
     }
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
     // A rewind point belongs to the one process the resume starts, not to the ones after it
@@ -1396,6 +1400,12 @@ export class ChatManager extends EventEmitter {
       token = this.chatTokens.mint(chat.id);
       env.CLAUDIO_API_TOKEN = token;
     } else delete env.CLAUDIO_API_URL;
+    // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
+    const tmpDir = chat.opts.guards?.tmpDir;
+    if (tmpDir) {
+      mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+      env.TMPDIR = tmpDir;
+    }
     let proc: ChildProcessWithoutNullStreams;
     try {
       proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
@@ -1557,11 +1567,19 @@ export class ChatManager extends EventEmitter {
     chat.proc?.kill('SIGTERM');
   }
 
+  /** The run's scratch dir goes with it; only one under `<data>/tmp`, whatever a plan says */
+  private removeGuardTmp(chat: LiveChat): void {
+    const dir = chat.opts.guards?.tmpDir;
+    if (!dir || !resolve(dir).startsWith(join(resolve(this.config.dataDir), 'tmp') + sep)) return;
+    rmSync(dir, { recursive: true, force: true });
+  }
+
   private finalize(chat: LiveChat, status: RunStatus): void {
     if (chat.endedAt) return;
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     if (chat.armingTimer) clearTimeout(chat.armingTimer);
     chat.armingTimer = null;
+    this.removeGuardTmp(chat);
     chat.idleSince = null;
     chat.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.
