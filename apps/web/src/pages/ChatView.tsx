@@ -44,7 +44,6 @@ import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from '@claudio/chat-ui/composer/queued';
 import { HISTORY_LIMIT } from '@claudio/chat-ui/composer/history';
 import { useStickToBottom } from '@claudio/chat-ui/composer/stick-to-bottom';
-import { useTurnSpacer } from '@claudio/chat-ui/composer/turn-spacer';
 import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 
 /** How long the entry a link opened the chat at stays marked */
@@ -114,23 +113,14 @@ export function ChatView() {
   const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
   const items = pendingless;
   // The person's words are drawn at the end of the conversation the moment Send is pressed; the undo takes them out again if the send fails
-  // The question the view is scrolled to the top for (CHAT-14); a resume's guess is replaced by the stored entry under another id
-  const [sentAnchor, setAnchor] = useState<string | null>(null);
-  const anchor = useMemo(() => {
-    if (!sentAnchor || !sentAnchor.startsWith('optimistic-') || items.some((entry) => entry.uuid === sentAnchor)) return sentAnchor;
-    return items.findLast((entry) => entry.role === 'user' && !entry.isSidechain)?.uuid ?? sentAnchor;
-  }, [sentAnchor, items]);
-  const spacerRef = useTurnSpacer(scroller, anchor);
   const onSending = useCallback(
     ({ id: messageId, text }: { id: string | null; text: string }) => {
       const uuid = messageId ?? `optimistic-${crypto.getRandomValues(new Uint32Array(1))[0]}`;
       const entry = optimisticEntry(uuid, text);
       const cached = [keys.chat(id, false), keys.chat(id, true)];
       for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? appendStreamed(page, entry).page : page));
-      setAnchor(uuid);
       setFollow(true);
       return () => {
-        setAnchor(null);
         for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? dropOptimistic(page, uuid) : page));
       };
     },
@@ -142,7 +132,6 @@ export function ChatView() {
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
   useEffect(() => {
     setFollow(true);
-    setAnchor(null);
     setForking(false);
   }, [id, setFollow]);
 
@@ -465,8 +454,6 @@ export function ChatView() {
             <PermissionPrompts chatId={id} live={live} />
             <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(items)} />
             {limit.phase !== 'none' && <LimitStopped chat={chat} at={chat.executions.at(-1)?.endedAt ?? chat.updatedAt} waiting={limit.phase === 'waiting'} />}
-            {/* Its height is written by useTurnSpacer; the negative margin takes back the column's gap, as this is not a row */}
-            <div ref={spacerRef} aria-hidden style={{ flex: 'none', height: 0, marginTop: -14 }} />
           </div>
           <AnimatePresence>
             {!follow && (

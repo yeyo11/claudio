@@ -1176,7 +1176,7 @@ warm idle chat when at the limit.
 
 ### CHAT-14 — The new question goes to the top
 
-Status: **built** on 2026-10-15, as planned (`composer/turn-spacer.ts`, `turnSpacerHeight` tested as a pure function). A resume's optimistic id is swapped for the last stored user row, since the stored entry arrives under another id. The e2e checks (row 16–40 px from the top; paging specs with `overflow-anchor: none`) are not written yet.
+Status: **removed 2026-10-17 (R16 (b), [requests.md](../requests.md))**. Built on 2026-10-15 as a spacer under the conversation (`composer/turn-spacer.ts`), it is what opened the large empty gap between the last message and the composer: while the answer was shorter than the view, the spacer filled the rest of it, and it stayed for as long as the chat was open. A send follows the end of the conversation again, so the composer sits right under the last message; `apps/web/test/chat-no-gap.test.ts` and `e2e/specs/composer.spec.mjs` guard it. `overflow-anchor: none` stays on `.run-scroll`, for the windowed transcript's own anchoring. The design below is kept as the record of what was tried.
 
 **Design.** On Send, scroll so the new user row sits near the top of the viewport, with a spacer
 under the conversation that fills the rest of the viewport. Because the spacer exactly fills the
