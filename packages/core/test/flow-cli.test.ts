@@ -8,6 +8,8 @@ import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import type { FlowRun, ProjectSettings } from '@claudio/shared';
 import { Core } from '../src/index.ts';
+import { PROJECT_TEMPLATES } from '../src/project-templates.ts';
+import { agentFileContent } from '../src/team.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -167,8 +169,10 @@ test('each stage runs with its own rules, its budget and no recorded system prom
     git('add', '-A');
     git('commit', '-q', '-m', 'pnpm');
     const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, maxCostUsd: 1.5, columns: { backlog: 'product-owner', in_progress: 'developer', in_review: 'qa' } } }));
-    // A person's own agent file for QA: its tools as a block list, and a model its metadata does not say
-    writeFileSync(join(dir, '.claude', 'agents', 'qa.md'), '---\nname: qa\ndescription: Verifies\nmodel: haiku\ntools:\n  - Read\n  - Grep\n  - Bash\n---\nVerify it.\n');
+    // QA's agent file as Claudio writes it for a review role: its `tools:` line in the comma form
+    const hunterRole = PROJECT_TEMPLATES.find((t) => t.id === 'software')?.optionalTeam.find((r) => r.role === 'silent-failure-hunter');
+    assert.ok(hunterRole);
+    writeFileSync(join(dir, '.claude', 'agents', 'qa.md'), agentFileContent({ ...hunterRole, agent: 'qa' }));
     const refine = { summary: 'Refined', memoryProposals: [], documents: [] };
     const verify = { summary: 'Holds', verdict: 'pass', criteria: [], memoryProposals: [], documents: [] };
     const item = core.workItems.create(project.id, {
@@ -203,7 +207,7 @@ test('each stage runs with its own rules, its budget and no recorded system prom
     const agentsFile = /--agents (\S+\.json)/.exec(qa)?.[1];
     assert.ok(agentsFile);
     const definition = JSON.parse(readFileSync(agentsFile, 'utf8')) as Record<string, { tools?: string[]; model?: string }>;
-    assert.deepEqual(definition.qa?.tools, ['Read', 'Grep', 'Bash']);
+    assert.deepEqual(definition.qa?.tools, ['Read', 'Grep', 'Glob', 'Bash']);
     assert.equal(definition.qa?.model, 'sonnet');
 
     // A turn held to a schema is the run's: after a rate limit it is replayed only while its run waits for the rotation

@@ -2752,6 +2752,8 @@ export interface MemoryProposal {
 export interface ApproveMemoryProposalRequest {
   /** The text to write instead of the proposed one */
   text?: string;
+  /** For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths */
+  file?: string;
 }
 
 export interface RejectMemoryProposalRequest {

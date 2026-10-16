@@ -25,6 +25,29 @@ export function resourceReviewHref(projectId: string, proposal: Pick<AssistantRe
   return `/?${query.toString()}`;
 }
 
+/**
+ * The globs a proposed rule is for, read from its front matter, so the list can say where it applies
+ * without opening the editor. Empty when the content has none (core drops such a rule before it gets here).
+ */
+export function rulePaths(content: string): string[] {
+  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)?.[1];
+  if (!front) return [];
+  const lines = front.split(/\r?\n/);
+  const at = lines.findIndex((line) => /^paths\s*:/.test(line));
+  if (at < 0) return [];
+  const unquote = (value: string) => value.trim().replace(/^(["'])(.*)\1$/, '$2');
+  const inline = /^paths\s*:\s*(.+)$/.exec(lines[at] ?? '')?.[1];
+  if (inline) return inline.replace(/^\[|\]$/g, '').split(',').map(unquote).filter(Boolean);
+  const paths: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    const item = /^\s+-\s*(.*)$/.exec(line);
+    if (!item) break;
+    const value = unquote(item[1] ?? '');
+    if (value) paths.push(value);
+  }
+  return paths;
+}
+
 /** "Propose team, resources and tasks" in the wizard starts on for every template but Simple. */
 export const proposesByDefault = (template: ProjectTemplateId): boolean => template !== 'simple';
 

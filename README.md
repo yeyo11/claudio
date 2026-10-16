@@ -707,7 +707,7 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/projects/:id/team` | The members, each with its agent file's state, the columns it answers for under the flow and its flow runs, and the agent files no member uses |
-| POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept). 201 when it added a member, 200 when nothing changed |
+| POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept); without `roles` only the template's team, and its optional roles (`optionalTeam`) only when named. 201 when it added a member, 200 when nothing changed |
 | PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, commands?, createFile? }` — create or replace a member's metadata. Two members may not share a role. `commands` bounds the shell of its work runs (`[]` is none, absent is unrestricted). The file itself goes through `/config/resources/agents/:name?project=` |
 | DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
 | GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
@@ -1305,7 +1305,7 @@ project's Memory module on.
 | POST | `/projects/:id/journal` | Write a decision or a note by hand — body `{ text, kind?, itemId?, documentPath? }` |
 | DELETE | `/journal/:entryId` | Delete a journal entry |
 | GET | `/projects/:id/memory/proposals?status=` | The team's memory proposals, newest first, by status |
-| POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text`, and write it to its target; a chat's token gets 403 |
+| POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text` (and, for a `rule` target, another `file`), and write it to its target: `CLAUDE.md`, a memory file, the journal, or a path-scoped rule in `.claude/rules/<file>` (new, appended when its paths are the same, 409 when they differ); a chat's token gets 403 |
 | POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written; a chat's token gets 403 |
 
 ### Plugins

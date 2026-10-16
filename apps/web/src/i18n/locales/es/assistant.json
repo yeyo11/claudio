@@ -96,6 +96,7 @@
     "savedDone": "archivo guardado",
     "review": "Revisar",
     "reviewNamed": "Revisar {{name}}",
+    "paths": "Rutas",
     "kind": {
       "agents": "Agente",
       "skills": "Skill",

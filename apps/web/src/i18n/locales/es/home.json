@@ -276,7 +276,9 @@
       "label": "Se escribe en",
       "instructions": "CLAUDE.md",
       "memory": "memoria",
-      "journal": "diario"
+      "journal": "diario",
+      "rule": "Regla",
+      "morePaths": "+{{count}} más"
     },
     "proposals": {
       "tab": "Propuestas",
@@ -297,7 +299,12 @@
       "approved": "Aprobada y escrita",
       "approveFailed": "No se ha podido aprobar la propuesta",
       "rejected": "Propuesta descartada",
-      "rejectFailed": "No se ha podido descartar la propuesta"
+      "rejectFailed": "No se ha podido descartar la propuesta",
+      "rename": {
+        "taken": "{{path}} ya existe con otras rutas. Apruébala con otro nombre.",
+        "label": "Nombre del archivo de la regla",
+        "approve": "Aprobar con este nombre"
+      }
     },
     "journal": {
       "tab": "Diario",

@@ -7,7 +7,11 @@
     "qa": "QA",
     "researcher": "Researcher",
     "writer": "Technical writer",
-    "reviewer": "Reviewer"
+    "reviewer": "Reviewer",
+    "silent-failure-hunter": "Silent failure hunter",
+    "type-design-analyst": "Type design analyst",
+    "build-resolver": "Build resolver",
+    "spec-miner": "Spec miner"
   },
   "stage": {
     "refine": {
@@ -58,6 +62,8 @@
     "onEnd": "On finishing",
     "answersFor": "Answers for",
     "consulted": "No column · consulted",
+    "readOnly": "read-only",
+    "readOnlyHint": "Its agent file allows only tools that read: it cannot change the project, wherever the CLI loads it.",
     "writes": "May write in",
     "writesAnywhere": "Anywhere in the project",
     "writesDocuments": "Only the documents folder",
@@ -170,6 +176,13 @@
     "applied_one": "{{count}} member joined the team",
     "applied_other": "{{count}} members joined the team",
     "failed": "Could not add the template's team"
+  },
+  "moreRoles": {
+    "label": "More roles",
+    "title": "More roles from the template",
+    "add": "Add {{name}}",
+    "done": "{{name}} joined the team",
+    "failed": "Could not add the role"
   },
   "flow": {
     "title": "Flow",
@@ -530,6 +543,10 @@
     "qa": "Verifies each item against its acceptance criteria",
     "researcher": "Reads the sources and sets out what is known",
     "writer": "Turns findings into documents",
-    "reviewer": "Checks documents for accuracy and clarity"
+    "reviewer": "Checks documents for accuracy and clarity",
+    "silent-failure-hunter": "Finds failures that make no noise: swallowed errors, unawaited promises, hidden fallbacks",
+    "type-design-analyst": "Judges whether the types make illegal states unrepresentable",
+    "build-resolver": "Makes a failing build, type check or lint pass with the smallest change",
+    "spec-miner": "Writes down what the code does today, from the code and its tests"
   }
 }
