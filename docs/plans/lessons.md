@@ -12,7 +12,15 @@ tags:
 ---
 # Plan: lessons from corrections
 
-Status: **planned** (2026-10-15). Nothing here is built yet. This is idea ★2 of
+Status: **built** (2026-10-16), apart from the e2e spec and the fake CLI answers of l13. The feature is
+described as built in [lessons.md](../lessons.md). What changed from this plan: the preview and approve
+requests of an `instructions` proposal take an optional `section` (the diff dialog's section field
+needed it); the "Similar to" and "Brings back" badges and the Merge into / Keep both choice are not built
+because `Lesson` has no data for them; evidence links go to the chat, not the entry; the "Look for
+lessons" strings live in `chats:lessons.*`; the CLI facts were recorded on `2.1.301`
+([l0-NOTES.md](../../packages/core/test/fixtures/recordings/l0-NOTES.md)).
+
+Originally: planned (2026-10-15). This is idea ★2 of
 [reports/ecc.md](../reports/ecc.md), turned into work for an orchestration on `feat/claude-only`
 (`~/Escritorio/claudio-stage-a`). Where this plan and §3 "★2 Lessons from corrections" of the report
 disagree, this plan wins. Where this plan and the report's "Decisions (2026-10-15)" disagree, the

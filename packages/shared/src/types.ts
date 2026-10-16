@@ -3114,6 +3114,8 @@ export interface ApproveMemoryProposalRequest {
   keepBoth?: boolean;
   /** For an `instructions` proposal made from a lesson: the sha256 of the `CLAUDE.md` the person saw the diff against, so a file that changed since is refused */
   previewOf?: string;
+  /** For an `instructions` target: the heading to write under instead of the proposed one; empty for the end of the file */
+  section?: string;
   /** For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths */
   file?: string;
 }
@@ -3132,6 +3134,8 @@ export interface MemoryProposalPreview {
 export interface PreviewMemoryProposalRequest {
   /** The text to preview instead of the proposed one, while the person edits it */
   text?: string;
+  /** The heading to preview under instead of the proposed one, while the person picks it */
+  section?: string;
 }
 
 export interface RejectMemoryProposalRequest {

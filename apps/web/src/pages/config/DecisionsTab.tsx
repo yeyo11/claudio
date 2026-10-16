@@ -84,7 +84,7 @@ export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations
 export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
   { id: 'flow', points: ['flow.refine-needed', 'flow.bounce', 'flow.scope-drift', 'flow.criteria-precheck', 'flow.criteria-merge', 'flow.restart', 'context.compact'] },
   { id: 'board', points: ['board.triage', 'team.assign'] },
-  { id: 'memory', points: ['memory.triage', 'journal.relevance'] },
+  { id: 'memory', points: ['memory.triage', 'journal.relevance', 'lesson.mine'] },
   { id: 'assistant', points: ['assistant.rerank', 'assistant.sources'] },
   { id: 'orchestrations', points: ['orchestration.retry', 'orchestration.model', 'orchestration.fixer', 'run.continuation', 'account.model-fallback', 'review.depth'] },
   { id: 'health', points: ['supervisor.intervene', 'health.semantic-loop', 'health.test-weakening'] },
