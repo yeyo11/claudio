@@ -1432,6 +1432,8 @@ ${quoted}
    * that only heard the first result left that work out of its status, its cost and its branch.
    */
   private follow(chatId: string, result: RunResult): void {
+    // A compaction or a note turn on a worker's chat is not the task's work
+    if (result.purpose) return;
     const orch = [...this.items.values()].find((o) => o.engine === 'graph' && o.tasks.some((t) => t.runId === chatId));
     const task = orch?.tasks.find((t) => t.runId === chatId);
     // The result of a running task is settle's to record

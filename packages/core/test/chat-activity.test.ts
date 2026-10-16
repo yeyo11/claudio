@@ -43,6 +43,25 @@ test('a label is one line and short enough for a list row', () => {
   assert.equal(activityTarget('Bash', { command: 'git commit -m "one\n\ntwo"' }, '/work'), 'git commit -m "one two"');
 });
 
+test('compacting wins over writing and over a call still open, and loses only to a prompt', () => {
+  const tracker = new ChatActivityTracker('/work');
+  tracker.blockStarted({ type: 'text' }, '2026-09-21T10:00:00.000Z');
+  tracker.called('t1', 'Bash', { command: 'pnpm test' }, '2026-09-21T10:00:01.000Z');
+  tracker.compacting(true, '2026-09-21T10:00:02.000Z');
+  assert.deepEqual(tracker.current(), { kind: 'compacting', since: '2026-09-21T10:00:02.000Z' } satisfies ChatActivity);
+  // The status repeats while it works: the first moment stays
+  tracker.compacting(true, '2026-09-21T10:00:30.000Z');
+  assert.equal(tracker.current()?.since, '2026-09-21T10:00:02.000Z');
+  tracker.setPendingPrompts(1, '2026-09-21T10:00:40.000Z');
+  assert.equal(tracker.current()?.kind, 'waiting');
+  tracker.setPendingPrompts(0, '2026-09-21T10:00:41.000Z');
+  tracker.compacting(false, '2026-09-21T10:00:50.000Z');
+  assert.equal(tracker.current()?.kind, 'tool', 'what it was doing before is back');
+  tracker.compacting(true, '2026-09-21T10:01:00.000Z');
+  tracker.clear();
+  assert.equal(tracker.current(), null, 'a process that is gone compacts nothing');
+});
+
 test('a tool call is what the chat is doing until its result arrives', () => {
   const tracker = new ChatActivityTracker('/work');
   assert.equal(tracker.current(), null, 'a chat that has said nothing is doing nothing');

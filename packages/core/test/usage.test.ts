@@ -84,3 +84,41 @@ test('a transcript with no response has no context and no tokens', () => {
   assert.deepEqual(fold.tokens(), []);
   assert.equal(fold.total().total, 0);
 });
+
+// ---------- compaction ----------
+
+const boundary = (at: string, post: number | null = 1_200): Record<string, unknown> => ({
+  type: 'system',
+  subtype: 'compact_boundary',
+  uuid: `b${++n}`,
+  timestamp: at,
+  compactMetadata: { trigger: 'manual', preTokens: 142_000, ...(post === null ? {} : { postTokens: post }) },
+});
+
+test('a boundary newer than the last response says what the context dropped to, until the next response', () => {
+  const lines = [assistant('m1', 'claude-opus-5', { in: 5, out: 5, read: 142_000 }), boundary('2026-01-01T10:05:00.000Z')];
+  const after = foldUsage(lines).context();
+  assert.equal(after?.used, 142_005, 'the last response is still what was read');
+  assert.deepEqual(after?.compactedSince, { at: '2026-01-01T10:05:00.000Z', trigger: 'manual', preTokens: 142_000, postTokens: 1_200 });
+
+  const answered = foldUsage([...lines, assistant('m2', 'claude-opus-5', { in: 5, out: 5, read: 3_000 })]).context();
+  assert.equal(answered?.used, 3_005);
+  assert.equal(answered?.compactedSince, undefined, 'the next response is the new figure');
+});
+
+test('a boundary without post tokens is kept, and the figure stays null rather than invented', () => {
+  const context = foldUsage([assistant('m1', 'claude-opus-5', { in: 1, out: 1, read: 10 }), boundary('2026-01-01T10:05:00.000Z', null)]).context();
+  assert.equal(context?.compactedSince?.postTokens, null);
+});
+
+test("a subagent's own compaction says nothing about the main window", () => {
+  const fold = foldUsage([assistant('m1', 'claude-opus-5', { in: 1, out: 1, read: 10 })]);
+  const entry = { uuid: 'bs', role: 'user' as const, timestamp: '2026-01-01T10:05:00.000Z', model: null, isSidechain: true, parentToolUseId: null, blocks: [], compaction: { part: 'boundary' as const, trigger: 'auto' as const, preTokens: 9, postTokens: 1, durationMs: null } };
+  fold.add({}, entry);
+  assert.equal(fold.context()?.compactedSince, undefined);
+});
+
+test('a cloned fold keeps the boundary it saw', () => {
+  const fold = foldUsage([assistant('m1', 'claude-opus-5', { in: 1, out: 1, read: 10 }), boundary('2026-01-01T10:05:00.000Z')]);
+  assert.equal(fold.clone().context()?.compactedSince?.preTokens, 142_000);
+});
