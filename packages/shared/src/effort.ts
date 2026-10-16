@@ -14,7 +14,7 @@ export function isEffort(value: unknown): value is Effort {
 }
 
 /** What a run is for. Work that is hard or long (a plan, a fix of what fails) is not the same use as a well-specified task. */
-export type EffortUse = 'chat' | 'refine' | 'verify' | 'work' | 'worker' | 'assistant' | 'planner' | 'fixer';
+export type EffortUse = 'chat' | 'refine' | 'verify' | 'work' | 'worker' | 'assistant' | 'planner' | 'fixer' | 'reviewer';
 
 /** Why a level is recommended, as a code a client words (and translates) for the tooltip. */
 export type EffortReason = 'opus-medium' | 'sonnet-medium' | 'sonnet-high';
@@ -40,7 +40,7 @@ export function effortRecommendation(model: string | null | undefined, use: Effo
   const known = knownModel(model);
   if (!known) return null;
   if (known === 'opus') return { effort: 'medium', reason: 'opus-medium' };
-  return use === 'planner' || use === 'fixer' ? { effort: 'high', reason: 'sonnet-high' } : { effort: 'medium', reason: 'sonnet-medium' };
+  return use === 'planner' || use === 'fixer' || use === 'reviewer' ? { effort: 'high', reason: 'sonnet-high' } : { effort: 'medium', reason: 'sonnet-medium' };
 }
 
 export function recommendedEffort(model: string | null | undefined, use: EffortUse): Effort | null {
