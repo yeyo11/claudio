@@ -10100,6 +10100,10 @@
         ],
         "description": "What all of Claudio's automation may spend in a local day, in USD, summing the cost the CLI reports for each result. A start gate, not a kill switch: over it new automated work waits and nothing running is stopped. Null (the default) is no cap; otherwise above 0 and at most 100,000, in cents."
       },
+      "evalsPhase2": {
+        "type": "boolean",
+        "description": "Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals are not affected."
+      },
       "sources": {
         "type": "object",
         "properties": {
@@ -10117,6 +10121,9 @@
           },
           "dailySpendCapUsd": {
             "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "evalsPhase2": {
+            "$ref": "#/components/schemas/AppSettingSource"
           }
         },
         "required": [
@@ -10124,7 +10131,8 @@
           "maxConcurrentRuns",
           "defaultPermissionMode",
           "setupSeen",
-          "dailySpendCapUsd"
+          "dailySpendCapUsd",
+          "evalsPhase2"
         ],
         "description": "For `allowedHosts`, the highest layer that names any host (`env`, then `file`, then `default`); it does not make the list read-only, `allowedHostLayers` does that per host."
       },
@@ -10137,6 +10145,7 @@
       "allowedHosts",
       "dailySpendCapUsd",
       "defaultPermissionMode",
+      "evalsPhase2",
       "maxConcurrentRuns",
       "setupSeen",
       "sources"
@@ -22871,6 +22880,10 @@
           "null"
         ],
         "description": "What all of Claudio's automation may spend in a local day, in USD, summing the cost the CLI reports for each result. A start gate, not a kill switch: over it new automated work waits and nothing running is stopped. Null (the default) is no cap; otherwise above 0 and at most 100,000, in cents."
+      },
+      "evalsPhase2": {
+        "type": "boolean",
+        "description": "Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals are not affected."
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
@@ -29364,6 +29377,10 @@
       "variant": {
         "$ref": "#/components/schemas/EvalVariant"
       },
+      "pressure": {
+        "$ref": "#/components/schemas/EvalPressure",
+        "description": "Phase 2; `neutral` for a Phase 1 sample"
+      },
       "attempt": {
         "type": "number"
       },
@@ -29491,6 +29508,7 @@
       "model",
       "outcome",
       "pin",
+      "pressure",
       "reason",
       "resultText",
       "runId",

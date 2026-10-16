@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
-import { EvalFileError, EvalStartError, type Core } from '@claudio/core';
-import { EVAL_VARIANTS, type EvalRunRequest, type EvalVariant, type PutEvalFileRequest } from '@claudio/shared';
+import { assistantLanguage, EvalFileError, EvalStartError, type Core } from '@claudio/core';
+import { EVAL_PRESSURES, EVAL_VARIANTS, type EvalPressure, type EvalRunRequest, type Effort, type EvalVariant, type PutEvalFileRequest } from '@claudio/shared';
+import { spendGate } from './spend.ts';
 
 /** Per page of the history; the plan's bound. */
 const HISTORY_MAX = 50;
@@ -40,9 +41,15 @@ function refuse(reply: FastifyReply, err: unknown): FastifyReply {
   if (err instanceof EvalStartError) {
     return reply.status(START_STATUS[err.code]).send({ error: err.message, code: START_CODE[err.code] ?? err.code, ...(err.detail ? { detail: err.detail } : {}) });
   }
+  if (err instanceof Phase2Off) return reply.status(409).send({ error: err.message, code: 'evals-phase2-off' });
   if (err instanceof BadRequest) return reply.status(400).send({ error: err.message });
   throw err;
 }
+
+/** Raised while the Phase 2 switch is off, for what only Phase 2 does. */
+class Phase2Off extends Error {}
+
+const isPressure = (v: unknown): v is EvalPressure => (EVAL_PRESSURES as readonly unknown[]).includes(v);
 
 const isVariant = (v: unknown): v is EvalVariant => (EVAL_VARIANTS as readonly unknown[]).includes(v);
 
@@ -51,8 +58,9 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 /** Checks the shape of what a person sent; what the runner decides on (consent, ceiling, pins) is its own. */
 function runRequest(body: unknown): EvalRunRequest {
   if (!isRecord(body)) throw new BadRequest('the body must be an object');
-  const { variants, proposed, cases, samples, maxCostUsd, confirmMaxCostUsd, account } = body;
+  const { variants, pressures, proposed, cases, samples, maxCostUsd, confirmMaxCostUsd, account } = body;
   if (!Array.isArray(variants) || !variants.every(isVariant)) throw new BadRequest(`variants must be a list of ${EVAL_VARIANTS.join(', ')}`);
+  if (pressures !== undefined && !(Array.isArray(pressures) && pressures.length > 0 && pressures.every(isPressure))) throw new BadRequest(`pressures must be a list of ${EVAL_PRESSURES.join(', ')}`);
   if (proposed !== undefined && typeof proposed !== 'string') throw new BadRequest('proposed must be a string');
   if (cases !== undefined && !(Array.isArray(cases) && cases.every((c) => typeof c === 'string'))) throw new BadRequest('cases must be a list of case ids');
   if (samples !== undefined && !(Number.isInteger(samples) && (samples as number) > 0)) throw new BadRequest('samples must be a positive integer');
@@ -62,6 +70,7 @@ function runRequest(body: unknown): EvalRunRequest {
   return {
     variants,
     confirmMaxCostUsd,
+    ...(pressures !== undefined ? { pressures: [...new Set(pressures as EvalPressure[])] } : {}),
     ...(proposed !== undefined ? { proposed } : {}),
     ...(cases !== undefined ? { cases: cases as string[] } : {}),
     ...(samples !== undefined ? { samples: samples as number } : {}),
@@ -77,6 +86,16 @@ function runRequest(body: unknown): EvalRunRequest {
  */
 export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { evals } = core;
+
+  /** Phase 2 stays behind its own switch (`evalsPhase2` in the app settings). */
+  const phase2 = (): void => {
+    if (!core.appSettings.evalsPhase2) throw new Phase2Off('the instruction evals\' Phase 2 is off: turn on evalsPhase2 in the app settings');
+  };
+  /** Pressure levels beyond `neutral` are Phase 2's. */
+  const checkPressures = (request: EvalRunRequest): EvalRunRequest => {
+    if (request.pressures?.some((p) => p !== 'neutral')) phase2();
+    return request;
+  };
 
   /** Wraps a handler so that core's refusals keep their status and code. */
   const answering =
@@ -113,8 +132,19 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.post<{ Params: { id: string; name: string }; Body: unknown }>('/projects/:id/evals/:name/estimate', answering((req) => {
     const { params, body } = req as { params: { id: string; name: string }; body: unknown };
-    return evals.estimate(params.id, params.name, runRequest(body));
+    return evals.estimate(params.id, params.name, checkPressures(runRequest(body)));
   }));
+
+  app.post<{ Params: { id: string; name: string }; Body: { model?: string; effort?: Effort } }>('/projects/:id/evals/:name/draft-cases', { preHandler: spendGate(core) }, async (req, reply) => {
+    try {
+      phase2();
+      const { params, body } = req;
+      const run = await core.assistant.start(params.id, { kind: 'evals', evalName: params.name, ...(body?.model ? { model: body.model } : {}), ...(body?.effort ? { effort: body.effort } : {}) }, assistantLanguage(req.headers['accept-language']));
+      return reply.code(201).send(run);
+    } catch (err) {
+      return refuse(reply, err);
+    }
+  });
 
   app.post<{ Params: { id: string; name: string }; Body: { sha?: unknown } }>('/projects/:id/evals/:name/consent', answering((req) => {
     const { params, body } = req as { params: { id: string; name: string }; body: { sha?: unknown } | undefined };
@@ -124,7 +154,7 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.post<{ Params: { id: string; name: string }; Body: unknown }>('/projects/:id/evals/:name/runs', answering(async (req, reply) => {
     const { params, body } = req as { params: { id: string; name: string }; body: unknown };
-    return reply.status(201).send(await evals.start(params.id, params.name, runRequest(body)));
+    return reply.status(201).send(await evals.start(params.id, params.name, checkPressures(runRequest(body))));
   }));
 
   app.get<{ Params: { id: string }; Querystring: { eval?: string; before?: string; limit?: string } }>('/projects/:id/eval-runs', answering((req) => {
@@ -172,6 +202,34 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     if (typeof body?.confirmMaxCostUsd !== 'number' || !Number.isFinite(body.confirmMaxCostUsd)) throw new BadRequest('confirmMaxCostUsd must be the ceiling that was shown');
     if (!evals.summary(params.runId)) throw new EvalFileError('not-found', 'eval run not found');
     return evals.resume(params.runId, body.confirmMaxCostUsd);
+  }));
+
+  app.get<{ Params: { runId: string } }>('/eval-runs/:runId/gate', answering((req) => {
+    phase2();
+    const { runId } = (req as { params: { runId: string } }).params;
+    if (!evals.summary(runId)) throw new EvalFileError('not-found', 'eval run not found');
+    const gate = evals.gate(runId);
+    if (!gate) throw new EvalFileError('not-found', 'this run has no gate: it needs both current and proposed and must have ended');
+    return gate;
+  }));
+
+  app.post<{ Params: { runId: string } }>('/eval-runs/:runId/rejudge', answering(async (req) => {
+    phase2();
+    const { runId } = (req as { params: { runId: string } }).params;
+    if (!evals.summary(runId)) throw new EvalFileError('not-found', 'eval run not found');
+    const result = await evals.rejudge(runId);
+    if (!result) throw new EvalStartError('eval-running', 'a re-judge of this run is already running');
+    return result;
+  }));
+
+  app.post<{ Params: { runId: string }; Body: { caseId?: unknown; idx?: unknown } }>('/eval-runs/:runId/accept-judge', answering((req) => {
+    phase2();
+    const { params, body } = req as { params: { runId: string }; body: { caseId?: unknown; idx?: unknown } | undefined };
+    if (typeof body?.caseId !== 'string' || !body.caseId || !Number.isInteger(body.idx) || (body.idx as number) < 0) throw new BadRequest('caseId and idx must name the judged expectation to accept');
+    if (!evals.summary(params.runId)) throw new EvalFileError('not-found', 'eval run not found');
+    const gate = evals.acceptJudge(params.runId, body.caseId, body.idx as number);
+    if (!gate) throw new EvalFileError('not-found', 'this run has no gate');
+    return gate;
   }));
 
   app.delete<{ Params: { runId: string } }>('/eval-runs/:runId', answering((req) => {

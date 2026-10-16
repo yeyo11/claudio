@@ -435,6 +435,9 @@ test("a chat's token reads, estimates and cancels, but cannot write, consent, st
     ['POST', evalUrl(w, 'guarded', '/runs'), REQUEST],
     ['POST', '/api/eval-runs/r1/resume', { confirmMaxCostUsd: 1 }],
     ['DELETE', '/api/eval-runs/r1'],
+    ['POST', '/api/eval-runs/r1/rejudge'],
+    ['POST', '/api/eval-runs/r1/accept-judge', { caseId: 'c', idx: 0 }],
+    ['POST', evalUrl(w, 'guarded', '/draft-cases'), {}],
   ];
   for (const [method, url, body] of refused) {
     const res = await w.app.inject({ method: method as 'PUT', url, ...fromChat(chat, body) });
@@ -486,4 +489,37 @@ test('read-only mode refuses every eval write and leaves the reads', async (t) =
     assert.equal((await w.app.inject(url)).statusCode, 200, url);
   }
   await w.app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ readOnly: false }) });
+});
+
+test('Phase 2 routes answer 409 evals-phase2-off until the switch is on, and then gate, rejudge, accept and draft', async (t) => {
+  const w = await wrapper();
+  t.after(finish(w));
+  const def = definition(w.head);
+  const file = (await put(w, 'phase', def)).json<EvalFileDetail>();
+  seedRun(w, 'r1', 'phase', file.sha, def, 'completed', '2026-10-16T10:00:00.000Z');
+
+  const off = async (method: 'GET' | 'POST', url: string, body?: unknown) => {
+    const res = await w.app.inject({ method, url, ...(body === undefined ? {} : json(body)) });
+    assert.equal(res.statusCode, 409, `${method} ${url}`);
+    assert.equal(res.json().code, 'evals-phase2-off');
+  };
+  await off('GET', '/api/eval-runs/r1/gate');
+  await off('POST', '/api/eval-runs/r1/rejudge');
+  await off('POST', '/api/eval-runs/r1/accept-judge', { caseId: 'c', idx: 0 });
+  await off('POST', evalUrl(w, 'phase', '/draft-cases'), {});
+  await off('POST', evalUrl(w, 'phase', '/estimate'), { ...REQUEST, pressures: ['competing'] });
+  await off('POST', `/api/projects/${w.project.id}/assistant/runs`, { kind: 'evals', evalName: 'phase' });
+  // Neutral only is Phase 1
+  assert.equal((await w.app.inject({ method: 'POST', url: evalUrl(w, 'phase', '/estimate'), ...json({ ...REQUEST, pressures: ['neutral'] }) })).statusCode, 200);
+
+  await w.core.appSettings.update({ evalsPhase2: true });
+  // A current-only run has no gate; an unknown one is not found
+  assert.equal((await w.app.inject('/api/eval-runs/r1/gate')).statusCode, 404);
+  assert.equal((await w.app.inject('/api/eval-runs/nope/gate')).statusCode, 404);
+  assert.equal((await w.app.inject({ method: 'POST', url: '/api/eval-runs/r1/accept-judge', ...json({ idx: 0 }) })).statusCode, 400);
+  assert.equal((await w.app.inject({ method: 'POST', url: '/api/eval-runs/nope/rejudge' })).statusCode, 404);
+  assert.equal((await w.app.inject({ method: 'POST', url: evalUrl(w, 'phase', '/estimate'), ...json({ ...REQUEST, pressures: ['loud'] }) })).statusCode, 400);
+  const est = await w.app.inject({ method: 'POST', url: evalUrl(w, 'phase', '/estimate'), ...json({ ...REQUEST, pressures: ['neutral'] }) });
+  assert.ok(est.json<EvalEstimate>().perLevel?.neutral);
+  assert.equal((await w.app.inject({ method: 'POST', url: evalUrl(w, 'missing', '/draft-cases'), ...json({}) })).statusCode, 404);
 });

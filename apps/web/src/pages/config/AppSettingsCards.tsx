@@ -16,6 +16,7 @@ export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
   defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
   setupSeen: 'CLAUDIO_SETUP_SEEN',
   dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
+  evalsPhase2: 'CLAUDIO_EVALS_PHASE2',
 };
 
 // The server's own bounds; a value outside them is refused with a 400

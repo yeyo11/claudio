@@ -4427,6 +4427,12 @@ export interface AppSettingValues {
    * in cents.
    */
   dailySpendCapUsd: number | null;
+  /**
+   * Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case
+   * drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals
+   * are not affected.
+   */
+  evalsPhase2: boolean;
 }
 
 /**
