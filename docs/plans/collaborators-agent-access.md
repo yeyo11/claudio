@@ -7,11 +7,11 @@ tags:
     - assistant
     - mcp
     - security
-    - proposed
+    - decided
 ---
 # Plan: agents read what teammates share
 
-Status: **proposed** (owner's choice on 2026-10-17: a hybrid of an assistant that reads the shared
+Status: **decided**, not built (owner's choice on 2026-10-17: a hybrid of an assistant that reads the shared
 copies and read-only MCP tools a project opts into). Builds on [collaborators.md](../collaborators.md)
 and changes one of its security decisions.
 
@@ -52,12 +52,15 @@ commands on this machine.
 - **Visible in the chat.** A chat with the tools shows a chip "Reads teammates' shares" beside its
   other capabilities, and the tool rows say whose content was read.
 
-## Open questions
+## Decided with the owner (2026-10-17)
 
-- Whether a chat in `bypassPermissions` (orchestration workers) gets the tools when its project opts
-  in. Proposed default: no, only chats that ask before running a command; the owner decides.
-- Whether the owner of a copy (B) can forbid agent reads of what they share, per project. Proposed:
-  yes, a flag in the share that A's install honours.
+- **Chats in `bypassPermissions` do not get the tools**, even when their project opts in: only chats
+  that ask before running a command (`default`, `acceptEdits`, `plan`) do. Orchestration workers run
+  in `bypassPermissions`, so they never read a teammate's text.
+- **The sharer can forbid agent reads.** A share carries a flag, "Teammates' agents may read this"
+  (on by default), set in the Sharing section next to the share key. The reading install honours it:
+  with the flag off, neither the assistant nor any chat gets that copy, and the person still reads it
+  in the Shared tab.
 
 ## Delivery
 
