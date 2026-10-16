@@ -5514,6 +5514,10 @@
       "maxAttempts": {
         "type": "number",
         "description": "Attempts a failed task gets from here on, the first included"
+      },
+      "guards": {
+        "$ref": "#/components/schemas/GuardOverride",
+        "description": "Guards for the runs still to start; a chat's token may not weaken them (docs/plans/guards.md)"
       }
     },
     "description": "Settings that can be corrected when resuming, so a graph started with the wrong ones is fixed and picked up instead of rebuilt. Only what shapes the workers still to run; completed work is kept."
@@ -6269,6 +6273,9 @@
       },
       {
         "$ref": "#/components/schemas/SpendAlertEvent"
+      },
+      {
+        "$ref": "#/components/schemas/GuardsChangedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -11497,6 +11504,100 @@
     ],
     "description": "Spend reached 75 % or 100 % of the cap; emitted once per day and level, whichever process saw it first."
   },
+  "GuardsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "guards.changed"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/GuardSettings"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "settings",
+      "title",
+      "type"
+    ],
+    "description": "The global guard settings changed (`PUT /settings/guards`); applies to the next process spawned."
+  },
+  "GuardSettings": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/GuardMode",
+        "description": "Default `enforce`; `observe` is a person's choice and is never picked automatically"
+      },
+      "automated": {
+        "type": "boolean",
+        "description": "Guard workers, the integrator, fixers, synthesis and flow stages; default true (O1)"
+      },
+      "rules": {
+        "type": "object",
+        "properties": {
+          "no-verify": {
+            "type": "boolean"
+          },
+          "push": {
+            "type": "boolean"
+          },
+          "destructive": {
+            "type": "boolean"
+          },
+          "secrets": {
+            "type": "boolean"
+          },
+          "protect-configs": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "no-verify",
+          "push",
+          "destructive",
+          "secrets",
+          "protect-configs"
+        ],
+        "description": "Which switchable rules are on; `protect-configs` ships off, the others on (O2, O3)"
+      },
+      "protectConfigs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Globs, relative to a root, of the existing config files `protect-configs` guards; at most 200, none absolute or with `..`"
+      },
+      "extraRoots": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Absolute directories `destructive` treats as roots besides the run's worktree"
+      }
+    },
+    "required": [
+      "mode",
+      "automated",
+      "rules",
+      "protectConfigs",
+      "extraRoots"
+    ],
+    "description": "The global guard settings (`guards.json`, `GET`/`PUT /settings/guards`)."
+  },
   "StreamHelloEvent": {
     "type": "object",
     "properties": {
@@ -15374,6 +15475,314 @@
       }
     },
     "description": "The query of `GET /audit`; every field narrows the page and its `total`."
+  },
+  "GuardSettingsView": {
+    "type": "object",
+    "properties": {
+      "settings": {
+        "$ref": "#/components/schemas/GuardSettings"
+      },
+      "status": {
+        "$ref": "#/components/schemas/GuardStatus"
+      },
+      "rules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GuardRuleInfo"
+        }
+      }
+    },
+    "required": [
+      "settings",
+      "status",
+      "rules"
+    ],
+    "description": "`GET`/`PUT /settings/guards`."
+  },
+  "GuardStatus": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean"
+      },
+      "problem": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/GuardProblem"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when available"
+      },
+      "cliVersion": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI the check ran against; null when none was found"
+      }
+    },
+    "required": [
+      "available",
+      "problem",
+      "cliVersion"
+    ],
+    "description": "Whether guards can run on this machine, so Settings can say why not instead of failing a launch."
+  },
+  "GuardProblem": {
+    "type": "string",
+    "enum": [
+      "entry-missing",
+      "entry-untrusted",
+      "self-test-failed",
+      "cli-unsupported",
+      "hooks-disabled",
+      "managed-hooks-only",
+      "hooks-conflict",
+      "bad-path"
+    ],
+    "description": "Why the guard cannot run: the codes of the pre-launch checks (`guards/preflight.ts`)."
+  },
+  "GuardRuleInfo": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/GuardRuleId"
+      },
+      "defaultOn": {
+        "type": "boolean",
+        "description": "On in a fresh install"
+      },
+      "switchable": {
+        "type": "boolean",
+        "description": "False for `integrity` only"
+      }
+    },
+    "required": [
+      "id",
+      "defaultOn",
+      "switchable"
+    ],
+    "description": "One rule as the UI lists it; the words are the UI's own (i18n), not the server's."
+  },
+  "UpdateGuardSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/GuardMode"
+      },
+      "automated": {
+        "type": "boolean"
+      },
+      "rules": {
+        "type": "object",
+        "properties": {
+          "no-verify": {
+            "type": "boolean"
+          },
+          "push": {
+            "type": "boolean"
+          },
+          "destructive": {
+            "type": "boolean"
+          },
+          "secrets": {
+            "type": "boolean"
+          },
+          "protect-configs": {
+            "type": "boolean"
+          }
+        }
+      },
+      "protectConfigs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "extraRoots": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "description": "`PUT /settings/guards`: only the keys that change; `rules` merges over the stored ones."
+  },
+  "GuardEventPage": {
+    "type": "object",
+    "properties": {
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GuardEvent"
+        }
+      },
+      "next": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "events",
+      "next"
+    ],
+    "description": "`GET /guard-events`: newest first; `next` is the `before` cursor of the following page, null at the end."
+  },
+  "GuardEvent": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "number"
+      },
+      "at": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "flowRunId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "toolUseId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's id of the tool call; null for an event that belongs to no call (`unarmed`)"
+      },
+      "toolName": {
+        "type": "string"
+      },
+      "rule": {
+        "$ref": "#/components/schemas/GuardRuleId"
+      },
+      "matcher": {
+        "type": "string",
+        "description": "Stable id of the check that fired, such as `push.git-verb`"
+      },
+      "outcome": {
+        "$ref": "#/components/schemas/GuardOutcome"
+      },
+      "reason": {
+        "type": "string",
+        "description": "English, from the guard, never holding a secret"
+      },
+      "excerpt": {
+        "type": "string",
+        "description": "The command or path, masked, at most 240 characters"
+      }
+    },
+    "required": [
+      "seq",
+      "at",
+      "chatId",
+      "projectId",
+      "orchestrationId",
+      "taskId",
+      "flowRunId",
+      "toolUseId",
+      "toolName",
+      "rule",
+      "matcher",
+      "outcome",
+      "reason",
+      "excerpt"
+    ],
+    "description": "One row of `guard_events`."
+  },
+  "GuardCheckRequest": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "type": "string"
+      },
+      "input": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "rules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GuardSwitchableRuleId"
+        },
+        "description": "Rules to check with; the current settings when absent"
+      },
+      "roots": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Absolute directories treated as the run's roots"
+      }
+    },
+    "required": [
+      "tool",
+      "input"
+    ],
+    "description": "`POST /guards/check`: asks the pure decision engine about one tool call; backs \"Try a command\"."
+  },
+  "GuardSwitchableRuleId": {
+    "type": "string",
+    "enum": [
+      "no-verify",
+      "push",
+      "destructive",
+      "secrets",
+      "protect-configs"
+    ],
+    "description": "The rules a person can switch: every rule but `integrity`."
+  },
+  "GuardCheckResult": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "block"
+        ]
+      },
+      "rule": {
+        "$ref": "#/components/schemas/GuardRuleId",
+        "description": "Present on a block"
+      },
+      "matcher": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string",
+        "description": "English, to show and to hand the agent"
+      }
+    },
+    "required": [
+      "verdict"
+    ]
   },
   "ToolPresetsConfig": {
     "type": "object",

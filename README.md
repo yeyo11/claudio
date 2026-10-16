@@ -212,6 +212,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums the `total_cost_usd` of each `result` message in the stream (the CLI's own figure; Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
 | Path-scoped rules | `.claude/rules/*.md` files with a `paths:` list in their front matter, which the CLI loads as project memory; Claudio writes them when a person approves a `rule` proposal ([docs/team-and-flow.md](docs/team-and-flow.md)) |
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
+| Guards on tool calls | `--settings <file>` with only Claudio's own hooks (a content-addressed file under `<data>/guards/`) and `--include-hook-events`, read for the guard's marker lines only ([docs/guards.md](docs/guards.md)) |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
 
@@ -454,6 +455,7 @@ transpiler.
 | `CLAUDIO_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
 | `CLAUDIO_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `CLAUDIO_MCP_ENTRY` | the `mcp.mjs` beside the API bundle, when it exists | The bundle of Claudio's own MCP server a confined chat's CLI starts; from source it runs `packages/mcp` with tsx. See [docs/claudio-mcp-server.md](docs/claudio-mcp-server.md) |
+| `CLAUDIO_GUARD_ENTRY` | the `guard.mjs` beside the API bundle | The bundle of Claudio's guard, the program the CLI runs on each tool call. It must not be group- or world-writable or sit under a project; from source it runs `packages/core/src/guards/main.ts`. See [docs/guards.md](docs/guards.md) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 Claudio sets two variables for every chat it starts, so an agent that calls the REST API reaches the
@@ -467,6 +469,13 @@ Claudio starts with authentication **off**, so a local install keeps working unt
 starts bound to `127.0.0.1` and answering only to loopback host names, so "off" is not the same as
 "open". Turn the guard on before the port is reachable by anyone you do not trust, and put a
 TLS-terminating proxy in front.
+
+**Guards.** Agent runs are covered by deterministic hooks that hold even in `bypassPermissions`: no
+`--no-verify`, no push, no force push, `reset --hard` or recursive delete outside the worktree, and no
+secret written into a file. They are on for orchestration workers and the flow, and per project for
+chats; Settings → Security → Guards switches them. They are defence in depth against mistakes, **not
+a sandbox**: an agent that can run arbitrary code can get round them, so real isolation is still the
+container, the user account and the worktree ([docs/guards.md](docs/guards.md)).
 
 **Modes.** Set from Settings → Security, or seeded from the environment on a fresh install
 (`CLAUDIO_AUTH_MODE`, `CLAUDIO_AUTH_TOKEN`, `CLAUDIO_OIDC_*`; once an `auth.json` exists in the data
@@ -656,6 +665,10 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
+| GET | `/settings/guards` | Guard settings (`mode`, `automated`, `rules`, `protectConfigs`, `extraRoots`), whether the guard can run here and why not, and the rule list. A chat's token may read it |
+| PUT | `/settings/guards` | Only the keys that change; `rules` merges over the stored ones. `integrity` cannot be switched. Applies to the next process spawned. `400` for an unknown key, a non-boolean, a bad mode, more than 200 globs, an absolute glob or one with `..`, or an `extraRoots` entry that is not an existing absolute directory (not `/`, the home folder or the data dir). `403` for a chat's token |
+| GET | `/guard-events?chatId=&orchestrationId=&flowRunId=&projectId=&rule=&outcome=&before=&limit=` | What the guards did, newest first, with `next` as the `before` cursor of the following page. `limit` is 1–200 (default 50). A chat's token reads only its own `chatId`, else `403` |
+| POST | `/guards/check` | `{ tool, input, rules?, roots? }` → `{ verdict, rule?, matcher?, reason? }` through the decision engine, nothing run or recorded. `403` for a chat's token |
 | GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). `limit` and `from` must be non-negative integers, or the answer is a `400` saying so. Bodies are never recorded |
 
 ### Remote access

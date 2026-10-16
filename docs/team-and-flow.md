@@ -915,6 +915,14 @@ Since orchestration 6 the phone screens follow their references more closely:
 - **The journal says "Tú"** beside the person's monogram, as `MobileMemoriaDiario` does, and drops
   "written by you", which would say it twice.
 
+## Guards
+
+Flow runs are [guarded](guards.md) by default. The flow settings have a Guards card with one row per
+stage (refine, work, verify), saved into `flow.guards`; a chat token cannot save a stage override
+weaker than the global rules. A run whose guard cannot run ends `failed` with cause `not-started` and
+an error starting `guard-unavailable (<problem>)`. Run rows show an "N blocked" chip when the guards
+blocked a call, linking to the chat at the first notice.
+
 ## Known gaps
 
 Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed; each is
@@ -939,4 +947,4 @@ described above where it now lives. The last detail, the model's name, was close
 
 ## Related
 
-[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[guards.md]] · [[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

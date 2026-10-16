@@ -4100,6 +4100,8 @@ export interface ResumeOrchestrationRequest {
   limits?: TaskLimits | null;
   /** Attempts a failed task gets from here on, the first included */
   maxAttempts?: number;
+  /** Guards for the runs still to start; a chat's token may not weaken them (docs/plans/guards.md) */
+  guards?: GuardOverride;
 }
 
 export interface PlanRequest {
@@ -7323,6 +7325,12 @@ export interface SpendAlertEvent extends ClaudioEventBase {
   spend: SpendState;
 }
 
+/** The global guard settings changed (`PUT /settings/guards`); applies to the next process spawned. */
+export interface GuardsChangedEvent extends ClaudioEventBase {
+  type: 'guards.changed';
+  settings: GuardSettings;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type ClaudioEvent =
   | RunCreatedEvent
@@ -7384,7 +7392,8 @@ export type ClaudioEvent =
   | WebhookChangedEvent
   | LoginUpdatedEvent
   | SpendChangedEvent
-  | SpendAlertEvent;
+  | SpendAlertEvent
+  | GuardsChangedEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 

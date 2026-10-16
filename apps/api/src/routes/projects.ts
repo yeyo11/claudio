@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import { projectExportFilename, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
+import { refuseWeakerProjectSettings } from './guards.ts';
 import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
@@ -41,6 +42,8 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // - the providers: their order and what happens at a limit decide which vendor the work spends on.
   app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', async (req) => {
     const body = req.body;
+    // A chat may tighten its project's guards but never loosen them
+    await refuseWeakerProjectSettings(core, req, req.params.id, body);
     if (req.actor?.startsWith('chat:') && typeof body === 'object' && body !== null && !Array.isArray(body)) {
       const { tracker: _tracker, providers: _providers, ...rest } = body as Record<string, unknown>;
       const { tracker, providers } = await core.projectSettings(req.params.id);
