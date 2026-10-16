@@ -635,7 +635,8 @@ export function Review({ pr, itemId, changesPath, lead }: { pr: WorkItemPullRequ
           </ul>
         ) : null}
 
-        {(drafts.length > 0 || partly) && (
+        {/* Submit waits for the review posts: offered before a partly sent one is known, it would post the comments twice */}
+        {(drafts.length > 0 || partly) && !posts.isLoading && (
           <div className="rv-foot">
             {partly ? (
               <>
