@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T21:00:00Z
-updated_at: 2026-10-15T21:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - plan
     - spec
@@ -13,7 +13,7 @@ tags:
 ---
 # Plan: context control — see what fills a chat, and compact it on purpose (★4)
 
-Status: **planned** (2026-10-15). Nothing here is built. Branch `feat/claude-only`, worktree
+Status: **built** (2026-10-16), see [Outcome](#outcome) and [../context-control.md](../context-control.md). Branch `feat/claude-only`, worktree
 `~/Escritorio/claudio-stage-a`.
 
 A person sees what fills a chat's context window and can compact the conversation when it makes
@@ -1191,9 +1191,31 @@ the answer wins, and the task that builds the affected part follows it.
    Each would be a paid turn nobody asked for. They can come later, each as a decision point
    shipped `off`; nothing in this plan builds them.
 
+## Outcome
+
+Built on the integration branch in tasks x0–x11 (2026-10-16). It follows the plan; what differs:
+
+- **A typed `/compact` is refused to a chat's token too** (x9). The plan guarded the compact route;
+  review found a chat's token could send `/compact` as a message, or as the prompt of a resume or a
+  fork, and compact any chat. `apps/api/src/security.ts` now returns the same 403. Why: D1/D12 say
+  compaction is offered to the person only.
+- **Served notes are masked with core's `maskSecrets`** (x9, `ChatNotes`). The web's masking catches
+  only secret-shaped text, not Claudio's own secrets (vault values, the decision key, webhook secrets,
+  tokens). Why: a note is Claude's text and can quote what it saw.
+- **The e2e fake CLI answers `get_context_usage` and plays `/compact`** from the recordings, and fails
+  or stalls a compaction on cue (x10). Its summary is the recording's placeholder, so the note it
+  produces has `sections: null`. The new spec and the additions to the a11y and motion specs were
+  written but not run before the merge; the integrator runs them.
+- **The flow point's code gate** is `FLOW_COMPACT_MIN_SHARE` (0.6) plus "the CLI lists `compact` and no
+  housekeeping turn is open"; below it nothing is asked.
+- Resolved questions 1 and 2 are built as written: one threshold rule (0.60 / 0.75) with the
+  auto-compaction tick, and no automatic session notes.
+
+Nothing in the plan was dropped.
+
 ## Related
 
-[[reports/ecc.md]] · [[plans/sdk-driver-improvements.md]] · [[plans/claude-only-fork.md]] ·
+[[context-control.md]] · [[reports/ecc.md]] · [[plans/sdk-driver-improvements.md]] · [[plans/claude-only-fork.md]] ·
 [[plans/chat-experience.md]] · [[decision-engine.md]] · [[team-and-flow.md]] · [[security-model.md]] ·
 [[chat-delivery.md]] · [[slash-commands.md]] · [[design-system.md]] · [[plans/chat-api-token.md]] ·
 [[plans/decision-engine.md]] · [[status.md]]

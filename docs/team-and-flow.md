@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - team
     - flow
@@ -264,6 +264,12 @@ both the same way: resuming it gave the person's chat the member's agent, rules 
 stayed after the run. After a bounce, its prompt carries QA's newest comment. The chat is linked to
 the item as it starts, with the stage as the link's role (`refine`, `work`, `verify`) and the member's
 role as `teamRole`.
+
+**A bounce may compact the Developer's chat first.** When the decision point `context.compact` is
+active (it ships `off`), the chat the Developer resumes after a bounce is at or above 60 % of its
+window and its CLI can compact, the engine is asked and `compact-first` compacts it before the run
+takes it. A compaction that fails never stops the run. No other stage qualifies, since each starts a
+fresh chat. See [context-control.md](context-control.md).
 
 ### What a run is told
 
