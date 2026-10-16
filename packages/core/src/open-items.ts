@@ -147,13 +147,16 @@ export function openItems(input: OpenItemsInput): string[] {
   return [...structuralItems(input), ...phraseItems(input.finalText)];
 }
 
+/** How a continuation prompt begins: Claudio's nudge, not the person's words (the lessons' signals skip it) */
+export const CONTINUATION_PREFIX = 'Your turn ended, but the work is not finished';
+
 /**
  * What the run is told when it goes back to its chat: what is open, which continuation this is, and
  * what the caller adds (how the run ends, a time signal).
  */
 export function continuationPrompt(items: readonly string[], count: number, extra: readonly string[] = []): string {
   return [
-    `Your turn ended, but the work is not finished (continuation ${String(count)} of ${String(MAX_CONTINUATIONS)}):`,
+    `${CONTINUATION_PREFIX} (continuation ${String(count)} of ${String(MAX_CONTINUATIONS)}):`,
     ...items.map((i) => `- ${i}`),
     '',
     'Carry on from where you are; everything you did is still in place. Ask only before a risky or destructive action.',

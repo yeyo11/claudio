@@ -163,6 +163,9 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ]),
     ),
   ),
+  point({ id: 'lesson.mine', kind: 'suggest', scope: 'project', primitives: ['noul'], visible: false, fields: ['signals'] }, () => [
+    noul('mine', 'Do these signals show a person correcting, stopping or overruling the agent in a way that should change how agents work in this project from now on, beyond this one task?'),
+  ]),
   point({ id: 'board.triage', kind: 'suggest', scope: 'project', primitives: ['choice', 'noul'], fields: ['title', 'description', 'openItems', 'epics'] }, () => [
     choice('type', 'What kind of work item is this draft?', [
       ['task', 'A task: routine work with a clear end'],

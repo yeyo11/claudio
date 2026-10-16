@@ -72,7 +72,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -144,6 +144,10 @@ import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
+import { EMPTY_SECTION, type LessonSection } from './lessons/render.ts';
+import { PASTED_NOTE } from './prompt-rules.ts';
+import { LessonService } from './lessons/service.ts';
+import { LessonStore } from './lessons/store.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
 import { ReviewStore } from './review-store.ts';
 import { DEFAULT_ROLE_BODIES, readRole, REVIEW_ROLES, roleFileName, type ReviewRole } from './review-roles.ts';
@@ -177,6 +181,10 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { LessonMiningQueue, storeProposer } from './lessons/queue.ts';
+import { runMiner } from './lessons/miner.ts';
+import { DEFAULT_LESSON_SETTINGS, LessonSettingsStore } from './lessons/settings.ts';
+import { SignalRecorder } from './lessons/signals.ts';
 import { ChecksFix } from './decisions/checks-fix.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
@@ -360,7 +368,9 @@ export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading,
 export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
 export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
 export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
-export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
+export { MemoryProposalService, type LessonApprovals, type ProposalOrigin } from './memory-proposals.ts';
+export { LessonService, type MiningContext, type MiningResult } from './lessons/service.ts';
+export { LessonStore } from './lessons/store.ts';
 export {
   installDirs,
   nvmBinDirs,
@@ -447,6 +457,10 @@ export class Core {
   readonly decisionCredentials: DecisionCredentialStore;
   /** The one door every decision point asks through; providers register themselves on it */
   readonly decisions: DecisionEngine;
+  /** The `lesson_signals` rows a transcript cannot tell: a person's deny, a rewind, a rejected proposal */
+  readonly lessonSignals: SignalRecorder;
+  /** Turns a chat's corrections into lesson proposals, one miner run at a time (docs/plans/lessons.md, "Mining") */
+  readonly lessonQueue: LessonMiningQueue;
   private readonly decisionResolvers: DecisionResolvers;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
@@ -514,6 +528,9 @@ export class Core {
   readonly journal: JournalService;
   /** What the team proposes to remember, written to its target only once a person approves it */
   readonly memoryProposals: MemoryProposalService;
+  readonly lessons: LessonService;
+  /** `lessons.json`: read and changed through here so the queue and the service see the change at once */
+  readonly lessonSettings: { get(): Promise<LessonSettings>; update(patch: unknown): Promise<LessonSettings> };
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
@@ -689,6 +706,13 @@ export class Core {
         toolName: request.toolName,
         outcome,
       });
+      // S-denied: a deny a person wrote, kept for the lessons' pre-filter when the project allows it
+      if (decision?.behavior === 'deny') {
+        void this.chats
+          .get(request.runId)
+          .then((chat) => this.lessonSignals.denied(request, decision, { chatId: request.runId, projectId: chat?.project?.id ?? null }))
+          .catch(() => undefined);
+      }
     });
     // Hangs off the bus as an observer, so it hears every event without counting as a client
     this.push = new PushService({ config, db: this.db, events: this.events });
@@ -779,6 +803,7 @@ export class Core {
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
+    this.lessonSignals = new SignalRecorder({ db: this.db, mode: (projectId) => this.decisions.effective('lesson.mine', projectId).mode });
     this.decisionResolvers = new DecisionResolvers({
       sql: this.db.connection,
       db: this.db,
@@ -824,6 +849,7 @@ export class Core {
       compact: (chat) => this.context.availability(chat),
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
+      rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),
     });
     this.notes = new ChatNotes({
       db: this.db,
@@ -901,6 +927,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
       decisions: this.decisions,
+      lessons: (projectId) => this.lessonSection(projectId, 'handoff'),
       sources: (id) =>
         this.workItems
           .links(id)
@@ -923,6 +950,89 @@ export class Core {
       // Built further down; read when a rule is approved
       resources: () => this.resources,
     });
+    // S-rejected-proposal: a rejection that says why, for the chat the proposal came from
+    this.events.observe((event) => {
+      if (event.type !== 'memory.proposal' || event.action !== 'rejected') return;
+      const proposal = this.memoryProposals.find(event.proposalId);
+      if (!proposal?.rejectReason || !proposal.source?.chatId) return;
+      this.lessonSignals.rejectedProposal({ chatId: proposal.source.chatId, projectId: proposal.projectId }, proposal.rejectReason, `Proposal: ${proposal.text.slice(0, 200)}`);
+      void this.lessonQueue.rejectedProposal(proposal.source.chatId);
+    });
+    // `lessons.json` is read asynchronously; the queue asks synchronously, so it reads a copy at most 10 s old
+    const lessonSettingsFile = new LessonSettingsStore(config);
+    let lessonSettings = DEFAULT_LESSON_SETTINGS;
+    let lessonSettingsAt = 0;
+    const currentLessonSettings = () => {
+      if (Date.now() - lessonSettingsAt > 10_000) {
+        lessonSettingsAt = Date.now();
+        void lessonSettingsFile.get().then((read) => (lessonSettings = read), () => undefined);
+      }
+      return lessonSettings;
+    };
+    this.lessonSettings = {
+      get: () => lessonSettingsFile.get(),
+      update: async (patch) => {
+        const next = await lessonSettingsFile.update(patch);
+        lessonSettings = next;
+        lessonSettingsAt = Date.now();
+        this.lessons.invalidate();
+        return next;
+      },
+    };
+    const lessonStore = new LessonStore({ db: this.db, settings: currentLessonSettings });
+    this.lessonQueue = new LessonMiningQueue({
+      db: this.db,
+      settings: currentLessonSettings,
+      store: lessonStore,
+      proposer: storeProposer(lessonStore),
+      decisions: this.decisions,
+      chat: async (chatId) => {
+        const chat = await this.chats.get(chatId);
+        if (!chat) return null;
+        return {
+          id: chat.id,
+          projectId: chat.project?.id ?? null,
+          origin: chat.origin,
+          internal: chat.origin === 'internal',
+          confined: false,
+          assistant: !!chat.claudioAssistant,
+          live: chat.execution !== null && chat.state !== 'idle',
+          driven: chat.origin === 'orchestration' || this.flow.ownsChat(chat.id),
+        };
+      },
+      memoryOn: (projectId) => {
+        const record = this.projectStore.get(projectId);
+        return !!record && !!this.projectSettingsStore.stored(projectId, record.name)?.modules.includes('memory');
+      },
+      entries: async (chatId) => (await this.sessions.getSession(chatId, { limit: 1000 }))?.entries ?? [],
+      corrections: (chatId) => this.sessions.corrections(chatId),
+      rows: (chatId) => this.lessonSignals.forChat(chatId),
+      instructions: async (projectId) => {
+        const record = this.projectStore.get(projectId);
+        const file = record ? join(record.path, 'CLAUDE.md') : null;
+        return file && existsSync(file) ? await readFile(file, 'utf8') : null;
+      },
+      projectKey: (projectId) => this.projectStore.get(projectId)?.name ?? projectId,
+      mine: (input, opts) => runMiner({ runtime: this.runtime, settings: currentLessonSettings }, input, opts),
+      limitResetsAt: () => this.limitReadings().find((l) => l.resetsAt)?.resetsAt ?? null,
+      emit: (event) => this.events.emit(event),
+    });
+    this.events.observe((event) => this.lessonQueue.observe(event));
+    this.lessonQueue.start();
+    this.lessons = new LessonService({
+      store: lessonStore,
+      proposals: this.memoryProposals,
+      settings: currentLessonSettings,
+      emit: (event) => this.events.emit(event),
+    });
+    this.events.observe((event) => {
+      if (event.type === 'lesson.changed') this.lessons.invalidate();
+    });
+    this.runtime.lessonsFor = (projectId, orchestrated) => {
+      const section = this.lessonSection(projectId, orchestrated ? 'worker' : 'chat');
+      return section.text ? `${section.text}\n${PASTED_NOTE}` : '';
+    };
+    this.lessons.start();
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
@@ -1392,6 +1502,29 @@ export class Core {
    * The project a directory belongs to and the worktree it is in, which is what a chat records. The
    * project is null when the directory is under none that was imported: a loose chat.
    */
+  /**
+   * The Lessons section a run is handed, or an empty one when the project does not allow it: the
+   * Memory module off, the switch of that kind of run off, or a chat outside any project when
+   * loose chats do not get global lessons. `handoff` is the journal's, for flow and assistant runs.
+   */
+  private lessonSection(projectId: string | null, kind: 'handoff' | 'chat' | 'worker'): LessonSection {
+    if (projectId === null) return kind === 'handoff' || !this.lessons.delivery().looseChats ? EMPTY_SECTION : this.lessons.section(null);
+    const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
+    if (!settings?.modules.includes('memory')) return EMPTY_SECTION;
+    const { deliverToChats = true, deliverToWorkers = true, useGlobal = true } = settings.lessons ?? {};
+    if ((kind === 'chat' && !deliverToChats) || (kind === 'worker' && !deliverToWorkers)) return EMPTY_SECTION;
+    return this.lessons.section(projectId, { useGlobal });
+  }
+
+  /** A project's lessons (or the global ones with `null`) and what a run is handed now */
+  lessonList(projectId: string | null, status?: LessonStatus): LessonList {
+    const section = projectId === null ? (this.lessons.delivery().looseChats ? this.lessons.section(null) : EMPTY_SECTION) : this.lessonSection(projectId, 'handoff');
+    return {
+      lessons: this.lessons.list(projectId, status),
+      handed: { lessons: section.lessons.length, bytes: section.bytes, budget: this.lessons.delivery().handoffBytes, overBudget: section.overBudget },
+    };
+  }
+
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
     const attached = this.attach(dir);
     const facts = attached ? attached.worktree : this.locator.worktreeOf(dir);
@@ -1981,6 +2114,7 @@ export class Core {
   }
 
   private projectUpdated(project: ProjectRecord, changes: ProjectChange[], modules: ProjectModule[]): void {
+    this.lessons.invalidate();
     if (!changes.length) return;
     this.events.emit({ type: 'project.updated', title: `${project.name} updated`, projectId: project.id, projectName: project.name, changes, modules });
   }
@@ -2136,7 +2270,7 @@ export class Core {
       quiet(async () => (await this.resources.list(scope, 'commands')).map((r) => r.name), [] as string[]),
       quiet(() => this.sessions.listSessions(encodeProjectId(project.path)), []),
     ]);
-    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0 });
+    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
     const items = await quiet(() => this.workItems.list({ projectId: project.id }), []);
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
     const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
@@ -2300,7 +2434,7 @@ export class Core {
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const };
+    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const, lessons: 'handoff' as const };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
@@ -2970,11 +3104,13 @@ export class Core {
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
     this.logins.close();
+    this.lessons.stop();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();
     this.providers.close();
     this.hosts.close();
+    this.lessonQueue.stop();
     this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();

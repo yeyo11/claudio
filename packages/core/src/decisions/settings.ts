@@ -27,6 +27,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'assistant.rerank',
   'assistant.sources',
   'journal.relevance',
+  'lesson.mine',
   'board.triage',
   'team.assign',
   'flow.scope-drift',

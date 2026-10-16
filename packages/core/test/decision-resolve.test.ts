@@ -5,6 +5,7 @@ import type { DecisionAnswer, DecisionPointId, DecisionRecord } from '@claudio/s
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
 import { DecisionResolvers } from '../src/decisions/resolve.ts';
+import { LessonStore } from '../src/lessons/store.ts';
 import { choiceOf, noulOf, scoreOf } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -126,6 +127,53 @@ test('context.compact: compact-first is right when the CLI compacted during the 
   const unknown = s.row('context.compact', { subjectId: 'r3', answers: { compact: choiceOf('continue') } });
   s.resolvers.sweep();
   assert.deepEqual([s.get(first.id)?.agreed, s.get(keep.id)?.agreed, s.get(wrong.id)?.agreed, s.get(unknown.id)?.agreed], [true, true, false, null]);
+});
+
+test('lesson.mine: resolved once the job is done and every proposal it made was decided', () => {
+  const s = setup();
+  const store = new LessonStore({ db: s.db, clock: () => new Date('2026-09-01T10:30:00.000Z') });
+  const job = (id: string, decision: string, status: string): void => {
+    s.db.connection
+      .prepare("INSERT INTO lesson_jobs (id, project_id, chat_id, trigger, status, decision_id, created_at, started_at) VALUES (?, 'p1', ?, 'run-ended', ?, ?, ?, ?)")
+      .run(id, `c-${id}`, status, decision, T0, T0);
+  };
+  const lesson = (jobId: string) =>
+    store.insert({
+      projectId: 'p1',
+      trigger: 'When editing the cart',
+      action: `Keep totals in cents ${jobId}`,
+      confidence: 0.6,
+      proposedBy: { kind: 'system', role: null },
+      evidence: [{ signal: 'correction', quote: 'no', context: '', chatId: `c-${jobId}`, entryUuid: null, jobId, at: T0 }],
+    });
+  const asked = (subject: string, mode: 'shadow' | 'active', value = true) =>
+    s.row('lesson.mine', { kind: 'suggest', mode, subjectKind: 'chat', subjectId: subject, answers: { mine: noulOf(value) } });
+
+  const approved = asked('c-j1', 'active');
+  job('j1', approved.id, 'done');
+  const first = lesson('j1');
+  const waiting = asked('c-j2', 'active');
+  job('j2', waiting.id, 'done');
+  lesson('j2');
+  const rejected = asked('c-j3', 'active');
+  job('j3', rejected.id, 'done');
+  const third = lesson('j3');
+  const nothing = asked('c-j4', 'active');
+  job('j4', nothing.id, 'done');
+  const running = asked('c-j5', 'active');
+  job('j5', running.id, 'running');
+  const shadow = asked('c-j6', 'shadow');
+  job('j6', shadow.id, 'done');
+  const no = asked('c-j7', 'active', false);
+  job('j7', no.id, 'done');
+
+  store.approve(first.id);
+  store.reject(third.id);
+  s.resolvers.sweep();
+  assert.equal(s.get(approved.id)?.agreed, true);
+  assert.equal(s.get(rejected.id)?.agreed, false, 'every proposal was rejected');
+  assert.equal(s.get(nothing.id)?.agreed, false, 'the miner proposed nothing');
+  for (const open of [waiting, running, shadow, no]) assert.equal(s.get(open.id)?.resolvedAt, null, open.id);
 });
 
 test('memory.triage: a high score is right when the proposal was approved, a duplicate when it was rejected', () => {

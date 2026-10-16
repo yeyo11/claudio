@@ -100,6 +100,22 @@ async function graph(point: DecisionPointId, mode: 'off' | 'shadow' | 'active', 
   return { ...d, orchestrator, repo, run };
 }
 
+// ---------- lesson.mine ----------
+
+test('lesson.mine: a suggest point of project scope with one noul question and only the signals as state', async () => {
+  const def = decisionPoint('lesson.mine');
+  assert.ok(def);
+  assert.equal(def.kind, 'suggest');
+  assert.equal(def.scope, 'project');
+  assert.deepEqual(def.primitives, ['noul']);
+  assert.deepEqual(def.fields, ['signals']);
+  assert.equal(def.stateVersion, 1);
+  assert.equal(def.visible, false);
+  const subject = { kind: 'chat' as const, id: 'c1', data: { signals: [{ id: 'S1', kind: 'correction', quote: 'no, use pnpm', context: '' }], secret: 'x' } };
+  assert.deepEqual(await def.buildState(subject), { signals: subject.data.signals });
+  assert.deepEqual(def.questions(subject).map((q) => [q.id, q.kind]), [['mine', 'noul']]);
+});
+
 // ---------- orchestration.retry ----------
 
 const FLAKY = [{ id: 'flaky', prompt: 'FAKE-FAIL-ONCE the disk was full' }];

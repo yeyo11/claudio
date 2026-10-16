@@ -41,7 +41,7 @@ test('a phone journal names the person "Tú" beside their mark, and a role by it
       entry('c', { kind: 'decision', text: 'One table per stream', author: { kind: 'agent', role: 'architect' } }),
     ],
     total: 3,
-    handed: { entries: 3, bytes: 100 },
+    handed: { entries: 3, bytes: 100, lessons: 0, lessonBytes: 0 },
     nextBefore: null,
   };
   client.setQueryData(keys.journalPage('p', { limit: 30 }), page);

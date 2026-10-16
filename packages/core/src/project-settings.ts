@@ -7,6 +7,7 @@ import type {
   ProjectFlowSettings,
   ProjectGuardSettings,
   ProjectModule,
+  ProjectLessonsSettings,
   ProjectProvidersSettings,
   ProjectSettings,
   ProjectTeamMember,
@@ -384,7 +385,20 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
     if (Object.keys(providers).length > 0) settings.providers = providers;
   }
   if (input.guards !== undefined && input.guards !== null) settings.guards = parseGuards(input.guards);
+  if (input.lessons !== undefined && input.lessons !== null) settings.lessons = parseLessons(input.lessons);
   return settings;
+}
+
+/** The three delivery switches: a missing one is on, and one that is not true or false is refused */
+function parseLessons(value: unknown): ProjectLessonsSettings {
+  if (!isObject(value)) throw new Error('lessons must be an object');
+  const flag = (field: 'deliverToChats' | 'deliverToWorkers' | 'useGlobal'): boolean => {
+    const v = value[field];
+    if (v === undefined) return true;
+    if (typeof v !== 'boolean') throw new Error(`lessons.${field} must be true or false`);
+    return v;
+  };
+  return { deliverToChats: flag('deliverToChats'), deliverToWorkers: flag('deliverToWorkers'), useGlobal: flag('useGlobal') };
 }
 
 /**
@@ -422,6 +436,8 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (providers && Object.keys(providers).length > 0) settings.providers = providers;
   const guards = attempt(() => (raw.guards == null ? null : parseGuards(raw.guards)), null);
   if (guards) settings.guards = guards;
+  const lessons = attempt(() => (raw.lessons == null ? null : parseLessons(raw.lessons)), null);
+  if (lessons) settings.lessons = lessons;
   return settings;
 }
 

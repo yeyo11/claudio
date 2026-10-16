@@ -1061,6 +1061,95 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
     UNIQUE (round_id, fingerprint)
   );
   CREATE INDEX review_findings_round ON review_findings (round_id, blocking, severity);`,
+  // Lessons from corrections (docs/plans/lessons.md)
+  `CREATE TABLE lessons (
+    seq                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    id                       TEXT NOT NULL UNIQUE,
+    project_id               TEXT,
+    status                   TEXT NOT NULL,
+    trigger                  TEXT NOT NULL,
+    action                   TEXT NOT NULL,
+    confidence               REAL NOT NULL,
+    seen_count               INTEGER NOT NULL DEFAULT 1,
+    pinned                   INTEGER NOT NULL DEFAULT 0,
+    mechanical               INTEGER NOT NULL DEFAULT 0,
+    conflicts_instructions   INTEGER NOT NULL DEFAULT 0,
+    contradicts_id           TEXT,
+    overrides_id             TEXT,
+    promoted_from            TEXT,
+    retired_reason           TEXT,
+    proposal_id              TEXT,
+    instructions_proposal_id TEXT,
+    proposed_by_kind         TEXT NOT NULL,
+    proposed_by_role         TEXT,
+    decided_by_kind          TEXT,
+    decided_by_role          TEXT,
+    decided_at               TEXT,
+    edited_at                TEXT,
+    last_seen_at             TEXT NOT NULL,
+    last_confirmed_at        TEXT NOT NULL,
+    created_at               TEXT NOT NULL,
+    updated_at               TEXT NOT NULL
+  );
+  CREATE INDEX lessons_project ON lessons (project_id, status, seq);
+  CREATE TABLE lesson_evidence (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT NOT NULL UNIQUE,
+    lesson_id   TEXT NOT NULL REFERENCES lessons (id) ON DELETE CASCADE,
+    signal      TEXT NOT NULL,
+    quote       TEXT NOT NULL,
+    context     TEXT NOT NULL,
+    chat_id     TEXT,
+    entry_uuid  TEXT,
+    job_id      TEXT,
+    at          TEXT NOT NULL
+  );
+  CREATE INDEX lesson_evidence_lesson ON lesson_evidence (lesson_id, seq);
+  -- What the transcript cannot tell: a person's deny (vs. a timeout), a rewind, a rejected proposal.
+  CREATE TABLE lesson_signals (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT NOT NULL UNIQUE,
+    project_id  TEXT NOT NULL,
+    chat_id     TEXT,
+    kind        TEXT NOT NULL,
+    entry_uuid  TEXT,
+    detail      TEXT NOT NULL,
+    job_id      TEXT,
+    at          TEXT NOT NULL
+  );
+  CREATE INDEX lesson_signals_chat ON lesson_signals (chat_id, job_id);
+  CREATE TABLE lesson_jobs (
+    seq            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id             TEXT NOT NULL UNIQUE,
+    project_id     TEXT NOT NULL,
+    chat_id        TEXT,
+    trigger        TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    outcome        TEXT,
+    from_uuid      TEXT,
+    until_uuid     TEXT,
+    signals        INTEGER NOT NULL DEFAULT 0,
+    candidates     INTEGER NOT NULL DEFAULT 0,
+    proposed       INTEGER NOT NULL DEFAULT 0,
+    merged         INTEGER NOT NULL DEFAULT 0,
+    dropped        TEXT NOT NULL DEFAULT '{}',
+    decision_id    TEXT,
+    reserved_usd   REAL NOT NULL DEFAULT 0,
+    cost_usd       REAL,
+    attempts       INTEGER NOT NULL DEFAULT 0,
+    claimed_by     TEXT,
+    claimed_until  TEXT,
+    next_at        TEXT,
+    error          TEXT,
+    created_at     TEXT NOT NULL,
+    started_at     TEXT,
+    ended_at       TEXT
+  );
+  CREATE INDEX lesson_jobs_project ON lesson_jobs (project_id, created_at);
+  -- One open job per chat: a second trigger while one waits is the same work
+  CREATE UNIQUE INDEX lesson_jobs_open ON lesson_jobs (chat_id) WHERE status IN ('queued', 'deferred', 'running') AND chat_id IS NOT NULL;
+  ALTER TABLE memory_proposals ADD COLUMN lesson_id TEXT REFERENCES lessons (id) ON DELETE SET NULL;
+`,
 ];
 
 /**
@@ -1134,6 +1223,8 @@ export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof
 
 /** The migration that added the review gate's rounds, runs and findings: a test starts a database from just before it */
 export const REVIEW_GATE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_rounds')) + 1;
+/** The migration that added the lessons tables: a test starts a database from just before it */
+export const LESSONS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE lessons')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

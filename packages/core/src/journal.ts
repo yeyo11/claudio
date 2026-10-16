@@ -14,6 +14,7 @@ import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, pathSegments } from './document-paths.ts';
 import type { ClaudioEventInput } from './events.ts';
+import { EMPTY_SECTION, type LessonSection } from './lessons/render.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 import { actorOf } from './work-item-rows.ts';
 import { PERSON, WorkItemError } from './work-item-validation.ts';
@@ -50,6 +51,8 @@ export interface JournalServiceDeps {
   sources?: (itemId: string) => WorkItemSource[];
   /** The decision engine, for `journal.relevance`; without it the handoff is newest first */
   decisions?: Pick<DecisionEngine, 'ask'>;
+  /** The Lessons section of a project's runs; it opens the handoff and counts against its cap */
+  lessons?: (projectId: string) => LessonSection;
 }
 
 /** What a run is about, for `journal.relevance`: the card or task it is handed the journal for */
@@ -69,7 +72,11 @@ export interface JournalHandoff {
   /** Empty when the journal is */
   text: string;
   entries: number;
+  /** Of the whole text, lessons included */
   bytes: number;
+  /** Lessons the text opens with, and the bytes of their section */
+  lessons: number;
+  lessonBytes: number;
 }
 
 /** What Claudio itself writes, beside the kinds a person may. */
@@ -129,7 +136,7 @@ export class JournalService {
     return {
       entries: shown.map((r) => this.entryOf(r)),
       total,
-      handed: { entries: handoff.entries, bytes: handoff.bytes },
+      handed: { entries: handoff.entries, bytes: handoff.bytes, lessons: handoff.lessons, lessonBytes: handoff.lessonBytes },
       nextBefore: rows.length > limit && last ? String(last.seq) : null,
     };
   }
@@ -145,7 +152,7 @@ export class JournalService {
    * reads is always the recent story without a hole in it.
    */
   handoff(projectId: string): JournalHandoff {
-    return this.hand(this.recent(projectId));
+    return this.hand(projectId, this.recent(projectId));
   }
 
   /**
@@ -157,7 +164,7 @@ export class JournalService {
   async handoffFor(projectId: string, topic: JournalTopic): Promise<JournalHandoff> {
     const rows = this.recent(projectId);
     const engine = this.deps.decisions;
-    if (!engine || rows.length < 2) return this.hand(rows);
+    if (!engine || rows.length < 2) return this.hand(projectId, rows);
     try {
       const head = rows.slice(0, RELEVANCE_ENTRIES);
       const outcome = await engine.ask(
@@ -176,7 +183,7 @@ export class JournalService {
         },
         { projectId },
       );
-      if (!outcome.act || !outcome.answers) return this.hand(rows);
+      if (!outcome.act || !outcome.answers) return this.hand(projectId, rows);
       const answers = outcome.answers;
       const rank = (row: EntryRow): number => {
         const answer = answers[row.id];
@@ -184,9 +191,9 @@ export class JournalService {
       };
       // Array.sort is stable: equal scores keep the newest first
       const ordered = [...head].sort((a, b) => rank(b) - rank(a));
-      return this.hand([...ordered, ...rows.slice(RELEVANCE_ENTRIES)], 'the ones this work needs most first');
+      return this.hand(projectId, [...ordered, ...rows.slice(RELEVANCE_ENTRIES)], 'the ones this work needs most first');
     } catch {
-      return this.hand(rows);
+      return this.hand(projectId, rows);
     }
   }
 
@@ -201,12 +208,16 @@ export class JournalService {
    * The entries in the order given, up to {@link JOURNAL_HANDOFF_BYTES}. It stops at the first entry
    * that does not fit rather than skipping it, so what a run reads has no hole in its order.
    */
-  private hand(rows: readonly EntryRow[], order = 'newest first'): JournalHandoff {
+  private hand(projectId: string, rows: readonly EntryRow[], order = 'newest first'): JournalHandoff {
     const header =
       `# Project journal\n\nClaudio's record of this project: decisions taken and work items closed, ${order}. The whole team shares it. Do not edit it: propose what the team should remember in your result's \`memoryProposals\`.\n`;
     const lines: string[] = [];
     // The block that marks the entries, and its note, count against the cap as well
     let bytes = Buffer.byteLength(header) + Buffer.byteLength(`${pasted('', '00000000')}\n\n${PASTED_NOTE}\n`);
+    // Lessons come first and count against the cap; the entries get what is left
+    const section = this.deps.lessons?.(projectId) ?? EMPTY_SECTION;
+    const lead = section.text ? `${section.text}\n` : '';
+    bytes += Buffer.byteLength(lead);
     for (const row of rows) {
       const line = this.render(this.entryOf(row));
       const size = Buffer.byteLength(line) + 1;
@@ -214,10 +225,16 @@ export class JournalService {
       bytes += size;
       lines.push(line);
     }
-    if (!lines.length) return { text: '', entries: 0, bytes: 0 };
+    const handed = { lessons: section.lessons.length, lessonBytes: section.bytes };
+    // With lessons and no entries, the section and the note: the note is written once, at the end
+    if (!lines.length) {
+      if (!section.text) return { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 };
+      const only = `${section.text}\n${PASTED_NOTE}\n`;
+      return { text: only, entries: 0, bytes: Buffer.byteLength(only), ...handed };
+    }
     // Entries are people's words and runs' summaries: marked as pasted content, and said so
-    const text = `${header}\n${pasted(lines.join('\n'))}\n\n${PASTED_NOTE}\n`;
-    return { text, entries: lines.length, bytes: Buffer.byteLength(text) };
+    const text = `${lead}${header}\n${pasted(lines.join('\n'))}\n\n${PASTED_NOTE}\n`;
+    return { text, entries: lines.length, bytes: Buffer.byteLength(text), ...handed };
   }
 
   // ---------- writing ----------

@@ -128,6 +128,8 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'project.removed': true,
   'team.changed': true,
   'journal.changed': true,
+  'lesson.changed': true,
+  'lesson.job': true,
   'memory.proposal': true,
   'document.changed': true,
   'flow.run': true,
@@ -230,6 +232,9 @@ function approvedTarget(event: MemoryProposalEvent): Target[] {
       return [[['config', 'instructions', event.projectId], NOW]];
     case 'journal':
       return [[keys.journal(event.projectId), NOW]];
+    // The lesson's own events (`lesson.changed`) refresh what shows it
+    case 'lesson':
+      return [];
     case 'rule':
       return [[keys.resources({ projectId: event.projectId }, 'rules'), NOW]];
   }
@@ -393,6 +398,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.team(event.projectId), NOW], [keys.resources({ projectId: event.projectId }, 'agents'), NOW]];
     case 'journal.changed':
       return [[keys.journal(event.projectId), NOW]];
+    // Nothing shows lessons yet; the Lessons tab will name its keys here
+    case 'lesson.changed':
+    case 'lesson.job':
+      return [];
     case 'memory.proposal':
       return [[keys.memoryProposalsOf(event.projectId), NOW], ...(event.action === 'approved' ? approvedTarget(event) : [])];
     case 'document.changed':
