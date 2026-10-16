@@ -918,6 +918,12 @@ export class ChatService {
     return this.require(id);
   }
 
+  /** Moves a chat to another account on a person's request; `pending` while the running turn has to end first. */
+  async switchAccount(id: string, accountId: string, actor: string): Promise<{ chat: ChatSummary; pending: boolean }> {
+    const { pending } = await this.deps.runtime.switchAccount(id, accountId, actor);
+    return { chat: await this.require(id), pending };
+  }
+
   /** The MCP servers of the chat's live process; `live: false` when no process of ours runs it. */
   mcpServers(id: string): Promise<ChatMcpServers> {
     return this.deps.runtime.mcpServers(id);

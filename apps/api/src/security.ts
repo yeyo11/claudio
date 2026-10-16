@@ -242,6 +242,7 @@ const CHAT_FORBIDDEN_SETUP = new Set([
 const CHAT_FORBIDDEN_ACCOUNTS = new Set([
   `POST ${API_PREFIX}/accounts`,
   `POST ${API_PREFIX}/accounts/token`,
+  `POST ${API_PREFIX}/chats/:id/account`,
   `GET ${API_PREFIX}/accounts/logins/:id`,
   `POST ${API_PREFIX}/accounts/logins/:id/code`,
   `DELETE ${API_PREFIX}/accounts/logins/:id`,

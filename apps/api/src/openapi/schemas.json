@@ -13740,6 +13740,34 @@
     },
     "description": "`POST /chats/:id/compact`"
   },
+  "SwitchChatAccountRequest": {
+    "type": "object",
+    "properties": {
+      "accountId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "accountId"
+    ],
+    "description": "`POST /chats/:id/account`: the account the chat's next execution runs on. The chat's current one cancels a pending switch."
+  },
+  "SwitchChatAccountResponse": {
+    "type": "object",
+    "properties": {
+      "chat": {
+        "$ref": "#/components/schemas/ChatSummary"
+      },
+      "pending": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "chat",
+      "pending"
+    ],
+    "description": "`pending`: the chat is working, so the switch waits for its turn to end."
+  },
   "ChatSessionNote": {
     "type": "object",
     "properties": {
