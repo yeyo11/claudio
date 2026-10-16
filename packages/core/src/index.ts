@@ -1986,7 +1986,8 @@ export class Core {
       },
       journal: journal.text,
       chats: chats.map((c) => (c.firstPrompt ?? c.title).replace(/\s+/g, ' ').trim().slice(0, 140)).filter(Boolean),
-      resources: { agents, skills, commands },
+      // No rules are listed yet: the assistant proposes them only once the rules resource is built
+      resources: { agents, skills, commands, rules: [] },
       instructions,
       git: await quiet(() => assistantGit(project.path), null),
     };

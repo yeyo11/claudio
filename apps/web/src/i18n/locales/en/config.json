@@ -1013,12 +1013,14 @@
     "kind": {
       "agents": "Agent",
       "skills": "Skill",
-      "commands": "Command"
+      "commands": "Command",
+      "rules": "Rule"
     },
     "kindLower": {
       "agents": "agent",
       "skills": "skill",
-      "commands": "command"
+      "commands": "command",
+      "rules": "rule"
     },
     "scope": {
       "project": "Project",
@@ -1060,7 +1062,8 @@
     "whatPlaceholder": {
       "agents": "An agent that reviews every new migration before the commit",
       "skills": "A skill that knows the design system's tokens and rules",
-      "commands": "A command that runs the checks and sums up what failed"
+      "commands": "A command that runs the checks and sums up what failed",
+      "rules": "A rule for the migrations folder: how a migration is named and what it must never touch"
     },
     "create": "Create",
     "again": "Try again",

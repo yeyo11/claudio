@@ -14,6 +14,7 @@ export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
   maxConcurrentRuns: 'CLAUDIO_MAX_CONCURRENT_RUNS',
   defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
   setupSeen: 'CLAUDIO_SETUP_SEEN',
+  dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
 };
 
 // The server's own bounds; a value outside them is refused with a 400

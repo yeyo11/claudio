@@ -237,7 +237,7 @@ export function WorkItemStrip({
         <>
           <span className="badge badge-idle">{t('strip.waitsForYou')}</span>
           <span className="workitem-strip-verb">
-            {verifier ? t('strip.sentBack', { role: verifier, count: strip.count }) : t('strip.sentBackAnon', { count: strip.count })}
+            {strip.plateau ? t('strip.plateau') : verifier ? t('strip.sentBack', { role: verifier, count: strip.count }) : t('strip.sentBackAnon', { count: strip.count })}
           </span>
         </>
       );

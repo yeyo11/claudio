@@ -52,6 +52,8 @@ export interface CoreConfig {
   defaultPermissionMode: PermissionMode;
   setupSeen: boolean;
   maxConcurrentRuns: number;
+  /** The daily spend cap from `CLAUDIO_DAILY_SPEND_CAP_USD` (or the default, no cap) */
+  dailySpendCapUsd: number | null;
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
    * complain to. It has to name a real domain — Apple refuses the whole JWT with `403 BadJwtToken`
@@ -176,12 +178,34 @@ function setupSeenFromEnv(env: NodeJS.ProcessEnv): boolean | null {
   return null;
 }
 
+/** The most a daily cap may be set to: a typo of three more zeros is a mistake, not a budget */
+export const MAX_DAILY_SPEND_CAP_USD = 100_000;
+
+/**
+ * A daily spend cap in USD: above 0 and at most {@link MAX_DAILY_SPEND_CAP_USD}, rounded to cents so
+ * the sum and the figure the person typed compare without float noise. Null when it is not one.
+ */
+export function normalizeSpendCap(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const cents = Math.round(value * 100) / 100;
+  return cents > 0 && cents <= MAX_DAILY_SPEND_CAP_USD ? cents : null;
+}
+
+/** `CLAUDIO_DAILY_SPEND_CAP_USD`: unset means no cap; a value that is not a valid cap stops the start rather than run uncapped by accident */
+function spendCapFromEnv(value: string | undefined): number | null {
+  if (!isSet(value)) return DEFAULT_APP_SETTINGS.dailySpendCapUsd;
+  const cap = normalizeSpendCap(Number(value.trim()));
+  if (cap === null) throw new Error(`CLAUDIO_DAILY_SPEND_CAP_USD: '${value}' is not an amount above 0 and up to ${String(MAX_DAILY_SPEND_CAP_USD)}`);
+  return cap;
+}
+
 /** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
 export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   allowedHosts: [],
   maxConcurrentRuns: 8,
   defaultPermissionMode: 'acceptEdits',
   setupSeen: false,
+  dailySpendCapUsd: null,
 });
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -205,6 +229,7 @@ export const APP_SETTING_ENV = {
   maxConcurrentRuns: 'CLAUDIO_MAX_CONCURRENT_RUNS',
   defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
   setupSeen: 'CLAUDIO_SETUP_SEEN',
+  dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 /**
@@ -262,6 +287,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     dataDir,
     defaultPermissionMode: isSet(env.CLAUDIO_DEFAULT_PERMISSION_MODE) ? (env.CLAUDIO_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
     setupSeen: setupSeenFromEnv(env) ?? DEFAULT_APP_SETTINGS.setupSeen,
+    dailySpendCapUsd: spendCapFromEnv(env.CLAUDIO_DAILY_SPEND_CAP_USD),
     maxConcurrentRuns: isSet(env.CLAUDIO_MAX_CONCURRENT_RUNS) ? Number(env.CLAUDIO_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
     pushSubject: env.CLAUDIO_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/claudio',
     allowedHosts: parseAllowedHosts(env.CLAUDIO_ALLOWED_HOSTS),

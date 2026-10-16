@@ -350,6 +350,7 @@
     "sentBack_other": "{{role}} la devolvió {{count}} veces",
     "sentBackAnon_one": "Devuelta {{count}} vez",
     "sentBackAnon_other": "Devuelta {{count}} veces",
+    "plateau": "Sin mejora en dos rondas",
     "chatWaiting": "Tu chat espera tu respuesta",
     "approve": "Aprobar y pasar a Hecho",
     "yourChat": "Tu chat",

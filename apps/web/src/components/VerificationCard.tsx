@@ -1,4 +1,4 @@
-import type { Orchestration, VerificationStatus } from '@claudio/shared';
+import type { FixStopKind, Orchestration, VerificationFix, VerificationStatus } from '@claudio/shared';
 import { ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCost, formatDateTime, formatDuration } from '@claudio/ui/lib/format';
@@ -29,6 +29,61 @@ export function FailedByChecksNotice({ orch }: { orch: Orchestration }) {
         <div className="strong">{t('verification.failedGraphTitle')}</div>
         <div className="small">{t('verification.failedGraphBody')}</div>
       </div>
+    </div>
+  );
+}
+
+/** A list of fixed locations longer than this folds, so a fixer that touched many files does not push the commits away. */
+const FOLD_AFTER = 8;
+
+/** Why a fixer's loop ended early, in words: warn, never an animation, and always with the word "Stopped". */
+export function FixStopLine({ kind, note }: { kind: FixStopKind; note: string }) {
+  const { t } = useTranslation('orchestrationV2');
+  return (
+    <div className="vfix-stop list-row list-row-flow small">
+      <Tag tone="warn">{t('verification.stopped')}</Tag>
+      <span className="strong">{t(`verification.stop.${kind}`)}</span>
+      {note && <span className="break muted">{note}</span>}
+    </div>
+  );
+}
+
+/**
+ * What each fixer attempt fixed, as `path:line` and a note. A path is text: Claudio never links to
+ * an editor, and what the fixer wrote is never resolved to a file.
+ */
+export function VerificationFixes({ fixes }: { fixes: readonly VerificationFix[] }) {
+  const { t } = useTranslation('orchestrationV2');
+  if (fixes.length === 0) return null;
+  return (
+    <div className="stack-tight vfixes">
+      <div className="strong small">{t('verification.fixes')}</div>
+      {fixes.map((fix) => {
+        const rows = fix.fixed ?? [];
+        const list = (
+          <ul className="vfix-rows">
+            {rows.map((row, i) => (
+              <li key={`${row.path}:${String(row.line)}:${String(i)}`} className="vfix-row small">
+                <code className="mono break">{row.line === null ? row.path : `${row.path}:${String(row.line)}`}</code>
+                <span className="break">{row.note}</span>
+              </li>
+            ))}
+          </ul>
+        );
+        return (
+          <div key={fix.attempt} className="vfix stack-tight">
+            <div className="small muted">{t('verification.fixAttempt', { number: fix.attempt })}</div>
+            {rows.length > FOLD_AFTER ? (
+              <Collapsible className="fold" title={t('verification.fixRows', { count: rows.length })}>
+                {list}
+              </Collapsible>
+            ) : (
+              rows.length > 0 && list
+            )}
+            {fix.stop && <FixStopLine kind={fix.stop.kind} note={fix.stop.note} />}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -85,6 +140,8 @@ export function VerificationCard({ orch }: { orch: Orchestration }) {
           </li>
         ))}
       </ul>
+
+      <VerificationFixes fixes={state.fixes ?? []} />
 
       {state.commits.length > 0 && (
         <div className="stack-tight">

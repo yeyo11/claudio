@@ -9,7 +9,7 @@ import type { Orchestration, VerificationSpec } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator, verificationSteps } from '../src/orchestrator.ts';
-import { e2eSpecsChecks, e2eSpecsPrompt, E2E_SPECS_TASK_ID, failedSpecs, fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
+import { e2eSpecsChecks, e2eSpecsPrompt, E2E_SPECS_TASK_ID, errorCount, failedSpecs, failureSignature, fixerPrompt, installStep, normalizeVerification, parseFixerReport, runCommand, tail, workerChecks } from '../src/verification.ts';
 import { specOfOrchestration } from '@claudio/shared';
 import { tempConfig } from './helpers.ts';
 
@@ -422,6 +422,83 @@ test('a fixer that cannot mend a check stops after its attempts and reports what
   assert.match(v?.report ?? '', /after 2 fixer attempts/);
   assert.match(v?.commands[0]?.output ?? '', /still broken/);
   assert.equal(v?.commands[0]?.status, 'failed');
+  db.close();
+});
+
+test('a failure signature ignores digits, durations, temp paths and line order, and differs on another error', () => {
+  const a = ['not ok 1 - parses', 'Error: expected 3 got 4 after 12ms', '  at /tmp/run-8f3a/spec.ts:10', '2026-10-16T10:00:00.123Z error deadbeef1234 failed'].join('\n');
+  const b = ['2026-10-17T11:22:33Z error cafebabe9999 failed', 'Error: expected 7 got 9 after 3.5s', 'ok line without the word', 'not ok 2 - parses', '  at /tmp/run-aa11/spec.ts:99'].join('\n');
+  assert.equal(failureSignature(a), failureSignature(b));
+  assert.match(failureSignature(a) ?? '', /^[0-9a-f]{16}$/);
+  assert.notEqual(failureSignature(a), failureSignature(`${a}\nError: a different thing failed`));
+  assert.equal(failureSignature('\u001b[31mError: boom\u001b[0m'), failureSignature('Error: boom'));
+  assert.equal(failureSignature('all good\nnothing to see'), null);
+  assert.equal(failureSignature(''), null);
+});
+
+test('the error count is read from each known format, and is null when the format is unknown', () => {
+  assert.equal(errorCount('tsc --noEmit', 'a.ts(1,1): error TS2322: x\nb.ts(2,2): error TS2304: y\n'), 2);
+  assert.equal(errorCount('tsc', 'Found 5 errors in 2 files.'), 5);
+  assert.equal(errorCount('pnpm lint', '✖ 7 problems (4 errors, 3 warnings)'), 7);
+  assert.equal(errorCount('node --test', 'ok 1\n# tests 5\n# pass 3\n# fail 2\n'), 2);
+  assert.equal(errorCount('pnpm test', 'ℹ tests 5\nℹ fail 4\n'), 4);
+  assert.equal(errorCount('vitest run', ' Tests  3 failed | 10 passed (13)'), 3);
+  assert.equal(errorCount('jest', 'Tests:       2 failed, 8 passed, 10 total'), 2);
+  assert.equal(errorCount('pytest -q', '=== 4 failed, 6 passed in 1.20s ==='), 4);
+  assert.equal(errorCount('go test ./...', '--- FAIL: TestA (0.00s)\n--- FAIL: TestB (0.01s)\nFAIL'), 2);
+  assert.equal(errorCount('cargo test', 'test result: FAILED. 3 passed; 1 failed; 0 ignored\ntest result: FAILED. 0 passed; 2 failed; 0 ignored'), 3);
+  assert.equal(errorCount('make check', 'something broke'), null);
+  assert.equal(errorCount('pnpm test', ''), null);
+});
+
+test('a fixer report is read for its fixed rows and its stop, and anything malformed is ignored', () => {
+  const report = ['Done.', '[FIXED] src/a.ts:12: wrong import', 'noise [FIXED] src/b.ts:1: not at the start', '[FIXED] src/c.ts: no line', '  [FIXED] src/d.ts:7: indented is read', '[STOP] nonsense: not a kind', '[STOP] same-error: first', '[STOP] design: a person decides the format'].join('\n');
+  const read = parseFixerReport(report);
+  assert.deepEqual(read.fixed, [
+    { path: 'src/a.ts', line: 12, note: 'wrong import' },
+    { path: 'src/d.ts', line: 7, note: 'indented is read' },
+  ]);
+  assert.deepEqual(read.stop, { kind: 'design', note: 'a person decides the format' });
+  assert.deepEqual(parseFixerReport('nothing here'), { fixed: [], stop: null });
+  const many = parseFixerReport(Array.from({ length: 60 }, (_, i) => `[FIXED] f${String(i)}.ts:${String(i)}: ${'n'.repeat(300)}`).join('\n'));
+  assert.equal(many.fixed.length, 50);
+  assert.equal(many.fixed[0]?.note.length, 200);
+});
+
+test('a fixer that writes [STOP] design ends the verification failed after one attempt, and its rows are recorded', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const withStop = "printf '%s\\n' 'FAKE-TEXT-ONCE [FIXED] src/a.ts:3: wrong import\\n[STOP] design: the public interface must change'; echo 'error: broken'; exit 1";
+  const started = launch(orchestrator, repo, { commands: [withStop], fixer: true, maxAttempts: 3 });
+  const v = (await settle(orchestrator, started.id)).verification;
+  assert.equal(v?.status, 'failed', v?.report ?? '');
+  assert.equal(v?.attempts, 1);
+  assert.match(v?.report ?? '', /The fixer stopped: the public interface must change\. Claudio made no further attempt\./);
+  assert.deepEqual(v?.fixes?.[0]?.stop, { kind: 'design', note: 'the public interface must change', by: 'fixer' });
+  assert.deepEqual(v?.fixes?.[0]?.fixed, [{ path: 'src/a.ts', line: 3, note: 'wrong import' }]);
+  db.close();
+});
+
+test('an attempt that raises the TAP fail count stops with more-errors', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const command = "if [ -f bump.txt ]; then echo '# fail 3'; else echo '# fail 1'; fi; echo 'FAKE-WRITE bump.txt x'; exit 1";
+  const started = launch(orchestrator, repo, { commands: [command], fixer: true, maxAttempts: 4 });
+  const v = (await settle(orchestrator, started.id)).verification;
+  assert.equal(v?.status, 'failed', v?.report ?? '');
+  assert.equal(v?.attempts, 1);
+  assert.match(v?.report ?? '', /Attempt 1 left more errors in `.*` \(3\) than before it \(1\), so Claudio stopped there\./);
+  assert.equal(v?.fixes?.[0]?.stop?.kind, 'more-errors');
+  assert.equal(v?.fixes?.[0]?.stop?.by, 'claudio');
+  db.close();
+});
+
+test('with five attempts allowed, an unchanged signature stops after the third', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const started = launch(orchestrator, repo, { commands: ["echo 'FAKE-WRITE n.txt x'; echo \"error: boom at $(date +%s%N)\"; exit 1"], fixer: true, maxAttempts: 5 });
+  const v = (await settle(orchestrator, started.id)).verification;
+  assert.equal(v?.status, 'failed', v?.report ?? '');
+  assert.equal(v?.attempts, 3);
+  assert.match(v?.report ?? '', /The same error survived 3 fixer attempts/);
+  assert.equal(v?.fixes?.[2]?.stop?.kind, 'same-error');
   db.close();
 });
 

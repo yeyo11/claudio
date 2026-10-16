@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution, ProviderMove } from '@claudio/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, SPEND_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -765,7 +765,7 @@ test('the cost backfill prices only the jev rows that kept tokens and lost their
   // A database as the release before the backfill left it
   raw.exec(`PRAGMA user_version = ${String(JEV_COST_SCHEMA_VERSION - 1)}`);
   // What the migrations after it added is not there yet, or migrating again would add it twice
-  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments;');
+  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments; DROP TABLE spend_ledger; DROP TABLE spend_alerts; ALTER TABLE flow_runs DROP COLUMN checks; ALTER TABLE memory_proposals DROP COLUMN target_paths;');
   const insert = raw.prepare(
     `INSERT INTO decisions (id, point, kind, subject_kind, provider, model, mode, status, state, questions, acted, visible, saved_run, latency_ms, input_tokens, cost_usd, at)
      VALUES (?, 'run.continuation', 'act', 'flow_run', ?, 'm', 'shadow', 'answered', '{}', '[]', 0, 0, 0, 1, ?, ?, '2026-09-30T10:00:00Z')`,
@@ -825,4 +825,53 @@ test('values stored under the old product name are read back under Claudio’s a
   assert.deepEqual((sql.prepare('SELECT actor FROM audit ORDER BY id').all() as Array<{ actor: string }>).map((r) => r.actor), ['claudio', 'token:t1']);
   assert.equal((sql.prepare("SELECT requested_by FROM change_request_merges WHERE id = 'm1'").get() as { requested_by: string }).requested_by, 'claudio');
   db.close();
+});
+
+test('the spend ledger upgrade adds its tables and columns, and backfills the executions that ended today', () => {
+  const raw = new DatabaseSync(':memory:');
+  assert.ok(SPEND_SCHEMA_VERSION > 0);
+  migrate(raw, SPEND_SCHEMA_VERSION - 1);
+  const columns = (table: string) => (raw.prepare(`SELECT name FROM pragma_table_info('${table}')`).all() as Array<{ name: string }>).map((c) => c.name);
+  assert.deepEqual(columns('spend_ledger'), []);
+  assert.ok(!columns('flow_runs').includes('checks'));
+  assert.ok(!columns('memory_proposals').includes('target_paths'));
+
+  // The local day, from date parts like the migration: two hours into today, and the day before at noon
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 30).toISOString();
+  const lateToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59).toISOString();
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59).toISOString();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0).toISOString();
+  raw.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('c1', yesterday, '{}');
+  const insert = raw.prepare('INSERT INTO executions (id, chat_id, started_at, json) VALUES (?, ?, ?, ?)');
+  const doc = (endedAt: string | null, costUsd: number) => JSON.stringify({ endedAt, costUsd });
+  insert.run('e-today', 'c1', yesterday, doc(today, 0.25));
+  insert.run('e-late', 'c1', yesterday, doc(lateToday, 1.5));
+  insert.run('e-yesterday', 'c1', yesterday, doc(yesterday, 2));
+  insert.run('e-tomorrow', 'c1', yesterday, doc(tomorrow, 3));
+  insert.run('e-free', 'c1', yesterday, doc(today, 0));
+  insert.run('e-running', 'c1', yesterday, doc(null, 1));
+  insert.run('e-broken', 'c1', yesterday, 'not json');
+  migrate(raw);
+
+  assert.deepEqual(columns('spend_ledger'), ['seq', 'at', 'chat_id', 'execution_id', 'usd', 'reported', 'purpose', 'account', 'account_kind', 'project_id', 'orchestration_id']);
+  assert.deepEqual(columns('spend_alerts'), ['day', 'level', 'at']);
+  assert.ok(columns('flow_runs').includes('checks'));
+  assert.ok(columns('memory_proposals').includes('target_paths'));
+  assert.ok(raw.prepare("SELECT 1 FROM pragma_index_list('spend_ledger') WHERE name = 'spend_ledger_at'").get(), 'the ledger is indexed by time');
+
+  const rows = raw.prepare('SELECT execution_id, at, usd, reported, purpose, chat_id FROM spend_ledger ORDER BY execution_id').all();
+  assert.deepEqual(
+    rows.map((r) => ({ ...r })),
+    [
+      { execution_id: 'e-late', at: lateToday, usd: 1.5, reported: 1, purpose: 'other', chat_id: 'c1' },
+      { execution_id: 'e-today', at: today, usd: 0.25, reported: 1, purpose: 'other', chat_id: 'c1' },
+    ],
+    'one row per execution that ended today with a cost, none for the days around it',
+  );
+
+  // The alerts are one row per day and level
+  raw.prepare("INSERT INTO spend_alerts (day, level, at) VALUES ('2026-10-15', 'warn', ?)").run(today);
+  assert.throws(() => raw.prepare("INSERT INTO spend_alerts (day, level, at) VALUES ('2026-10-15', 'warn', ?)").run(today), /UNIQUE|PRIMARY/);
+  raw.close();
 });
