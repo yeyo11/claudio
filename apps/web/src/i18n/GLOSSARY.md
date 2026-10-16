@@ -65,6 +65,7 @@ mistake even though their own rows already gave them a Spanish word.
 | system prompt | el system prompt |
 | hook | el hook, los hooks |
 | webhook | el webhook, los webhooks (a host's notification to Claudio; never "gancho web") |
+| relay (Collaborators: an iroh relay that carries a connection) | el relay, los relays; "conectado por relay", "En línea · relay". A developer in Spain says it that way, and Tailscale's Spanish docs do too |
 | MCP, MCP server | el servidor MCP, los servidores MCP |
 | skill | la skill, las skills |
 | plugin | el plugin, los plugins |
@@ -281,6 +282,17 @@ brought a board, a team and an assistant. Its words:
 | Suggest / Suggest again | Sugerir / Volver a sugerir |
 | Create with AI | Crear con IA |
 | Documents folder | Carpeta de documentos |
+
+## Collaborators
+
+Teammates' Claudios sharing projects read only ([docs/plans/collaborators.md](../../../../docs/plans/collaborators.md)).
+"Live" is still "en directo"; *relay* is kept in English (see "Kept as in the CLI").
+
+| English | Spanish |
+|---|---|
+| Share key (what matches a shared project with a local one) | la clave de compartición |
+| Owner (of a group: the install that signs its member list) | el propietario; "Hacer propietario", the chip "Propietario" |
+| Working copy (a collaborator's checkout, which documents are read from) | la copia de trabajo: "Copia de trabajo en la máquina de {{name}}" |
 
 ## Status names
 

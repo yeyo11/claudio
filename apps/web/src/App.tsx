@@ -6,6 +6,7 @@ import {
   FolderGit2,
   House,
   MessagesSquare,
+  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
@@ -75,6 +76,7 @@ const TerminalDock = lazyPage(() => import('./components/terminal/TerminalDock')
 const TerminalWindow = lazyPage(() => import('./pages/TerminalWindow').then((m) => m.TerminalWindow));
 const TerminalScreen = lazyPage(() => import('./pages/Terminals').then((m) => m.TerminalScreen));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
+const Collaborators = lazyPage(() => import('./pages/Collaborators').then((m) => m.Collaborators));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
 const ClaudioAssistant = lazyPage(() => import('./pages/claudio-assistant/Entry').then((m) => m.ClaudioAssistant));
 const AssistantPage = lazyPage(() => import('./pages/assistant/Assistant').then((m) => m.AssistantPage));
@@ -159,7 +161,7 @@ function Shell() {
   // the shell hiding its top bar and a page drawing its own cannot drift apart.
   const phoneHeader = usePhoneHeaderMark();
   const bare = useOwnPhoneHeader();
-  const { t } = useTranslation(['components', 'connectors', 'shell', 'home', 'terminal']);
+  const { t } = useTranslation(['components', 'connectors', 'shell', 'home', 'terminal', 'collaborators']);
   // The same queries the Home usage widgets read, so the status bar never fetches its own
   const now = useUsageNow();
   const overview = now.overview;
@@ -237,6 +239,8 @@ function Shell() {
   const terminals: NavItem = { to: '/terminals', label: t('terminal:page.title'), icon: SquareTerminal, count: { value: runningTerminals, what: t('terminal:bar.running') } };
   const schedules: NavItem = { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock };
   const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
+  // Network, not UsersRound: that one is Accounts
+  const collaborators: NavItem = { to: '/collaborators', label: t('collaborators:nav'), icon: Network };
   const connectors: NavItem = { to: '/connectors', label: t('connectors:nav'), icon: Plug };
   const accounts: NavItem = { to: '/accounts', label: t('nav.accounts'), icon: UsersRound };
   const usage: NavItem = { to: '/usage', label: t('nav.usage'), icon: ChartColumn };
@@ -250,7 +254,7 @@ function Shell() {
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
     { id: 'work', label: t('shell:nav.work'), items: [home, assistant, chats, tasks, orchestrations, schedules] },
-    { id: 'space', label: t('shell:nav.space'), items: [projects, accounts, connectors, usage, settings] },
+    { id: 'space', label: t('shell:nav.space'), items: [projects, collaborators, accounts, connectors, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
@@ -387,6 +391,7 @@ function Shell() {
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/chats/:id/changes" element={<ChatChangesReview />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/collaborators" element={<Collaborators />} />
               <Route path="/terminals" element={<Terminals />} />
               <Route path="/terminals/:id" element={<TerminalScreen />} />
               <Route path="/projects/new" element={<NewProject />} />
@@ -440,7 +445,7 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[assistant, tasks, projects, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, connectors, settings]}
+            more={[assistant, tasks, projects, collaborators, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, connectors, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}
