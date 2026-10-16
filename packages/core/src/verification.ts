@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { EFFORT_LEVELS, isEffort, type Commit, type VerificationSpec } from '@claudio/shared';
 import { git } from './git.ts';
 import { AGENT_RUN_ENV, processTable, terminateTree } from './processes.ts';
-import { pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';
+import { DELEGATION, FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, FIXER_REPORT_ROWS, pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';
 
 export const DEFAULT_VERIFY_MINUTES = 20;
 const MAX_VERIFY_MINUTES = 240;
@@ -369,13 +369,17 @@ export function fixerPrompt(ctx: FixerContext): string {
       '- If a command hangs or times out, close what it left running before you go on: find the processes you started and stop them by PID, most of all headless browsers. Never `pkill -f` or `killall` a name, which can stop things that are not yours.',
       '- Never loosen, delete or skip an existing test or assertion to make it pass, and never rewrite an expected value to whatever the code now does. Fix the code. If a behaviour changed on purpose, so that the assertion is what is out of date, you may update it, but say so in the commit message and in your report, and name the task whose change made it so.',
       '- Make the smallest change that fixes the failure. Do not refactor, and do not touch what is not related to it.',
+      `- ${FIX_ONE_AT_A_TIME}`,
+      `- ${FIX_STOP_WHEN}`,
       '- Commit your fix with a Conventional Commits message that says why. Leave nothing uncommitted.',
       '- If you cannot fix it, or it is not something a code change can fix (a missing tool, no network, a service that is down), say so and change nothing.',
     ].join('\n'),
     REAL_VERIFICATION,
     UNATTENDED,
+    DELEGATION,
     PASTED_NOTE,
     'Finish with a short report: what failed and why, what you changed, and what is still wrong if anything.',
+    FIXER_REPORT_ROWS,
     ctx.tasks.length
       ? `What each task did:\n${ctx.tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${pasted(t.result)}\n</task>`).join('\n')}`
       : '',

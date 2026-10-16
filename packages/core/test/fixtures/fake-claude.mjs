@@ -17,6 +17,8 @@
 //   FAKE-TEXT-ONCE <text>         the session's first turn ends with that text as its result, and every
 //                                 later turn answers `continued: <the prompt it got>`: a worker that
 //                                 stops with a report while work is still owed
+//   FAKE-BG-AGENT                 with FAKE-TEXT-ONCE: that first turn also starts a background subagent
+//                                 and ends with it still running, as a lead that delegated and stopped
 //   FAKE-MAX-TOKENS               before its result, streams the message_delta that says the turn
 //                                 stopped on max_tokens, as the CLI's stream-json does
 //
@@ -212,6 +214,10 @@ lines.on('line', (line) => {
   const text = /^FAKE-TEXT-ONCE (.*)$/m.exec(prompt);
   if (text && !existsSync(early)) {
     writeFileSync(early, '1');
+    if (/^FAKE-BG-AGENT$/m.test(prompt)) {
+      out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_bg', name: 'Agent', input: { description: 'survey the routes', subagent_type: 'general-purpose', run_in_background: true } }] } });
+      out({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'agent-bg', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true, description: 'survey the routes' });
+    }
     out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1] });
     return;
   }

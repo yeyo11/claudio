@@ -40,6 +40,40 @@ export function scopeAndCompletion(effort?: string | null): string {
 export const REAL_VERIFICATION =
   "Before you report code as done, run a real check that exercises it: its tests, the type check, the build, with the project's own commands. A syntax-only check does not count, and neither does a command that failed to start. Install the dependencies the project declares with its own package manager (the one its lockfile names), never with sudo. If a check cannot run, say which one and why.";
 
+/**
+ * Conventions are shown by example rather than described: one real place per convention, read in
+ * this run, or the word that the code has none. A worker or a developer copies what it is shown.
+ */
+export const PATTERN_GROUNDING =
+  'Ground the work in the patterns this code already has. For each convention it depends on (naming, error handling, data access, tests, and any other the work touches), cite one real place that shows it, as `path:line` of a file you opened in this run, or say that the code has none and the work sets it. Never cite a place you have not read.';
+
+/**
+ * Context a worker was not given is found in rounds aimed at the objective; the third round is
+ * where a search that keeps widening stops paying for itself. It bounds searching for what is
+ * missing, never reading what the task names.
+ */
+export const RETRIEVAL =
+  'When you need context you were not given, search with the objective above in mind, in rounds: search, read what looks relevant, and judge what is still missing before the next search. Three rounds are enough for most gaps; after the third, work with what you have and name in your report what you could not find. When you hand a search to a subagent, give it the objective as well as the question, so it can judge what is relevant.';
+
+/**
+ * In an unattended run the end of a turn is the end of the process, and whatever it left running
+ * in the background goes with it; a lead that delegated is the only one who can collect.
+ */
+export const DELEGATION =
+  'You own the results of the work you delegate. When you start subagents or background tasks, wait for each one to finish, read what it returned and use it before your turn ends. Never end a turn by saying that you are waiting for background agents or tasks: when this turn ends this process ends, and whatever still runs in the background is lost with it.';
+
+/** One error at a time: the fixes that went wrong unsupervised were the ones aimed at everything at once. */
+export const FIX_ONE_AT_A_TIME =
+  'Fix one error at a time: the first one the output reports, or the one the others follow from. Run the narrowest check that shows it, and move to the next only when it is gone.';
+
+/** When more attempts stop helping; the same three conditions the harness checks from the outside. */
+export const FIX_STOP_WHEN =
+  'Stop fixing when the same error survives three of your fixes, when a fix leaves more errors than it removed, or when the fix needs a change of design (a new dependency, a change to a public interface or a stored format, a rewrite of a module) rather than a local change. Before you stop, undo a fix that made things worse with a new commit, never by rewriting history.';
+
+/** The rows Claudio reads back out of a fixer's report: one per fix, one for an early stop. */
+export const FIXER_REPORT_ROWS =
+  'End your report with one line per error you fixed, exactly `[FIXED] path:line: what was wrong`, and, if you stopped early, one line `[STOP] same-error|more-errors|design: what a person must decide`.';
+
 /** For `--json-schema` runs that reason on Sonnet, which answers better when told to think first. */
 export const THINK_THROUGH = 'Think the problem through before you answer.';
 

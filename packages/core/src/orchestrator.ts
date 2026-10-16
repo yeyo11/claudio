@@ -79,11 +79,11 @@ import {
   type InstallStep,
 } from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
-import { continuationPrompt, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
+import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
-import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
+import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
@@ -313,7 +313,12 @@ export const PLANNER_GRAPH_GUIDANCE =
   'A documentation task depends on the implementation tasks, never on a review task, so it runs in parallel with the review. ' +
   'A review task, when there is one, reviews the design and what automated checks cannot see, and does not re-run the whole test suite. ' +
   'A task that only writes prose (documentation) sets model to "sonnet"; leave model out for every other task. ' +
-  'Every task prompt names the files, modules or routes it will touch, so its worker does not spend turns finding them.';
+  'Every task prompt names the files, modules or routes it will touch, so its worker does not spend turns finding them. ' +
+  'Every task prompt that adds or changes code also names, for each convention its worker must follow (naming, error handling, data access, tests), one real example as `path:line` that you read, or says that the code has none, so the worker copies a pattern instead of inventing one.';
+
+/** Tasks listed in a worker's head, and the longest name shown: the head stays small in a graph of a hundred tasks */
+const WORKER_HEAD_TASKS = 30;
+const WORKER_HEAD_NAME = 80;
 
 export const PLAN_SCHEMA = {
   type: 'object',
@@ -928,8 +933,21 @@ export class Orchestrator {
   }
 
   /** What every worker is told first; shared by both engines, so a task reads the same either way. */
-  private workerHead(orch: Orchestration): string {
-    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective, as the person wrote it:\n${pasted(orch.objective)}` : '';
+  private workerHead(orch: Orchestration, task: OrchestrationTaskState): string {
+    const others = orch.tasks.filter((t) => t.id !== task.id);
+    const listed = others.slice(0, WORKER_HEAD_TASKS).map((t) => {
+      const name = t.name.length > WORKER_HEAD_NAME ? `${t.name.slice(0, WORKER_HEAD_NAME - 1)}…` : t.name;
+      return `- \`${t.id}\` ${name}${t.dependsOn?.length ? ` (depends on: ${t.dependsOn.join(', ')})` : ''}`;
+    });
+    const more = others.length - listed.length;
+    const count = orch.tasks.length;
+    return [
+      'You are one worker in a multi-agent orchestration.',
+      orch.objective ? `Overall objective, as the person wrote it:\n${pasted(orch.objective)}` : `The graph is named ${pasted(orch.name)}.`,
+      `The graph has ${String(count)} task${count === 1 ? '' : 's'}; yours is \`${task.id}\`.` +
+        (listed.length ? ' The others, so you neither redo nor undo their work:' : ''),
+      ...(listed.length ? [pasted([...listed, ...(more > 0 ? [`and ${String(more)} more`] : [])].join('\n'))] : []),
+    ].join('\n');
   }
 
   private workerTask(orch: Orchestration, task: OrchestrationTaskState): string {
@@ -939,9 +957,11 @@ export class Orchestrator {
       `Your task (${task.name}):\n${task.prompt}`,
       task.builtIn === 'e2e-specs' ? e2eSpecsChecks() : workerChecks(!!orch.verificationSpec),
       REAL_VERIFICATION,
+      RETRIEVAL,
       frontend(designSources(orch.cwd)),
       scopeAndCompletion(),
       UNATTENDED,
+      DELEGATION,
       PASTED_NOTE,
       WORKER_CLOSING,
     ].join('\n\n');
@@ -952,8 +972,7 @@ export class Orchestrator {
     // A chat is listed by its first line: a node working on a task of the board opens with its name,
     // `KEY · title` in a draft, rather than with the same English sentence as every other node
     if (task.workItemId && task.name.trim()) parts.push(task.name.trim());
-    const head = this.workerHead(orch);
-    if (head) parts.push(head);
+    parts.push(this.workerHead(orch, task));
     const deps = orch.tasks.filter((t) => task.dependsOn?.includes(t.id));
     if (deps.length > 0) {
       parts.push(
@@ -1264,7 +1283,7 @@ ${quoted}
     const open =
       result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS
         ? []
-        : [...structuralItems({ schema: false, structured: true, uncommitted: [] }), ...(verdict.phrases ?? phraseItems(result.result))];
+        : [...structuralItems({ schema: false, structured: true, uncommitted: [], delegates: delegatesOf(this.runs.get(task.runId)) }), ...(verdict.phrases ?? phraseItems(result.result))];
     if (open.length && task.runId) {
       this.charge(orch, task, result);
       const count = (task.continuations ?? 0) + 1;
@@ -2561,7 +2580,6 @@ ${quoted}
 
   /** The graph as a workflow script: the same prompts, dependencies, concurrency and synthesis. */
   private compile(orch: Orchestration): string {
-    const head = this.workerHead(orch);
     return compileWorkflow({
       name: orch.name,
       description: orch.objective ?? orch.name,
@@ -2572,7 +2590,7 @@ ${quoted}
         name: t.name,
         dependsOn: t.dependsOn ?? [],
         ...(t.model ? { model: t.model } : {}),
-        before: head,
+        before: this.workerHead(orch, t),
         after: this.workerTask(orch, t),
       })),
       synthesis: orch.synthesize
@@ -2599,6 +2617,7 @@ ${quoted}
         `Run the workflow Claudio generated for the orchestration "${orch.name}": call the Workflow tool with ` +
         `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
         'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
+        `${DELEGATION}\n\n` +
         // No budget for a workflow today: the signal says time matters all the same
         timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)));
       const previous = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;

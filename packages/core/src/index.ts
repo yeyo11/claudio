@@ -981,6 +981,7 @@ export class Core {
         void this.runtime.stop(chatId);
       },
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
+      delegates: (chatId) => this.runtime.get(chatId),
       language: () => this.language,
       limitHeld: (chatId) => this.rotation.holds(chatId),
       cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,

@@ -5,9 +5,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { MAX_CONTINUATIONS } from '@claudio/shared';
-import { continuationPrompt, openItems, stoppedOnMaxTokens } from '../src/open-items.ts';
+import { continuationPrompt, delegatesOf, openItems, phraseItems, stoppedOnMaxTokens, structuralItems } from '../src/open-items.ts';
 import {
+  DELEGATION,
   designSources,
+  FIX_ONE_AT_A_TIME,
+  FIX_STOP_WHEN,
+  FIXER_REPORT_ROWS,
+  PATTERN_GROUNDING,
+  RETRIEVAL,
   frontend,
   FRONTEND,
   isSonnet,
@@ -200,6 +206,94 @@ test('workers keep the split: unit checks while they work, the end-to-end suite 
   assert.match(workerChecks(true), /run the type check and the tests of the package or the test files you changed/);
   assert.match(workerChecks(true), /Do not run the end-to-end or browser suite: it runs once, on the merged branch/);
   assert.match(workerChecks(false), /Do not run the end-to-end or browser suite: it is slow/);
+});
+
+test('pattern grounding asks for one cited place per convention, read in this run, or the word that there is none', () => {
+  assert.equal(
+    PATTERN_GROUNDING,
+    'Ground the work in the patterns this code already has. For each convention it depends on (naming, error handling, data access, tests, and any other the work touches), cite one real place that shows it, as `path:line` of a file you opened in this run, or say that the code has none and the work sets it. Never cite a place you have not read.',
+  );
+  for (const word of ['naming', 'error handling', 'data access', 'tests', '`path:line`']) assert.ok(PATTERN_GROUNDING.includes(word), word);
+});
+
+test('retrieval bounds the rounds of searching for missing context and never discourages a tool', () => {
+  assert.equal(
+    RETRIEVAL,
+    'When you need context you were not given, search with the objective above in mind, in rounds: search, read what looks relevant, and judge what is still missing before the next search. Three rounds are enough for most gaps; after the third, work with what you have and name in your report what you could not find. When you hand a search to a subagent, give it the objective as well as the question, so it can judge what is relevant.',
+  );
+  for (const word of ['avoid', 'minimi', 'fewer tool', 'do not read']) assert.ok(!RETRIEVAL.toLowerCase().includes(word), word);
+});
+
+test('the delegation contract says the end of a turn is the end of the process', () => {
+  assert.equal(
+    DELEGATION,
+    'You own the results of the work you delegate. When you start subagents or background tasks, wait for each one to finish, read what it returned and use it before your turn ends. Never end a turn by saying that you are waiting for background agents or tasks: when this turn ends this process ends, and whatever still runs in the background is lost with it.',
+  );
+});
+
+test('the fixer rules and report rows are pinned', () => {
+  assert.equal(
+    FIX_ONE_AT_A_TIME,
+    'Fix one error at a time: the first one the output reports, or the one the others follow from. Run the narrowest check that shows it, and move to the next only when it is gone.',
+  );
+  assert.equal(
+    FIX_STOP_WHEN,
+    'Stop fixing when the same error survives three of your fixes, when a fix leaves more errors than it removed, or when the fix needs a change of design (a new dependency, a change to a public interface or a stored format, a rewrite of a module) rather than a local change. Before you stop, undo a fix that made things worse with a new commit, never by rewriting history.',
+  );
+  assert.equal(
+    FIXER_REPORT_ROWS,
+    'End your report with one line per error you fixed, exactly `[FIXED] path:line: what was wrong`, and, if you stopped early, one line `[STOP] same-error|more-errors|design: what a person must decide`.',
+  );
+});
+
+test('the fixer prompt holds the stop rules in its rules block and the report rows after its closing line', () => {
+  const prompt = fixerPrompt(FIXER);
+  for (const text of [FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, FIXER_REPORT_ROWS, DELEGATION]) assert.ok(prompt.includes(text), text.slice(0, 40));
+  assert.ok(prompt.indexOf(FIX_ONE_AT_A_TIME) < prompt.indexOf(FIX_STOP_WHEN));
+  assert.ok(prompt.indexOf(UNATTENDED) < prompt.indexOf(DELEGATION));
+  assert.ok(prompt.indexOf('Finish with a short report') < prompt.indexOf(FIXER_REPORT_ROWS));
+});
+
+test('running delegated work is a structural open item, and work the person sent to the background is not', () => {
+  const base = { schema: false, structured: true, uncommitted: [] };
+  assert.deepEqual(structuralItems(base), []);
+  const item = (names: string) =>
+    `You ended your turn while work you delegated is still running: ${names}. Wait for it to finish, read what it returns and use it; this process ends with your turn.`;
+  assert.deepEqual(structuralItems({ ...base, delegates: { agents: ['survey the routes'], tasks: [] } }), [item('survey the routes')]);
+  assert.deepEqual(structuralItems({ ...base, delegates: { agents: [], tasks: ['pnpm dev'] } }), [item('pnpm dev')]);
+  assert.deepEqual(structuralItems({ ...base, delegates: { agents: ['a'], tasks: ['b'] } }), [item('a, b')]);
+  const many = structuralItems({ ...base, delegates: { agents: ['a', 'b', 'c'], tasks: ['d', 'e', 'f', 'g'] } });
+  assert.deepEqual(many, [item('a, b, c, d, e, and 2 more')]);
+  assert.deepEqual(structuralItems({ ...base, delegates: { agents: [], tasks: [] } }), []);
+});
+
+test('the delegates of a chat are its running background subagents and the tasks the model sent there', () => {
+  const sub = (status: 'running' | 'completed', background: boolean) => ({
+    toolUseId: 't', subagentType: 'general-purpose', description: `${status} ${String(background)}`, status, startedAt: '', endedAt: null, background,
+  });
+  const task = (status: string, byPerson: boolean) => ({
+    id: 'k', type: 'local_bash', description: `${status} ${String(byPerson)}`, status, toolUseId: null, startedAt: '', endedAt: null, summary: null, backgroundedByUser: byPerson,
+  });
+  assert.deepEqual(
+    delegatesOf({ subagents: [sub('running', true), sub('running', false), sub('completed', true)], backgroundTasks: [task('running', false), task('running', true), task('completed', false)] }),
+    { agents: ['running true'], tasks: ['running false'] },
+  );
+  assert.deepEqual(delegatesOf(null), { agents: [], tasks: [] });
+});
+
+test('a final text that says it is waiting for delegated work is sent back, and an ordinary report is not', () => {
+  const waiting = 'Your last message says you are waiting for delegated work. Nobody resumes you when it finishes: wait for it now, in this turn, and use its results.';
+  for (const text of [
+    'The survey is under way. Waiting for the background agents.',
+    'I am waiting on subagents to report.',
+    'Once the agents finish I will merge their notes.',
+    "When the background tasks complete, the report is done.",
+    "I'll report back when the build is done.",
+    'I will check once it has finished.',
+  ]) assert.ok(phraseItems(text).includes(waiting), text);
+  for (const text of ['All done. The agents returned and their notes are merged.', 'The tasks finished; the report is in docs/.', 'Everything is committed.']) {
+    assert.ok(!phraseItems(text).includes(waiting), text);
+  }
 });
 
 // ---------- what no prompt says ----------
