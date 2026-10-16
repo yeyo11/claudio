@@ -20,7 +20,14 @@ conversation: a background agent's row turns green the moment it is launched, th
 "Branches" card is off screen, and nothing says what a subagent is doing right now.
 
 Status: **proposed** on 2026-10-16 by the owner, with the design settled in this document before any
-code. Branch `feat/tool-rows-live-branches` from `main` at `9cedb3142` (which already holds the
+code. **Launch blocked until two orchestrations merge**: `claudio-context-control` and
+`claudio-agent-run-improvements` (both started 2026-10-16 03:15 from `claudio-stage-a`) own
+`normalize.ts`, `Transcript.tsx`, `chat-fold.ts`, `chats.ts`, `types.ts`, `Side.tsx`, the fake CLI and the
+design system files this plan touches. A first launch (`bdab32b6`, 03:22) was stopped after seven
+minutes for that reason. Relaunch from `main` once both are in, after re-verifying section 2's line
+anchors and section 6's file lists against the merged code (the context-control plan adds a
+`CompactionDivider` to the transcript and a context panel beside `Side.tsx`; the agent-run plan adds a
+risk score to transcript rows). Branch `feat/tool-rows-live-branches` from `main` at `9cedb3142` (which already holds the
 chat-experience work, the terminal, the brand kit and the rename to Claudio; nothing else of the chat
 is unmerged). Orchestration `claudio-live-branches`, section 6.
 
