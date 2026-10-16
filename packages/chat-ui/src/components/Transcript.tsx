@@ -8,7 +8,7 @@ import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
 import { toolHint } from '../lib/tool-lens';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
-import { readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
+import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { useStreamFade } from '../lib/smooth-text';
 import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
@@ -416,7 +416,7 @@ function EditChips({ parts, edits }: { parts: StepPart[]; edits: TranscriptEdits
 /**
  * A turn's tool calls, folded into one block that says how many and how long. The step being worked
  * on right now is open and carries the live rail; once it is done it folds away, unless the reader
- * opened or closed it themselves.
+ * opened or closed it themselves, or the guard blocked one of its calls.
  */
 const StepView = memo(function StepView({
   row,
@@ -439,7 +439,8 @@ const StepView = memo(function StepView({
 }) {
   const { t } = useTranslation('chat');
   const [chosen, setChosen] = useState<boolean | null>(null);
-  const open = chosen ?? current;
+  const blocked = useMemo(() => holdsGuardBlock(row.parts), [row.parts]);
+  const open = chosen ?? (current || blocked);
   const count = callCount(row.parts);
   const failed = row.parts.filter((p) => p.kind === 'call' && p.result?.isError).length;
   const duration = stepDuration(row);
