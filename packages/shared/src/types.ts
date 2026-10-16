@@ -7721,7 +7721,9 @@ export interface SpendAlertEvent extends ClaudioEventBase {
 /** The global guard settings changed (`PUT /settings/guards`); applies to the next process spawned. */
 export interface GuardsChangedEvent extends ClaudioEventBase {
   type: 'guards.changed';
-  settings: GuardSettings
+  settings: GuardSettings;
+}
+
 // ---------------------------------------------------------------------------
 // Instruction-compliance evals (docs/plans/instruction-evals.md). Constants live in evals.ts.
 // ---------------------------------------------------------------------------
