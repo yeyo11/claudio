@@ -267,7 +267,7 @@ Checked on CLI **2.1.300** (`claude --version`, 2026-10-15) with `claude --help`
 | `--max-turns` exists | `args.ts:57` |
 | A 429 result is a rate limit | `stream.ts:247`; fixture `replay/rate-limit.jsonl` |
 
-**Not recorded yet: task v0 records these before any code depends on them**
+**Questions F1-F6, asked by task v0 and answered in [Recorded facts](#recorded-facts)**
 
 - **F1.** `--restricted --tools=Read,Grep,Glob --setting-sources= --agents <file> --agent <name> --json-schema <schema> --max-budget-usd N --max-turns N --permission-mode dontAsk --permission-prompts none -p --output-format stream-json`, all together:
   - Does the agent's prompt apply?
@@ -289,6 +289,45 @@ Checked on CLI **2.1.300** (`claude --version`, 2026-10-15) with `claude --help`
 If F1 fails (`--agents` ignored under `--restricted`), the fallback stays inside the one rule. The
 role body is passed with `--append-system-prompt` and `--agent` is dropped. v0 records which path
 holds, and v3 uses it.
+
+### Recorded facts
+
+Recorded by task v0 with `node scripts/review-facts.mjs` on CLI **2.1.301** (`claude --version`),
+**2026-10-16**, in a throwaway clone under `mkdtemp`, model `haiku`, `--max-budget-usd 0.50` per
+run. Re-run the script on a new CLI to check them again. The confined flags below are
+`--restricted --tools=Read,Grep,Glob --setting-sources= --permission-mode dontAsk --permission-prompts none`,
+and every run uses `-p --verbose --output-format stream-json`. The fixtures
+`replay/review-success.jsonl`, `review-schema-fail.jsonl` and `review-budget.jsonl` are the
+(scrubbed) streams of F1, F2 and F3.
+
+**`--agents` is honoured under `--restricted`: the fallback to `--append-system-prompt` is not
+needed.** Both paths work, so v3 uses `--agents <file> --agent <name>` as planned and may keep the
+append path as a fallback.
+
+| Fact | Observed | Result event |
+|---|---|---|
+| **F1.** The full command line: confined flags, `--agents <file> --agent reviewer --json-schema <s> --max-turns 4` | The agent's prompt applied (the answer carried the marker only the agent file asked for). `--agents` is honoured under `--restricted`. A successful run carries `structured_output` (`{"verdict":"pass","marker":"ZEBRA-7"}`); `result` holds the same JSON as text. The fallback (`--append-system-prompt`, no `--agent`) also applied the prompt | `subtype: success`, `is_error: false`, `num_turns: 2`, `total_cost_usd: 0.00014` |
+| **F2.** A schema the model cannot satisfy (`minimum` 10, `maximum` 5) | The CLI tells the model `Output does not match required schema: /n: must be <= 5` as an error tool result and lets it retry. When the model gives up, the run **still ends as `success`** with **no `structured_output`** key; the text is in `result`. A schema that is not valid JSON Schema (an empty `enum`) is refused at start-up on stderr with exit 1 and no result event. So **the gate must treat `success` without `structured_output` as a failed run**, never as "no findings" | `subtype: success`, `is_error: false`, no `structured_output`, `num_turns: 3`, `total_cost_usd: 0.0025` |
+| **F3.** The budget and the turn limit, held to a schema | `--max-budget-usd 0.0001`: the run ends as `error_max_budget_usd`, exit 1, no `structured_output`. `--max-turns 1` with a tool call first: `error_max_turns`, exit 1, no `structured_output`. No partial output appears in either | budget: `subtype: error_max_budget_usd`, `is_error: true`, `num_turns: 1`, `total_cost_usd: 0.0002`. Turns: `subtype: error_max_turns`, `is_error: true`, `num_turns: 2`, `total_cost_usd: 0.00015` |
+| **F4.** `CLAUDE.md` in the working directory under `--restricted --setting-sources=` | **Not loaded**: asked for the project codeword written in `CLAUDE.md`, the model answered `NONE`. The plan's assumption holds: Claudio passes the rules itself | `subtype: success`, `is_error: false`, `num_turns: 1` |
+| **F5.** The correctness prompt on three real diffs (model `haiku`; `sonnet` and `opus` were not run) | See the table below. All three ended `success` with `structured_output`. The smaller two reported `coverage.complete: false` (the model could not open every touched file in the read-only checkout) and no findings | `total_cost_usd`, `num_turns` in the table |
+| **F6.** `Read` and `Grep` outside the working directory under `--restricted` | **Refused**, both, as error tool results: `<path> is outside <dir>; --restricted confines the file tools to the working directory.` The file's content never reached the model | `subtype: success`, `is_error: false`, `num_turns: 3` |
+
+F5 detail, diffs between two tags of this repository (the lockfile and `CHANGELOG.md` excluded):
+
+| Range | Changed lines | Diff size | Turns | Cost (USD) | Findings | `coverage.complete` |
+|---|---|---|---|---|---|---|
+| `v0.7.2..v0.7.3` | 147 | 18 KB | 3 | 0.0035 | 0 | false |
+| `v0.21.1..v0.22.0` | 1,451 | 153 KB | 10 | 0.026 | 0 | false |
+| `v0.13.0..v0.13.1` | 5,955 | 269 KB | 4 | 0.147 | 2 | false |
+
+The costs are low because prompt caching served most of the input and the model is `haiku`; they
+are a floor, not an estimate for `sonnet` or `opus`. The 6,000-line diff fits in one prompt for
+this model, so the chunk budget (not the context window) is what splits a review.
+
+Spend of this task: about $0.76 in total over three runs of the script and one manual probe, under
+the $6 cap. The first script run found the configuration directory of the session not logged in
+(`Not logged in`), so the recordings use the real `~/.claude` login.
 
 ## Design
 
