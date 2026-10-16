@@ -3836,9 +3836,10 @@
     "enum": [
       "same-error",
       "more-errors",
-      "design"
+      "design",
+      "no-code-fix"
     ],
-    "description": "The three conditions after which more fixing attempts stop helping."
+    "description": "The conditions after which more fixing attempts stop helping, and the failure no code change can fix (a missing tool, no network, a service that is down)."
   },
   "VerificationCommand": {
     "type": "object",

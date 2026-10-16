@@ -72,6 +72,10 @@ const byId = Object.fromEntries(TASKS.map((t) => [t.id, t]))
 function paste(task, text) {
   return '<pasted_content id="' + task.paste + '">\n' + text + '\n</pasted_content id="' + task.paste + '">'
 }
+// A task's name is words someone wrote, so it is marked the same way and never sits in an attribute
+function block(task, text, status) {
+  return '<task id="' + task.id + '"' + (status ? ' status="' + status + '"' : '') + '>\nName:\n' + paste(task, task.name) + '\nResult:\n' + paste(task, text) + '\n</task>'
+}
 const started = {}
 const skipped = []
 
@@ -87,7 +91,7 @@ function run(task) {
       const context = task.dependsOn.length
         ? 'Results from the tasks you depend on:\n' +
           task.dependsOn
-            .map((id, i) => '<task id="' + id + '" name="' + byId[id].name + '">\n' + paste(byId[id], String(deps[i]).slice(0, MAX_CONTEXT)) + '\n</task>')
+            .map((id, i) => block(byId[id], String(deps[i]).slice(0, MAX_CONTEXT)))
             .join('\n')
         : ''
       const prompt = [task.before, context, task.after].filter(Boolean).join('\n\n')
@@ -108,7 +112,7 @@ let synthesis = null
 if (SYNTHESIS !== null && results.some((r) => r !== null)) {
   const reports = TASKS.map((t, i) => {
     const status = results[i] !== null ? 'completed' : skipped.includes(t.id) ? 'skipped' : 'failed'
-    return '<task id="' + t.id + '" name="' + t.name + '" status="' + status + '">\n' + paste(t, String(results[i] ?? '').slice(0, MAX_CONTEXT)) + '\n</task>'
+    return block(t, String(results[i] ?? '').slice(0, MAX_CONTEXT), status)
   })
   synthesis = await agent(SYNTHESIS + '\n\n' + reports.join('\n'), { label: 'synthesis', phase: 'Synthesis' })
 }

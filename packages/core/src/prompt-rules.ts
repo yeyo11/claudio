@@ -53,7 +53,7 @@ export const PATTERN_GROUNDING =
  * missing, never reading what the task names.
  */
 export const RETRIEVAL =
-  'When you need context you were not given, search with the objective above in mind, in rounds: search, read what looks relevant, and judge what is still missing before the next search. Three rounds are enough for most gaps; after the third, work with what you have and name in your report what you could not find. When you hand a search to a subagent, give it the objective as well as the question, so it can judge what is relevant.';
+  'When you need context you were not given, search with the objective in mind, in rounds (the objective given above if there is one, otherwise the task itself): search, read what looks relevant, and judge what is still missing before the next search. Three rounds are enough for most gaps; after the third, work with what you have and name in your report what you could not find. When you hand a search to a subagent, give it the objective as well as the question, so it can judge what is relevant.';
 
 /**
  * In an unattended run the end of a turn is the end of the process, and whatever it left running
@@ -72,7 +72,7 @@ export const FIX_STOP_WHEN =
 
 /** The rows Claudio reads back out of a fixer's report: one per fix, one for an early stop. */
 export const FIXER_REPORT_ROWS =
-  'End your report with one line per error you fixed, exactly `[FIXED] path:line: what was wrong`, and, if you stopped early, one line `[STOP] same-error|more-errors|design: what a person must decide`.';
+  'End your report with one line per error you fixed, exactly `[FIXED] path:line: what was wrong`, and, if you stopped early, one line `[STOP] same-error|more-errors|design|no-code-fix: what a person must decide`; use `no-code-fix` when the failure is not something a code change can fix.';
 
 /** For `--json-schema` runs that reason on Sonnet, which answers better when told to think first. */
 export const THINK_THROUGH = 'Think the problem through before you answer.';
@@ -149,6 +149,15 @@ export function pastedId(): string {
  */
 export function pasted(text: string, id: string = pastedId()): string {
   return `<pasted_content id="${id}">\n${text}\n</pasted_content id="${id}">`;
+}
+
+/**
+ * One task of a graph as a block of a prompt: its id (Claudio's own) and, as pasted text, its name
+ * and what it did. A task's name is the person's or an agent's words, so it never sits in an
+ * attribute, where a quote and a closing tag could end the block and speak as Claudio.
+ */
+export function taskBlock(task: { id: string; name: string }, body: string, status?: string): string {
+  return `<task id="${task.id}"${status ? ` status="${status}"` : ''}>\nName:\n${pasted(task.name)}\nResult:\n${pasted(body)}\n</task>`;
 }
 
 /** The text inside one {@link pasted} block, or the text as it is when it is not one. */

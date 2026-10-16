@@ -187,7 +187,7 @@ test('checks.fix history: a design stop on a check failing now refuses the next 
   await s.run();
   assert.equal(s.calls.length, 0);
   assert.equal(s.rig.provider.calls.length, 0, 'the decision is not even asked');
-  assert.deepEqual(s.comments, ['Claudio did not start another fix: the last fix stopped for a design decision: The format of the stored report must change']);
+  assert.deepEqual(s.comments, ['Claudio did not start another fix: the last fix stopped for a design decision on `unit`']);
 });
 
 test('checks.fix history: a design stop on a check that is not failing now refuses nothing', async () => {

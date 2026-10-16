@@ -81,7 +81,8 @@
       "stop": {
         "same-error": "el mismo error sobrevivió a tres arreglos",
         "more-errors": "un arreglo dejó más errores que antes",
-        "design": "necesita una decisión de diseño"
+        "design": "necesita una decisión de diseño",
+        "no-code-fix": "ningún cambio de código lo arregla"
       }
     },
     "waiting": "te espera",

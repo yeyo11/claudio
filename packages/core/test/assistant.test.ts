@@ -766,7 +766,8 @@ test('the answer is read defensively: bad entries are dropped, long lists cut, a
 test('the prompt lists the optional roles and when to propose one, and a template optional role is a template proposal', () => {
   const hunter = { role: 'silent-failure-hunter', model: 'sonnet', responsibility: 'Finds failures that make no noise' };
   const prompt = assistantPrompt({ ...assistantBrief(), templateTeam: [{ role: 'qa', model: 'sonnet', responsibility: 'Verifies' }], optionalTeam: [hunter] });
-  assert.match(prompt, /The template also offers these optional roles; propose one only where what you read shows the need \(for example many caught-and-ignored errors for the silent-failure hunter, or a large untested module for the spec miner\): silent-failure-hunter \(sonnet\): Finds failures that make no noise\./);
+  assert.match(prompt, /The template also offers these optional roles; propose one only where what you read shows the need for what its responsibility says: silent-failure-hunter \(sonnet\): Finds failures that make no noise\./);
+  assert.doesNotMatch(prompt, /for example/, 'no example names a role the template may not offer');
   assert.doesNotMatch(assistantPrompt(assistantBrief()), /optional roles/);
   const b = { kind: 'project' as const, proposes: ['team-member' as const], resourceKind: null, description: null, templateTeam: [], optionalTeam: [hunter] };
   const parsed = parseAnswer({ summary: 's', read: [], teamMembers: [{ role: 'silent-failure-hunter', responsibility: 'Finds them' }, { role: 'other', responsibility: 'x' }] }, b);

@@ -48,7 +48,8 @@
     "stop": {
       "same-error": "el mismo error tras tres intentos",
       "more-errors": "más errores que antes",
-      "design": "necesita una decisión de diseño"
+      "design": "necesita una decisión de diseño",
+      "no-code-fix": "ningún cambio de código lo arregla"
     },
     "holdsPush": "La rama se podrá subir cuando terminen las comprobaciones.",
     "install": "Paso de instalación",

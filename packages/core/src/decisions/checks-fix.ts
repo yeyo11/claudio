@@ -134,8 +134,7 @@ export class ChecksFix {
     const newest = verdicts[0];
     const design = newest?.checks.find((c) => c.stopped === 'design' && failing.includes(c.name));
     if (newest && design) {
-      const note = newest.summary?.trim().replace(/\s+/g, ' ').slice(0, 200);
-      this.deps.comment?.(item.id, `Claudio did not start another fix: the last fix stopped for a design decision${note ? `: ${note}` : `: \`${design.name}\` needs a person to decide`}`);
+      this.deps.comment?.(item.id, `Claudio did not start another fix: the last fix stopped for a design decision on \`${design.name}\``);
       return false;
     }
     if (verdicts.length === 2) {

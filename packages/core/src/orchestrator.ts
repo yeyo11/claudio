@@ -86,7 +86,7 @@ import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phra
 import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
-import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
+import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, taskBlock, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
@@ -1008,7 +1008,7 @@ export class Orchestrator {
     // Said here, and not left to the objective: what each stage checks, and how an unattended run
     // ends, are Claudio's rules
     return [
-      `Your task (${task.name}):\n${task.prompt}`,
+      `Your task is named:\n${pasted(task.name)}\n\n${task.prompt}`,
       task.builtIn === 'e2e-specs' ? e2eSpecsChecks() : workerChecks(!!orch.verificationSpec),
       REAL_VERIFICATION,
       RETRIEVAL,
@@ -1031,7 +1031,7 @@ export class Orchestrator {
     if (deps.length > 0) {
       parts.push(
         'Results from the tasks you depend on:\n' +
-          deps.map((d) => `<task id="${d.id}" name="${d.name}">\n${pasted((d.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
+          deps.map((d) => taskBlock(d, (d.result ?? '').slice(0, MAX_DEP_CONTEXT))).join('\n'),
       );
     }
     if (task.worktree && task.branch) {
@@ -1677,7 +1677,7 @@ ${quoted}
           'Finish with a short report of how each conflict was resolved.\n\n' +
           `${REAL_VERIFICATION}\n\n${UNATTENDED}\n\n${PASTED_NOTE}\n\n` +
           'What each task did:\n' +
-          tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${pasted((t.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
+          tasks.map((t) => taskBlock(t, (t.result ?? '').slice(0, MAX_DEP_CONTEXT))).join('\n'),
         cwd: state.worktree ?? orch.cwd,
         model: orch.model ?? undefined,
         ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
@@ -1747,7 +1747,7 @@ ${quoted}
               : '') +
             `${PASTED_NOTE}\n\n` +
             orch.tasks
-              .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${pasted((t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`)
+              .map((t) => taskBlock(t, (t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT), t.status))
               .join('\n'),
           cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
           model: orch.model ?? undefined,
@@ -2754,7 +2754,7 @@ ${quoted}
         writeFileSync(scriptPath, this.compile(orch));
       }
       const prompt =
-        `Run the workflow Claudio generated for the orchestration "${orch.name}": call the Workflow tool with ` +
+        'Run the workflow Claudio generated for this orchestration: call the Workflow tool with ' +
         `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
         'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
         `${DELEGATION}\n\n` +

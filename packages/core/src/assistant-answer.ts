@@ -338,7 +338,7 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
           : '  Leave out a role the team already has.',
         ...(brief.optionalTeam.length
           ? [
-              `  The template also offers these optional roles; propose one only where what you read shows the need (for example many caught-and-ignored errors for the silent-failure hunter, or a large untested module for the spec miner): ${brief.optionalTeam.map((r) => `${r.role} (${r.model}): ${r.responsibility}`).join('; ')}.`,
+              `  The template also offers these optional roles; propose one only where what you read shows the need for what its responsibility says: ${brief.optionalTeam.map((r) => `${r.role} (${r.model}): ${r.responsibility}`).join('; ')}.`,
             ]
           : []),
         '  Give each one what it may write (`writes`), keeping the roles that decide or verify to documents and tests.',

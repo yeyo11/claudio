@@ -118,7 +118,7 @@ test('the fixer is told Claudio’s rules, the failure and what its earlier atte
   }
   assert.match(prompt, /spec a failed/);
   assert.match(prompt, /Attempt 1: I changed the port/);
-  assert.match(prompt, /<task id="ui" name="UI">/);
+  assert.match(prompt, /<task id="ui">\nName:\n<pasted_content id="[0-9a-f]{8}">\nUI\n/);
 });
 
 test('a parallel group in a verification spec is kept, a group of one is its command, and a bad entry is refused by its index', () => {
@@ -459,6 +459,8 @@ test('a fixer report is read for its fixed rows and its stop, and anything malfo
     { path: 'src/d.ts', line: 7, note: 'indented is read' },
   ]);
   assert.deepEqual(read.stop, { kind: 'design', note: 'a person decides the format' });
+  assert.deepEqual(parseFixerReport('[STOP] no-code-fix: the registry is down').stop, { kind: 'no-code-fix', note: 'the registry is down' });
+  assert.deepEqual(parseFixerReport('- `[STOP] no-code-fix: no network`').stop, { kind: 'no-code-fix', note: 'no network' });
   assert.deepEqual(parseFixerReport('nothing here'), { fixed: [], stop: null });
   const many = parseFixerReport(Array.from({ length: 60 }, (_, i) => `[FIXED] f${String(i)}.ts:${String(i)}: ${'n'.repeat(300)}`).join('\n'));
   assert.equal(many.fixed.length, 50);

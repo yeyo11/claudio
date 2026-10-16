@@ -6,7 +6,7 @@ import { EFFORT_LEVELS, isEffort, type Commit, type FixStopKind, type Verificati
 import { git } from './git.ts';
 import { flatten } from './health.ts';
 import { AGENT_RUN_ENV, processTable, terminateTree } from './processes.ts';
-import { DELEGATION, FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, FIXER_REPORT_ROWS, pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';
+import { DELEGATION, FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, FIXER_REPORT_ROWS, pasted, PASTED_NOTE, REAL_VERIFICATION, taskBlock, UNATTENDED } from './prompt-rules.ts';
 
 export const DEFAULT_VERIFY_MINUTES = 20;
 const MAX_VERIFY_MINUTES = 240;
@@ -374,7 +374,7 @@ export function fixerPrompt(ctx: FixerContext): string {
       `- ${FIX_ONE_AT_A_TIME}`,
       `- ${FIX_STOP_WHEN}`,
       '- Commit your fix with a Conventional Commits message that says why. Leave nothing uncommitted.',
-      '- If you cannot fix it, or it is not something a code change can fix (a missing tool, no network, a service that is down), say so and change nothing.',
+      '- If you cannot fix it, or it is not something a code change can fix (a missing tool, no network, a service that is down), say so, change nothing, and end your report with `[STOP] no-code-fix: what is missing`.',
     ].join('\n'),
     REAL_VERIFICATION,
     UNATTENDED,
@@ -383,7 +383,7 @@ export function fixerPrompt(ctx: FixerContext): string {
     'Finish with a short report: what failed and why, what you changed, and what is still wrong if anything.',
     FIXER_REPORT_ROWS,
     ctx.tasks.length
-      ? `What each task did:\n${ctx.tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${pasted(t.result)}\n</task>`).join('\n')}`
+      ? `What each task did:\n${ctx.tasks.map((t) => taskBlock(t, t.result)).join('\n')}`
       : '',
   ]
     .filter(Boolean)
@@ -527,7 +527,7 @@ export function errorCount(command: string, output: string): number | null {
 const MAX_FIXED_ROWS = 50;
 const MAX_FIXED_NOTE = 200;
 const FIXED_ROW = /^\[FIXED\] (.+?):(\d+): (.+)$/;
-const STOP_ROW = /^\[STOP\] (same-error|more-errors|design): (.+)$/;
+const STOP_ROW = /^\[STOP\] (same-error|more-errors|design|no-code-fix): (.+)$/;
 
 /**
  * What a fixer wrote at the end of its report: the errors it fixed and, if it stopped early, why.

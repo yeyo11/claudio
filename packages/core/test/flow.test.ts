@@ -2288,6 +2288,17 @@ test('the refine stage cites patterns in both columns, and the work and verify s
   assert.ok(!prompt('verify', 'in_review').includes(DELEGATION));
 });
 
+test('the fix of failing checks says how to tell whose failure it is, and the refine stage asks for the whole description back', () => {
+  const prompt = checksFixPrompt([{ name: 'unit', state: 'failure', jobId: '1', url: null, logTail: 'boom' }]);
+  assert.match(prompt, /git diff --name-only <base>\.\.\.HEAD/);
+  assert.match(prompt, /also fails on the base branch/);
+  assert.match(prompt, /start on none of the others/);
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Cart', status: 'todo' });
+  const refine = flowPrompt('refine', 'todo', it, { agent: 'po', role: 'product-owner', model: 'sonnet', responsibility: 'Refines' }, { documentsPath: 'docs', rejection: null, language: 'en' });
+  assert.match(refine, /return the whole description with your additions in place, never only the new section/);
+});
+
 test('the fix of failing checks carries the two stop rules and asks for locations and the stop kind', () => {
   const prompt = checksFixPrompt([{ name: 'unit', state: 'failure', jobId: '1', url: null, logTail: 'boom' }]);
   assert.ok(prompt.includes(FIX_ONE_AT_A_TIME));
@@ -2400,6 +2411,21 @@ test('with plateau stop, three verify runs with the same unmet ids wait for a pe
   assert.equal(last?.cause?.event, 'flow.plateau');
   const comment = s.items.comments(it.id).at(-1)?.body ?? '';
   assert.equal(comment, `Two rounds brought no improvement: the same criteria are still unmet (\`${ids[0]}\`). Waiting for a person.`);
+});
+
+test('a plateau on a card with no criteria does not list an empty "unmet ()"', async () => {
+  const s = setup({ settings: plateauSettings('stop') });
+  const it = s.items.create('p1', { title: 'Cart', status: 'in_progress', type: 'task' });
+  await s.flow.settled();
+  await s.answer(it.id, ok('Implemented'));
+  for (let n = 1; n <= 3; n++) {
+    await s.answer(it.id, ok(`Totals ${String(10 + n)} wrong`, { verdict: 'fail', criteria: [] }));
+    if (s.items.find(it.id)?.status === 'in_progress' && n < 3) await s.answer(it.id, ok('Fixed'));
+  }
+  assert.equal(s.items.find(it.id)?.waiting, 'bounces');
+  const comment = s.items.comments(it.id).at(-1)?.body ?? '';
+  assert.equal(comment, 'Two rounds brought no improvement: the verdict is still a fail for the same reason. Waiting for a person.');
+  assert.doesNotMatch(comment, /\(\)/);
 });
 
 test('an improvement in the middle run does not stop the card, and neither does plateau observe or off', async () => {

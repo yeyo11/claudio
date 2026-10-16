@@ -48,7 +48,8 @@
     "stop": {
       "same-error": "the same error after three attempts",
       "more-errors": "more errors than before",
-      "design": "needs a design decision"
+      "design": "needs a design decision",
+      "no-code-fix": "no code change can fix it"
     },
     "holdsPush": "The branch can be pushed once the checks have finished.",
     "install": "Install step",

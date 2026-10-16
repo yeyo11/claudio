@@ -3670,8 +3670,8 @@ export interface VerificationFixStop {
   by: 'fixer' | 'claudio';
 }
 
-/** The three conditions after which more fixing attempts stop helping. */
-export type FixStopKind = 'same-error' | 'more-errors' | 'design';
+/** The conditions after which more fixing attempts stop helping, and the failure no code change can fix (a missing tool, no network, a service that is down). */
+export type FixStopKind = 'same-error' | 'more-errors' | 'design' | 'no-code-fix';
 
 /** The Developer's call on one failing check of a fix: this branch caused it, did not, or it is unclear. */
 export interface FlowCheckVerdict {
