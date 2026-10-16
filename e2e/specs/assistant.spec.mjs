@@ -2,7 +2,8 @@
 // read, offers the template's team member by member and proposes first tasks from a description; the
 // empty Team screen asks it for a proposal, whose run is live while it reads and still once it ends,
 // each proposal accepted, discarded or restored on its own. Runs against the fake CLI, whose scripts
-// file answers each run as the CLI's `--json-schema` would.
+// file answers each run as the CLI's `--json-schema` would. First, the Claudio assistant's entry, whose
+// box is a chat's composer less what the assistant cannot use, and which opens the assistant's chat.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -62,6 +63,35 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
       }),
     );
     await page.viewport(1440, 1024);
+
+    // ---- the Claudio assistant's entry: its box is a chat's composer (R16 c) ----
+    await page.goto('/assistant', 1200);
+    await page.waitFor(`return !!document.querySelector('.as-entry .composer [data-composer-input]')`, { label: "the assistant's composer" });
+    const box = await page.eval(
+      `const w = document.querySelector('.as-entry .composer-wrap');` +
+        `return { forms: document.querySelectorAll('main form.composer').length, editor: !!w?.querySelector('.composer-editor [data-composer-input]'), textarea: !!document.querySelector('main textarea'),` +
+        ` plus: !!w?.querySelector('.composer-plus'), stop: !!w?.querySelector('.composer-stop'), status: !!w?.querySelector('.composer-foot .composer-status'), keys: !!w?.querySelector('.composer-foot .composer-keys'),` +
+        ` accent: !!w?.querySelector('.composer-status-word.is-accent'), energy: document.querySelectorAll('.live-energy').length, send: w?.querySelector('.composer-send')?.disabled }`,
+    );
+    check(box.forms === 1 && box.editor && !box.textarea, `one composer, the chat's editor and no textarea of its own (${JSON.stringify(box)})`);
+    check(box.status && box.keys, `the chat's line of chips and keys under it (${JSON.stringify(box)})`);
+    check(!box.plus && !box.stop && !box.accent, `no "+", no stop and no permission chip: the assistant cannot use them (${JSON.stringify(box)})`);
+    check(box.energy === 0 && box.send === true, `nothing runs yet, and Send waits for words (${JSON.stringify(box)})`);
+    // A starter fills the box and never sends
+    await page.click('.as-starter', 'How much have I spent today?', 400);
+    check((await page.eval(`return document.querySelector('.as-entry [data-composer-input]').textContent`)).includes('How much have I spent today?'), 'a starter fills the box');
+    check(await page.eval(`return location.pathname === '/assistant' && document.querySelector('.as-entry .composer-send').disabled === false`), 'and waits to be sent');
+    // The chips open the model and the effort, as a chat's open its run options
+    await page.click('.as-entry .composer-status', undefined, 400);
+    check(await page.eval(`return !!document.querySelector('.composer-options .model-pick') && !!document.querySelector('.composer-options .effort-pick')`), 'the chips open the model and the effort');
+    await page.key('Escape');
+    // Enter sends, as in a chat, and the chat that opens has the same composer
+    await page.eval(`document.querySelector('.as-entry [data-composer-input]').focus(); return true`);
+    await page.press('Enter');
+    await page.waitFor(`return /^\\/chats\\/[^/]+$/.test(location.pathname)`, { label: "the assistant's chat opens", timeout: 30_000 });
+    made.push({ chat: decodeURIComponent(await page.eval(`return location.pathname.split('/')[2]`)) });
+    await page.waitFor(`return !!document.querySelector('main .composer-wrap .composer [data-composer-input]')`, { label: "the chat's composer" });
+    check(await page.eval(`return !!document.querySelector('.as-greeting')`), "the chat opens with the assistant's greeting");
 
     // ---- the wizard hands a new, empty project to the assistant ----
     await page.goto('/projects/new', 1200);
@@ -160,6 +190,14 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     check(page.takeErrors().length === 0, 'no console errors');
   } finally {
     await page.viewport(1440, 1024);
-    for (const id of made) await api.del(`/projects/${id}`).catch(() => {});
+    for (const id of made) {
+      if (typeof id === 'string') await api.del(`/projects/${id}`).catch(() => {});
+      // A chat is refused (409) while its turn runs: wait for it to end
+      else
+        for (let i = 0; i < 40; i++) {
+          if ((await api.del(`/chats/${encodeURIComponent(id.chat)}`).catch(() => null))?.status !== 409) break;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+    }
   }
 };

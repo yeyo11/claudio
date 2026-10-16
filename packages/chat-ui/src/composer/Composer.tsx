@@ -1,13 +1,13 @@
 import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AttachmentTray, useAttachments } from '../components/Attachments';
+import { AttachmentTray, useAttachments, type AttachmentsState } from '../components/Attachments';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
-import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
+import { SlashMenu, useSlashMenu, type SlashMenuState } from '../components/SlashMenu';
 import { ErrorBox } from '@claudio/ui/components/ui';
 import { AgentScope } from '../lib/agent';
 import { chatKeys, useChatUi, type StartChoices } from '../lib/context';
@@ -15,7 +15,7 @@ import { modeLabel } from '../lib/wire-words';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ComposerMenu } from './ComposerMenu';
 import { draftKey, readDraft, writeDraft } from './drafts';
-import { RichEditor, type RichEditorHandle } from './editor/RichEditor';
+import { RichEditor, type RichEditorHandle, type RichEditorProps } from './editor/RichEditor';
 import { historyStep, type HistoryIndex } from './history';
 import { OptionsPanel } from './OptionsPanel';
 
@@ -352,55 +352,169 @@ export function Composer({
 
   return (
     <AgentScope chat={chat}>
+      <ComposerBox
+        editor={editor}
+        files={files}
+        slash={slash}
+        formClass={working ? (writing ? 'is-working' : 'live-energy is-working') : ''}
+        formLabel={kind === 'fork' ? t('sessionView.continueCopy') : t('composer.message')}
+        onSubmit={send}
+        menu={
+          <ComposerMenu
+            chat={chat}
+            live={live}
+            files={files}
+            disabled={submit.isPending}
+            hasCommands={(chat.environment?.slashCommands?.length ?? 0) > 0}
+            onCommands={startCommand}
+            onChooseTools={() => setOptions(true)}
+          />
+        }
+        editorProps={{
+          initialText: initial,
+          placeholder,
+          ariaLabel: kind === 'fork' ? t('composer.firstMessage') : t('composer.message'),
+          submitKey: touch ? 'mod-enter' : 'enter',
+          autoFocus: kind === 'fork',
+          onChange,
+          onCaret: setCaret,
+          onKeyDown,
+          onBigPaste,
+          bigPasteChars: BIG_PASTE_CHARS,
+        }}
+        stop={
+          stoppable &&
+          interrupt && (
+            <Tooltip content={t('view.interruptHint')}>
+              <button type="button" className="btn btn-danger composer-stop" aria-label={t('runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
+                <Square size={12} strokeWidth={2.5} fill="currentColor" aria-hidden />
+                <span className="composer-stop-word">{t('runView.interrupt')}</span>
+              </button>
+            </Tooltip>
+          )
+        }
+        send={sendable ? { name: sendName, icon: <Icon {...ICON_SM} />, disabled: empty || files.uploading || submit.isPending } : null}
+        status={<StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} open={options} setOpen={setOptions} />}
+        error={<ErrorBox error={submit.error} title={kind === 'send' ? t('runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />}
+      />
+    </AgentScope>
+  );
+}
+
+/** A box with no chat behind it has no commands to offer yet */
+const NO_COMMANDS: readonly string[] = [];
+
+/**
+ * The chat's composer on a screen that starts a chat and has none yet: the Claudio assistant's entry.
+ * The same box, keys and line of chips as a chat's; what needs a chat to exist is left out: the "+"
+ * (files, commands, servers, the account), the queue and the stop. `status` is the line of chips for
+ * what the screen lets the person choose for the start, and `onStart` gets the trimmed first message.
+ */
+export function StartComposer({
+  editor: handed,
+  label,
+  placeholder,
+  sendLabel,
+  pending,
+  onStart,
+  status,
+  error,
+  autoFocus = false,
+}: {
+  /** The box, for a screen that fills it (a starter); the composer keeps its own when left out */
+  editor?: RefObject<RichEditorHandle | null>;
+  label: string;
+  placeholder: string;
+  sendLabel: { idle: string; pending: string };
+  /** The start is on its way: the button waits and says so */
+  pending: boolean;
+  onStart: (message: string) => void;
+  status?: ReactNode;
+  error?: ReactNode;
+  autoFocus?: boolean;
+}) {
+  const own = useRef<RichEditorHandle>(null);
+  const editor = handed ?? own;
+  const [text, setText] = useState('');
+  const [caret, setCaret] = useState(0);
+  // The chat's keys: Enter sends, and on a touch keyboard Enter breaks the line and the button sends
+  const touch = useMediaQuery('(pointer: coarse)');
+  const slash = useSlashMenu({ text, caret, commands: NO_COMMANDS, target: editor });
+  const send = () => {
+    const message = (editor.current?.getText() ?? text).trim();
+    if (message && !pending) onStart(message);
+  };
+  const name = pending ? sendLabel.pending : sendLabel.idle;
+  return (
+    <ComposerBox
+      editor={editor}
+      slash={slash}
+      formClass=""
+      formLabel={label}
+      onSubmit={send}
+      editorProps={{ placeholder, ariaLabel: label, submitKey: touch ? 'mod-enter' : 'enter', autoFocus, onChange: setText, onCaret: setCaret, onKeyDown: slash.onKeyDown }}
+      send={{ name, icon: <ArrowUp {...ICON_SM} />, disabled: !text.trim() || pending }}
+      status={status}
+      error={error}
+    />
+  );
+}
+
+/**
+ * What every composer draws, whatever it sends to: the card with the "+" where there is one, the
+ * editor, the stop and send buttons, and the line of chips and keys under it. A chat's `Composer`
+ * and a `StartComposer` are this one box, so the two cannot drift apart.
+ */
+function ComposerBox({
+  editor,
+  files,
+  slash,
+  formClass,
+  formLabel,
+  onSubmit,
+  menu,
+  editorProps,
+  stop,
+  send,
+  status,
+  error,
+}: {
+  editor: RefObject<RichEditorHandle | null>;
+  /** Left out where nothing can be attached: no tray, no drop zone, no pasted files */
+  files?: AttachmentsState;
+  slash: SlashMenuState;
+  formClass: string;
+  formLabel: string;
+  onSubmit: () => void;
+  menu?: ReactNode;
+  editorProps: Omit<RichEditorProps, 'ariaProps' | 'onSubmit' | 'onPasteFiles'>;
+  stop?: ReactNode;
+  /** Null where the box has no send button: a phone's, whose one round button stops the turn */
+  send: { name: string; icon: ReactNode; disabled: boolean } | null;
+  status?: ReactNode;
+  error?: ReactNode;
+}) {
+  const { t } = useTranslation('chat');
+  return (
     <div className="composer-wrap">
-      <div {...files.dropProps}>
-        <AttachmentTray state={files} />
+      <div {...files?.dropProps}>
+        {files && <AttachmentTray state={files} />}
         <SlashMenu state={slash}>
           <form
-            className={`composer ${working ? (writing ? 'is-working' : 'live-energy is-working') : ''}`.trim()}
-            aria-label={kind === 'fork' ? t('sessionView.continueCopy') : t('composer.message')}
+            className={`composer ${formClass}`.trim()}
+            aria-label={formLabel}
             onSubmit={(e) => {
               e.preventDefault();
-              send();
+              onSubmit();
             }}
           >
-            <ComposerMenu
-              chat={chat}
-              live={live}
-              files={files}
-              disabled={submit.isPending}
-              hasCommands={(chat.environment?.slashCommands?.length ?? 0) > 0}
-              onCommands={startCommand}
-              onChooseTools={() => setOptions(true)}
-            />
-            <RichEditor
-              ref={editor}
-              initialText={initial}
-              placeholder={placeholder}
-              ariaLabel={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
-              ariaProps={slash.ariaProps}
-              submitKey={touch ? 'mod-enter' : 'enter'}
-              autoFocus={kind === 'fork'}
-              onChange={onChange}
-              onCaret={setCaret}
-              onSubmit={send}
-              onKeyDown={onKeyDown}
-              onPasteFiles={files.add}
-              onBigPaste={onBigPaste}
-              bigPasteChars={BIG_PASTE_CHARS}
-            />
-            {stoppable && interrupt && (
-              <Tooltip content={t('view.interruptHint')}>
-                <button type="button" className="btn btn-danger composer-stop" aria-label={t('runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
-                  <Square size={12} strokeWidth={2.5} fill="currentColor" aria-hidden />
-                  <span className="composer-stop-word">{t('runView.interrupt')}</span>
-                </button>
-              </Tooltip>
-            )}
-            {sendable && (
-              <Tooltip content={sendName}>
-                <button type="submit" className="composer-send" aria-label={sendName} disabled={empty || files.uploading || submit.isPending}>
-                  <Icon {...ICON_SM} />
+            {menu}
+            <RichEditor ref={editor} {...editorProps} ariaProps={slash.ariaProps} onSubmit={onSubmit} {...(files ? { onPasteFiles: files.add } : {})} />
+            {stop}
+            {send && (
+              <Tooltip content={send.name}>
+                <button type="submit" className="composer-send" aria-label={send.name} disabled={send.disabled}>
+                  {send.icon}
                 </button>
               </Tooltip>
             )}
@@ -408,11 +522,10 @@ export function Composer({
         </SlashMenu>
       </div>
       <div className="composer-foot">
-        <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} open={options} setOpen={setOptions} />
+        {status}
         <KeysHint>{t('composer.keys')}</KeysHint>
       </div>
-      <ErrorBox error={submit.error} title={kind === 'send' ? t('runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />
+      {error}
     </div>
-    </AgentScope>
   );
 }
