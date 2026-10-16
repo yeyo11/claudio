@@ -138,6 +138,8 @@ import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
+import { LessonService } from './lessons/service.ts';
+import { LessonStore } from './lessons/store.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
 import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
@@ -337,7 +339,9 @@ export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading,
 export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
 export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
 export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
-export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
+export { MemoryProposalService, type LessonApprovals, type ProposalOrigin } from './memory-proposals.ts';
+export { LessonService, type MiningContext, type MiningResult } from './lessons/service.ts';
+export { LessonStore } from './lessons/store.ts';
 export {
   installDirs,
   nvmBinDirs,
@@ -488,6 +492,7 @@ export class Core {
   readonly journal: JournalService;
   /** What the team proposes to remember, written to its target only once a person approves it */
   readonly memoryProposals: MemoryProposalService;
+  readonly lessons: LessonService;
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
@@ -951,6 +956,12 @@ export class Core {
     });
     this.events.observe((event) => this.lessonQueue.observe(event));
     this.lessonQueue.start();
+    this.lessons = new LessonService({
+      store: lessonStore,
+      proposals: this.memoryProposals,
+      emit: (event) => this.events.emit(event),
+    });
+    this.lessons.start();
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
@@ -2913,6 +2924,7 @@ export class Core {
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
     this.logins.close();
+    this.lessons.stop();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();

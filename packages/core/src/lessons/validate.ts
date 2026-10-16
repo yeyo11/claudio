@@ -1,5 +1,6 @@
 import { LESSON_ACTION_MAX, LESSON_TRIGGER_MAX, type Lesson, type LessonSignalKind } from '@claudio/shared';
 import { cutToBytes, maskSecrets } from '../decisions/redact.ts';
+import { WorkItemError } from '../work-item-validation.ts';
 import { ENGLISH_STOPWORDS, SAME_AT, similarity } from './match.ts';
 
 /*
@@ -174,4 +175,25 @@ export function validateCandidates(raw: readonly unknown[], ctx: ValidationConte
     else accepted.push(out);
   }
   return { accepted, dropped };
+}
+
+/**
+ * A person's edit of a lesson: the same rules as a candidate's, except the English one (the words
+ * are theirs, A13) and the ones that need a transcript. Answers the text as it is stored, or a 400
+ * that names the rule.
+ */
+export function checkLessonText(trigger: unknown, action: unknown): { trigger: string; action: string } {
+  if (typeof trigger !== 'string' || typeof action !== 'string') throw new WorkItemError('a lesson needs a trigger and an action', 400);
+  const raw = [normal(trigger), normal(action)];
+  const [t = '', a = ''] = raw.map((x) => x.trim());
+  if (!t || !a) throw new WorkItemError('a lesson needs a trigger and an action', 400);
+  if (length(t) > LESSON_TRIGGER_MAX) throw new WorkItemError(`the trigger is longer than ${String(LESSON_TRIGGER_MAX)} characters`, 400);
+  if (length(a) > LESSON_ACTION_MAX) throw new WorkItemError(`the action is longer than ${String(LESSON_ACTION_MAX)} characters`, 400);
+  if (maskSecrets(t) !== t || maskSecrets(a) !== a) throw new WorkItemError('a lesson cannot hold a secret', 400);
+  if (URL_LIKE.test(t) || URL_LIKE.test(a)) throw new WorkItemError('a lesson cannot hold a link', 400);
+  if (raw.some((x) => /\p{Cc}/u.test(x)) || commandLike(t, false) || commandLike(a, true)) {
+    throw new WorkItemError('a lesson describes behaviour: write the command as a single word in inline code, or leave it to a guard', 400);
+  }
+  if (SUSPICIOUS.test(t) || SUSPICIOUS.test(a)) throw new WorkItemError('a lesson cannot give instructions about instructions', 400);
+  return { trigger: t, action: a };
 }

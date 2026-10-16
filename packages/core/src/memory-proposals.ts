@@ -9,6 +9,7 @@ import {
   rulePathsProblem,
   type ApproveMemoryProposalRequest,
   type FlowMemoryProposal,
+  type Lesson,
   type MemoryProposal,
   type MemoryProposalAction,
   type MemoryProposalStatus,
@@ -53,6 +54,31 @@ export interface ProposalProject {
   memoryKey: string;
 }
 
+/**
+ * What approving a `lesson` proposal does to the lessons store, which `LessonService` implements and
+ * attaches (`attachLessons`): the service needs this one to create proposals, so neither takes the
+ * other at construction.
+ */
+export interface LessonApprovals {
+  /** The lesson as the card shows it, with its evidence; null when it is gone */
+  view(lessonId: string): Lesson | null;
+  /** Checks the person's choices before anything is claimed: 400, 404 or 409. Answers their edit, as it will be stored */
+  checkApproval(lessonId: string, input: ApproveMemoryProposalRequest): { edit: { trigger: string; action: string } | null };
+  /** Applies them in one transaction; answers the id of the lesson that holds the result */
+  approveProposed(lessonId: string, input: ApproveMemoryProposalRequest, edit: { trigger: string; action: string } | null, by: WorkItemActor): string;
+  /** A rejected proposal rejects the lesson behind it too, unless the lesson is one that already existed */
+  rejectProposed(lessonId: string, by: WorkItemActor): void;
+  /** The lesson an approved `instructions` proposal now holds: retired, reason `instructions`. False when it is no longer active */
+  retireForInstructions(lessonId: string, by: WorkItemActor): boolean;
+  /** Takes that retirement back, when `CLAUDE.md` could not be written */
+  reinstate(lessonId: string): void;
+}
+
+/** The one line a lesson is shown and approved as: "When …: …" */
+export function lessonLine(trigger: string, action: string): string {
+  return `${trigger}: ${action}`;
+}
+
 export interface MemoryProposalServiceDeps {
   db: Db;
   journal: JournalService;
@@ -78,6 +104,8 @@ export interface ProposalOrigin {
   source?: WorkItemSource | null;
   flowRunId?: string | null;
   itemId?: string | null;
+  /** The lesson an `instructions` proposal is made from, retired when the proposal is approved */
+  lessonId?: string | null;
 }
 
 interface ProposalRow {
@@ -106,14 +134,49 @@ interface ProposalRow {
   decided_at: string | null;
   reject_reason: string | null;
   journal_entry_id: string | null;
+  lesson_id: string | null;
   created_at: string;
 }
 
 export class MemoryProposalService {
   private readonly sql: DatabaseSync;
+  private lessons: LessonApprovals | null = null;
 
   constructor(private readonly deps: MemoryProposalServiceDeps) {
     this.sql = deps.db.connection;
+  }
+
+  /** Called once by whoever builds the `LessonService`; without it a `lesson` proposal cannot be decided */
+  attachLessons(lessons: LessonApprovals): void {
+    this.lessons = lessons;
+  }
+
+  private lessonsOrThrow(): LessonApprovals {
+    if (!this.lessons) throw new WorkItemError('lessons are not available', 409);
+    return this.lessons;
+  }
+
+  /**
+   * A `lesson` proposal, written by the lesson miner and nobody else: `propose` refuses the kind, because
+   * a lesson rests on a person's correction. The lesson row exists already; this is the person's
+   * decision about it, which is why it is not a proposal of the usual kind.
+   */
+  proposeLesson(projectId: string, lessonId: string, text: string, reason: string, source: WorkItemSource | null): MemoryProposal {
+    const id = randomUUID();
+    this.sql
+      .prepare(
+        `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, target_paths, text, reason, status,
+           proposed_by_kind, proposed_by_role, source_kind, source_chat_id, lesson_id, created_at)
+         VALUES (?, ?, 'lesson', NULL, NULL, NULL, ?, ?, 'pending', 'system', NULL, ?, ?, ?, ?)`,
+      )
+      .run(id, projectId, text, reason.slice(0, PROPOSAL_REASON_MAX), source?.kind ?? null, source?.chatId ?? null, lessonId, new Date().toISOString());
+    // Lesson proposals raise no notification: they wait in the Memory tab with the others
+    return this.mustFind(id);
+  }
+
+  /** Points a proposal at the lesson that holds its result (a merge moves it) */
+  retarget(proposalId: string, lessonId: string): void {
+    this.sql.prepare('UPDATE memory_proposals SET lesson_id = ? WHERE id = ?').run(lessonId, proposalId);
   }
 
   /** Newest first; every status unless one is asked for. */
@@ -200,6 +263,8 @@ export class MemoryProposalService {
    */
   propose(projectId: string, proposal: FlowMemoryProposal, origin: ProposalOrigin): MemoryProposal {
     const target = targetOf(proposal.target);
+    // A flow run never proposes a lesson (A4): only the miner does, through `proposeLesson`
+    if (target.kind === 'lesson') throw new WorkItemError("a lesson cannot be proposed here: lessons come from a person's corrections", 400);
     const text = proposalText(proposal.text);
     const reason = typeof proposal.reason === 'string' ? proposal.reason.trim().slice(0, PROPOSAL_REASON_MAX) : '';
     const source = origin.source ?? null;
@@ -259,8 +324,8 @@ export class MemoryProposalService {
       .prepare(
         `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, target_paths, text, reason, status,
            proposed_by_kind, proposed_by_role, source_kind, source_chat_id, source_orchestration_id, source_task_id,
-           flow_run_id, item_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           flow_run_id, item_id, lesson_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -279,6 +344,7 @@ export class MemoryProposalService {
         source?.taskId ?? null,
         origin.flowRunId ?? null,
         origin.itemId ?? null,
+        origin.lessonId ?? null,
         new Date().toISOString(),
       );
   }
@@ -286,11 +352,15 @@ export class MemoryProposalService {
   /** Writes the target, with `text` instead of the proposed text when the person edited it. */
   async approve(proposalId: string, input: ApproveMemoryProposalRequest = {}, decidedBy: WorkItemActor = PERSON): Promise<MemoryProposal> {
     const before = this.pending(proposalId);
+    if (before.target.kind === 'lesson') return this.approveLesson(before, input ?? {}, decidedBy);
     const edited = (input as Partial<ApproveMemoryProposalRequest> | undefined)?.text;
     const text = edited === undefined || edited === null ? before.text : proposalText(edited);
     const project = this.deps.project(before.projectId);
     if (!project) throw new WorkItemError('its project is not imported: import the directory again to write its memory', 409);
     this.claim(proposalId, 'approved', decidedBy, { approvedText: text === before.text ? null : text });
+    // An `instructions` proposal made from a lesson retires it with the claim: CLAUDE.md holds it now
+    const fromLesson = before.target.kind === 'instructions' ? this.row(proposalId)?.lesson_id : null;
+    const retired = fromLesson ? (this.lessons?.retireForInstructions(fromLesson, decidedBy) ?? false) : false;
     try {
       if (before.target.kind === 'journal') {
         const entry = this.deps.journal.add(before.projectId, {
@@ -315,10 +385,32 @@ export class MemoryProposalService {
         await writeAtomic(path, withText(current, text, before.target.section));
       }
     } catch (err) {
+      // Both rows go back: the proposal waits again and the lesson is handed again
+      if (retired && fromLesson) this.lessons?.reinstate(fromLesson);
       this.release(proposalId);
       throw err;
     }
     const approved = this.mustFind(proposalId);
+    this.announce(approved, 'approved');
+    return approved;
+  }
+
+  /** A `lesson` proposal writes no file: approving it makes the lesson active, or folds it into another */
+  private approveLesson(before: MemoryProposal, input: ApproveMemoryProposalRequest, decidedBy: WorkItemActor): MemoryProposal {
+    const lessons = this.lessonsOrThrow();
+    const lessonId = this.row(before.id)?.lesson_id;
+    if (!lessonId) throw new WorkItemError('the lesson behind this proposal is gone', 409);
+    const { edit } = lessons.checkApproval(lessonId, input);
+    const text = edit ? lessonLine(edit.trigger, edit.action) : before.text;
+    this.claim(before.id, 'approved', decidedBy, { approvedText: text === before.text ? null : text });
+    try {
+      const held = lessons.approveProposed(lessonId, input, edit, decidedBy);
+      if (held !== lessonId) this.retarget(before.id, held);
+    } catch (err) {
+      this.release(before.id);
+      throw err;
+    }
+    const approved = this.mustFind(before.id);
     this.announce(approved, 'approved');
     return approved;
   }
@@ -346,11 +438,29 @@ export class MemoryProposalService {
   }
 
   reject(proposalId: string, input: RejectMemoryProposalRequest = {}, decidedBy: WorkItemActor = PERSON): MemoryProposal {
-    this.pending(proposalId);
+    const waiting = this.pending(proposalId);
     const raw = (input as Partial<RejectMemoryProposalRequest> | undefined)?.reason;
     if (raw !== undefined && raw !== null && typeof raw !== 'string') throw new WorkItemError('reason must be text', 400);
     const reason = raw?.trim().slice(0, PROPOSAL_REASON_MAX) || null;
-    this.claim(proposalId, 'rejected', decidedBy, { rejectReason: reason });
+    const lessonId = waiting.target.kind === 'lesson' ? this.row(proposalId)?.lesson_id : null;
+    if (lessonId) {
+      // The proposal and its lesson are decided together or not at all
+      this.sql.exec('BEGIN IMMEDIATE');
+      try {
+        this.claim(proposalId, 'rejected', decidedBy, { rejectReason: reason });
+        this.lessonsOrThrow().rejectProposed(lessonId, decidedBy);
+        this.sql.exec('COMMIT');
+      } catch (err) {
+        try {
+          this.sql.exec('ROLLBACK');
+        } catch {
+          // SQLite ended the transaction itself; the error that got here is the one to report
+        }
+        throw err;
+      }
+    } else {
+      this.claim(proposalId, 'rejected', decidedBy, { rejectReason: reason });
+    }
     const rejected = this.mustFind(proposalId);
     this.announce(rejected, 'rejected');
     return rejected;
@@ -415,9 +525,8 @@ export class MemoryProposalService {
       decidedAt: r.decided_at,
       rejectReason: r.reject_reason,
       journalEntryId: r.journal_entry_id,
-      // Filled in by the lesson store; a row has neither until it exists
-      lesson: null,
-      lessonId: null,
+      lesson: kind === 'lesson' && r.lesson_id ? (this.lessons?.view(r.lesson_id) ?? null) : null,
+      lessonId: kind === 'instructions' ? r.lesson_id : null,
       createdAt: r.created_at,
     };
   }

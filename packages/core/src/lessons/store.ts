@@ -287,6 +287,36 @@ export class LessonStore {
       .run(lessonId, lessonId, LESSON_EVIDENCE_MAX);
   }
 
+  /** Adds evidence to a lesson of any status, ten at most; the oldest go first */
+  appendEvidence(id: string, evidence: EvidenceInput[]): Lesson {
+    this.immediate(() => {
+      this.mustRow(id);
+      for (const item of evidence) this.addEvidenceRow(id, item);
+      this.capEvidence(id);
+    });
+    return this.mustFind(id);
+  }
+
+  /** The two links a kept contradiction leaves: the lesson it contradicts, and the global one it overrides here */
+  setLinks(id: string, links: { contradicts?: string | null; overrides?: string | null }): void {
+    const row = this.mustRow(id);
+    this.sql
+      .prepare('UPDATE lessons SET contradicts_id = ?, overrides_id = ?, updated_at = ? WHERE id = ?')
+      .run(links.contradicts === undefined ? row.contradicts_id : links.contradicts, links.overrides === undefined ? row.overrides_id : links.overrides, this.now(), id);
+  }
+
+  /** Takes back a retirement made for `CLAUDE.md` when that write failed; the lesson is as it was, active */
+  reactivate(id: string): void {
+    this.sql
+      .prepare("UPDATE lessons SET status = 'active', retired_reason = NULL, updated_at = ? WHERE id = ? AND status = 'retired' AND retired_reason = 'instructions'")
+      .run(this.now(), id);
+  }
+
+  /** Removes a lesson that was never offered, when the proposal that should carry it could not be written */
+  discard(id: string): void {
+    this.sql.prepare("DELETE FROM lessons WHERE id = ? AND status = 'proposed'").run(id);
+  }
+
   /** Links the memory proposal that carries the person's decision about a lesson */
   setProposal(id: string, proposalId: string): void {
     this.mustRow(id);
