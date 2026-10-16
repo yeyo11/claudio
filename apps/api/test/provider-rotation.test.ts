@@ -31,9 +31,10 @@ async function until(what: string, ready: () => boolean): Promise<void> {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-/** A chat whose first turn dies against the provider's usage limit. */
-async function chatAtLimit(): Promise<string> {
-  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'FAKE-LIMIT-ONCE', cwd: repo }) });
+/** A chat whose first turn dies against the provider's usage limit; `report` has the CLI's rejected window report come first. */
+async function chatAtLimit(report = false): Promise<string> {
+  const prompt = report ? 'FAKE-LIMIT-ONCE\nFAKE-LIMIT-REPORT' : 'FAKE-LIMIT-ONCE';
+  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt, cwd: repo }) });
   assert.equal(res.statusCode, 201, res.body);
   const { id } = res.json<ChatSummary>();
   await until('the chat to reach its limit', () => core.runtime.atLimit(id));
@@ -84,7 +85,8 @@ test('a chat that does not exist cannot wait', async () => {
 });
 
 test("a provider's status carries its limit once a chat reached it: what the chat banner and the limit bars read", async () => {
-  await chatAtLimit();
+  // The limit is the CLI's own report; a 429 alone writes no reading
+  await chatAtLimit(true);
   const status = (await app.inject('/api/providers/claude-code')).json<ProviderStatus>();
   assert.equal(status.limit?.state, 'exhausted', JSON.stringify(status));
   const listed = (await app.inject('/api/providers')).json<ProviderStatus[]>().find((s) => s.id === 'claude-code');
