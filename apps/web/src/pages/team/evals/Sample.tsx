@@ -12,7 +12,7 @@ import { callSummary, cellState } from './run-model';
 
 const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
 
-const WHY = ['limit', 'interrupted', 'cancelled', 'skipped', 'infra'] as const;
+const WHY = ['limit', 'interrupted', 'cancelled', 'skipped', 'infra', 'unjudged'] as const;
 const whyOf = (outcome: string | null): (typeof WHY)[number] | null => WHY.find((why) => why === outcome) ?? null;
 
 const CALL_ICON: Record<EvalCall['outcome'], LucideIcon> = { ok: CircleCheck, error: CircleX, denied: Ban, open: Hourglass };
@@ -111,12 +111,26 @@ export function SampleView({ sample }: { sample: EvalSampleDetail }) {
         ) : (
           <ul className="evals-checks">
             {sample.checks.map((check) => {
-              const Icon = check.passed ? CircleCheck : CircleX;
+              // A judge that failed gives no verdict: not scored, and the gate fails closed on it
+              const unjudged = check.judgement?.status === 'unjudged';
+              const Icon = unjudged ? Hourglass : check.passed ? CircleCheck : CircleX;
+              const tone = unjudged ? 'warn' : check.passed ? 'ok' : 'bad';
               return (
-                <li key={check.idx} className={`evals-check tone-${check.passed ? 'ok' : 'bad'}`}>
+                <li key={check.idx} className={`evals-check tone-${tone}`}>
                   <Icon size={14} strokeWidth={2} aria-hidden />
-                  <span className="evals-check-word">{check.passed ? t('cell.passed') : t('cell.failed')}</span>
+                  <span className="evals-check-word">{unjudged ? t('sample.unjudged') : check.passed ? t('cell.passed') : t('cell.failed')}</span>
                   <span className="evals-check-detail">{check.detail}</span>
+                  {check.judgement && (
+                    <span className="evals-check-judge">
+                      <span className="field-hint">{t('sample.judge', { model: check.judgement.model ?? '—' })}</span>
+                      {check.judgement.reason && <q>{check.judgement.reason}</q>}
+                      {check.judgement.evidence.map((seq) => (
+                        <button key={seq} type="button" className="btn btn-small mono" onClick={() => goTo(seq)}>
+                          {t('sample.evidence', { seq })}
+                        </button>
+                      ))}
+                    </span>
+                  )}
                   {check.evidenceSeq !== null && (
                     <button type="button" className="btn btn-small mono" onClick={() => goTo(check.evidenceSeq as number)}>
                       {t('sample.evidence', { seq: check.evidenceSeq })}

@@ -42,6 +42,7 @@ const FILE: EvalFileDetail & { definition: EvalDefinition } = { name: 'dev', pat
 
 const sample = (over: Partial<EvalSample> & Pick<EvalSample, 'id' | 'caseId' | 'variant' | 'attempt'>): EvalSample => ({
   runId: 'r1',
+  pressure: 'neutral',
   try: 1,
   seq: Number(over.id.replace(/\D/g, '') || 0),
   state: 'ended',
@@ -69,6 +70,7 @@ const summary = (over: Partial<EvalRunSummary> = {}): EvalRunSummary => ({
   evalName: 'dev',
   definitionSha: 'sha1',
   variants: ['current', 'proposed'],
+  pressures: ['neutral'],
   samplesPerCase: 2,
   account: null,
   state: 'ended',
@@ -133,7 +135,7 @@ test.beforeEach(async () => {
 // ---------- the start dialog ----------
 
 const ESTIMATE: EvalEstimate = { samples: 8, ceilingUsd: 4, typicalUsd: 1.2, commands: [], prompts: ['Fix the test', 'Fix the lint'], consentNeeded: false, warnings: ['dirty-checkout'] };
-const DEFAULT_REQUEST = startRequest({ variants: new Set(['pinned', 'current']), proposed: '', skipped: new Set(), samples: undefined, account: '' }, DEFINITION, null, 0);
+const DEFAULT_REQUEST = startRequest({ variants: new Set(['pinned', 'current']), proposed: '', skipped: new Set(), samples: undefined, account: '', pressures: new Set(['neutral'] as const) }, DEFINITION, null, 0);
 
 const start = (setup: (client: QueryClient) => void = () => {}, initialProposed: string | null = null) =>
   page((client) => {
@@ -183,7 +185,7 @@ test('"Evaluate this change" carries the unsaved text: it opens the proposed var
   const html = start(() => {}, '# developer\nBe terse.');
   assert.match(text(html), /Proposed text of \.claude\/agents\/developer\.md/);
   assert.match(text(html), /unsaved text from the member.{1,8}s page/);
-  const request = startRequest({ variants: new Set(['current', 'proposed']), proposed: '# developer\nBe terse.', skipped: new Set(), samples: undefined, account: '' }, DEFINITION, '# developer', 4);
+  const request = startRequest({ variants: new Set(['current', 'proposed']), proposed: '# developer\nBe terse.', skipped: new Set(), samples: undefined, account: '', pressures: new Set(['neutral'] as const) }, DEFINITION, '# developer', 4);
   assert.deepEqual(request.variants, ['current', 'proposed']);
   assert.equal(request.proposed, '# developer\nBe terse.');
 });

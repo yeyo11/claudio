@@ -216,6 +216,7 @@ import type {
   EvalEstimate,
   EvalFileDetail,
   EvalFileListItem,
+  EvalGate,
   EvalHead,
   EvalRun,
   EvalRunPage,
@@ -995,6 +996,20 @@ export const api = {
   cancelEvalRun: (runId: string) => request<EvalRunSummary>(`/eval-runs/${enc(runId)}/cancel`, { method: 'POST' }),
   resumeEvalRun: (runId: string, confirmMaxCostUsd: number) =>
     request<EvalRunSummary>(`/eval-runs/${enc(runId)}/resume`, { method: 'POST', body: { confirmMaxCostUsd } }),
+  /** The promotion gate of a run; null while the run has none (404) */
+  evalGate: async (runId: string, o?: ReadOptions): Promise<EvalGate | null> => {
+    try {
+      return await request<EvalGate>(`/eval-runs/${enc(runId)}/gate`, o);
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 404) return null;
+      throw error;
+    }
+  },
+  rejudgeEvalRun: (runId: string) => request<{ rejudged: number; unjudged: number }>(`/eval-runs/${enc(runId)}/rejudge`, { method: 'POST' }),
+  acceptEvalJudge: (runId: string, caseId: string, idx: number) =>
+    request<EvalGate>(`/eval-runs/${enc(runId)}/accept-judge`, { method: 'POST', body: { caseId, idx } }),
+  draftEvalCases: (projectId: string, name: string) =>
+    request<AssistantRun>(`/projects/${enc(projectId)}/evals/${enc(name)}/draft-cases`, { method: 'POST', body: {} }),
   deleteEvalRun: (runId: string) => request<{ ok: true }>(`/eval-runs/${enc(runId)}`, { method: 'DELETE' }),
   team: (projectId: string, o?: ReadOptions) => request<Team>(`/projects/${enc(projectId)}/team`, o),
   teamFromTemplate: (projectId: string, req: TeamFromTemplateRequest = {}) =>
@@ -1344,6 +1359,7 @@ export const keys = {
   evalHead: (projectId: string) => ['evals', projectId, 'head'] as const,
   evalRuns: (projectId: string, name: string | null) => ['evals', projectId, 'runs', name ?? ''] as const,
   evalRun: (runId: string) => ['evals', 'run', runId] as const,
+  evalGate: (runId: string) => ['evals', 'run', runId, 'gate'] as const,
   evalSample: (runId: string, sampleId: string) => ['evals', 'run', runId, 'sample', sampleId] as const,
   evalCompare: (runId: string, base: string, other: string) => ['evals', 'run', runId, 'compare', base, other] as const,
   // Not under 'evals': a sample finishing must not re-price a dialog the person is reading
@@ -1690,7 +1706,18 @@ export const useEvalHistory = (projectId: string, name: string | null) =>
     refetchInterval: useFallbackInterval(),
   });
 
-export const useEvalSample =(runId: string, sampleId: string | null) =>
+export const useEvalGate = (runId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: keys.evalGate(runId),
+    queryFn: ({ signal }) => api.evalGate(runId, { signal }),
+    enabled,
+    retry: false,
+  });
+
+/** Whether the Phase 2 switch (pressure levels, judged expectations, the gate, drafting) is on. */
+export const useEvalsPhase2 = (): boolean => useQuery({ queryKey: keys.appSettings, queryFn: () => api.appSettings() }).data?.evalsPhase2 === true;
+
+export const useEvalSample = (runId: string, sampleId: string | null) =>
   useQuery({
     queryKey: keys.evalSample(runId, sampleId ?? ''),
     queryFn: ({ signal }) => api.evalSample(runId, sampleId ?? '', { signal }),

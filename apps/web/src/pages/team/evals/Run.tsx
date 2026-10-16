@@ -2,19 +2,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowLeft, ArrowUp, CircleCheck, CircleX, Equal, Hourglass, MinusCircle, OctagonX, RotateCw, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EvalCaseVerdict, EvalRun, EvalSample, EvalVariant } from '@claudio/shared';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { EvalCaseVerdict, EvalPressure, EvalRun, EvalSample, EvalVariant } from '@claudio/shared';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
-import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatCost, formatDateTime } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { api, keys, useEvalRun } from '../../../api';
+import { api, keys, useEvalGate, useEvalRun } from '../../../api';
+import { teamSearch } from '../model';
+import { GateCard } from './Gate';
+import { MetricsTable } from './Metrics';
 import { RunTag } from './List';
-import { runWord } from './model';
-import { cellState, runLive, runMatrix, runProgress, runResumable, runStage, resumeCeiling, unrunSamples, type CellState, type MatrixRow } from './run-model';
+import { PRESSURE_LIST, runWord } from './model';
+import { cellState, proposedTextOf, runLive, showsMetrics, stashSave, runMatrix, runProgress, runResumable, runStage, resumeCeiling, unrunSamples, type CellState, type MatrixRow } from './run-model';
 import { SampleSheet } from './Sample';
 
 const CELL_ICON: Record<CellState, LucideIcon | null> = { passed: CircleCheck, failed: CircleX, running: null, queued: Hourglass, notScored: MinusCircle };
@@ -78,9 +82,9 @@ function Verdict({ verdict }: { verdict: EvalCaseVerdict | undefined }) {
 }
 
 /** The cases against the variants: a real table, with a column for the comparison when two variants ran. */
-export function Matrix({ run, verdicts, phone, onOpen }: { run: EvalRun; verdicts: Map<string, EvalCaseVerdict> | null; phone: boolean; onOpen: (id: string) => void }) {
+export function Matrix({ run, verdicts, phone, onOpen, pressure }: { run: EvalRun; verdicts: Map<string, EvalCaseVerdict> | null; phone: boolean; onOpen: (id: string) => void; pressure?: EvalPressure }) {
   const { t } = useTranslation('evals');
-  const rows = runMatrix(run);
+  const rows = runMatrix(run, pressure);
   if (rows.length === 0) return <p className="field-hint">{t('matrix.empty')}</p>;
   if (phone)
     return (
@@ -220,8 +224,12 @@ export function RunView({ projectId, runId, onBack }: { projectId: string; runId
   const confirm = useConfirm();
   const toast = useToast();
   const run = useEvalRun(runId);
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [open, setOpen] = useState<string | null>(null);
+  const [pressure, setPressure] = useState<EvalPressure>('neutral');
   const data = run.data;
+  const gate = useEvalGate(runId, !!data && data.variants.includes('current') && data.variants.includes('proposed') && data.state === 'ended');
   const pair = data ? comparedVariants(data.variants) : null;
   const compare = useQuery({
     queryKey: keys.evalCompare(runId, pair?.[0] ?? '', pair?.[1] ?? ''),
@@ -241,6 +249,13 @@ export function RunView({ projectId, runId, onBack }: { projectId: string; runId
     onError: (error) => toast.error(t('run.resumeFailed'), error),
   });
 
+  const gateChanged = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.evalRun(runId) });
+    refresh();
+  };
+  const rejudge = useMutation({ mutationFn: () => api.rejudgeEvalRun(runId), onSuccess: gateChanged, onError: (error) => toast.error(t('gate.rejudgeFailed'), error) });
+  const acceptJudge = useMutation({ mutationFn: ({ caseId, idx }: { caseId: string; idx: number }) => api.acceptEvalJudge(runId, caseId, idx), onSuccess: gateChanged, onError: (error) => toast.error(t('gate.acceptFailed'), error) });
+
   const counts = data ? runProgress(data.samples) : null;
   const total = counts ? counts.done + counts.failed + counts.running + counts.pending + counts.skipped : 0;
   const announce = counts ? t('run.announce', { done: counts.done + counts.failed + counts.skipped, total }) : '';
@@ -258,6 +273,18 @@ export function RunView({ projectId, runId, onBack }: { projectId: string; runId
       (ok) => ok && resume.mutate(ceiling),
     );
   };
+  // "Save proposed" is the member's own editor with the proposed text in it: the person still presses Save
+  const proposedText = proposedTextOf(data);
+  const saveAgent = data.definition.target.kind === 'agent' && data.definition.target.scope === 'project' ? data.definition.target.name : null;
+  const saveProposed =
+    proposedText !== null && saveAgent !== null
+      ? () => {
+          if (!stashSave(sessionStorage, projectId, saveAgent, proposedText)) return toast.error(t('gate.saveFailed'));
+          navigate({ search: teamSearch(params, { section: 'members', member: saveAgent, eval: null, run: null, for: null }) });
+        }
+      : undefined;
+  const levels = data.pressures.length > 0 ? PRESSURE_LIST.filter((p) => data.pressures.includes(p)) : (['neutral'] as EvalPressure[]);
+  const level = levels.includes(pressure) ? pressure : (levels[0] ?? 'neutral');
   const opened = open ? data.samples.find((s) => s.id === open) : undefined;
 
   return (
@@ -304,12 +331,33 @@ export function RunView({ projectId, runId, onBack }: { projectId: string; runId
 
       <Notice run={data} onResume={askResume} onStop={() => cancel.mutate()} busy={cancel.isPending || resume.isPending} />
 
+      {gate.data && (
+        <GateCard
+          gate={gate.data}
+          busy={rejudge.isPending || acceptJudge.isPending}
+          onRejudge={() => rejudge.mutate()}
+          onAcceptJudge={(caseId, idx) => acceptJudge.mutate({ caseId, idx })}
+          {...(saveProposed ? { onSaveProposed: saveProposed } : {})}
+        />
+      )}
+
       <section className="evals-section" aria-labelledby="evals-run-matrix">
         <h3 id="evals-run-matrix">{t('matrix.title')}</h3>
-        <Matrix run={data} verdicts={verdicts} phone={phone} onOpen={setOpen} />
+        {levels.length > 1 && (
+          <Segmented<EvalPressure> value={level} label={t('pressure.label')} onChange={setPressure} options={levels.map((p) => ({ value: p, label: t(`pressure.${p}`) }))} />
+        )}
+        <Matrix run={data} verdicts={verdicts} phone={phone} onOpen={setOpen} pressure={level} />
       </section>
 
-      {opened && <SampleSheet runId={runId} sampleId={opened.id} title={t('sample.title', { case: opened.caseId, variant: t(`variant.${opened.variant}`), attempt: opened.attempt })} onClose={() => setOpen(null)} />}
+      {showsMetrics(data) && (
+        <section className="evals-section" aria-labelledby="evals-run-metrics">
+          <h3 id="evals-run-metrics">{t('metrics.title')}</h3>
+          <p className="field-hint">{t('metrics.note')}</p>
+          <MetricsTable run={data} pressure={level} />
+        </section>
+      )}
+
+      {opened && <SampleSheet runId={runId} sampleId={opened.id} title={`${t('sample.title', { case: opened.caseId, variant: t(`variant.${opened.variant}`), attempt: opened.attempt })}${opened.pressure && opened.pressure !== 'neutral' ? ` · ${t(`pressure.${opened.pressure}`)}` : ''}`} onClose={() => setOpen(null)} />}
     </div>
   );
 }

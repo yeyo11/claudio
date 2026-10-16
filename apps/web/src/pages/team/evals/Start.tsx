@@ -2,17 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, Loader, Play, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EVAL_LIMITS, type EvalDefinition, type EvalEstimate, type EvalFileDetail, type EvalRunRequest, type EvalRunSummary, type EvalVariant } from '@claudio/shared';
+import { EVAL_LIMITS, type EvalDefinition, type EvalPressure, type EvalEstimate, type EvalFileDetail, type EvalRunRequest, type EvalRunSummary, type EvalVariant } from '@claudio/shared';
 import { Checkbox, NumberInput, Select, Sheet } from '@claudio/ui/components/controls';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { formatCost } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { api, ApiRequestError, keys, useAccounts, useEvalFile } from '../../../api';
+import { api, ApiRequestError, keys, useAccounts, useEvalFile, useEvalsPhase2 } from '../../../api';
 import { CodeEditor } from '../../../components/CodeEditor';
-import { resourceKindOf, targetPath } from './model';
-import { canStart, clearProposed, estimateKey, proposedState, refusalOf, startRequest, type StartForm } from './run-model';
+import { PRESSURE_LIST, resourceKindOf, targetPath } from './model';
+import { canStart, clearProposed, estimateKey, levelsAvailable, proposedState, refusalOf, startRequest, type StartForm } from './run-model';
 
 const VARIANTS: readonly EvalVariant[] = ['pinned', 'current', 'proposed'];
 
@@ -117,7 +117,10 @@ function useStart({
     skipped: new Set<string>(),
     samples: undefined,
     account: '',
+    pressures: new Set<EvalPressure>(['neutral']),
   }));
+  const phase2 = useEvalsPhase2();
+  const levels = phase2 ? levelsAvailable(def) : (['neutral'] as EvalPressure[]);
   const [accepted, setAccepted] = useState(false);
 
   const currentText = current.data ?? null;
@@ -220,6 +223,32 @@ function useStart({
         </fieldset>
       )}
 
+      {levels.length > 1 && (
+        <fieldset className="evals-start-group">
+          <legend className="field-label">{t('start.pressures')}</legend>
+          {PRESSURE_LIST.filter((level) => levels.includes(level)).map((level) => (
+            <Checkbox
+              key={level}
+              checked={form.pressures.has(level)}
+              onChange={(on) =>
+                setForm((f) => {
+                  const next = new Set(f.pressures);
+                  if (on) next.add(level);
+                  else if (next.size > 1) next.delete(level);
+                  return { ...f, pressures: next };
+                })
+              }
+              className="check evals-start-check"
+            >
+              <span className="evals-start-variant">
+                <span>{t(`pressure.${level}`)}</span>
+                <span className="field-hint">{t(`start.pressureHint.${level}`)}</span>
+              </span>
+            </Checkbox>
+          ))}
+        </fieldset>
+      )}
+
       <div className="evals-grid">
         <div className="field">
           <span className="field-label">{t('start.samples')}</span>
@@ -227,7 +256,7 @@ function useStart({
             value={samples}
             onChange={(n) => setForm((f) => ({ ...f, samples: n }))}
             min={EVAL_LIMITS.samples.min}
-            max={EVAL_LIMITS.samples.max}
+            max={phase2 || def.version === 2 ? EVAL_LIMITS.metricSamples.max : EVAL_LIMITS.samples.max}
             aria-label={t('start.samples')}
           />
         </div>
@@ -252,6 +281,14 @@ function useStart({
               {t('start.estimate.line', { count: data.samples, cost: formatCost(data.ceilingUsd) })}
               {data.typicalUsd !== null && ` · ${t('start.estimate.typical', { cost: formatCost(data.typicalUsd) })}`}
             </span>
+            {data.perLevel && Object.keys(data.perLevel).length > 1 && (
+              <ul className="evals-estimate-levels mono" aria-label={t('start.estimate.perLevel')}>
+                {PRESSURE_LIST.flatMap((level) => {
+                  const line = data.perLevel?.[level];
+                  return line ? [<li key={level}>{t('start.estimate.level', { level: t(`pressure.${level}`), count: line.samples, cost: formatCost(line.ceilingUsd) })}</li>] : [];
+                })}
+              </ul>
+            )}
             {data.warnings.length > 0 && (
               <ul className="evals-warnings">
                 {data.warnings.map((code) => (
