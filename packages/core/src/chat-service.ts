@@ -974,6 +974,11 @@ export class ChatService {
   }
 
   /** Terminal output of a background session, which only the CLI itself keeps. */
+  /** The live chats' processes, as the resource report groups them; see system-load.ts */
+  livePids(): Array<{ chatId: string; pid: number }> {
+    return this.deps.runtime.livePids();
+  }
+
   logs(id: string): Promise<string> {
     return backgroundLogs(this.deps.config, id);
   }

@@ -201,6 +201,185 @@
     ],
     "description": "A provider's models by how fast or how strong they are; what model mapping across providers builds on."
   },
+  "SystemLoad": {
+    "type": "object",
+    "properties": {
+      "cores": {
+        "type": "number"
+      },
+      "loadavg": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "memory": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "totalMb": {
+                "type": "number"
+              },
+              "availableMb": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "totalMb",
+              "availableMb"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "pressure": {
+        "type": "object",
+        "properties": {
+          "cpu": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PressureReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PressureReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "io": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PressureReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cpu",
+          "memory",
+          "io"
+        ]
+      },
+      "admitting": {
+        "type": "boolean"
+      },
+      "refusal": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "cores",
+      "loadavg",
+      "memory",
+      "pressure",
+      "admitting",
+      "refusal"
+    ],
+    "description": "What the machine is doing now, read from `/proc`. A field the kernel does not expose here is null, never zero: a zero would read as an idle machine. `admitting` is false while a new chat would be refused for lack of memory, and `refusal` says why in words."
+  },
+  "PressureReading": {
+    "type": "object",
+    "properties": {
+      "some10": {
+        "type": "number"
+      },
+      "full10": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "some10",
+      "full10"
+    ],
+    "description": "A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent."
+  },
+  "ProcessUsageReport": {
+    "type": "object",
+    "properties": {
+      "chats": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatProcessUsage"
+        }
+      },
+      "processes": {
+        "type": "number",
+        "description": "The processes of every chat, the CLIs included"
+      },
+      "rssMb": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "chats",
+      "processes",
+      "rssMb"
+    ]
+  },
+  "ChatProcessUsage": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": "string"
+      },
+      "pid": {
+        "type": "number"
+      },
+      "processes": {
+        "type": "number"
+      },
+      "rssMb": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "cpuSeconds": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "chatId",
+      "pid",
+      "processes",
+      "rssMb",
+      "cpuSeconds"
+    ],
+    "description": "What one chat's process tree uses: the CLI and every process it started. `rssMb` is resident memory summed over the tree and `cpuSeconds` the CPU time it has used so far; both are null where `/proc` cannot say. CPU use over a window is the difference between two readings, never one reading."
+  },
   "Overview": {
     "type": "object",
     "properties": {

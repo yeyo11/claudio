@@ -629,6 +629,8 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | GET | `/system/release` | Claudio in use, the newest release, how this server was installed (`distribution`), as the last check left it (never asks GitHub) |
 | POST | `/system/release/check` | Check GitHub for a newer Claudio release now (also done once a day) |
 | GET | `/system/storage` | In a Docker install, whether the Claude config dir, the data dir and the workspace sit on a persistent volume or would be lost when the container is replaced (`persistent`, `anonymous`, `container`, `temporary`); `atRisk` says whether any would |
+| GET | `/system/load` | What the machine is doing now (load average, memory, PSI of CPU, memory and I/O) and whether it admits a new chat; read from `/proc`, Linux only |
+| GET | `/system/processes` | What each live chat's process tree uses: processes, resident memory (MB) and CPU seconds so far; read from `/proc`, Linux only |
 | GET | `/overview` | Everything the dashboard needs in one call |
 
 ### Account credentials

@@ -23,6 +23,11 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   // Whether the folders that hold the state would survive replacing the container (Docker only)
   app.get('/system/storage', () => core.storageInfo());
 
+  // What the machine is doing and whether it admits a chat: the same reading the admission takes
+  app.get('/system/load', () => core.systemLoad());
+  // What each live chat's process tree uses; a rate, not a reading, is the difference between two of these
+  app.get('/system/processes', () => core.processUsage());
+
   app.get('/overview', () => core.overview());
 
   // Account credentials. The token itself is never returned by any endpoint.

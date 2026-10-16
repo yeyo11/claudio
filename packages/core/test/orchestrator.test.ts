@@ -1311,7 +1311,8 @@ test('a retry after an error carries the time signal too', async () => {
   const { db, repo, orchestrator } = retryGraph();
   const started = orchestrator.create(graphOf(repo, [{ id: 'flaky', prompt: 'FAKE-FAIL-ONCE the tests do not pass' }]));
   const orch = await settle(orchestrator, started.id);
-  assert.match(orch.tasks[0]?.result ?? '', /Time matters here/);
+  // A task with no limit of its own is given the server's default time, so the signal reads the budget
+  assert.match(orch.tasks[0]?.result ?? '', /Time: elapsed \d+s \/ budget 10800s\./);
   db.close();
 });
 

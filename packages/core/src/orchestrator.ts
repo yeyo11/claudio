@@ -63,6 +63,7 @@ import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
+import { RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
 import type { TaskContext } from './health-service.ts';
 import {
@@ -1368,7 +1369,8 @@ export class Orchestrator {
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('Concurrent run limit') || err instanceof GuardSelfTestPending) {
+    // A place that frees up by itself: the count of chats, the memory the machine gets back, or a guard self-test
+    if (message.includes('Concurrent run limit') || message.startsWith(RESOURCE_REFUSAL_PREFIX) || err instanceof GuardSelfTestPending) {
       setTimeout(() => this.schedule(orch), 3000).unref();
       return false;
     }

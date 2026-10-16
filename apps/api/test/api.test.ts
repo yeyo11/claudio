@@ -66,6 +66,20 @@ test('every API route is documented in the OpenAPI document', async () => {
   assert.match(docs.headers['content-type'] as string, /text\/html/);
 });
 
+test('reports what the machine is doing and whether it admits a chat, from the same reading the admission takes', async () => {
+  const load = (await app.inject('/api/system/load')).json();
+  // Every figure is a number or null, never a string; the admission flag agrees with its reason
+  assert.equal(typeof load.cores, 'number');
+  assert.equal(typeof load.admitting, 'boolean');
+  assert.equal(load.admitting, load.refusal === null);
+  assert.deepEqual(Object.keys(load.pressure).sort(), ['cpu', 'io', 'memory']);
+});
+
+test('lists no chat processes when none is live, with totals that agree with the list', async () => {
+  const report = (await app.inject('/api/system/processes')).json();
+  assert.deepEqual(report, { chats: [], processes: 0, rssMb: 0 });
+});
+
 test('reports a missing CLI instead of failing', async () => {
   const health = (await app.inject('/api/health')).json();
   assert.deepEqual(health, { ok: false, cli: false, loggedIn: false });

@@ -104,6 +104,46 @@ export interface AuthStatus {
   error?: string;
 }
 
+/** A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent. */
+export interface PressureReading {
+  some10: number;
+  full10: number;
+}
+
+/**
+ * What the machine is doing now, read from `/proc`. A field the kernel does not expose here is null,
+ * never zero: a zero would read as an idle machine. `admitting` is false while a new chat would be
+ * refused for lack of memory, and `refusal` says why in words.
+ */
+export interface SystemLoad {
+  cores: number;
+  loadavg: [number, number, number] | null;
+  memory: { totalMb: number; availableMb: number } | null;
+  pressure: { cpu: PressureReading | null; memory: PressureReading | null; io: PressureReading | null };
+  admitting: boolean;
+  refusal: string | null;
+}
+
+/**
+ * What one chat's process tree uses: the CLI and every process it started. `rssMb` is resident memory
+ * summed over the tree and `cpuSeconds` the CPU time it has used so far; both are null where `/proc`
+ * cannot say. CPU use over a window is the difference between two readings, never one reading.
+ */
+export interface ChatProcessUsage {
+  chatId: string;
+  pid: number;
+  processes: number;
+  rssMb: number | null;
+  cpuSeconds: number | null;
+}
+
+export interface ProcessUsageReport {
+  chats: ChatProcessUsage[];
+  /** The processes of every chat, the CLIs included */
+  processes: number;
+  rssMb: number | null;
+}
+
 export interface SystemInfo {
   cli: CliInfo;
   auth: AuthStatus;

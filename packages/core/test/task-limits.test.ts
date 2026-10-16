@@ -9,7 +9,7 @@ import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
-import { effectiveLimits, elapsedMs, normalizeLimits, remainingUsd, spentUsd, startClock } from '../src/task-limits.ts';
+import { DEFAULT_TASK_MAX_MINUTES, effectiveLimits, elapsedMs, normalizeLimits, remainingUsd, spentUsd, startClock } from '../src/task-limits.ts';
 import { tempConfig } from './helpers.ts';
 
 // What a task may spend. The cost ceiling is the CLI's own flag and the time ceiling is Claudio's;
@@ -34,8 +34,9 @@ test('limits that could never mean anything are refused where they are given', (
 
 test("a task's own limits win, field by field, over the graph's default", () => {
   assert.deepEqual(effectiveLimits({ maxMinutes: 30, maxCostUsd: 5 }, { maxMinutes: 10 }), { maxMinutes: 10, maxCostUsd: 5 });
-  assert.deepEqual(effectiveLimits(null, { maxCostUsd: 2 }), { maxCostUsd: 2 });
-  assert.equal(effectiveLimits(undefined, undefined), null);
+  assert.deepEqual(effectiveLimits(null, { maxCostUsd: 2 }), { maxMinutes: DEFAULT_TASK_MAX_MINUTES, maxCostUsd: 2 });
+  // Nothing named anywhere: the server's default time applies, so a task is never without a time limit
+  assert.deepEqual(effectiveLimits(undefined, undefined), { maxMinutes: DEFAULT_TASK_MAX_MINUTES });
 });
 
 test('time and money count from when the allowance began, which a person can start again', () => {

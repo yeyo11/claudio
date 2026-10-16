@@ -66,6 +66,7 @@ import { cliProcessOf, commandRoots, processTable, terminateTree } from './proce
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { ProviderLimits } from './providers/limits.ts';
+import { admissionLimitsFrom, readSystemLoad } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
@@ -236,6 +237,9 @@ export class ChatManager extends EventEmitter {
    * can write to their stdin, so the chat cannot attach to them; it must not resume beside them.
    */
   private readonly leftovers = new Map<string, number[]>();
+
+  /** What the machine must have free before a chat may start; read once, so a restart is what changes it */
+  private readonly admission = admissionLimitsFrom();
 
   constructor(
     private readonly config: CoreConfig,
@@ -663,6 +667,11 @@ export class ChatManager extends EventEmitter {
     return [...this.chats.values()].filter((r) => r.alive).length;
   }
 
+  /** The chats whose process is up, with its pid: what the resource report of the machine is grouped by */
+  livePids(): Array<{ chatId: string; pid: number }> {
+    return [...this.chats.values()].flatMap((chat) => (chat.alive && chat.proc?.pid !== undefined ? [{ chatId: chat.id, pid: chat.proc.pid }] : []));
+  }
+
   subscribe(id: string, listener: (event: RunEvent) => void): () => void {
     const chat = this.chats.get(id);
     if (!chat) return () => {};
@@ -800,6 +809,9 @@ export class ChatManager extends EventEmitter {
     if (this.activeCount() - this.releaseWarm(limit) >= limit) {
       throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
     }
+    // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
+    const { refusal } = readSystemLoad(this.admission);
+    if (refusal) throw new ChatRefusal(refusal, 409);
   }
 
   /** What a new chat starts from: the configured workspace, and the default mode as it stands now */
@@ -1011,6 +1023,10 @@ export class ChatManager extends EventEmitter {
       }
     }
     if (chat.alive && proc) {
+      // The CLI's own children (a build, Vitest, Chromium) are not its to keep: they go with it, descendants first
+      const table = processTable();
+      const root = table.find((p) => p.pid === proc.pid);
+      if (root) terminateTree(root, table, 5000);
       proc.kill('SIGTERM');
       // The process being stopped, not whatever `chat.proc` is by then: a chat resumed within these
       // seconds has a new process, and this used to kill it

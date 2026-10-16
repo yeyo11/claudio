@@ -9,6 +9,8 @@ import type {
   TrackerId,
   CliVersionInfo,
   StorageReport,
+  ProcessUsageReport,
+  SystemLoad,
   ProviderLimit,
   ChatProject,
   ChatSummary,
@@ -154,6 +156,8 @@ import { DEFAULT_ROLE_BODIES, readRole, REVIEW_ROLES, roleFileName, type ReviewR
 import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
+import { admissionLimitsFrom, chatProcessUsage, readSystemLoad } from './system-load.ts';
+import { processTable } from './processes.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
 import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
 import { PROJECT_TEMPLATES } from './project-templates.ts';
@@ -1733,6 +1737,18 @@ export class Core {
   async checkCliVersion(): Promise<CliVersionInfo> {
     await this.cliVersion.check();
     return this.cliVersionInfo();
+  }
+
+  /** What each live chat's process tree uses, read from `/proc` on each call; see system-load.ts */
+  processUsage(): ProcessUsageReport {
+    const chats = chatProcessUsage(this.chats.livePids(), processTable());
+    const rss = chats.reduce<number | null>((sum, c) => (sum === null || c.rssMb === null ? null : sum + c.rssMb), 0);
+    return { chats, processes: chats.reduce((sum, c) => sum + c.processes, 0), rssMb: rss };
+  }
+
+  /** What the machine is doing now, and whether it admits a new chat; see system-load.ts. Read on each call. */
+  systemLoad(): SystemLoad {
+    return readSystemLoad(admissionLimitsFrom());
   }
 
   /** Whether the folders that hold the state would survive replacing the container; see storage.ts */

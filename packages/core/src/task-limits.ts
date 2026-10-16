@@ -22,9 +22,23 @@ export function normalizeLimits(limits: TaskLimits | null | undefined, where: st
   return out.maxMinutes === undefined && out.maxCostUsd === undefined ? undefined : out;
 }
 
-/** What applies to a task: its own limits, field by field, over the graph's defaults. */
+/**
+ * The time a task may run when neither its graph nor the task names one. Without it a stuck worker
+ * holds its place, and its memory, for ever. `CLAUDIO_TASK_MAX_MINUTES=0` turns the default off.
+ */
+export const DEFAULT_TASK_MAX_MINUTES = 180;
+
+export function defaultMaxMinutes(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = env.CLAUDIO_TASK_MAX_MINUTES;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_TASK_MAX_MINUTES;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return DEFAULT_TASK_MAX_MINUTES;
+  return value > 0 ? value : null;
+}
+
+/** What applies to a task: its own limits, field by field, over the graph's defaults, then over the server's default time. */
 export function effectiveLimits(graph: TaskLimits | null | undefined, task: TaskLimits | null | undefined): TaskLimits | null {
-  const maxMinutes = task?.maxMinutes ?? graph?.maxMinutes;
+  const maxMinutes = task?.maxMinutes ?? graph?.maxMinutes ?? defaultMaxMinutes() ?? undefined;
   const maxCostUsd = task?.maxCostUsd ?? graph?.maxCostUsd;
   if (maxMinutes === undefined && maxCostUsd === undefined) return null;
   return { ...(maxMinutes !== undefined ? { maxMinutes } : {}), ...(maxCostUsd !== undefined ? { maxCostUsd } : {}) };
