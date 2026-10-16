@@ -346,6 +346,9 @@ Terms of the chats redesign. Like the CLI's, most stay in English.
 | retry clean | reintento limpio |
 | give up (a branch) | descartar la rama |
 | context (window) | el contexto |
+| breakdown (of the context) | el desglose |
+| session note | la nota de sesión |
+| compaction | la compactación |
 | home (page) | Inicio |
 | inbox | la bandeja |
 | resource (agents, skills, commands…) | el recurso |

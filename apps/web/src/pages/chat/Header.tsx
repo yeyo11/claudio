@@ -1,6 +1,6 @@
 import type { Chat } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Search, Square, Trash2, WifiOff } from 'lucide-react';
+import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Minimize2, Search, Square, Trash2, WifiOff } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -21,6 +21,8 @@ import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { useChatUi } from '@claudio/chat-ui/lib/context';
 import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
+import { compactState } from './context-model';
+import { useContextControls, useRefusalText } from './ContextPanel';
 import type { InspectorTab } from './Inspector';
 import { LimitBadge } from './LimitBadge';
 import type { LimitPhase } from './LimitBanner';
@@ -129,7 +131,7 @@ export const ChatHeader = memo(function ChatHeader({
   limitPhase?: LimitPhase;
   limitResetsAt?: string | null;
 }) {
-  const { t } = useTranslation(['chat', 'work', 'common', 'components']);
+  const { t } = useTranslation(['chat', 'work', 'common', 'components', 'chats']);
   const toast = useToast();
   const { control } = chat;
   const { agentNameFor } = useChatUi();
@@ -142,6 +144,9 @@ export const ChatHeader = memo(function ChatHeader({
   // On a phone the title would get no room: search and interrupt move into the menu, Stop keeps its icon
   const compact = useMediaQuery(COMPACT);
   const stoppable = control.mode === 'interactive';
+  const controls = useContextControls();
+  const refusalText = useRefusalText(chat);
+  const compaction = compactState(chat);
 
   const entries: MenuEntry[] = [
     ...(compact || (stoppable && live)
@@ -186,6 +191,14 @@ export const ChatHeader = memo(function ChatHeader({
       id: 'chat',
       items: [
         { id: 'fork', label: actions.forking ? t('view.cancelFork') : t('view.fork'), icon: GitFork, onSelect: () => actions.setForking(!actions.forking) },
+        {
+          id: 'compact',
+          label: compaction.running ? t('chats:context.actions.compacting') : t('chats:context.actions.compactMenu'),
+          icon: Minimize2,
+          disabled: !compaction.available,
+          disabledReason: !compaction.available && compaction.refusal ? refusalText(compaction.refusal) : undefined,
+          onSelect: controls.openCompact,
+        },
         { id: 'sidechains', label: t('view.subagentMessages'), checked: actions.sidechains, onSelect: () => actions.setSidechains(!actions.sidechains) },
         {
           id: 'copy-id',
