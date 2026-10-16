@@ -61,7 +61,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   if (!(await page.eval(`return document.querySelector('.more-sheet').contains(document.activeElement)`))) problems.push('[420px] opening More does not move focus into it');
   if ((await page.eval(`return document.querySelector('.tabbar-more').getAttribute('aria-expanded')`)) !== 'true') problems.push('[420px] the More button does not say its sheet is open');
   const rest = await page.eval(`return [...document.querySelectorAll('.more-sheet a')].map((a) => a.getAttribute('href'))`);
-  for (const href of ['/projects', '/accounts', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
+  for (const href of ['/projects', '/collaborators', '/accounts', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
   // Its sections say their figures, as the reference does: at least the project imported above is counted
   await page.waitFor(`return !!document.querySelector('.more-sheet a[href="/projects"] .more-cell-note')`, { label: 'the Projects cell has its count' });
   const projectCount = await page.text('.more-sheet a[href="/projects"] .more-cell-note');

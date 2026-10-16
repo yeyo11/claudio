@@ -246,7 +246,7 @@ status bar (30 px).
   - Brand, then the command palette trigger ("Buscar o ejecutar… ⌘K").
   - Two labelled nav groups:
     - Work: Home, Chats, Orchestrations, Schedules.
-    - Space: Projects, Accounts, Connectors, Usage, Settings.
+    - Space: Projects, Collaborators, Accounts, Connectors, Usage, Settings.
   - "Live": the running and waiting chats and orchestrations, with braille spinners and segmented
     progress.
   - The API reference link.
@@ -2463,6 +2463,10 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - A shared project that is not cloned here offers "Not cloned here" and **Link to a local project**;
   the read-only view of its tabs the plan also asks for is not built.
 - The invite's QR code comes from the encoder in `packages/ui` (versions 1 to 40, level M).
+- The nav item sits where the plan's §5.1 puts it: the Space group reads Projects, Collaborators,
+  Accounts, Connectors, Usage, Settings, with the `Network` icon. On a phone it is in **More**,
+  after Projects. `shell.spec.mjs` asserts the desktop order and `a11y-shell.spec.mjs` the More
+  entry.
 
 ## Related
 
