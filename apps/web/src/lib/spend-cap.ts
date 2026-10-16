@@ -93,7 +93,7 @@ export interface SpendView {
  */
 export function spendView(state: SpendState): SpendView | null {
   if (state.capUsd === null || state.share === null || state.level === 'off') return null;
-  const percent = Math.round(state.share * 100);
+  const percent = Math.floor(state.share * 100 + 1e-9);
   const exhausted = state.level === 'exhausted';
   return {
     tone: exhausted || state.level === 'bad' ? 'bad' : state.level === 'warn' ? 'warn' : 'neutral',

@@ -1080,6 +1080,7 @@ export class AssistantService {
       const member: ProjectTeamMember = { agent: m.agent, role: m.role, model: m.model, responsibility: m.responsibility, writes: m.writes };
       // A template role keeps the limits the template gives it: a read-only reviewer stays one
       const fromRole = m.fromTemplate ? [...templateTeam(project.settings), ...templateOptionalTeam(project.settings)].find((r) => r.role === m.role) : undefined;
+      if (fromRole?.writes) member.writes = fromRole.writes;
       if (fromRole?.tools) member.tools = fromRole.tools;
       if (fromRole?.commands) member.commands = fromRole.commands;
       const instructions = m.instructions.trim();

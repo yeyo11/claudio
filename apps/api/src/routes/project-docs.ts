@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
+import { spendGate } from './spend.ts';
 import { claudioLanguage, type AddProjectDocRequest, type ChatSummary, type ProjectDoc, type ProjectDocsOverview } from '@claudio/shared';
 
 /**
@@ -31,7 +32,7 @@ export const projectDocsRoutes: FastifyPluginAsync<{ core: Core }> = async (app,
     return reply.status(204).send();
   });
 
-  app.post<{ Params: { id: string; docId: string } }>('/projects/:id/docs/:docId/ask', async (req, reply): Promise<ChatSummary> =>
+  app.post<{ Params: { id: string; docId: string } }>('/projects/:id/docs/:docId/ask', { preHandler: spendGate(core) }, async (req, reply): Promise<ChatSummary> =>
     reply.status(201).send(await core.askAboutProjectDoc(req.params.id, req.params.docId, claudioLanguage(req.headers['accept-language']))),
   );
 };
