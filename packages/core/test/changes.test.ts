@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -475,4 +475,25 @@ test("a work item's changes in a project that is a linked worktree leave out the
   removeWorktree(repo, item, true);
   const byName = changes.itemChanges(project, { worktree: item, branch: 'claudio-task/agn-1' });
   assert.deepEqual(byName?.files.map((f) => f.path), ['item.txt']);
+});
+
+test('no diff the changes screen runs lets a repository run a textconv or external diff program', () => {
+  const { repo, base, git } = repoWithFiles();
+  const stamp = `${process.pid}-${Date.now()}`;
+  const marker = join(repo, '..', `changes-driver-ran-${stamp}`);
+  const script = join(repo, '..', `changes-driver-${stamp}.sh`);
+  writeFileSync(script, `#!/bin/sh\ntouch "${marker}"\ncat "$1"\n`, { mode: 0o755 });
+  writeFileSync(join(repo, '.gitattributes'), '*.evil diff=evil\n');
+  writeFileSync(join(repo, 'data.evil'), 'one\n');
+  git('config', 'diff.evil.textconv', script);
+  git('config', 'diff.external', script);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'driver files');
+  writeFileSync(join(repo, 'data.evil'), 'two\n');
+  writeFileSync(join(repo, 'fresh.evil'), 'new\n');
+
+  assert.match(fileDiff(repo, base, undefined, ['data.evil']), /^\+two$/m);
+  assert.ok(diffFiles(repo, base).some((f) => f.path === 'data.evil'));
+  assert.match(untrackedDiff(repo, 'fresh.evil'), /^\+new$/m);
+  assert.equal(existsSync(marker), false);
 });
