@@ -693,6 +693,8 @@ the reset; it never sends the work to another vendor.
 | POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused. Without a template or modules every module is off; a directory that was a project before gets its settings back. Emits `project.created` |
 | POST | `/projects` | `{ name, gitUrl?, template?, modules? }` — create an empty project in the workspace or clone a repository into it, and import it. Emits `project.created` |
 | PATCH | `/projects/:id` | `{ name?, key?, modules? }` — rename a project, change its work item key prefix or the modules that are on. Switching a module off hides it and keeps its data |
+| GET | `/projects/:id/review-roles` | The review gate's reviewers for the project: file, `source` (`builtin` or `project`), `sha`, size and `problem`; `404` for an unknown project |
+| POST | `/projects/:id/review-roles/:role` | Write Claudio's default role file where none exists → `ReviewRoleInfo` (`201`); `409` `role-exists`, `404`. `403` to a chat token |
 | GET | `/projects/:id/settings` | The project's settings document (modules, template, key prefix, board). Created on first read with every module off |
 | PUT | `/projects/:id/settings` | Replace the settings document whole, validated. Emits `project.updated` |
 | GET | `/projects/:id/export?format=markdown\|json` | Download every chat of the project, streamed. `markdown` (default): a header with the dates, models and the cost the CLI reported, then each chat, oldest first, as `/chats/:id/export` renders it. `json`: a `ProjectExport` |
@@ -1125,7 +1127,8 @@ does not turn the graph itself `failed`, because the graph's status is about its
 `failGraph: true` says the opposite, and the graph then ends `failed` with the checks as its error
 and no pull request offered. Every worker's prompt also gets the split of checks: run the type check
 and the unit tests, leave the browser suite to the verification, run long commands under `timeout`.
-`POST /orchestrations/:id/verify` runs the checks by hand.
+`POST /orchestrations/:id/verify` runs the checks by hand; with `verification.review` it also runs
+the review gate once the checks pass, and `GET /orchestrations/:id/review` reads it.
 
 **Revising a graph.** Any task of a finished graph on the graph engine can be **re-run**: it starts
 over with everything that depends on it, each in a new chat and a worktree rebuilt from what it now
@@ -1178,7 +1181,10 @@ every 3 s and only while a client listens.
 | GET | `/orchestrations/:id/integration/changes/diff?path=` | The unified diff of one file of the integration branch, with the same `?context=` and scopes |
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
-| POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, where an entry that is a list runs its commands in parallel, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. Returns at once |
+| POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, where an entry that is a list runs its commands in parallel, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. With `verification.review` the review gate runs after the checks pass; its bounds are validated (`400`). Returns at once |
+| GET | `/orchestrations/:id/review` | The review gate: `{ state, rounds, findings, totalFindings }`. `?round=` (default the latest), `?blocking=1`, `?limit=` (1–500, default 100), `?offset=`; `400` out of bounds, `404` for an unknown graph or one without a review. Open to a chat token |
+| POST | `/orchestrations/:id/review/retry` | Run the review again on a head whose checks passed → the orchestration, at once; `409` with `code` `review-running`, `checks-not-passed`, `head-moved` or `review-not-acceptable` (no review). Open to a chat token |
+| POST | `/orchestrations/:id/review/accept` | `{ reason }` — a person accepts a blocked gate, or an incomplete one after a retry also ended incomplete; bound to the head, voided by a new commit. `400` bad reason, `409` `review-not-acceptable`. `403` to a chat token |
 | POST | `/orchestrations/:id/pull-request` | Check the project's readiness, push the integration branch and open a pull or merge request with the host CLI → `{ branch, url, detail, pullRequest }`; `409` with the reason when the project cannot open one or the branch has nothing to propose |
 | GET | `/orchestrations/:id/workflow` | The graph as a workflow script → `{ path, script }` |
 | POST | `/orchestrations/:id/workflow/save` | `{ name?, overwrite? }` — copy that script into the project's `.claude/workflows/` |

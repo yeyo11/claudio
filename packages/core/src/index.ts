@@ -227,6 +227,7 @@ export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefuse
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatRefusal } from './chats.ts';
 export { ReviewStoreError } from './review-store.ts';
+export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
