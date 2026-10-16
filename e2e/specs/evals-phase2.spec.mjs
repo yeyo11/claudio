@@ -73,8 +73,10 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     check(saved.status === 200 || saved.status === 201, `the version 2 file was written (${saved.status})`);
 
     // ---- a run at two pressure levels, current against proposed ----
+    // An estimate is an `EvalRunRequest` too: the ceiling is not confirmed yet, so it carries 0, as the dialog does
     const request = {
       variants: ['current', 'proposed'],
+      confirmMaxCostUsd: 0,
       proposed: '# Developer\n\nRead the code before you answer.\n',
       pressures: ['neutral', 'competing'],
     };
