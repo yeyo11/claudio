@@ -267,6 +267,12 @@ function parseFlow(value: unknown): ProjectFlowSettings {
     }
     flow.checksFixAttempts = checksFixAttempts;
   }
+  // What a plateau of verify rounds does; absent stays absent and reads as `observe`
+  const { plateau } = value;
+  if (plateau !== undefined && plateau !== null) {
+    if (plateau !== 'observe' && plateau !== 'stop' && plateau !== 'off') throw new Error('flow.plateau must be observe, stop or off');
+    flow.plateau = plateau;
+  }
   return flow;
 }
 

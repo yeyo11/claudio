@@ -47,6 +47,7 @@ function setup(flow: Record<string, unknown> = FLOW) {
   const db = new Db(config);
   const rig = decisionRig(db, config);
   const calls: string[] = [];
+  const comments: string[] = [];
   const state = { attempts: 0 };
   const list: ChangeRequestChecks = { headSha: 'aaa', rollup: 'failing', checks: [check('1', 'unit'), check('2', 'lint')], truncated: false, checkedAt: '2026-10-01T00:00:00.000Z' };
   const handler = new ChecksFix({
@@ -61,6 +62,7 @@ function setup(flow: Record<string, unknown> = FLOW) {
       },
       fixAttemptsFor: () => state.attempts,
     },
+    comment: (_id, body) => void comments.push(body),
     item: (id) => (id === 'i1' ? ({ id: 'i1', projectId: 'p1', worktree: null } as WorkItem) : null),
     project: () => ({ path: '/p', settings: { flow } }) as unknown as FlowProject,
   });
@@ -68,7 +70,7 @@ function setup(flow: Record<string, unknown> = FLOW) {
     handler.onChecksFailing(notice);
     await handler.idle();
   };
-  return { db, rig, calls, state, handler, run };
+  return { db, rig, calls, comments, state, handler, run };
 }
 
 const fixable = (confidence: number | null = 0.95, value = 'branch-fixable') => () => ({ fix: choiceOf(value, confidence) });
@@ -168,6 +170,52 @@ test("checks.fix limits: the project's attempts, the flow's parallel runs and a 
   insert(spent, 'ended', 'budget');
   await spent.run();
   assert.equal(spent.calls.length, 0, 'the last run reached its budget');
+});
+
+const fixRun = (s: ReturnType<typeof setup>, id: string, seq: number, checks: unknown, summary = 'Fixed what I could') =>
+  s.db.connection
+    .prepare("INSERT INTO flow_runs (seq, id, project_id, item_id, role, agent, model, stage, column_name, state, outcome, summary, checks, queued_at) VALUES (?, ?, 'p1', 'i1', 'dev', 'dev', 'm', 'work', 'in_progress', 'ended', 'passed', ?, ?, '2026-10-01T00:00:00.000Z')")
+    .run(seq, id, summary, JSON.stringify(checks));
+
+test('checks.fix history: a design stop on a check failing now refuses the next automatic fix, once, with a comment', async () => {
+  const s = setup();
+  s.rig.provider.script = fixable();
+  await s.rig.configure('checks.fix', 'active');
+  fixRun(s, 'f1', 1, [{ name: 'unit', cause: 'branch', fixed: false, stopped: 'design' }], 'The format of the stored report must change');
+  await s.run();
+  assert.equal(s.calls.length, 0);
+  assert.equal(s.rig.provider.calls.length, 0, 'the decision is not even asked');
+  assert.deepEqual(s.comments, ['Claudio did not start another fix: the last fix stopped for a design decision: The format of the stored report must change']);
+});
+
+test('checks.fix history: a design stop on a check that is not failing now refuses nothing', async () => {
+  const s = setup();
+  s.rig.provider.script = fixable();
+  await s.rig.configure('checks.fix', 'active');
+  fixRun(s, 'f1', 1, [{ name: 'e2e', cause: 'branch', fixed: false, stopped: 'design' }]);
+  await s.run();
+  assert.deepEqual(s.calls, ['i1']);
+  assert.deepEqual(s.comments, []);
+});
+
+test('checks.fix history: a check fixed twice that fails again refuses the third fix', async () => {
+  const s = setup();
+  s.rig.provider.script = fixable();
+  await s.rig.configure('checks.fix', 'active');
+  fixRun(s, 'f1', 1, [{ name: 'unit', cause: 'branch', fixed: true }]);
+  fixRun(s, 'f2', 2, [{ name: 'unit', cause: 'branch', fixed: true }, { name: 'lint', cause: 'branch', fixed: false }]);
+  await s.run();
+  assert.equal(s.calls.length, 0);
+  assert.deepEqual(s.comments, ['Claudio did not start another fix: `unit` failed again after two fixes']);
+
+  // One fix is not two, and a check fixed once and not the other time is not the same check surviving
+  const once = setup();
+  once.rig.provider.script = fixable();
+  await once.rig.configure('checks.fix', 'active');
+  fixRun(once, 'f1', 1, [{ name: 'lint', cause: 'branch', fixed: true }]);
+  fixRun(once, 'f2', 2, [{ name: 'unit', cause: 'branch', fixed: true }]);
+  await once.run();
+  assert.deepEqual(once.calls, ['i1']);
 });
 
 test('checks.fix ignores an orchestration and a project without the flow', async () => {

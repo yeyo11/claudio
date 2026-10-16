@@ -588,6 +588,20 @@ test('a failed task is tried again in the same chat, told what went wrong, and k
   db.close();
 });
 
+test('two attempts that fail with the same error fail the task without a third, even with attempts left', async () => {
+  const { db, repo, orchestrator, runs } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'broken', prompt: 'FAKE-FAIL-ALWAYS error: the build failed in 12ms' }], { maxAttempts: 3 }));
+  const orch = await settle(orchestrator, started.id);
+
+  const broken = orch.tasks[0] as OrchestrationTaskState;
+  assert.equal(broken.status, 'failed');
+  assert.equal(broken.attempts, 2);
+  assert.equal(runs.get(broken.runId as string)?.executions.length, 2);
+  assert.match(broken.error ?? '', /The same error came back on two attempts in a row, so Claudio did not try again\./);
+  assert.match(broken.lastErrorSignature ?? '', /^[0-9a-f]{16}$/);
+  db.close();
+});
+
 test('the attempts are configured per graph, and a task that uses them all is failed, not retried for ever', async () => {
   const { db, repo, orchestrator, runs } = retryGraph();
   const started = orchestrator.create(graphOf(repo, [{ id: 'broken', prompt: 'FAKE-FAIL-ALWAYS boom' }], { maxAttempts: 3 }));

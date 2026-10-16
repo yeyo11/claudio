@@ -212,7 +212,7 @@ lines.on('line', (line) => {
   const text = /^FAKE-TEXT-ONCE (.*)$/m.exec(prompt);
   if (text && !existsSync(early)) {
     writeFileSync(early, '1');
-    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1] });
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1].replaceAll('\\n', '\n') });
     return;
   }
   if (existsSync(early)) {

@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { EFFORT_LEVELS, isEffort, type Commit, type VerificationSpec } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, type Commit, type FixStopKind, type VerificationFixedLocation, type VerificationSpec } from '@claudio/shared';
 import { git } from './git.ts';
+import { flatten } from './health.ts';
 import { AGENT_RUN_ENV, processTable, terminateTree } from './processes.ts';
 import { pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';
 
@@ -436,4 +438,110 @@ export function e2eSpecsChecks(): string {
     COMMANDS_IN_FOREGROUND,
     BATCHED_READS,
   ].join('\n');
+}
+
+// ---------- Stop rules for the fixer (docs/plans/agent-run-improvements.md, idea 8) ----------
+
+/** Lines that say something went wrong: the part of a log that is the failure, not the noise around it */
+const ERROR_LINE = /\b(error|fail(ed|ure|ing)?|assert(ion)?|exception|panic|traceback)\b|[✗✖×]/i;
+
+/**
+ * A short fingerprint of what a failing check printed, to tell "the same failure again" from "a
+ * different one". Only the error-looking lines count, and times, durations, ids, temp paths and every
+ * number are washed out, so a re-run's noise does not make two identical failures differ. Null when
+ * no line looks like an error: with nothing to compare, the rule that uses it does not apply.
+ */
+export function failureSignature(output: string): string | null {
+  const lines = new Set<string>();
+  for (const raw of output.replace(ANSI, '').split('\n')) {
+    if (!ERROR_LINE.test(raw)) continue;
+    const line = flatten(
+      raw
+        .replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?/g, '')
+        .replace(/\b\d+(\.\d+)?\s?(ms|s|m)\b/g, '')
+        .replace(/\b(?=[0-9a-f]*\d)[0-9a-f]{7,}\b/gi, '')
+        .replace(/(\$TMPDIR|\/tmp|\/var\/folders)\/\S*/g, '')
+        .replace(/\bmkdtemp-\S+/g, ''),
+    );
+    if (line) lines.add(line);
+  }
+  if (lines.size === 0) return null;
+  return createHash('sha1').update([...lines].sort().join('\n')).digest('hex').slice(0, 16);
+}
+
+const firstInt = (m: RegExpMatchArray | null): number | null => (m?.[1] ? Number(m[1]) : null);
+
+/** One reader per tool, tried against the command first and the output second; each returns null when its format is not there */
+const COUNTERS: ReadonlyArray<{ command: RegExp; read: (output: string) => number | null }> = [
+  { command: /\bvitest\b/, read: (o) => firstInt(o.match(/^\s*Tests\s+(\d+) failed/m)) },
+  { command: /\bjest\b/, read: (o) => firstInt(o.match(/^\s*Tests:\s+(\d+) failed/m)) },
+  { command: /\bpytest\b/, read: (o) => firstInt(o.match(/\b(\d+) failed\b.*\bin [\d.]+s\b/)) },
+  {
+    command: /\bcargo\b/,
+    read: (o) => {
+      // One summary per test binary: the failures of all of them are the count
+      const all = [...o.matchAll(/test result: FAILED\..*?(\d+) failed/g)];
+      return all.length ? all.reduce((sum, m) => sum + Number(m[1]), 0) : null;
+    },
+  },
+  { command: /--test\b|\btap\b/, read: (o) => firstInt(o.match(/^\s*(?:#|ℹ) fail (\d+)/m)) },
+  { command: /\beslint\b/, read: (o) => firstInt(o.match(/✖ (\d+) problems?/)) },
+  {
+    command: /\btsc\b/,
+    read: (o) => {
+      const found = firstInt(o.match(/Found (\d+) errors?/));
+      if (found !== null) return found;
+      const lines = o.match(/error TS\d+/g);
+      return lines ? lines.length : null;
+    },
+  },
+  {
+    command: /\bgo\s+test\b/,
+    read: (o) => {
+      const lines = o.match(/^\s*--- FAIL:/gm);
+      return lines ? lines.length : null;
+    },
+  },
+];
+
+/**
+ * How many errors a failing check reported, from the formats Claudio knows, so a fix that left more
+ * than it found is told from one that left fewer. Null means unknown, never zero: the caller then
+ * skips the comparison instead of reading a missing summary as "no errors". The tool named by the
+ * command is read first; the output decides when the command is a wrapper (`pnpm test`).
+ */
+export function errorCount(command: string, output: string): number | null {
+  const plain = output.replace(ANSI, '');
+  const named = COUNTERS.filter((c) => c.command.test(command));
+  for (const c of [...named, ...COUNTERS.filter((c) => !named.includes(c))]) {
+    const n = c.read(plain);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
+const MAX_FIXED_ROWS = 50;
+const MAX_FIXED_NOTE = 200;
+const FIXED_ROW = /^\[FIXED\] (.+?):(\d+): (.+)$/;
+const STOP_ROW = /^\[STOP\] (same-error|more-errors|design): (.+)$/;
+
+/**
+ * What a fixer wrote at the end of its report: the errors it fixed and, if it stopped early, why.
+ * The rows are a convention in the prompt, so anything else is ignored rather than guessed at; the
+ * last `[STOP]` wins because a fixer that changes its mind says so last. Paths are kept as text.
+ */
+export function parseFixerReport(text: string): { fixed: VerificationFixedLocation[]; stop: { kind: FixStopKind; note: string } | null } {
+  const fixed: VerificationFixedLocation[] = [];
+  let stop: { kind: FixStopKind; note: string } | null = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    const f = FIXED_ROW.exec(line);
+    if (f) {
+      if (fixed.length < MAX_FIXED_ROWS) fixed.push({ path: f[1] as string, line: Number(f[2]), note: (f[3] as string).trim().slice(0, MAX_FIXED_NOTE) });
+      continue;
+    }
+    const s = STOP_ROW.exec(line);
+    if (s) stop = { kind: s[1] as FixStopKind, note: (s[2] as string).trim().slice(0, MAX_FIXED_NOTE) };
+  }
+  return { fixed, stop };
 }
