@@ -45,7 +45,7 @@ test('the Wilson interval is known at a few points and stays inside 0..1', () =>
 const key = { caseId: 'a', variant: 'current', pressure: 'neutral' } as const;
 
 test('a cell counts only scored samples, clamps k to n and counts the unjudged', () => {
-  const m = cellMetrics(key, ['passed', 'passed', 'failed', 'unjudged', 'infra-error', null], { k: 3, mustHold: new Set(['a']) });
+  const m = cellMetrics(key, ['passed', 'passed', 'failed', 'unjudged', 'infra', null], { k: 3, mustHold: new Set(['a']) });
   assert.equal(m.n, 3);
   assert.equal(m.c, 2);
   assert.equal(m.k, 3);
