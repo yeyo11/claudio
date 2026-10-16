@@ -84,6 +84,26 @@ test('a result is the account\'s limit by its 429, never by its wording', () => 
   assert.equal(resultOf({ is_error: false, api_error_status: 429, result: 'ok' }), false);
 });
 
+test('a result is a sign-in failure by its 401 as the CLI recorded it, never by its wording', () => {
+  const { session, events } = attach();
+  for (const line of readFileSync(fileURLToPath(new URL('./fixtures/replay/auth-expired.jsonl', import.meta.url)), 'utf8').trim().split('\n')) session.readLine(line);
+  const recorded = events.find((e) => e.kind === 'result');
+  assert.ok(recorded && recorded.kind === 'result');
+  assert.equal(recorded.authFailed, true);
+  assert.equal(recorded.rateLimited, false);
+
+  const resultOf = (raw: Record<string, unknown>) => {
+    const { session: s, events: seen } = attach();
+    s.readLine(JSON.stringify({ type: 'result', subtype: 'success', num_turns: 1, ...raw }));
+    const result = seen.find((e) => e.kind === 'result');
+    assert.ok(result && result.kind === 'result');
+    return result.authFailed === true;
+  };
+  assert.equal(resultOf({ is_error: true, result: 'Failed to authenticate: OAuth session expired' }), false, 'a work failure that quotes the message');
+  assert.equal(resultOf({ is_error: true, api_error_status: 429, result: 'Failed to authenticate' }), false);
+  assert.equal(resultOf({ is_error: false, api_error_status: 401, result: 'ok' }), false);
+});
+
 test('a limit says it is using overage and when that resets; without them it reads as before', () => {
   const base: RateLimitInfo = { status: 'allowed', windows: { '5h': { utilization: 0.2, resetsAt: 1_800_000_000 } }, observedAt: 'x' };
   const plain = limitFromInfo('claude-code', base, 'stream', 'x');

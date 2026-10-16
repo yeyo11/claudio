@@ -327,6 +327,8 @@ export type DriverEvent =
       budget: boolean;
       /** The failure was the account's rate limit, as the agent reports it in data (Claude's 429), never as its wording reads */
       rateLimited: boolean;
+      /** The failure was the account's sign-in (Claude's 401), as the agent reports it in data; absent when it was not */
+      authFailed?: boolean;
       run: RunDraft;
     }
   | { kind: 'stderr'; text: string }

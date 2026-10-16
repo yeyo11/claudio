@@ -846,8 +846,11 @@
       },
       "cause": {
         "type": "string",
-        "const": "rate-limit",
-        "description": "`rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution recorded before it was kept. The error's wording is never read for it."
+        "enum": [
+          "rate-limit",
+          "auth"
+        ],
+        "description": "`rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution recorded before it was kept. The error's wording is never read for it. `auth` when it died on its account's sign-in (a result with a 401): the account is marked signed out, which is what the rotation passes over, so it does not count among the accounts a limit passed over."
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"

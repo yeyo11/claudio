@@ -28,7 +28,7 @@ interface Spawn {
   authToken: string | null;
 }
 
-async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[] } = {}) {
+async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; expired?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[] } = {}) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const store = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: FAKE_CLAUDE });
@@ -50,6 +50,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
   set('ANTHROPIC_AUTH_TOKEN', 'wrapper-auth');
   set('FAKE_CLAUDE_ACCOUNTS', spawns);
   set('FAKE_CLAUDE_LIMITED_DIRS', (opts.limited?.(dirs) ?? []).join(','));
+  set('FAKE_CLAUDE_EXPIRED_DIRS', (opts.expired?.(dirs) ?? []).join(','));
   set('FAKE_CLAUDE_LITE_DIRS', (opts.lite?.(dirs) ?? []).join(','));
   const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
   chats.accounts = store;
@@ -92,6 +93,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
       delete process.env.FAKE_CLAUDE_ACCOUNTS;
       delete process.env.FAKE_CLAUDE_LIMITED_DIRS;
       delete process.env.FAKE_CLAUDE_LITE_DIRS;
+      delete process.env.FAKE_CLAUDE_EXPIRED_DIRS;
     },
   };
 }
@@ -274,5 +276,82 @@ test('the overview counts the accounts and names the one new work starts on', as
     assert.notEqual(after?.current, DEFAULT_ID);
   } finally {
     core.shutdown();
+  }
+});
+
+// A sign-in failure (the CLI's 401) is a state of the account and moves the turn as a limit does
+
+test('an automated run whose account sign-in expired moves to the next account, which is marked out until cleared', async () => {
+  const r = await rig({ work, expired: (d) => [d[DEFAULT_ID] ?? ''] });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'expired', keepAlive: false });
+    await waitFor(() => r.chats.accountOf(chat.id) === r.ids.a && r.spawns().length === 2);
+    await r.chats.exited(chat.id);
+    const [event] = r.db.rotationEvents();
+    assert.deepEqual([event?.event, event?.from, event?.to, event?.reason], ['switch', DEFAULT_ID, r.ids.a, 'auth']);
+    assert.equal(r.events.filter((e) => e.type === 'run.rateLimited').length, 0, 'it is no limit');
+    assert.ok(r.events.some((e) => e.type === 'run.accountRotated'));
+    assert.equal(r.store.get(DEFAULT_ID).signInState, 'expired');
+    assert.equal(r.store.get(DEFAULT_ID).signedIn, false);
+    assert.equal(r.store.get(DEFAULT_ID).limits, null, 'and no limit is made up for it');
+
+    // Excluded: a new chat does not start on it
+    const next = r.chats.start({ prompt: 'again', name: 'next', keepAlive: false });
+    await r.chats.exited(next.id);
+    assert.equal(r.chats.accountOf(next.id), r.ids.a);
+
+    // Until it is cleared
+    await r.store.clearAuthFailed(DEFAULT_ID);
+    assert.notEqual(r.store.get(DEFAULT_ID).signInState, 'expired');
+    assert.equal(r.store.pick({ current: null, pinned: null, policy: r.store.policyFor(null), lastSwitchAt: 0 }).account, DEFAULT_ID);
+  } finally {
+    r.close();
+  }
+});
+
+test("a person's chat whose account sign-in expired moves with rotateOnLimit, and stays put without it", async () => {
+  const r = await rig({ expired: (d) => [d[DEFAULT_ID] ?? ''] });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'person', keepAlive: false });
+    await waitFor(() => r.chats.accountOf(chat.id) === r.ids.a && r.spawns().length === 2);
+    assert.equal(r.db.rotationEvents()[0]?.reason, 'auth');
+    assert.equal(r.db.providerMoves({ chatId: chat.id }).length, 0);
+  } finally {
+    r.close();
+  }
+
+  const off = await rig({ expired: (d) => [d[DEFAULT_ID] ?? ''] });
+  try {
+    await off.store.setSettings({ rotateOnLimit: false });
+    const chat = off.chats.start({ prompt: 'hello', name: 'person off', keepAlive: false });
+    await off.chats.exited(chat.id);
+    await new Promise((res) => setTimeout(res, 100));
+    assert.equal(off.spawns().length, 1);
+    assert.equal(off.chats.accountOf(chat.id), DEFAULT_ID);
+    assert.equal(off.db.rotationEvents().length, 0);
+    assert.equal(off.store.get(DEFAULT_ID).signInState, 'expired', 'the account is marked all the same');
+  } finally {
+    off.close();
+  }
+});
+
+test('with every account signed out, automated work waits, and goes on once an account can take it', async () => {
+  const r = await rig({ work, expired: (d) => Object.values(d) });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).length > 0);
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    assert.equal(move?.state, 'waiting');
+    assert.equal(move?.reason, 'sign-in expired');
+    assert.equal(r.spawns().length, 4, 'every account was tried once before it waited');
+    assert.deepEqual(r.db.rotationEvents().map((e) => [e.event, e.reason]), [['switch', 'auth'], ['switch', 'auth'], ['switch', 'auth'], ['wait', 'auth']]);
+
+    // An account signs in again and works: the wait ends on its own
+    process.env.FAKE_CLAUDE_EXPIRED_DIRS = '';
+    await r.store.clearAuthFailed(r.ids.c);
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed');
+    assert.equal(r.chats.accountOf(chat.id), r.ids.c);
+  } finally {
+    r.close();
   }
 });

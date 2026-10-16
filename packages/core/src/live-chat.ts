@@ -289,6 +289,8 @@ export interface ChatHost {
   noteActivity(chat: LiveChat): void;
   /** Folds what the chat's provider reported about its limit into the provider's reading */
   observeLimit(chat: LiveChat, event: DriverEvent): void;
+  /** Marks the account the chat ran on as signed out, or clears the mark when a turn went through on it */
+  observeSignIn(chat: LiveChat, authFailed: boolean): void;
   learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void;
   learnWindows(modelUsage: ModelUsage[]): void;
   maybeLimit(chat: LiveChat): void;
@@ -429,6 +431,11 @@ export class LiveChat {
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against its provider's usage limit */
   rateLimited = false;
+  /**
+   * The turn died because the account's sign-in is gone (a 401). The rotation takes it as it takes a
+   * limit, so `rateLimited` is set with it; this says which of the two it was.
+   */
+  authFailed = false;
   /**
    * The accounts the turn died on at their limit since the chat last ended a turn without one: what
    * the rotation passes over. Kept on the chat, not in the accounts' readings, because a failure
