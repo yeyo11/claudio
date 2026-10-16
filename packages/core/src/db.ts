@@ -59,6 +59,8 @@ import { pruneWebhookDeliveries } from './webhook-store.ts';
  */
 
 const KEEP_ROTATION_EVENTS = 2_000;
+/** Guard events kept: the newest rows */
+export const KEEP_GUARD_EVENTS = 20_000;
 
 /**
  * Applied in order; `user_version` records how many have run, so each one is written once. A
@@ -960,6 +962,27 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX chat_notes_chat ON chat_notes (chat_id, created_at);
    CREATE UNIQUE INDEX chat_notes_pending ON chat_notes (chat_id) WHERE state = 'pending';
    CREATE UNIQUE INDEX chat_notes_entry ON chat_notes (chat_id, entry_uuid) WHERE entry_uuid IS NOT NULL;`,
+  `CREATE TABLE guard_events (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     at TEXT NOT NULL,
+     chat_id TEXT NOT NULL,
+     project_id TEXT,
+     orchestration_id TEXT,
+     task_id TEXT,
+     flow_run_id TEXT,
+     tool_use_id TEXT,
+     tool_name TEXT NOT NULL,
+     rule TEXT NOT NULL,
+     matcher TEXT NOT NULL,
+     outcome TEXT NOT NULL,
+     reason TEXT NOT NULL,
+     excerpt TEXT NOT NULL
+   );
+   CREATE INDEX guard_events_chat ON guard_events (chat_id, seq);
+   CREATE INDEX guard_events_orch ON guard_events (orchestration_id, seq);
+   CREATE INDEX guard_events_flow ON guard_events (flow_run_id, seq);
+   CREATE INDEX guard_events_at ON guard_events (at);
+   CREATE UNIQUE INDEX guard_events_once ON guard_events (chat_id, tool_use_id, outcome) WHERE tool_use_id IS NOT NULL;`,
 ];
 
 /**
@@ -983,6 +1006,17 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
 
 /** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
 export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
+
+/** The version that added the guards' event table, for the test that upgrades a database from the one before */
+export const GUARD_EVENTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE guard_events')) + 1;
+
+/** Drops all but the newest `keep` guard events; returns how many went. */
+export function pruneGuardEvents(db: DatabaseSync, keep = KEEP_GUARD_EVENTS): number {
+  const result = db
+    .prepare('DELETE FROM guard_events WHERE seq <= COALESCE((SELECT seq FROM guard_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)')
+    .run(keep);
+  return Number(result.changes);
+}
 
 /** The version that added the chats' provider column, for the test that upgrades a database from the one before */
 export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE INDEX chats_provider')) + 1;
@@ -1377,6 +1411,7 @@ export class Db {
     migrate(this.db);
     this.pruneAudit();
     pruneWebhookDeliveries(this.db);
+    pruneGuardEvents(this.db);
     this.pruneProviderMoves();
     // A server that stays up for weeks prunes the history daily too; unref'd so it never keeps a process alive
     this.movesPruneTimer = setInterval(() => this.pruneProviderMoves(), 24 * 60 * 60 * 1000);

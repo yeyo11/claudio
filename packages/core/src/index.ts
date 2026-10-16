@@ -70,7 +70,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -82,6 +82,7 @@ import { AppSettingsStore } from './app-settings.ts';
 import { GuardLauncher } from './guards/launch.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 import { GuardSettingsStore } from './guards/settings.ts';
+import { GuardEventStore } from './guards/events.ts';
 import { SpendGate } from './spend.ts';
 import { DashboardLayoutStore } from './dashboard-layouts.ts';
 import { stateFromRun } from './chat-model.ts';
@@ -233,7 +234,10 @@ export {
   runGuardSelfTest,
 } from './guards/preflight.ts';
 export { type GuardRequest, GuardLauncher, guardFailure } from './guards/launch.ts';
-export { guardsWeakened,projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
+export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
+export { GuardEventStore, type GuardEventFilter } from './guards/events.ts';
+export { decide as decideGuard } from './guards/decide.ts';
+export { DEFAULT_LIMITS as GUARD_DEFAULT_LIMITS, type GuardRulesFile } from './guards/input.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
@@ -468,6 +472,8 @@ export class Core {
   readonly guards: GuardSettingsStore;
   /** Resolves, checks and writes the guard of every launch path (docs/plans/guards.md) */
   readonly guardLauncher: GuardLauncher;
+  /** The guards' audit trail, `guard_events` (docs/plans/guards.md) */
+  readonly guardEvents: GuardEventStore;
   /** Each Home's layout, per project and for All projects: `dashboard-layouts.json` */
   readonly dashboardLayouts: DashboardLayoutStore;
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
@@ -598,7 +604,10 @@ export class Core {
         summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
-    this.guards = new GuardSettingsStore(config.dataDir);
+    this.guards = new GuardSettingsStore(config.dataDir, {
+      onChange: (settings) => this.events.emit({ type: 'guards.changed', title: 'Guard settings changed', settings }),
+    });
+    this.guardEvents = new GuardEventStore(this.db.connection);
     this.appSettings = new AppSettingsStore(config, {
       emit: (event) => {
         // `system()` carries the default permission mode, and a cached copy would show the old one
@@ -1503,6 +1512,15 @@ export class Core {
   }
 
   /** The CLI in use against the newest published one, as the last check left it: no network here. */
+  /**
+   * Whether guards can run here, for Settings. The pre-launch checks (`guards/preflight.ts`) fill
+   * the problem once they exist; until then only the CLI's version is known.
+   */
+  async guardStatus(): Promise<GuardStatus> {
+    const version = (await this.system()).cli.version;
+    return { available: true, problem: null, cliVersion: version ?? null };
+  }
+
   async cliVersionInfo(): Promise<CliVersionInfo> {
     return this.cliVersion.info((await this.system()).cli.version);
   }
