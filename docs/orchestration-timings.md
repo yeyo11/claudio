@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T18:00:00Z
-updated_at: 2026-09-29T18:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - orchestration
     - verification
@@ -73,6 +73,10 @@ nothing is cached. What is still running counts up to `at`.
   falls back to the executions of its role's chats, or leaves the phase out and names the field in
   `missing`. An older graph's fixer attempts are read from its fixer chats the same way.
 - **checksMs**: every run of every command. **fixerMs**: every fix. **passes**: the highest pass.
+- **Where a fixer's loop stops.** A fix attempt that reports `[STOP]`, adds errors, or leaves the same
+  failure signature after three attempts ends the loop and the verification concludes `failed`
+  (`failureSignature`, `errorCount` and `parseFixerReport` in `packages/core/src/verification.ts`). The
+  attempts it had are still in `fixes[]`, so `fixerMs` counts them.
 
 ## The script
 

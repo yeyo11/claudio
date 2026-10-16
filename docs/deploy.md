@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-09T16:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - deploy
     - docker
@@ -306,6 +306,16 @@ The image carries no claude-swap or uv: Claudio never calls claude-swap. The acc
 config dir, with its `0600` secret for a token or API-key account, so back it up and protect it
 like the rest of the volume. A `login` account is signed in from the Accounts page, which runs
 `claude auth login` in the container.
+
+## The daily spend cap
+
+Set `CLAUDIO_DAILY_SPEND_CAP_USD` in `.env` (or `dailySpendCapUsd` in Settings → Security) to stop an
+unattended deployment from spending without limit: over the cap new flow runs, orchestration tasks,
+schedule fires and decisions wait until the server's local midnight, and a person's new turn asks
+first. Nothing running is stopped. The figure is the sum of the `total_cost_usd` of each `result`
+the CLI reports, so on a subscription account it is the API price of the same use. Unset means no
+cap. The setting follows the layers of [layered-settings.md](layered-settings.md): a value from the
+environment wins over the file and cannot be changed from Settings.
 
 ## Notifications on a phone
 

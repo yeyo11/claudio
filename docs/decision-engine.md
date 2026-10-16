@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-02T12:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -189,6 +189,17 @@ Each point lives in the catalogue (`decisions/points.ts`): its kind, scope, thre
 byte limit, state version, `savesRun`, `visible` and questions. Call sites take a `stanceOf` (`off`,
 `watch` for shadow or a limited active, `wait` for an active point that can clear its threshold), so
 a point that is off costs nothing.
+
+## Risk in `notification.urgency`, and the daily cap
+
+Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
+
+- **`risk` field, `stateVersion` 2.** The point lists `risk` among its fields
+  (`packages/core/src/decisions/points.ts`) and is at `stateVersion: 2`: a consent given for version 1
+  no longer counts, so the person is asked again, with the risk line in the preview.
+- **`spend-cap` as an unavailable reason.** Over the daily cap the CLI provider answers `unavailable`
+  with `spend-cap` (`providers/cli.ts`, `spendOpen`), and the point runs today's behaviour. Points
+  never block. `checks.fix` also starts no fix by itself over the cap (`ChecksFix.hasRoom`).
 
 ## Consent and privacy
 

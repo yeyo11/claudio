@@ -206,7 +206,8 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
 | Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
-| Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock |
+| Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums the `total_cost_usd` of each `result` message in the stream (the CLI's own figure; Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
+| Path-scoped rules | `.claude/rules/*.md` files with a `paths:` list in their front matter, which the CLI loads as project memory; Claudio writes them when a person approves a `rule` proposal ([docs/team-and-flow.md](docs/team-and-flow.md)) |
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |

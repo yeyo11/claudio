@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T18:30:00Z
-updated_at: 2026-09-25T18:30:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - notifications
     - push
@@ -31,6 +31,20 @@ That was the "too invasive" complaint.
 | `silent` | Nothing |
 
 `low` never interrupts at any level, as it never did for toasts.
+
+## Spend alerts, and urgency with risk
+
+Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
+
+- **`spend.alert`.** An event with `level` `warn` (the day's spend reached 75 % of the daily cap) or
+  `exhausted` (the cap was reached), emitted once per day and level; the rows are in `spend_alerts`
+  (`packages/core/src/index.ts`). The web turns it into a notification draft: `warn` is a normal
+  notification, `exhausted` is high.
+- **Urgency with risk.** `notification.urgency` also receives `risk`: the riskiest medium-or-high tool
+  call of the chat in its last ten minutes, masked and clipped to 300 characters
+  (`PushService.recentRisk` in `packages/core/src/push.ts`). A call that is high risk can make a
+  notification more urgent; the score never blocks anything. See
+  [decision-engine.md](decision-engine.md) for the consent this changed.
 
 ## Decisions
 
