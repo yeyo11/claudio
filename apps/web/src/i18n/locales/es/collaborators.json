@@ -1,0 +1,252 @@
+{
+  "nav": "Colaboradores",
+  "page": {
+    "title": "Colaboradores",
+    "subtitle": "Los Claudios de tu equipo, conectados directamente, solo lectura",
+    "groupCount_one": "{{count}} grupo",
+    "groupCount_other": "{{count}} grupos",
+    "sharedCount_one": "{{count}} proyecto compartido contigo",
+    "sharedCount_other": "{{count}} proyectos compartidos contigo"
+  },
+  "off": {
+    "title": "Trabaja con tu equipo",
+    "body": "Los Claudios de tus compañeros se conectan directamente al tuyo y ven, solo en lectura, los proyectos que elijas compartir: chats, memoria y diario, documentos y tablero. Nadie puede iniciar trabajo en la máquina de otra persona, así que nadie gasta la cuota de nadie.",
+    "turnOn": "Activar"
+  },
+  "unavailable": {
+    "platform": "No disponible en esta plataforma",
+    "load": "El módulo nativo no se ha podido cargar",
+    "host": "El proceso de conexión se detiene una y otra vez",
+    "body": "Claudio funciona como antes; Colaboradores sigue desactivado en esta instalación."
+  },
+  "you": {
+    "title": "Tú",
+    "name": "Nombre visible",
+    "nameHint": "Cómo te ven tus compañeros",
+    "label": "Etiqueta de la instalación",
+    "labelHint": "Cuál de tus instalaciones es esta, por ejemplo escritorio o portátil",
+    "noLabel": "Sin etiqueta",
+    "relay": "URL del relay",
+    "relayHint": "Un iroh-relay propio, en lugar de los relays públicos de n0. Déjalo vacío para usar los predeterminados.",
+    "endpoint": "Id del endpoint",
+    "copyEndpoint": "Copiar el id del endpoint",
+    "edit": "Editar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "turnOff": "Desactivar",
+    "byN0": "El descubrimiento y los relays los gestiona n0",
+    "byN0Relay": "El descubrimiento lo gestiona n0 · relay"
+  },
+  "connection": {
+    "online": "Conectado",
+    "relay": "Conectado por relay",
+    "starting": "Conectando…",
+    "noRelay": "Ningún relay ha respondido: solo funcionan las conexiones directas",
+    "offline": "Sin red",
+    "off": "Desactivado"
+  },
+  "groups": {
+    "title": "Grupos",
+    "none": "Aún no estás en ningún grupo",
+    "noneHint": "Crea un grupo e invita a tus compañeros, o pega una invitación que te hayan enviado.",
+    "members_one": "{{count}} miembro",
+    "members_other": "{{count}} miembros",
+    "owner": "Propietario",
+    "you": "Tú",
+    "memberActions": "Acciones para {{name}}",
+    "groupActions": "Acciones para {{name}}",
+    "remove": "Quitar",
+    "makeOwner": "Hacer propietario",
+    "leave": "Salir del grupo",
+    "frozen": "La instalación del propietario ya no existe: el grupo ya no puede cambiar.",
+    "createNew": "Crear un grupo nuevo",
+    "conflict": "Dos versiones {{version}} de la lista de miembros no coinciden. La instalación del propietario lo resuelve al firmar la siguiente.",
+    "removeTitle": "¿Quitar a {{name}} de {{group}}?",
+    "removeWarn": "Las copias que ya tiene {{name}} se quedan en su máquina.",
+    "removeBody": "Su Claudio deja de recibir lo que comparte este grupo.",
+    "makeOwnerTitle": "¿Hacer a {{name}} propietario de {{group}}?",
+    "makeOwnerBody": "{{name}} firmará desde ahora todos los cambios del grupo, y tú pierdes el derecho a cambiarlo: invitar, aceptar, quitar y transferir.",
+    "leaveTitle": "¿Salir de {{group}}?",
+    "leaveBody": "Se eliminan de esta instalación todas las copias sincronizadas a través de este grupo, y tus proyectos dejan de compartirse con él."
+  },
+  "presence": {
+    "direct": "En línea · directo",
+    "relay": "En línea · relay",
+    "lastSeen": "Visto por última vez {{ago}}",
+    "never": "Aún no se ha visto"
+  },
+  "joinRequests": {
+    "title": "Solicitudes para unirse",
+    "relayedBy": "a través de {{name}}",
+    "direct": "enviada a ti",
+    "accept": "Aceptar",
+    "deny": "Rechazar"
+  },
+  "pending": {
+    "connecting": "Conectando con {{owner}}…",
+    "waiting": "{{owner}} no está conectado. Tu solicitud se ha dejado con {{member}} y se aceptará cuando {{owner}} vuelva.",
+    "cancel": "Cancelar la solicitud",
+    "expires": "La invitación caduca el {{when}}"
+  },
+  "actions": {
+    "invite": "Invitar",
+    "join": "Unirse a un grupo",
+    "create": "Crear un grupo"
+  },
+  "invite": {
+    "title": "Invitar a {{group}}",
+    "group": "Grupo",
+    "make": "Crear la invitación",
+    "text": "Invitación",
+    "copy": "Copiar la invitación",
+    "qr": "Código QR de la invitación a {{group}}",
+    "expires": "Válida una vez, hasta {{when}}",
+    "presence": "Si no estás conectado cuando se unan, esperarán a que vuelvas.",
+    "standing": "Guarda una copia de este grupo en otra instalación, o transfiere la propiedad antes de cambiar de máquina: si se pierde esta instalación, el grupo ya no podrá cambiar.",
+    "tooLong": "Esta invitación es demasiado larga para un código QR. Copia el texto."
+  },
+  "join": {
+    "title": "Unirse a un grupo",
+    "paste": "Invitación",
+    "pasteHint": "Pega la invitación que te ha enviado el propietario de un grupo.",
+    "submit": "Unirse",
+    "connecting": "Conectando con el propietario del grupo…",
+    "joined": "Te has unido a {{group}}"
+  },
+  "create": {
+    "title": "Crear un grupo",
+    "name": "Nombre",
+    "namePlaceholder": "Equipo de backend",
+    "hint": "Serás su propietario: invitas, aceptas y quitas miembros.",
+    "submit": "Crear",
+    "created": "{{group}} creado"
+  },
+  "sharedWithYou": {
+    "title": "Compartido contigo",
+    "none": "Aún no se ha compartido nada contigo",
+    "noneHint": "Cuando un compañero comparta un proyecto con uno de tus grupos, aparecerá aquí.",
+    "install": "Instalación: {{label}}",
+    "noInstallLabel": "Instalación sin etiqueta",
+    "open": "Abrir",
+    "openIn": "Abrir en {{project}}",
+    "notCloned": "No clonado aquí",
+    "linkedTo": "Vinculado con {{project}}",
+    "link": "Vincular con un proyecto local",
+    "unlink": "Desvincular",
+    "linkTitle": "Vincular {{project}} con un proyecto local",
+    "linkHint": "El proyecto compartido aparecerá en la pestaña Compartido del proyecto que elijas.",
+    "linkProject": "Proyecto local",
+    "linkSubmit": "Vincular"
+  },
+  "sync": {
+    "live": "Al día · sincronizando",
+    "synced": "Sincronizado {{ago}}",
+    "offline": "Propietario sin conexión · última sincronización {{ago}}",
+    "offlineNever": "Propietario sin conexión · aún sin sincronizar",
+    "pending": "Esperando la primera sincronización",
+    "failed": "La última sincronización ha fallado: {{reason}}"
+  },
+  "kinds": {
+    "chats_one": "{{count}} chat",
+    "chats_other": "{{count}} chats",
+    "memory_one": "{{count}} archivo de memoria",
+    "memory_other": "{{count}} archivos de memoria",
+    "journal_one": "{{count}} entrada del diario",
+    "journal_other": "{{count}} entradas del diario",
+    "documents_one": "{{count}} documento",
+    "documents_other": "{{count}} documentos",
+    "artifacts_one": "{{count}} artefacto",
+    "artifacts_other": "{{count}} artefactos",
+    "board_one": "{{count}} tarea",
+    "board_other": "{{count}} tareas"
+  },
+  "toast": {
+    "on": "Colaboradores está activado",
+    "onFailed": "No se ha podido activar Colaboradores",
+    "off": "Colaboradores está desactivado",
+    "offFailed": "No se ha podido desactivar Colaboradores",
+    "saved": "Guardado",
+    "saveFailed": "No se ha podido guardar",
+    "inviteFailed": "No se ha podido crear la invitación",
+    "joinFailed": "No te has podido unir al grupo",
+    "createFailed": "No se ha podido crear el grupo",
+    "removed": "{{name}} quitado",
+    "removeFailed": "No se ha podido quitar a {{name}}",
+    "transferred": "{{name}} es ahora el propietario",
+    "transferFailed": "No se ha podido transferir la propiedad",
+    "left": "Has salido de {{group}}",
+    "leaveFailed": "No se ha podido salir de {{group}}",
+    "accepted": "{{name}} se ha unido",
+    "acceptFailed": "No se ha podido aceptar a {{name}}",
+    "denied": "Solicitud de {{name}} rechazada",
+    "denyFailed": "No se ha podido rechazar a {{name}}",
+    "cancelled": "Solicitud cancelada",
+    "cancelFailed": "No se ha podido cancelar la solicitud",
+    "linked": "Vinculado con {{project}}",
+    "linkFailed": "No se ha podido vincular el proyecto",
+    "unlinked": "Vínculo eliminado",
+    "unlinkFailed": "No se ha podido eliminar el vínculo"
+  },
+  "sharing": {
+    "title": "Compartir",
+    "off": "Activa Colaboradores para compartir este proyecto con tu equipo, en solo lectura.",
+    "unavailable": "Colaboradores no está disponible en esta instalación.",
+    "openCollaborators": "Abrir Colaboradores",
+    "noGroups": "Aún no estás en ningún grupo. Crea uno o únete a uno en Colaboradores para compartir este proyecto.",
+    "shareWith": "Compartir con {{group}}",
+    "warning": "Todo lo que hay en los chats de este proyecto se envía tal cual, incluida la salida de los comandos. El Claudio de cada colaborador borra su copia cuando dejas de compartir, pero lo que una persona ya ha recibido o copiado en otro sitio no se puede recuperar.",
+    "key": "Clave de compartición",
+    "edited": "Editada",
+    "edit": "Editar",
+    "save": "Guardar",
+    "useDefault": "Usar la clave predeterminada",
+    "keyRule": "Usa de 3 a 200 minúsculas, dígitos y . _ / # -",
+    "fromRemote": "Del remoto {{remote}}",
+    "noRemote": "Sin remoto de git: se comparte por su propio id",
+    "remote": "Remoto",
+    "keyInUse": "{{project}} ya comparte esta clave. Edita la clave para compartir también este proyecto.",
+    "included": "Incluido",
+    "seenAs": "Lo que ven los colaboradores",
+    "saveFailed": "No se han podido guardar los ajustes de compartición",
+    "kinds": {
+      "chats": "Chats",
+      "memory": "Memoria",
+      "journal": "Diario",
+      "documents": "Documentos",
+      "artifacts": "Artefactos",
+      "board": "Tablero"
+    }
+  },
+  "shared": {
+    "member": "Colaborador",
+    "sections": "Compartido contigo",
+    "gone": "Ya nadie comparte este proyecto contigo",
+    "nothing": "{{name}} aún no comparte nada que puedas leer aquí",
+    "tabs": {
+      "chats": "Chats",
+      "memory": "Memoria",
+      "documents": "Documentos",
+      "board": "Tablero"
+    },
+    "sync": {
+      "live": "Al día · sincronizando",
+      "synced": "Sincronizado {{ago}}",
+      "offline": "Propietario sin conexión · última sincronización {{ago}}",
+      "offlineNever": "Propietario sin conexión · aún sin sincronizar",
+      "pending": "Aún sin sincronizar",
+      "failed": "La última sincronización ha fallado"
+    },
+    "live": "En directo",
+    "allChats": "Todos los chats",
+    "messages_one": "{{n}} mensaje",
+    "messages_other": "{{n}} mensajes",
+    "index": "Índice",
+    "workingCopy": "Copia de trabajo en la máquina de {{name}} · puede diferir de tu copia",
+    "empty": {
+      "chats": "{{name}} aún no tiene chats en este proyecto",
+      "memory": "Aún no hay archivos de memoria en este proyecto",
+      "documents": "Aún no hay documentos en este proyecto",
+      "board": "Aún no hay tareas en este tablero"
+    }
+  }
+}

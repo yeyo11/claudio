@@ -6,6 +6,7 @@ import enAssistant from './locales/en/assistant.json';
 import enChanges from './locales/en/changes.json';
 import enChecks from './locales/en/checks.json';
 import enChats from './locales/en/chats.json';
+import enCollaborators from './locales/en/collaborators.json';
 import enComponents from './locales/en/components.json';
 import enConfig from './locales/en/config.json';
 import enConnectors from './locales/en/connectors.json';
@@ -40,6 +41,7 @@ import esAssistant from './locales/es/assistant.json';
 import esChanges from './locales/es/changes.json';
 import esChecks from './locales/es/checks.json';
 import esChats from './locales/es/chats.json';
+import esCollaborators from './locales/es/collaborators.json';
 import esComponents from './locales/es/components.json';
 import esConfig from './locales/es/config.json';
 import esConnectors from './locales/es/connectors.json';
@@ -110,6 +112,7 @@ export const en = {
   documents: enDocuments,
   suggestion: enSuggestion,
   webhooks: enWebhooks,
+  collaborators: enCollaborators,
 };
 
 export type Namespace = keyof typeof en;
@@ -154,6 +157,7 @@ export const es = {
   documents: esDocuments,
   suggestion: esSuggestion,
   webhooks: esWebhooks,
+  collaborators: esCollaborators,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

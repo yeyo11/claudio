@@ -1,0 +1,130 @@
+/**
+ * The Collaborators routes (docs/plans/collaborators.md §6): this install's identity and connection,
+ * the groups and their invites and joins, a project's sharing, and the read-only copies of what
+ * teammates share. Every query is keyed under `'collaborators'`, so each `collaborators.*` event
+ * marks all of them stale at once (lib/events.ts); nothing here polls.
+ *
+ * A share key holds `/` and `#`, so it never travels in a path: the routes take its `shareId`.
+ */
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  CollaboratorsStatus,
+  CreateGroupRequest,
+  Group,
+  GroupInvite,
+  GroupList,
+  JoinGroupResult,
+  JoinRequest,
+  JournalEntry,
+  ProjectSharing,
+  SharedArtifact,
+  SharedBoard,
+  SharedChat,
+  SharedDocument,
+  SharedMemoryFile,
+  SharedProject,
+  SharedTranscriptPage,
+  UpdateCollaboratorsRequest,
+  UpdateProjectSharingRequest,
+} from '@claudio/shared';
+import { BASE, enc, request, type ReadOptions } from '../../api';
+import { authHeaders } from '../auth';
+
+/** What a shared project is addressed by in the routes: the sharing install and the key's id. */
+export interface SharedRef {
+  owner: string;
+  shareId: string;
+}
+
+const shared = ({ owner, shareId }: SharedRef) => `/collaborators/shared/${enc(owner)}/${enc(shareId)}`;
+
+export const collaboratorsApi = {
+  status: (o: ReadOptions = {}) => request<CollaboratorsStatus>('/collaborators', o),
+  update: (body: UpdateCollaboratorsRequest) => request<CollaboratorsStatus>('/collaborators', { method: 'PUT', body }),
+
+  groups: (o: ReadOptions = {}) => request<GroupList>('/collaborators/groups', o),
+  createGroup: (body: CreateGroupRequest) => request<Group>('/collaborators/groups', { method: 'POST', body }),
+  /** Leaves the group: deletes every copy synced through it and tells the peers it can reach */
+  leaveGroup: (groupId: string) => request<unknown>(`/collaborators/groups/${enc(groupId)}`, { method: 'DELETE' }),
+  invite: (groupId: string) => request<GroupInvite>(`/collaborators/groups/${enc(groupId)}/invites`, { method: 'POST' }),
+  /** A relayed join can take a member's round trip as well as the owner's, so it waits longer than a read */
+  join: (invite: string) => request<JoinGroupResult>('/collaborators/join', { method: 'POST', body: { invite }, timeoutMs: 60_000 }),
+  cancelJoin: (groupId: string) => request<unknown>(`/collaborators/join/${enc(groupId)}`, { method: 'DELETE' }),
+  joinRequests: (groupId: string, o: ReadOptions = {}) => request<JoinRequest[]>(`/collaborators/groups/${enc(groupId)}/join-requests`, o),
+  acceptJoin: (groupId: string, from: string) => request<Group>(`/collaborators/groups/${enc(groupId)}/join-requests/${enc(from)}/accept`, { method: 'POST' }),
+  denyJoin: (groupId: string, from: string) => request<unknown>(`/collaborators/groups/${enc(groupId)}/join-requests/${enc(from)}/deny`, { method: 'POST' }),
+  removeMember: (groupId: string, endpointId: string) => request<Group>(`/collaborators/groups/${enc(groupId)}/members/${enc(endpointId)}`, { method: 'DELETE' }),
+  transferOwnership: (groupId: string, endpointId: string) => request<Group>(`/collaborators/groups/${enc(groupId)}/owner`, { method: 'PUT', body: { endpointId } }),
+
+  projectSharing: (projectId: string, o: ReadOptions = {}) => request<ProjectSharing>(`/projects/${enc(projectId)}/sharing`, o),
+  /** Answers 409 with a `ShareKeyInUseError` when another project of this install shares the key */
+  updateProjectSharing: (projectId: string, body: UpdateProjectSharingRequest) => request<ProjectSharing>(`/projects/${enc(projectId)}/sharing`, { method: 'PUT', body }),
+
+  sharedProjects: (o: ReadOptions = {}) => request<SharedProject[]>('/collaborators/shared', o),
+  link: (ref: SharedRef, projectId: string) => request<SharedProject>(`${shared(ref)}/link`, { method: 'PUT', body: { projectId } }),
+  unlink: (ref: SharedRef) => request<SharedProject>(`${shared(ref)}/link`, { method: 'DELETE' }),
+  sharedChats: (ref: SharedRef, o: ReadOptions = {}) => request<SharedChat[]>(`${shared(ref)}/chats`, o),
+  sharedMemory: (ref: SharedRef, o: ReadOptions = {}) => request<SharedMemoryFile[]>(`${shared(ref)}/memory`, o),
+  sharedJournal: (ref: SharedRef, o: ReadOptions = {}) => request<JournalEntry[]>(`${shared(ref)}/journal`, o),
+  sharedDocuments: (ref: SharedRef, o: ReadOptions = {}) => request<SharedDocument[]>(`${shared(ref)}/documents`, o),
+  sharedBoard: (ref: SharedRef, o: ReadOptions = {}) => request<SharedBoard>(`${shared(ref)}/work-items`, o),
+  sharedArtifacts: (ref: SharedRef, o: ReadOptions = {}) => request<SharedArtifact[]>(`${shared(ref)}/artifacts`, o),
+  sharedTranscript: (ref: SharedRef, chatId: string, o: ReadOptions = {}) => request<SharedTranscriptPage>(`${shared(ref)}/chats/${enc(chatId)}/transcript`, o),
+  /** Where a blob is served; the first open fetches it from the owner, so it may take a while */
+  sharedBlobUrl: (ref: SharedRef, sha256: string) => `${BASE}${shared(ref)}/blobs/${enc(sha256)}`,
+  /** A blob as text (a document's content), with the credential a bare URL cannot carry */
+  sharedBlobText: async (ref: SharedRef, sha256: string, o: ReadOptions = {}): Promise<string> => {
+    const res = await fetch(collaboratorsApi.sharedBlobUrl(ref, sha256), { headers: authHeaders(), signal: o.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
+    return res.text();
+  },
+};
+
+export const collaboratorsKeys = {
+  all: ['collaborators'] as const,
+  status: ['collaborators', 'status'] as const,
+  groups: ['collaborators', 'groups'] as const,
+  joinRequests: (groupId: string) => ['collaborators', 'join-requests', groupId] as const,
+  shared: ['collaborators', 'shared'] as const,
+  sharing: (projectId: string) => ['collaborators', 'sharing', projectId] as const,
+  copy: (ref: SharedRef, kind: string, ...rest: string[]) => ['collaborators', 'copy', ref.owner, ref.shareId, kind, ...rest] as const,
+};
+
+export const useCollaboratorsStatus = () => useQuery({ queryKey: collaboratorsKeys.status, queryFn: ({ signal }) => collaboratorsApi.status({ signal }) });
+
+export const useCollaboratorGroups = (enabled = true) =>
+  useQuery({ queryKey: collaboratorsKeys.groups, queryFn: ({ signal }) => collaboratorsApi.groups({ signal }), enabled });
+
+export const useJoinRequests = (groupId: string, enabled = true) =>
+  useQuery({ queryKey: collaboratorsKeys.joinRequests(groupId), queryFn: ({ signal }) => collaboratorsApi.joinRequests(groupId, { signal }), enabled });
+
+export const useSharedProjects = (enabled = true) =>
+  useQuery({ queryKey: collaboratorsKeys.shared, queryFn: ({ signal }) => collaboratorsApi.sharedProjects({ signal }), enabled });
+
+export const useProjectSharing = (projectId: string | null) =>
+  useQuery({
+    queryKey: collaboratorsKeys.sharing(projectId ?? ''),
+    queryFn: ({ signal }) => collaboratorsApi.projectSharing(projectId ?? '', { signal }),
+    enabled: Boolean(projectId),
+  });
+
+/**
+ * A change to Collaborators: on success every read under `'collaborators'` is read again, since a
+ * roster change moves groups, join requests and shared projects together. The event that follows
+ * then only confirms it.
+ */
+export function useCollaboratorsMutation<A, R>(fn: (args: A) => Promise<R>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (data) => {
+      // `PUT /collaborators` answers the new status: shown at once, before the refetch lands
+      if (isStatus(data)) queryClient.setQueryData(collaboratorsKeys.status, data);
+      void queryClient.invalidateQueries({ queryKey: collaboratorsKeys.all });
+    },
+  });
+}
+
+function isStatus(value: unknown): value is CollaboratorsStatus {
+  return typeof value === 'object' && value !== null && 'settings' in value && 'connection' in value && 'unavailable' in value;
+}

@@ -6,7 +6,16 @@ import { test } from 'node:test';
 import type { ClaudioEvent, ProjectSettings } from '@claudio/shared';
 import { MAX_FLOW_PARALLEL, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@claudio/shared';
 import { Core } from '../src/index.ts';
-import { defaultProjectSettings, deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
+import {
+  defaultProjectSettings,
+  deriveKeyPrefix,
+  parseProjectSettings,
+  parseProjectSetup,
+  parseSharing,
+  ProjectSettingsStore,
+  settingsChanges,
+  ShareKeyInUse,
+} from '../src/project-settings.ts';
 import { PROJECT_TEMPLATES, projectTemplate } from '../src/project-templates.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -607,4 +616,67 @@ test('flow.plateau is observe, stop or off, and absent stays absent', () => {
   assert.equal(parse(undefined), undefined);
   assert.throws(() => parse('sometimes'), /flow\.plateau/);
   assert.throws(() => parse(true), /flow\.plateau/);
+});
+
+const groupA = 'a'.repeat(64);
+const groupB = 'b'.repeat(64);
+
+test('sharing is parsed: group ids once each, a printable key that keeps its case, a remote name', () => {
+  const parsed = parseProjectSettings({ ...valid(), sharing: { groups: [groupA, groupA, groupB], shareKey: 'git.acme.dev/Acme/API#web', remote: 'upstream' } });
+  assert.deepEqual(parsed.sharing, { groups: [groupA, groupB], shareKey: 'git.acme.dev/Acme/API#web', remote: 'upstream' });
+  assert.deepEqual(parseSharing({ groups: [], shareKey: 'local/0123' }), { groups: [], shareKey: 'local/0123' });
+  assert.throws(() => parseSharing({ groups: ['not-a-group'], shareKey: 'abc' }), /sharing\.groups/);
+  assert.throws(() => parseSharing({ groups: 'all', shareKey: 'abc' }), /sharing\.groups/);
+  assert.throws(() => parseSharing({ groups: [], shareKey: 'ab' }), /sharing\.shareKey/);
+  assert.throws(() => parseSharing({ groups: [], shareKey: ' github.com/a/b' }), /sharing\.shareKey/);
+  assert.throws(() => parseSharing({ groups: [], shareKey: 'github.com/a/b\n' }), /sharing\.shareKey/);
+  assert.throws(() => parseSharing({ groups: [], shareKey: 'x'.repeat(201) }), /sharing\.shareKey/);
+  assert.throws(() => parseSharing({ groups: [], shareKey: 'abc', remote: '-x' }), /sharing\.remote/);
+  assert.equal(parseProjectSettings(valid()).sharing, undefined);
+});
+
+test('a stored sharing part that does not validate is dropped on read, and the rest of the document kept', async () => {
+  const config = tempConfig();
+  const store = new ProjectSettingsStore(config);
+  const project = { id: 'p1', name: 'Shop', path: dir() };
+  await store.create(project, { template: 'software', modules: null }, [project]);
+  const file = join(config.dataDir, 'project-settings', 'p1.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8')) as { settings: Record<string, unknown> };
+  writeFileSync(file, JSON.stringify({ ...doc, settings: { ...doc.settings, sharing: { groups: [42], shareKey: 'github.com/a/b' } } }));
+  const read = await store.read(project, [project]);
+  assert.equal(read.sharing, undefined);
+  assert.equal(read.keyPrefix, doc.settings.keyPrefix);
+});
+
+test('a share key another project holds is refused with the holder named, and a key kept is not checked again', async () => {
+  const config = tempConfig();
+  const store = new ProjectSettingsStore(config);
+  const one = { id: 'p1', name: 'Shop', path: dir() };
+  const two = { id: 'p2', name: 'Shop clone', path: dir() };
+  const active = [one, two];
+  for (const p of active) await store.create(p, { template: 'software', modules: null }, active);
+  const key = 'github.com/acme/shop';
+  await store.update(one, (s) => ({ ...s, sharing: { groups: [groupA], shareKey: key } }), active);
+
+  const refused = await store.update(two, (s) => ({ ...s, sharing: { groups: [groupA], shareKey: key } }), active).then(
+    () => null,
+    (err: unknown) => err,
+  );
+  assert.ok(refused instanceof ShareKeyInUse);
+  assert.deepEqual(refused.body(), { error: refused.message, code: 'share-key-in-use', projectId: 'p1', projectName: 'Shop' });
+  assert.equal((await store.read(two, active)).sharing, undefined, 'nothing was written');
+  await assert.rejects(() => store.write(two, { ...valid({ keyPrefix: 'SC' }), sharing: { groups: [], shareKey: key } }, active), ShareKeyInUse);
+  assert.equal(store.shareKeyHolder('p2', key, active)?.id, 'p1');
+  assert.equal(store.shareKeyHolder('p1', key, active), null, 'a project does not clash with itself');
+
+  // A suffix makes it another key
+  await store.update(two, (s) => ({ ...s, sharing: { groups: [groupA], shareKey: `${key}#clone-2` } }), active);
+  // A project no longer imported holds nothing
+  assert.equal(store.shareKeyHolder('p2', key, [two]), null);
+  await store.update(two, (s) => ({ ...s, sharing: { groups: [], shareKey: key } }), [two]);
+
+  // Both now hold the key (one was not imported when the other took it): changing the groups only is not refused
+  const after = await store.update(one, (s) => ({ ...s, sharing: { groups: [groupA, groupB], shareKey: key } }), active);
+  assert.deepEqual(after.after.sharing?.groups, [groupA, groupB]);
+  assert.ok(settingsChanges(after.before, after.after).includes('settings'));
 });

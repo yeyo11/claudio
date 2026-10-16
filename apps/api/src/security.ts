@@ -474,6 +474,43 @@ const CHAT_FORBIDDEN_TERMINAL = new Set([
 ]);
 
 /**
+ * Collaborators carries teammates' work, transcripts with their tool output included: a chat's token
+ * must never pull one into its own context, nor change who this install shares with. Every route is
+ * here, reads included, and like the terminal's it is refused under `mode: none` too, where the
+ * token only labels the request.
+ */
+const CHAT_FORBIDDEN_COLLABORATORS = new Set([
+  `GET ${API_PREFIX}/collaborators`,
+  `PUT ${API_PREFIX}/collaborators`,
+  `GET ${API_PREFIX}/collaborators/groups`,
+  `POST ${API_PREFIX}/collaborators/groups`,
+  `DELETE ${API_PREFIX}/collaborators/groups/:id`,
+  `POST ${API_PREFIX}/collaborators/groups/:id/invites`,
+  `POST ${API_PREFIX}/collaborators/join`,
+  `DELETE ${API_PREFIX}/collaborators/join/:groupId`,
+  `GET ${API_PREFIX}/collaborators/groups/:id/join-requests`,
+  `POST ${API_PREFIX}/collaborators/groups/:id/join-requests/:from/accept`,
+  `POST ${API_PREFIX}/collaborators/groups/:id/join-requests/:from/deny`,
+  `DELETE ${API_PREFIX}/collaborators/groups/:id/members/:endpointId`,
+  `PUT ${API_PREFIX}/collaborators/groups/:id/owner`,
+  `GET ${API_PREFIX}/projects/:id/sharing`,
+  `PUT ${API_PREFIX}/projects/:id/sharing`,
+  `GET ${API_PREFIX}/collaborators/shared`,
+  `PUT ${API_PREFIX}/collaborators/shared/:owner/:shareId/link`,
+  `DELETE ${API_PREFIX}/collaborators/shared/:owner/:shareId/link`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/memory`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/journal`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/documents`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/work-items`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/artifacts`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/transcript`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/blobs/:sha256`,
+]);
+
+const CHAT_COLLABORATORS_REFUSAL = "a chat's token cannot read or change Collaborators: what teammates share is the person's alone";
+
+/**
  * The browser's `WebSocket` cannot send `Authorization`, so the terminal's socket carries its own
  * proof: a one-time ticket that the bearer-authenticated `POST /terminals/:id/ticket` handed out.
  * The route checks it, after the host allowlist, read-only and the gate, and a wrong one counts in
@@ -779,6 +816,11 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
 
     if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
       void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
+      return reply;
+    }
+
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_COLLABORATORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+      void reply.status(403).send({ error: CHAT_COLLABORATORS_REFUSAL, code: 'collaborators.chat-token' });
       return reply;
     }
 

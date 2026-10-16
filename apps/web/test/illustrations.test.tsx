@@ -13,7 +13,7 @@ const rootTag = (html: string) => html.match(/^<svg[^>]*>/)?.[0] ?? '';
 const rootClasses = (html: string) => (rootTag(html).match(/class="([^"]*)"/)?.[1] ?? '').split(' ');
 
 test('every illustration renders its drawing', () => {
-  assert.equal(ILLUSTRATION_NAMES.length, 16);
+  assert.equal(ILLUSTRATION_NAMES.length, 17);
   for (const name of ILLUSTRATION_NAMES) {
     const html = renderToStaticMarkup(<Illustration name={name} />);
     assert.match(rootTag(html), /viewBox="0 0 240 160"/, name);
