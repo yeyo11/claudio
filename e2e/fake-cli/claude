@@ -415,12 +415,12 @@ function startTurn(message, uuid = null) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|read|edit|write|skill|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|type|read|edit|write|skill|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
   // A turn that writes its own prose needs none of the fake's around it
-  const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'json' || s.kind === 'stream');
+  const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'type' || s.kind === 'json' || s.kind === 'stream');
   turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '', structured: undefined, launches: [] };
   log('turn', { text, commands });
   // A line `FAKE-LIMIT` is the account's usage limit, as the CLI's stream-json reports it: a rejected
@@ -478,7 +478,7 @@ function nextStep() {
   // A background agent's sidechain follows the step after its launch, so a page sees it running meanwhile
   const launches = own.launches.splice(0);
   if (launches.length) setTimeout(() => launches.forEach((go) => go()), SETTLE_MS);
-  // What a `stream:` held back goes out before anything but the `hold:` that holds it
+  // What a `stream:` or `type:` held back goes out before anything but the `hold:` that holds it
   if (own.streamRest !== undefined && step?.kind !== 'hold') finishStream(own);
   if (step === undefined) {
     if (!own.scripted) assistant([{ type: 'text', text: 'All done.' }]);
@@ -504,6 +504,19 @@ function nextStep() {
     streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_fake_structured', name: 'StructuredOutput', input: {} } });
     streamDeltas(step.text.slice(0, half));
     own.streamRest = step.text.slice(half);
+    setTimeout(() => turn === own && nextStep(), SETTLE_MS);
+    return;
+  }
+  if (step.kind === 'type') {
+    // An answer as the CLI writes it with --include-partial-messages: a text block whose words
+    // arrive as text_delta events. `\n` is a line break, so one line can hold a code block. The
+    // first half goes out now, the rest before the next step, or once a `hold:` lets it
+    const text = step.text.replace(/\\n/g, '\n');
+    const half = Math.floor(text.length / 2);
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+    streamDeltas(text.slice(0, half), 'text');
+    own.streamRest = text.slice(half);
+    own.streamText = text;
     setTimeout(() => turn === own && nextStep(), SETTLE_MS);
     return;
   }
@@ -834,14 +847,24 @@ function streamEvent(event) {
   emit({ type: 'stream_event', parent_tool_use_id: null, event });
 }
 
-function streamDeltas(text) {
-  for (let i = 0; i < text.length; i += 24) streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: text.slice(i, i + 24) } });
+function streamDeltas(text, kind = 'json') {
+  for (let i = 0; i < text.length; i += 24) {
+    const chunk = text.slice(i, i + 24);
+    streamEvent({ type: 'content_block_delta', index: 0, delta: kind === 'text' ? { type: 'text_delta', text: chunk } : { type: 'input_json_delta', partial_json: chunk } });
+  }
 }
 
 function finishStream(own) {
-  streamDeltas(own.streamRest);
+  const typed = own.streamText;
+  streamDeltas(own.streamRest, typed === undefined ? 'json' : 'text');
   streamEvent({ type: 'content_block_stop', index: 0 });
   own.streamRest = undefined;
+  own.streamText = undefined;
+  // A streamed text block is then handed over whole, as the CLI's assistant event for it
+  if (typed !== undefined) {
+    own.lastSaid = typed;
+    assistant([{ type: 'text', text: typed }]);
+  }
 }
 
 function endTurn({ result = '', error = false, structured = undefined }) {
