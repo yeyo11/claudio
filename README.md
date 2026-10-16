@@ -160,6 +160,11 @@ says how, and Settings → Account warns when a container was started that way.
   a stable HTTPS address with a QR code for the phone: no domain, no proxy, nothing on the public
   internet. It only opens while authentication is on, only the node's exact name is let in, and only
   the one Serve rule Claudio added is ever removed. See [docs/tunnel.md](docs/tunnel.md).
+- **Share a project with your team, read only** — the Collaborators page connects your Claudio to your
+  teammates' directly, peer to peer over [iroh](https://iroh.computer), with no server of ours. A
+  project shared with a group shows up in each member's Claudio as a live, read-only copy of its
+  chats, memory, documents and board, and nobody's quota is spent. Off until you turn it on. See
+  [docs/collaborators.md](docs/collaborators.md).
 - **One container, one volume** — non-root, the CLI baked in and pinned with an update check,
   everything else on a data volume. Compose profiles, a TLS proxy and a Helm chart are in
   [docs/deploy.md](docs/deploy.md).
