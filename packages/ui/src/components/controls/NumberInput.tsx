@@ -28,7 +28,7 @@ export function NumberInput({
   disabled?: boolean;
   /** Smaller variant for dense rows */
   compact?: boolean;
-  /** Takes fractions (an amount): a phone offers the keypad with a decimal point */
+  /** Takes fractions (an amount): a phone offers the keypad with a decimal point, and any amount is valid */
   decimal?: boolean;
   'aria-label'?: string;
 }) {
@@ -51,7 +51,9 @@ export function NumberInput({
         inputMode={decimal ? 'decimal' : 'numeric'}
         min={min}
         max={max}
-        step={step}
+        // A fraction never lines up with `min + n × step`, and the browser would refuse the form for it:
+        // `step` stays what the buttons nudge by
+        step={decimal ? 'any' : step}
         placeholder={placeholder}
         disabled={disabled}
         aria-label={ariaLabel}

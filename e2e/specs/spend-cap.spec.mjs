@@ -19,8 +19,9 @@ export default async ({ page, api, check }) => {
     check(off.includes('Limit daily spend'), 'the card offers the switch');
     check(off.includes('On subscription accounts it is what it would cost on the API, not what you pay.'), 'the card says what the figure is on a subscription');
 
-    // Turn it on, give it an amount, save
-    await page.click('[role=tabpanel] [role=switch]');
+    // Turn it on, give it an amount, save. By its words: the tab's first switch is Read-only mode's,
+    // and flipping that one would refuse every write after this spec
+    check(await page.eval(`const l=[...document.querySelectorAll('[role=tabpanel] label')].find(l=>l.textContent.includes('Limit daily spend'));const s=l?.querySelector('[role=switch]');if(!s)return false;s.click();return true`), 'the cap switch is found by its words');
     await page.waitFor(`return !!document.querySelector('[role=tabpanel] input[type=number][aria-label="Cap per day, in USD"]')`, { label: 'the amount field' });
     await page.eval(`
       const input = document.querySelector('[role=tabpanel] input[type=number][aria-label="Cap per day, in USD"]');
@@ -29,7 +30,8 @@ export default async ({ page, api, check }) => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
       return true;
     `);
-    await page.click('[role=tabpanel] button[type=submit]', 'Save', 800);
+    // The cap's own Save: every settings card on the tab has one
+    await page.click('[role=tabpanel] form:has(input[aria-label="Cap per day, in USD"]) button[type=submit]', 'Save', 800);
     await page.waitFor(`return !!document.querySelector('.statusbar .spend')`, { label: 'the cap in the status bar', timeout: 30_000 });
     check((await api.get('/settings/app')).body.dailySpendCapUsd === 20, 'the cap was saved');
     const bar = await statusBar();
