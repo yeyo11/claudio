@@ -1,7 +1,8 @@
 // The message box: an editor that sends plain text (Shift+Enter breaks the line, Enter sends), keeps
 // a draft across a reload, brings back what was sent with the arrow keys, and has a "+" menu whose
 // switches turn the live chat's MCP servers on and off (the fake CLI's `mcp_status`/`mcp_toggle`).
-// An answer being written above it reads at 4.5:1 in both themes, as it does once stored (R16).
+// An answer being written above it reads at 4.5:1 in both themes, as it does once stored (R16), and
+// the box sits right under the last message, with no blank room held between them (R16 b).
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -41,6 +42,20 @@ const legibility = (selector) => `
     if (got < 4.5) low.push({ text: el.textContent.trim().slice(0, 40), ratio: Math.round(got * 100) / 100 });
   }
   return { checked, low };`;
+
+/**
+ * How the end of the conversation meets the box, measured at the scroller's end: the blank room
+ * between the bottom of the last thing written (any child of the scroller with text or media; an
+ * empty block reserving room is the defect, so it does not count) and the top of the box.
+ */
+const composerGap = `
+  const scroller = document.querySelector('.run-scroll');
+  const box = document.querySelector('main .composer');
+  if (!scroller || !box) return null;
+  scroller.scrollTop = scroller.scrollHeight;
+  const written = [...scroller.children].filter((e) => e.getClientRects().length && getComputedStyle(e).position !== 'absolute' && (e.textContent.trim() || e.querySelector('img, svg')));
+  const last = Math.max(...written.map((e) => e.getBoundingClientRect().bottom));
+  return { gap: Math.round(box.getBoundingClientRect().top - last), scrolled: scroller.scrollTop };`;
 
 export default async ({ page, api, dirs, check }) => {
   const created = await api.post('/chats', { prompt: 'hello', cwd: dirs.workspaceDir });
@@ -117,14 +132,27 @@ export default async ({ page, api, dirs, check }) => {
     check(await page.eval(`return document.querySelectorAll('.msg-streaming .streaming-text').length === 1`), 'the live caret still marks the answer as it is written');
     await page.shot('composer-streaming-legible');
 
+    // R16 (b): in a conversation taller than the view, the box sits right under the answer being
+    // written: nothing keeps the question at the top by filling the view below a short answer
+    const GAP_MAX = 48;
+    await page.viewport(1440, 560);
+    const streamingGap = await page.eval(composerGap);
+    check(streamingGap && streamingGap.scrolled > 0, `the conversation is taller than the view (${JSON.stringify(streamingGap)})`);
+    check(streamingGap && streamingGap.gap <= GAP_MAX, `while it streams, the box sits right under the last message (${JSON.stringify(streamingGap)})`);
+    await page.shot('composer-no-gap-streaming');
+
     // Released, the same answer is stored and reads the same
     writeFileSync(released, '');
     await waitForReply('enough words after it');
     await page.waitFor(`return !document.querySelector('.msg-streaming')`, { label: 'the streaming answer stored' });
     const stored = await page.eval(legibility('.msg-assistant:has(.code-block)'));
     check(stored.checked > 0 && stored.low.length === 0, `after the turn the answer keeps 4.5:1 (${JSON.stringify(stored.low)})`);
+    const storedGap = await page.eval(composerGap);
+    check(storedGap && storedGap.gap <= GAP_MAX, `after the turn, the box sits right under the last message (${JSON.stringify(storedGap)})`);
+    await page.viewport(1440, 900);
     rmSync(released, { force: true });
   } finally {
+    await page.viewport(1440, 900);
     await api.post(`/chats/${id}/stop`);
     for (let i = 0; i < 40; i++) {
       if ((await api.del(`/chats/${id}`)).status === 200) break;
