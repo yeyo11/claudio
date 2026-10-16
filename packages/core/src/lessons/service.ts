@@ -1,6 +1,7 @@
 import {
   type ApproveMemoryProposalRequest,
   type Lesson,
+  type LessonSettings,
   type LessonChangeAction,
   type LessonStatus,
   type UpdateLessonRequest,
@@ -11,6 +12,8 @@ import type { ClaudioEventInput } from '../events.ts';
 import { lessonLine, type LessonApprovals, type MemoryProposalService } from '../memory-proposals.ts';
 import { PERSON, WorkItemError } from '../work-item-validation.ts';
 import { alsoInProjects, matchCandidate } from './match.ts';
+import { renderSection, type LessonSection } from './render.ts';
+import { DEFAULT_LESSON_SETTINGS } from './settings.ts';
 import type { EvidenceInput, LessonStore } from './store.ts';
 import { checkLessonText, type Candidate } from './validate.ts';
 
@@ -22,6 +25,8 @@ import { checkLessonText, type Candidate } from './validate.ts';
  */
 
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
+/** A section is read once per spawn; a change announces itself and drops the cache, this bounds a change made elsewhere */
+const SECTION_CACHE_MS = 30_000;
 
 const TITLES: Record<LessonChangeAction, string> = {
   proposed: 'A lesson was proposed',
@@ -44,6 +49,9 @@ export interface LessonServiceDeps {
   emit?: (event: ClaudioEventInput) => void;
   /** The title of a chat, or null when it is gone; evidence says so */
   chatTitle?: (chatId: string) => string | null;
+  /** The settings now in force (`lessons.json`); the defaults when left out */
+  settings?: () => LessonSettings;
+  clock?: () => number;
 }
 
 /** What one mining run knows about the chat its candidates came from */
@@ -74,6 +82,7 @@ const ids = (value: unknown, field: string): string[] => {
 
 export class LessonService implements LessonApprovals {
   private timer: NodeJS.Timeout | null = null;
+  private readonly sections = new Map<string, { at: number; section: LessonSection }>();
 
   constructor(private readonly deps: LessonServiceDeps) {
     deps.proposals.attachLessons(this);
@@ -116,7 +125,38 @@ export class LessonService implements LessonApprovals {
     return this.list(projectId);
   }
 
+  /**
+   * What a run in the project is handed (`null`: a chat outside any project, global lessons only).
+   * Cached for 30 s per project and dropped on every change, so a spawn costs no query.
+   */
+  section(projectId: string | null, opts: { useGlobal?: boolean } = {}): LessonSection {
+    const useGlobal = opts.useGlobal !== false;
+    const key = `${projectId ?? ''}|${useGlobal ? 'g' : 'p'}`;
+    const now = this.deps.clock?.() ?? Date.now();
+    const hit = this.sections.get(key);
+    if (hit && now - hit.at < SECTION_CACHE_MS) return hit.section;
+    const { store } = this.deps;
+    const lessons = [
+      ...(projectId === null ? [] : store.list({ projectId, status: 'active' })),
+      ...(projectId === null || useGlobal ? store.list({ projectId: null, status: 'active' }) : []),
+    ];
+    const section = renderSection(lessons, (this.deps.settings?.() ?? DEFAULT_LESSON_SETTINGS).delivery.handoffBytes);
+    this.sections.set(key, { at: now, section });
+    return section;
+  }
+
+  /** Who gets lessons beyond the project's own switches: the budget and chats outside any project */
+  delivery(): LessonSettings['delivery'] {
+    return (this.deps.settings?.() ?? DEFAULT_LESSON_SETTINGS).delivery;
+  }
+
+  /** Drops the cached sections: any lesson change, or a project setting that decides what is handed */
+  invalidate(): void {
+    this.sections.clear();
+  }
+
   private emit(action: LessonChangeAction, lesson: Pick<Lesson, 'id' | 'projectId'>): void {
+    this.invalidate();
     this.deps.emit?.({ type: 'lesson.changed', title: TITLES[action], projectId: lesson.projectId, lessonId: lesson.id, action });
   }
 
@@ -342,6 +382,7 @@ export class LessonService implements LessonApprovals {
   /** An active project lesson becomes a global one; answers the global lesson */
   promote(lessonId: string, by: WorkItemActor = PERSON): Lesson {
     const { global, origin } = this.deps.store.promote(lessonId, by);
+    this.invalidate();
     this.deps.emit?.({ type: 'lesson.changed', title: TITLES.promoted, projectId: origin.projectId, lessonId: global.id, action: 'promoted' });
     return this.read(global);
   }

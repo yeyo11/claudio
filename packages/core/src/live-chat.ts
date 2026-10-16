@@ -132,6 +132,11 @@ export interface NewChat extends NewChatRequest {
    * prompt, the core sets them again at every process (`ChatManager.assistantLaunch`).
    */
   claudioAssistant?: ClaudioAssistantMarker;
+  /**
+   * Core-only, never read from a request: `handoff` says the Lessons section is already in
+   * `appendSystemPrompt` (the flow's journal handoff carries it), so `launchSpec` does not add it again.
+   */
+  lessons?: 'handoff';
 }
 
 /**
@@ -164,6 +169,8 @@ export interface ExecutionExtras {
   jsonSchema?: unknown;
   systemPromptSnapshot?: 'off' | null;
   uploads?: false | null;
+  /** See `NewChat.lessons`; `null` drops it, as a chat a person continues gets the section itself */
+  lessons?: 'handoff' | null;
   keepAlive?: boolean;
   /**
    * The chat goes back to a person: whatever a member's run set (its mode, its allow and deny lists,
