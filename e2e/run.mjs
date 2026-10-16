@@ -23,7 +23,7 @@
 // in one shard, behind one restart of its server. See e2e/shards.mjs.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { availableParallelism, tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
@@ -53,6 +53,17 @@ const specsDir = process.env.E2E_SPECS_DIR ? resolve(process.env.E2E_SPECS_DIR) 
 if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   console.error('apps/web/dist is missing: run `pnpm build` first.');
   process.exit(2);
+}
+
+// The guards refuse to run a program its group could change (guards/preflight.ts), and a checkout made
+// under umask 002 leaves the guard's entry group-writable. Then every guarded launch (flow runs,
+// orchestration tasks) fails as guard-unavailable on that machine and passes in CI, whose umask is 022.
+// Clearing the bit makes the sandbox the same as CI's whatever the umask; git does not track it, so the
+// checkout shows no change. The entry the server uses is the bundle when built, else the source's.
+for (const entry of [join(root, 'apps/api/dist/guard.mjs'), join(root, 'packages/core/src/guards/main.ts')]) {
+  if (!existsSync(entry)) continue;
+  const mode = statSync(entry).mode;
+  if ((mode & 0o022) !== 0) chmodSync(entry, mode & 0o7755);
 }
 
 const wanted = process.argv.slice(2);

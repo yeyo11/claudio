@@ -190,7 +190,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
-import { LessonMiningQueue, storeProposer } from './lessons/queue.ts';
+import { LessonMiningQueue } from './lessons/queue.ts';
 import { runMiner } from './lessons/miner.ts';
 import { DEFAULT_LESSON_SETTINGS, LessonSettingsStore } from './lessons/settings.ts';
 import { SignalRecorder } from './lessons/signals.ts';
@@ -999,7 +999,8 @@ export class Core {
       db: this.db,
       settings: currentLessonSettings,
       store: lessonStore,
-      proposer: storeProposer(lessonStore),
+      // The service is made below, and the queue proposes only once it runs a job, after start-up
+      proposer: { propose: (request) => this.lessons.proposer().propose(request) },
       decisions: this.decisions,
       chat: async (chatId) => {
         const chat = await this.chats.get(chatId);

@@ -61,8 +61,8 @@ export interface LessonChatInfo {
   handedBackAt?: string | null;
 }
 
-/** What happened to a checked candidate */
-export type ProposalResult = 'proposed' | 'merged';
+/** What happened to a checked candidate; dropped with the reason the proposer gave */
+export type ProposalResult = 'proposed' | 'merged' | { dropped: string };
 
 export interface ProposalRequest {
   projectId: string;
@@ -77,7 +77,11 @@ export interface LessonProposer {
   propose(request: ProposalRequest): ProposalResult;
 }
 
-/** Until the service exists: a candidate becomes a `proposed` row, a repeat confirms the lesson it repeats */
+/**
+ * A candidate becomes a `proposed` row with no memory proposal, a repeat confirms the lesson it
+ * repeats. Only for tests of the queue alone: the app uses `LessonService.proposer()`, without which
+ * nobody is ever asked to approve what the miner found.
+ */
 export function storeProposer(store: LessonStore): LessonProposer {
   return {
     propose: ({ projectId, candidate, match, evidence }) => {
@@ -635,7 +639,8 @@ export class LessonMiningQueue {
       });
       const result = this.deps.proposer.propose({ projectId: job.project_id, jobId: job.id, candidate, match, evidence });
       if (result === 'proposed') proposed += 1;
-      else merged += 1;
+      else if (result === 'merged') merged += 1;
+      else dropped[result.dropped] = (dropped[result.dropped] ?? 0) + 1;
     }
     const rawCount = Math.min(run.candidates.length, 5);
     // The signals this job read are its own now; the next window starts after them
