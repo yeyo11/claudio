@@ -98,5 +98,11 @@
     "managedDaemonDown": "The Tailscale service this container starts for Claudio is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder.",
     "managedLoggedOut": "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access.",
     "managedNotConnected": "This Claudio's Tailscale is not connected ({{state}}). Sign in again from Settings → Remote access."
+  },
+  "collaborators": {
+    "sync": {
+      "forbidden": "The owner no longer shares this project with this install: it stopped sharing it or removed this install from the group",
+      "failed": "The last pull failed"
+    }
   }
 }

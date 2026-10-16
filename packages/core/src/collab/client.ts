@@ -256,6 +256,8 @@ export interface SyncDeps {
   reconcileMs?: number;
   /** The first wait before an unreachable peer is tried again; it doubles up to `reconcileMs` */
   retryMs?: number;
+  /** The longest wait before a peer that refused this install is asked again; the wait doubles from `reconcileMs` */
+  refusedMaxMs?: number;
   /** How long `changed` notices are gathered before they are pulled */
   debounceMs?: number;
 }
@@ -278,6 +280,16 @@ interface PeerState {
   /** The last run reached the peer */
   online: boolean;
   failures: number;
+  /**
+   * The peer answered `forbidden`: it no longer lists this install (the share was revoked or this
+   * install was removed). Its copies say so, and it is asked again ever more rarely until a hello
+   * from it or a roster change says it may list this install again.
+   */
+  refused: boolean;
+  /** How many runs in a row it refused; the wait before the next one doubles with it */
+  refusals: number;
+  /** The failure last logged for this peer: the same one again is not logged, a change is */
+  lastFailure: string | null;
   /** Network work on this peer, one at a time: a run and the pulls `changed` notices ask for */
   lock: Promise<unknown>;
   notices: Set<string>;
@@ -286,6 +298,7 @@ interface PeerState {
 
 const RECONCILE_MS = 10 * 60 * 1000;
 const RETRY_MS = 30 * 1000;
+const REFUSED_MAX_MS = 24 * 60 * 60 * 1000;
 const DEBOUNCE_MS = 150;
 /** A transcript is read in pieces of at most 4 MiB (`MAX_TRANSCRIPT_BYTES`); this caps one catch-up */
 const TRANSCRIPT_ROUNDS = 256;
@@ -299,7 +312,7 @@ const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes)
 const seqKey = (session: string): string => `${session}#seq`;
 
 const ERRORS: Record<string, Localized> = {
-  forbidden: { code: 'collaborators.sync.forbidden', text: 'The owner does not list this install in the group' },
+  forbidden: { code: 'collaborators.sync.forbidden', text: 'The owner no longer shares this project with this install: it stopped sharing it or removed this install from the group' },
   failed: { code: 'collaborators.sync.failed', text: 'The last pull failed' },
 };
 
@@ -350,7 +363,7 @@ export class SyncClient {
     }
     for (const id of wanted) {
       if (this.peers.has(id)) continue;
-      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, lock: Promise.resolve(), notices: new Set(), noticeTimer: null };
+      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, refused: false, refusals: 0, lastFailure: null, lock: Promise.resolve(), notices: new Set(), noticeTimer: null };
       this.peers.set(id, peer);
       this.start(peer);
     }
@@ -369,6 +382,11 @@ export class SyncClient {
 
   isOnline(id: string): boolean {
     return this.peers.get(id)?.online ?? false;
+  }
+
+  /** The peer's last answer was `forbidden`: it does not list this install */
+  isRefused(id: string): boolean {
+    return this.peers.get(id)?.refused ?? false;
   }
 
   /** Lets every peer go: Collaborators was turned off */
@@ -411,7 +429,7 @@ export class SyncClient {
         try {
           await this.exclusive(peer, () => this.runOnce(peer));
           ok = true;
-          peer.failures = 0;
+          this.recovered(peer);
         } catch (error) {
           ok = false;
           this.failed(peer, error);
@@ -426,7 +444,11 @@ export class SyncClient {
   private schedule(peer: PeerState, ok: boolean): void {
     if (this.stopped || this.peers.get(peer.id) !== peer) return;
     const reconcile = this.deps.reconcileMs ?? RECONCILE_MS;
-    const delay = ok ? reconcile : Math.min(reconcile, (this.deps.retryMs ?? RETRY_MS) * 2 ** Math.min(peer.failures - 1, 10));
+    const delay = ok
+      ? reconcile
+      : peer.refused
+        ? Math.max(reconcile, Math.min(this.deps.refusedMaxMs ?? REFUSED_MAX_MS, reconcile * 2 ** Math.min(peer.refusals - 1, 20)))
+        : Math.min(reconcile, (this.deps.retryMs ?? RETRY_MS) * 2 ** Math.min(peer.failures - 1, 10));
     if (peer.timer) clearTimeout(peer.timer);
     peer.timer = setTimeout(() => {
       peer.timer = null;
@@ -446,13 +468,43 @@ export class SyncClient {
       peer.watchKeys = '';
       if (was) for (const share of this.sharesOf(peer.id)) this.deps.synced(peer.id, share.share.shareKey, share.share.kinds[0] ?? 'chats');
     } else {
-      // Reached, and refused or misunderstood: shown on its copies, and tried again at the reconcile's pace
+      // Reached, and refused or misunderstood: shown on its copies, and tried again at the reconcile's pace or slower
       peer.online = true;
-      const why = error.code === 'forbidden' ? ERRORS.forbidden : ERRORS.failed;
-      for (const share of this.sharesOf(peer.id)) share.error = why ?? null;
       peer.failures = 64;
+      if (error.code === 'forbidden') {
+        this.refuse(peer);
+        return;
+      }
+      for (const share of this.sharesOf(peer.id)) share.error = ERRORS.failed ?? null;
     }
-    this.deps.log(`collab: sync with ${this.who(peer.id)} failed: ${describe(error)}`);
+    this.note(peer, error, `collab: sync with ${this.who(peer.id)} failed: ${describe(error)}`);
+  }
+
+  /** The peer does not list this install: said once on its copies and in the log, not on every retry */
+  private refuse(peer: PeerState): void {
+    peer.refusals += 1;
+    for (const share of this.sharesOf(peer.id)) share.error = ERRORS.forbidden ?? null;
+    if (peer.refused) return;
+    peer.refused = true;
+    peer.lastFailure = 'forbidden';
+    this.deps.log(`collab: ${this.who(peer.id)} no longer lists this install; its copies stop syncing until it does`);
+  }
+
+  /** A failure is logged when its reason differs from the last one logged for the peer */
+  private note(peer: PeerState, error: unknown, message: string): void {
+    const reason = describe(error);
+    if (peer.lastFailure === reason) return;
+    peer.lastFailure = reason;
+    this.deps.log(message);
+  }
+
+  /** A run went through: what failed before is said to be over, once */
+  private recovered(peer: PeerState): void {
+    if (peer.lastFailure !== null) this.deps.log(`collab: sync with ${this.who(peer.id)} works again`);
+    peer.failures = 0;
+    peer.refused = false;
+    peer.refusals = 0;
+    peer.lastFailure = null;
   }
 
   // ---------- One run ----------
@@ -508,7 +560,9 @@ export class SyncClient {
         throw error;
       });
     } catch (error) {
-      this.deps.log(`collab: telling ${this.who(id)} failed: ${describe(error)}`);
+      if (!peer) this.deps.log(`collab: telling ${this.who(id)} failed: ${describe(error)}`);
+      else if (error instanceof PeerError && error.code === 'forbidden') this.refuse(peer);
+      else this.note(peer, error, `collab: telling ${this.who(id)} failed: ${describe(error)}`);
       if (peer && error instanceof PeerError && error.code === 'unreachable') this.start(peer);
     }
   }
@@ -812,7 +866,10 @@ export class SyncClient {
           if (!state || !state.share.kinds.includes(k)) continue;
           await this.pullKind(peer.id, state, k);
         }
-      }).catch((error: unknown) => this.deps.log(`collab: pulling from ${this.who(peer.id)} failed: ${describe(error)}`));
+      }).catch((error: unknown) => {
+        if (error instanceof PeerError && error.code === 'forbidden') this.refuse(peer);
+        else this.note(peer, error, `collab: pulling from ${this.who(peer.id)} failed: ${describe(error)}`);
+      });
     }, this.deps.debounceMs ?? DEBOUNCE_MS);
   }
 

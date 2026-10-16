@@ -450,7 +450,8 @@ export class CollaboratorsService {
   private heard(from: string, hello: Extract<WireRequest, { type: 'hello' }>): void {
     if (!this.peerIds().has(from)) return;
     if (hello.ticket) this.tickets.set(from, hello.ticket);
-    let pull = !!hello.changed || !this.client.isOnline(from);
+    // A peer that refused this install says hello only once it lists it again
+    let pull = !!hello.changed || !this.client.isOnline(from) || this.client.isRefused(from);
     for (const [groupId, theirs] of Object.entries(hello.heads)) {
       const chain = this.chains.get(groupId);
       const head = chain?.at(-1);
