@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, symlinkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -114,5 +114,22 @@ describe('eval lanes', () => {
     const est = estimateDisk(repo, pin);
     assert.equal(est.files, 1);
     assert.equal(est.warning, false);
+  });
+
+  it('never writes an overlay through a link the pinned tree committed', async () => {
+    const outside = join(tmp, 'outside');
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'agent.md'), 'mine\n');
+    symlinkSync(outside, join(repo, 'linked-dir'));
+    symlinkSync(join(outside, 'agent.md'), join(repo, 'linked-file.md'));
+    sh(repo, 'add', '.');
+    sh(repo, 'commit', '-q', '-m', 'links');
+    const linked = sh(repo, 'rev-parse', 'HEAD');
+    const lane = await createLane(repo, root, runId, 1, linked);
+    await assert.rejects(resetLane(lane, linked, { 'linked-dir/agent.md': 'proposal\n' }), /leaves the lane/);
+    assert.equal(readFileSync(join(outside, 'agent.md'), 'utf8'), 'mine\n');
+    await resetLane(lane, linked, { 'linked-file.md': 'proposal\n' });
+    assert.equal(readFileSync(join(outside, 'agent.md'), 'utf8'), 'mine\n');
+    assert.equal(readFileSync(join(lane.path, 'linked-file.md'), 'utf8'), 'proposal\n');
   });
 });

@@ -79,12 +79,27 @@ export interface Lane {
 /** Files written over the checkout after a reset: relative path → content. */
 export type Overlay = Record<string, string>;
 
+/**
+ * Throws unless `target` resolves inside `lane`. The pinned tree is repository content, so a
+ * directory or file on the way may be a committed symlink that leads out of the lane.
+ */
+export function assertInsideLane(lane: string, target: string): void {
+  const root = realpathSync(lane);
+  let dir = dirname(target);
+  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  const real = realpathSync(dir);
+  if (real !== root && !real.startsWith(root + sep)) throw new LanesError('lane-failed', `path leaves the lane through a link: ${target}`, lane);
+}
+
 export function writeOverlay(lane: string, overlay: Overlay): void {
   for (const [rel, content] of Object.entries(overlay)) {
     const target = resolve(lane, rel);
     if (isAbsolute(rel) || !target.startsWith(lane + sep)) {
       throw new LanesError('lane-failed', `overlay path outside the lane: ${rel}`, lane);
     }
+    assertInsideLane(lane, target);
+    // A link at the target itself is replaced, never written through
+    if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) rmSync(target, { force: true });
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
   }

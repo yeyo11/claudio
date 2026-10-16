@@ -154,7 +154,7 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return evals.consent(params.id, params.name, body.sha);
   }));
 
-  app.post<{ Params: { id: string; name: string }; Body: unknown }>('/projects/:id/evals/:name/runs', answering(async (req, reply) => {
+  app.post<{ Params: { id: string; name: string }; Body: unknown }>('/projects/:id/evals/:name/runs', { preHandler: spendGate(core) }, answering(async (req, reply) => {
     const { params, body } = req as { params: { id: string; name: string }; body: unknown };
     return reply.status(201).send(await evals.start(params.id, params.name, checkPressures(runRequest(body))));
   }));
@@ -199,7 +199,7 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return summary;
   }));
 
-  app.post<{ Params: { runId: string }; Body: { confirmMaxCostUsd?: unknown } }>('/eval-runs/:runId/resume', answering((req) => {
+  app.post<{ Params: { runId: string }; Body: { confirmMaxCostUsd?: unknown } }>('/eval-runs/:runId/resume', { preHandler: spendGate(core) }, answering((req) => {
     const { params, body } = req as { params: { runId: string }; body: { confirmMaxCostUsd?: unknown } | undefined };
     if (typeof body?.confirmMaxCostUsd !== 'number' || !Number.isFinite(body.confirmMaxCostUsd)) throw new BadRequest('confirmMaxCostUsd must be the ceiling that was shown');
     if (!evals.summary(params.runId)) throw new EvalFileError('not-found', 'eval run not found');
@@ -215,7 +215,7 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return gate;
   }));
 
-  app.post<{ Params: { runId: string } }>('/eval-runs/:runId/rejudge', answering(async (req) => {
+  app.post<{ Params: { runId: string } }>('/eval-runs/:runId/rejudge', { preHandler: spendGate(core) }, answering(async (req) => {
     phase2();
     const { runId } = (req as { params: { runId: string } }).params;
     if (!evals.summary(runId)) throw new EvalFileError('not-found', 'eval run not found');
