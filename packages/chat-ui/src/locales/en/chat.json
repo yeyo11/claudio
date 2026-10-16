@@ -96,7 +96,20 @@
     "authorise": "How to authorise",
     "turnOn": "Turn {{name}} on",
     "turnOff": "Turn {{name}} off",
-    "serversPersist": "A switch applies at once, and the CLI keeps it for this folder: new chats here start with it too."
+    "serversPersist": "A switch applies at once, and the CLI keeps it for this folder: new chats here start with it too.",
+    "account": {
+      "title": "Account",
+      "inUse": "In use",
+      "disabled": "Disabled",
+      "signedOut": "Sign-in expired",
+      "exhausted": "Exhausted",
+      "exhaustedUntil": "Exhausted until {{time}}",
+      "noModel": "Doesn’t offer {{model}}",
+      "whenTurnEnds": "When this turn ends",
+      "pending": "The chat moves to this account when the current turn ends.",
+      "undo": "Undo",
+      "used": "{{percent}} % of the window used"
+    }
   },
   "controls": {
     "permissionModeNew": "Permission mode for the new execution",
@@ -412,7 +425,8 @@
       "command": "Command",
       "output": "Command output",
       "interrupt": "Interrupted",
-      "compaction-failed": "Compaction failed"
+      "compaction-failed": "Compaction failed",
+      "account": "Switched to"
     }
   },
   "agent": {
