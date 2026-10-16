@@ -1174,5 +1174,71 @@
     "title": "Móvil · Terminal",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DesktopOrquestacionRevision.html",
+    "title": "Desktop · Orquestación, la revisión en marcha",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionRevisionBloqueada.html",
+    "title": "Desktop · Orquestación, la revisión bloqueada",
+    "w": 1440,
+    "h": 2300
+  },
+  {
+    "file": "DesktopOrquestacionRevisionAceptar.html",
+    "title": "Desktop · Orquestación, aceptar la revisión incompleta",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionRevisionEstados.html",
+    "title": "Desktop · Orquestación, estados de la revisión",
+    "w": 1440,
+    "h": 6000
+  },
+  {
+    "file": "DesktopRevisionHallazgos.html",
+    "title": "Desktop · Revisión, hallazgos en el diff",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionRevision.html",
+    "title": "Móvil · Orquestación, la revisión en marcha",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionRevisionBloqueada.html",
+    "title": "Móvil · Orquestación, la revisión bloqueada",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionRevisionAceptar.html",
+    "title": "Móvil · Orquestación, aceptar la revisión incompleta",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionRevisionEstados.html",
+    "title": "Móvil · Orquestación, estados de la revisión",
+    "w": 390,
+    "h": 7000
+  },
+  {
+    "file": "MobileOrquestacionRevisionEstados2.html",
+    "title": "Móvil · Orquestación, estados de la revisión (2)",
+    "w": 390,
+    "h": 7000
+  },
+  {
+    "file": "MobileRevisionHallazgos.html",
+    "title": "Móvil · Revisión, hallazgos en el diff",
+    "w": 390,
+    "h": 844
   }
 ]
