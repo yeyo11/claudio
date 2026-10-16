@@ -2588,3 +2588,49 @@ a.cont-from:hover { color: var(--fg); }
   .lesson-edit input, .lesson-edit textarea, .instr-diff-section input { font-size: 16px; }
 }
 /* ---------- end of Lessons ---------- */
+
+/* ---------- Collaborators (plans/collaborators.md §5.1): the You card, the groups with their members and join requests, what is shared with this install, and the invite with its QR code. Nothing here is live: a peer online or a copy syncing is not an agent working, so no --live, no loop and no energy border. A status colour always sits beside its word and an icon; a relayed path is neutral ("Conectado por relay"), never warn. The page's one gradient is its primary action: "Activar" while off, "Invitar" while on. The empty state is `Empty` with the `collaborators` illustration (§14). ---------- */
+.collab-tone { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--fg-2); }
+.collab-tone.tone-ok { color: var(--ok); }
+.collab-tone.tone-warn { color: var(--warn); }
+.collab-tone.tone-bad { color: var(--bad); }
+.collab-tone.tone-idle { color: var(--idle); }
+.collab-avatar { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--r-full); background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line-2); color: var(--fg-2); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.collab-you-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; gap: 16px 22px; }
+.collab-you-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.collab-you-who .collab-avatar { width: 40px; height: 40px; font-size: 15px; }
+.collab-endpoint-id { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.collab-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.collab-group-title { display: inline-flex; align-items: baseline; gap: 10px; min-width: 0; }
+.collab-count { flex: none; color: var(--fg-3); font-family: var(--mono); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.collab-member { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 0; border-top: 1px solid var(--line); }
+.collab-member:first-child { border-top: 0; }
+.collab-member-names { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
+.collab-member-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.collab-presence { display: inline-flex; flex: none; align-items: center; gap: 6px; color: var(--fg-2); }
+.collab-requests { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.collab-request-actions { display: flex; gap: 8px; }
+.collab-pending { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 0; }
+.collab-person-name { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; font-weight: 600; }
+.collab-install { display: flex; flex-direction: column; gap: 4px; padding-left: 42px; }
+.collab-share { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.collab-share:first-child { border-top: 0; }
+.collab-share-main { display: flex; flex: 1 1 320px; flex-direction: column; gap: 3px; min-width: 0; }
+.collab-share-key { overflow-wrap: anywhere; }
+.collab-sync { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.collab-share-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
+/* The invite: the QR code (dark on light in both themes, .qr) beside its text, the standing warning under both */
+.collab-invite { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 16px 22px; }
+.collab-invite-code .qr { width: 248px; height: 248px; }
+.collab-invite-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.collab-invite-area { width: 100%; font-family: var(--mono); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; resize: vertical; }
+.collab-invite-warn { grid-column: 1 / -1; }
+@media (max-width: 900px) {
+  .collab-you-body, .collab-invite { grid-template-columns: minmax(0, 1fr); }
+  .collab-install { padding-left: 0; }
+  .collab-invite-code { justify-self: center; }
+  .collab-invite-code .qr { width: min(280px, 100%); height: auto; aspect-ratio: 1; }
+  .collab-invite-area { font-size: 16px; }
+  .collab-share-actions { justify-content: flex-start; }
+}
+/* ---------- end of Collaborators ---------- */

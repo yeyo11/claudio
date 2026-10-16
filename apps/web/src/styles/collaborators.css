@@ -1,0 +1,417 @@
+/* ==========================================================================
+   Collaborators (docs/plans/collaborators.md §5.1): the You card, the groups with their members
+   and join requests, what is shared with this install, and the invite. Nothing here is live: a
+   peer online or a copy syncing is not an agent working, so no --live, no loop and no energy
+   border. Status colours always sit beside their word and an icon. The one gradient is the page's
+   primary action (Turn on while off, Invite while on), drawn by .btn-primary.
+   ========================================================================== */
+
+.collab-page {
+  min-width: 0;
+}
+
+.collab-empty-text {
+  display: block;
+  max-width: 520px;
+}
+
+/* A status word in its colour; muted is the neutral one (a relayed path, a copy between pulls) */
+.collab-tone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--fg-2);
+}
+
+.collab-tone > svg {
+  flex: none;
+}
+
+.collab-tone.tone-ok {
+  color: var(--ok);
+}
+
+.collab-tone.tone-warn {
+  color: var(--warn);
+}
+
+.collab-tone.tone-bad {
+  color: var(--bad);
+}
+
+.collab-tone.tone-idle {
+  color: var(--idle);
+}
+
+.collab-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.collab-card-actions,
+.collab-section-actions,
+.collab-request-actions,
+.collab-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.collab-form-actions {
+  justify-content: flex-end;
+}
+
+/* ---------- You ---------- */
+.collab-you-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: 16px 22px;
+}
+
+.collab-you-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.collab-you-who .collab-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+}
+
+.collab-you-names,
+.collab-endpoint,
+.collab-connection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.collab-endpoint-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.collab-connection {
+  font-size: 13px;
+}
+
+.collab-you-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+
+/* ---------- Groups ---------- */
+.collab-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.collab-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.collab-section-head > h2 {
+  margin: 0;
+}
+
+.collab-group-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.collab-count {
+  flex: none;
+  color: var(--fg-3);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.collab-line {
+  margin-bottom: 12px;
+}
+
+.collab-line-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.collab-members,
+.collab-shares,
+.collab-pendings {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collab-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.collab-member:first-child {
+  border-top: 0;
+}
+
+.collab-member-names {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.collab-member-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.collab-presence {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-2);
+}
+
+.collab-requests {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.collab-requests > h3 {
+  margin: 0;
+}
+
+.collab-inline-icon {
+  vertical-align: -2px;
+}
+
+.collab-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.collab-pending:first-child {
+  border-top: 0;
+}
+
+.collab-pending-text {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ---------- Shared with you ---------- */
+.collab-people {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.collab-person {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.collab-person-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.collab-install {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 42px;
+}
+
+.collab-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.collab-share:first-child {
+  border-top: 0;
+}
+
+.collab-share-main {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.collab-share-key {
+  overflow-wrap: anywhere;
+}
+
+.collab-share-counts {
+  font-variant-numeric: tabular-nums;
+}
+
+.collab-sync {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.collab-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+
+.collab-share-where {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Invite and join ---------- */
+.collab-invite {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 16px 22px;
+}
+
+/* An invite holds a ticket, so its code is far denser than a tunnel's address: drawn bigger */
+.collab-invite-code .qr {
+  width: 248px;
+  height: 248px;
+}
+
+.collab-invite-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.collab-invite-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.collab-invite-area {
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  resize: vertical;
+}
+
+.collab-invite-warn {
+  grid-column: 1 / -1;
+}
+
+.collab-join-waiting {
+  margin: 0;
+}
+
+.collab-confirm-warn {
+  color: var(--warn);
+}
+
+@media (max-width: 900px) {
+  .collab-you-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .collab-install {
+    padding-left: 0;
+  }
+
+  .collab-invite {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .collab-invite-code {
+    justify-self: center;
+  }
+
+  .collab-invite-code .qr {
+    width: min(280px, 100%);
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  /* A phone zooms into any field under 16 px */
+  .collab-invite-area {
+    font-size: 16px;
+  }
+
+  .collab-share-actions {
+    justify-content: flex-start;
+  }
+}
