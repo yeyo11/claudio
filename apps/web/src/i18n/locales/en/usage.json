@@ -88,5 +88,16 @@
     "saved_one": "{{count}} agent run saved",
     "saved_other": "{{count}} agent runs saved",
     "history": "See the history"
+  },
+  "cap": {
+    "label": "Daily cap",
+    "figure": "{{spent}} of {{cap}}",
+    "near": "near the cap",
+    "reached": "cap reached · back at {{time}}",
+    "over": "{{amount}} over the cap, from work that was already running",
+    "unreported_one": "{{count}} result without a cost",
+    "unreported_other": "{{count}} results without a cost",
+    "note": "What the CLI reports; on subscription accounts it is what the use would cost on the API.",
+    "change": "Change the cap"
   }
 }

@@ -286,3 +286,32 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
   assert.deepEqual(notificationsFor(settings), []);
   assert.deepEqual(notificationsFor(tunnel), []);
 });
+
+test('the daily spend cap raises two limit drafts, the second a high one', () => {
+  const spend = (spentUsd: number) => ({
+    day: '2026-01-01',
+    timezone: 'Europe/Madrid',
+    capUsd: 20,
+    spentUsd,
+    share: spentUsd / 20,
+    level: spentUsd >= 20 ? ('exhausted' as const) : ('bad' as const),
+    blocked: spentUsd >= 20,
+    resetsAt: '2026-01-01T23:00:00Z',
+    unreported: 0,
+    byPurpose: {},
+    byAccountKind: { login: 0, token: 0, apiKey: 0, unknown: 0 },
+    waiting: { flowRuns: 0, orchestrationTasks: 0 },
+  });
+  const alert = (level: 'warn' | 'exhausted', spentUsd: number): ClaudioEvent => ({ type: 'spend.alert', ...base('Daily spend'), level, spend: spend(spentUsd) });
+
+  const warn = only(notificationsFor(alert('warn', 15)));
+  assert.deepEqual([warn.kind, warn.priority, warn.tone], ['limit', 'normal', 'warn']);
+  assert.equal(warn.title, "Today's spend is at 75 % of the cap");
+  assert.equal(warn.body, '$15.00 of $20.00, as the CLI reported it.');
+  assert.equal(warn.href, '/settings?tab=security');
+
+  const exhausted = only(notificationsFor(alert('exhausted', 20)));
+  assert.deepEqual([exhausted.kind, exhausted.priority, exhausted.tone], ['limit', 'high', 'bad']);
+  assert.equal(exhausted.title, 'Daily spend cap reached: automatic work waits until 00:00');
+  assert.notEqual(exhausted.key, warn.key);
+});

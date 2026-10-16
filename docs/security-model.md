@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-15T20:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - security
     - secrets
@@ -163,6 +163,18 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
 - sessions and attachments (including refusals) are audited, never their content.
 
 See [terminal.md](terminal.md).
+
+## The daily spend cap is the person's
+
+A prompt injection holding a chat's token could otherwise lift the cap it is bound by (plan:
+[plans/agent-run-improvements.md](plans/agent-run-improvements.md)). The denials are in `apps/api/src/security.ts` and the routes:
+
+- **The cap.** A chat's token that names `dailySpendCapUsd` in `PUT /settings/app` gets `403`
+  (`routes/app-settings.ts`).
+- **The pass.** `POST /orchestrations/:id/spend-pass` is in `CHAT_FORBIDDEN`: a chat token cannot grant
+  a graph today's pass.
+- **The override.** `X-Claudio-Spend-Override: 1` lets a person's request through a `409 spend-cap`.
+  On a chat token the header is ignored, so the request still answers `409`.
 
 ## Known limits
 

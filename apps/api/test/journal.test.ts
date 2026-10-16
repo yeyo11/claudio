@@ -105,6 +105,29 @@ test('an item a person moves to done is journalled once', async () => {
   assert.equal(page.entries[0]?.approvedBy?.kind, 'person');
 });
 
+test('a rule proposal keeps its paths, is written to .claude/rules, and answers 409 when its file has other paths', async () => {
+  const project = await importProject('Ruled', ['memory']);
+  const rule = (file: string, paths: string[], text: string) => core.memoryProposals.propose(project.id, { target: { kind: 'rule', file, section: null, paths }, text, reason: 'Only the migrations' }, qa);
+  const approve = (id: string, body: unknown = {}) => app.inject({ method: 'POST', url: `/api/memory-proposals/${id}/approve`, ...json(body) });
+
+  const first = rule('migrations.md', ['packages/core/src/db.ts'], 'Append migrations at the end');
+  const listed = (await app.inject(`/api/projects/${project.id}/memory/proposals?status=pending`)).json<MemoryProposal[]>();
+  assert.deepEqual(listed.find((p) => p.id === first.id)?.target.paths, ['packages/core/src/db.ts']);
+  const done = await approve(first.id);
+  assert.equal(done.statusCode, 200, done.body);
+  assert.deepEqual(done.json<MemoryProposal>().target.paths, ['packages/core/src/db.ts']);
+  assert.equal(readFileSync(join(project.dir, '.claude', 'rules', 'migrations.md'), 'utf8'), '---\npaths:\n  - "packages/core/src/db.ts"\n---\n\nAppend migrations at the end\n');
+
+  const other = rule('migrations.md', ['docs/**'], 'Docs are English');
+  const taken = await approve(other.id);
+  assert.equal(taken.statusCode, 409);
+  assert.match(taken.json<{ error: string }>().error, /\.claude\/rules\/migrations\.md exists with other paths; approve it under another name/);
+  const renamed = await approve(other.id, { file: 'docs.md' });
+  assert.equal(renamed.statusCode, 200, renamed.body);
+  assert.equal(renamed.json<MemoryProposal>().target.file, 'docs.md');
+  assert.equal((await approve(rule('x.md', ['a/**'], 'x').id, { file: '../x.md' })).statusCode, 400);
+});
+
 test('approving writes each proposal to its target, and nothing is written before', async () => {
   const project = await importProject('Remembering', ['memory']);
   const toInstructions = core.memoryProposals.propose(project.id, { target: { kind: 'instructions', file: null, section: 'Testing' }, text: 'Use the fake CLI', reason: 'Never the real one' }, qa);

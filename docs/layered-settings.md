@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - settings
     - configuration
@@ -9,7 +9,7 @@ tags:
 ---
 # Settings in layers: what changes without a restart
 
-Three settings used to be read from the environment once, at startup. They can now change while
+These settings used to be read from the environment once, at startup. They can now change while
 Claudio runs, from Settings → Security:
 
 | Setting | Variable | Default | Applies to |
@@ -18,6 +18,7 @@ Claudio runs, from Settings → Security:
 | `maxConcurrentRuns` | `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` (1 to 64) | the next chat or orchestration worker |
 | `defaultPermissionMode` | `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | the next run that does not choose one |
 | `setupSeen` | `CLAUDIO_SETUP_SEEN` (`on` or `off`; the older `CLAUDIO_PROVIDERS_STEP_SEEN` still counts) | `off` | the next start: the setup assistant is shown only while it is off. A `providersStepSeen` stored before the rename counts as `setupSeen` |
+| `dailySpendCapUsd` | `CLAUDIO_DAILY_SPEND_CAP_USD` (an amount above 0, up to 100000, rounded to cents) | none: no cap until one is set | the next start of a unit of work. Over it new automated work waits and a person is asked first; nothing running stops. See the [design system](design-system.md#the-daily-spend-cap) |
 
 ## Which value wins
 

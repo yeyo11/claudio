@@ -350,6 +350,7 @@
     "sentBack_other": "{{role}} sent it back {{count}} times",
     "sentBackAnon_one": "Sent back {{count}} time",
     "sentBackAnon_other": "Sent back {{count}} times",
+    "plateau": "No improvement in two rounds",
     "chatWaiting": "Your chat waits for your answer",
     "approve": "Approve and move to Done",
     "yourChat": "Your chat",

@@ -88,7 +88,7 @@ export interface HistoryLine {
 }
 
 /** One entry told in a sentence. Values that name a column, a type or a priority are left as ids. */
-export function historyLine(entry: Pick<WorkItemHistoryEntry, 'change' | 'from' | 'to'>): HistoryLine {
+export function historyLine(entry: Pick<WorkItemHistoryEntry, 'change' | 'from' | 'to'> & Partial<Pick<WorkItemHistoryEntry, 'cause'>>): HistoryLine {
   const { from, to } = entry;
   switch (entry.change) {
     case 'created':
@@ -141,7 +141,7 @@ export function historyLine(entry: Pick<WorkItemHistoryEntry, 'change' | 'from' 
       return { key: 'history.unlinked', values: { name: isRef(from) ? from.label : '' }, strong: 'name', icon: 'link' };
     case 'waiting':
       if (typeof to === 'string' && to)
-        return { key: to === 'bounces' ? 'history.waitingBounces' : to === 'merge' ? 'history.waitingMerge' : 'history.waitingApproval', values: {}, icon: 'wait' };
+        return { key: to === 'bounces' ? (entry.cause?.event === 'flow.plateau' ? 'history.waitingPlateau' : 'history.waitingBounces') : to === 'merge' ? 'history.waitingMerge' : 'history.waitingApproval', values: {}, icon: 'wait' };
       return { key: 'history.waitingEnded', values: {}, icon: 'wait' };
     case 'pull_request':
       return pullRequestLine(to);
@@ -192,6 +192,7 @@ const CAUSE_KEY: Record<string, CauseKey> = {
   'chat.message': 'cause.message',
   'orchestration.task.started': 'cause.taskStarted',
   'orchestration.task.completed': 'cause.taskCompleted',
+  'flow.plateau': 'cause.flowPlateau',
   [WORK_ITEM_PR_CAUSE.opened]: 'cause.prOpened',
   [WORK_ITEM_PR_CAUSE.conflict]: 'cause.prConflict',
   [WORK_ITEM_PR_CAUSE.merged]: 'cause.prMerged',

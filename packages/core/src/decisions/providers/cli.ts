@@ -41,6 +41,8 @@ export interface CliProviderDeps {
    * that reason now; the decision never waits for a reset. Without it the chat runs on the default provider.
    */
   route?: (cli: DecisionSettings['cli']) => CliRoute | { unavailable: DecisionUnavailableReason };
+  /** The daily spend cap lets a new call be made; without it every call may. Points never block, so over it they answer `spend-cap`. */
+  spendOpen?: () => boolean;
 }
 
 /**
@@ -134,6 +136,7 @@ export class CliDecisionProvider implements DecisionProvider {
   async ask(request: DecisionRequest, opts: { deadlineMs: number; signal: AbortSignal }): Promise<ProviderResult> {
     const startedAt = Date.now();
     const unavailable = (reason: DecisionUnavailableReason): ProviderResult => ({ status: 'unavailable', reason, latencyMs: Date.now() - startedAt });
+    if (this.deps.spendOpen?.() === false) return unavailable('spend-cap');
     const cli = this.deps.settings.get().cli;
     const { maxCostUsd } = cli;
     let model = cli.model;
@@ -156,6 +159,7 @@ export class CliDecisionProvider implements DecisionProvider {
       chat = this.deps.runtime.start({
         prompt: decisionPrompt(request, model),
         name: `decision ${request.point}`,
+        purpose: 'decision',
         ...(provider ? { provider } : {}),
         model,
         // The configured effort when the route kept it; the target's own default when it has no such level

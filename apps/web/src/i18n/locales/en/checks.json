@@ -73,6 +73,17 @@
     "attemptsUsed_one": "{{count}} attempt already made on this commit.",
     "attemptsUsed_other": "{{count}} attempts already made on this commit.",
     "label": "Fix of the failing checks",
+    "verdictsLabel": "What the Developer decided about each check",
+    "verdict": {
+      "fixed": "Fixed",
+      "unchanged": "No change",
+      "stopped": "Stopped",
+      "stop": {
+        "same-error": "the same error survived three fixes",
+        "more-errors": "a fix left more errors than before",
+        "design": "needs a design decision"
+      }
+    },
     "waiting": "waiting for you",
     "push": "Push the fix",
     "attempt_one": "attempt {{count}}",

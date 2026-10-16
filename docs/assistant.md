@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T21:30:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - assistant
     - ai-suggestions
@@ -160,6 +160,19 @@ When the answer is stored:
 - a work item's epic and "similar to" are resolved by key, or by the same title, against the project's
   items. A proposal that resembles an existing item ("Parecida a AGN-45") starts unselected in
   "Sugerir tareas".
+
+### Rules, and optional roles
+
+Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
+
+- **Rules.** The prompt tells the assistant that guidance holding only for some files is a `rule`
+  proposal with `paths`, and anything that holds everywhere stays `instructions`. `parseAnswer`
+  (`packages/core/src/assistant-answer.ts`) drops a rule without valid `paths` and records a finding.
+  Approving writes `.claude/rules/<file>`: see "Rule proposals" in
+  [team-and-flow.md](team-and-flow.md).
+- **Optional roles.** `templateOffered` also returns the template's `optionalTeam`, and the prompt
+  says they may be proposed by name. A role accepted from a template keeps its `tools` and
+  `commands`.
 
 ### A project with nothing to read
 

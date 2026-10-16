@@ -1191,6 +1191,17 @@
       "concurrent": "Ejecuciones a la vez",
       "concurrentHint": "De {{min}} a {{max}}. Un chat nuevo por encima del límite se rechaza hasta que termine otro, y una orquestación no ejecuta más workers que estos a la vez.",
       "saved": "Valores predeterminados de las ejecuciones guardados"
+    },
+    "spend": {
+      "title": "Tope de gasto diario",
+      "switch": "Limitar el gasto diario",
+      "amount": "Tope por día, en USD",
+      "hintToday": "Hoy: {{spent}} según el CLI. Por encima del tope, el trabajo automático espera y tus chats te preguntan antes de enviar.",
+      "hintApi": "En cuentas de suscripción es lo que costaría en la API, no lo que pagas.",
+      "hintOff": "Sin tope: nada espera por el gasto del día.",
+      "invalid": "Introduce un importe mayor que 0 y de hasta {{max}}.",
+      "saved": "Tope de gasto diario guardado",
+      "savedOff": "Tope de gasto diario desactivado"
     }
   }
 }

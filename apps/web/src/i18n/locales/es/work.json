@@ -18,5 +18,8 @@
     "lastActivity": "última actividad {{ago}}",
     "worktrees_one": "{{count}} worktree",
     "worktrees_other": "{{count}} worktrees"
+  },
+  "spendWait": {
+    "card": "Esperando al tope diario · vuelve a las {{time}}"
   }
 }

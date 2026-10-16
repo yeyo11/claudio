@@ -96,6 +96,7 @@
     "savedDone": "saved",
     "review": "Review",
     "reviewNamed": "Review {{name}}",
+    "paths": "Paths",
     "kind": {
       "agents": "Agent",
       "skills": "Skill",

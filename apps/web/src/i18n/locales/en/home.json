@@ -276,7 +276,9 @@
       "label": "Written to",
       "instructions": "CLAUDE.md",
       "memory": "memory",
-      "journal": "journal"
+      "journal": "journal",
+      "rule": "Rule",
+      "morePaths": "+{{count}} more"
     },
     "proposals": {
       "tab": "Proposals",
@@ -297,7 +299,12 @@
       "approved": "Approved and written",
       "approveFailed": "Could not approve the proposal",
       "rejected": "Proposal discarded",
-      "rejectFailed": "Could not discard the proposal"
+      "rejectFailed": "Could not discard the proposal",
+      "rename": {
+        "taken": "{{path}} exists with other paths. Approve it under another name.",
+        "label": "Rule file name",
+        "approve": "Approve with this name"
+      }
     },
     "journal": {
       "tab": "Journal",

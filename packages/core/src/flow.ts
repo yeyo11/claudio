@@ -22,7 +22,9 @@ import {
   type DecisionPointId,
   type DocumentKind,
   type Effort,
+  type FixStopKind,
   type FlowCheckVerdict,
+  type FlowPlateauMode,
   type FlowCriterionResult,
   type FlowMemoryProposal,
   type FlowRun,
@@ -63,6 +65,7 @@ import {
 import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
+import { flatten } from './health.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { RECORDS_IN_ENGLISH, roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
@@ -115,6 +118,7 @@ export const FLOW_CAUSE = {
   rejected: 'flow.rejected',
   passed: 'flow.passed',
   exhausted: 'flow.bounces',
+  plateau: 'flow.plateau',
   failed: 'flow.failed',
 } as const;
 
@@ -270,6 +274,8 @@ export interface FlowDeps {
   decisions?: Pick<DecisionEngine, 'ask' | 'effective' | 'resolve'>;
   /** The commit subjects and changed paths of what the item's branch did, for the `flow.criteria-precheck` state */
   workDone?: (item: WorkItem) => { commits: string[]; paths: string[] } | null;
+  /** The daily spend cap lets a new run start; without it every run may (docs/plans/agent-run-improvements.md) */
+  spendOpen?: () => boolean;
 }
 
 /** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
@@ -319,6 +325,8 @@ interface RunRow {
   retry_of: string | null;
   /** Null on a run a card's entry queued, and on every run stored before it was kept */
   queued_by: string | null;
+  /** The verdicts of a fix of failing checks as JSON; null on other runs and on rows stored before the column */
+  checks: string | null;
 }
 
 /** The structured result, read defensively: the CLI checks it against the schema, but a result can still be anything. */
@@ -339,8 +347,11 @@ interface ParsedResult {
 
 const CHECK_CAUSES: readonly FlowCheckVerdict['cause'][] = ['branch', 'not-branch', 'uncertain'];
 const CHECKS_MAX = 100;
+const FIX_STOPS: readonly FixStopKind[] = ['same-error', 'more-errors', 'design'];
+const LOCATIONS_MAX = 20;
+const LOCATION_MAX = 200;
 
-const TARGET_KINDS: readonly MemoryProposalTargetKind[] = ['instructions', 'memory', 'journal'];
+const TARGET_KINDS: readonly MemoryProposalTargetKind[] = ['instructions', 'memory', 'journal', 'rule'];
 
 /** History entries that say where an item is or what worked on it, not what it asks: they give a refine nothing new to check */
 const UNCHANGING: ReadonlySet<WorkItemChange> = new Set<WorkItemChange>(['status', 'link', 'waiting']);
@@ -358,9 +369,19 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
           target: {
             type: 'object',
             properties: {
-              kind: { type: 'string', enum: [...TARGET_KINDS] },
-              file: { type: ['string', 'null'], description: 'For memory: the memory file name, such as testing.md' },
+              kind: {
+                type: 'string',
+                enum: [...TARGET_KINDS],
+                description:
+                  'rule: a path-scoped rule in `.claude/rules/<file>`, loaded only for files matching `paths`; prefer it to `instructions` when the text concerns only part of the project',
+              },
+              file: { type: ['string', 'null'], description: 'For memory: the memory file name, such as testing.md. For rule: the rule file name, such as migrations.md' },
               section: { type: ['string', 'null'], description: 'For instructions: the CLAUDE.md heading it goes under' },
+              paths: {
+                type: ['array', 'null'],
+                items: { type: 'string' },
+                description: 'For rule: 1 to 10 globs, relative to the project, of the files the rule is for, such as packages/core/src/**/*.ts',
+              },
             },
             required: ['kind'],
           },
@@ -413,6 +434,8 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
           name: { type: 'string' },
           cause: { type: 'string', enum: [...CHECK_CAUSES], description: 'branch: this branch caused the failure; not-branch: it did not; uncertain: you could not tell' },
           fixed: { type: 'boolean', description: 'true only when you changed code to fix it' },
+          locations: { type: 'array', items: { type: 'string' }, description: 'Where you changed things for this check, each as path:line' },
+          stopped: { type: 'string', enum: [...FIX_STOPS], description: 'Only when you stopped before the check was fixed: why' },
         },
         required: ['name', 'cause', 'fixed'],
       },
@@ -1356,6 +1379,11 @@ export class FlowService {
     this.dispatching = this.dispatching.then(() => this.dispatchNow()).catch(() => undefined);
   }
 
+  /** Runs queued for a first start, the ones the daily spend cap holds back when it is reached. */
+  queuedCount(): number {
+    return (this.sql.prepare("SELECT COUNT(*) AS n FROM flow_runs WHERE state = 'queued' AND chat_id IS NULL").get() as { n: number }).n;
+  }
+
   /** Waits for every dispatch asked for so far; for tests and for shutting down cleanly. */
   async settled(): Promise<void> {
     // A decision that comes back may queue a run, which dispatches again: wait until both are quiet
@@ -1405,6 +1433,9 @@ export class FlowService {
     const now = new Date().toISOString();
     let claimed = false;
     this.write(() => {
+      // Over the daily cap a new run stays queued, in its place; one that already has its chat
+      // (a restart's, a continuation) is in flight and is not asked
+      if (row.chat_id === null && this.deps.spendOpen?.() === false) return;
       const running = this.sql.prepare("SELECT item_id FROM flow_runs WHERE project_id = ? AND state = 'running'").all(row.project_id) as Array<{ item_id: string }>;
       if (running.length >= maxParallel(project.settings)) return;
       // One run at a time on an item: the next waits for the one working on it
@@ -1623,6 +1654,14 @@ export class FlowService {
         // the run has ended; its notes are a nicety of the PR's body
       }
     }
+    // The Developer's call on each failing check, which `checks.fix` reads to tell a fix that keeps failing
+    if (parsed && row.stage === 'work' && parsed.checks.length) {
+      try {
+        this.sql.prepare('UPDATE flow_runs SET checks = ? WHERE id = ?').run(JSON.stringify(parsed.checks), row.id);
+      } catch {
+        // the run has ended; the history is a nicety of the next fix's decision
+      }
+    }
     try {
       if (parsed) await this.apply(row, parsed, outcome);
     } finally {
@@ -1797,12 +1836,46 @@ export class FlowService {
         const latest = this.deps.items.find(item.id);
         if (!latest || latest.status !== row.column_name || this.personMovedSince(item.id, row.started_at ?? row.queued_at)) return;
       }
-      if (bounces >= max || needsPerson) {
+      // Only a card that would have bounced again can plateau: the limit and `flow.bounce` come first
+      const stuck = bounces < max && !needsPerson ? this.plateau(row, bounces, settings.flow?.plateau ?? 'observe') : null;
+      if (stuck && (settings.flow?.plateau ?? 'observe') === 'stop') {
+        this.deps.items.comment(
+          item.id,
+          { body: `Two rounds brought no improvement: the same criteria are still unmet (${stuck.map((id) => `\`${id}\``).join(', ')}). Waiting for a person.` },
+          { actor, source, cause: cause(FLOW_CAUSE.plateau) },
+        );
+        this.deps.items.setFlowState(item.id, { waiting: 'bounces' }, { actor, cause: cause(FLOW_CAUSE.plateau) });
+      } else if (bounces >= max || needsPerson) {
         this.deps.items.setFlowState(item.id, { waiting: 'bounces' }, { actor, cause: cause(FLOW_CAUSE.exhausted) });
       } else {
+        // Observing: the rule says what it would have done and the card is sent back as always
+        if (stuck) {
+          this.deps.items.comment(
+            item.id,
+            { body: `Two rounds brought no improvement: the same criteria are still unmet (${stuck.map((id) => `\`${id}\``).join(', ')}). The plateau rule is only observing, so the card was sent back as usual.` },
+            { actor, source, cause: cause(FLOW_CAUSE.plateau) },
+          );
+        }
         this.deps.items.setFlowState(item.id, { bounces: bounces + 1, waiting: null }, { actor, cause: cause(FLOW_CAUSE.rejected) });
         this.deps.items.move(item.id, { status: 'in_progress' }, { actor, cause: cause(FLOW_CAUSE.rejected) });
       }
+    }
+  }
+
+  /**
+   * The criteria still unmet when the newest verify rounds stopped improving, or null. The rounds are
+   * this series' (`bounces` starts again when a person moves the card), read from what each run stored.
+   */
+  private plateau(row: RunRow, bounces: number, mode: FlowPlateauMode): string[] | null {
+    if (mode === 'off' || bounces < 2) return null;
+    try {
+      const rows = this.sql
+        .prepare("SELECT criteria, summary FROM flow_runs WHERE item_id = ? AND stage = 'verify' AND state = 'ended' AND outcome IN ('rejected', 'passed') ORDER BY seq DESC LIMIT ?")
+        .all(row.item_id, bounces + 1) as { criteria: string | null; summary: string | null }[];
+      const rounds = rows.reverse().map((r): VerifyRound => ({ criteria: criteriaOf(r.criteria), summary: r.summary }));
+      return plateaued(rounds);
+    } catch {
+      return null;
     }
   }
 
@@ -2033,6 +2106,7 @@ export class FlowService {
     const failed = state === 'ended' && (outcome ?? 'failed') === 'failed';
     const next = failed ? this.nextRun(row) : null;
     const waiting = this.waitingOf(row);
+    const checks = checksOf(row.checks);
     return {
       id: row.id,
       projectId: row.project_id,
@@ -2056,6 +2130,7 @@ export class FlowService {
       cause: state === 'ended' ? causeOf(row, outcome) : null,
       retryOf: row.retry_of ?? null,
       queuedBy: row.queued_by === 'person' ? 'person' : null,
+      ...(checks.length ? { checks } : {}),
       retriedBy: next ? refOf(next) : null,
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,
@@ -2251,6 +2326,51 @@ function memberOf(settings: ProjectSettings, role: string): ProjectTeamMember | 
   return settings.team?.members.find((m) => m.role === role) ?? null;
 }
 
+/** What a verify round left behind, as `plateaued` reads it */
+export interface VerifyRound {
+  criteria: readonly FlowCriterionResult[];
+  summary: string | null;
+}
+
+/**
+ * The ids of the criteria still unmet when the newest three verify rounds (oldest first) brought no
+ * improvement across two steps, or null. A step improves when a criterion unmet in the earlier round
+ * is met in the later one; only ids present in both rounds count and one only a person can check is
+ * left out, so editing the criteria between rounds is neither a regression nor an improvement. A
+ * round without criteria falls back to its summary, and then three equal summaries are needed.
+ * Why in code: the model that bounces a card cannot see that it is the third time for the same thing.
+ */
+export function plateaued(rounds: readonly VerifyRound[]): string[] | null {
+  if (rounds.length < 3) return null;
+  const [a, b, c] = rounds.slice(-3) as [VerifyRound, VerifyRound, VerifyRound];
+  if (!a.criteria.length && !b.criteria.length && !c.criteria.length) {
+    const same = (x: VerifyRound, y: VerifyRound) => !!x.summary && !!y.summary && flatten(x.summary) === flatten(y.summary);
+    return same(a, b) && same(b, c) ? [] : null;
+  }
+  if (!a.criteria.length || !b.criteria.length || !c.criteria.length) return null;
+  const improved = (earlier: VerifyRound, later: VerifyRound): boolean =>
+    earlier.criteria.some((e) => {
+      const l = later.criteria.find((x) => x.id === e.id);
+      return !!l && !e.needsPerson && !l.needsPerson && !e.met && l.met;
+    });
+  if (improved(a, b) || improved(b, c)) return null;
+  // Still unmet in the newest round, among what the first one also judged
+  const unmet = c.criteria.filter((x) => !x.met && !x.needsPerson && a.criteria.some((y) => y.id === x.id)).map((x) => x.id);
+  return unmet.length ? unmet : null;
+}
+
+const criteriaOf = (json: string | null): FlowCriterionResult[] => {
+  if (!json) return [];
+  const parsed = safeJson(json);
+  return Array.isArray(parsed) ? parsed.filter((c): c is FlowCriterionResult => isObject(c) && typeof c.id === 'string' && typeof c.met === 'boolean') : [];
+};
+
+const checksOf = (json: string | null): FlowCheckVerdict[] => {
+  if (!json) return [];
+  const parsed = safeJson(json);
+  return Array.isArray(parsed) ? parsed.filter((c): c is FlowCheckVerdict => isObject(c) && typeof c.name === 'string' && typeof c.fixed === 'boolean') : [];
+};
+
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
@@ -2274,7 +2394,9 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
     const kind = TARGET_KINDS.find((k) => k === (p.target as Record<string, unknown>).kind);
     const text = str(p.text);
     if (!kind || !text) continue;
-    memoryProposals.push({ target: { kind, file: str(p.target.file), section: str(p.target.section) }, text, reason: str(p.reason) ?? '' });
+    // Only a rule is scoped to paths; the globs are validated when the proposal is recorded
+    const paths = kind === 'rule' && Array.isArray(p.target.paths) ? p.target.paths.filter((g): g is string => typeof g === 'string') : null;
+    memoryProposals.push({ target: { kind, file: str(p.target.file), section: str(p.target.section), ...(kind === 'rule' ? { paths } : {}) }, text, reason: str(p.reason) ?? '' });
   }
   const documents: FlowRunDocument[] = [];
   for (const d of Array.isArray(value.documents) ? value.documents.slice(0, DOCUMENTS_MAX) : []) {
@@ -2297,7 +2419,17 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
     if (!isObject(c)) continue;
     const name = str(c.name);
     const cause = CHECK_CAUSES.find((k) => k === c.cause);
-    if (name && cause) checks.push({ name, cause, fixed: c.fixed === true });
+    if (!name || !cause) continue;
+    // Shown as text and never resolved to a file, so a path is only trimmed and cut
+    const locations = Array.isArray(c.locations)
+      ? c.locations
+          .map(str)
+          .filter((l): l is string => l !== null)
+          .map((l) => l.slice(0, LOCATION_MAX))
+          .slice(0, LOCATIONS_MAX)
+      : [];
+    const stopped = FIX_STOPS.find((k) => k === c.stopped);
+    checks.push({ name, cause, fixed: c.fixed === true, ...(locations.length ? { locations } : {}), ...(stopped ? { stopped } : {}) });
   }
   return { summary, verdict, criteria, memoryProposals, documents, description, acceptanceCriteria, checks };
 }

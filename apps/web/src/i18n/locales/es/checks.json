@@ -73,6 +73,17 @@
     "attemptsUsed_one": "Ya se ha hecho {{count}} intento en este commit.",
     "attemptsUsed_other": "Ya se han hecho {{count}} intentos en este commit.",
     "label": "Arreglo de las comprobaciones fallidas",
+    "verdictsLabel": "Lo que decidió el desarrollador sobre cada comprobación",
+    "verdict": {
+      "fixed": "Arreglado",
+      "unchanged": "Sin cambios",
+      "stopped": "Detenido",
+      "stop": {
+        "same-error": "el mismo error sobrevivió a tres arreglos",
+        "more-errors": "un arreglo dejó más errores que antes",
+        "design": "necesita una decisión de diseño"
+      }
+    },
     "waiting": "te espera",
     "push": "Subir el arreglo",
     "attempt_one": "intento {{count}}",

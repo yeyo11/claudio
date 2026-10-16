@@ -66,7 +66,16 @@
       "unknown": "Its last reading is out of date, so its limit is not known",
       "none": "{{provider}} does not report its limit"
     },
-    "account": "Account new chats start on"
+    "account": "Account new chats start on",
+    "spend": {
+      "label": "daily cap",
+      "near": "near the cap",
+      "reached": "cap reached · back at {{time}}",
+      "tipSpent": "{{spent}} of {{cap}} today, as the CLI reported it",
+      "tipUnreported_one": "{{count}} result without a cost, not counted",
+      "tipUnreported_other": "{{count}} results without a cost, not counted",
+      "tipZone": "Resets at {{time}}, {{zone}} time"
+    }
   },
   "account": {
     "card": "Agents and limits",

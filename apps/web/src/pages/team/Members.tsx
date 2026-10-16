@@ -4,18 +4,29 @@ import { ChevronRight, FileWarning, Pencil, Plus, Sparkle, UserMinus } from 'luc
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../api';
-import { MoreActions } from '@claudio/ui/components/controls';
+import { MoreActions, type MenuEntry } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { EffortTag } from '../../components/EffortPicker';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Empty } from '@claudio/ui/components/ui';
+import { Empty, Tag } from '@claudio/ui/components/ui';
 import { columnMeta } from '../../lib/work-items';
 import { assistantPath } from '../assistant/model';
-import { writeScope } from './model';
+import { isReadOnlyMember, offeredRoles, writeScope } from './model';
 import { MemberNow } from './parts';
 import { ModelTag, RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
+
+/** "Solo lectura": a member whose agent file allows only tools that read. Muted, and said in words. */
+export function ReadOnlyTag({ member }: { member: Pick<TeamMember, 'tools'> }) {
+  const { t } = useTranslation('team');
+  if (!isReadOnlyMember(member)) return null;
+  return (
+    <span title={t('member.readOnlyHint')}>
+      <Tag tone="muted">{t('member.readOnly')}</Tag>
+    </span>
+  );
+}
 
 /** "Answers for": the member's columns with their glyphs, or that it is only consulted. */
 export function AnswersFor({ columns }: { columns: WorkItemStatus[] }) {
@@ -108,6 +119,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
             <span className="member-name">{name}</span>
             <ModelTag model={member.model} />
             <EffortTag effort={member.effort} />
+            <ReadOnlyTag member={member} />
             <FileState member={member} />
           </span>
           <span className="member-file">{member.file.path}</span>
@@ -180,6 +192,7 @@ export function MemberCells({ team, memberHref }: { team: Team; memberHref: (age
                   <span className="member-cell-name">{roleName(member.role)}</span>
                   <ModelTag model={member.model} />
                   <EffortTag effort={member.effort} />
+                  <ReadOnlyTag member={member} />
                 </span>
                 <MemberNow member={member} compact />
               </span>
@@ -190,6 +203,43 @@ export function MemberCells({ team, memberHref }: { team: Team; memberHref: (age
       </ul>
     </nav>
   );
+}
+
+/**
+ * "Más roles": the template's optional roles the team does not have yet, each with what it answers
+ * for. Quiet beside "Add member": they are offered, never added by the template button. A phone gets
+ * a sheet of big buttons, as every "⋯" does.
+ */
+export function MoreRoles({ projectId, optional, members }: { projectId: string; optional: ProjectTeamRole[]; members: Pick<TeamMember, 'role'>[] }) {
+  const { t } = useTranslation('team');
+  const roleName = useRoleName();
+  const responsibilityOf = useResponsibility();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const add = useMutation({
+    mutationFn: (role: ProjectTeamRole) => api.teamFromTemplate(projectId, { roles: [role.role] }),
+    onSuccess: (team, role) => {
+      queryClient.setQueryData(keys.team(projectId), team);
+      void queryClient.invalidateQueries({ queryKey: keys.projectSettings(projectId) });
+      toast.success(t('moreRoles.done', { name: roleName(role.role) }));
+    },
+    onError: (error) => toast.error(t('moreRoles.failed'), error),
+  });
+  const offered = offeredRoles(optional, members);
+  if (offered.length === 0) return null;
+  const entries: MenuEntry[] = offered.map((role) => ({
+    id: role.role,
+    icon: Plus,
+    disabled: add.isPending,
+    label: (
+      <span className="more-role">
+        <span>{t('moreRoles.add', { name: roleName(role.role) })}</span>
+        <span className="team-muted">{responsibilityOf(role)}</span>
+      </span>
+    ),
+    onSelect: () => add.mutate(role),
+  }));
+  return <MoreActions entries={entries} label={t('moreRoles.title')} title={t('moreRoles.title')} text={t('moreRoles.label')} className="team-more-roles" />;
 }
 
 /**
@@ -231,7 +281,21 @@ export function ProposeButton({ projectId }: { projectId: string }) {
  * A project with the Team module on and nobody on it: the assistant's proposal first, the template's
  * team beside it with the roles it brings listed under, as DesktopEquipoVacio draws it.
  */
-export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { projectId: string; roles: ProjectTeamRole[]; templateName: string | null; phone: boolean; onAdd: () => void }) {
+export function TeamEmpty({
+  projectId,
+  roles,
+  optional = [],
+  templateName,
+  phone,
+  onAdd,
+}: {
+  projectId: string;
+  roles: ProjectTeamRole[];
+  optional?: ProjectTeamRole[];
+  templateName: string | null;
+  phone: boolean;
+  onAdd: () => void;
+}) {
   const { t } = useTranslation(['team', 'assistant']);
   const roleName = useRoleName();
   const toast = useToast();
@@ -276,6 +340,7 @@ export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { pr
               <button type="button" className="btn team-empty-template" disabled={apply.isPending || roles.length === 0} onClick={() => apply.mutate()}>
                 {t('empty.useTemplate')}
               </button>
+              <MoreRoles projectId={projectId} optional={optional} members={[]} />
               {/* A phone reaches it through the header's "⋯", as MobileEquipoVacio has only the two */}
               {!phone && (
                 <button type="button" className="btn btn-quiet" onClick={onAdd}>

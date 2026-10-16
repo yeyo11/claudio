@@ -218,7 +218,7 @@ lines.on('line', (line) => {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_bg', name: 'Agent', input: { description: 'survey the routes', subagent_type: 'general-purpose', run_in_background: true } }] } });
       out({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'agent-bg', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true, description: 'survey the routes' });
     }
-    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1] });
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1].replaceAll('\\n', '\n') });
     return;
   }
   if (existsSync(early)) {

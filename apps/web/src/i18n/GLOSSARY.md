@@ -366,6 +366,24 @@ More terms of the chats redesign, as the screens use them.
 | adopted (chats) | adoptados |
 | blocked | *bloqueada* for a task (feminine), `bloqueado` in the generic status badge |
 
+## Spend, risk, plateau and rules
+
+Added with [plans/agent-run-improvements.md](../../../../docs/plans/agent-run-improvements.md).
+"Riesgo" is the noun for how risky a tool call is; its levels read "Riesgo alto" and "Riesgo medio",
+and the reasons below are the factors a person can read next to it.
+
+| English | Spanish |
+|---|---|
+| Daily spend cap | Tope de gasto diario |
+| Spend today | Gasto de hoy |
+| Risk (of a tool call) | Riesgo |
+| Irreversible | Irreversible |
+| Leaves this machine | Sale de esta máquina |
+| Rewrites history | Reescribe el historial |
+| Outside the working directory | Fuera del directorio de trabajo |
+| Plateau (no improvement) | Sin mejora |
+| Path-scoped rule | Regla por rutas |
+
 ## Terms that changed
 
 Every term whose treatment changed in this revision, old form next to the new one, for the

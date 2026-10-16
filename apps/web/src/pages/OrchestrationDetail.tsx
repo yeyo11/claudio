@@ -13,6 +13,7 @@ import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
+import { OrchestrationSpendWait } from '../components/SpendWait';
 import { RelaunchPanel } from '../components/RelaunchPanel';
 import { Stepper, type StepItem } from '@claudio/ui/components/Stepper';
 import { useToast } from '@claudio/ui/components/Toast';
@@ -967,6 +968,7 @@ export function OrchestrationDetail() {
 
       <ErrorBox error={error ?? stop.error ?? resume.error ?? remove.error} />
       <WaitingNotice orch={orch} />
+      <OrchestrationSpendWait orch={orch} />
       <FailedByChecksNotice orch={orch} />
       {resuming && <ResumePanel orch={orch} unfinished={unfinished} pending={resume.isPending} onResume={(changes) => resume.mutate(changes)} onCancel={closeResume} />}
       {relaunching && <RelaunchPanel orch={orch} onCancel={() => setRelaunching(false)} />}

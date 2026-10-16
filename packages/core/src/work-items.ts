@@ -1685,6 +1685,21 @@ export class WorkItemService {
       pulls.set(r.item_id, pullRequestOf(r));
     }
 
+    // Which waits for bounces are the plateau rule's: the cause is in the history only, and a board of
+    // hundreds of cards has a handful waiting, so it is read for those alone
+    const plateaued = new Set<string>();
+    const stuck = rows.filter((r) => r.waiting === 'bounces').map((r) => r.id);
+    if (stuck.length) {
+      for (const h of this.sql
+        .prepare(
+          `SELECT item_id, cause_event FROM work_item_history h WHERE change = 'waiting' AND item_id IN (SELECT value FROM json_each(?))
+             AND seq = (SELECT MAX(seq) FROM work_item_history WHERE item_id = h.item_id AND change = 'waiting')`,
+        )
+        .all(inList(stuck)) as Array<{ item_id: string; cause_event: string | null }>) {
+        if (h.cause_event === 'flow.plateau') plateaued.add(h.item_id);
+      }
+    }
+
     return rows.map((row) => ({
       id: row.id,
       projectId: row.project_id,
@@ -1708,6 +1723,7 @@ export class WorkItemService {
       activeLink: [...(links.get(row.id) ?? [])].reverse().find(isLive) ?? null,
       bounces: row.bounces ?? 0,
       waiting: row.waiting === 'approval' || row.waiting === 'bounces' || row.waiting === 'merge' ? row.waiting : null,
+      ...(plateaued.has(row.id) ? { waitingCause: 'plateau' as const } : {}),
       pullRequest: pulls.get(row.id) ?? null,
       ...(issues.has(row.id) ? { issues: issues.get(row.id) } : {}),
       createdAt: row.created_at,

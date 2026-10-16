@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-15T18:30:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - design-system
     - web
@@ -1272,6 +1272,79 @@ New classes `.wait-line` and `.statusbar .lim`. Nothing here is live: waiting do
   the shell's primary stay within the budget of two.
 
 Reference screens: `DesktopOrquestacion`, `MobileOrquestacion` and `StatusBar`.
+
+### The daily spend cap
+
+New classes `.statusbar .spend`, `.usage-cap` and `.spend-dialog`; the wait lines reuse `.wait-line`.
+Nothing here moves, and no new gradient surface is added.
+
+- **Status bar (`.spend`).** Beside the limit dots, only with a cap set: a neutral bar and the share
+  below 60 %, warn with "cerca del tope" from 60 %, bad with the percentage from 75 %, and bad with
+  "tope alcanzado · vuelve a las 00:00" once reached. The tooltip gives spent, cap, unreported
+  results and the server's time zone. With no reading nothing is drawn.
+- **Usage page (`.usage-cap`).** One quiet line, like the decisions' line: "Tope diario", the figure,
+  the same bar and words, what was spent past the cap, and the note that on a subscription the figure
+  is the API price. It is where a phone sees the cap.
+- **A wait (`.wait-line`).** A queued board card says "Esperando al tope diario · vuelve a las 00:00".
+  The orchestration page says "N tareas esperan al tope diario · vuelven a las 00:00" with a quiet
+  "Seguir hoy de todos modos", which asks first.
+- **The question (`SpendCapDialog`).** A `Dialog` on a desktop and a `Sheet` on a phone: the figure,
+  "Enviar igualmente" as the zone's one primary, "Cancelar" and "Cambiar el tope". The choice is
+  remembered per chat and local day in `sessionStorage`.
+
+### Risk, fixer verdicts, plateau, optional roles and rule targets
+
+Built for [plans/agent-run-improvements.md](plans/agent-run-improvements.md). Everything here is
+static: nothing moves, no gradient is added, and each status colour keeps its one meaning and is
+always paired with a word. Their rules are in `claudio-ds.css`, in the section "Agent-run
+improvements".
+
+- **Risk tag (`.risk-tag`, `.edit-step-risk`).** In the transcript, on a call's row and in Step by
+  step (the row and the `Why` header). A reading aid that never blocks. High is `bad` with a shield
+  icon and the word of its first factor ("Irreversible", "Rewrites history", "Leaves this machine",
+  "Outside the working directory"…); medium is a muted tag with the same kind of word; low draws
+  nothing. The tooltip gives "High risk: …" with every factor. The tag keeps its size and the call's
+  hint is the part that gives way. It is not a tab stop: the row is. In the Step by step scrubber a
+  high-risk dot gets `data-risk='high'` and a 2 px `--bad` ring, and its label ends "High risk".
+- **Permission prompt (`.permission-risk`).** One line under the prompt's head and above the input:
+  the tag and, beside it, the reason as text. It wraps on a narrow screen. The buttons are unchanged,
+  and the prompt's primary stays where it was.
+- **Daily cap in the status bar (`.statusbar .spend`).** The limit dots' grammar. See
+  [the daily spend cap](#the-daily-spend-cap): neutral below 60 %, `warn` with "cerca del tope" from
+  60 %, `bad` from 75 % and once reached ("tope alcanzado · vuelve a las 00:00"). It is a link to
+  Settings → Security, and nothing is drawn without a cap.
+- **Spend wait copy (`.wait-line`).** The existing warn strip with the clock, with these lines: on a
+  queued card "Esperando al tope diario · vuelve a las 00:00"; on the orchestration page "N tareas
+  esperan al tope diario · vuelven a las 00:00" with a quiet "Seguir hoy de todos modos"
+  (`.spend-wait-go`, at the end of the line). It says `warn` in words, not in colour alone.
+- **`SpendCapDialog` (`.spend-dialog`).** A `Dialog` on a desktop, a `Sheet` on a phone (buttons fill
+  the width, ≥ 44 px). The figure in mono (`.spend-dialog-amounts`: spent and cap), why it asks, and
+  "Cambiar el tope". The zone's one primary is the confirming button ("Enviar igualmente" or
+  "Seguir hoy de todos modos"); "Cancelar" is quiet. It has no gradient of its own beyond that
+  primary.
+- **Verification card, fixer rows and stop tag (`.vfix-rows`, `.vfix-row`).** Under each fixer
+  attempt, one row per `[FIXED] path:line: note`: the location in mono, the note in `--fg-2`, folded
+  past 8 rows with a count. When the fixer's loop stopped, a `warn` "Detenido" tag carries the
+  reason in words: "the same error after three attempts", "more errors than before", "needs a design
+  decision". A stop is `warn`, not `bad`: a person decides next. On a phone the path takes its own
+  line and the note goes below it.
+- **Fix panel, verdicts and locations (`.fix-verdicts`, `.fix-verdict`).** In the item page's fix
+  panel, one row per check of the newest fix: its name in mono, the Developer's call ("Arreglado",
+  "Sin cambios", "Detenido" in `warn`) and why, and under it the `path:line` locations in mono
+  (`.fix-verdict-locations`). A list of verdicts, not live: no spinner or rail.
+- **Plateau text.** No new class. A card that waited for a person because two rounds in a row did not
+  improve says "Sin mejora en dos rondas" in the board strip's `warn` slot (where "Devuelta N veces"
+  was) and in the run history's cause. In `observe` mode (the default) the card bounces as before and
+  only an item comment records the plateau. In Team, the Flow's limits list has one row with a
+  switch, "Parar si dos rondas no mejoran": on is `stop`, off is `observe`.
+- **Optional roles (`.team-more-roles`, `.more-role`).** A "Más roles" menu beside the template's
+  team button, a `Sheet` on a phone where it takes its own row. Each item is the role's name and
+  under it, in `--fg-3`, what it answers for. The member list shows a muted "solo lectura" tag on a
+  role whose agent file allows only tools that read, with a tooltip saying so.
+- **Rule target line (`.memory-proposal-to`).** The memory card's "→ destino" line for a proposal of
+  kind rule reads `Regla · .claude/rules/<file> · <paths>` in mono, folded past three paths. When
+  the name is taken by a rule with other paths, `.memory-proposal-taken` says so in `warn` and in
+  words, beside an inline rename field and "Aprobar con este nombre".
 
 ### Merging an orchestration, and the board card's auto-merge line
 

@@ -13,7 +13,7 @@ import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTIN
 import { EventBus } from '../src/events.ts';
 import type { BackgroundTask, SubagentInfo } from '../src/cli-facts.ts';
 import { DELEGATION, FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, PATTERN_GROUNDING } from '../src/prompt-rules.ts';
-import { checkCommandRules, checksFixPrompt, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
+import { checkCommandRules, checksFixPrompt, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, plateaued, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
 import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
@@ -40,7 +40,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] } } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; spendOpen?: boolean; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] } } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -61,8 +61,11 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
   /** `resume`: only continuing a chat fails; `started`: the chat to continue is told of, then it fails */
   const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
   let chats = 0;
+  /** The daily spend cap: closed, no new run starts */
+  const spend = { open: opts.spendOpen ?? true };
   const flow = new FlowService({
     db,
+    spendOpen: () => spend.open,
     items,
     project: (id) => (id === 'p1' ? { path: opts.path ?? '/nowhere/p1', settings: state.settings } : null),
     handoff: () => '# Project journal',
@@ -123,7 +126,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     state.settings = { ...state.settings, modules };
     bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['modules'], modules });
   };
-  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, costs, failNext, answer, answerToEnd, chatOf, setModules };
+  return { db, file: join(config.dataDir, 'wrapper.db'), spend, bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, costs, failNext, answer, answerToEnd, chatOf, setModules };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -1201,6 +1204,30 @@ test('the query of the activity is checked', () => {
   for (const bad of [{ status: 'ended' }, { outcome: 'ended' }, { limit: '0' }, { limit: '2.5' }, { limit: '201' }, { cursor: 'abc' }, { before: 'yesterday' }]) {
     assert.throws(() => parseFlowRunQuery(bad), (err: unknown) => err instanceof FlowError && err.statusCode === 400, JSON.stringify(bad));
   }
+});
+
+test('the result schema lets a member propose a path-scoped rule, and parses its paths', () => {
+  const target = (
+    flowResultSchema('work') as { properties: { memoryProposals: { items: { properties: { target: { properties: Record<string, { enum?: string[]; description?: string }> } } } } } }
+  ).properties.memoryProposals.items.properties.target.properties;
+  assert.ok(target.kind?.enum?.includes('rule'));
+  assert.match(target.kind?.description ?? '', /rule: a path-scoped rule in `\.claude\/rules\/<file>`, loaded only for files matching `paths`; prefer it to `instructions`/);
+  assert.ok(target.paths);
+  const parsed = parseResult(
+    JSON.stringify({
+      summary: 'ok',
+      memoryProposals: [
+        { target: { kind: 'rule', file: 'tests.md', paths: ['src/**', 3, 'test/**'] }, text: 'Name tests after behaviour', reason: 'seen twice' },
+        { target: { kind: 'memory', file: 'a.md', paths: ['ignored/**'] }, text: 'y' },
+      ],
+      documents: [],
+    }),
+    'work',
+  );
+  assert.deepEqual(parsed?.memoryProposals, [
+    { target: { kind: 'rule', file: 'tests.md', section: null, paths: ['src/**', 'test/**'] }, text: 'Name tests after behaviour', reason: 'seen twice' },
+    { target: { kind: 'memory', file: 'a.md', section: null }, text: 'y', reason: '' },
+  ]);
 });
 
 test('a result is read defensively', () => {
@@ -2284,4 +2311,167 @@ test('a work run whose result arrives with a background subagent still running i
   await s.answer(it.id, ok('Implemented'), false, { stopReason: 'end_turn' });
   assert.equal(s.items.find(it.id)?.status, 'in_review');
   assert.equal(s.flow.itemRuns(it.id).find((r) => r.stage === 'work')?.continuations, 1);
+});
+
+// ---------- checks.fix verdicts (idea 8) and plateau (idea 14) ----------
+
+test('the work schema asks for the locations and the stop of each check, and they are validated and stored', async () => {
+  const schema = flowResultSchema('work') as { properties: { checks: { items: { properties: Record<string, { type: string; enum?: string[] }>; required: string[] } } } };
+  assert.equal(schema.properties.checks.items.properties.locations?.type, 'array');
+  assert.deepEqual(schema.properties.checks.items.properties.stopped?.enum, ['same-error', 'more-errors', 'design']);
+  assert.ok(!schema.properties.checks.items.required.includes('locations') && !schema.properties.checks.items.required.includes('stopped'));
+
+  const parsed = parseResult(
+    {
+      summary: 's',
+      memoryProposals: [],
+      documents: [],
+      checks: [
+        { name: 'unit', cause: 'branch', fixed: true, locations: ['src/a.ts:3', 7, ' ', 'x'.repeat(300), ...Array.from({ length: 30 }, (_, i) => `f.ts:${String(i)}`)], stopped: 'nonsense' },
+        { name: 'lint', cause: 'uncertain', fixed: false, stopped: 'design' },
+      ],
+    },
+    'work',
+  );
+  const unit = parsed?.checks[0];
+  assert.equal(unit?.locations?.length, 20);
+  assert.equal(unit?.locations?.[0], 'src/a.ts:3');
+  assert.equal(unit?.locations?.[1]?.length, 200);
+  assert.equal(unit?.stopped, undefined);
+  assert.deepEqual(parsed?.checks[1], { name: 'lint', cause: 'uncertain', fixed: false, stopped: 'design' });
+
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Fixed what I could', { checks: [{ name: 'unit', cause: 'branch', fixed: true, locations: ['src/a.ts:3'] }, { name: 'lint', cause: 'branch', fixed: false, stopped: 'design' }] }));
+  const run = flowRuns(s).find((r) => r.stage === 'work');
+  assert.deepEqual(run?.checks, [
+    { name: 'unit', cause: 'branch', fixed: true, locations: ['src/a.ts:3'] },
+    { name: 'lint', cause: 'branch', fixed: false, stopped: 'design' },
+  ]);
+  const plain = setup();
+  const other = await item(plain, 'in_progress');
+  await plain.answer(other.id, ok('Implemented'));
+  assert.equal(flowRuns(plain).find((r) => r.stage === 'work')?.checks, undefined);
+});
+
+const crit = (...met: boolean[]) => met.map((m, i) => ({ id: `c${String(i)}`, met: m, note: '' }));
+const round = (c: ReturnType<typeof crit>, summary = 's') => ({ criteria: c, summary });
+
+test('plateaued: no improvement over the newest three rounds stops, an improvement does not, needsPerson is left out', () => {
+  assert.deepEqual(plateaued([round(crit(false, true)), round(crit(false, true)), round(crit(false, true))]), ['c0']);
+  assert.equal(plateaued([round(crit(false, false)), round(crit(false, true)), round(crit(false, true))]), null);
+  assert.equal(plateaued([round(crit(false, false)), round(crit(false, false)), round(crit(true, false))]), null);
+  assert.equal(plateaued([round(crit(false)), round(crit(false))]), null);
+  // Only the newest three are read
+  assert.deepEqual(plateaued([round(crit(false, false)), round(crit(false, true)), round(crit(false, true)), round(crit(false, true))]), ['c0']);
+  // A criterion only a person can check does not count as the one that improved, nor as unmet
+  const person = (met: boolean) => ({ id: 'p', met, note: '', needsPerson: true as const });
+  assert.deepEqual(plateaued([round([...crit(false), person(false)]), round([...crit(false), person(true)]), round([...crit(false), person(true)])]), ['c0']);
+  assert.equal(plateaued([round([person(false)]), round([person(false)]), round([person(false)])]), null);
+  // Ids that only one round has are not compared
+  assert.deepEqual(plateaued([round(crit(false)), round([...crit(false), { id: 'new', met: false, note: '' }]), round([...crit(false), { id: 'new', met: false, note: '' }])]), ['c0']);
+  // Without criteria the summaries are compared, and three equal ones are needed
+  assert.deepEqual(plateaued([round([], 'Totals 12 wrong'), round([], 'Totals 14 wrong'), round([], 'Totals 99 wrong')]), []);
+  assert.equal(plateaued([round([], 'one'), round([], 'Totals wrong'), round([], 'Totals wrong')]), null);
+});
+
+function plateauSettings(plateau?: 'observe' | 'stop' | 'off') {
+  return { ...settingsWith(), flow: { ...settingsWith().flow!, maxBounces: 5, ...(plateau ? { plateau } : {}) } };
+}
+
+async function unmetRounds(s: Setup, sequences: boolean[][]) {
+  const it = s.items.create('p1', { title: 'Cart', status: 'in_progress', type: 'task', acceptanceCriteria: [{ text: 'Lines survive a reload' }, { text: 'Totals in cents' }] });
+  await s.flow.settled();
+  const ids = s.items.find(it.id)?.acceptanceCriteria.map((c) => c.id) ?? [];
+  await s.answer(it.id, ok('Implemented'));
+  for (const [n, met] of sequences.entries()) {
+    await s.answer(it.id, ok(`Round ${String(n + 1)}`, { verdict: 'fail', criteria: ids.map((id, i) => ({ id, met: met[i] ?? false, note: '' })) }));
+    if (s.items.find(it.id)?.status === 'in_progress' && n < sequences.length - 1) await s.answer(it.id, ok('Fixed'));
+  }
+  return { it, ids };
+}
+
+test('with plateau stop, three verify runs with the same unmet ids wait for a person after the second bounce', async () => {
+  const s = setup({ settings: plateauSettings('stop') });
+  const { it, ids } = await unmetRounds(s, [[false, true], [false, true], [false, true]]);
+  const card = s.items.find(it.id);
+  assert.deepEqual([card?.status, card?.waiting, card?.bounces], ['in_review', 'bounces', 2]);
+  const last = s.items.history(it.id).filter((h) => h.change === 'waiting').at(-1);
+  assert.equal(last?.cause?.event, 'flow.plateau');
+  const comment = s.items.comments(it.id).at(-1)?.body ?? '';
+  assert.equal(comment, `Two rounds brought no improvement: the same criteria are still unmet (\`${ids[0]}\`). Waiting for a person.`);
+});
+
+test('an improvement in the middle run does not stop the card, and neither does plateau observe or off', async () => {
+  const improving = setup({ settings: plateauSettings('stop') });
+  const a = await unmetRounds(improving, [[false, false], [false, true], [false, true]]);
+  assert.deepEqual([improving.items.find(a.it.id)?.status, improving.items.find(a.it.id)?.bounces], ['in_progress', 3]);
+
+  for (const mode of ['off', undefined] as const) {
+    const s = setup({ settings: plateauSettings(mode) });
+    const { it, ids } = await unmetRounds(s, [[false, true], [false, true], [false, true]]);
+    const card = s.items.find(it.id);
+    assert.deepEqual([card?.status, card?.waiting, card?.bounces], ['in_progress', null, 3], String(mode));
+    const note = s.items.comments(it.id).find((c) => c.body.startsWith('Two rounds brought no improvement'))?.body;
+    // Observing says what it would have done; off does not look
+    if (mode === undefined) assert.match(note ?? '', new RegExp(`\\\`${ids[0]}\\\`.*only observing`));
+    else assert.equal(note, undefined);
+  }
+});
+
+test('a person moving the card forgets the rounds before it', async () => {
+  const s = setup({ settings: plateauSettings('stop') });
+  const { it } = await unmetRounds(s, [[false, true], [false, true], [false, true]]);
+  assert.equal(s.items.find(it.id)?.waiting, 'bounces');
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  assert.equal(s.items.find(it.id)?.bounces, 0);
+  await s.answer(it.id, ok('Implemented'));
+  const ids = s.items.find(it.id)?.acceptanceCriteria.map((c) => c.id) ?? [];
+  await s.answer(it.id, ok('Round', { verdict: 'fail', criteria: ids.map((id) => ({ id, met: false, note: '' })) }));
+  assert.deepEqual([s.items.find(it.id)?.status, s.items.find(it.id)?.bounces], ['in_progress', 1]);
+});
+
+test('over the daily spend cap a new run stays queued in its place, and starts oldest first once the gate opens', async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } }, spendOpen: false });
+  const a = await item(s, 'in_progress', 'A');
+  const b = await item(s, 'in_progress', 'B');
+  assert.equal(running(s).length, 0);
+  assert.deepEqual(queued(s).map((r) => r.itemId), [a.id, b.id]);
+  assert.equal(s.launches.length, 0);
+  assert.equal(s.flow.queuedCount(), 2);
+
+  // Still closed: another pass changes nothing
+  s.flow.dispatch();
+  await s.flow.settled();
+  assert.equal(running(s).length, 0);
+
+  s.spend.open = true;
+  s.flow.dispatch();
+  await s.flow.settled();
+  assert.deepEqual(running(s).map((r) => r.itemId), [a.id], 'the oldest first');
+  assert.deepEqual(queued(s).map((r) => r.itemId), [b.id]);
+  assert.equal(s.flow.queuedCount(), 1);
+});
+
+test('a run a restart cut off goes on over the cap: it is in flight, not a new start', async () => {
+  const first = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } } });
+  const a = await item(first, 'in_progress', 'A');
+  const b = await item(first, 'in_progress', 'B');
+  const chat = first.chatOf(a.id);
+
+  const second = setup({ db: first.db, settings: first.state.settings, recover: false, spendOpen: false });
+  second.flow.recover();
+  await second.flow.settled();
+  assert.deepEqual(second.launches.map((l) => [l.run.itemId, l.resumeChatId]), [[a.id, chat]]);
+  assert.deepEqual(queued(second).map((r) => r.itemId), [b.id]);
+
+  // Its result ends the run, which frees the place; B is new work and the cap holds it
+  await second.answer(a.id, ok());
+  assert.equal(running(second).some((r) => r.itemId === b.id), false);
+  assert.equal(queued(second).some((r) => r.itemId === b.id), true);
+  second.spend.open = true;
+  second.flow.dispatch();
+  await second.flow.settled();
+  assert.equal(running(second).some((r) => r.itemId === b.id), true);
 });

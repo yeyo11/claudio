@@ -17,7 +17,7 @@ import type {
   WorkItemStatus,
   WorkItemType,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, isTeamToolName, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
 import { parseOnLimit } from './providers/settings.ts';
@@ -216,6 +216,14 @@ export function parseTeam(value: unknown): ProjectTeamSettings {
       }
       member.commands = [...new Set(raw.commands as string[])];
     }
+    if (raw.tools !== undefined && raw.tools !== null) {
+      if (!Array.isArray(raw.tools)) throw new Error(`team member ${i} tools must be an array`);
+      if (raw.tools.length > MAX_TEAM_TOOLS) throw new Error(`team member ${i} lists more than ${MAX_TEAM_TOOLS} tools`);
+      for (const tool of raw.tools) {
+        if (!isTeamToolName(tool)) throw new Error(`team member ${i} tools: not a tool name: ${JSON.stringify(tool)}`);
+      }
+      member.tools = [...new Set(raw.tools as string[])];
+    }
     // null, like leaving it out, takes the recommendation for the member's model
     if (raw.effort !== undefined && raw.effort !== null) {
       if (!isEffort(raw.effort)) throw new Error(`team member ${i} effort must be one of ${EFFORT_LEVELS.join(', ')}`);
@@ -266,6 +274,12 @@ function parseFlow(value: unknown): ProjectFlowSettings {
       throw new Error(`flow.checksFixAttempts must be a whole number from 1 to ${MAX_CHECKS_FIX_ATTEMPTS}`);
     }
     flow.checksFixAttempts = checksFixAttempts;
+  }
+  // What a plateau of verify rounds does; absent stays absent and reads as `observe`
+  const { plateau } = value;
+  if (plateau !== undefined && plateau !== null) {
+    if (plateau !== 'observe' && plateau !== 'stop' && plateau !== 'off') throw new Error('flow.plateau must be observe, stop or off');
+    flow.plateau = plateau;
   }
   return flow;
 }

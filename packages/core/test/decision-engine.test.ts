@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { DecisionAnswer, DecisionPointId, DecisionProviderId, ProjectDecisionSettings } from '@claudio/shared';
 import { Db } from '../src/db.ts';
+import { CliDecisionProvider } from '../src/decisions/providers/cli.ts';
 import { DecisionEngine, lowestConfidence, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { DECISION_POINTS, decisionPoint, type DecisionSubject } from '../src/decisions/points.ts';
 import { cutToBytes, maskSecrets, redactState, stateBytes } from '../src/decisions/redact.ts';
@@ -335,4 +336,38 @@ test('redaction cuts the document to the point byte limit: long strings first, t
   const many = redactState({ items: Array.from({ length: 200 }, (_, i) => ({ n: `item-${String(i)}` })) }, 300);
   assert.ok(stateBytes(many) <= 300);
   assert.ok(Array.isArray(many.items) && many.items.length >= 1);
+});
+
+test('the cli provider answers unavailable spend-cap over the daily cap, starts no chat, and the point falls back', async () => {
+  const s = setup();
+  const started: unknown[] = [];
+  const open = { value: false };
+  const runtime = {
+    start: (opts: unknown) => {
+      started.push(opts);
+      throw new Error('no chat may start over the cap');
+    },
+    waitForResult: () => Promise.reject(new Error('unused')),
+    stop: () => undefined,
+    exited: () => Promise.resolve(),
+    remove: () => true,
+  };
+  const provider = new CliDecisionProvider({ runtime, settings: s.settings, spendOpen: () => open.value });
+  const direct = await provider.ask({ point: 'flow.bounce', state: {}, questions: [] }, { deadlineMs: 1000, signal: new AbortController().signal });
+  assert.equal(direct.status, 'unavailable');
+  assert.equal(direct.status === 'unavailable' ? direct.reason : null, 'spend-cap');
+  assert.equal(started.length, 0);
+
+  s.engine.register(provider);
+  await configure(s, 'flow.bounce', 'active', { provider: 'cli' });
+  const out = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  assert.equal(out.act, false, "points never block: today's behaviour stands");
+  const row = s.db.decision(out.decisionId ?? '');
+  assert.deepEqual([row?.status, row?.unavailable], ['unavailable', 'spend-cap']);
+
+  // Under the cap it reaches for the runtime (here the stub refuses, which is a server error, not the cap)
+  open.value = true;
+  const under = await provider.ask({ point: 'flow.bounce', state: {}, questions: [] }, { deadlineMs: 1000, signal: new AbortController().signal });
+  assert.equal(under.status === 'unavailable' ? under.reason : null, 'server-error');
+  assert.equal(started.length, 1);
 });

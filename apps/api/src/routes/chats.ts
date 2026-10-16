@@ -21,6 +21,7 @@ import type {
   UsageBucket,
 } from '@claudio/shared';
 import { openStream } from '../sse.ts';
+import { spendGate } from './spend.ts';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
@@ -114,7 +115,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return reply.type('text/markdown; charset=utf-8').send(chatToMarkdown(exported.chat, exported.entries));
   });
 
-  app.post<{ Body: NewChatRequest }>('/chats', async (req, reply) => reply.status(201).send(await chats.create(newChatBody(req.body))));
+  app.post<{ Body: NewChatRequest }>('/chats', { preHandler: spendGate(core) }, async (req, reply) => reply.status(201).send(await chats.create(newChatBody(req.body))));
 
   app.get<{ Params: { id: string }; Querystring: { sidechains?: string; limit?: string; before?: string } }>('/chats/:id', (req) =>
     chats.detail(req.params.id, {
@@ -140,9 +141,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     chats.search(req.params.id, req.query.q ?? '', { includeSidechains: req.query.sidechains === '1' }),
   );
 
-  app.post<{ Params: { id: string }; Body: ResumeChatRequest }>('/chats/:id/resume', (req) => chats.resume(req.params.id, req.body ?? ({} as ResumeChatRequest)));
+  app.post<{ Params: { id: string }; Body: ResumeChatRequest }>('/chats/:id/resume', { preHandler: spendGate(core) }, (req) => chats.resume(req.params.id, req.body ?? ({} as ResumeChatRequest)));
 
-  app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', async (req, reply) =>
+  app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', { preHandler: spendGate(core) }, async (req, reply) =>
     reply.status(201).send(await chats.fork(req.params.id, req.body ?? ({} as ForkChatRequest))),
   );
 
@@ -155,7 +156,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return reply.status(201).send(move);
   });
 
-  app.post<{ Params: { id: string }; Body: ChatMessageRequest }>('/chats/:id/messages', (req) =>
+  // A message to a chat that is mid-turn was accepted before the cap closed: it is queued delivery, not a new start
+  const midTurn = spendGate(core, { inFlight: (req) => core.runtime.get((req.params as { id: string }).id)?.status === 'busy' });
+  app.post<{ Params: { id: string }; Body: ChatMessageRequest }>('/chats/:id/messages', { preHandler: midTurn }, (req) =>
     chats.send(req.params.id, {
       text: req.body?.text ?? '',
       attachments: Array.isArray(req.body?.attachments) ? req.body.attachments : [],
@@ -281,7 +284,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.get<{ Querystring: { cwd?: string } }>('/workflows/saved', (req) => core.workflowDefinitions(req.query.cwd || undefined));
 
-  app.post<{ Body: RunWorkflowRequest }>('/workflows/saved/run', async (req, reply) =>
+  app.post<{ Body: RunWorkflowRequest }>('/workflows/saved/run', { preHandler: spendGate(core) }, async (req, reply) =>
     reply.status(201).send(await core.runWorkflow(req.body ?? ({} as RunWorkflowRequest))),
   );
 };

@@ -12904,6 +12904,27 @@
       "total"
     ]
   },
+  "SpendCapRefusal": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "spend-cap"
+      },
+      "spend": {
+        "$ref": "#/components/schemas/SpendState"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "spend"
+    ],
+    "description": "The 409 body of a person's request refused at the cap."
+  },
   "ModelFallback": {
     "type": "object",
     "properties": {
@@ -15979,6 +16000,11 @@
         ],
         "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
       },
+      "waitingCause": {
+        "type": "string",
+        "const": "plateau",
+        "description": "Why it waits for bounces when that was the plateau rule (`flow.plateau`) and not the limit, so the board can say \"no improvement in two rounds\"; absent for every other wait."
+      },
       "pullRequest": {
         "anyOf": [
           {
@@ -16778,6 +16804,11 @@
           }
         ],
         "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
+      },
+      "waitingCause": {
+        "type": "string",
+        "const": "plateau",
+        "description": "Why it waits for bounces when that was the plateau rule (`flow.plateau`) and not the limit, so the board can say \"no improvement in two rounds\"; absent for every other wait."
       },
       "pullRequest": {
         "anyOf": [
@@ -19308,6 +19339,10 @@
       "text": {
         "type": "string",
         "description": "The text to write instead of the proposed one"
+      },
+      "file": {
+        "type": "string",
+        "description": "For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths"
       }
     }
   },

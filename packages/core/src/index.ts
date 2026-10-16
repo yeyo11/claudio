@@ -77,6 +77,7 @@ import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
+import { SpendGate } from './spend.ts';
 import { DashboardLayoutStore } from './dashboard-layouts.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
@@ -143,7 +144,7 @@ import { PROJECT_TEMPLATES } from './project-templates.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { recognizeSecrets } from './decisions/redact.ts';
-import { Scheduler } from './schedules.ts';
+import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
@@ -243,7 +244,7 @@ export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions 
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateOptionalTeam, templateTeam, type TeamRunSource } from './team.ts';
 export {
   ASSISTANT_ERRORS,
   AssistantError,
@@ -318,6 +319,7 @@ export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
+export { SpendGate, localDayOf, localDayWindow } from './spend.ts';
 export { EventBus, type ClaudioEventInput, type Replay } from './events.ts';
 export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading, type ProviderDetectorDeps } from './providers/detector.ts';
 export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
@@ -390,6 +392,8 @@ export class Core {
   readonly chats: ChatService;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
+  /** Today's spend against the daily cap: the start gate every automated unit of work asks (docs/plans/agent-run-improvements.md) */
+  readonly spend: SpendGate;
   /** What a task, the integration branch or a chat has changed on disk */
   readonly changes: Changes;
   /** What a chat's health is read from: the calls it made, the history of how long commands take */
@@ -638,6 +642,26 @@ export class Core {
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
+    this.spend = new SpendGate({
+      db: this.db,
+      cap: () => this.appSettings.dailySpendCapUsd,
+      waiting: () => ({ flowRuns: this.flow.queuedCount(), orchestrationTasks: this.orchestrator.waitingForSpend() }),
+      passOf: (id) => this.orchestrator.spendPassOf(id),
+      grant: (id, day) => this.orchestrator.grantSpendPass(id, day),
+    });
+    this.orchestrator.spendOpen = (id) => this.spend.allows('orchestration', { orchestrationId: id });
+    // A cap raised or cleared, a new day or a pass opens the gate: what waited for it starts, oldest first
+    this.spend.onChange(() => {
+      this.flow.dispatch();
+      this.orchestrator.spendChanged();
+      this.events.emit({ type: 'spend.changed', title: 'Daily spend changed', spend: this.spend.state() });
+    });
+    this.spend.onAlert((level, spend) => {
+      this.events.emit({ type: 'spend.alert', title: level === 'exhausted' ? 'Daily spend cap reached' : 'Daily spend at 75 % of the cap', level, spend });
+    });
+    this.appSettings.onSpendCapChange = () => this.spend.capChanged();
+    this.runtime.on('spend-recorded', () => this.spend.recorded());
+    this.spend.start();
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
@@ -667,6 +691,7 @@ export class Core {
         else await this.chats.hint(proposal.chatId, { text: proposal.hint });
       },
       emit: (event) => this.events.emit(event),
+      spendOpen: () => this.spend.allows('supervisor'),
       charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
       // The engine is built just below; a call only ever comes after the constructor
       decisions: { ask: (...args) => this.decisions.ask(...args), effective: (...args) => this.decisions.effective(...args) },
@@ -685,6 +710,7 @@ export class Core {
         settings: this.decisionSettings,
         // A decision chat never waits: Claude Code answers, or says that every account is at its limit
         route: (cli) => decisionRoute(cli, this.accounts.list()),
+        spendOpen: () => this.spend.allows('decision'),
       }),
     );
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
@@ -811,6 +837,8 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
       decisions: this.decisions,
+      // Built further down; read when a rule is approved
+      resources: () => this.resources,
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
@@ -953,6 +981,7 @@ export class Core {
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
+      spendOpen: () => this.spend.allows('flow'),
       pullRequests: {
         conflictOf: (itemId) => this.pullRequests.conflictOf(itemId),
         settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
@@ -1041,7 +1070,7 @@ export class Core {
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
     this.schedules = new Scheduler(config, {
-      chat: (request) => this.chats.create(request),
+      chat: (request) => this.chats.create({ ...request, purpose: 'schedule' }),
       orchestration: (spec) => this.orchestrator.create(spec),
       // A chat waiting on a person is still in its turn: it has not ended, whatever it waits for
       running: ({ chatId, orchestrationId }) => {
@@ -1053,6 +1082,12 @@ export class Core {
       },
     });
     this.schedules.bus = this.events;
+    // Over the daily cap a slot is skipped with its reason, never run late after midnight
+    this.schedules.spendHold = () => {
+      if (this.spend.allows('schedule')) return null;
+      const state = this.spend.state();
+      return spendHeldReason(state.spentUsd, state.capUsd ?? 0);
+    };
     // A queued slot follows its predecessor as soon as it ends, not on the next tick. Not before the
     // chats are restored, though: until then a chat still going looks like one that ended
     let schedulesStarted = false;
@@ -1291,6 +1326,7 @@ export class Core {
     const started = this.runtime.start({
       prompt,
       name: `workflow-${name}`,
+      purpose: 'person',
       permissionPrompts: 'host',
       ...(request.cwd ? { cwd: request.cwd } : {}),
       ...(request.model ? { model: request.model } : {}),
@@ -1426,7 +1462,7 @@ export class Core {
     const model = typeof body.model === 'string' ? body.model.trim() : DEFAULT_ASSISTANT_MODEL;
     const effort = resolveEffort('assistant', model, typeof body.effort === 'string' ? body.effort : undefined);
     return this.chats.create(
-      { prompt, model, ...effortOption(effort), provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
+      { prompt, model, purpose: 'assistant', ...effortOption(effort), provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
       undefined,
       { projectId: project?.id ?? null, language },
     );
@@ -1560,6 +1596,7 @@ export class Core {
       cwd: question.cwd,
       model: question.model,
       name: 'supervisor',
+      purpose: 'supervisor',
       keepAlive: false,
       internal: true,
       permissionMode: 'manual',
@@ -2023,7 +2060,7 @@ export class Core {
     const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
     // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
     // for a confined session, to a person who continues the chat after the run
-    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const };
+    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const, purpose: 'assistant' as const };
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId, LEGACY_PROVIDER, this.effortPassed(options.effort) ?? (resumed ? usedEffort(resumed) : null));
       await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
@@ -2124,7 +2161,7 @@ export class Core {
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false };
+    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
@@ -2730,6 +2767,7 @@ export class Core {
     this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();
+    this.spend.close();
     this.schedules.close();
     this.sessionsWatcher.close();
     this.changeWatcher.close();
