@@ -2271,6 +2271,20 @@ a.attachment-chip:hover {
   }
 }
 
+/* On a phone the context panel is a sheet: every control in it, its own close included, is a 44 px target */
+@media (max-width: 900px) {
+  .ctx-sheet button:not([disabled]),
+  .ctx-sheet label.check {
+    min-height: var(--touch);
+    min-width: var(--touch);
+  }
+
+  .ctx-sheet textarea,
+  .ctx-sheet input {
+    font-size: 16px;
+  }
+}
+
 /*
  * What the chat has running beside it: one neutral block between the conversation and the
  * composer, folded to a line by default (plans/tool-rows-and-live-branches.md §3.3). Live colour
@@ -2542,17 +2556,5 @@ a.attachment-chip:hover {
 @media (pointer: coarse) {
   .chat-launch-open {
     min-height: 44px;
-
-/* On a phone the context panel is a sheet: every control in it, its own close included, is a 44 px target */
-@media (max-width: 900px) {
-  .ctx-sheet button:not([disabled]),
-  .ctx-sheet label.check {
-    min-height: var(--touch);
-    min-width: var(--touch);
-  }
-
-  .ctx-sheet textarea,
-  .ctx-sheet input {
-    font-size: 16px;
   }
 }
