@@ -1,0 +1,221 @@
+{
+  "title": "Evals",
+  "run": {
+    "passed": "Passed",
+    "failed": "Failed",
+    "capped": "Capped",
+    "interrupted": "Interrupted",
+    "running": "Running",
+    "waiting": "Waiting for reset",
+    "cancelled": "Cancelled"
+  },
+  "list": {
+    "new": "New eval",
+    "invalid": "Invalid file",
+    "notCommitted": "Not committed",
+    "cases_one": "{{count}} case",
+    "cases_other": "{{count}} cases",
+    "problems_one": "{{count}} problem",
+    "problems_other": "{{count}} problems",
+    "scored": "{{passed}}/{{of}} cases",
+    "never": "Never run",
+    "empty": {
+      "title": "No evals yet",
+      "body": "An eval gives an agent file, a skill, a rule or CLAUDE.md a few prompts and checks the tool calls Claude makes, so you can tell whether a change makes it follow its instructions better or worse."
+    },
+    "notGit": {
+      "title": "This project is not a git repository",
+      "body": "An eval pins a commit and runs each sample on it. Turn the folder into a git repository and make a first commit to use evals."
+    },
+    "noCommit": {
+      "title": "No commit to pin yet",
+      "body": "An eval pins a commit and runs each sample on it. Make a first commit in this repository to use evals."
+    }
+  },
+  "invalid": {
+    "title": "This file cannot run",
+    "body": "Claudio lists a file it cannot read, with the reason, and never runs it. Fix it in the repository, or remove it here."
+  },
+  "matcher": {
+    "glob": "Glob",
+    "equals": "Equals",
+    "contains": "Contains",
+    "regex": "Regex",
+    "mode": "How {{field}} is compared",
+    "flags": "flags",
+    "flagsLabel": "Regex flags of {{field}}"
+  },
+  "call": {
+    "tool": "Tool or tools, e.g. Edit, MultiEdit",
+    "toolLabel": "Tool of {{call}}",
+    "command": "Command",
+    "path": "Path",
+    "outcome": {
+      "default": "Any outcome",
+      "ok": "Succeeded",
+      "error": "Failed",
+      "denied": "Denied",
+      "any": "Any outcome"
+    },
+    "outcomeLabel": "Outcome of {{call}}",
+    "scope": {
+      "default": "Main agent",
+      "main": "Main agent",
+      "sub": "Subagents",
+      "any": "Any agent"
+    },
+    "scopeLabel": "Who makes {{call}}",
+    "inputKept_one": "{{count}} input matcher, edited in JSON",
+    "inputKept_other": "{{count}} input matchers, edited in JSON"
+  },
+  "expect": {
+    "row": "Check {{n}}",
+    "kindLabel": "Kind of check {{n}}",
+    "remove": "Remove check {{n}}",
+    "kind": {
+      "called": "Called",
+      "not-called": "Never called",
+      "before": "Before",
+      "after": "After",
+      "sequence": "Sequence",
+      "text": "Final text",
+      "file": "File",
+      "touched": "Touched",
+      "command": "Command"
+    },
+    "hint": {
+      "called": "A call happens, as many times as asked",
+      "not-called": "No call matches",
+      "before": "A call comes before another one",
+      "after": "A call comes after another one",
+      "sequence": "Calls happen in this order",
+      "text": "The final answer matches",
+      "file": "A file exists or holds something",
+      "touched": "A path changed, or did not",
+      "command": "A command run in the lane exits as expected"
+    },
+    "call": "Call",
+    "min": "At least",
+    "max": "At most",
+    "anchor": "The anchor call",
+    "ifAnchor": "Only when the anchor happens",
+    "step": "Step {{n}}",
+    "addStep": "Add a step",
+    "removeStep": "Remove the last step",
+    "strict": "Nothing may come between the steps",
+    "text": "Final text",
+    "file": "Path of the file",
+    "exists": {
+      "default": "Existence not checked",
+      "true": "Must exist",
+      "false": "Must not exist"
+    },
+    "existsLabel": "Whether the file must exist",
+    "contains": "Content",
+    "touchedPath": "Path",
+    "touched": {
+      "true": "Must be touched",
+      "false": "Must not be touched"
+    },
+    "touchedLabel": "Whether the path must be touched",
+    "run": "Command",
+    "runHint": "Runs on this machine, in the lane, once you accept the file",
+    "exitCode": "Exit code",
+    "timeoutSeconds": "Timeout (s)"
+  },
+  "editor": {
+    "back": "Evals",
+    "delete": "Delete",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteBody": "The file is removed from the repository's folder. The runs already made stay in the history.",
+    "deleteFailed": "Could not delete the eval",
+    "newTitle": "New eval",
+    "view": "Editor view",
+    "form": "Form",
+    "jsonInvalid": "The JSON cannot be read as an eval",
+    "jsonLabel": "The eval file as JSON",
+    "changedOnDisk": "The file changed on disk",
+    "changedBody": "It is not the file you opened (a pull or another editor changed it). Reload it and lose your edits, or overwrite it with yours.",
+    "shaYours": "yours",
+    "shaDisk": "on disk",
+    "reload": "Reload",
+    "overwrite": "Overwrite",
+    "saveFailed": "Could not save the eval",
+    "problems": "The file was not saved",
+    "discardBody": "Leaving drops what you changed in this eval.",
+    "saved": "Eval saved",
+    "saving": "Saving…",
+    "save": "Save",
+    "sections": {
+      "eval": "Eval",
+      "target": "What it measures",
+      "runAs": "Run as",
+      "pin": "Commit",
+      "limits": "Samples and limits",
+      "cases_one": "{{count}} case",
+      "cases_other": "{{count}} cases"
+    },
+    "title": "Title",
+    "english": "Prompts, titles and notes are written in English. A person's own words stay as written.",
+    "fileName": "File name",
+    "name": {
+      "pattern": "Lower case letters, digits and hyphens, starting with a letter or digit.",
+      "taken": "An eval with this name already exists."
+    },
+    "targetKind": "Kind",
+    "kind": {
+      "agent": "Agent file",
+      "skill": "Skill",
+      "rule": "Rule",
+      "instructions": "CLAUDE.md"
+    },
+    "targetScope": "Scope",
+    "scope": {
+      "project": "This project",
+      "user": "Your user folder"
+    },
+    "userScope": "A user file is measured as it is: it cannot be pinned or proposed.",
+    "targetName": "Name",
+    "targetNamePlaceholder": "Pick or type a name",
+    "runAsNote": "A team member runs under the flow's own rules for the stage, as it does on the board.",
+    "runAsAgent": "Agent",
+    "runAsNobody": "No agent",
+    "runAsStage": "Stage",
+    "stageDefault": "Implement (default)",
+    "stage": {
+      "refine": "Refine",
+      "work": "Implement",
+      "verify": "Verify"
+    },
+    "runAsModel": "Model",
+    "runAsEffort": "Effort",
+    "effortDefault": "Model default",
+    "pin": "Pinned commit",
+    "pinHint": "A full 40-character SHA: a branch name would move.",
+    "pinHead": "Pin to HEAD",
+    "samples": "Samples per case",
+    "samplesHint": "Two or more tell a flaky case from a failing one.",
+    "perSample": "Cost cap per sample (USD)",
+    "timeout": "Time limit per sample (min)",
+    "ceiling": "Cost ceiling of a run (USD)",
+    "ceilingHint": "The start dialog may lower it, never raise it.",
+    "setup": "Setup command",
+    "setupWarn": "Runs this repository's code on this machine.",
+    "policyKept": "This eval carries its own tool policy, which is edited in JSON.",
+    "addCase": "Add a case",
+    "caseUntitled": "(no id)",
+    "expectCount_one": "{{count}} check",
+    "expectCount_other": "{{count}} checks",
+    "caseProblems_one": "{{count}} problem",
+    "caseProblems_other": "{{count}} problems",
+    "caseId": "Case id",
+    "caseTitle": "Case title",
+    "casePin": "Commit for this case",
+    "casePinHint": "Leave empty to use the eval's commit.",
+    "prompt": "Prompt",
+    "promptHint": "Sent as the sample's only message, up to {{max}} characters.",
+    "expectations": "Checks",
+    "addExpectation": "Add a check",
+    "removeCase": "Remove the case"
+  }
+}

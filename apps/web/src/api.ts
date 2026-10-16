@@ -212,6 +212,10 @@ import type {
   SupervisorProposal,
   SystemInfo,
   TaskHintRequest,
+  EvalFileDetail,
+  EvalFileListItem,
+  EvalHead,
+  PutEvalFileRequest,
   Team,
   TeamFromTemplateRequest,
   TeamMember,
@@ -295,6 +299,8 @@ export class ApiRequestError extends Error {
   readonly postId?: string;
   /** Today's spend, on a refusal at the daily cap (`code: 'spend-cap'`) */
   readonly spend?: SpendState;
+  /** The fields a refused write names, `path: reason` each (an eval file that does not parse) */
+  problems?: string[];
 
   constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
@@ -398,7 +404,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
       }
       throw new ApiRequestError(i18n.t('components:spendCap.declined'), res.status, undefined, 'spend-cap', undefined, spend);
     }
-    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    const problems = (err as { problems?: unknown }).problems;
+    const refusal = new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
+    throw refusal;
   }
   return json as T;
 }
@@ -950,6 +959,13 @@ export const api = {
     request<Milestone>(`/milestones/${enc(milestoneId)}`, { method: 'PATCH', body: req }),
   deleteMilestone: (milestoneId: string) => request<{ ok: true }>(`/milestones/${enc(milestoneId)}`, { method: 'DELETE' }),
   // ---- team, flow, journal, memory proposals and documents (docs/plans/project-ecosystem.md, orchestration 3)
+  // ---- instruction evals (docs/plans/instruction-evals.md); `eval.run` and `eval.sample` refresh them
+  evalFiles: (projectId: string, o?: ReadOptions) => request<EvalFileListItem[]>(`/projects/${enc(projectId)}/evals`, o),
+  evalFile: (projectId: string, name: string, o?: ReadOptions) => request<EvalFileDetail>(`/projects/${enc(projectId)}/evals/${enc(name)}`, o),
+  putEvalFile: (projectId: string, name: string, req: PutEvalFileRequest) =>
+    request<EvalFileDetail>(`/projects/${enc(projectId)}/evals/${enc(name)}`, { method: 'PUT', body: req }),
+  deleteEvalFile: (projectId: string, name: string) => request<{ ok: true }>(`/projects/${enc(projectId)}/evals/${enc(name)}`, { method: 'DELETE' }),
+  evalHead: (projectId: string, o?: ReadOptions) => request<EvalHead>(`/projects/${enc(projectId)}/eval-head`, o),
   team: (projectId: string, o?: ReadOptions) => request<Team>(`/projects/${enc(projectId)}/team`, o),
   teamFromTemplate: (projectId: string, req: TeamFromTemplateRequest = {}) =>
     request<Team>(`/projects/${enc(projectId)}/team/from-template`, { method: 'POST', body: req }),
@@ -1292,6 +1308,10 @@ export const keys = {
   milestone: (milestoneId: string) => ['milestones', 'one', milestoneId] as const,
   // ---- team, flow, journal, memory proposals and documents. One prefix per project for each, so an
   // event of that project reaches every page and filter of it
+  // Under 'evals', the prefix `eval.run` and `eval.sample` refresh
+  evals: (projectId: string) => ['evals', projectId] as const,
+  evalFile: (projectId: string, name: string) => ['evals', projectId, 'file', name] as const,
+  evalHead: (projectId: string) => ['evals', projectId, 'head'] as const,
   team: (projectId: string) => ['team', projectId] as const,
   flow: (projectId: string) => ['flow', projectId] as const,
   // Under `flow`, so every event that refreshes the flow refreshes the cards waiting for it
@@ -1590,6 +1610,30 @@ export const useTeam = (projectId: string | null) =>
     queryFn: ({ signal }) => api.team(projectId ?? '', { signal }),
     enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
+  });
+
+// ---------- instruction evals ----------
+
+export const useEvalFiles = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.evals(projectId ?? ''),
+    queryFn: ({ signal }) => api.evalFiles(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useEvalFile = (projectId: string, name: string | null) =>
+  useQuery({
+    queryKey: keys.evalFile(projectId, name ?? ''),
+    queryFn: ({ signal }) => api.evalFile(projectId, name ?? '', { signal }),
+    enabled: name !== null,
+  });
+
+export const useEvalHead = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.evalHead(projectId ?? ''),
+    queryFn: ({ signal }) => api.evalHead(projectId ?? '', { signal }),
+    enabled: projectId !== null,
   });
 
 export const useFlow = (projectId: string | null) =>

@@ -1,0 +1,221 @@
+{
+  "title": "Evaluaciones",
+  "run": {
+    "passed": "Superada",
+    "failed": "Fallida",
+    "capped": "Cortada por el tope",
+    "interrupted": "Interrumpida",
+    "running": "En ejecución",
+    "waiting": "Esperando el reinicio",
+    "cancelled": "Cancelada"
+  },
+  "list": {
+    "new": "Nueva evaluación",
+    "invalid": "Archivo no válido",
+    "notCommitted": "Sin commitear",
+    "cases_one": "{{count}} caso",
+    "cases_other": "{{count}} casos",
+    "problems_one": "{{count}} problema",
+    "problems_other": "{{count}} problemas",
+    "scored": "{{passed}}/{{of}} casos",
+    "never": "Sin ejecutar",
+    "empty": {
+      "title": "Aún no hay evaluaciones",
+      "body": "Una evaluación da a un archivo de agente, una skill, una regla o CLAUDE.md unos prompts y comprueba las llamadas a herramientas de Claude, para saber si un cambio hace que siga mejor o peor sus instrucciones."
+    },
+    "notGit": {
+      "title": "Este proyecto no es un repositorio git",
+      "body": "Una evaluación fija un commit y ejecuta cada intento sobre él. Convierte la carpeta en un repositorio git y haz un primer commit para usar evaluaciones."
+    },
+    "noCommit": {
+      "title": "Aún no hay un commit que fijar",
+      "body": "Una evaluación fija un commit y ejecuta cada intento sobre él. Haz un primer commit en este repositorio para usar evaluaciones."
+    }
+  },
+  "invalid": {
+    "title": "Este archivo no se puede ejecutar",
+    "body": "Claudio lista el archivo que no puede leer, con el motivo, y nunca lo ejecuta. Corrígelo en el repositorio o quítalo desde aquí."
+  },
+  "matcher": {
+    "glob": "Glob",
+    "equals": "Igual a",
+    "contains": "Contiene",
+    "regex": "Regex",
+    "mode": "Cómo se compara {{field}}",
+    "flags": "flags",
+    "flagsLabel": "Flags de la regex de {{field}}"
+  },
+  "call": {
+    "tool": "Herramienta o herramientas, p. ej. Edit, MultiEdit",
+    "toolLabel": "Herramienta de {{call}}",
+    "command": "Comando",
+    "path": "Ruta",
+    "outcome": {
+      "default": "Cualquier resultado",
+      "ok": "Con éxito",
+      "error": "Con error",
+      "denied": "Denegada",
+      "any": "Cualquier resultado"
+    },
+    "outcomeLabel": "Resultado de {{call}}",
+    "scope": {
+      "default": "Agente principal",
+      "main": "Agente principal",
+      "sub": "Subagentes",
+      "any": "Cualquier agente"
+    },
+    "scopeLabel": "Quién hace {{call}}",
+    "inputKept_one": "{{count}} comprobación de entrada, se edita en JSON",
+    "inputKept_other": "{{count}} comprobaciones de entrada, se editan en JSON"
+  },
+  "expect": {
+    "row": "Comprobación {{n}}",
+    "kindLabel": "Tipo de la comprobación {{n}}",
+    "remove": "Quitar la comprobación {{n}}",
+    "kind": {
+      "called": "Llamada",
+      "not-called": "Nunca llamada",
+      "before": "Antes de",
+      "after": "Después de",
+      "sequence": "Secuencia",
+      "text": "Texto final",
+      "file": "Archivo",
+      "touched": "Tocado",
+      "command": "Comando"
+    },
+    "hint": {
+      "called": "Ocurre una llamada, las veces que se pida",
+      "not-called": "Ninguna llamada coincide",
+      "before": "Una llamada va antes que otra",
+      "after": "Una llamada va después de otra",
+      "sequence": "Las llamadas ocurren en este orden",
+      "text": "La respuesta final coincide",
+      "file": "Un archivo existe o contiene algo",
+      "touched": "Una ruta cambió, o no",
+      "command": "Un comando ejecutado en el carril termina como se espera"
+    },
+    "call": "Llamada",
+    "min": "Al menos",
+    "max": "Como máximo",
+    "anchor": "La llamada de referencia",
+    "ifAnchor": "Solo cuando ocurre la de referencia",
+    "step": "Paso {{n}}",
+    "addStep": "Añadir un paso",
+    "removeStep": "Quitar el último paso",
+    "strict": "Nada puede ir entre los pasos",
+    "text": "Texto final",
+    "file": "Ruta del archivo",
+    "exists": {
+      "default": "No se comprueba si existe",
+      "true": "Debe existir",
+      "false": "No debe existir"
+    },
+    "existsLabel": "Si el archivo debe existir",
+    "contains": "Contenido",
+    "touchedPath": "Ruta",
+    "touched": {
+      "true": "Debe tocarse",
+      "false": "No debe tocarse"
+    },
+    "touchedLabel": "Si la ruta debe tocarse",
+    "run": "Comando",
+    "runHint": "Se ejecuta en esta máquina, en el carril, cuando aceptas el archivo",
+    "exitCode": "Código de salida",
+    "timeoutSeconds": "Tiempo límite (s)"
+  },
+  "editor": {
+    "back": "Evaluaciones",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar {{name}}?",
+    "deleteBody": "El archivo se quita de la carpeta del repositorio. Las ejecuciones ya hechas siguen en el historial.",
+    "deleteFailed": "No se ha podido eliminar la evaluación",
+    "newTitle": "Nueva evaluación",
+    "view": "Vista del editor",
+    "form": "Formulario",
+    "jsonInvalid": "El JSON no se puede leer como una evaluación",
+    "jsonLabel": "El archivo de la evaluación en JSON",
+    "changedOnDisk": "El archivo cambió en el disco",
+    "changedBody": "No es el archivo que abriste (un pull u otro editor lo cambió). Recárgalo y pierde tus cambios, o sobrescríbelo con los tuyos.",
+    "shaYours": "el tuyo",
+    "shaDisk": "en el disco",
+    "reload": "Recargar",
+    "overwrite": "Sobrescribir",
+    "saveFailed": "No se ha podido guardar la evaluación",
+    "problems": "El archivo no se guardó",
+    "discardBody": "Salir descarta lo que cambiaste en esta evaluación.",
+    "saved": "Evaluación guardada",
+    "saving": "Guardando…",
+    "save": "Guardar",
+    "sections": {
+      "eval": "Evaluación",
+      "target": "Qué mide",
+      "runAs": "Ejecutar como",
+      "pin": "Commit",
+      "limits": "Intentos y límites",
+      "cases_one": "{{count}} caso",
+      "cases_other": "{{count}} casos"
+    },
+    "title": "Título",
+    "english": "Los prompts, los títulos y las notas se escriben en inglés. Las palabras de una persona se quedan como las escribió.",
+    "fileName": "Nombre del archivo",
+    "name": {
+      "pattern": "Minúsculas, dígitos y guiones, empezando por una letra o un dígito.",
+      "taken": "Ya existe una evaluación con este nombre."
+    },
+    "targetKind": "Tipo",
+    "kind": {
+      "agent": "Archivo de agente",
+      "skill": "Skill",
+      "rule": "Regla",
+      "instructions": "CLAUDE.md"
+    },
+    "targetScope": "Ámbito",
+    "scope": {
+      "project": "Este proyecto",
+      "user": "Tu carpeta de usuario"
+    },
+    "userScope": "Un archivo de usuario se mide tal como está: no se puede fijar ni proponer.",
+    "targetName": "Nombre",
+    "targetNamePlaceholder": "Elige o escribe un nombre",
+    "runAsNote": "Un miembro del equipo se ejecuta con las reglas del flujo para la etapa, como en el tablero.",
+    "runAsAgent": "Agente",
+    "runAsNobody": "Sin agente",
+    "runAsStage": "Etapa",
+    "stageDefault": "Implementar (predeterminada)",
+    "stage": {
+      "refine": "Refinar",
+      "work": "Implementar",
+      "verify": "Verificar"
+    },
+    "runAsModel": "Modelo",
+    "runAsEffort": "Esfuerzo",
+    "effortDefault": "El del modelo",
+    "pin": "Commit fijado",
+    "pinHint": "Un SHA completo de 40 caracteres: el nombre de una rama se movería.",
+    "pinHead": "Fijar en HEAD",
+    "samples": "Intentos por caso",
+    "samplesHint": "Con dos o más se distingue un caso inestable de uno que falla.",
+    "perSample": "Tope de coste por intento (USD)",
+    "timeout": "Tiempo límite por intento (min)",
+    "ceiling": "Tope de coste de una ejecución (USD)",
+    "ceilingHint": "El diálogo de inicio puede bajarlo, nunca subirlo.",
+    "setup": "Comando de preparación",
+    "setupWarn": "Ejecuta el código de este repositorio en esta máquina.",
+    "policyKept": "Esta evaluación lleva su propia política de herramientas, que se edita en JSON.",
+    "addCase": "Añadir un caso",
+    "caseUntitled": "(sin id)",
+    "expectCount_one": "{{count}} comprobación",
+    "expectCount_other": "{{count}} comprobaciones",
+    "caseProblems_one": "{{count}} problema",
+    "caseProblems_other": "{{count}} problemas",
+    "caseId": "Id del caso",
+    "caseTitle": "Título del caso",
+    "casePin": "Commit de este caso",
+    "casePinHint": "Déjalo vacío para usar el commit de la evaluación.",
+    "prompt": "Prompt",
+    "promptHint": "Se envía como único mensaje del intento, hasta {{max}} caracteres.",
+    "expectations": "Comprobaciones",
+    "addExpectation": "Añadir una comprobación",
+    "removeCase": "Quitar el caso"
+  }
+}
