@@ -785,6 +785,8 @@ test("a chat's token cannot give a graph the spend pass or name the daily cap, a
 
   const pass = await app.inject({ method: 'POST', url: '/api/orchestrations/any/spend-pass', ...fromChatWith(token, {}) });
   assert.equal(pass.statusCode, 403);
+  const cardPass = await app.inject({ method: 'POST', url: '/api/work-items/any/spend-pass', ...fromChatWith(token, {}) });
+  assert.equal(cardPass.statusCode, 403, "a card's pass is the person's click too");
   const cap = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { dailySpendCapUsd: null }) });
   assert.equal(cap.statusCode, 403);
   assert.match(cap.json().error, /daily spend cap/);

@@ -197,6 +197,23 @@ test('over the cap a start is refused unless a person overrode it or its graph h
   db.close();
 });
 
+test("a flow card's pass lifts the cap for that card alone, for its own day, and tells the listeners", () => {
+  const { db } = setup();
+  const passes = new Map<string, string>();
+  const { gate, clock } = gateOf(db, 10, NOON, { itemPassOf: (id) => passes.get(id) ?? null, grantItem: (id, day) => void passes.set(id, day) });
+  db.addSpend(row(NOON, 10));
+  assert.equal(gate.allows('flow', { itemId: 'w1' }), false);
+  let heard = 0;
+  gate.onChange(() => heard++);
+  assert.equal(gate.grantItemPass('w1'), localDayOf(clock.now));
+  assert.equal(heard, 1);
+  assert.equal(gate.allows('flow', { itemId: 'w1' }), true);
+  assert.equal(gate.allows('flow', { itemId: 'w2' }), false, 'another card has none');
+  passes.set('w1', '2026-10-15');
+  assert.equal(gate.allows('flow', { itemId: 'w1' }), false, 'a pass is for one day');
+  db.close();
+});
+
 test('granting a pass hands the day to the graph and tells the listeners', () => {
   const { db } = setup();
   const granted: string[] = [];

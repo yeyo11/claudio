@@ -111,6 +111,8 @@ import type {
   FileDiff,
   FlowRun,
   FlowRunPage,
+  FlowSpendPass,
+  FlowSpendPass,
   FlowRunQuery,
   FlowStartWaitingResult,
   FlowWaiting,
@@ -775,6 +777,8 @@ export const api = {
   spend: (o: ReadOptions = {}) => request<SpendState>('/spend', o),
   /** Lets a graph run past today's cap; answers the graph */
   grantSpendPass: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/spend-pass`, { method: 'POST' }),
+  /** Lets a flow card's queued run start past today's cap */
+  grantItemSpendPass: (itemId: string) => request<FlowSpendPass>(`/work-items/${enc(itemId)}/spend-pass`, { method: 'POST' }),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
   /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
   dashboardLayout: (project: string, o: ReadOptions = {}) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, o),

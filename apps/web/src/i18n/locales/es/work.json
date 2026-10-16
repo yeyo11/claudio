@@ -20,6 +20,8 @@
     "worktrees_other": "{{count}} worktrees"
   },
   "spendWait": {
-    "card": "Esperando al tope diario · vuelve a las {{time}}"
+    "card": "Esperando al tope diario · vuelve a las {{time}}",
+    "summary_one": "{{count}} tarjeta espera al tope diario · vuelve a las {{time}}",
+    "summary_other": "{{count}} tarjetas esperan al tope diario · vuelven a las {{time}}"
   }
 }

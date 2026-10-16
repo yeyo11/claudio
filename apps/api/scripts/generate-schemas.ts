@@ -63,7 +63,7 @@ const ROOT_TYPES = [
   'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'TriageWorkItemRequest', 'TriageWorkItemResult', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
   'WorkItemChanges', 'WorkItemPullRequestResult',
   // Team, flow by column, journal, memory proposals and documents
-  'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunPage', 'FlowWaiting', 'FlowStartWaitingResult', 'FlowRunResult',
+  'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunPage', 'FlowWaiting', 'FlowStartWaitingResult', 'FlowSpendPass', 'FlowRunResult',
   'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
   'ProjectDoc', 'ProjectDocsOverview', 'AddProjectDocRequest',
   'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',

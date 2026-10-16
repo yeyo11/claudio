@@ -275,7 +275,7 @@ export interface FlowDeps {
   /** The commit subjects and changed paths of what the item's branch did, for the `flow.criteria-precheck` state */
   workDone?: (item: WorkItem) => { commits: string[]; paths: string[] } | null;
   /** The daily spend cap lets a new run start; without it every run may (docs/plans/agent-run-improvements.md) */
-  spendOpen?: () => boolean;
+  spendOpen?: (itemId: string) => boolean;
 }
 
 /** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
@@ -1384,6 +1384,21 @@ export class FlowService {
     return (this.sql.prepare("SELECT COUNT(*) AS n FROM flow_runs WHERE state = 'queued' AND chat_id IS NULL").get() as { n: number }).n;
   }
 
+  /** Lets a card's queued run start past today's cap; the pass is kept as a row and good for the local day it names. */
+  grantSpendPass(itemId: string, day: string): void {
+    this.write(() => {
+      this.sql
+        .prepare('INSERT INTO flow_spend_passes (item_id, day, granted_at) VALUES (?, ?, ?) ON CONFLICT (item_id) DO UPDATE SET day = excluded.day, granted_at = excluded.granted_at')
+        .run(itemId, day, new Date().toISOString());
+    });
+  }
+
+  /** The day a card was let past the cap; null when it was not. */
+  spendPassOf(itemId: string): string | null {
+    const row = this.sql.prepare('SELECT day FROM flow_spend_passes WHERE item_id = ?').get(itemId) as { day: string } | undefined;
+    return row?.day ?? null;
+  }
+
   /** Waits for every dispatch asked for so far; for tests and for shutting down cleanly. */
   async settled(): Promise<void> {
     // A decision that comes back may queue a run, which dispatches again: wait until both are quiet
@@ -1435,7 +1450,7 @@ export class FlowService {
     this.write(() => {
       // Over the daily cap a new run stays queued, in its place; one that already has its chat
       // (a restart's, a continuation) is in flight and is not asked
-      if (row.chat_id === null && this.deps.spendOpen?.() === false) return;
+      if (row.chat_id === null && this.deps.spendOpen?.(row.item_id) === false) return;
       const running = this.sql.prepare("SELECT item_id FROM flow_runs WHERE project_id = ? AND state = 'running'").all(row.project_id) as Array<{ item_id: string }>;
       if (running.length >= maxParallel(project.settings)) return;
       // One run at a time on an item: the next waits for the one working on it

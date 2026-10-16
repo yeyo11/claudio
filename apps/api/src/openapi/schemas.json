@@ -18925,8 +18925,24 @@
       "queued",
       "startingNow",
       "waiting"
+    ]
+  },
+  "FlowSpendPass": {
+    "type": "object",
+    "properties": {
+      "itemId": {
+        "type": "string"
+      },
+      "day": {
+        "type": "string",
+        "description": "The server's local `YYYY-MM-DD`; tomorrow the card is under that day's cap again"
+      }
+    },
+    "required": [
+      "itemId",
+      "day"
     ],
-    "description": "`POST /projects/:id/flow/start-waiting`: what queuing the waiting cards did."
+    "description": "A card's pass past the daily spend cap: the local day it is good for."
   },
   "FlowRunResult": {
     "type": "object",

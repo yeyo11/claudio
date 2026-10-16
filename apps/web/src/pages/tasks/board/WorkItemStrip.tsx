@@ -372,7 +372,7 @@ export function WorkItemStrip({
     <>
       <div className={className}>{body}</div>
       {/* The queue is the cap's while it is reached: say so under the card, where a limit's wait says its own */}
-      {strip.kind === 'queued' && <SpendQueuedLine />}
+      {strip.kind === 'queued' && <SpendQueuedLine itemId={item.id} inline={inline} />}
     </>
   );
 }

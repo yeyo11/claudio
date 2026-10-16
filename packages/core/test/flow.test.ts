@@ -62,10 +62,10 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
   const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
   let chats = 0;
   /** The daily spend cap: closed, no new run starts */
-  const spend = { open: opts.spendOpen ?? true };
+  const spend = { open: opts.spendOpen ?? true, passed: new Set<string>() };
   const flow = new FlowService({
     db,
-    spendOpen: () => spend.open,
+    spendOpen: (itemId) => spend.open || spend.passed.has(itemId),
     items,
     project: (id) => (id === 'p1' ? { path: opts.path ?? '/nowhere/p1', settings: state.settings } : null),
     handoff: () => '# Project journal',
@@ -2452,6 +2452,23 @@ test('over the daily spend cap a new run stays queued in its place, and starts o
   assert.deepEqual(running(s).map((r) => r.itemId), [a.id], 'the oldest first');
   assert.deepEqual(queued(s).map((r) => r.itemId), [b.id]);
   assert.equal(s.flow.queuedCount(), 1);
+});
+
+test("a card's pass lets its queued run start over the cap and is kept as a row for its day", async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 2 } }, spendOpen: false });
+  const a = await item(s, 'in_progress', 'A');
+  const b = await item(s, 'in_progress', 'B');
+  assert.equal(s.flow.spendPassOf(a.id), null);
+  s.flow.grantSpendPass(a.id, '2026-10-16');
+  assert.equal(s.flow.spendPassOf(a.id), '2026-10-16');
+  s.spend.passed.add(a.id);
+  s.flow.dispatch();
+  await s.flow.settled();
+  assert.deepEqual(running(s).map((r) => r.itemId), [a.id], 'only the card with the pass starts');
+  assert.deepEqual(queued(s).map((r) => r.itemId), [b.id]);
+  // A second pass the same day replaces the row instead of adding one
+  s.flow.grantSpendPass(a.id, '2026-10-17');
+  assert.equal(s.flow.spendPassOf(a.id), '2026-10-17');
 });
 
 test('a run a restart cut off goes on over the cap: it is in flight, not a new start', async () => {

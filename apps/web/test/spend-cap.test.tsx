@@ -11,7 +11,7 @@ import { api, ApiRequestError, keys } from '../src/api';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { SpendLineView } from '../src/components/SpendLine';
-import { OrchestrationSpendWait, SpendQueuedLine } from '../src/components/SpendWait';
+import { OrchestrationSpendWait, SpendQueuedLine, SpendWaitSummary } from '../src/components/SpendWait';
 import { SpendItem } from '../src/components/shell/StatusBar';
 import i18n, { setLanguage } from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
@@ -182,11 +182,23 @@ test('the spend events make the next reading the views', () => {
   assert.deepEqual(targetsFor(event)[0]?.[0], keys.spend);
 });
 
-test('a card waits under the cap only while it is reached', () => {
-  assert.equal(wrap(<SpendQueuedLine />, state(8)), '');
-  const html = wrap(<SpendQueuedLine />, state(21));
-  assert.match(html, /class="wait-line" role="status"/);
+test('a card waits under the cap only while it is reached, and offers the pass without being a live region', () => {
+  assert.equal(wrap(<SpendQueuedLine itemId="w1" />, state(8)), '');
+  const html = wrap(<SpendQueuedLine itemId="w1" />, state(21));
+  assert.match(html, /class="wait-line"/);
+  assert.doesNotMatch(html, /role="status"/, 'a board with several held cards must not announce each');
   assert.match(text(html), /Waiting for the daily cap · back at 00:00/);
+  assert.match(text(html), /Go on today anyway/);
+  assert.doesNotMatch(text(wrap(<SpendQueuedLine itemId="w1" inline />, state(21))), /Go on today anyway/, 'a list row has no button');
+});
+
+test('the board speaks the held cards once, in one polite live region', () => {
+  const held = state(21, { waiting: { flowRuns: 3, orchestrationTasks: 0 } });
+  const html = wrap(<SpendWaitSummary />, held);
+  assert.equal((html.match(/role="status"/g) ?? []).length, 1);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(text(html), /3 cards are waiting for the daily cap · back at 00:00/);
+  assert.doesNotMatch(text(wrap(<SpendWaitSummary />, state(8))), /waiting/);
 });
 
 const graph = (over: Partial<Orchestration> = {}): Orchestration =>

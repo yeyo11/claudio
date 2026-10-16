@@ -154,6 +154,19 @@ test('the pass route sets the graph’s pass and answers the graph', async (t) =
   assert.equal((await w.app.inject({ method: 'POST', url: '/api/orchestrations/nope/spend-pass' })).statusCode, 404);
 });
 
+test("the card pass route records the day for a work item, refuses a chat's token and an unknown item", async (t) => {
+  const w = await wrapper();
+  t.after(finish(w));
+  const scratch = mkdtempSync(join(w.root, 'project-'));
+  const project = (await w.app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch, name: 'Passes', modules: ['board'] }) })).json<{ id: string }>();
+  const created = (await w.app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Held card' }) })).json<{ id: string }>();
+  const res = await w.app.inject({ method: 'POST', url: `/api/work-items/${created.id}/spend-pass` });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.deepEqual(res.json(), { itemId: created.id, day: today() });
+  assert.equal(w.core.flow.spendPassOf(created.id), today());
+  assert.equal((await w.app.inject({ method: 'POST', url: '/api/work-items/nope/spend-pass' })).statusCode, 404);
+});
+
 test("a chat's token reads the spend but can neither override, grant a pass nor change the cap", async (t) => {
   const w = await wrapper();
   t.after(finish(w));

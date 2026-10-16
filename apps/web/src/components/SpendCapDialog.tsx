@@ -44,7 +44,7 @@ export function SpendCapDialog({
       <p className="muted">{t('spendCap.body')}</p>
       {view && view.overUsd > 0 && <p className="muted small">{t('spendCap.over', { amount: formatCost(view.overUsd) })}</p>}
       <p className="small">
-        <Link to={SPEND_CAP_SETTINGS_PATH} onClick={onCancel}>
+        <Link to={SPEND_CAP_SETTINGS_PATH} className="spend-dialog-link" onClick={onCancel}>
           {t('spendCap.change')}
         </Link>
       </p>

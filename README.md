@@ -716,6 +716,7 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | GET | `/projects/:id/flow/waiting` | The cards waiting for the flow: not epics nor done, in a column with a responsible member, with no run queued or running (`{ total, columns }`; 0 while the flow is off) |
 | POST | `/projects/:id/flow/start-waiting` | Queue one run per waiting card in board order, as a person (`queuedBy: "person"`); answers `{ queued, startingNow, waiting }`, 409 while the flow is off |
 | GET | `/work-items/:itemId/runs` | Every flow run of a work item, newest first, whatever its state |
+| POST | `/work-items/:itemId/spend-pass` | Let a card whose flow run the daily spend cap holds start today: records the pass for the server's local day and answers `{ itemId, day }`. Refused to a chat's token with `403` |
 | POST | `/flow-runs/:runId/retry` | Queue a failed run's step again while its item is still in the run's column (409 otherwise); counts as a person's move |
 
 ### Assistant

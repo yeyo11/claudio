@@ -23,6 +23,7 @@ import { BoardColumns, type BoardSelection } from './board/BoardColumns';
 import { BoardOff, EmptyBoard, NoBoards, NothingFiltered } from './board/EmptyBoards';
 import { useLiveSources } from './board/LiveLine';
 import { BoardReadinessProvider, CheckoutLine } from './board/PullRequest';
+import { SpendWaitSummary } from '../../components/SpendWait';
 import { BoardTeamProvider, FlowButton, PhoneFlowRow, useBoardTeamData } from './board/team';
 import { boardItems, boardTotal, DONE_SHOWN, doneLimitFor, holdsPart, NO_MILESTONE, nextDoneShown, notSelectable } from './board/model';
 import { useEpicProgress } from './board/useEpicProgress';
@@ -376,6 +377,7 @@ function TasksBoard() {
 
       <BoardReadinessProvider value={readiness}>
         <BoardTeamProvider value={team}>{body}</BoardTeamProvider>
+        <SpendWaitSummary />
       </BoardReadinessProvider>
 
       {selecting && phone && <SelectionNote selected={selectedItems} />}

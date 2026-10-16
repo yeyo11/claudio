@@ -20,6 +20,8 @@
     "worktrees_other": "{{count}} worktrees"
   },
   "spendWait": {
-    "card": "Waiting for the daily cap · back at {{time}}"
+    "card": "Waiting for the daily cap · back at {{time}}",
+    "summary_one": "{{count}} card is waiting for the daily cap · back at {{time}}",
+    "summary_other": "{{count}} cards are waiting for the daily cap · back at {{time}}"
   }
 }

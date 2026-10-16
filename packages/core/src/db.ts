@@ -899,6 +899,14 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
       insert.run(doc.endedAt, row.chat_id, row.id, doc.costUsd);
     }
   },
+  // The "Keep going today" pass of a flow card held by the daily spend cap (resolved question 2 of
+  // docs/plans/agent-run-improvements.md): one row per card, the local day it is good for, and when
+  // the person gave it. Rows, because it accumulates and the card's history is worth reading back
+  `CREATE TABLE flow_spend_passes (
+     item_id    TEXT PRIMARY KEY,
+     day        TEXT NOT NULL,
+     granted_at TEXT NOT NULL
+   );`,
 ];
 
 /**

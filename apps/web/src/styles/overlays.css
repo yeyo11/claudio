@@ -302,6 +302,15 @@ button.attachment-chip {
   gap: 10px;
 }
 
+/* A link on a phone is a touch target: the same 44 px as the buttons beside it */
+@media (max-width: 900px) {
+  .spend-dialog-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch);
+  }
+}
+
 .spend-dialog-amounts {
   font-family: var(--mono);
   font-size: 15px;

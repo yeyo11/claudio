@@ -2533,6 +2533,13 @@ export interface FlowWaiting {
 }
 
 /** `POST /projects/:id/flow/start-waiting`: what queuing the waiting cards did. */
+/** A card's pass past the daily spend cap: the local day it is good for. */
+export interface FlowSpendPass {
+  itemId: string;
+  /** The server's local `YYYY-MM-DD`; tomorrow the card is under that day's cap again */
+  day: string;
+}
+
 export interface FlowStartWaitingResult {
   /** Runs queued, one per waiting card */
   queued: number;

@@ -37,6 +37,10 @@ export interface SpendGateDeps {
   passOf?: (orchestrationId: string) => string | null;
   /** Records today's pass on a graph; the orchestrator keeps it in its document. */
   grant?: (orchestrationId: string, day: string) => unknown;
+  /** The local day a flow card was let through the cap, null when it was not. */
+  itemPassOf?: (itemId: string) => string | null;
+  /** Records today's pass on a flow card; the flow keeps it in its table. */
+  grantItem?: (itemId: string, day: string) => void;
   now?: () => number;
 }
 
@@ -45,6 +49,8 @@ export interface SpendAllowance {
   override?: boolean;
   /** The graph the start belongs to, which may hold today's pass */
   orchestrationId?: string;
+  /** The flow card the start belongs to, which may hold today's pass */
+  itemId?: string;
 }
 
 /**
@@ -119,6 +125,7 @@ export class SpendGate {
     if (options.override) return true;
     const now = this.now();
     if (options.orchestrationId && this.deps.passOf?.(options.orchestrationId) === localDayOf(now)) return true;
+    if (options.itemId && this.deps.itemPassOf?.(options.itemId) === localDayOf(now)) return true;
     return !this.read(now).blocked;
   }
 
@@ -132,6 +139,14 @@ export class SpendGate {
     const granted = this.deps.grant?.(orchestrationId, localDayOf(this.now()));
     this.changed();
     return granted;
+  }
+
+  /** Lets a flow card run past today's cap, as a graph is let. */
+  grantItemPass(itemId: string): string {
+    const day = localDayOf(this.now());
+    this.deps.grantItem?.(itemId, day);
+    this.changed();
+    return day;
   }
 
   /** Fires after a cap change, a level crossing, midnight or a pass; a returned function stops listening. */
