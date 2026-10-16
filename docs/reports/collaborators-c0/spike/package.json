@@ -1,0 +1,8 @@
+{
+  "name": "claudio-c0-iroh-spike",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Claudio Collaborators C0 spike: proves @number0/iroh for a custom ALPN, direct and relay paths, and soft loading",
+  "dependencies": { "@number0/iroh": "1.1.0" }
+}

@@ -1,0 +1,313 @@
+{
+  "preset": "n0",
+  "relayUrls": [],
+  "ticket": {
+    "relay": null,
+    "direct": [],
+    "id": "<endpoint-id-1>"
+  },
+  "bindMs": 25,
+  "onlineMs": 776,
+  "handshakeMs": 366,
+  "pathsAtConnect": [
+    {
+      "sel": true,
+      "relay": true,
+      "ip": false,
+      "addr": "https://euc1-1.relay.n0.iroh.link./",
+      "rttMs": 264
+    }
+  ],
+  "pathsSeenByServer": [
+    {
+      "sel": true,
+      "relay": true,
+      "ip": false,
+      "addr": "https://euc1-1.relay.n0.iroh.link./",
+      "rttMs": 124
+    }
+  ],
+  "pingMs": {
+    "min": 96.04,
+    "median": 126.16,
+    "max": 200.91
+  },
+  "rttMs": 121,
+  "blob": {
+    "mib": 4,
+    "bytes": 4194304,
+    "secs": 3.83,
+    "mbps": 8.77
+  },
+  "pathsAfterWait": [
+    {
+      "sel": true,
+      "relay": true,
+      "ip": false,
+      "addr": "https://euc1-1.relay.n0.iroh.link./",
+      "rttMs": 173
+    }
+  ],
+  "pathEvents": [
+    {
+      "atMs": 617,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 233
+        }
+      ]
+    },
+    {
+      "atMs": 868,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 176
+        }
+      ]
+    },
+    {
+      "atMs": 1118,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 157
+        }
+      ]
+    },
+    {
+      "atMs": 1369,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 154
+        }
+      ]
+    },
+    {
+      "atMs": 1620,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 145
+        }
+      ]
+    },
+    {
+      "atMs": 1870,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 135
+        }
+      ]
+    },
+    {
+      "atMs": 2120,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 134
+        }
+      ]
+    },
+    {
+      "atMs": 2371,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 129
+        }
+      ]
+    },
+    {
+      "atMs": 2621,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 130
+        }
+      ]
+    },
+    {
+      "atMs": 2871,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 123
+        }
+      ]
+    },
+    {
+      "atMs": 110,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 119
+        }
+      ]
+    },
+    {
+      "atMs": 1114,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 120
+        }
+      ]
+    },
+    {
+      "atMs": 1613,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 119
+        }
+      ]
+    },
+    {
+      "atMs": 1864,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 126
+        }
+      ]
+    },
+    {
+      "atMs": 2116,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 153
+        }
+      ]
+    },
+    {
+      "atMs": 2367,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 154
+        }
+      ]
+    },
+    {
+      "atMs": 2870,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 173
+        }
+      ]
+    },
+    {
+      "atMs": 3620,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 198
+        }
+      ]
+    },
+    {
+      "atMs": 3870,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 199
+        }
+      ]
+    },
+    {
+      "atMs": 4122,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 183
+        }
+      ]
+    },
+    {
+      "atMs": 9147,
+      "paths": [
+        {
+          "sel": true,
+          "relay": true,
+          "ip": false,
+          "addr": "https://euc1-1.relay.n0.iroh.link./",
+          "rttMs": 173
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "udpTxDatagrams": 505,
+    "udpTxBytes": 27795,
+    "udpRxDatagrams": 3045,
+    "udpRxBytes": 4308271,
+    "lostPackets": 0,
+    "lostBytes": 0
+  }
+}

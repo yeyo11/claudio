@@ -548,7 +548,7 @@ There are new events: `collaborators.changed` (settings, roster, links), `collab
 
 | Stage | What | Checks |
 | --- | --- | --- |
-| **C0 — spike** | **Done 2026-10-16** (§7.2). Proved: bind with the custom ALPN, direct and relay paths, discovery by id, custom relay map, soft loading, the bundle and staging, loading in Electron 44 and in `node:26-bookworm-slim`, two machines on the LAN, and two machines across two NATs (home router and a phone hotspot), where every connection stayed on the relay. Found the `watch*` abort and the `Array<number>` ceiling, which changed §3.2. | §7.2 written; spike kept outside the repo (`/tmp/c0-iroh`, `~/Escritorio/claudio-c0-spike.tar.gz`, `/home/jose/spike` on the work PC) |
+| **C0 — spike** | **Done 2026-10-16** (§7.2). Proved: bind with the custom ALPN, direct and relay paths, discovery by id, custom relay map, soft loading, the bundle and staging, loading in Electron 44 and in `node:26-bookworm-slim`, two machines on the LAN, and two machines across two NATs (home router and a phone hotspot), where every connection stayed on the relay. Found the `watch*` abort and the `Array<number>` ceiling, which changed §3.2. | §7.2 written; spike code and raw results in [reports/collaborators-c0/](../reports/collaborators-c0/README.md) |
 | **C1 — core** | identity and lazy loading; roster chain (genesis, verify, suffix fetch, transfer, equivocation report); invites, direct and relayed joins, one-time secrets; `shareKeyFor` with the remote preference, alias resolution, host table and subpath; `serve.ts` with read-only ports, the lint rule and the four checks; pull/watch client; SQLite tables; catalog reconcile; manual links | unit tests: chain verification against every forged variant (wrong signer, broken `prevHash`, equal version, second genesis); a peer offline across five versions converges; joiner rejects a chain whose owner is not the invite's; transfer; invite expiry and one-time use across a restart; relayed join sealed end to end; removal; `shareKeyFor` for fork, alias, case, subpath, two clones and no remote; blob refused by hash alone; the "serve imports no run service" test and lint; cursors per kind; two in-process endpoints syncing a fixture project offline |
 | **C2 — API** | routes, events, OpenAPI, README, `CHAT_FORBIDDEN_COLLABORATORS`, `ProjectSettings.sharing` and schema regeneration | `pnpm --filter @claudio/api openapi:schemas`, route tests, 403 for chat tokens on every route including reads |
 | **C3 — web** | §5 after the owner validates it, the `collaborators` illustration with its reference SVG and its design-system row, the QR encoder, the glossary rows | Night Shift check skill, `en`/`es` parity, both themes, phone, motion levels, the tokens test, at most two gradient surfaces on the Collaborators page |
@@ -693,10 +693,10 @@ with several members on mobile networks has a reason to run its own `iroh-relay`
 (§3.2). Home-to-home, office-to-home and the LAN case were not the problem: the LAN run went direct
 in under a second.
 
-**Spike artefacts.** `/tmp/c0-iroh/spike` here (`serve.mjs`, `client.mjs`, `tput.mjs`,
-`relay-test.mjs`, `buf-test.mjs`, `load-check.mjs`), the raw reports in `/tmp/c0-iroh/results/`, the
-copy `~/Escritorio/claudio-c0-spike.tar.gz`, and `/home/jose/spike` with `nat-run.sh` on the work PC.
-None of it enters the repository.
+**Spike artefacts.** The scripts (`serve.mjs`, `client.mjs`, `tput.mjs`, `relay-test.mjs`, `buf-test.mjs`,
+`load-check.mjs`, `w-conn.mjs`, `w-test.mjs`) and the raw reports, with endpoint ids, tickets and IP
+addresses replaced, are in [reports/collaborators-c0/](../reports/collaborators-c0/README.md). The work
+PC's copy (`nat-run.sh`) stays there.
 
 ## 8. Decisions taken and rejected
 
