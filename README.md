@@ -1079,6 +1079,7 @@ Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](d
 | GET | `/projects/:id/sharing` | The groups the project is shared with, its share key and `shareId`, the remotes to compute it from and `keyInUse` |
 | PUT | `/projects/:id/sharing` | `{ groups?, shareKey?, remote? }`; 409 `share-key-in-use` with the other project's `projectId` and `projectName` |
 | GET | `/collaborators/shared` | What teammates share with this install, with each project's `shareId`, sync state, matching local projects and link |
+| GET | `/collaborators/shared/:owner/:shareId` | One shared project as the list gives it, for the read-only view of a project not cloned here; 404 once it is no longer shared |
 | PUT | `/collaborators/shared/:owner/:shareId/link` | `{ projectId }`: show the shared project inside a local one |
 | DELETE | `/collaborators/shared/:owner/:shareId/link` | Undo the link |
 | GET | `/collaborators/shared/:owner/:shareId/{chats,memory,journal,documents,work-items,artifacts}?refresh=1` | The copies held; `refresh=1` pulls from the owner first |

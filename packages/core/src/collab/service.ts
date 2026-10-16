@@ -1193,6 +1193,15 @@ export class CollaboratorsService {
     return this.sharedOne(owner, shareId);
   }
 
+  /**
+   * `GET /collaborators/shared/:owner/:shareId`: one shared project, as the catalog lists it. What
+   * the read-only view of a project not cloned here heads itself with; not-found once the owner no
+   * longer shares it with this install.
+   */
+  sharedProject(owner: string, shareId: string): Promise<SharedProject> {
+    return this.sharedOne(owner, shareId);
+  }
+
   private async sharedOne(owner: string, shareId: string): Promise<SharedProject> {
     const found = (await this.shared()).find((p) => p.owner === owner && p.shareId === shareId);
     if (!found) throw new CollaboratorsError('not-found', 'No such shared project');

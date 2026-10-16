@@ -2453,15 +2453,23 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   `--live`.
 - The page has one gradient action: **Turn on** while Collaborators is off, **Invite** while it is
   on. Buttons inside the dialogs are default ones.
-- The Sharing section and the Shared tab add no CSS of their own. The marker classes (`read-only-bar`,
-  `shared-view`, `shared-head`, `shared-chats`, `shared-chat`, `shared-board`, `project-sharing`)
-  have no styles; they reuse the chat list, transcript, documents and board styles.
+- The Sharing section, the Shared tab and the read-only view of a project not cloned here add no CSS
+  of their own. The marker classes (`read-only-bar`, `shared-view`, `shared-head`, `shared-chats`,
+  `shared-chat`, `shared-board`, `shared-journal`, `shared-artifacts`, `shared-project`,
+  `project-sharing`) have no styles; they reuse the chat list, transcript, journal, master-detail,
+  documents and board styles.
 - The **Shared** tab sits after Memory in `PROJECT_VIEWS` and has its own gate (Collaborators on and a
   teammate's project matching). A running chat there has the live rail and braille spinner, never
   the energy border. The transcript is `Transcript` with `readOnly`, which drops the message menu,
   edit chips, subagent and branch links, and the composer's place takes `ReadOnlyBar`.
-- A shared project that is not cloned here offers "Not cloned here" and **Link to a local project**;
-  the read-only view of its tabs the plan also asks for is not built.
+- A shared project that is not cloned here shows "Not cloned here", **Link to a local project** and
+  **Open**, which leads to its read-only view at `/collaborators/shared/:owner/:shareId`: the page
+  header with the project's name and "Shared by … · read only", the share key and sync words, and the
+  same sub-tabs as the Shared tab. Its one action is **Link to a local project**, a default button
+  (the page has no gradient surface); once linked it becomes **Open in …**.
+- The sub-tabs are the kinds the copy carries: Chats, Memory, Journal, Documents, Artifacts, Board.
+  The journal is the person's own journal list without delete or task links, written by the teammate
+  (never "you"); artifacts are a master-detail list whose attachment is downloaded, never launched.
 - The invite's QR code comes from the encoder in `packages/ui` (versions 1 to 40, level M).
 
 ## Related

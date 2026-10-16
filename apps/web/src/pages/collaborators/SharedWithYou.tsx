@@ -7,7 +7,7 @@ import { Card, Empty } from '@claudio/ui/components/ui';
 import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
 import { PendingWords } from './dialogs';
-import { byPerson, kindCounts, localProjectOf, sharedTabPath, syncWord, type SyncKey } from './model';
+import { byPerson, kindCounts, localProjectOf, sharedProjectPath, sharedTabPath, syncWord, type SyncKey } from './model';
 import { ToneText } from './YouCard';
 
 const SYNC_ICON: Partial<Record<SyncKey, LucideIcon>> = {
@@ -88,6 +88,9 @@ function SharedRow({
             <button type="button" className="link-btn" disabled={busy || projects.length === 0} onClick={() => onLink(project)}>
               <Link2 {...ICON_SM} /> {t('sharedWithYou.link')}
             </button>
+            <Link to={sharedProjectPath(project)} className="btn btn-small" aria-label={t('sharedWithYou.openReadOnly', { project: project.name })} data-testid="collab-open-read-only">
+              {t('sharedWithYou.open')} <ArrowRight {...ICON_SM} />
+            </Link>
           </>
         )}
       </div>
@@ -97,8 +100,8 @@ function SharedRow({
 
 /**
  * What teammates share with this install, by person and then by install (§3.1: one person's two
- * installs are two members). A project cloned here opens in its Shared tab; one that is not offers
- * a link to a local project.
+ * installs are two members). A project cloned here opens in its Shared tab; one that is not opens
+ * its own read-only view and offers a link to a local project.
  */
 export function SharedWithYou({
   shared,

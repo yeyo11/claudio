@@ -136,7 +136,8 @@
     "linkTitle": "Vincular {{project}} con un proyecto local",
     "linkHint": "El proyecto compartido aparecerá en la pestaña Compartido del proyecto que elijas.",
     "linkProject": "Proyecto local",
-    "linkSubmit": "Vincular"
+    "linkSubmit": "Vincular",
+    "openReadOnly": "Abrir {{project}} en solo lectura"
   },
   "sync": {
     "live": "Al día · sincronizando",
@@ -225,7 +226,9 @@
     "tabs": {
       "chats": "Chats",
       "memory": "Memoria",
+      "journal": "Diario",
       "documents": "Documentos",
+      "artifacts": "Artefactos",
       "board": "Tablero"
     },
     "sync": {
@@ -246,7 +249,32 @@
       "chats": "{{name}} aún no tiene chats en este proyecto",
       "memory": "Aún no hay archivos de memoria en este proyecto",
       "documents": "Aún no hay documentos en este proyecto",
-      "board": "Aún no hay tareas en este tablero"
+      "board": "Aún no hay tareas en este tablero",
+      "journal": "Aún no hay entradas en el diario de este proyecto",
+      "artifacts": "Aún no hay artefactos en este proyecto"
+    },
+    "artifacts": {
+      "orchestration": "Orquestación",
+      "upload": "Adjunto",
+      "plan": "Borrador de plan",
+      "noResult": "Esta orquestación no ha dejado resultado",
+      "noObjective": "Sin objetivo escrito",
+      "tasks_one": "{{n}} tarea",
+      "tasks_other": "{{n}} tareas",
+      "type": "Tipo",
+      "size": "Tamaño",
+      "chat": "Chat",
+      "download": "Descargar",
+      "downloadFailed": "No se ha podido descargar el archivo"
     }
+  },
+  "readOnly": {
+    "title": "Proyecto compartido",
+    "from": "Compartido por {{name}} · solo lectura",
+    "hint": "Se lee de la copia que guarda esta instalación. Vincúlalo con un proyecto local para leerlo en la pestaña Compartido de ese proyecto.",
+    "hintLinked": "Vinculado con {{project}}: también se lee en la pestaña Compartido de ese proyecto.",
+    "gone": "Este proyecto ya no se comparte contigo",
+    "goneHint": "Su propietario ha dejado de compartirlo o ya no estás en un grupo con él.",
+    "back": "Volver a Colaboradores"
   }
 }

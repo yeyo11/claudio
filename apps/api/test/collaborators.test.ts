@@ -78,8 +78,8 @@ function collaboratorRoutes(projectId: string): Array<{ method: string; url: str
 
 test('documents every route of §6 under the Collaborators tag', () => {
   const routes = collaboratorRoutes('p').map((r) => r.route);
-  assert.equal(routes.length, 27);
-  for (const route of ['GET /projects/:id/sharing', 'PUT /projects/:id/sharing', 'GET /collaborators/shared/:owner/:shareId/blobs/:sha256', 'GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId'])
+  assert.equal(routes.length, 28);
+  for (const route of ['GET /collaborators/shared/:owner/:shareId', 'GET /projects/:id/sharing', 'PUT /projects/:id/sharing', 'GET /collaborators/shared/:owner/:shareId/blobs/:sha256', 'GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId'])
     assert.ok(routes.includes(route), route);
 });
 
@@ -124,7 +124,10 @@ test('with Collaborators off: the status answers, group writes are refused, a pr
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/collaborators/join/nope' })).statusCode, 404);
   assert.deepEqual((await app.inject('/api/collaborators/shared')).json(), []);
 
-  // A shared project this install does not know is 404 on every reader
+  // A shared project this install does not know is 404, itself and on every reader
+  const one = await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}`);
+  assert.equal(one.statusCode, 404, one.body);
+  assert.equal(one.json().code, 'not-found');
   for (const kind of ['chats', 'memory', 'journal', 'documents', 'work-items', 'artifacts', 'chats/x/transcript', 'chats/x/subagents/a1', `blobs/${SHA}`]) {
     const res = await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}/${kind}`);
     assert.equal(res.statusCode, 404, `${kind}: ${res.body}`);

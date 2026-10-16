@@ -1,6 +1,6 @@
-import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type Project, type SharedChat, type SharedProject, type SharedSubagent, type SharedTranscriptPage, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
+import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type JournalEntry, type JournalEntryKind, type SharedArtifact, type Project, type SharedChat, type SharedProject, type SharedSubagent, type SharedTranscriptPage, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BookText, FileText, MessagesSquare, SquareKanban } from 'lucide-react';
+import { ArrowLeft, BookText, Check, Download, FileText, GitCommitVertical, ListTodo, MessagesSquare, NotebookText, Package, Paperclip, SquareKanban, StickyNote, Workflow, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -13,18 +13,23 @@ import { Select } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '@claudio/ui/components/ui';
-import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
+import { formatBytes, formatDate, formatDateTime, formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/work-item-icons';
 import { columnMeta, workItemLiveState } from '../../lib/work-items';
 import { DocumentView } from '../documents/Pane';
+import { dayGroups } from '../home/memory/model';
+import { useRoleName } from '../team/RoleAvatar';
 import { collaboratorsApi, collaboratorsKeys, useSharedWith, type SharedRef } from './shared-data';
 
-/** The Shared tab's sub-tabs, each a kind a teammate's project may carry (§5.3). */
-export const SHARED_SECTIONS = ['chats', 'memory', 'documents', 'board'] as const satisfies readonly CollaboratorsKind[];
+/**
+ * The Shared tab's sub-tabs, each a kind a teammate's project may carry: the four of §5.3, and the
+ * journal and artifacts the copy also holds, in the order the catalog counts them.
+ */
+export const SHARED_SECTIONS = ['chats', 'memory', 'journal', 'documents', 'artifacts', 'board'] as const satisfies readonly CollaboratorsKind[];
 
 export type SharedSection = (typeof SHARED_SECTIONS)[number];
 
-const SECTION_ICON = { chats: MessagesSquare, memory: BookText, documents: FileText, board: SquareKanban } as const;
+const SECTION_ICON = { chats: MessagesSquare, memory: BookText, journal: NotebookText, documents: FileText, artifacts: Package, board: SquareKanban } as const;
 
 /** A teammate's project in the address: one person may share two projects that land in this one. */
 export const memberValue = (shared: Pick<SharedProject, 'owner' | 'shareId'>): string => `${shared.owner}:${shared.shareId}`;
@@ -53,21 +58,10 @@ export function contiguousTail(byIndex: ReadonlyMap<number, TranscriptEntry>): {
   return { from: at + 1, entries: entries.reverse() };
 }
 
-/**
- * A project's Shared tab: what teammates who share this project's key (or were linked to it by
- * hand) let this install read. A member switcher and the sync state head it; the sub-tabs reuse
- * the project's own views, read only. Nothing here is the person's own work, so nothing here
- * carries the energy border, and nothing read here joins the person's own chat list or counts.
- */
-export function SharedView({ project }: { project: Project }) {
-  const { t } = useTranslation(['collaborators', 'home']);
-  const { projects: shared } = useSharedWith(project.id);
-  const members = useMemo(() => sortMembers(shared), [shared]);
-  const [params, setParams] = useSearchParams();
-  const group = useTabGroup();
-  const current = members.find((member) => memberValue(member) === params.get('from')) ?? members[0];
-
-  const change = (patch: Record<string, string | null>) =>
+/** A change to the address: each key set, or dropped when null. The history keeps the one before it. */
+function usePatchParams(): (patch: Record<string, string | null>) => void {
+  const [, setParams] = useSearchParams();
+  return (patch) =>
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -79,11 +73,23 @@ export function SharedView({ project }: { project: Project }) {
       },
       { replace: true },
     );
+}
+
+/**
+ * A project's Shared tab: what teammates who share this project's key (or were linked to it by
+ * hand) let this install read. A member switcher and the sync state head it; the sub-tabs reuse
+ * the project's own views, read only. Nothing here is the person's own work, so nothing here
+ * carries the energy border, and nothing read here joins the person's own chat list or counts.
+ */
+export function SharedView({ project }: { project: Project }) {
+  const { t } = useTranslation(['collaborators', 'home']);
+  const { projects: shared } = useSharedWith(project.id);
+  const members = useMemo(() => sortMembers(shared), [shared]);
+  const [params] = useSearchParams();
+  const change = usePatchParams();
+  const current = members.find((member) => memberValue(member) === params.get('from')) ?? members[0];
 
   if (!current) return <Empty title={t('shared.gone')} />;
-  const sections = sharedSections(current);
-  const section = sections.find((id) => id === params.get('section')) ?? sections[0];
-  const ref: SharedRef = { owner: current.owner, shareId: current.shareId };
 
   return (
     <div className="stack shared-view">
@@ -93,46 +99,65 @@ export function SharedView({ project }: { project: Project }) {
             aria-label={t('shared.member')}
             value={memberValue(current)}
             options={members.map((member) => ({ value: memberValue(member), label: memberLabel(member), hint: <span className="mono">{member.shareKey}</span> }))}
-            onChange={(value) => change({ from: value, section: null, chat: null, file: null })}
+            onChange={(value) => change({ from: value, section: null, chat: null, file: null, agent: null })}
           />
         ) : (
           <strong>{memberLabel(current)}</strong>
         )}
         <SyncLine sync={current.sync} />
       </div>
-      {section === undefined ? (
-        <Empty title={t('shared.nothing', { name: current.ownerName })} />
-      ) : (
-        <>
-          <Tabs
-            label={t('shared.sections')}
-            group={group}
-            value={section}
-            tabs={sections.map((id) => {
-              const Icon = SECTION_ICON[id];
-              const count = current.counts[id];
-              return {
-                id,
-                label: (
-                  <>
-                    <Icon {...ICON_SM} />
-                    {t(`shared.tabs.${id}`)}
-                    {count ? <span className="count">{formatNumber(count)}</span> : null}
-                  </>
-                ),
-              };
-            })}
-            onChange={(id) => change({ section: id, chat: null, file: null })}
-          />
-          <TabPanel group={group} tab={section} className="tab-panel" key={`${memberValue(current)}:${section}`}>
-            {section === 'chats' && <SharedChats source={ref} from={current.ownerName} />}
-            {section === 'memory' && <SharedMemory source={ref} />}
-            {section === 'documents' && <SharedDocuments source={ref} from={current.ownerName} />}
-            {section === 'board' && <SharedBoardView source={ref} />}
-          </TabPanel>
-        </>
-      )}
+      <SharedSections shared={current} />
     </div>
+  );
+}
+
+/**
+ * A teammate's project read from the copy this install holds: one sub-tab per kind it carries, each
+ * the project's own view with nothing to change. The Shared tab of a cloned project and the
+ * read-only view of one not cloned here (`/collaborators/shared/:owner/:shareId`) both draw it; what
+ * is open lives in the address (`section`, `chat`, `file`, `agent`), so a link reopens it.
+ */
+export function SharedSections({ shared }: { shared: SharedProject }) {
+  const { t } = useTranslation('collaborators');
+  const [params] = useSearchParams();
+  const change = usePatchParams();
+  const group = useTabGroup();
+  const sections = sharedSections(shared);
+  const section = sections.find((id) => id === params.get('section')) ?? sections[0];
+  const ref: SharedRef = { owner: shared.owner, shareId: shared.shareId };
+
+  if (section === undefined) return <Empty title={t('shared.nothing', { name: shared.ownerName })} />;
+  return (
+    <>
+      <Tabs
+        label={t('shared.sections')}
+        group={group}
+        value={section}
+        tabs={sections.map((id) => {
+          const Icon = SECTION_ICON[id];
+          const count = shared.counts[id];
+          return {
+            id,
+            label: (
+              <>
+                <Icon {...ICON_SM} />
+                {t(`shared.tabs.${id}`)}
+                {count ? <span className="count">{formatNumber(count)}</span> : null}
+              </>
+            ),
+          };
+        })}
+        onChange={(id) => change({ section: id, chat: null, file: null, agent: null })}
+      />
+      <TabPanel group={group} tab={section} className="tab-panel" key={`${memberValue(shared)}:${section}`}>
+        {section === 'chats' && <SharedChats source={ref} from={shared.ownerName} />}
+        {section === 'memory' && <SharedMemory source={ref} />}
+        {section === 'journal' && <SharedJournal source={ref} from={shared.ownerName} />}
+        {section === 'documents' && <SharedDocuments source={ref} from={shared.ownerName} />}
+        {section === 'artifacts' && <SharedArtifacts source={ref} />}
+        {section === 'board' && <SharedBoardView source={ref} />}
+      </TabPanel>
+    </>
   );
 }
 
@@ -510,5 +535,174 @@ function SharedCard({ item }: { item: WorkItemDetail }) {
       </div>
       <p className="workitem-card-title">{item.title}</p>
     </div>
+  );
+}
+
+const JOURNAL_ICON: Record<JournalEntryKind, LucideIcon> = { closed: Check, decision: GitCommitVertical, memory: BookText, note: StickyNote };
+
+/**
+ * Who wrote a teammate's journal entry: their agent's role, an agent, or the teammate. Never "you":
+ * nothing in the copy is the reader's.
+ */
+export function journalAuthor(entry: Pick<JournalEntry, 'author'>, from: string, roleName: (role: string) => string, agent: string): string {
+  if (entry.author.kind === 'person') return from;
+  return entry.author.role ? roleName(entry.author.role) : agent;
+}
+
+/** The teammate's journal, newest first and by day, as the person's own reads; nothing to add or delete, and no link into their tasks. */
+function SharedJournal({ source, from }: { source: SharedRef; from: string }) {
+  const { t } = useTranslation(['collaborators', 'home']);
+  const roleName = useRoleName();
+  const journal = useQuery({ queryKey: collaboratorsKeys.records(source, 'journal'), queryFn: ({ signal }) => collaboratorsApi.journal(source, { signal }) });
+  if (journal.error) return <ErrorBox error={journal.error} />;
+  if (!journal.data) return <Skeleton rows={4} height={16} />;
+  if (journal.data.length === 0) return <Empty icon={NotebookText} title={t('shared.empty.journal')} />;
+  const groups = dayGroups([...journal.data].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), new Date());
+  const dayLabel = (day: string) => (day === 'today' ? t('home:memoryTab.journal.today') : day === 'yesterday' ? t('home:memoryTab.journal.yesterday') : formatDate(day));
+  return (
+    <div className="card memory-card shared-journal">
+      <div className="journal-list">
+        {groups.map((group) => (
+          <section key={group.day} className="journal-day" aria-label={dayLabel(group.day)}>
+            <h3 className="section-label journal-day-label">{dayLabel(group.day)}</h3>
+            <ul className="journal-entries">
+              {group.entries.map((entry) => {
+                const Icon = JOURNAL_ICON[entry.kind];
+                return (
+                  <li key={entry.id} className="history-entry journal-entry" data-kind={entry.kind}>
+                    <span className="history-icon" aria-hidden>
+                      <span>
+                        <Icon size={11} strokeWidth={2} />
+                      </span>
+                    </span>
+                    <span className="history-text">
+                      <span>
+                        {entry.kind === 'closed' && entry.item ? <span className="journal-key">{entry.item.key}</span> : null}
+                        {entry.kind === 'closed' && entry.item ? ' ' : null}
+                        {entry.kind === 'closed'
+                          ? `${t('home:memoryTab.journal.closed')} · ${entry.text}`
+                          : entry.kind === 'decision'
+                            ? t('home:memoryTab.journal.decision', { text: entry.text })
+                            : entry.kind === 'memory'
+                              ? t('home:memoryTab.journal.memory', { text: entry.text })
+                              : entry.text}
+                      </span>
+                      <span className="history-cause">
+                        {[t(`home:memoryTab.journal.kind.${entry.kind}`), journalAuthor(entry, from, roleName, t('home:memoryTab.journal.agent')), entry.documentPath].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                    <time dateTime={entry.createdAt} title={formatDateTime(entry.createdAt)}>
+                      {timeAgo(entry.createdAt)}
+                    </time>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const ARTIFACT_ICON: Record<SharedArtifact['kind'], LucideIcon> = { orchestration: Workflow, upload: Paperclip, plan: ListTodo };
+
+/** Where an artifact is named in the address: its kind and id, since an upload and a plan may share an id. */
+export const artifactValue = (artifact: Pick<SharedArtifact, 'kind' | 'id'>): string => `${artifact.kind}:${artifact.id}`;
+
+/** When an artifact last changed: an orchestration when it ended, an upload and a plan when they were made. */
+const artifactTime = (artifact: SharedArtifact): string => (artifact.kind === 'orchestration' ? artifact.updatedAt : artifact.createdAt);
+
+/**
+ * The teammate's artifacts: orchestration results, the uploads of their shared chats and plan
+ * drafts, newest first. A result or an objective is read as Markdown; an upload is saved from the
+ * owner (fetched on first open). Nothing here launches, edits or continues anything.
+ */
+function SharedArtifacts({ source }: { source: SharedRef }) {
+  const { t } = useTranslation('collaborators');
+  const [params] = useSearchParams();
+  const href = useHref();
+  const artifacts = useQuery({ queryKey: collaboratorsKeys.records(source, 'artifacts'), queryFn: ({ signal }) => collaboratorsApi.artifacts(source, { signal }) });
+  if (artifacts.error) return <ErrorBox error={artifacts.error} />;
+  if (!artifacts.data) return <Skeleton rows={4} height={18} />;
+  if (artifacts.data.length === 0) return <Empty icon={Package} title={t('shared.empty.artifacts')} />;
+  const list = [...artifacts.data].sort((a, b) => artifactTime(b).localeCompare(artifactTime(a)));
+  const open = list.find((artifact) => artifactValue(artifact) === params.get('file')) ?? list[0];
+  return (
+    <div className="master-detail shared-artifacts">
+      <div className="master">
+        <ul className="master-list" aria-label={t('shared.tabs.artifacts')}>
+          {list.map((artifact) => {
+            const on = open !== undefined && artifactValue(artifact) === artifactValue(open);
+            const Icon = ARTIFACT_ICON[artifact.kind];
+            return (
+              <li key={artifactValue(artifact)}>
+                <Link to={href('file', artifactValue(artifact))} replace aria-current={on ? 'true' : undefined} className={`master-item ${on ? 'master-item-on' : ''}`.trimEnd()}>
+                  <span className="master-item-head">
+                    <span className="strong break">{artifact.name}</span>
+                    <Tag>
+                      <Icon {...ICON_SM} aria-hidden /> {t(`shared.artifacts.${artifact.kind}`)}
+                    </Tag>
+                  </span>
+                  <span className="small muted">{timeAgo(artifactTime(artifact))}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div className="detail stack">{open && <ArtifactDetail source={source} artifact={open} />}</div>
+    </div>
+  );
+}
+
+function ArtifactDetail({ source, artifact }: { source: SharedRef; artifact: SharedArtifact }) {
+  const { t } = useTranslation('collaborators');
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState<unknown>(null);
+  if (artifact.kind === 'orchestration') {
+    return artifact.finalResult.trim() ? <DocumentView content={artifact.finalResult} /> : <p className="small muted">{t('shared.artifacts.noResult')}</p>;
+  }
+  if (artifact.kind === 'plan') {
+    return (
+      <>
+        <p className="small muted mono">{t('shared.artifacts.tasks', { count: artifact.taskCount, n: formatNumber(artifact.taskCount) })}</p>
+        {artifact.objective ? <DocumentView content={artifact.objective} /> : <p className="small muted">{t('shared.artifacts.noObjective')}</p>}
+      </>
+    );
+  }
+  const save = () => {
+    setSaving(true);
+    setFailed(null);
+    void collaboratorsApi
+      .blobFile(source, artifact.sha256)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = artifact.name;
+        a.click();
+        // The click has handed the file to the browser; the address is not needed after it
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      }, setFailed)
+      .finally(() => setSaving(false));
+  };
+  return (
+    <>
+      <dl className="kv kv-narrow">
+        <dt>{t('shared.artifacts.type')}</dt>
+        <dd className="mono">{artifact.mediaType}</dd>
+        <dt>{t('shared.artifacts.size')}</dt>
+        <dd className="mono tnum">{formatBytes(artifact.sizeBytes)}</dd>
+        <dt>{t('shared.artifacts.chat')}</dt>
+        <dd className="mono">{artifact.chatId.slice(0, 8)}</dd>
+      </dl>
+      <div>
+        <button type="button" className="btn" disabled={saving} onClick={save}>
+          <Download {...ICON_SM} /> {t('shared.artifacts.download')}
+        </button>
+      </div>
+      {failed ? <ErrorBox error={failed} title={t('shared.artifacts.downloadFailed')} /> : null}
+    </>
   );
 }

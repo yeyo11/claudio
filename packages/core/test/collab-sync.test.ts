@@ -251,6 +251,13 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   assert.equal(shared.ownerName, 'Ana');
   assert.equal(shared.name, 'api');
   const shareId = shared.shareId;
+  // Ben has no clone of it: the read-only view is headed by the project alone, as the catalog lists it
+  assert.deepEqual(shared.matches, []);
+  assert.equal(shared.linkedProjectId, null);
+  // Sync goes on meanwhile, so the state is left out of the comparison
+  const one = await ben.service.sharedProject(anaId, shareId);
+  assert.deepEqual({ ...one, sync: null, counts: null }, { ...shared, sync: null, counts: null });
+  await assert.rejects(ben.service.sharedProject(anaId, '0'.repeat(32)), /No such shared project/);
   await until('Ben holds every kind', () => {
     const counts = ben.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY });
     return counts.chats && counts.memory && counts.journal && counts.documents && counts.board && counts.artifacts;
@@ -355,6 +362,7 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   // ---- Unshare: Ben's copy goes
   await ana.service.updateProjectSharing(project.id, { groups: [] });
   await until('Ben drops the copy', async () => !(await ben.service.shared()).some((p) => p.shareKey === SHARE_KEY));
+  await assert.rejects(ben.service.sharedProject(anaId, shareId), /No such shared project/);
   assert.deepEqual(ben.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY }), {});
   assert.equal(ben.store.transcriptLineCount({ ownerId: anaId, shareKey: SHARE_KEY }, chatId), 0);
   assert.equal(ben.store.transcriptLineCount({ ownerId: anaId, shareKey: SHARE_KEY }, `${chatId}/agent-a1.jsonl`), 0);

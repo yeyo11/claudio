@@ -111,6 +111,7 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
   // ---- What others share with this install
   type Shared = { owner: string; shareId: string };
   app.get('/collaborators/shared', () => collab.shared());
+  app.get<{ Params: Shared }>('/collaborators/shared/:owner/:shareId', (req) => collab.sharedProject(req.params.owner, req.params.shareId));
   app.put<{ Params: Shared; Body: LinkSharedProjectRequest }>('/collaborators/shared/:owner/:shareId/link', (req) => collab.link(req.params.owner, req.params.shareId, bodyOf(req.body).projectId));
   app.delete<{ Params: Shared }>('/collaborators/shared/:owner/:shareId/link', (req) => collab.unlink(req.params.owner, req.params.shareId));
 
