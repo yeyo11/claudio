@@ -365,6 +365,17 @@ const CHAT_FORBIDDEN_REVIEWS = new Set([
 ]);
 
 /**
+ * The review gate fails closed, so what opens it is the person's: a chat must not accept its own
+ * graph's gate (the acceptance is bound to the head) or plant the role file a reviewer reads. Under
+ * `mode: none` a chat's token only labels the request, and the label is what refuses it.
+ */
+const CHAT_FORBIDDEN_REVIEW_GATE = new Set([
+  `POST ${API_PREFIX}/orchestrations/:id/review/accept`,
+  `POST ${API_PREFIX}/projects/:id/review-roles/:role`,
+]);
+const CHAT_REVIEW_GATE_REFUSAL = "a chat's token cannot accept a review gate or write a reviewer's role: that is the person's";
+
+/**
  * Consent is the owner's (D12): these widen what the decision engine sends off the machine, so a
  * prompt injection in a chat must not be able to consent to a point or switch the provider to Jev.
  * A project's own override, which does not touch consent, stays open through the project settings.
@@ -669,6 +680,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         void reply.status(403).send({ error: "a chat's token cannot post, approve, resolve or hand out a change request's review" });
         return reply;
       }
+      if (chat !== null && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
+        return reply;
+      }
       if (chat !== null && CHAT_FORBIDDEN_WEBHOOKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot register, test or remove a repository's webhook: that is the person's click" });
         return reply;
@@ -710,6 +725,11 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       if (chatId !== null) req.actor = chatActor(chatId);
     }
     req.actor ??= 'local';
+
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+      void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
+      return reply;
+    }
 
     if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_TERMINAL.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
       const id = (req.params as { id?: unknown } | undefined)?.id;
