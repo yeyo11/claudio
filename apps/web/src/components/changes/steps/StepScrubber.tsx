@@ -28,7 +28,7 @@ export function StepScrubber({ steps, currentId, onPick, className = '' }: { ste
           key={s.id}
           data-step={s.id}
           className={`is-${dots[i] ?? 'ahead'}`}
-          title={`${s.index} · ${splitPath(s.path).name}`}
+          title={`${s.index} · ${splitPath(s.path).name}${s.risk?.level === 'high' ? ` · ${t('steps.risk.level.high')}` : ''}`}
           // The ring is not the only thing that says it: a high-risk dot says so in words too
           {...(s.risk?.level === 'high' ? { 'data-risk': 'high', 'aria-label': `${s.index} · ${splitPath(s.path).name} · ${t('steps.risk.level.high')}` } : {})}
         />
