@@ -8267,9 +8267,7 @@ export type ClaudioEvent =
   | LoginUpdatedEvent
   | SpendChangedEvent
   | SpendAlertEvent
-  | GuardsChangedEvent;
-}
-
+  | GuardsChangedEvent
   | EvalRunEvent
   | EvalSampleEvent;
 
