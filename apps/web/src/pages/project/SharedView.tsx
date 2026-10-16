@@ -1,4 +1,4 @@
-import { WORK_ITEM_STATUSES, type CollaboratorsKind, type Project, type SharedChat, type SharedProject, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
+import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type Project, type SharedChat, type SharedProject, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookText, FileText, MessagesSquare, SquareKanban } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -186,11 +186,15 @@ function SharedChats({ source, from }: { source: SharedRef; from: string }) {
   );
 }
 
+/** A chat's title is its first prompt while its name is the one Claudio generated, as in the person's own list */
+const sharedChatTitle = (chat: Pick<SharedChat, 'id' | 'title' | 'firstPrompt'>): string =>
+  (chat.title ? displayTitle({ id: chat.id, title: chat.title, firstPrompt: chat.firstPrompt }) : chat.firstPrompt) || chat.id.slice(0, 8);
+
 /** A teammate's chat in the list. One an agent is working in now carries the live rail and the braille spinner by its verb. */
 function SharedChatRow({ chat }: { chat: SharedChat }) {
   const { t } = useTranslation('collaborators');
   const href = useHref();
-  const title = chat.title || chat.firstPrompt || chat.id.slice(0, 8);
+  const title = sharedChatTitle(chat);
   return (
     <li className={`crow ${chat.live ? 'live-rail' : ''}`.trimEnd()} data-id={chat.id}>
       <Link to={href('chat', chat.id)} className="crow-link">
@@ -265,13 +269,13 @@ function SharedChatView({ source, chat, from }: { source: SharedRef; chat: Share
   };
 
   return (
-    <section className="stack shared-chat" aria-label={chat.title || chat.id}>
+    <section className="stack shared-chat" aria-label={sharedChatTitle(chat)}>
       <div className="toolbar">
         <Link to={href('chat', null)} className="btn btn-small btn-quiet">
           <ArrowLeft {...ICON_SM} />
           {t('shared.allChats')}
         </Link>
-        <strong className="grow break">{chat.title || chat.firstPrompt || chat.id.slice(0, 8)}</strong>
+        <strong className="grow break">{sharedChatTitle(chat)}</strong>
         {live && chat.activity ? <ActivityTicker activity={chat.activity} /> : live ? <span className="crow-word is-live">{t('shared.live')}</span> : null}
         <span className="mono small muted">{chat.id.slice(0, 8)}</span>
       </div>

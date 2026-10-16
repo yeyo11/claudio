@@ -18,6 +18,10 @@
 //
 // The strip of what is running beside a chat (plans/tool-rows-and-live-branches.md §3.4): a chat whose
 // background command outlives its turn, and the strip's braille spinner, which holds its still glyph.
+//
+// The Collaborators page while off, whose illustration is the one thing on it that moves. A
+// teammate's live chat in the Shared tab needs a second install, so collaborators.spec.mjs checks
+// that its live row stops too.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -73,6 +77,34 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
   await page.eval(`localStorage.setItem('claudio-motion', 'sparkly');`);
   await page.goto('/', 1200);
   check((await page.eval(`return document.documentElement.dataset.motion`)) === 'full', 'a stored level that is not one falls back to full');
+
+  // ---- the Collaborators page while off: its illustration's link is the one thing on it that moves ----
+  // An illustration is never live work, so it stands still at subtle and off, under the system's
+  // setting and in a hidden tab (docs/plans/collaborators.md §5.1)
+  const illustration = `main svg.il[data-illustration="collaborators"]`;
+  const collaborators = async () => {
+    await page.goto('/collaborators', 1200);
+    await page.waitFor(`return !!document.querySelector(${JSON.stringify(illustration)})`, { label: 'the Collaborators illustration' });
+  };
+  await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
+  await collaborators();
+  check((await page.eval(loops(illustration))).length > 0, 'the Collaborators illustration moves at full');
+  await page.eval(`document.documentElement.dataset.hidden = 'true';`);
+  const unseen = await page.eval(loops());
+  check(unseen.length === 0, `the Collaborators page: a hidden tab runs no loop (${unseen.join(', ')})`);
+  for (const level of ['subtle', 'off']) {
+    await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
+    await collaborators();
+    const still = await page.eval(loops());
+    check(still.length === 0, `the Collaborators page: nothing repeats at ${level} (${still.join(', ')})`);
+  }
+  await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
+  await page.reduceMotion();
+  await collaborators();
+  const reduced = await page.eval(loops());
+  check(reduced.length === 0, `the Collaborators page: nothing repeats under prefers-reduced-motion (${reduced.join(', ')})`);
+  await page.reduceMotion(false);
+  await page.eval(`localStorage.removeItem('claudio-motion');`);
 
   // ---- the ecosystem's live surfaces: a card, a row and a work item whose chat is running ----
   let projectId = null;
@@ -307,7 +339,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     await page.eval(`localStorage.setItem('claudio-terminal-renderer', 'dom');`);
     await api.put('/terminal/settings', { enabled: true });
     const shell = await api.post('/terminals', { projectId });
-    check(shell.status === 201, `a terminal was opened (${shell.status})`);
+    check(shell.status === 201, `a terminal was opened (${shell.status} ${JSON.stringify(shell.body)})`);
     terminalId = shell.body?.id ?? null;
     const cursor = `
       const el = document.querySelector('.term .xterm-rows .xterm-cursor');
