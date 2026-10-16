@@ -7,7 +7,34 @@
     "interrupted": "Interrumpida",
     "running": "En ejecución",
     "waiting": "Esperando el reinicio",
-    "cancelled": "Cancelada"
+    "cancelled": "Cancelada",
+    "queued": "En cola",
+    "back": "Volver",
+    "summary": "Resumen de la ejecución",
+    "cost": "{{spent}} de {{ceiling}}",
+    "samples": "intentos",
+    "announce": "{{done}} de {{total}} intentos terminados",
+    "counts": {
+      "done_one": "{{count}} superado",
+      "done_other": "{{count}} superados",
+      "failed_one": "{{count}} fallido",
+      "failed_other": "{{count}} fallidos",
+      "running_one": "{{count}} en ejecución",
+      "running_other": "{{count}} en ejecución",
+      "pending_one": "{{count}} en cola",
+      "pending_other": "{{count}} en cola",
+      "skipped_one": "{{count}} sin puntuar",
+      "skipped_other": "{{count}} sin puntuar"
+    },
+    "stop": "Detener",
+    "cancel": "Cancelar ejecución",
+    "cancelFailed": "No se ha podido cancelar la ejecución",
+    "resume": "Reanudar",
+    "resumeTitle": "¿Reanudar esta ejecución?",
+    "resumeBody_one": "{{count}} intento no se ejecutó. Reanudar puede gastar hasta {{cost}} en total.",
+    "resumeBody_other": "{{count}} intentos no se ejecutaron. Reanudar puede gastar hasta {{cost}} en total.",
+    "resumeConfirm": "Reanudar · hasta {{cost}}",
+    "resumeFailed": "No se ha podido reanudar la ejecución"
   },
   "list": {
     "new": "Nueva evaluación",
@@ -30,7 +57,11 @@
     "noCommit": {
       "title": "Aún no hay un commit que fijar",
       "body": "Una evaluación fija un commit y ejecuta cada intento sobre él. Haz un primer commit en este repositorio para usar evaluaciones."
-    }
+    },
+    "evaluate": "Evaluar este cambio",
+    "forAgent": "Evaluaciones de {{agent}}",
+    "showAll": "Mostrar todas",
+    "noneForAgent": "Aún no hay ninguna evaluación que mida a {{agent}}."
   },
   "invalid": {
     "title": "Este archivo no se puede ejecutar",
@@ -216,6 +247,215 @@
     "promptHint": "Se envía como único mensaje del intento, hasta {{max}} caracteres.",
     "expectations": "Comprobaciones",
     "addExpectation": "Añadir una comprobación",
-    "removeCase": "Quitar el caso"
+    "removeCase": "Quitar el caso",
+    "run": "Ejecutar evaluación",
+    "saveFirst": "Guarda antes la evaluación: una ejecución usa el archivo tal como está en disco."
+  },
+  "notice": {
+    "waiting": {
+      "title": "Esperando a que se reinicie un límite de uso",
+      "until": "Mientras tanto no se gasta nada. Continúa a las {{time}}.",
+      "body": "Mientras tanto no se gasta nada. Continúa cuando se reinicie el límite."
+    },
+    "capped_one": "Detenida en el tope; {{count}} intento sin ejecutar.",
+    "capped_other": "Detenida en el tope; {{count}} intentos sin ejecutar.",
+    "interrupted_one": "Interrumpida; {{count}} intento sin ejecutar.",
+    "interrupted_other": "Interrumpida; {{count}} intentos sin ejecutar.",
+    "failed": "La ejecución falló",
+    "cancelled": "Esta ejecución se canceló."
+  },
+  "variant": {
+    "pinned": "Commit fijado",
+    "current": "Archivo actual",
+    "proposed": "Texto propuesto"
+  },
+  "matrix": {
+    "title": "Casos",
+    "caption": "Intentos por caso y variante",
+    "case": "Caso",
+    "compared": "Comparación",
+    "flaky": "Inestable",
+    "empty": "Aún no hay intentos.",
+    "attempt": "Intento {{attempt}}: {{state}}"
+  },
+  "cell": {
+    "passed": "Superado",
+    "failed": "Fallido",
+    "running": "En ejecución",
+    "queued": "En cola",
+    "notScored": "Sin puntuar"
+  },
+  "verdict": {
+    "regressed": "Empeora",
+    "improved": "Mejora",
+    "same": "Igual"
+  },
+  "sample": {
+    "title": "{{case}} · {{variant}} · intento {{attempt}}",
+    "description": "Las llamadas que hizo Claude, lo que encontraron las comprobaciones y su respuesta final.",
+    "calls": "Llamadas",
+    "noCalls": "No se registró ninguna llamada.",
+    "subagent": "subagente",
+    "outcome": {
+      "ok": "Correcta",
+      "error": "Error",
+      "denied": "Denegada",
+      "open": "Sin resultado"
+    },
+    "truncated": "Solo se guardan las primeras llamadas; las comprobaciones se ejecutaron sobre todas.",
+    "checks": "Comprobaciones",
+    "noChecks": "No se ejecutó ninguna comprobación.",
+    "evidence": "Llamada #{{seq}}",
+    "finalText": "Respuesta final",
+    "noText": "No se registró una respuesta final.",
+    "notScored": "Sin puntuar",
+    "why": {
+      "limit": "Un límite de uso detuvo este intento. No dice nada del objetivo y se vuelve a ejecutar desde cero.",
+      "interrupted": "La ejecución se interrumpió antes de que terminara este intento.",
+      "cancelled": "La ejecución se canceló antes de que terminara este intento.",
+      "skipped": "La ejecución se detuvo en su tope antes de este intento.",
+      "infra": "Falló algo ajeno al objetivo (el CLI, el worktree o la preparación), así que el intento no dice nada de él."
+    },
+    "fact": {
+      "cost": "Coste",
+      "duration": "Duración",
+      "turns": "Turnos",
+      "account": "Cuenta",
+      "model": "Modelo",
+      "cli": "CLI",
+      "pin": "Commit fijado"
+    }
+  },
+  "history": {
+    "open": "Historial",
+    "title": "Ejecuciones",
+    "titleFor": "Ejecuciones de {{name}}",
+    "filter": "Variante",
+    "allVariants": "Todas las variantes",
+    "empty": "Esta evaluación aún no se ha ejecutado.",
+    "emptyFiltered": "Ninguna ejecución usó esta variante.",
+    "more": "Mostrar más",
+    "compareWith": "Comparar con…",
+    "compareTwo": "Comparar estas dos",
+    "stopPicking": "Hecho",
+    "pickTwo_one": "Elige dos ejecuciones para comparar. {{count}} elegida.",
+    "pickTwo_other": "Elige dos ejecuciones para comparar. {{count}} elegidas.",
+    "pick": "Elegir la ejecución de {{when}}",
+    "compareTitle": "Comparación",
+    "compareCaption": "Casos de dos ejecuciones en la variante {{variant}}",
+    "closeCompare": "Cerrar comparación",
+    "noShared": "Estas ejecuciones no comparten ninguna variante, así que no se pueden poner sus casos lado a lado.",
+    "differ": "Estas ejecuciones se pueden comparar menos de lo que parece",
+    "differs": {
+      "definition": "El archivo de la evaluación cambió entre ambas.",
+      "model": "Se ejecutaron con modelos distintos.",
+      "cli": "Se ejecutaron con versiones distintas del CLI.",
+      "account": "Se ejecutaron con cuentas distintas."
+    }
+  },
+  "start": {
+    "title": "Ejecutar «{{title}}»",
+    "titleBare": "Ejecutar evaluación",
+    "notReady": "La estimación aún no está lista.",
+    "failed": "No se ha podido iniciar la ejecución",
+    "openEditor": "Abrir la evaluación",
+    "cancel": "Cancelar",
+    "starting": "Iniciando…",
+    "run": "Ejecutar evaluación · hasta {{cost}}",
+    "variants": "Qué ejecutar",
+    "variant": {
+      "pinned": "Commit fijado",
+      "current": "Archivo actual",
+      "proposed": "Texto propuesto"
+    },
+    "variantHint": {
+      "pinned": "El objetivo tal como estaba en el commit de la evaluación.",
+      "current": "El objetivo tal como está ahora en la copia de trabajo, guardado o no.",
+      "proposed": "Texto que escribes o pegas aquí. Nunca se guarda en un archivo."
+    },
+    "userScopeHint": "Un archivo de tu carpeta de usuario se mide tal como está.",
+    "proposedLabel": "Texto propuesto de {{path}}",
+    "proposedAria": "Texto propuesto",
+    "proposedFromMember": "Es el texto sin guardar de la página del miembro.",
+    "proposedSame": "El texto propuesto es el archivo actual, así que solo se ejecuta uno de los dos.",
+    "proposedEmpty": "Escribe o pega el texto que quieres probar.",
+    "cases": "Casos",
+    "samples": "Intentos por caso",
+    "account": "Cuenta",
+    "accountAuto": "Elegida automáticamente",
+    "accountHint": "Una cuenta fijada espera en su límite en lugar de cambiar.",
+    "nothing": "Elige qué ejecutar.",
+    "estimating": "Estimando el coste…",
+    "estimate": {
+      "title": "Estimación",
+      "line_one": "{{count}} intento · hasta {{cost}}",
+      "line_other": "{{count}} intentos · hasta {{cost}}",
+      "typical": "normalmente {{cost}}"
+    },
+    "warning": {
+      "dirty-checkout": "La copia de trabajo tiene cambios sin commitear. Solo se usa el texto actual del objetivo; los demás cambios sin commitear no entran en la evaluación.",
+      "large-checkout": "El repositorio es grande, así que preparar cada worktree tarda más.",
+      "target-absent": "El archivo objetivo no existe en una de las variantes, que se ejecuta sin archivo.",
+      "models-differ": "Las variantes se ejecutarán con modelos distintos.",
+      "user-scope": "Esta ejecución lee el objetivo de tu carpeta de usuario.",
+      "pin-behind-head": "El commit fijado está por detrás de HEAD. Se ejecuta igualmente sobre el fijado."
+    },
+    "consent": {
+      "title": "Revisa lo que ejecuta esta evaluación",
+      "body": "Es posible que otra persona haya escrito este archivo. No se ejecuta nada hasta que aceptes lo de abajo.",
+      "prompts_one": "{{count}} prompt",
+      "prompts_other": "{{count}} prompts",
+      "commands_one": "{{count}} comando",
+      "commands_other": "{{count}} comandos",
+      "accept": "Entiendo que esto se ejecuta en este equipo"
+    },
+    "refused": {
+      "pin-missing": {
+        "title": "Falta el commit fijado",
+        "fix": "Puede que se haya recogido como basura o que se reescribiera el historial. Abre la evaluación y fíjala a HEAD."
+      },
+      "target-missing": {
+        "title": "El archivo objetivo no existe",
+        "fix": "El agente con el que se ejecuta esta evaluación no tiene archivo. Abre la evaluación y corrige el objetivo."
+      },
+      "not-git": {
+        "title": "Este proyecto no es un repositorio git",
+        "fix": "Una evaluación se ejecuta sobre un commit fijado. Convierte antes la carpeta en un repositorio."
+      },
+      "no-commit": {
+        "title": "No hay un commit sobre el que ejecutar",
+        "fix": "Haz un primer commit en este repositorio."
+      },
+      "lanes-root-contaminated": {
+        "title": "Hay un CLAUDE.md por encima de la carpeta de worktrees",
+        "fix": "Se filtraría en todas las variantes. Muévelo o quítalo: {{detail}}"
+      },
+      "user-scope-proposal": {
+        "title": "No se puede proponer un archivo de usuario",
+        "fix": "Una propuesta nunca se escribe en tu carpeta de usuario. Desmarca el texto propuesto."
+      },
+      "eval-running": {
+        "title": "Ya hay una evaluación en ejecución en este proyecto",
+        "fix": "Espera a que termine o cancélala, y luego inicia esta."
+      },
+      "cost-not-confirmed": {
+        "title": "El tope ha cambiado",
+        "fix": "Se ha actualizado la estimación. Comprueba el nuevo tope y vuelve a ejecutar."
+      },
+      "consent-needed": {
+        "title": "El archivo cambió desde que lo revisaste",
+        "fix": "Se ha actualizado la estimación. Revisa lo que ejecuta y acepta de nuevo."
+      },
+      "team-off": {
+        "title": "El módulo Equipo está desactivado",
+        "fix": "Actívalo en los ajustes del proyecto para usar evaluaciones."
+      }
+    }
+  },
+  "member": {
+    "evaluate": "Evaluar este cambio",
+    "new": "Nueva evaluación",
+    "needsChange": "Cambia primero el archivo del agente: una evaluación compara un cambio.",
+    "tooLarge": "El archivo es demasiado grande para pasárselo a una evaluación (256 KiB como máximo)."
   }
 }

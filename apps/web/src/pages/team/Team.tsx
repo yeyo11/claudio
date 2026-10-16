@@ -3,7 +3,7 @@ import { FolderKanban, Plus, Settings, Sparkle } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useEvalFiles, useProjectSettings, useProjectTemplates, useTeam } from '../../api';
+import { useProjectSettings, useProjectTemplates, useTeam } from '../../api';
 import type { MenuEntry } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
@@ -13,8 +13,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { assistantEntry } from '../home/ProjectHead';
 import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
-import { EvalEditor } from './evals/Editor';
-import { EvalList } from './evals/List';
+import { EvalsSection } from './evals/Section';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
 import { MemberCells, MemberGrid, MoreRoles, ProposeButton, TeamEmpty, useProposeTeam } from './Members';
@@ -49,12 +48,9 @@ export function ProjectTeam({ project }: { project: Project }) {
   const propose = useProposeTeam(project.id);
   const [adding, setAdding] = useState<{ agent?: string } | null>(null);
   const [flowChanges, setFlowChanges] = useState(0);
-  const [creatingEval, setCreatingEval] = useState(false);
 
   const section: TeamSection = teamSection(params.get('section'));
   const memberId = params.get('member');
-  const evalName = params.get('eval');
-  const evalFiles = useEvalFiles(section === 'evals' ? project.id : null);
   // The views are one screen: switching them replaces the entry, so "back" leaves Team, not the last view
   const go = (next: { section?: TeamSection; member?: string | null }) =>
     void guard().then((ok) => ok && navigate({ search: teamSearch(params, next) }, { replace: true }));
@@ -153,38 +149,13 @@ export function ProjectTeam({ project }: { project: Project }) {
       />
     );
 
-  if (section === 'evals') {
-    const closeEval = () => {
-      setCreatingEval(false);
-      navigate({ search: teamSearch(params, { eval: null }) }, { replace: true });
-    };
+  if (section === 'evals')
     return (
       <div className={phone ? 'team-page is-phone' : 'team-page'}>
         {header()}
-        {evalName || creatingEval ? (
-          <EvalEditor
-            key={evalName ?? 'new'}
-            projectId={project.id}
-            team={data}
-            name={evalName}
-            existing={(evalFiles.data ?? []).map((file) => file.name)}
-            onBack={closeEval}
-            onSaved={(name) => {
-              setCreatingEval(false);
-              navigate({ search: teamSearch(params, { eval: name }) }, { replace: true });
-            }}
-          />
-        ) : (
-          <EvalList
-            projectId={project.id}
-            toolbar={switcher}
-            onOpen={(name) => navigate({ search: teamSearch(params, { eval: name }) })}
-            onNew={() => setCreatingEval(true)}
-          />
-        )}
+        <EvalsSection projectId={project.id} team={data} switcher={switcher} />
       </div>
     );
-  }
 
   if (section === 'flow')
     return (

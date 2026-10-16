@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Braces, Check, FileWarning, Pin, Plus, TriangleAlert, Trash2, Undo2 } from 'lucide-react';
+import { ArrowLeft, Braces, Check, FileWarning, History, Pin, Play, Plus, TriangleAlert, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EVAL_LIMITS, type EvalDefinition, type EvalFileDetail, type EvalTargetKind, type Team } from '@claudio/shared';
@@ -65,8 +65,11 @@ export function EvalEditor({
   team,
   name,
   existing,
+  initialAgent,
   onBack,
   onSaved,
+  onRun,
+  onHistory,
 }: {
   projectId: string;
   team: Team;
@@ -74,8 +77,13 @@ export function EvalEditor({
   name: string | null;
   /** The names already taken, for the new one's */
   existing: readonly string[];
+  /** A new eval starts out measuring this agent file (coming from its member's page) */
+  initialAgent?: string | null;
   onBack: () => void;
   onSaved: (name: string) => void;
+  /** Opens the start dialog; offered for a saved eval only */
+  onRun?: () => void;
+  onHistory?: () => void;
 }) {
   const { t } = useTranslation(['evals', 'config']);
   const file = useEvalFile(projectId, name);
@@ -94,8 +102,11 @@ export function EvalEditor({
       loaded={loaded}
       headSha={head.data.sha}
       headSubject={head.data.subject}
+      initialAgent={initialAgent ?? null}
       onBack={onBack}
       onSaved={onSaved}
+      {...(onRun ? { onRun } : {})}
+      {...(onHistory ? { onHistory } : {})}
     />
   );
 }
@@ -161,8 +172,11 @@ function Form({
   loaded,
   headSha,
   headSubject,
+  initialAgent,
   onBack,
   onSaved,
+  onRun,
+  onHistory,
 }: {
   projectId: string;
   team: Team;
@@ -171,14 +185,18 @@ function Form({
   loaded: EvalFileDetail | null;
   headSha: string | null;
   headSubject: string | null;
+  initialAgent: string | null;
   onBack: () => void;
   onSaved: (name: string) => void;
+  onRun?: () => void;
+  onHistory?: () => void;
 }) {
   const { t } = useTranslation(['evals', 'config']);
   const toast = useToast();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
-  const base: EvalDefinition = loaded?.definition ?? blankDefinition(headSha ?? '');
+  const blank = blankDefinition(headSha ?? '');
+  const base: EvalDefinition = loaded?.definition ?? (initialAgent ? { ...blank, target: { kind: 'agent', scope: 'project', name: initialAgent } } : blank);
   const [baseline, setBaseline] = useState<{ sha: string | null; def: EvalDefinition }>({ sha: loaded?.sha ?? null, def: base });
   const [form, setForm] = useState<EvalForm>(() => formFromDefinition(base));
   const [mode, setMode] = useState<'form' | 'json'>('form');
@@ -304,6 +322,18 @@ function Form({
         <h2 className="evals-editor-title">{name === null ? t('editor.newTitle') : form.title || fileName}</h2>
         {dirty && <Tag tone="warn">{t('config:shared.unsaved')}</Tag>}
         <span className="grow" />
+        {name !== null && onHistory && (
+          <button type="button" className="btn" onClick={onHistory}>
+            <History {...ICON_SM} />
+            {t('history.open')}
+          </button>
+        )}
+        {name !== null && onRun && (
+          <button type="button" className="btn btn-primary" disabled={dirty} title={dirty ? t('editor.saveFirst') : undefined} onClick={onRun}>
+            <Play {...ICON_SM} />
+            {t('editor.run')}
+          </button>
+        )}
         <Segmented<'form' | 'json'>
           value={mode}
           label={t('editor.view')}

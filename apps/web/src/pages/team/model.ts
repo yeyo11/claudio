@@ -280,7 +280,7 @@ export function teamSection(value: string | null): TeamSection {
 
 export function teamSearch(
   params: URLSearchParams,
-  next: { section?: TeamSection; member?: string | null; eval?: string | null; run?: string | null },
+  next: { section?: TeamSection; member?: string | null; eval?: string | null; run?: string | null; for?: string | null },
 ): string {
   const query = new URLSearchParams(params);
   query.set('view', 'team');
@@ -291,7 +291,13 @@ export function teamSearch(
     if (next.section !== 'evals') {
       query.delete('eval');
       query.delete('run');
+      query.delete('for');
     }
+  }
+  // The agent a member's page asked the evals about; the list is filtered to it
+  if (next.for !== undefined) {
+    if (next.for) query.set('for', next.for);
+    else query.delete('for');
   }
   if (next.eval !== undefined) {
     if (next.eval) query.set('eval', next.eval);

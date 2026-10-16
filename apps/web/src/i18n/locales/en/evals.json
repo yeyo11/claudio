@@ -7,7 +7,34 @@
     "interrupted": "Interrupted",
     "running": "Running",
     "waiting": "Waiting for reset",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "queued": "Queued",
+    "back": "Back",
+    "summary": "Run summary",
+    "cost": "{{spent}} of {{ceiling}}",
+    "samples": "attempts",
+    "announce": "{{done}} of {{total}} attempts finished",
+    "counts": {
+      "done_one": "{{count}} passed",
+      "done_other": "{{count}} passed",
+      "failed_one": "{{count}} failed",
+      "failed_other": "{{count}} failed",
+      "running_one": "{{count}} running",
+      "running_other": "{{count}} running",
+      "pending_one": "{{count}} queued",
+      "pending_other": "{{count}} queued",
+      "skipped_one": "{{count}} not scored",
+      "skipped_other": "{{count}} not scored"
+    },
+    "stop": "Stop",
+    "cancel": "Cancel run",
+    "cancelFailed": "Could not cancel the run",
+    "resume": "Resume",
+    "resumeTitle": "Resume this run?",
+    "resumeBody_one": "{{count}} attempt was not run. Resuming may spend up to {{cost}} in total.",
+    "resumeBody_other": "{{count}} attempts were not run. Resuming may spend up to {{cost}} in total.",
+    "resumeConfirm": "Resume · up to {{cost}}",
+    "resumeFailed": "Could not resume the run"
   },
   "list": {
     "new": "New eval",
@@ -30,7 +57,11 @@
     "noCommit": {
       "title": "No commit to pin yet",
       "body": "An eval pins a commit and runs each sample on it. Make a first commit in this repository to use evals."
-    }
+    },
+    "evaluate": "Evaluate this change",
+    "forAgent": "Evals for {{agent}}",
+    "showAll": "Show all",
+    "noneForAgent": "No eval measures {{agent}} yet."
   },
   "invalid": {
     "title": "This file cannot run",
@@ -216,6 +247,215 @@
     "promptHint": "Sent as the sample's only message, up to {{max}} characters.",
     "expectations": "Checks",
     "addExpectation": "Add a check",
-    "removeCase": "Remove the case"
+    "removeCase": "Remove the case",
+    "run": "Run eval",
+    "saveFirst": "Save the eval first: a run uses the file as it is on disk."
+  },
+  "notice": {
+    "waiting": {
+      "title": "Waiting for a usage limit to reset",
+      "until": "Nothing spends meanwhile. It continues at {{time}}.",
+      "body": "Nothing spends meanwhile. It continues when the limit resets."
+    },
+    "capped_one": "Stopped at the ceiling; {{count}} attempt not run.",
+    "capped_other": "Stopped at the ceiling; {{count}} attempts not run.",
+    "interrupted_one": "Interrupted; {{count}} attempt not run.",
+    "interrupted_other": "Interrupted; {{count}} attempts not run.",
+    "failed": "The run failed",
+    "cancelled": "This run was cancelled."
+  },
+  "variant": {
+    "pinned": "Committed at the pin",
+    "current": "Current file",
+    "proposed": "Proposed text"
+  },
+  "matrix": {
+    "title": "Cases",
+    "caption": "Attempts per case and variant",
+    "case": "Case",
+    "compared": "Compared",
+    "flaky": "Flaky",
+    "empty": "No attempts yet.",
+    "attempt": "Attempt {{attempt}}: {{state}}"
+  },
+  "cell": {
+    "passed": "Passed",
+    "failed": "Failed",
+    "running": "Running",
+    "queued": "Queued",
+    "notScored": "Not scored"
+  },
+  "verdict": {
+    "regressed": "Regressed",
+    "improved": "Improved",
+    "same": "Same"
+  },
+  "sample": {
+    "title": "{{case}} · {{variant}} · attempt {{attempt}}",
+    "description": "The calls Claude made, what the checks found and its final answer.",
+    "calls": "Calls",
+    "noCalls": "No calls were recorded.",
+    "subagent": "subagent",
+    "outcome": {
+      "ok": "OK",
+      "error": "Error",
+      "denied": "Denied",
+      "open": "No result"
+    },
+    "truncated": "Only the first calls are kept; the checks ran on all of them.",
+    "checks": "Checks",
+    "noChecks": "No checks ran.",
+    "evidence": "Call #{{seq}}",
+    "finalText": "Final answer",
+    "noText": "No final answer was recorded.",
+    "notScored": "Not scored",
+    "why": {
+      "limit": "A usage limit stopped this attempt. It says nothing about the target and is run again from scratch.",
+      "interrupted": "The run was interrupted before this attempt finished.",
+      "cancelled": "The run was cancelled before this attempt finished.",
+      "skipped": "The run stopped at its ceiling before this attempt.",
+      "infra": "Something outside the target failed (the CLI, the worktree or the setup), so the attempt says nothing about it."
+    },
+    "fact": {
+      "cost": "Cost",
+      "duration": "Duration",
+      "turns": "Turns",
+      "account": "Account",
+      "model": "Model",
+      "cli": "CLI",
+      "pin": "Pin"
+    }
+  },
+  "history": {
+    "open": "History",
+    "title": "Runs",
+    "titleFor": "Runs of {{name}}",
+    "filter": "Variant",
+    "allVariants": "All variants",
+    "empty": "This eval has not run yet.",
+    "emptyFiltered": "No run used this variant.",
+    "more": "Show more",
+    "compareWith": "Compare with…",
+    "compareTwo": "Compare these two",
+    "stopPicking": "Done",
+    "pickTwo_one": "Pick two runs to compare. {{count}} picked.",
+    "pickTwo_other": "Pick two runs to compare. {{count}} picked.",
+    "pick": "Pick the run from {{when}}",
+    "compareTitle": "Comparison",
+    "compareCaption": "Cases of two runs on the {{variant}} variant",
+    "closeCompare": "Close comparison",
+    "noShared": "These runs share no variant, so their cases cannot be set side by side.",
+    "differ": "These runs are less comparable than they look",
+    "differs": {
+      "definition": "The eval file changed between them.",
+      "model": "They ran on different models.",
+      "cli": "They ran on different CLI versions.",
+      "account": "They ran on different accounts."
+    }
+  },
+  "start": {
+    "title": "Run “{{title}}”",
+    "titleBare": "Run eval",
+    "notReady": "The estimate is not ready yet.",
+    "failed": "Could not start the run",
+    "openEditor": "Open the eval",
+    "cancel": "Cancel",
+    "starting": "Starting…",
+    "run": "Run eval · up to {{cost}}",
+    "variants": "What to run",
+    "variant": {
+      "pinned": "Committed at the pin",
+      "current": "Current file",
+      "proposed": "Proposed text"
+    },
+    "variantHint": {
+      "pinned": "The target as it was at the eval's commit.",
+      "current": "The target as it is in the checkout now, saved or not.",
+      "proposed": "Text you write or paste here. It is never saved to a file."
+    },
+    "userScopeHint": "A file in your user folder is measured as it is.",
+    "proposedLabel": "Proposed text of {{path}}",
+    "proposedAria": "Proposed text",
+    "proposedFromMember": "This is the unsaved text from the member's page.",
+    "proposedSame": "The proposed text is the current file, so only one of them runs.",
+    "proposedEmpty": "Write or paste the text to try.",
+    "cases": "Cases",
+    "samples": "Attempts per case",
+    "account": "Account",
+    "accountAuto": "Chosen automatically",
+    "accountHint": "A pinned account waits at its limit instead of switching.",
+    "nothing": "Pick something to run.",
+    "estimating": "Estimating the cost…",
+    "estimate": {
+      "title": "Estimate",
+      "line_one": "{{count}} attempt · up to {{cost}}",
+      "line_other": "{{count}} attempts · up to {{cost}}",
+      "typical": "typically {{cost}}"
+    },
+    "warning": {
+      "dirty-checkout": "The checkout has uncommitted changes. Only the target's current text is used; other uncommitted changes are not in the eval.",
+      "large-checkout": "The repository is large, so preparing each worktree takes longer.",
+      "target-absent": "The target file does not exist in one of the variants, which then runs with no file.",
+      "models-differ": "The variants will run on different models.",
+      "user-scope": "This run reads the target from your user folder.",
+      "pin-behind-head": "The pinned commit is behind HEAD. It still runs on the pin."
+    },
+    "consent": {
+      "title": "Review what this eval runs",
+      "body": "This file may have been written by someone else. Nothing runs until you accept what is below.",
+      "prompts_one": "{{count}} prompt",
+      "prompts_other": "{{count}} prompts",
+      "commands_one": "{{count}} command",
+      "commands_other": "{{count}} commands",
+      "accept": "I understand these run on this machine"
+    },
+    "refused": {
+      "pin-missing": {
+        "title": "The pinned commit is missing",
+        "fix": "It may have been garbage-collected or the history rewritten. Open the eval and pin to HEAD."
+      },
+      "target-missing": {
+        "title": "The target file does not exist",
+        "fix": "The agent this eval runs as has no file. Open the eval and fix the target."
+      },
+      "not-git": {
+        "title": "This project is not a git repository",
+        "fix": "An eval runs on a pinned commit. Turn the folder into a repository first."
+      },
+      "no-commit": {
+        "title": "There is no commit to run on",
+        "fix": "Make a first commit in this repository."
+      },
+      "lanes-root-contaminated": {
+        "title": "A CLAUDE.md sits above the worktrees folder",
+        "fix": "It would leak into every variant. Move or remove it: {{detail}}"
+      },
+      "user-scope-proposal": {
+        "title": "A user file cannot be proposed",
+        "fix": "A proposal is never written to your user folder. Untick the proposed text."
+      },
+      "eval-running": {
+        "title": "An eval is already running in this project",
+        "fix": "Wait for it to end, or cancel it, then start this one."
+      },
+      "cost-not-confirmed": {
+        "title": "The ceiling changed",
+        "fix": "The estimate was refreshed. Check the new ceiling and run again."
+      },
+      "consent-needed": {
+        "title": "The file changed since you reviewed it",
+        "fix": "The estimate was refreshed. Review what it runs and accept again."
+      },
+      "team-off": {
+        "title": "The Team module is off",
+        "fix": "Switch it on in the project's settings to use evals."
+      }
+    }
+  },
+  "member": {
+    "evaluate": "Evaluate this change",
+    "new": "New eval",
+    "needsChange": "Change the agent file first: an eval compares a change.",
+    "tooLarge": "The file is too large to hand to an eval (256 KiB at most)."
   }
 }

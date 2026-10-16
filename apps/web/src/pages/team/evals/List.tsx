@@ -1,4 +1,4 @@
-import { CircleCheck, CircleX, FileWarning, Hourglass, OctagonX, Plus, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { CircleCheck, CircleX, FileWarning, FlaskConical, Hourglass, OctagonX, Plus, TriangleAlert, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EvalFileListItem } from '@claudio/shared';
@@ -8,8 +8,10 @@ import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatCost, timeAgo } from '@claudio/ui/lib/format';
 import { casesScored, listRows, RUN_TONE, runWord, type RunWord } from './model';
+import { evalsForAgent } from './run-model';
 
-const RUN_ICON: Record<RunWord, LucideIcon | null> = {
+const RUN_ICON: Record<RunWord | 'queued', LucideIcon | null> = {
+  queued: Hourglass,
   passed: CircleCheck,
   failed: CircleX,
   capped: OctagonX,
@@ -20,25 +22,36 @@ const RUN_ICON: Record<RunWord, LucideIcon | null> = {
 };
 
 /** The newest run's word, with its icon (the braille spinner while it runs): never a colour alone. */
-function RunTag({ word }: { word: RunWord }) {
+export function RunTag({ word }: { word: RunWord | 'queued' }) {
   const { t } = useTranslation('evals');
   const Icon = RUN_ICON[word];
   return (
-    <span className={`badge badge-${RUN_TONE[word]}`}>
+    <span className={`badge badge-${word === 'queued' ? 'muted' : RUN_TONE[word]}`}>
       {Icon ? <Icon size={12} strokeWidth={2} aria-hidden /> : <Spinner />}
       <span className="badge-text">{t(`run.${word}`)}</span>
     </span>
   );
 }
 
-function EvalRow({ item, uncommitted, onOpen }: { item: EvalFileListItem; uncommitted: boolean; onOpen: (name: string) => void }) {
+function EvalRow({
+  item,
+  uncommitted,
+  onOpen,
+  onEvaluate,
+}: {
+  item: EvalFileListItem;
+  uncommitted: boolean;
+  onOpen: (name: string) => void;
+  /** Runs this eval over the text handed over from a member's page */
+  onEvaluate?: ((name: string) => void) | undefined;
+}) {
   const { t } = useTranslation('evals');
   const def = item.definition;
   const run = item.latestRun;
   const scored = run ? casesScored(run) : null;
   const invalid = !def || item.problems.length > 0;
   return (
-    <li>
+    <li className={onEvaluate ? 'evals-row-item' : undefined}>
       <button type="button" className="list-row list-row-button evals-row" onClick={() => onOpen(item.name)}>
         <span className="list-row-main">
           <span className="list-row-title">
@@ -74,6 +87,12 @@ function EvalRow({ item, uncommitted, onOpen }: { item: EvalFileListItem; uncomm
           )}
         </span>
       </button>
+      {onEvaluate && !invalid && (
+        <button type="button" className="btn evals-evaluate" onClick={() => onEvaluate(item.name)}>
+          <FlaskConical {...ICON_SM} />
+          {t('list.evaluate')}
+        </button>
+      )}
     </li>
   );
 }
@@ -83,7 +102,24 @@ function EvalRow({ item, uncommitted, onOpen }: { item: EvalFileListItem; uncomm
  * with the evals illustration; a project that is not a git repository (or has no commit yet) gets
  * the reason instead, because an eval pins a commit and runs on it.
  */
-export function EvalList({ projectId, toolbar, onOpen, onNew }: { projectId: string; toolbar: ReactNode; onOpen: (name: string) => void; onNew: () => void }) {
+export function EvalList({
+  projectId,
+  toolbar,
+  onOpen,
+  onNew,
+  agent = null,
+  onEvaluate,
+  onClearAgent,
+}: {
+  projectId: string;
+  toolbar: ReactNode;
+  onOpen: (name: string) => void;
+  onNew: () => void;
+  /** Shows only the evals that measure this agent file (the entry from a member's page) */
+  agent?: string | null;
+  onEvaluate?: ((name: string) => void) | undefined;
+  onClearAgent?: () => void;
+}) {
   const { t } = useTranslation('evals');
   const files = useEvalFiles(projectId);
   const head = useEvalHead(projectId);
@@ -112,13 +148,20 @@ export function EvalList({ projectId, toolbar, onOpen, onNew }: { projectId: str
     );
   else {
     const uncommitted = new Set(head.data.uncommitted);
-    body = (
-      <ul className="list evals-list" aria-label={t('title')}>
-        {listRows(files.data).map((row) => (
-          <EvalRow key={row.item.name} item={row.item} uncommitted={uncommitted.has(row.item.name)} onOpen={onOpen} />
-        ))}
-      </ul>
-    );
+    const shown = agent ? evalsForAgent(files.data, agent) : files.data;
+    body =
+      shown.length === 0 ? (
+        <div className="evals-none">
+          <p className="field-hint">{t('list.noneForAgent', { agent })}</p>
+          {newButton}
+        </div>
+      ) : (
+        <ul className="list evals-list" aria-label={t('title')}>
+          {listRows(shown).map((row) => (
+            <EvalRow key={row.item.name} item={row.item} uncommitted={uncommitted.has(row.item.name)} onOpen={onOpen} onEvaluate={onEvaluate} />
+          ))}
+        </ul>
+      );
   }
 
   const canCreate = !!files.data && !!head.data?.git && head.data.sha !== null && files.data.length > 0;
@@ -129,6 +172,16 @@ export function EvalList({ projectId, toolbar, onOpen, onNew }: { projectId: str
         <span className="grow" />
         {canCreate && newButton}
       </div>
+      {agent && (
+        <div className="evals-filter" role="status">
+          <Tag tone="muted">{t('list.forAgent', { agent })}</Tag>
+          {onClearAgent && (
+            <button type="button" className="btn btn-small" onClick={onClearAgent}>
+              {t('list.showAll')}
+            </button>
+          )}
+        </div>
+      )}
       <section className="card evals-list-card">{body}</section>
     </div>
   );
