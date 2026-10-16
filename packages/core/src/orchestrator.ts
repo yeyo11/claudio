@@ -90,6 +90,11 @@ import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICA
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
+import { parseGuardOverride } from './guards/settings.ts';
+import type { GuardRunKind } from './guards/resolve.ts';
+import { GuardSelfTestPending, GuardUnavailableError } from './guards/preflight.ts';
+import type { GuardLauncher } from './guards/launch.ts';
+import type { ChatGuardPlan } from './live-chat.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -467,6 +472,9 @@ export class Orchestrator {
    */
   spendOpen: ((orchestrationId: string) => boolean) | null = null;
 
+  /** Guards the runs that can run commands or write files (docs/plans/guards.md). Set by Core; none leaves every run unguarded. */
+  guards: GuardLauncher | null = null;
+
   constructor(
     private readonly config: CoreConfig,
     private readonly runs: ChatManager,
@@ -713,6 +721,7 @@ export class Orchestrator {
       maxAttempts: attemptsOf(spec.maxAttempts),
       allowedTools: (spec.allowedTools ?? []).map(String).filter(Boolean),
       permissionPrompts: spec.permissionPrompts === 'host' ? 'host' : 'none',
+      ...(spec.guards !== undefined ? { guards: parseGuardOverride(spec.guards) } : {}),
       createdAt: now(),
       endedAt: null,
       finalResult: null,
@@ -1165,6 +1174,24 @@ export class Orchestrator {
     return prepared;
   }
 
+  /**
+   * The guard plan of one of the graph's runs, or null when its kind is not guarded (the resolution
+   * table, `resolveGuards`). A guard that cannot run throws `GuardUnavailableError`, so the caller
+   * fails before the CLI spawns.
+   */
+  private guardPlan(orch: Orchestration, kind: GuardRunKind, cwd: string, worktree?: string | null, policy?: ToolPolicy): ChatGuardPlan | null {
+    return (
+      this.guards?.prepareNow({
+        kind,
+        cwd,
+        worktree: worktree ?? null,
+        mainCheckout: orch.cwd,
+        graph: orch.guards,
+        ...(policy ? { policy: { commands: policy.commands.allow !== 'none', edits: policy.edit.allow !== 'none' } } : {}),
+      }) ?? null
+    );
+  }
+
   /** The task's, then the graph's, then the recommendation for the model it runs on. */
   private workerEffort(orch: Orchestration, task: OrchestrationTaskState): Effort | undefined {
     return resolveEffort('worker', task.model ?? orch.model, task.effort, orch.effort);
@@ -1178,10 +1205,14 @@ export class Orchestrator {
       const limits = effectiveLimits(orch.limits, task.limits);
       const name = worktreeName(orch, task);
       const prepared = isolated ? this.prepareWorktree(orch, task, name) : null;
+      const cwd = prepared?.cwd ?? task.cwd ?? orch.cwd;
+      // With `adopt` the CLI moves into the worktree itself, so the root is the worktree, not the cwd it is started in
+      const guards = this.guardPlan(orch, 'worker', cwd, prepared ? task.worktree : null);
       const run = this.runs.start(
         {
           prompt: this.buildPrompt(orch, task, prepared?.pendingMerge ?? null),
-          cwd: prepared?.cwd ?? task.cwd ?? orch.cwd,
+          cwd,
+          ...(guards ? { guards } : {}),
           // The CLI adopts the worktree prepared above, locks it and works in it
           ...(prepared?.adopt ? { worktree: name } : {}),
           provider: 'claude-code',
@@ -1224,7 +1255,9 @@ export class Orchestrator {
   private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string, nudge: string | null = null): boolean {
     const key = `${orch.id}:${task.id}`;
     try {
-      if (orch.worktree && !task.cwd) this.prepareWorktree(orch, task, worktreeName(orch, task));
+      const prepared = orch.worktree && !task.cwd ? this.prepareWorktree(orch, task, worktreeName(orch, task)) : null;
+      // Planned before anything changes: a guard that cannot run fails the task without a process
+      const guards = this.guardPlan(orch, 'worker', this.runs.get(chatId)?.cwd ?? prepared?.cwd ?? task.cwd ?? orch.cwd, prepared ? task.worktree : null);
       const prompt = nudge ?? this.continuation(orch, task);
       const limits = effectiveLimits(orch.limits, task.limits);
       // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
@@ -1244,7 +1277,7 @@ export class Orchestrator {
         this.relaunching.delete(key);
         if (task.status !== 'running') return; // stopped meanwhile
         try {
-          this.runs.resume(chatId, { prompt, purpose: 'orchestration', ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
+          this.runs.resume(chatId, { prompt, purpose: 'orchestration', guards, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
           // The chat has answered before: only a result after this call is this attempt's
           void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
           task.error = null;
@@ -1269,12 +1302,13 @@ export class Orchestrator {
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('Concurrent run limit')) {
+    if (message.includes('Concurrent run limit') || err instanceof GuardSelfTestPending) {
       setTimeout(() => this.schedule(orch), 3000).unref();
       return false;
     }
     task.status = 'failed';
-    task.error = `could not ${doing}: ${message}`;
+    // The code leads, so the failure reads as the guard's and not as the task's
+    task.error = err instanceof GuardUnavailableError ? `guard-unavailable (${err.code}): could not ${doing}: ${message}` : `could not ${doing}: ${message}`;
     task.endedAt = now();
     setTimeout(() => this.schedule(orch), 0).unref();
     return false;
@@ -1664,6 +1698,8 @@ ${quoted}
   /** Runs an agent in the integration worktree to merge the branches git could not. */
   private async resolveConflicts(orch: Orchestration, state: OrchestrationIntegration, tasks: OrchestrationTaskState[]): Promise<void> {
     state.status = 'resolving';
+    const integrationDir = state.worktree ?? orch.cwd;
+    const guards = this.guardPlan(orch, 'integration', integrationDir, state.worktree);
     const run = this.runs.start(
       {
         prompt:
@@ -1680,7 +1716,8 @@ ${quoted}
           `${REAL_VERIFICATION}\n\n${UNATTENDED}\n\n${PASTED_NOTE}\n\n` +
           'What each task did:\n' +
           tasks.map((t) => taskBlock(t, (t.result ?? '').slice(0, MAX_DEP_CONTEXT))).join('\n'),
-        cwd: state.worktree ?? orch.cwd,
+        cwd: integrationDir,
+        ...(guards ? { guards } : {}),
         model: orch.model ?? undefined,
         ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
         permissionMode: orch.permissionMode,
@@ -1730,6 +1767,8 @@ ${quoted}
     orch.synthesisStartedAt = now();
     orch.synthesisEndedAt = null;
     try {
+      const synthesisDir = onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd;
+      const guards = this.guardPlan(orch, 'synthesis', synthesisDir, onBranch ? synthesisDir : null);
       const run = this.runs.start(
         {
           prompt:
@@ -1751,7 +1790,8 @@ ${quoted}
             orch.tasks
               .map((t) => taskBlock(t, (t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT), t.status))
               .join('\n'),
-          cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
+          cwd: synthesisDir,
+          ...(guards ? { guards } : {}),
           model: orch.model ?? undefined,
           ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
           permissionMode: orch.permissionMode,
@@ -2175,6 +2215,7 @@ ${quoted}
     const record: VerificationFix = { runId: null, command: checks.map((c) => c.command).join('; '), attempt: state.attempts, startedAt: now(), endedAt: null, costUsd: 0 };
     (state.fixes ??= []).push(record);
     try {
+      const guards = this.guardPlan(orch, 'verification-fixer', dir, dir);
       const run = this.runs.start(
         {
           prompt: fixerPrompt({
@@ -2193,6 +2234,7 @@ ${quoted}
             timeoutMinutes: spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES,
           }),
           cwd: dir,
+          ...(guards ? { guards } : {}),
           model: spec.model ?? orch.model ?? undefined,
           ...effortOption(resolveEffort('fixer', spec.model ?? orch.model, spec.effort)),
           permissionMode: orch.permissionMode,
@@ -2254,10 +2296,13 @@ ${quoted}
     const orch = this.items.get(req.orchestrationId);
     if (!orch) return { ok: false };
     const spec = orch.verificationSpec;
+    // A guard that cannot run fails the fix like any other launch that throws: the caller reports it
+    const guards = this.guardPlan(orch, 'checks-fix', req.cwd, req.cwd);
     const run = this.runs.start(
       {
         prompt: req.prompt,
         cwd: req.cwd,
+        ...(guards ? { guards } : {}),
         model: spec?.model ?? orch.model ?? undefined,
         permissionMode: orch.permissionMode,
         // These rules are Claude Code's, so a default provider set to another one never receives them
@@ -2774,10 +2819,13 @@ ${quoted}
           this.followWorkflow(orch, previous.id);
         });
       } else {
+        // No tool policy: the engine's own calls are none, but the subagents it spawns edit and run commands, and F10 shows their calls are hooked
+        const guards = this.guardPlan(orch, 'workflow', orch.cwd);
         const run = this.runs.start(
           {
             prompt,
             cwd: orch.cwd,
+            ...(guards ? { guards } : {}),
             model: orch.model ?? undefined,
             // Its tasks are subagents of this session: the graph's effort is the only one that applies
             ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
