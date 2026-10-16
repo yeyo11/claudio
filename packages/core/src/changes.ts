@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ChangeSummary,
   ChatChanges,
@@ -435,7 +436,7 @@ export class Changes {
     const chat = await this.chatOf(id);
     const root = this.stepRoot(chat);
     // The checkout counts as inside beside the chat's directory and its worktree: a chat in a subdirectory edits its siblings
-    const risk = { cwd: chat.cwd, roots: [root, ...(chat.worktree ? [chat.worktree.path] : [])] };
+    const risk = { cwd: chat.cwd, roots: [root, ...(chat.worktree ? [chat.worktree.path] : [])], tempDirs: systemTempDirs() };
     const opts = { root, running: chat.execution !== null, risk };
     const fromDisk = await this.deps.sessions.editSteps(id);
     let steps: EditStep[];

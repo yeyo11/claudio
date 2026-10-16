@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ClaudioLanguage,
   AuthVerification,
@@ -18,6 +19,7 @@ import type {
   CreateProjectRequest,
   FlowRun,
   FlowRunPage,
+  FlowSpendPass,
   FlowStartWaitingResult,
   FlowWaiting,
   FlowRunQuery,
@@ -648,6 +650,8 @@ export class Core {
       waiting: () => ({ flowRuns: this.flow.queuedCount(), orchestrationTasks: this.orchestrator.waitingForSpend() }),
       passOf: (id) => this.orchestrator.spendPassOf(id),
       grant: (id, day) => this.orchestrator.grantSpendPass(id, day),
+      itemPassOf: (id) => this.flow.spendPassOf(id),
+      grantItem: (id, day) => this.flow.grantSpendPass(id, day),
     });
     this.orchestrator.spendOpen = (id) => this.spend.allows('orchestration', { orchestrationId: id });
     // A cap raised or cleared, a new day or a pass opens the gate: what waited for it starts, oldest first
@@ -735,7 +739,7 @@ export class Core {
       const calls = this.runtime.trace(runId)?.calls;
       const chat = this.runtime.get(runId);
       if (!calls || !chat) return null;
-      return riskLine(calls, { cwd: chat.workingDir, roots: [chat.cwd] });
+      return riskLine(calls, { cwd: chat.workingDir, roots: [chat.cwd], tempDirs: systemTempDirs() });
     };
     this.health.decisions = this.decisions;
     this.healthMonitor = new HealthMonitor({
@@ -981,7 +985,7 @@ export class Core {
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
-      spendOpen: () => this.spend.allows('flow'),
+      spendOpen: (itemId) => this.spend.allows('flow', { itemId }),
       pullRequests: {
         conflictOf: (itemId) => this.pullRequests.conflictOf(itemId),
         settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
@@ -1905,6 +1909,12 @@ export class Core {
    * `POST /projects/:id/flow/start-waiting`: a person starts the waiting cards, one run each, as if
    * each had entered its column. 409 while the flow is off.
    */
+  /** The person lets a held card's run start past today's cap; the flow dispatches once the gate hears of it. */
+  grantFlowSpendPass(itemId: string): FlowSpendPass {
+    if (!this.workItems.find(itemId)) throw new Error('work item not found');
+    return { itemId, day: this.spend.grantItemPass(itemId) };
+  }
+
   startWaitingFlowRuns(projectId: string): FlowStartWaitingResult {
     this.requireProject(projectId);
     return this.flow.startWaiting(projectId);

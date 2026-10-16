@@ -48,6 +48,22 @@ export interface ToolRiskContext {
   cwd: string | null;
   /** Further directories that count as inside: the task's worktree, the documents folder */
   roots?: readonly string[];
+  /**
+   * The machine's temp directories beyond the ones every Linux has (`os.tmpdir()`, `$TMPDIR`): only
+   * the server knows them. Scratch files there are inside, as `/tmp` and `/var/tmp` always are.
+   */
+  tempDirs?: readonly string[];
+}
+
+/** Scratch space: a write or a delete here is the agent's own mess, not a reach outside the project. */
+const TEMP_DIRS = ['/tmp', '/var/tmp'];
+
+/** Strictly under a temp directory: the directory itself is the machine's, and deleting it is not scratch. */
+function inTemp(path: string, ctx: ToolRiskContext): boolean {
+  return [...TEMP_DIRS, ...(ctx.tempDirs ?? [])].some((dir) => {
+    const root = normalize(dir);
+    return root !== '/' && path.startsWith(`${root}/`);
+  });
 }
 
 /** In declaration order, which breaks a tie between factors of the same weight */
@@ -149,7 +165,7 @@ function place(path: string, base: string | null, ctx: ToolRiskContext): Placeme
   if (path.includes('$') || path.includes('`')) return 'inside';
   if (!isAbsolute(path) && base === null) return 'inside';
   const resolved = path.startsWith('/') ? normalize(path) : normalize(`${base ?? ctx.cwd}/${path}`);
-  return within(resolved, ctx.cwd) || (ctx.roots ?? []).some((root) => within(resolved, root)) ? 'inside' : 'outside';
+  return within(resolved, ctx.cwd) || (ctx.roots ?? []).some((root) => within(resolved, root)) || inTemp(resolved, ctx) ? 'inside' : 'outside';
 }
 
 function segmentsOf(path: string): string[] {
