@@ -8,6 +8,7 @@ import test, { after } from 'node:test';
 import type { Attachment, ChatActivity, ClaudioEvent, JournalEntry, Milestone, ProjectSettings, ProjectSharingSettings, WorkItem, WorkItemDetail } from '@claudio/shared';
 import type { ChatRecord } from '../src/chat-records.ts';
 import type { ReaderSources } from '../src/collab/readers.ts';
+import { decodeInvite, joinPayloadFor, sealJoin } from '../src/collab/invite.ts';
 import { CollaboratorsService } from '../src/collab/service.ts';
 import { CollabStore, Db } from '../src/db.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
@@ -316,9 +317,25 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
     return list.length ? list : null;
   });
   assert.deepEqual(requests.map((r) => [r.from, r.name, r.relayedBy?.endpointId, r.relayedBy?.name]), [[cleoId, 'Cleo', benId, 'Ben']]);
-  assert.ok(ana.events.some((e) => e.type === 'collaborators.join-request'));
+  // The event the owner's notification is made of names the group and who relayed the request
+  const asked = ana.events.find((e) => e.type === 'collaborators.join-request');
+  assert.ok(asked?.type === 'collaborators.join-request');
+  assert.deepEqual([asked.groupName, asked.request.from, asked.request.relayedBy?.name], [group.name, cleoId, 'Ben']);
   await ana.service.acceptJoin(group.id, cleoId);
   assert.ok(ana.events.some((e) => e.type === 'collaborators.changed' && e.title === `Cleo joined ${group.name}`));
+  // The answer clears the notification
+  assert.deepEqual(
+    ana.events.filter((e) => e.type === 'collaborators.join-answered').map((e) => (e.type === 'collaborators.join-answered' ? [e.groupId, e.from, e.answer] : null)),
+    [[group.id, cleoId, 'accepted']],
+  );
+  // A request the owner denies is cleared too; one never held here has nothing to clear
+  const dan = 'd'.repeat(64);
+  const danInvite = decodeInvite(ana.service.createInvite(group.id).text);
+  ana.store.putJoinRequest({ groupId: group.id, fromEndpointId: dan, sealed: sealJoin(anaId, joinPayloadFor(danInvite, { endpointId: dan, name: 'Dan' })), relayedBy: benId, expiresAt: null, receivedAt: new Date().toISOString() });
+  ana.service.denyJoin(group.id, dan);
+  const denied = ana.events.filter((e) => e.type === 'collaborators.join-answered').at(-1);
+  assert.deepEqual(denied?.type === 'collaborators.join-answered' ? [denied.from, denied.answer, denied.title] : denied?.type, [dan, 'denied', 'The join of Dan was denied']);
+  assert.throws(() => ana.service.denyJoin(group.id, dan), /No such join request/);
   await until('Cleo is in', () => cleo.service.groupList().groups.some((g) => g.id === group.id && g.members.some((m) => m.endpointId === cleoId)));
   assert.equal(cleo.service.groupList().pendingJoins.length, 0);
   await until('Cleo syncs Ana too', () => cleo.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY }).journal);

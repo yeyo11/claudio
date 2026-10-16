@@ -1,10 +1,11 @@
 ---
 created_at: 2026-09-25T18:30:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-16T18:00:00Z
 tags:
     - notifications
     - push
     - decision
+    - collaborators
 ---
 # Notifications: what is kept, and what interrupts
 
@@ -47,6 +48,28 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
   consent given for version 1 is asked again. See
   [decision-engine.md](decision-engine.md) for the consent this changed.
 
+## Join requests
+
+Decided by the owner for R12 ([requests.md](requests.md)): a join waiting for the group owner's
+answer notifies them like any other news, in the bell and by push.
+
+- **Kind `collaborators`** (*Someone asks to join one of my groups*), on by default. An install
+  registered before the kind existed asks for it the next time the page registers its push
+  subscription, which it does on every load.
+- **`collaborators.join-request`** makes a `high`, `warn` draft titled "Cleo asks to join Platform",
+  with who relayed it in the body and `/collaborators` as its link, where the request is accepted or
+  denied. `high` because a teammate is locked out until the owner answers, so it reaches a phone at
+  the default level. The owner's install emits the event when a member relays a join to it, and
+  when it becomes the owner of a group whose joins it held as a member.
+- **The key is `join:<group>:<joiner>:<invite expiry>`** and never repeats: a second relay of the
+  same request is not news, but a request made with a later invite is.
+- **`collaborators.join-answered`** (`accepted`, `denied`, or `dropped` when the request could no
+  longer be accepted) settles that join's notification, as `permission.resolved` settles a waiting
+  prompt; the bell shows it as answered. A join answered while no page was open is settled when the
+  Collaborators page next reads the groups and the group holds no request any more.
+- A push already on a phone's lock screen stays there; only the bell's copy is settled, as for
+  waiting prompts.
+
 ## Decisions
 
 - **One function for the page and for the push sender.** The web runs `interrupts` before showing a
@@ -62,4 +85,4 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
 
 ## Related
 
-[[plans/mobile.md]] · [[desktop.md]]
+[[plans/mobile.md]] · [[desktop.md]] · [[collaborators.md]]

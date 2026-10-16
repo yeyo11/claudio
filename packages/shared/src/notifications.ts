@@ -15,7 +15,7 @@ import type { ClaudioEvent, ChatSummary, LocalizedParams, PermissionRequest, Run
  * browser's own notifications are.
  */
 
-export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity' | 'health';
+export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity' | 'health' | 'collaborators';
 /** `high` needs the person, `normal` is worth knowing, `low` stays in the center without a toast. */
 export type NotificationPriority = 'high' | 'normal' | 'low';
 export type NotificationTone = 'ok' | 'bad' | 'warn' | 'info';
@@ -83,6 +83,10 @@ export interface NotificationText {
   conflictResolving(count: number, branch: string): string;
   fromSubagent(): string;
   supervisorProposed(name: string): string;
+  /** A join waiting for the owner's answer; optional, with the English below standing in */
+  joinRequest?(name: string, group: string): string;
+  /** Its body: who relayed it, or null when it reached this install straight */
+  joinRequestBody?(relayedBy: string | null): string;
   /**
    * A sentence the server wrote, by its stable code. A client with translations says it in the
    * person's language; without them the server's own English is already the sentence.
@@ -96,6 +100,10 @@ const limitWaitingBodyEnglish = (resetsAt: string | null): string =>
 const spendWarnTitleEnglish = (): string => "Today's spend is at 75 % of the cap";
 const spendExhaustedTitleEnglish = (): string => 'Daily spend cap reached: automatic work waits until 00:00';
 const spendBodyEnglish = (spentUsd: number, capUsd: number): string => `$${spentUsd.toFixed(2)} of $${capUsd.toFixed(2)}, as the CLI reported it.`;
+
+const joinRequestEnglish = (name: string, group: string): string => `${name} asks to join ${group}`;
+const joinRequestBodyEnglish = (relayedBy: string | null): string =>
+  relayedBy ? `Relayed by ${relayedBy}. Accept or deny it on the Collaborators page.` : 'Accept or deny it on the Collaborators page.';
 
 /**
  * The English of `apps/web/src/i18n/locales/en/components.json`, for a caller with no translations
@@ -126,11 +134,13 @@ export const englishNotificationText: NotificationText = {
   conflictResolving: (count, branch) => `${count} ${count === 1 ? 'file' : 'files'} in ${branch}.`,
   fromSubagent: () => 'Started by a subagent.',
   supervisorProposed: (name) => `${name}: the supervisor proposes a hint`,
+  joinRequest: joinRequestEnglish,
+  joinRequestBody: joinRequestBodyEnglish,
   serverText: (_code, _params, fallback) => fallback,
 };
 
 /** In the order the preferences list them; their labels are `components:notificationPanel.kinds`. */
-export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health'];
+export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health', 'collaborators'];
 
 /**
  * How much a notification may interrupt: a toast in the page, a system notification for a hidden
@@ -184,6 +194,10 @@ export const chatHref = (chatId: string, promptId?: string): string =>
 /** Where the daily spend cap is set: Settings, where the runtime settings live */
 export const SPEND_CAP_HREF = '/settings?tab=security';
 export const orchestrationHref = (id: string): string => `/orchestration/${encodeURIComponent(id)}`;
+/** Where an owner accepts or denies a join */
+export const COLLABORATORS_HREF = '/collaborators';
+/** One join per group and joiner; the invite's expiry tells a request made with a later invite apart */
+const joinKeyPrefix = (groupId: string, from: string): string => `join:${groupId}:${from}:`;
 
 /** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
 const activityChat = (runId: string, sessionId: string | null): string | null => sessionId || runId || null;
@@ -479,6 +493,24 @@ export function notificationsFor(event: ClaudioEvent, text: NotificationText = e
       ];
     }
 
+    case 'collaborators.join-request': {
+      const { request } = event;
+      return [
+        draft(event, {
+          // The same request handed over again (a second relay, a restart) is not new news
+          key: `${joinKeyPrefix(request.groupId, request.from)}${request.expiresAt}`,
+          dedupeMs: 0,
+          kind: 'collaborators',
+          // A teammate is locked out until the owner answers, as a chat is until its prompt is
+          priority: 'high',
+          tone: 'warn',
+          title: (text.joinRequest ?? joinRequestEnglish)(request.name, event.groupName),
+          body: (text.joinRequestBody ?? joinRequestBodyEnglish)(request.relayedBy?.name ?? null),
+          href: COLLABORATORS_HREF,
+        }),
+      ];
+    }
+
     default:
       return [];
   }
@@ -486,7 +518,8 @@ export function notificationsFor(event: ClaudioEvent, text: NotificationText = e
 
 /**
  * Which existing notifications an event settles. A `waiting` one is over when its question is
- * answered, withdrawn, or its run is gone: the person no longer has anything to do about it.
+ * answered, withdrawn, or its run is gone; a join request when the owner answered it or it could no
+ * longer be accepted: the person no longer has anything to do about it.
  */
 export function settlesWaiting(event: ClaudioEvent): ((notification: NotificationMatch) => boolean) | null {
   switch (event.type) {
@@ -495,6 +528,10 @@ export function settlesWaiting(event: ClaudioEvent): ((notification: Notificatio
     case 'run.ended':
     case 'run.removed':
       return (n) => n.kind === 'waiting' && n.runId === event.runId;
+    case 'collaborators.join-answered': {
+      const prefix = joinKeyPrefix(event.groupId, event.from);
+      return (n) => n.kind === 'collaborators' && n.key.startsWith(prefix);
+    }
     default:
       return null;
   }

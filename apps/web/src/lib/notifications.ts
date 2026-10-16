@@ -113,6 +113,22 @@ export function seedWaiting(drafts: NotificationDraft[], checkedAt: number, seen
   return { added: applied.added.filter((n) => !n.read), settled: changed };
 }
 
+/**
+ * Settles the join requests answered while no page heard it: those of a group that holds none any
+ * more. `checkedAt` is when the groups were read; a notification newer than that may be of a
+ * request the read did not see yet, so it is left alone, as `seedWaiting` does.
+ */
+export function settleJoinRequests(holdsRequests: (groupId: string) => boolean, checkedAt: number): AppNotification[] {
+  const current = load();
+  const { items, changed } = settle(current.items, (n) => {
+    if (n.kind !== 'collaborators' || Date.parse(n.at) >= checkedAt) return false;
+    const [prefix, groupId] = n.key.split(':');
+    return prefix === 'join' && groupId !== undefined && !holdsRequests(groupId);
+  });
+  if (changed.length > 0) commit({ ...current, items });
+  return changed;
+}
+
 function update(change:(items: AppNotification[]) => AppNotification[]): void {
   const current = load();
   commit({ ...current, items: change(current.items) });

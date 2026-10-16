@@ -15,6 +15,7 @@ import {
   type GroupList,
   type GroupMember,
   type JoinGroupResult,
+  type JoinAnswer,
   type JoinRequest,
   type JournalEntry,
   type Localized,
@@ -597,6 +598,10 @@ export class CollaboratorsService {
     }
     this.refreshPeers();
     this.changed('roster', groupId, null, rosterChangeTitle(prev, head));
+    // Joins this install held as a member are its own to answer now that it signs the roster
+    if (prev && me && prev.owner !== me && head.owner === me) {
+      for (const row of this.deps.store.joinRequests({ groupId })) this.announceJoinRequest(groupId, row.fromEndpointId);
+    }
   }
 
   /** The owner signs the next version, stores it and tells every member it can reach */
@@ -855,8 +860,7 @@ export class CollaboratorsService {
         if (!check.ok) return check.reason === 'already-member' ? { type: 'ack' } : { type: 'error', code: 'refused', reason: check.reason };
         if (check.request.endpointId !== request.from) return { type: 'error', code: 'refused', reason: 'wrong-endpoint' };
         this.deps.store.putJoinRequest({ groupId: group.groupId, fromEndpointId: request.from, sealed: request.sealed, relayedBy, expiresAt: check.request.expiresAt, receivedAt: request.receivedAt });
-        const view = this.joinRequestView(group.groupId, request.from);
-        if (view) this.deps.emit({ type: 'collaborators.join-request', title: `${view.name} asks to join ${head.name}`, request: view });
+        this.announceJoinRequest(group.groupId, request.from);
         return { type: 'ack' };
       },
       leave: async (from, group) => {
@@ -884,7 +888,7 @@ export class CollaboratorsService {
       const { endpointId, name, label } = check.request;
       const next = [...chain, addMember(head, seed, endpointId, { name, ...(label !== undefined ? { label } : {}) })];
       await this.commit(groupId, next);
-      this.deps.store.deleteJoinRequest(groupId, endpointId);
+      this.settleJoinRequest(groupId, endpointId, 'accepted');
       this.announce(groupId);
       return { type: 'roster', groupId, versions: next };
     });
@@ -934,17 +938,17 @@ export class CollaboratorsService {
       const head = chain.at(-1) as RosterVersion;
       const check = checkJoin({ seed, head, sealed: row.sealed, isUsed: (hash) => this.deps.store.isInviteUsed(groupId, hash) });
       if (!check.ok || check.request.endpointId !== from) {
-        this.deps.store.deleteJoinRequest(groupId, from);
+        this.settleJoinRequest(groupId, from, !check.ok && check.reason === 'already-member' ? 'accepted' : 'dropped');
         if (check.ok || check.reason !== 'already-member') throw new CollaboratorsError(!check.ok && check.reason === 'expired' ? 'expired' : 'refused', `The request cannot be accepted${check.ok ? '' : `: ${check.reason}`}`);
         return this.getGroup(groupId);
       }
       if (!this.deps.store.useInvite(groupId, check.secretHash, now())) {
-        this.deps.store.deleteJoinRequest(groupId, from);
+        this.settleJoinRequest(groupId, from, 'dropped');
         throw new CollaboratorsError('refused', 'The invite was used already');
       }
       const { endpointId, name, label } = check.request;
       await this.commit(groupId, [...chain, addMember(head, seed, endpointId, { name, ...(label !== undefined ? { label } : {}) })]);
-      this.deps.store.deleteJoinRequest(groupId, from);
+      this.settleJoinRequest(groupId, from, 'accepted');
       this.announce(groupId);
       return this.getGroup(groupId);
     });
@@ -954,8 +958,25 @@ export class CollaboratorsService {
   denyJoin(groupId: string, from: string): void {
     this.requireOwner(groupId);
     if (!this.deps.store.joinRequest(groupId, from)) throw new CollaboratorsError('not-found', 'No such join request');
-    this.deps.store.deleteJoinRequest(groupId, from);
+    this.settleJoinRequest(groupId, from, 'denied');
     this.changed('roster', groupId);
+  }
+
+  /** Tells the owner a join waits for them: the event the bell and the push sender turn into a notification */
+  private announceJoinRequest(groupId: string, from: string): void {
+    const view = this.joinRequestView(groupId, from);
+    const head = this.chains.get(groupId)?.at(-1);
+    if (!view || !head) return;
+    this.deps.emit({ type: 'collaborators.join-request', title: `${view.name} asks to join ${head.name}`, request: view, groupName: head.name });
+  }
+
+  /** Deletes a join request the owner held, and says so, which clears its notification */
+  private settleJoinRequest(groupId: string, from: string, answer: JoinAnswer): void {
+    // A direct join with nothing held here was never announced, so it has nothing to clear
+    if (!this.deps.store.joinRequest(groupId, from)) return;
+    const name = this.joinRequestView(groupId, from)?.name ?? short(from);
+    this.deps.store.deleteJoinRequest(groupId, from);
+    this.deps.emit({ type: 'collaborators.join-answered', title: `The join of ${name} was ${answer}`, groupId, from, answer });
   }
 
   // ---------- What this install shares ----------

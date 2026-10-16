@@ -5428,6 +5428,23 @@ export interface CollaboratorsSyncedEvent extends ClaudioEventBase {
 export interface CollaboratorsJoinRequestEvent extends ClaudioEventBase {
   type: 'collaborators.join-request';
   request: JoinRequest;
+  /** The group's name, so the owner's notification can say which group without a read */
+  groupName: string;
+}
+
+/** How a join request on the owner's install was settled. */
+export type JoinAnswer = 'accepted' | 'denied' | 'dropped';
+
+/**
+ * A join request on the owner's install was answered, or dropped because it could no longer be
+ * accepted (expired, spent, superseded): its notification is over. Only the owner's install emits it.
+ */
+export interface CollaboratorsJoinAnsweredEvent extends ClaudioEventBase {
+  type: 'collaborators.join-answered';
+  groupId: string;
+  /** The joiner's endpoint id, as in `JoinRequest.from` */
+  from: EndpointId;
+  answer: JoinAnswer;
 }
 
 // ---------- Effective environment ----------
@@ -8813,7 +8830,8 @@ export type ClaudioEvent =
   | CollaboratorsChangedEvent
   | CollaboratorsPeerEvent
   | CollaboratorsSyncedEvent
-  | CollaboratorsJoinRequestEvent;
+  | CollaboratorsJoinRequestEvent
+  | CollaboratorsJoinAnsweredEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 

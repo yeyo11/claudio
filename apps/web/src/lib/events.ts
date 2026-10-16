@@ -150,6 +150,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'collaborators.peer': true,
   'collaborators.synced': true,
   'collaborators.join-request': true,
+  'collaborators.join-answered': true,
 };
 
 /**
@@ -476,6 +477,7 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'collaborators.peer':
     case 'collaborators.synced':
     case 'collaborators.join-request':
+    case 'collaborators.join-answered':
       return [[['collaborators'], NOW]];
   }
 }

@@ -86,6 +86,9 @@ const text: NotificationText = {
   conflictResolving: (count, branch) => i18n.t('components:notificationText.conflictResolving', { count, branch }),
   fromSubagent: () => i18n.t('components:notificationText.fromSubagent'),
   supervisorProposed: (name) => i18n.t('components:notificationText.supervisorProposed', { name }),
+  joinRequest: (name, group) => i18n.t('components:notificationText.joinRequest', { name, group }),
+  joinRequestBody: (relayedBy) =>
+    relayedBy ? i18n.t('components:notificationText.joinRequestBody.relayed', { name: relayedBy }) : i18n.t('components:notificationText.joinRequestBody.direct'),
   serverText,
 };
 

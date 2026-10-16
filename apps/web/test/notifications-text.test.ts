@@ -59,6 +59,13 @@ const spendAlert = (level: 'warn' | 'exhausted', spentUsd: number): ClaudioEvent
   },
 });
 
+const joinRequest = (relayedBy: { endpointId: string; name: string } | null): ClaudioEvent => ({
+  type: 'collaborators.join-request',
+  ...base('Cleo asks to join Platform'),
+  groupName: 'Platform',
+  request: { groupId: 'a'.repeat(64), from: 'c'.repeat(64), name: 'Cleo', relayedBy, receivedAt: AT, expiresAt: '2026-01-08T12:00:00Z' },
+});
+
 // One event per sentence, including both halves of every plural and the fallbacks for an account
 // or an error Claudio cannot name.
 const EVENTS: ClaudioEvent[] = [
@@ -83,6 +90,8 @@ const EVENTS: ClaudioEvent[] = [
   { type: 'health.changed', ...base('stuck'), ...run, taskId: null, taskName: null, level: 'warn', previousLevel: 'ok', reason: 'It has been quiet for 5 min.', signals: ['hung-command'] },
   spendAlert('warn', 15),
   spendAlert('exhausted', 20),
+  joinRequest(null),
+  joinRequest({ endpointId: 'b'.repeat(64), name: 'Ben' }),
 ];
 
 for (const [index, event] of EVENTS.entries()) {

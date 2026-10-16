@@ -438,3 +438,33 @@ test('preferences saved before there were levels keep meaning what they meant', 
   assert.equal(stored({ toasts: true, browser: false, kinds: {} }), 'important', 'toasts on takes the new default');
   assert.equal(stored({ level: 'all', toasts: false }), 'all', 'a level, once chosen, wins');
 });
+
+const joinRequest = (groupId: string, from: string, offsetMs = 0): ClaudioEvent => ({
+  type: 'collaborators.join-request',
+  ...base('Cleo asks to join Platform', offsetMs),
+  groupName: 'Platform',
+  request: { groupId, from, name: 'Cleo', relayedBy: null, receivedAt: at(offsetMs), expiresAt: '2026-01-08T12:00:00Z' },
+});
+
+test('a join request stays open until the owner answers it, and then only that one settles', () => {
+  const { items } = apply([], [joinRequest('g1', 'cleo'), joinRequest('g1', 'dan'), joinRequest('g1', 'cleo')]);
+  assert.equal(items.length, 2);
+  assert.ok(items.every((n) => n.kind === 'collaborators' && n.priority === 'high' && n.href === '/collaborators'));
+  assert.equal(hasUrgent(items), true);
+  const answered = apply(items, [{ type: 'collaborators.join-answered', ...base('answered'), groupId: 'g1', from: 'cleo', answer: 'denied' }]).items;
+  assert.deepEqual(
+    answered.map((n) => [n.key.split(':')[2], n.resolved]),
+    [['dan', false], ['cleo', true]],
+  );
+});
+
+test('a join answered while no page was open settles when the groups are read, unless it is newer than the read', async () => {
+  const { ingest, settleJoinRequests } = await import('../src/lib/notifications.ts');
+  ingest(joinRequest('g-answered', 'cleo'), () => false);
+  ingest(joinRequest('g-open', 'dan'), () => false);
+  ingest(joinRequest('g-answered', 'eve', 5000), () => false);
+  const settled = settleJoinRequests((groupId) => groupId === 'g-open', Date.parse(at(1000)));
+  // Eve's request came in after the read, which may not have seen it yet
+  assert.deepEqual(settled.map((n) => n.key.split(':')[2]), ['cleo']);
+  assert.deepEqual(settleJoinRequests((groupId) => groupId === 'g-open', Date.parse(at(1000))), []);
+});

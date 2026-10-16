@@ -6851,6 +6851,9 @@
       },
       {
         "$ref": "#/components/schemas/CollaboratorsJoinRequestEvent"
+      },
+      {
+        "$ref": "#/components/schemas/CollaboratorsJoinAnsweredEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -12813,10 +12816,15 @@
       },
       "request": {
         "$ref": "#/components/schemas/JoinRequest"
+      },
+      "groupName": {
+        "type": "string",
+        "description": "The group's name, so the owner's notification can say which group without a read"
       }
     },
     "required": [
       "at",
+      "groupName",
       "id",
       "request",
       "title",
@@ -12880,6 +12888,55 @@
       "expiresAt"
     ],
     "description": "A join waiting for the owner's answer, on the owner's install (`GET /collaborators/groups/:id/join-requests`)."
+  },
+  "CollaboratorsJoinAnsweredEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "collaborators.join-answered"
+      },
+      "groupId": {
+        "type": "string"
+      },
+      "from": {
+        "$ref": "#/components/schemas/EndpointId",
+        "description": "The joiner's endpoint id, as in `JoinRequest.from`"
+      },
+      "answer": {
+        "$ref": "#/components/schemas/JoinAnswer"
+      }
+    },
+    "required": [
+      "answer",
+      "at",
+      "from",
+      "groupId",
+      "id",
+      "title",
+      "type"
+    ],
+    "description": "A join request on the owner's install was answered, or dropped because it could no longer be accepted (expired, spent, superseded): its notification is over. Only the owner's install emits it."
+  },
+  "JoinAnswer": {
+    "type": "string",
+    "enum": [
+      "accepted",
+      "denied",
+      "dropped"
+    ],
+    "description": "How a join request on the owner's install was settled."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -18451,7 +18508,8 @@
       "conflict",
       "limit",
       "activity",
-      "health"
+      "health",
+      "collaborators"
     ]
   },
   "NotificationLevel": {

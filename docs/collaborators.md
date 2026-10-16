@@ -140,8 +140,9 @@ What the sharing side does enforce, on its own machine:
   transcript is pulled as it grows. Removed records are found by a catalog reconcile on connect and
   every 10 minutes.
 - **The API** is the Collaborators table in the [README](../README.md#collaborators); the events are
-  `collaborators.changed`, `collaborators.peer`, `collaborators.synced` and
-  `collaborators.join-request`.
+  `collaborators.changed`, `collaborators.peer`, `collaborators.synced`,
+  `collaborators.join-request` and `collaborators.join-answered`. A join request notifies the owner
+  in the bell and by push, and its answer clears it ([notifications.md](notifications.md#join-requests)).
 
 ## Related
 
