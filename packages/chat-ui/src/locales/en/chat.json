@@ -345,6 +345,17 @@
     "empty": "(empty)",
     "moreChars": "… [{{count}} more chars]",
     "user": "User",
+    "compaction": {
+      "label": "Compacted",
+      "manual": "by hand",
+      "auto": "automatic",
+      "tokens": "{{pre}} → {{post}} tokens",
+      "tokensBefore": "{{pre}} → tokens",
+      "tookLong": "Took {{duration}}",
+      "summary": "See the summary the conversation continues from",
+      "summaryAlone": "Summary the conversation continues from",
+      "saveAsNote": "Save as note"
+    },
     "subagent": "subagent",
     "streamingThinking": "thinking",
     "streamingWriting": "writing",
@@ -362,7 +373,8 @@
       "reminder": "System note",
       "command": "Command",
       "output": "Command output",
-      "interrupt": "Interrupted"
+      "interrupt": "Interrupted",
+      "compaction-failed": "Compaction failed"
     }
   },
   "agent": {

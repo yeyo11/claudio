@@ -345,6 +345,17 @@
     "empty": "(vacío)",
     "moreChars": "… [{{count}} caracteres más]",
     "user": "Usuario",
+    "compaction": {
+      "label": "Compactado",
+      "manual": "a mano",
+      "auto": "automático",
+      "tokens": "{{pre}} → {{post}} tokens",
+      "tokensBefore": "{{pre}} → tokens",
+      "tookLong": "Tardó {{duration}}",
+      "summary": "Ver el resumen con el que sigue la conversación",
+      "summaryAlone": "Resumen con el que sigue la conversación",
+      "saveAsNote": "Guardar como nota"
+    },
     "subagent": "subagente",
     "streamingThinking": "thinking",
     "streamingWriting": "escribiendo",
@@ -362,7 +373,8 @@
       "reminder": "Nota del sistema",
       "command": "Comando",
       "output": "Salida del comando",
-      "interrupt": "Interrumpido"
+      "interrupt": "Interrumpido",
+      "compaction-failed": "No se ha podido compactar"
     }
   },
   "agent": {
