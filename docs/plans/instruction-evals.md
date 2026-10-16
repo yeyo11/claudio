@@ -14,9 +14,10 @@ tags:
 ---
 # Plan: instruction-compliance evals
 
-Status: **Phase 1 built** (2026-10-16): core, API and web are in; the feature doc is
-[evals.md](../evals.md). Owner decision 2026-10-16: Phase 2 is built in the same orchestration, behind
-its own settings switch, and the four-week gate no longer applies. Still open from Phase 1: the CLI
+Status: **Phases 1 and 2 built** (2026-10-16): core, API, web and the e2e specs (written, run once at
+the end) are in; the feature doc is [evals.md](../evals.md). Owner decision 2026-10-16: Phase 2 was
+built in the same orchestration, behind its own settings switch (`evalsPhase2`), and the four-week
+gate no longer applies. Still open from Phase 1: the CLI
 facts F2–F11 (`e0` was cut short by a usage limit), the raw-JSON view of an invalid file, and a web
 button to delete a run.
 
