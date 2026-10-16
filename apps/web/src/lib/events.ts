@@ -232,9 +232,9 @@ function approvedTarget(event: MemoryProposalEvent): Target[] {
       return [[['config', 'instructions', event.projectId], NOW]];
     case 'journal':
       return [[keys.journal(event.projectId), NOW]];
-    // The lesson's own events (`lesson.changed`) refresh what shows it
+    // Approving makes a lesson active, which the Lessons card and the handed count show
     case 'lesson':
-      return [];
+      return [[keys.lessonsOf(event.projectId), NOW], [keys.journal(event.projectId), NOW]];
     case 'rule':
       return [[keys.resources({ projectId: event.projectId }, 'rules'), NOW]];
   }
@@ -398,10 +398,14 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.team(event.projectId), NOW], [keys.resources({ projectId: event.projectId }, 'agents'), NOW]];
     case 'journal.changed':
       return [[keys.journal(event.projectId), NOW]];
-    // Nothing shows lessons yet; the Lessons tab will name its keys here
+    // The Lessons card, its handed count (in the journal's page) and the proposals waiting on a lesson
     case 'lesson.changed':
+      // A global lesson is in every project's list, so its change reaches them all
+      return event.projectId === null
+        ? [[['lessons'], NOW]]
+        : [[['lessons'], NOW], [keys.journal(event.projectId), NOW], [keys.memoryProposalsOf(event.projectId), NOW]];
     case 'lesson.job':
-      return [];
+      return [[keys.lessonJobs(event.projectId), NOW]];
     case 'memory.proposal':
       return [[keys.memoryProposalsOf(event.projectId), NOW], ...(event.action === 'approved' ? approvedTarget(event) : [])];
     case 'document.changed':

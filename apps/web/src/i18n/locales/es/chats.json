@@ -331,5 +331,13 @@
         "saved": "Añadida al diario"
       }
     }
+  },
+  "lessons": {
+    "mine": "Buscar lecciones",
+    "mineTitle": "¿Buscar lecciones en este chat?",
+    "mineBody": "Una ejecución corta lee tus correcciones aquí. Cuesta {{cost}} como máximo y no se guarda nada hasta que lo apruebes.",
+    "mineConfirm": "Buscar lecciones",
+    "mining": "Buscando lecciones…",
+    "mineFailed": "No se han podido buscar lecciones"
   }
 }

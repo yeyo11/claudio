@@ -166,6 +166,30 @@ later run of the project. `POST /memory-proposals/:proposalId/approve` and `/rej
 403 to a chat's token, with the same error shape as the other routes closed to it; proposing stays
 open, and the person's token decides.
 
+## Lessons and a chat's token
+
+A lesson is read as instructions by every later run of a project, so it is the person's from the
+mining to the delivery ([lessons.md](lessons.md)).
+
+- **Chat tokens.** Every route that approves, edits, pins, confirms, retires, restores, deletes,
+  promotes, demotes, proposes for `CLAUDE.md`, mines or configures lessons answers 403 to a chat's
+  token, as does approving a `lesson` proposal or an `instructions` proposal made from a lesson.
+  Reading lessons stays open. Only the miner can create a `lesson` proposal; the flow's own proposal
+  targets stay `instructions`, `memory` and `journal`.
+- **The miner's confinement.** It runs `--restricted --tools= --setting-sources=` with
+  `--no-session-persistence`, `dontAsk` and no `CLAUDIO_API_URL` or token: no tool, no settings file,
+  no way back into Claudio. A prompt injection that reaches it can only produce candidates, which a
+  person still has to approve.
+- **Untrusted text.** What the miner reads and returns is data. Its input and the delivered section are
+  inside `pasted()` blocks with `PASTED_NOTE`; the delivery lead sentence, outside the block, is what
+  authorises following approved lessons. The validator drops candidates holding a command line, a code
+  block, a URL, a secret or an instruction-like phrase, and counts each drop.
+- **Redaction** happens at three points: when a signal row is written, in the decision engine's state
+  for `lesson.mine`, and in the miner's input (`maskSecrets`, which also covers Claudio's own
+  secrets). Evidence keeps at most 1 KiB of the person's words and 500 B of context per row, and 10 rows
+  per lesson; deleting a lesson deletes its evidence.
+- **Nothing is imported.** Lessons can be downloaded as JSON; no route, file or flag reads them in.
+
 ## A chat's token cannot compact a chat
 
 Compacting is a paid turn over the whole context and is the person's to start. A chat's token can
@@ -246,4 +270,4 @@ switched off from inside the run without the run being stopped.
 ## Related
 
 [[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[plans/review-gate.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]

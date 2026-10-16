@@ -331,5 +331,13 @@
         "saved": "Added to the journal"
       }
     }
+  },
+  "lessons": {
+    "mine": "Look for lessons",
+    "mineTitle": "Look for lessons in this chat?",
+    "mineBody": "A short one-shot run reads your corrections here. It costs at most {{cost}}, and nothing is kept until you approve it.",
+    "mineConfirm": "Look for lessons",
+    "mining": "Looking for lessons…",
+    "mineFailed": "Could not look for lessons"
   }
 }

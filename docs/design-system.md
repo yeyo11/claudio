@@ -1489,6 +1489,24 @@ improvements".
   team button, a `Sheet` on a phone where it takes its own row. Each item is the role's name and
   under it, in `--fg-3`, what it answers for. The member list shows a muted "solo lectura" tag on a
   role whose agent file allows only tools that read, with a tooltip saying so.
+- **Lessons (`.lessons`, `.lesson-row`, `.lesson-main`, `.lesson-key`, `.lesson-text`, `.lesson-when`,
+  `.lesson-facts`, `.lesson-conf`, `.lesson-evidence*`, `.lesson-quote`, `.lesson-edit`,
+  `.lesson-proposal`, `.lesson-badges`, `.lessons-foot`, `.lessons-mining`, `.lesson-jobs`,
+  `.lesson-job`).** The Memory tab's Lessons card (`DesktopMemoria`, `MobileMemoria*`), beside the CLI
+  card, and the same rows in Settings → Lessons. A row is the key `L-12` in mono, "Cuando …:" in
+  `--fg-2` then the action, the confidence in mono, and tags that always carry a word: `ok`
+  "entregada", `warn` "desvaneciéndose", neutral "fijada". Evidence opens inline as quotes in the
+  person's words with the context in mono. Nothing in it is live: no `--live`, no gradient, no spinner;
+  a mining job says "en cola", "en curso" or "hecha" in neutral words (`warn` for a daily cap or rate
+  limit, `bad` for failed). On a phone the row's `⋯` is a `Sheet` of 44 px rows, and fields are 16 px.
+  A lesson proposal in the Proposals card shows the sentence, at most two quotes, and `warn` badges
+  ("Contradice a L-3", "Choca con CLAUDE.md").
+- **CLAUDE.md diff (`.instr-diff`, `-head`, `-section`, `-view`, `-foot`, `.instr-diff-sheet`).** Approving
+  an `instructions` proposal opens a `Dialog` (a full-height `Sheet` on a phone) with the `DiffView` of
+  the preview in Reading mode, the path in mono, "bytes after", a section field for a lesson's
+  proposal, Cancel and Approve (enabled once the diff loaded). Only what changed carries colour.
+- **Project lessons (`.project-lessons`, `.project-lessons-cell`).** Three switches under Memory in a
+  project's settings: chats, workers, global lessons.
 - **Rule target line (`.memory-proposal-to`).** The memory card's "→ destino" line for a proposal of
   kind rule reads `Regla · .claude/rules/<file> · <paths>` in mono, folded past three paths. When
   the name is taken by a rule with other paths, `.memory-proposal-taken` says so in `warn` and in

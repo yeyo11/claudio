@@ -10,10 +10,11 @@ import { InstructionsTab } from '../config/InstructionsTab';
 import { CliMemoryCard, HandedCard, PhoneCli, useCliMemory } from './memory/Cli';
 import { MemoryFiles } from './memory/Files';
 import { AddJournalDialog, Journal } from './memory/Journal';
+import { LessonsCard } from './memory/Lessons';
 import { Proposals, usePendingProposalCount } from './memory/Proposals';
 
 /** The Memory tab's parts, each at `?section=`: a phone's three tabs, and the CLI's files in the editor. */
-const PHONE_SECTIONS = ['proposals', 'journal', 'cli'] as const;
+const PHONE_SECTIONS = ['proposals', 'lessons', 'journal', 'cli'] as const;
 type PhoneSection = (typeof PHONE_SECTIONS)[number];
 const EDITOR = 'files';
 
@@ -73,6 +74,8 @@ export function ProjectMemory({ project }: { project: Project }) {
   if (section === EDITOR) return <CliEditor key={project.id} project={project} file={params.get('file')} />;
 
   const editorHref = (file?: string) => href(EDITOR, file);
+  // The project's override of the `lesson.mine` decision lives in its settings
+  const settingsHref = href(null).replace('/?', '/?view=settings&');
   const dialog = adding && <AddJournalDialog projectId={project.id} onClose={() => setAdding(false)} />;
 
   if (narrow) {
@@ -102,11 +105,13 @@ export function ProjectMemory({ project }: { project: Project }) {
                 </>
               ),
             },
+            { value: 'lessons', label: t('memoryTab.lessons.tab') },
             { value: 'journal', label: t('memoryTab.journal.tab') },
             { value: 'cli', label: t('memoryTab.cli.tab') },
           ]}
         />
         {current === 'proposals' && <Proposals projectId={project.id} phone />}
+        {current === 'lessons' && <LessonsCard projectId={project.id} phone settingsHref={settingsHref} />}
         {current === 'journal' && (
           <>
             <Journal projectId={project.id} phone />
@@ -140,6 +145,7 @@ export function ProjectMemory({ project }: { project: Project }) {
         </div>
         <div className="memory-col">
           <CliMemoryCard cli={cli} editorHref={editorHref} />
+          <LessonsCard projectId={project.id} settingsHref={settingsHref} />
           <HandedCard projectId={project.id} cli={cli} />
         </div>
       </div>

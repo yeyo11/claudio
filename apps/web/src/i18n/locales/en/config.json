@@ -31,7 +31,8 @@
       "security": "Security",
       "install": "Install",
       "notifications": "Notifications",
-      "remote": "Remote access"
+      "remote": "Remote access",
+      "lessons": "Lessons"
     },
     "groups": {
       "claudio": "Claudio",
@@ -1303,6 +1304,41 @@
       "invalid": "Enter an amount above 0 and up to {{max}}.",
       "saved": "Daily spend cap saved",
       "savedOff": "Daily spend cap turned off"
+    }
+  },
+  "lessons": {
+    "saved": "Lesson settings saved",
+    "saveFailed": "Could not save the lesson settings",
+    "globalTitle": "Global lessons",
+    "globalHint": "Lessons you promoted from a project. They are handed in every project that allows them.",
+    "emptyTitle": "No global lessons",
+    "emptyBody": "Make a lesson global from its menu in a project’s Memory tab.",
+    "settingsTitle": "Mining and delivery",
+    "model": "Miner model",
+    "modelHint": "The one-shot chat that writes lesson candidates.",
+    "effort": "Miner effort",
+    "maxCost": "Cost per run (USD)",
+    "maxCostHint": "The hard cap of one mining run.",
+    "projectDaily": "Daily cap per project (USD)",
+    "globalDaily": "Daily cap, all projects (USD)",
+    "chatMinutes": "Minutes between runs on one chat",
+    "chatMinutesHint": "A chat is not mined again sooner than this.",
+    "jobsDaily": "Mining jobs per project per day",
+    "approveFloor": "Confidence at approval",
+    "approveFloorHint": "An approved lesson starts at least here.",
+    "deliverAt": "Hand over from confidence",
+    "deliverAtHint": "Below this a lesson stays out of runs.",
+    "budget": "Handoff budget (bytes)",
+    "budgetHint": "How much of the handoff lessons may take.",
+    "looseChats": "Hand global lessons to chats outside any project",
+    "repeatedErrors": "Look at repeated errors too",
+    "manualMining": "Allow “Look for lessons” on a chat",
+    "decay": "A lesson that is not seen again for {{grace}} days loses {{step}} every {{period}} days, and is retired below {{below}}. Pinned lessons never fade.",
+    "discard": "Discard",
+    "save": "Save",
+    "problem": {
+      "range": "A value is out of range.",
+      "order": "Lessons must be retired below the confidence they are handed from."
     }
   }
 }

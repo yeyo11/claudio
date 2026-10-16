@@ -15,6 +15,7 @@ import { setThemePreference, useThemePreference, type ThemePreference } from '..
 import { AccountTab } from './config/AccountTab';
 import { AppearanceTab } from './config/AppearanceTab';
 import { DecisionsTab } from './config/DecisionsTab';
+import { LessonsTab } from './config/LessonsTab';
 import { FilesTab } from './config/FilesTab';
 import { InstallTab } from './config/InstallTab';
 import { IntegrationsTab } from './config/IntegrationsTab';
@@ -128,6 +129,7 @@ function TabContent({ tab, section }: { tab: TabId; section?: DecisionsSection }
       {RESOURCE_TABS.includes(tab as ResourceKind) && <ResourcesTab scope={USER_SCOPE} kind={tab as ResourceKind} />}
       {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
       {tab === 'memory' && <MemoryOverview />}
+      {tab === 'lessons' && <LessonsTab />}
       {tab === 'plugins' && <PluginsTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'install' && <InstallTab />}

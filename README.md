@@ -207,6 +207,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Orchestration planner | `--json-schema` structured output |
 | Review gate | `--json-schema` findings under `--restricted --tools=Read,Grep,Glob`, `--max-budget-usd`, `--max-turns`, `--agents` and `--agent` for the role |
 | Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
+| Lessons from corrections | one confined one-shot chat per mined stretch: `--json-schema`, `--max-budget-usd`, `--restricted --tools= --setting-sources=`, `--no-session-persistence`, and no API token in it ([docs/lessons.md](docs/lessons.md)) |
 | Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
 | Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
@@ -954,7 +955,7 @@ Where GitHub and GitLab deliver for a hook Claudio registered (tag `Webhooks`). 
 
 ### Decisions
 
-The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.
+The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes. `lesson.mine` gates the lesson miner ([docs/lessons.md](docs/lessons.md)); it ships `off` like every other point.
 
 | Method | Route | Description |
 | --- | --- | --- |
