@@ -1024,6 +1024,8 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      output TEXT,
      PRIMARY KEY (sample_id, idx)
    );`,
+  // Phase 2: the eval an assistant `evals` run drafts cases for
+  `ALTER TABLE assistant_runs ADD COLUMN eval_name TEXT;`,
 ];
 
 /**
