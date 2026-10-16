@@ -1,6 +1,6 @@
 import type { Account, DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ToolPolicy } from '@claudio/shared';
 import { accountsAtLimit } from '../../accounts-at-limit.ts';
-import type { ChatRuntime, NewChat, RunResult } from '../../chats.ts';
+import { NO_TOOLS_POLICY, runOneShot, type OneShotRuntime } from '../../one-shot.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';
 import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engine.ts';
@@ -13,18 +13,10 @@ import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engin
  */
 
 /** The part of the chat runtime this provider drives; the tests hand it the real one over a fake CLI */
-export interface CliRuntime {
-  start(opts: NewChat): ChatRuntime;
-  waitForResult(id: string): Promise<RunResult>;
-  stop(id: string): unknown;
-  exited(id: string): Promise<void>;
-  remove(id: string): boolean;
-}
+export type CliRuntime = OneShotRuntime;
 
-/**
- * What a decision chat may do: nothing. It has no tool, so the policy states that outright.
- */
-export const DECISION_POLICY: ToolPolicy = { read: { allow: false }, edit: { allow: 'none' }, commands: { allow: 'none' }, network: 'deny', gitPush: 'deny' };
+/** What a decision chat may do: nothing. The same policy every one-shot chat runs under. */
+export const DECISION_POLICY: ToolPolicy = NO_TOOLS_POLICY;
 
 /** Where the chat runs: the provider, and the model and effort it is started with */
 export interface CliRoute {
@@ -59,9 +51,6 @@ export function decisionRoute(
   if (accountsAtLimit(accounts, now)) return { unavailable: 'rate-limited' };
   return { provider: 'claude-code', model: cli.model, effort: cli.effort ?? null };
 }
-
-/** How long a stopped chat gets to end before it is removed regardless */
-const EXIT_GRACE_MS = 5_000;
 
 /** The schema the CLI holds the answer to: an enum per choice or score, a boolean per noul. No reason field, by design. */
 export function decisionSchema(questions: ReadonlyArray<DecisionQuestion>): Record<string, unknown> {
@@ -152,69 +141,28 @@ export class CliDecisionProvider implements DecisionProvider {
       if ('unavailable' in route) return unavailable(route.unavailable);
       ({ model, effort, provider } = route);
     }
-    if (opts.signal.aborted) return unavailable('timeout');
-
-    let chat: ChatRuntime;
-    try {
-      chat = this.deps.runtime.start({
-        prompt: decisionPrompt(request, model),
-        name: `decision ${request.point}`,
-        purpose: 'decision',
-        ...(provider ? { provider } : {}),
-        model,
-        // The configured effort when the route kept it; the target's own default when it has no such level
-        ...(effort ? { effort } : {}),
-        maxBudgetUsd: maxCostUsd,
-        jsonSchema: decisionSchema(request.questions),
-        internal: true,
-        keepAlive: false,
-        uploads: false,
-        api: false,
-        confine: { tools: [], settingSources: [] },
-        toolConfig: { preset: null, allowedTools: [], disallowedTools: [], mcp: null, policy: DECISION_POLICY },
-        permissionMode: 'dontAsk',
-        permissionPrompts: 'none',
-      });
-    } catch {
-      return unavailable('server-error');
-    }
-
-    let timer: NodeJS.Timeout | undefined;
-    let onAbort: (() => void) | undefined;
-    try {
-      const cut = new Promise<'cut'>((resolve) => {
-        timer = setTimeout(() => resolve('cut'), opts.deadlineMs);
-        onAbort = () => resolve('cut');
-        opts.signal.addEventListener('abort', onAbort, { once: true });
-      });
-      const result = await Promise.race([this.deps.runtime.waitForResult(chat.id), cut]);
-      if (result === 'cut') return unavailable('timeout');
-      // No quota wait and no rotation-and-resume for a decision: the answer is "rate-limited", now
-      if (result.cause === 'rate-limit') return unavailable('rate-limited');
-      if (result.isError) return unavailable('server-error');
-      if (stoppedOnMaxTokens(result)) return unavailable('max-tokens');
-      const answers = parseAnswers(result.structuredOutput, request.questions);
-      if (!answers) return unavailable('invalid-answer');
-      return { status: 'answered', answers, latencyMs: Date.now() - startedAt, inputTokens: null, costUsd: result.costUsd, model };
-    } catch {
-      return unavailable('server-error');
-    } finally {
-      if (timer) clearTimeout(timer);
-      if (onAbort) opts.signal.removeEventListener('abort', onAbort);
-      await this.dispose(chat.id);
-    }
-  }
-
-  /** Stops what is still running and removes the chat: the decision is the row, the chat leaves nothing behind */
-  private async dispose(id: string): Promise<void> {
-    try {
-      this.deps.runtime.stop(id);
-    } catch {
-      // already over
-    }
-    let grace: NodeJS.Timeout | undefined;
-    await Promise.race([this.deps.runtime.exited(id), new Promise((r) => (grace = setTimeout(r, EXIT_GRACE_MS)))]).catch(() => undefined);
-    if (grace) clearTimeout(grace);
-    this.deps.runtime.remove(id);
+    const out = await runOneShot(this.deps.runtime, {
+      prompt: decisionPrompt(request, model),
+      name: `decision ${request.point}`,
+      purpose: 'decision',
+      ...(provider ? { provider } : {}),
+      model,
+      // The configured effort when the route kept it; the target's own default when it has no such level
+      effort,
+      maxBudgetUsd: maxCostUsd,
+      jsonSchema: decisionSchema(request.questions),
+      deadlineMs: opts.deadlineMs,
+      signal: opts.signal,
+    });
+    if (out.kind === 'timeout') return unavailable('timeout');
+    if (out.kind === 'failed') return unavailable('server-error');
+    const { result } = out;
+    // No quota wait and no rotation-and-resume for a decision: the answer is "rate-limited", now
+    if (result.cause === 'rate-limit') return unavailable('rate-limited');
+    if (result.isError) return unavailable('server-error');
+    if (stoppedOnMaxTokens(result)) return unavailable('max-tokens');
+    const answers = parseAnswers(result.structuredOutput, request.questions);
+    if (!answers) return unavailable('invalid-answer');
+    return { status: 'answered', answers, latencyMs: Date.now() - startedAt, inputTokens: null, costUsd: result.costUsd, model };
   }
 }
