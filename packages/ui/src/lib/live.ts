@@ -21,7 +21,7 @@ export function spinnerGlyph(index: number, moving = true): string {
  * types task can land independently. Anything with these fields can be given to an `ActivityTicker`.
  */
 export interface TickerActivity {
-  kind: 'tool' | 'writing' | 'thinking' | 'waiting';
+  kind: 'tool' | 'writing' | 'thinking' | 'waiting' | 'compacting';
   tool?: string;
   target?: string;
   /** ISO timestamp of when this started */
@@ -59,6 +59,8 @@ export function activityVerb(activity: TickerActivity): ActivityVerb {
   if (activity.kind === 'writing') return 'writing';
   if (activity.kind === 'thinking') return 'thinking';
   if (activity.kind === 'waiting') return 'waiting';
+  // Until the ticker has a verb of its own for a compaction (x7), it says what is true of any turn
+  if (activity.kind === 'compacting') return 'working';
   const tool = activity.tool?.trim().toLowerCase() ?? '';
   return TOOL_VERBS[tool] ?? 'working';
 }

@@ -25,6 +25,7 @@ export function searchPattern(query: string, flags = 'iu'): RegExp | null {
 
 /** What the transcript view shows of an entry, collapsed folds included: they open on a click. */
 export function entrySearchText(entry: TranscriptEntry): string {
+  // A boundary has no text; a summary has one text block, which is searched like any other
   const parts: string[] = [];
   for (const block of entry.blocks) {
     switch (block.type) {

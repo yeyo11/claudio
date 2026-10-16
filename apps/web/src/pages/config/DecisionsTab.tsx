@@ -73,6 +73,7 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'account.model-fallback': 'accountModelFallback',
   'notification.urgency': 'notificationUrgency',
   'palette.intent': 'paletteIntent',
+  'context.compact': 'contextCompact',
 };
 
 export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'hosts' | 'notifications' | 'palette';

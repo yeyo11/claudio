@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { entryText, normalizeMessage } from '@claudio/shared';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { entrySearchText, entryText, normalizeMessage } from '@claudio/shared';
 
 test('normalizes a stream-json assistant event', () => {
   const entry = normalizeMessage({
@@ -61,4 +64,78 @@ test("reads a slash command's output, which the CLI writes as a system line", ()
   assert.equal(entryText(entry), content);
   assert.equal(normalizeMessage({ type: 'system', subtype: 'local_command', content: '' }), null);
   assert.equal(normalizeMessage({ type: 'system', subtype: 'local_command', isMeta: true, content }), null);
+});
+
+// Compaction (docs/plans/context-control.md): the recordings are Claude Code 2.1.300's own lines
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const lines = (path: string) =>
+  readFileSync(join(fixtures, path), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+
+const camel = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+const camelKeys = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [camel(k), v]));
+
+test('a boundary from stdout and the same boundary from the file give the same entry', () => {
+  const stdout = lines('replay/compact-manual.jsonl').find((l) => l.subtype === 'compact_boundary');
+  assert.ok(stdout);
+  const { compact_metadata, ...rest } = stdout;
+  const file = { ...rest, compactMetadata: camelKeys(compact_metadata as Record<string, unknown>), timestamp: '2026-10-16T03:17:15.731Z' };
+  const a = normalizeMessage(stdout);
+  const b = normalizeMessage(file);
+  assert.ok(a && b);
+  assert.deepEqual({ ...a, timestamp: null }, { ...b, timestamp: null });
+  assert.equal(a.compaction?.part, 'boundary');
+  assert.deepEqual(a.blocks, []);
+  assert.equal(a.role, 'user');
+  assert.equal(a.compaction?.trigger, 'manual');
+  assert.equal(a.compaction?.preTokens, 18517);
+  assert.equal(a.compaction?.postTokens, 1655);
+  assert.equal(a.compaction?.durationMs, 7063);
+});
+
+test('a recorded file boundary keeps its numbers; a missing post_tokens stays null', () => {
+  const boundaries = lines('recordings/claude/compacted.jsonl').filter((l) => l.subtype === 'compact_boundary');
+  assert.ok(boundaries.length >= 2);
+  for (const line of boundaries) {
+    const entry = normalizeMessage(line);
+    assert.ok(entry?.compaction);
+    assert.equal(entry.uuid, line.uuid);
+    assert.equal(typeof entry.compaction.preTokens, 'number');
+  }
+  const without = boundaries.find((l) => (l.compactMetadata as Record<string, unknown>).postTokens === undefined);
+  if (without) assert.equal(normalizeMessage(without)?.compaction?.postTokens, null);
+  assert.equal(normalizeMessage({ type: 'system', subtype: 'compact_boundary', uuid: 'b', compact_metadata: { trigger: 'auto', pre_tokens: 9 } })?.compaction?.postTokens, null);
+  assert.equal(normalizeMessage({ type: 'system', subtype: 'compact_boundary', uuid: 'b' })?.compaction?.trigger, null);
+});
+
+test('a summary line is a summary entry, never a message the person typed', () => {
+  const fromFile = lines('recordings/claude/compacted.jsonl').filter((l) => l.isCompactSummary === true);
+  assert.ok(fromFile.length >= 2);
+  for (const line of fromFile) {
+    const entry = normalizeMessage(line);
+    assert.equal(entry?.compaction?.part, 'summary');
+    assert.equal(entry?.role, 'user');
+    assert.ok(entryText(entry).startsWith('This session is being continued'));
+  }
+  // The stream sends it as a synthetic message without the flag (F11)
+  const fromStream = lines('replay/compact-manual.jsonl').find((l) => l.type === 'user' && l.isSynthetic === true);
+  assert.ok(fromStream);
+  assert.equal(normalizeMessage(fromStream)?.compaction?.part, 'summary');
+  // Hidden in the file only is no proof of anything
+  const hidden = normalizeMessage({ type: 'user', uuid: 'h', isVisibleInTranscriptOnly: true, message: { content: 'hello' } });
+  assert.equal(hidden?.compaction, undefined);
+  const typed = normalizeMessage({ type: 'user', uuid: 't', message: { content: 'This session is being continued from a previous conversation, said the person' } });
+  assert.equal(typed?.compaction, undefined);
+});
+
+test('isMeta lines are still skipped, boundary or not', () => {
+  assert.equal(normalizeMessage({ type: 'user', isMeta: true, isCompactSummary: true, message: { content: 'x' } }), null);
+});
+
+test('a boundary has no search text and a summary has', () => {
+  const boundary = normalizeMessage({ type: 'system', subtype: 'compact_boundary', uuid: 'b' });
+  assert.ok(boundary);
+  assert.equal(entrySearchText(boundary), '');
+  const summary = normalizeMessage({ type: 'user', uuid: 's', isCompactSummary: true, message: { content: 'The summary mentions rhubarb' } });
+  assert.ok(summary);
+  assert.match(entrySearchText(summary), /rhubarb/);
 });

@@ -243,6 +243,8 @@ export interface TranscriptEntry {
   isSidechain: boolean;
   parentToolUseId: string | null;
   blocks: ContentBlock[];
+  /** Set on the CLI's compaction marker (`blocks` is empty) and on the summary it continued from; both have `role: 'user'` and are not the person's words */
+  compaction?: TranscriptCompaction;
 }
 
 /** How many transcript entries a window holds when the caller does not say. */
@@ -545,8 +547,8 @@ export interface Execution {
 }
 
 /** From here on the CLI is close enough to compacting that a person should know before it happens. */
-export const CONTEXT_WARN = 0.8;
-export const CONTEXT_FULL = 0.92;
+export const CONTEXT_WARN = 0.6;
+export const CONTEXT_FULL = 0.75;
 
 /** How full the conversation is, as of its last response. */
 export interface ChatContext {
@@ -554,7 +556,174 @@ export interface ChatContext {
   used: number;
   /** The model's context window; null when the model is not known, so no percentage is invented */
   window: number | null;
+  /** Set only while the newest compaction boundary is later than the last main response: the meter shows `postTokens` at once instead of waiting for the next response */
+  compactedSince?: { at: string; trigger: 'manual' | 'auto'; preTokens: number; postTokens: number | null };
 }
+
+// ---------------------------------------------------------------------------
+// Context control (docs/plans/context-control.md)
+// ---------------------------------------------------------------------------
+
+/** A share of the window above which a chat's MCP servers deserve a look */
+export const MCP_SHARE_WARN = 0.2;
+/** More MCP tools than this in the window, and the model's choice of tool gets worse (ECC's rule of thumb) */
+export const MCP_TOOLS_WARN = 80;
+/** The person's focus line for a compaction: one or two sentences, never a document */
+export const COMPACT_FOCUS_MAX = 500;
+/** The flow's code-side gate for `context.compact`: below this share nothing is asked */
+export const FLOW_COMPACT_MIN_SHARE = 0.6;
+
+/** How the CLI classifies a row of its breakdown; math uses this, never the row's English name */
+export type ContextCategoryKind = 'used' | 'free' | 'buffer' | 'deferred';
+
+/**
+ * The names Claudio knows how to translate; anything else is shown as the CLI wrote it. The list is
+ * the names recorded from Claude Code 2.1.300 (recordings/c0-NOTES.md, F3): there is no row for slash
+ * commands, which the CLI reports as an object and not as a category.
+ */
+export type ContextCategoryKey =
+  | 'system-prompt' | 'system-tools' | 'system-tools-deferred' | 'mcp-tools' | 'mcp-tools-deferred'
+  | 'custom-agents' | 'memory-files' | 'skills' | 'messages' | 'free-space' | 'autocompact-buffer';
+
+export interface ContextCategory {
+  /** The CLI's own label */
+  name: string;
+  key: ContextCategoryKey | null;
+  kind: ContextCategoryKind;
+  tokens: number;
+}
+
+export interface ContextMcpServerWeight {
+  /** `serverName` as the CLI reports it, which is what `PUT /chats/:id/mcp/:name` takes */
+  server: string;
+  tools: number;
+  /** Tools whose schema sits in the window now; a deferred tool costs nothing until it is loaded */
+  loadedTools: number;
+  tokens: number;
+}
+
+export type ContextMcpWarning = 'many-tools' | 'large-share';
+
+export interface ContextBreakdown {
+  model: string;
+  totalTokens: number;
+  /** What the share is measured against: the CLI's compaction window, which can be smaller than the model's */
+  rawMaxTokens: number;
+  maxTokens: number;
+  /** As the CLI rounds it; may pass 100 */
+  percentage: number;
+  autoCompact: { enabled: boolean; thresholdTokens: number | null };
+  /** `totalTokens - rawMaxTokens` when positive, else null */
+  overBy: number | null;
+  /** Rows with zero tokens are dropped here, as the CLI's own renderer does */
+  categories: ContextCategory[];
+  /** Per server, most tokens first; never per tool, which can be hundreds of rows */
+  mcp: { servers: ContextMcpServerWeight[]; loadedTools: number; tokens: number; share: number; warnings: ContextMcpWarning[] };
+  memoryFiles: Array<{ path: string; type: string; tokens: number }>;
+  agents: Array<{ name: string; source: string; tokens: number }>;
+  skills: { total: number; included: number; tokens: number } | null;
+  slashCommands: { total: number; included: number; tokens: number } | null;
+  messages: { toolCalls: number; toolResults: number; attachments: number; assistant: number; user: number; other: number } | null;
+}
+
+export type ContextDetail = 'summary' | 'full';
+/** Why there is no breakdown; the transcript's snapshot is still there */
+export type ContextUnreported = 'no-process' | 'unsupported' | 'timeout' | 'refused';
+
+/** `GET /chats/:id/context` */
+export interface ChatContextUsage {
+  /** A process of this Claudio runs the chat */
+  live: boolean;
+  unreported: ContextUnreported | null;
+  detail: ContextDetail | null;
+  observedAt: string;
+  /** From the transcript, always: what the meters show */
+  snapshot: ChatContext | null;
+  breakdown: ContextBreakdown | null;
+}
+
+export type CompactionOrigin = 'person' | 'typed' | 'flow' | 'cli';
+export type CompactionState = 'requested' | 'running' | 'done' | 'failed' | 'cancelled';
+export type CompactionFailure = 'cli' | 'interrupted' | 'stopped' | 'process-ended' | 'limit' | 'budget' | 'lost' | 'not-started';
+
+export interface ChatCompaction {
+  id: string;
+  chatId: string;
+  origin: CompactionOrigin;
+  state: CompactionState;
+  /** The CLI's word, once its boundary is seen */
+  trigger: 'manual' | 'auto' | null;
+  /** The person's words, as written */
+  focus: string | null;
+  /** The summary was asked for in the session-note shape */
+  structuredNote: boolean;
+  flowRunId: string | null;
+  preTokens: number | null;
+  postTokens: number | null;
+  durationMs: number | null;
+  /** What the CLI reported for the turn; null when it reported none (never estimated) */
+  costUsd: number | null;
+  failure: CompactionFailure | null;
+  /** The CLI's text for a failure, or Claudio's for one the CLI did not explain */
+  error: string | null;
+  boundaryUuid: string | null;
+  noteId: string | null;
+  requestedAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** `POST /chats/:id/compact` */
+export interface CompactChatRequest {
+  focus?: string;
+  /** Defaults to true */
+  structuredNote?: boolean;
+}
+
+/** Why Compact now is not offered; the same codes the 409 carries as `code` */
+export type CompactRefusal =
+  | 'busy' | 'waiting' | 'open' | 'read-only' | 'housekeeping' | 'at-limit' | 'run' | 'unsupported' | 'no-history';
+
+export interface ChatCompactAvailability {
+  available: boolean;
+  refusal: CompactRefusal | null;
+  /** The open compaction or note turn, while there is one */
+  open: ChatCompaction | null;
+}
+
+/** A compaction as the transcript records it: the CLI's marker, or the summary it continued from */
+export interface TranscriptCompaction {
+  part: 'boundary' | 'summary';
+  trigger: 'manual' | 'auto' | null;
+  preTokens: number | null;
+  postTokens: number | null;
+  durationMs: number | null;
+}
+
+export type SessionNoteSection = 'goal' | 'done' | 'failed' | 'not-tried' | 'files' | 'next';
+export type ChatNoteSource = 'compaction' | 'agent' | 'summary';
+export type ChatNoteState = 'pending' | 'ready' | 'failed';
+
+export interface ChatSessionNote {
+  id: string;
+  chatId: string;
+  /** `compaction`: kept from a structured compaction; `agent`: asked for with no compaction; `summary`: a person saved a summary */
+  source: ChatNoteSource;
+  state: ChatNoteState;
+  /** Markdown, as Claude wrote it; null while pending */
+  text: string | null;
+  /** The headings it was asked for, when they were all found; null otherwise */
+  sections: Partial<Record<SessionNoteSection, string>> | null;
+  compactionId: string | null;
+  /** The transcript entry it came from */
+  entryUuid: string | null;
+  error: string | null;
+  createdAt: string;
+  readyAt: string | null;
+}
+
+/** `POST /chats/:id/notes` */
+export type CreateChatNoteRequest = { from: 'agent' } | { from: 'summary'; entryUuid: string };
 
 /** How worrying a signal is. */
 export type HealthLevel = 'ok' | 'warn' | 'bad';
@@ -857,7 +1026,7 @@ export interface ChatChildren {
 /** What a live execution is doing right now, from its latest stream-json events. */
 export interface ChatActivity {
   /** `tool`: a tool call without its result yet; `writing`/`thinking`: a text or thinking block is streaming; `waiting`: blocked on a permission prompt */
-  kind: 'tool' | 'writing' | 'thinking' | 'waiting';
+  kind: 'tool' | 'writing' | 'thinking' | 'waiting' | 'compacting';
   /** The CLI's tool name (`Edit`, `Bash`, `Grep`, `Task`…) when `kind` is `tool` */
   tool?: string;
   /** A short human label for the tool's input: a path relative to the chat's cwd, a command's description or its first 80 characters, a pattern, a subagent's description, a URL's host */
@@ -937,6 +1106,8 @@ export interface Chat {
   pending?: ChatPendingMessage[];
   /** Set on a chat of the Claudio assistant: it keeps its confinement whenever it is continued, resumed or forked */
   claudioAssistant?: ClaudioAssistantMarker | null;
+  /** Whether Compact now is offered, and why not; only on a chat read alone, a list does not pay for it */
+  compact?: ChatCompactAvailability;
 }
 
 /**
@@ -979,7 +1150,7 @@ export interface ChatDetail {
  * A chat as the list shows it: everything but what only its own page needs, which costs a read of
  * its transcript and its sidecar files per chat.
  */
-export type ChatSummary = Omit<Chat, 'children' | 'environment' | 'health'>;
+export type ChatSummary = Omit<Chat, 'children' | 'environment' | 'health' | 'compact'>;
 
 /** Which chat a branch belongs to, for the aggregates that list branches of many chats together. */
 export interface ChatRef {
@@ -7043,6 +7214,7 @@ export type DecisionPointId =
   | 'flow.criteria-precheck'
   | 'flow.criteria-merge'
   | 'flow.restart'
+  | 'context.compact'
   | 'run.continuation'
   | 'orchestration.model'
   | 'orchestration.fixer'
