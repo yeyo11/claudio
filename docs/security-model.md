@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-15T20:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - security
     - secrets
@@ -134,6 +134,15 @@ What a memory proposal writes (`CLAUDE.md`, a memory file, the journal) is read 
 later run of the project. `POST /memory-proposals/:proposalId/approve` and `/reject` therefore answer
 403 to a chat's token, with the same error shape as the other routes closed to it; proposing stays
 open, and the person's token decides.
+
+## A chat's token cannot compact a chat
+
+Compacting is a paid turn over the whole context and is the person's to start. A chat's token can
+read the breakdown, compactions and session notes (`GET /chats/:id/context`, `/compactions`,
+`/notes`), and `POST /chats/:id/compact`, `POST /chats/:id/notes` and `DELETE /chats/:id/notes/:noteId`
+answer 403 to it, as does a `/compact` sent as a message, or as the prompt of a resume or a fork. The
+served notes pass through `maskSecrets`, which covers Claudio's own secrets too. No note ever reaches a
+prompt on its own. See [context-control.md](context-control.md).
 
 ## The terminal
 

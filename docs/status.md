@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-16T00:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - status
     - project-state
@@ -131,7 +131,8 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/models-per-account.md`](plans/models-per-account.md) | Built (2026-10-15): the model list per account from `initialize`, and the `account.model-fallback` point (ships off) |
 | [`plans/sdk-driver-improvements.md`](plans/sdk-driver-improvements.md) | Built (2026-10-15): D1–D3 and point 9, connectors parts A and B (`POST /connectors/:id/authorise`) |
 | [`plans/project-docs.md`](plans/project-docs.md) | Built (2026-10-15) |
-| [`plans/context-control.md`](plans/context-control.md), [`plans/guards.md`](plans/guards.md), [`plans/review-gate.md`](plans/review-gate.md), [`plans/lessons.md`](plans/lessons.md), [`plans/instruction-evals.md`](plans/instruction-evals.md), [`plans/agent-run-improvements.md`](plans/agent-run-improvements.md) | Planned (2026-10-15), from [reports/ecc.md](reports/ecc.md); open questions resolved. Launch order: context control, guards, review gate, lessons, evals phase 1; the agent-run improvements at any time |
+| [`plans/context-control.md`](plans/context-control.md) | Built (2026-10-16): the context breakdown panel, **Compact now**, compactions as dividers, session notes and the `context.compact` point (ships `off`). See [context-control.md](context-control.md) and the plan's [Outcome](plans/context-control.md#outcome) |
+| [`plans/guards.md`](plans/guards.md), [`plans/review-gate.md`](plans/review-gate.md), [`plans/lessons.md`](plans/lessons.md), [`plans/instruction-evals.md`](plans/instruction-evals.md), [`plans/agent-run-improvements.md`](plans/agent-run-improvements.md) | Planned (2026-10-15), from [reports/ecc.md](reports/ecc.md); open questions resolved. Launch order: context control, guards, review gate, lessons, evals phase 1; the agent-run improvements at any time |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -220,7 +221,7 @@ possible to keep honest.
 
 ## Related
 
-[[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
+[[context-control.md]] · [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
 [[plans/app-updates.md]] · [[plans/verify-roadmap-plans.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
