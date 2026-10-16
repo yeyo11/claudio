@@ -108,7 +108,13 @@
       "stream": "leído de una ejecución {{ago}}",
       "cache": "leído de la caché del CLI {{ago}}",
       "failure": "llegó a un límite {{ago}}"
-    }
+    },
+    "signInExpired": "Sesión caducada",
+    "signInIncomplete": "Sesión incompleta",
+    "signInAgain": "Volver a iniciar sesión",
+    "signInAgainFor": "Volver a iniciar sesión: {{name}}",
+    "expiredHint": "Su sesión terminó y no se pudo renovar. Queda fuera de la rotación hasta que vuelvas a iniciar sesión.",
+    "incompleteHint": "Su inicio de sesión guardado está incompleto (sin token de renovación). Queda fuera de la rotación hasta que vuelvas a iniciar sesión."
   },
   "toast": {
     "heldOut": "{{name}} queda fuera de rotación",
@@ -116,7 +122,8 @@
     "backInRotation": "{{name}} vuelve a la rotación",
     "backInRotationFailed": "No se ha podido devolver {{name}} a la rotación",
     "removed": "{{name}} quitada",
-    "removeFailed": "No se ha podido quitar {{name}}"
+    "removeFailed": "No se ha podido quitar {{name}}",
+    "signedInAgain": "{{name}} ha vuelto a iniciar sesión"
   },
   "remove": {
     "title": "¿Quitar {{name}}?",
@@ -213,5 +220,13 @@
       "suggestion": "Sugerencia aceptada"
     },
     "pick": "Elige un modelo"
+  },
+  "reason": {
+    "limit": "límite de uso alcanzado",
+    "threshold": "cerca de su límite",
+    "person": "elegida por ti",
+    "disabled": "fuera de la rotación",
+    "signed-out": "sin sesión",
+    "auth": "sesión caducada"
   }
 }

@@ -1,11 +1,11 @@
 import type { ProviderLimit } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, SquareTerminal } from 'lucide-react';
+import { ChevronRight, LogIn, SquareTerminal, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { api, keys, useAccounts, useSpend } from '../../api';
-import { accountName, usagePct, windowRows } from '../../lib/accounts';
-import { ICON } from '@claudio/ui/components/icons';
+import { accountName, signInProblem, usagePct, windowRows } from '../../lib/accounts';
+import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
 import { useLimitWindowName } from '../../lib/limit-words';
@@ -160,6 +160,30 @@ export function ProviderCard({ now, connection }: { now: Now; connection: Connec
  * account it gives way to the provider's own card.
  */
 export function AccountCard({ now, connection }: { now: Now; connection: Connection }) {
+  const { t } = useTranslation('shell');
+  const accounts = useAccounts().data ?? [];
+  // An account whose sign-in ended is out of rotation: say so beside the card, with the way back
+  const problem = accounts.find((a) => signInProblem(a) !== null) ?? null;
+  const kind = problem ? signInProblem(problem) : null;
+  const alert =
+    problem && kind ? (
+      <NavLink to="/accounts" className="more-account-alert" title={t('account.signInAgain')}>
+        <TriangleAlert {...ICON_SM} />
+        <span className="ellipsis">{t(kind === 'expired' ? 'account.signInExpired' : 'account.signInIncomplete', { name: accountName(problem) })}</span>
+        <span className="more-account-alert-action">
+          <LogIn {...ICON_SM} /> {t('account.signInAgain')}
+        </span>
+      </NavLink>
+    ) : null;
+  return (
+    <>
+      <CurrentAccountCard now={now} connection={connection} />
+      {alert}
+    </>
+  );
+}
+
+function CurrentAccountCard({ now, connection }: { now: Now; connection: Connection }) {
   const { t } = useTranslation('shell');
   const windowOf = useLimitWindowName();
   const accounts = useAccounts().data ?? [];
