@@ -552,9 +552,11 @@ export interface Execution {
   /**
    * `rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a
    * rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution
-   * recorded before it was kept. The error's wording is never read for it.
+   * recorded before it was kept. The error's wording is never read for it. `auth` when it died on
+   * its account's sign-in (a result with a 401): the account is marked signed out, which is what the
+   * rotation passes over, so it does not count among the accounts a limit passed over.
    */
-  cause?: 'rate-limit';
+  cause?: 'rate-limit' | 'auth';
   permissionMode: PermissionMode;
   model: string | null;
   /** Id of the {@link Account} its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login */

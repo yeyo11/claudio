@@ -108,7 +108,7 @@ const MAX_LIMIT_REPLAYS = 1;
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels'>;
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'clearAuthFailed' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -251,6 +251,7 @@ export class ChatManager extends EventEmitter {
           // Output still draining after the database closed (shutdown): losing a limit reading must not become an uncaught error
         }
       },
+      observeSignIn: (chat, authFailed) => this.observeSignIn(chat, authFailed),
       learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
       learnWindows: (modelUsage) => this.learnWindows(modelUsage),
       maybeLimit: (chat) => this.maybeLimit(chat),
@@ -1306,6 +1307,24 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * A turn died on the account's sign-in: the account is marked, so that no choice lands on it until
+   * it signs in again. A turn that went through on a marked account clears the mark. The mark is
+   * stored before the turn's end is announced, which is when the rotation chooses.
+   */
+  private observeSignIn(chat: LiveChat, authFailed: boolean): void {
+    const store = this.accounts;
+    const id = chat.account;
+    if (!store || !id) return;
+    const done = authFailed ? store.markAuthFailed(id) : store.get(id).authFailedAt ? store.clearAuthFailed(id) : null;
+    void done?.catch(() => undefined);
+  }
+
+  /** Whether the chat's last turn died on the account's sign-in rather than its limit. */
+  signInFailed(id: string): boolean {
+    return this.chats.get(id)?.authFailed === true;
+  }
+
+  /**
    * What `choose` makes of the accounts for a chat that just hit its limit: the account to move it
    * to, or when none is left the earliest reset. Null for a chat that runs on none. Every account
    * the turn already died on is passed over, so a chain of moves ends by itself.
@@ -1358,6 +1377,7 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = null;
     chat.error = null;
     chat.rateLimited = false;
+    chat.authFailed = false;
     chat.limitRequested = false;
     chat.stopReason = null;
     // Whatever the last process left open went with it
@@ -1493,7 +1513,7 @@ export class ChatManager extends EventEmitter {
     chat.branches.endAll(chat.endedAt);
     const execution = chat.execution;
     if (execution) {
-      Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error, ...(chat.rateLimited ? { cause: 'rate-limit' as const } : {}) });
+      Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error, ...(chat.rateLimited ? { cause: chat.authFailed ? ('auth' as const) : ('rate-limit' as const) } : {}) });
     }
     // What the agent still had in its queue died with it; what waits for the next process does not
     for (const message of chat.written()) {
@@ -1572,6 +1592,7 @@ export class ChatManager extends EventEmitter {
     else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
     else chat.limitReplays++;
     chat.rateLimited = false;
+    chat.authFailed = false;
     chat.limitRequested = false;
     // The turn that died is its first message and every one written while it ran, and whatever the
     // agent had not taken yet goes along with them, in the order they were sent
