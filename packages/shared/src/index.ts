@@ -12,3 +12,4 @@ export * from './effort.ts';
 export * from './dashboard-layout.ts';
 export * from './tool-risk.ts';
 export * from './patch.ts';
+export * from './guards.ts';
