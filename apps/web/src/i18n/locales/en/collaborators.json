@@ -1,0 +1,64 @@
+{
+  "sharing": {
+    "title": "Sharing",
+    "off": "Turn on Collaborators to share this project with your team, read only.",
+    "unavailable": "Collaborators is not available on this install.",
+    "openCollaborators": "Open Collaborators",
+    "noGroups": "You are in no group yet. Create or join one in Collaborators to share this project.",
+    "shareWith": "Share with {{group}}",
+    "warning": "Everything in this project's chats is sent as it is, including command output. Each collaborator's Claudio deletes its copy when you stop sharing, but what a person has already received or copied elsewhere cannot be taken back.",
+    "key": "Share key",
+    "edited": "Edited",
+    "edit": "Edit",
+    "save": "Save",
+    "useDefault": "Use the default key",
+    "keyRule": "Use 3 to 200 lower-case letters, digits and . _ / # -",
+    "fromRemote": "From the remote {{remote}}",
+    "noRemote": "No git remote: shared by its own id",
+    "remote": "Remote",
+    "keyInUse": "{{project}} already shares this key. Edit the key to share this project too.",
+    "included": "Included",
+    "seenAs": "What collaborators see",
+    "saveFailed": "Couldn't save the sharing settings",
+    "kinds": {
+      "chats": "Chats",
+      "memory": "Memory",
+      "journal": "Journal",
+      "documents": "Documents",
+      "artifacts": "Artifacts",
+      "board": "Board"
+    }
+  },
+  "shared": {
+    "member": "Collaborator",
+    "sections": "Shared with you",
+    "gone": "Nobody shares this project with you now",
+    "nothing": "{{name}} shares nothing you can read here yet",
+    "tabs": {
+      "chats": "Chats",
+      "memory": "Memory",
+      "documents": "Documents",
+      "board": "Board"
+    },
+    "sync": {
+      "live": "Up to date · syncing",
+      "synced": "Synced {{ago}}",
+      "offline": "Owner offline · last synced {{ago}}",
+      "offlineNever": "Owner offline · not synced yet",
+      "pending": "Not synced yet",
+      "failed": "Last sync failed"
+    },
+    "live": "Live",
+    "allChats": "All chats",
+    "messages_one": "{{n}} message",
+    "messages_other": "{{n}} messages",
+    "index": "Index",
+    "workingCopy": "Working copy on {{name}}'s machine · may differ from your checkout",
+    "empty": {
+      "chats": "{{name}} has no chats in this project yet",
+      "memory": "No memory files in this project yet",
+      "documents": "No documents in this project yet",
+      "board": "No tasks on this board yet"
+    }
+  }
+}

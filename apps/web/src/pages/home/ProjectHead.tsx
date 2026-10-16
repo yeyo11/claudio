@@ -154,7 +154,7 @@ export function assistantEntry(project: Pick<Project, 'id' | 'exists'>, label: s
  */
 export function phoneViewMore(project: Project, view: ProjectViewId, t: TFunction<'projects'>, go: (path: string) => void): MenuEntry[] {
   const assistant = assistantEntry(project, t('head.assistant'), go);
-  if (view === 'settings' || view === 'resources') return [assistant];
+  if (view === 'settings' || view === 'resources' || view === 'shared') return [assistant];
   return [
     assistant,
     { id: 'chat', label: t('worktrees.newChatHere'), icon: MessageCircle, disabled: !project.exists, onSelect: () => go(newChatPath(project)) },
