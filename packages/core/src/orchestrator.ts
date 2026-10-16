@@ -1320,6 +1320,16 @@ ${quoted}
       this.charge(orch, task, result);
       return this.persist();
     }
+    // Not held: the rotation moves the chat to another account and replays the turn in the same chat
+    // (`replayLastTurn`). That replay's result is this attempt's, so listen for it; without this the
+    // task stayed running after its replayed turn had ended (seen on 2026-10-16: five finished tasks
+    // of a graph still running, every one of them first refused by an account at its weekly limit)
+    if (result.isError && result.cause === 'rate-limit' && task.runId) {
+      this.charge(orch, task, result);
+      const chatId = task.runId;
+      void this.runs.nextResult(chatId).then((next) => this.settle(orch, task, next), () => undefined);
+      return this.persist();
+    }
     const deciding = this.decide(orch, task, result);
     if (!deciding) return this.settleNow(orch, task, result, {});
     void deciding.then((verdict) => {

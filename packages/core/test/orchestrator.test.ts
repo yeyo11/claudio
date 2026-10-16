@@ -1394,6 +1394,22 @@ test('a limit the rotation holds is not a failure and not an attempt', async () 
   db.close();
 });
 
+test('a task whose limit the rotation answers with another account completes when the replayed turn ends', async () => {
+  // Not held: the rotation does not wait, it replays the turn in the same chat on another account
+  const { db, repo, runs, orchestrator, taskOf } = providerGraph({ held: false });
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false }));
+  const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+  await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(taskOf(started.id, 'a').status, 'running', 'a limit is not a failure');
+  assert.equal(await runs.replayLastTurn(chat, 'another-account'), true);
+  const done = await until(() => taskOf(started.id, 'a').status, (status) => status !== 'running', 'the task to settle after the replayed turn');
+  assert.equal(done, 'completed');
+  assert.equal(taskOf(started.id, 'a').attempts, 1, 'the replay is not a new attempt');
+  orchestrator.stop(started.id);
+  db.close();
+});
+
 test('a task that waits for the reset goes on in its chat when the turn is replayed, and the clock did not run meanwhile', async () => {
   const { db, repo, runs, orchestrator, state, taskOf } = providerGraph({ held: true });
   const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false, limits: { maxMinutes: 30 } }));
