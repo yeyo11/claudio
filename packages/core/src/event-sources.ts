@@ -116,6 +116,22 @@ interface ActivityState {
   latest: ChatRuntime | null;
 }
 
+/** What a subagent is doing, as the chat that runs it hands it in. */
+export interface SubagentActivity {
+  /** The call that launched it */
+  toolUseId: string;
+  agentId: string | null;
+  activity: ChatActivity | null;
+}
+
+/** The same throttle for one subagent of a run. */
+interface SubagentActivityState {
+  sent: string;
+  at: number;
+  timer: NodeJS.Timeout | null;
+  latest: { run: ChatRuntime; sub: SubagentActivity } | null;
+}
+
 interface RunSnapshot {
   status: ChatRuntime['status'];
   turns: number;
@@ -141,6 +157,8 @@ interface RunSnapshot {
 export class RunEventPublisher {
   private readonly snapshots = new Map<string, RunSnapshot>();
   private readonly activities = new Map<string, ActivityState>();
+  /** By `${runId}:${toolUseId}` */
+  private readonly subagentActivities = new Map<string, SubagentActivityState>();
 
   constructor(
     private readonly emit: (event: ClaudioEventInput) => void,
@@ -179,6 +197,11 @@ export class RunEventPublisher {
     const activity = this.activities.get(runId);
     if (activity?.timer) clearTimeout(activity.timer);
     this.activities.delete(runId);
+    for (const [key, state] of this.subagentActivities) {
+      if (!key.startsWith(`${runId}:`)) continue;
+      if (state.timer) clearTimeout(state.timer);
+      this.subagentActivities.delete(key);
+    }
   }
 
   /**
@@ -223,8 +246,59 @@ export class RunEventPublisher {
     });
   }
 
+  /**
+   * Announces what one subagent of a run is doing, with the window and the rules of
+   * {@link activity}, per subagent: two agents working side by side do not hold each other back.
+   */
+  subagentActivity(run: ChatRuntime, sub: SubagentActivity, nowMs = Date.now()): void {
+    const key = `${run.id}:${sub.toolUseId}`;
+    const state = this.subagentActivities.get(key) ?? { sent: '', at: 0, timer: null, latest: null };
+    this.subagentActivities.set(key, state);
+    if (activityKey(sub.activity) === state.sent) {
+      // What was held is no longer news: the line went back to what was last said
+      state.latest = null;
+      return;
+    }
+    state.latest = { run, sub };
+    if (state.timer) return;
+    const wait = state.at + this.activityWindowMs - nowMs;
+    if (wait > 0) {
+      state.timer = setTimeout(() => this.flushSubagentActivity(key), wait);
+      state.timer.unref();
+      return;
+    }
+    this.sendSubagentActivity(state, nowMs);
+  }
+
+  private flushSubagentActivity(key: string): void {
+    const state = this.subagentActivities.get(key);
+    if (!state) return;
+    state.timer = null;
+    if (state.latest && activityKey(state.latest.sub.activity) !== state.sent) this.sendSubagentActivity(state, Date.now());
+  }
+
+  private sendSubagentActivity(state: SubagentActivityState, nowMs: number): void {
+    const latest = state.latest;
+    if (!latest) return;
+    const { run, sub } = latest;
+    state.sent = activityKey(sub.activity);
+    state.at = nowMs;
+    state.latest = null;
+    const known = run.subagents.find((s) => s.toolUseId === sub.toolUseId);
+    this.emit({
+      type: 'subagent.activity',
+      title: activityTitle(known?.description || known?.subagentType || `A subagent of ${runRef(run).runName}`, sub.activity),
+      ...runRef(run),
+      toolUseId: sub.toolUseId,
+      agentId: sub.agentId,
+      activity: sub.activity,
+    });
+  }
+
   dispose(): void {
     for (const id of [...new Set([...this.snapshots.keys(), ...this.activities.keys()])]) this.forget(id);
+    for (const state of this.subagentActivities.values()) if (state.timer) clearTimeout(state.timer);
+    this.subagentActivities.clear();
   }
 
   /** Compares the run with what was last announced and emits the difference. */
