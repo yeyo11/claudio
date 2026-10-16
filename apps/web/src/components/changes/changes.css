@@ -1384,7 +1384,7 @@
   }
 }
 
-/* The review gate's finding card: a variant of .rt (design system §5). Nothing in it is live. */
+/* The review gate's finding card: a variant of .rt (design system §5). Nothing in it is live.
    (.rt-sev: critical and high bad, medium warn, low neutral). Nothing in a finding is live. The section (.rg) takes .energy only while
    reviewers run; every other state stands still, and a running row borrows .live-rail and .spin-ring from §11. */
 .rt.finding .rt-head { gap: 6px 8px; }
