@@ -186,3 +186,16 @@ test('the four guard routes are documented with a summary and the Security tag',
     assert.deepEqual(op?.tags, ['Security'], `${method} ${path}`);
   }
 });
+
+test('a guard verdict a chat hears is stored, so GET /guard-events lists it once', async (t) => {
+  const { app, core } = await wrapper(t);
+  const verdict = { outcome: 'blocked' as const, toolUseId: 'toolu_heard', toolName: 'Bash', rule: 'push' as const, matcher: 'push.git-verb', reason: 'pushing is not allowed', excerpt: 'git push origin main' };
+  core.runtime.emit('chat-guard', 'chat-heard', verdict);
+  // A replayed stream hears it again: the trail keeps one row
+  core.runtime.emit('chat-guard', 'chat-heard', verdict);
+  const page = (await app.inject('/api/guard-events')).json<GuardEventPage>();
+  assert.deepEqual(
+    page.events.map((e) => [e.chatId, e.toolUseId, e.rule, e.outcome, e.excerpt]),
+    [['chat-heard', 'toolu_heard', 'push', 'blocked', 'git push origin main']],
+  );
+});

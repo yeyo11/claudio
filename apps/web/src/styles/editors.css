@@ -1391,8 +1391,14 @@ button.master-item-on:hover {
 
 @media (max-width: 900px) {
   .guard-try-row > .btn,
+  .guard-try-row > .select-trigger,
   .guard-configs .form-actions > .btn {
     min-height: 44px;
+  }
+
+  /* The label is a switch's target: a tap on its words flips it too */
+  .guard-switches .check {
+    min-height: var(--touch);
   }
 
   .guard-try-row > input {

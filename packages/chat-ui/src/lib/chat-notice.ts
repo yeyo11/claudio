@@ -114,6 +114,14 @@ export function readGuardResult(content: string, excerpt: string): Notice | null
   return { kind: 'guard', rule: (hit[1] ?? '').trim(), detail: excerpt, body: (hit[2] ?? '').trim() };
 }
 
+/**
+ * Whether any of a step's calls came back as a guard block. Such a step stays open once it is done:
+ * the strip is what the reader must see, and a folded step would hide it behind "1 failed".
+ */
+export function holdsGuardBlock(parts: ReadonlyArray<{ kind: string; result?: { content: string; isError: boolean } | null }>): boolean {
+  return parts.some((part) => part.kind === 'call' && part.result?.isError === true && GUARD_BLOCK.test(part.result.content));
+}
+
 /** The same strip from the live `guard` event, which already has the masked excerpt. Only a block and a guard that did not run are shown. */
 export function guardEventNotice(guard: RunGuardEvent): Notice | null {
   if (guard.outcome !== 'blocked' && guard.outcome !== 'error' && guard.outcome !== 'missing') return null;
