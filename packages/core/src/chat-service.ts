@@ -419,6 +419,8 @@ export class ChatService {
       derivedFrom: runtime?.derivedFrom ?? null,
       ...(runtime?.claudioAssistant ? { claudioAssistant: runtime.claudioAssistant } : {}),
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
+      ...(runtime?.account ? { account: runtime.account } : {}),
+      ...(runtime?.pendingAccount ? { pendingAccount: runtime.pendingAccount } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
       state,
       control,

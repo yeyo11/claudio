@@ -146,7 +146,7 @@ async function mcpCall(server, tool, input, sessionId) {
 
 const lines = createInterface({ input: process.stdin });
 let handled = false;
-lines.on('line', (line) => {
+lines.on('line', async (line) => {
   if (!line.trim()) return;
   // The handshake, no turn: the models the account offers. FAKE_CLAUDE_LITE_DIRS lists the config dirs
   // of accounts without opus, as a Pro plan is
@@ -182,6 +182,8 @@ lines.on('line', (line) => {
     }
   }
 
+  const nap = /^FAKE-SLEEP (\d+)$/m.exec(prompt);
+  if (nap) await new Promise((resolve) => setTimeout(resolve, Number(nap[1])));
   if (/^FAKE-HANG$/m.test(prompt)) return;
   if (/^FAKE-BUDGET$/m.test(prompt)) {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
