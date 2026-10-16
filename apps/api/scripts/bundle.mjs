@@ -4,9 +4,11 @@
 //   mcp.mjs     the MCP server a chat's CLI starts (packages/mcp/src/main.ts)
 //   guard.mjs  the guard program, the hook the CLI runs before each tool call (packages/core/src/guards/main.ts)
 //   terminal-host.mjs  the process the server forks for the person's terminals (packages/core/src/terminals/host/main.ts)
+//   collab-host.mjs  the process the server forks for the Collaborators iroh endpoint (packages/core/src/collab/host/main.ts)
 // Only node: builtins stay external (node:sqlite among them), so no file needs node_modules, a source
-// tree or a transpiler beside it. The one exception is node-pty, the only native module Claudio ships:
-// it stays external, only terminal-host.mjs loads it, and it is staged beside the bundles below.
+// tree or a transpiler beside it. The exceptions are the two native modules Claudio ships, staged beside
+// the bundles below: node-pty, which only terminal-host.mjs loads, and @number0/iroh, which only
+// collab-host.mjs loads, lazily, so a machine where it cannot load runs everything else as before.
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -25,10 +27,11 @@ await build({
     api: `${root}src/index.ts`,
     mcp: `${root}../../packages/mcp/src/main.ts`,
     'terminal-host': `${root}../../packages/core/src/terminals/host/main.ts`,
+    'collab-host': `${root}../../packages/core/src/collab/host/main.ts`,
     // The PreToolUse hook the CLI runs per tool call (packages/core/src/guards/main.ts): it ships alone and read-only
     guard: `${root}../../packages/core/src/guards/main.ts`,
   },
-  external: ['node-pty'],
+  external: ['node-pty', '@number0/iroh'],
   outdir: `${root}dist`,
   outExtension: { '.js': '.mjs' },
   bundle: true,
@@ -50,3 +53,23 @@ rmSync(staged, { recursive: true, force: true });
 mkdirSync(join(staged, 'prebuilds'), { recursive: true });
 for (const entry of ['package.json', 'lib']) cpSync(realpathSync(join(ptyRoot, entry)), join(staged, entry), { recursive: true, dereference: true });
 cpSync(realpathSync(join(ptyRoot, 'prebuilds', 'linux-x64')), join(staged, 'prebuilds', 'linux-x64'), { recursive: true, dereference: true });
+
+// @number0/iroh is its JS (package.json and index.js, 168 KiB) plus one platform package with the
+// prebuilt binding (20 MiB for Linux x64 glibc), both copied with pnpm's symlinks dereferenced into
+// dist/node_modules/@number0/, where Node's resolution from collab-host.mjs finds them; the binding's
+// loader requires `@number0/iroh-<platform>` by name. The staged platform is the build machine's, the
+// one the Docker image and the Linux packages ship (docs/plans/collaborators.md §3.2, §7.2).
+const irohRoot = dirname(createRequire(`${root}../../packages/core/package.json`).resolve('@number0/iroh/package.json'));
+const irohPlatform = `@number0/iroh-${process.platform}-${process.arch}${process.platform === 'linux' ? (process.report.getReport().header.glibcVersionRuntime ? '-gnu' : '-musl') : ''}`;
+const irohStaged = join(root, 'dist', 'node_modules', '@number0');
+rmSync(irohStaged, { recursive: true, force: true });
+mkdirSync(join(irohStaged, 'iroh'), { recursive: true });
+for (const entry of ['package.json', 'index.js']) cpSync(realpathSync(join(irohRoot, entry)), join(irohStaged, 'iroh', entry), { dereference: true });
+let irohBinding = null;
+try {
+  irohBinding = dirname(createRequire(join(irohRoot, 'package.json')).resolve(`${irohPlatform}/package.json`));
+} catch {
+  // No prebuild for this machine (macOS Intel): the bundle still runs, with Collaborators unavailable
+  console.warn(`bundle: ${irohPlatform} is not installed; Collaborators will be unavailable in this build`);
+}
+if (irohBinding) cpSync(realpathSync(irohBinding), join(irohStaged, irohPlatform.slice('@number0/'.length)), { recursive: true, dereference: true });
