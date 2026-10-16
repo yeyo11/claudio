@@ -15,6 +15,12 @@ export interface Reading {
   windows: Record<string, RateLimitWindow>;
   /** Epoch ms of the observation: the stream's arrival, or the cache's `fetchedAtMs` */
   at: number;
+  /**
+   * What a `rejected` event named: the window that is spent and its reset (unix seconds), as the CLI
+   * sent them. Kept apart from `windows` because a rejection seldom says how much was used, and a
+   * use the CLI did not report is not one to draw.
+   */
+  rejected?: { window: string; resetsAt: number };
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -40,15 +46,10 @@ export function readingFromEvent(info: unknown, now: number): Reading | null {
   const utilization = num(info.utilization);
   if (type && !windows[type] && resetsAt !== null && utilization !== null) windows[type] = { utilization, resetsAt };
   const status = typeof info.status === 'string' ? info.status : null;
-  if (!Object.keys(windows).length && status !== 'rejected') return null;
-  // A rejection without a utilization means the window it names is full
-  if (status === 'rejected' && type && resetsAt !== null && !windows[type]) windows[type] = { utilization: 1, resetsAt };
-  return { source: 'stream', status, windows, at: now };
-}
-
-/** A turn that died on a 429: the account is out until `resetsAt` (epoch seconds), when it is known. */
-export function readingFromFailure(resetsAt: number | null, now: number): Reading {
-  return { source: 'failure', status: 'rejected', windows: resetsAt === null ? {} : { five_hour: { utilization: 1, resetsAt } }, at: now };
+  // A rejection that names no window or no reset says the turn failed, not until when: no reading
+  const rejected = status === 'rejected' && type && resetsAt !== null ? { window: type, resetsAt } : null;
+  if (!Object.keys(windows).length && !rejected) return null;
+  return { source: 'stream', status, windows, at: now, ...(rejected ? { rejected } : {}) };
 }
 
 /** Where the CLI keeps its config for a config dir: `~/.claude.json` for the stock `~/.claude`, else inside the dir. */
@@ -104,24 +105,24 @@ export function readCache(dir: string, home?: string): Reading | null {
 
 /**
  * Folds a reading into what the account looks like at `now`. A window whose reset has passed says
- * nothing any more, so a reading with none left is `unknown`, never `ok`; a `rejected` status
- * keeps the account exhausted until its reset.
+ * nothing any more, so a reading with none left is `unknown`, never `ok`; a `rejected` event keeps
+ * the account exhausted on the window it named until the reset it gave, with the use the CLI
+ * reported for that window, or none when it reported none.
  */
 export function fold(reading: Reading, now: number): AccountLimit {
   const live = Object.entries(reading.windows).filter(([, w]) => w.resetsAt * 1000 > now);
-  const rejected = reading.status === 'rejected' && live.length > 0;
+  const spent = reading.status === 'rejected' && reading.rejected && reading.rejected.resetsAt * 1000 > now ? reading.rejected : null;
   let binding: [string, RateLimitWindow] | null = null;
   for (const entry of live) if (!binding || entry[1].utilization > binding[1].utilization) binding = entry;
   let state: ProviderLimitState = 'unknown';
-  if (binding) {
-    const u = rejected ? 1 : binding[1].utilization;
-    state = u >= 1 ? 'exhausted' : u >= NEAR ? 'near' : 'ok';
-  }
+  if (spent) state = 'exhausted';
+  else if (binding) state = binding[1].utilization >= 1 ? 'exhausted' : binding[1].utilization >= NEAR ? 'near' : 'ok';
+  const resetsAt = spent ? spent.resetsAt : (binding?.[1].resetsAt ?? null);
   return {
     state,
-    window: binding?.[0] ?? null,
-    utilization: binding ? (rejected ? Math.max(1, binding[1].utilization) : binding[1].utilization) : null,
-    resetsAt: binding ? new Date(binding[1].resetsAt * 1000).toISOString() : null,
+    window: spent ? spent.window : (binding?.[0] ?? null),
+    utilization: spent ? (reading.windows[spent.window]?.utilization ?? null) : (binding?.[1].utilization ?? null),
+    resetsAt: resetsAt === null ? null : new Date(resetsAt * 1000).toISOString(),
     windows: Object.fromEntries(live),
     observedAt: new Date(reading.at).toISOString(),
     source: reading.source,

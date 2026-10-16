@@ -18,12 +18,14 @@ driverConformance('claude-code', {
     ask: (tool) => `ASK ${tool}`,
     unexpected: 'ODD',
     budget: replay('budget.jsonl', true),
+    // The fixture's reset is far in the future on purpose: the rejection has to bind whatever day the suite runs
     rateLimit: replay('rate-limit.jsonl', true),
     structured: replay('structured.jsonl', true),
-    noisy: 'STDERR conformance stderr line',
+    // Wording a tool or hook may well print: stderr is shown, never read for the account's limit
+    noisy: 'STDERR conformance stderr line: API rate limit exceeded, usage limit reached',
     delegating: replay('agent-turn.jsonl', true),
   },
   structuredResult: { verdict: 'pass', notes: ['a', 'b'] },
   decision: (result) => (result.includes('"behavior":"allow"') ? 'allow' : result.includes('"behavior":"deny"') ? 'deny' : null),
-  stderrText: 'conformance stderr line',
+  stderrText: 'conformance stderr line: API rate limit exceeded, usage limit reached',
 });

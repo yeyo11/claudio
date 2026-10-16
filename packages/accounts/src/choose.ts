@@ -25,6 +25,12 @@ export interface ChooseOptions {
    * for one that can instead of replaying a turn that would fail. Absent allows every account.
    */
   canRun?: (account: string, model: string) => boolean;
+  /**
+   * Accounts the work's turn has already died on at their limit. None is a candidate, whatever its
+   * reading says, and none gives a reset to wait for: a failure says the account is out, not until
+   * when, so nothing about it is written into the account's reading.
+   */
+  failedOn?: readonly string[];
 }
 
 export interface Choice {
@@ -52,7 +58,8 @@ function exhaustedUntil(limit: AccountLimit | null, now: number): number | null 
  * the threshold; otherwise the first (`order`) or emptiest (`least-used`) enabled, signed-in,
  * not-exhausted account at least `hysteresis` points under the threshold is taken. Between two
  * switches there are `cooldownSeconds` unless the current account is exhausted. An account out
- * until its reset is skipped; one with no reading is allowed.
+ * until its reset is skipped, and so is one the work's turn already failed on (`failedOn`); one
+ * with no reading is allowed.
  */
 export function choose(
   accounts: readonly Candidate[],
@@ -73,7 +80,7 @@ export function choose(
     const l = limits[id];
     return l && l.state !== 'unknown' ? l.utilization : null;
   };
-  const out = (id: string): boolean => exhaustedUntil(limits[id] ?? null, now) !== null;
+  const out = (id: string): boolean => exhaustedUntil(limits[id] ?? null, now) !== null || !!opts.failedOn?.includes(id);
   const model = opts.model && opts.model !== 'default' ? opts.model : null;
   const runs = (id: string): boolean => !model || !opts.canRun || opts.canRun(id, model);
   const usable = (id: string): boolean => ready(id) && !out(id) && runs(id);

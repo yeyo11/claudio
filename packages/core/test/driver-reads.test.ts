@@ -64,6 +64,26 @@ test('a rate_limit_event passes overage and utilization through', () => {
   );
 });
 
+test('a stderr line that says rate limit is only stderr', () => {
+  const { session, events } = attach();
+  session.readError('Error: API rate limit exceeded; usage limit reached');
+  assert.deepEqual(events, [{ kind: 'stderr', text: 'Error: API rate limit exceeded; usage limit reached' }]);
+});
+
+test('a result is the account\'s limit by its 429, never by its wording', () => {
+  const resultOf = (raw: Record<string, unknown>) => {
+    const { session, events } = attach();
+    session.readLine(JSON.stringify({ type: 'result', subtype: 'error_during_execution', num_turns: 1, ...raw }));
+    const result = events.find((e) => e.kind === 'result');
+    assert.ok(result && result.kind === 'result');
+    return result.rateLimited;
+  };
+  assert.equal(resultOf({ is_error: true, api_error_status: 429, result: "You've hit your usage limit" }), true);
+  assert.equal(resultOf({ is_error: true, api_error_status: 429 }), true, 'the status alone is enough');
+  assert.equal(resultOf({ is_error: true, result: 'The tests failed: the client hit a rate limit' }), false, 'a work failure that quotes a limit');
+  assert.equal(resultOf({ is_error: false, api_error_status: 429, result: 'ok' }), false);
+});
+
 test('a limit says it is using overage and when that resets; without them it reads as before', () => {
   const base: RateLimitInfo = { status: 'allowed', windows: { '5h': { utilization: 0.2, resetsAt: 1_800_000_000 } }, observedAt: 'x' };
   const plain = limitFromInfo('claude-code', base, 'stream', 'x');

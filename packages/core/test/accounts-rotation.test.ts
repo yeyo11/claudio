@@ -128,13 +128,15 @@ test('a limit with a second account replays the turn in the same chat on it', as
     assert.ok(rotated && rotated.type === 'run.accountRotated' && rotated.from === DEFAULT_ID && rotated.to === r.ids.a && rotated.resumed);
     assert.ok(r.events.some((e) => e.type === 'account.switched'));
     assert.equal(r.db.providerMoves({ chatId: chat.id }).length, 0, 'nothing waits');
-    assert.equal(r.store.get(DEFAULT_ID).limits?.state, 'exhausted', 'the account that hit the limit is out');
+    // The fake's 429 comes with no rate_limit_event: nothing says how full the account is or until when
+    assert.equal(r.store.get(DEFAULT_ID).limits, null, 'no 100 % window and no reset are made up for the account that failed');
+    assert.deepEqual(r.db.usageHistory({ account: DEFAULT_ID }), [], 'and none lands in its history');
   } finally {
     r.close();
   }
 });
 
-test('with no account left, automated work waits for the earliest reset', async () => {
+test('with no account left, automated work waits, with no reset made up when the CLI gave none', async () => {
   const r = await rig({ work, limited: (d) => Object.values(d) });
   try {
     const chat = r.chats.start({ prompt: 'hello', name: 'stuck', keepAlive: false });
@@ -142,7 +144,7 @@ test('with no account left, automated work waits for the earliest reset', async 
     const [move] = r.db.providerMoves({ chatId: chat.id });
     assert.equal(move?.state, 'waiting');
     assert.equal(move?.action, 'wait');
-    assert.ok(move?.resetsAt && Date.parse(move.resetsAt) > Date.now(), 'the accounts say when the first is back');
+    assert.equal(move?.resetsAt, null, 'every 429 came without a rate_limit_event, so no account says when it is back');
     assert.equal(r.spawns().length, 4, 'every account was tried once before it waited');
     assert.deepEqual(r.db.rotationEvents().map((e) => e.event), ['switch', 'switch', 'switch', 'wait']);
   } finally {

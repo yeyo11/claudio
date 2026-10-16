@@ -46,12 +46,13 @@ const graph = (tasks: OrchestrationTaskState[], over: Partial<Orchestration> = {
   ...over,
 });
 
-const exec = (start: number, end: number | null, outcome: ExecutionOutcome | null = 'completed', error: string | null = null): Execution => ({
+const exec = (start: number, end: number | null, outcome: ExecutionOutcome | null = 'completed', error: string | null = null, cause?: 'rate-limit'): Execution => ({
   id: `e${String(start)}`,
   startedAt: t(start),
   endedAt: end === null ? null : t(end),
   outcome: end === null ? null : outcome,
   error,
+  ...(cause ? { cause } : {}),
   permissionMode: 'acceptEdits',
   model: null,
   maxBudgetUsd: null,
@@ -81,7 +82,7 @@ test('a task that was ready but found no free slot waited for one, and the tasks
 
 test('a limit wait runs from the execution that hit the limit to the one that resumed the task, and work leaves it out', () => {
   const orch = graph([task('a', { endedAt: t(50), attempts: 2 })]);
-  const timings = orchestrationTimings(orch, [chat('a', [exec(0, 10, 'failed', "You've hit your session limit · resets 11am"), exec(40, 50)])], new Date(t(90)));
+  const timings = orchestrationTimings(orch, [chat('a', [exec(0, 10, 'failed', "You've hit your session limit · resets 11am", 'rate-limit'), exec(40, 50)])], new Date(t(90)));
 
   assert.deepEqual(
     timings.waits.items.map((w) => [w.kind, w.startedAt, w.endedAt, w.durationMs]),
@@ -91,6 +92,14 @@ test('a limit wait runs from the execution that hit the limit to the one that re
   assert.equal(timings.waits.retryMs, 0);
   assert.match(timings.waits.items[0]?.reason ?? '', /session limit/);
   assert.equal(timings.criticalPath.links[0]?.workMs, 20 * MIN);
+});
+
+test('a failure that only quotes a limit in its text is a retry: the wording never makes a limit', () => {
+  const orch = graph([task('a', { endedAt: t(50), attempts: 2 })]);
+  const timings = orchestrationTimings(orch, [chat('a', [exec(0, 10, 'failed', 'The tests failed: the client hit a rate limit'), exec(40, 50)])], new Date(t(90)));
+
+  assert.deepEqual(timings.waits.items.map((w) => w.kind), ['retry']);
+  assert.equal(timings.waits.limitMs, 0);
 });
 
 test('a retry wait follows any other failed or interrupted execution, and a task left failed waits until the graph ends', () => {

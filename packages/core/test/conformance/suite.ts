@@ -401,11 +401,16 @@ export function driverConformance(name: string, harness: DriverHarness): void {
     );
 
     // 9
-    scenario(harness, 'stderr lines are stderr events, and a non-protocol stdout line is other', async ({ chats }) => {
+    scenario(harness, 'stderr lines are stderr events, and a non-protocol stdout line is other', async ({ chats, results, limitHits }) => {
       const chat = chats.start({ prompt: harness.script.noisy, name: 'conformance', keepAlive: false });
       await chats.exited(chat.id);
       const events = chats.events(chat.id);
       assert.ok(events.some((e) => e.kind === 'stderr' && e.text === harness.stderrText), 'the stderr line');
+      // Whatever the line says, only the agent's data marks a limit
+      assert.equal(chats.atLimit(chat.id), false, 'stderr never marks the chat limited');
+      assert.deepEqual(limitHits, []);
+      assert.notEqual(results[0]?.cause, 'rate-limit');
+      assert.equal(chats.limitOf(chat.id), null);
       assert.ok(
         events.some((e) => e.kind === 'other' && typeof e.text === 'string' && e.text.length > 0),
         'the unreadable line',

@@ -5,8 +5,6 @@ import type { ControlChannel } from './control.ts';
 
 // High-frequency events that add nothing to the UI
 const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
-/** Wording the CLI uses when the subscription window is spent (`result` text and stderr) */
-export const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
 
 /** The CLI takes `manual` on the command line but reports that same mode as `default`. */
 export const reportedMode = (mode: string): PermissionMode => (mode === 'default' ? 'manual' : (mode as PermissionMode));
@@ -101,10 +99,12 @@ export class ClaudeStream {
     private readonly control: ControlChannel,
   ) {}
 
-  /** One line of stderr. */
+  /**
+   * One line of stderr: shown, never read for a limit. Any output can say "rate limit" (a tool's,
+   * a hook's, a file being read), and the CLI reports its own limit in data on stdout.
+   */
   error(line: string): void {
     if (!line.trim()) return;
-    if (RATE_LIMIT_RE.test(line)) this.sink({ kind: 'rate-limited' });
     this.sink({ kind: 'stderr', text: line });
   }
 
@@ -266,7 +266,8 @@ export class ClaudeStream {
         structuredOutput: raw.structured_output,
         ...(typeof raw.stop_reason === 'string' ? { stopReason: raw.stop_reason } : {}),
         budget: subtype === BUDGET_SUBTYPE,
-        rateLimited: isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(text)),
+        // The status code, not the text: an error result quoting "usage limit" may be the work's own failure
+        rateLimited: isError && raw.api_error_status === 429,
         run: {
           kind: 'result',
           text,

@@ -10,7 +10,6 @@ import type {
   VerificationFix,
   VerificationTimings,
 } from '@claudio/shared';
-import { isRateLimitError } from './chats.ts';
 
 /** What the timings read of a chat: its record's link to the graph, and its executions. */
 export interface TimingsChat {
@@ -35,6 +34,8 @@ interface Span {
   end: string | null;
   error: string | null;
   outcome: Execution['outcome'];
+  /** The CLI said the attempt hit its limit (recorded as data, never read from the error's text) */
+  limited: boolean;
 }
 
 const ms = (iso: string): number => Date.parse(iso);
@@ -68,9 +69,9 @@ export function orchestrationTimings(orch: Orchestration, chats: readonly Timing
   for (const task of orch.tasks) {
     const execs = executionsOf(task.id);
     const list: Span[] = execs.length
-      ? execs.map((e) => ({ start: e.startedAt, end: e.endedAt, error: e.error, outcome: e.outcome }))
+      ? execs.map((e) => ({ start: e.startedAt, end: e.endedAt, error: e.error, outcome: e.outcome, limited: e.cause === 'rate-limit' }))
       : task.startedAt
-        ? [{ start: task.startedAt, end: task.endedAt ?? (task.status === 'running' ? null : task.startedAt), error: task.error, outcome: null }]
+        ? [{ start: task.startedAt, end: task.endedAt ?? (task.status === 'running' ? null : task.startedAt), error: task.error, outcome: null, limited: false }]
         : [];
     spans.set(task.id, list);
   }
@@ -99,7 +100,7 @@ export function orchestrationTimings(orch: Orchestration, chats: readonly Timing
       // A task that delivered after all waits on nothing; one left failed waits until someone decides, or the graph ends
       if (!next && task.status === 'completed') return;
       const end = next ? next.start : running ? null : graphEnd;
-      const kind = isRateLimitError(span.error) ? 'limit' : 'retry';
+      const kind = span.limited ? 'limit' : 'retry';
       waits.push({ taskId: task.id, kind, startedAt: span.end, endedAt: end, durationMs: gap(span.end, until(end)), reason: span.error });
     });
     waitsOf.set(task.id, waits);
