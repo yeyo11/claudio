@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import type { RateLimitInfo } from '@claudio/shared';
 import { ClaudeBranches } from '../src/providers/claude-code/branches.ts';
+import { unreportedOf } from '../src/providers/claude-code/context-usage.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import type { DriverEvent } from '../src/providers/driver.ts';
 import { limitFromInfo } from '../src/providers/limits.ts';
@@ -73,23 +76,41 @@ test('a limit says it is using overage and when that resets; without them it rea
   assert.equal(limitFromInfo('claude-code', { ...base, windows: {}, utilization: 0.4 }, 'stream', 'x').utilization, 0.4);
 });
 
-test('contextUsage sends get_context_usage and returns the answer; an error rejects without killing the session', async () => {
+const recorded = (file: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/recordings/claude/${file}`, import.meta.url)), 'utf8')) as Record<string, unknown>;
+
+test('contextUsage returns the recorded answer; detail is sent only when given; an error rejects without killing the session', async () => {
   const { session, written } = attach();
   const reply = (body: Record<string, unknown>) => {
     const last = written.at(-1) as { request_id: string };
     session.readLine(JSON.stringify({ type: 'control_response', response: { request_id: last.request_id, ...body } }));
   };
+  const full = recorded('context-usage-full.json');
   const usage = session.contextUsage?.();
   assert.deepEqual((written.at(-1) as { request: unknown }).request, { subtype: 'get_context_usage' });
-  reply({ subtype: 'success', response: { totalTokens: 1234, maxTokens: 200000 } });
-  assert.deepEqual(await usage, { totalTokens: 1234, maxTokens: 200000 });
+  reply({ subtype: 'success', response: full });
+  assert.deepEqual(await usage, full);
 
+  const summary = recorded('context-usage-summary.json');
+  const light = session.contextUsage?.('summary');
+  assert.deepEqual((written.at(-1) as { request: unknown }).request, { subtype: 'get_context_usage', detail: 'summary' });
+  reply({ subtype: 'success', response: summary });
+  assert.deepEqual(await light, summary);
+
+  // What the CLI answered an invented subtype with, and a bad `detail`, both recorded (F1, F4)
+  const errors = recorded('context-usage-errors.json') as Record<string, { answer: { response: Record<string, unknown> } }>;
   const failing = session.contextUsage?.();
-  reply({ subtype: 'error', error: 'unsupported' });
-  await assert.rejects(failing as Promise<unknown>);
+  reply({ subtype: 'error', error: errors.unknownSubtype?.answer.response.error });
+  await assert.rejects(failing as Promise<unknown>, (e: unknown) => unreportedOf(e) === 'unsupported');
+  const refused = session.contextUsage?.();
+  reply({ subtype: 'error', error: errors.invalidDetail?.answer.response.error });
+  await assert.rejects(refused as Promise<unknown>, (e: unknown) => unreportedOf(e) === 'refused');
   const again = session.contextUsage?.();
   reply({ subtype: 'success', response: {} });
   assert.deepEqual(await again, {});
+});
+
+test('a control request nobody answers is a timeout, not a refusal', () => {
+  assert.equal(unreportedOf(new Error('the CLI did not answer get_context_usage in time')), 'timeout');
 });
 
 test('setOption maxThinkingTokens sends set_max_thinking_tokens and resolves on the answer', async () => {
