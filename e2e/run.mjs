@@ -23,7 +23,7 @@
 // in one shard, behind one restart of its server. See e2e/shards.mjs.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { availableParallelism, tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
@@ -53,6 +53,16 @@ const specsDir = process.env.E2E_SPECS_DIR ? resolve(process.env.E2E_SPECS_DIR) 
 if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   console.error('apps/web/dist is missing: run `pnpm build` first.');
   process.exit(2);
+}
+
+// From source the server runs the guard from packages/core/src/guards/main.ts, and the guards rightly
+// refuse an entry its group can write (preflight `entry-missing`). A checkout made under umask 002
+// has exactly that, and git keeps no such bit to fix it in the tree, so every guarded chat of the
+// suite would fail to start on that machine alone. The file is the checkout's own, never a project's
+const guardSource = join(root, 'packages/core/src/guards/main.ts');
+if (existsSync(guardSource)) {
+  const mode = statSync(guardSource).mode & 0o777;
+  if (mode & 0o022) chmodSync(guardSource, mode & ~0o022);
 }
 
 const wanted = process.argv.slice(2);
