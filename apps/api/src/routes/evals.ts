@@ -91,6 +91,8 @@ export const evalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.get<{ Params: { id: string } }>('/projects/:id/evals', answering((req) => evals.files((req as { params: { id: string } }).params.id)));
 
+  app.get<{ Params: { id: string } }>('/projects/:id/eval-head', answering((req) => evals.head((req as { params: { id: string } }).params.id)));
+
   app.get<{ Params: { id: string; name: string } }>('/projects/:id/evals/:name', answering((req) => {
     const { id, name } = (req as { params: { id: string; name: string } }).params;
     return evals.detail(id, name);
