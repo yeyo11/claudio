@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { previewCron, type Core } from '@claudio/core';
 import type { CreateScheduleRequest, UpdateScheduleRequest } from '@claudio/shared';
+import { spendGate } from './spend.ts';
 
 /** Recurring chats and orchestrations. The definitions are JSON, the history is rows. */
 export const scheduleRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -33,7 +34,7 @@ export const scheduleRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   app.post<{ Params: { id: string } }>('/schedules/:id/disable', (req) => schedules.update(req.params.id, { enabled: false }));
 
   // Starts the target now, whatever the timetable says. The run it records has no slot.
-  app.post<{ Params: { id: string } }>('/schedules/:id/run', async (req, reply) => reply.status(201).send(await schedules.runNow(req.params.id)));
+  app.post<{ Params: { id: string } }>('/schedules/:id/run', { preHandler: spendGate(core) }, async (req, reply) => reply.status(201).send(await schedules.runNow(req.params.id)));
 
   app.get<{ Params: { id: string }; Querystring: { limit?: string } }>('/schedules/:id/runs', (req) => {
     const limit = Number(req.query.limit);
