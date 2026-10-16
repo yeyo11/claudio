@@ -41,6 +41,7 @@ import { setupRoutes } from './routes/setup.ts';
 import { trackerRoutes } from './routes/trackers.ts';
 import { systemRoutes } from './routes/system.ts';
 import { teamRoutes } from './routes/team.ts';
+import { evalRoutes } from './routes/evals.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
 import { workItemRoutes } from './routes/work-items.ts';
@@ -219,6 +220,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(projectRoutes, { core });
       await api.register(workItemRoutes, { core });
       await api.register(teamRoutes, { core });
+      await api.register(evalRoutes, { core });
       await api.register(flowRoutes, { core });
       await api.register(documentRoutes, { core });
       await api.register(projectDocsRoutes, { core });

@@ -31,6 +31,14 @@ export function gitRaw(cwd: string, args: string[], opts: { timeout?: number; ma
   }
 }
 
+/**
+ * {@link git} for a repository whose owner did not ask for an eval: none of their hooks
+ * (`post-checkout` included) and no fsmonitor daemon may start because Claudio checked something out.
+ */
+export function evalGit(cwd: string, args: string[], timeout = 60_000): string {
+  return git(cwd, ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args], timeout);
+}
+
 export function isGitRepo(dir: string): boolean {
   try {
     git(dir, ['rev-parse', '--git-dir'], 10_000);

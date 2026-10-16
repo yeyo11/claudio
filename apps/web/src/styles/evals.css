@@ -1,0 +1,1079 @@
+/* Team → Evals: the list and the editor (docs/plans/instruction-evals.md, "Web"). Tokens only. */
+.evals-page,
+.evals-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* ---------- The list ---------- */
+.evals-list-card {
+  padding: 8px 14px;
+}
+
+.evals-row {
+  min-height: var(--touch);
+}
+
+.evals-target {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.evals-row-run {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.evals-num {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.evals-never {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.team-page.is-phone .evals-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.team-page.is-phone .evals-row-run {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+/* ---------- The editor ---------- */
+.evals-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.evals-editor-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evals-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.evals-section h3,
+.evals-cases-head h3,
+.evals-invalid h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.evals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.evals-pin {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.evals-pin input {
+  flex: 1;
+  min-width: 0;
+}
+
+.evals-pin-line {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.evals-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
+.evals-json {
+  width: 100%;
+  min-height: 60vh;
+  resize: vertical;
+}
+
+.evals-problems {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.evals-actions,
+.evals-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.evals-footer {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.evals-shas {
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+/* ---------- Cases and their checks ---------- */
+.evals-cases {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.evals-cases-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.evals-case-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.evals-case-gist {
+  color: var(--text-muted);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 48ch;
+}
+
+.evals-case-count {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.evals-case-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 12px;
+}
+
+.evals-expect-heading {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-expects {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evals-expect {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+
+.evals-expect-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.evals-expect-kind {
+  min-width: 160px;
+}
+
+.evals-expect-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.evals-expect-count {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 120px));
+  gap: 10px;
+}
+
+.evals-expect-steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.evals-call {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.evals-call-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.evals-call-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.evals-call-ends {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.evals-matcher {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.evals-matcher > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.evals-matcher-mode {
+  flex-shrink: 0;
+  min-width: 110px;
+}
+
+.evals-matcher-flags {
+  flex: 0 0 72px !important;
+}
+
+/* A phone: fields at 16 px (no zoom on focus) and targets of at least 44 px */
+.team-page.is-phone .evals-editor input,
+.team-page.is-phone .evals-editor textarea {
+  font-size: 16px;
+}
+
+.team-page.is-phone .evals-editor .btn,
+.team-page.is-phone .evals-editor .select-trigger,
+.team-page.is-phone .evals-editor input:not([type='checkbox']) {
+  min-height: var(--touch);
+}
+
+.team-page.is-phone .evals-matcher {
+  flex-wrap: wrap;
+}
+
+.team-page.is-phone .evals-expect-kind {
+  flex: 1;
+}
+
+.team-page.is-phone .evals-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding-bottom: 8px;
+}
+
+/* ---------- The list, entered from a member ---------- */
+.evals-row-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.evals-row-item > .evals-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.evals-evaluate {
+  flex-shrink: 0;
+  min-height: var(--touch);
+}
+
+.evals-filter,
+.evals-none {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------- The start dialog ---------- */
+.evals-start {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.evals-start-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.evals-start-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: var(--touch);
+}
+
+.evals-start-variant {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.evals-start-gist {
+  margin-left: 8px;
+  color: var(--text-muted);
+}
+
+.evals-start-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.evals-estimate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+
+.evals-estimate-line {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.evals-estimating {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.evals-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evals-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
+.evals-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.evals-consent-list {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ---------- The run view ---------- */
+.evals-run {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.evals-run-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evals-run-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.evals-counts {
+  display: flex;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.evals-matrix-wrap {
+  overflow-x: auto;
+}
+
+.evals-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.evals-matrix th,
+.evals-matrix td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.evals-matrix thead th {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-matrix tbody th {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.evals-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.evals-attempt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 36px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  color: var(--dot, var(--text-muted));
+  cursor: pointer;
+}
+
+.evals-attempt:hover {
+  background: var(--bg-hover);
+}
+
+.evals-attempt.tone-live {
+  --dot: var(--live);
+}
+
+.evals-attempt-n {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.evals-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--dot, var(--text-muted));
+}
+
+.evals-matrix-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.evals-matrix-card h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.evals-matrix-card dl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.evals-matrix-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: var(--touch);
+}
+
+.evals-matrix-line dt {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.evals-matrix-line dd {
+  margin: 0;
+}
+
+.team-page.is-phone .evals-attempt {
+  min-height: var(--touch);
+  min-width: var(--touch);
+}
+
+.team-page.is-phone .evals-run .btn {
+  min-height: var(--touch);
+}
+
+/* ---------- The history ---------- */
+.evals-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.evals-history-item > .evals-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.evals-pick {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  justify-content: center;
+}
+
+/* ---------- A sample ---------- */
+.evals-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.evals-sample-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.evals-sample-section h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-running-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--live);
+}
+
+.evals-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.evals-call-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+}
+
+.evals-call-row.is-sub {
+  margin-left: 20px;
+  border-left: 1px solid var(--border-strong);
+}
+
+.evals-call-row.is-focus {
+  background: var(--accent-soft);
+}
+
+.evals-call-seq,
+.evals-call-scope {
+  color: var(--text-muted);
+}
+
+.evals-call-summary {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.evals-call-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--dot, var(--text-muted));
+}
+
+.evals-call-outcome.tone-muted {
+}
+
+.evals-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evals-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.evals-check > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--dot, var(--text-muted));
+}
+
+.evals-check-word {
+  font-weight: 600;
+  color: var(--dot, var(--text-muted));
+}
+
+.evals-check-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evals-check-output {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-sunken);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.evals-final-text {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.evals-sample-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.evals-sample-facts dt {
+  color: var(--text-muted);
+}
+
+.evals-sample-facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Phase 2: metrics, gate, drafting, trend ---------- */
+
+/* A rate with its interval: a track, the interval's range and a dot at the rate; the words carry the numbers */
+.evals-rate {
+  position: relative;
+  display: block;
+  height: 8px;
+  min-width: 96px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+.evals-rate-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border-inline: 1px solid var(--accent);
+}
+
+.evals-rate-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-elev);
+}
+
+.evals-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.evals-metric-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  color: var(--text);
+}
+
+.evals-metric-interval,
+.evals-metric-k {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.evals-drops h4,
+.evals-trend-head h4 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-drop-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.evals-drop-list li {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.evals-drop-variant {
+  color: var(--text-muted);
+}
+
+.evals-check-judge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  flex-basis: 100%;
+}
+
+.evals-check-judge q {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.evals-estimate-levels {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The promotion gate: the verdict is a word and an icon, and its colour is the status colour of that word */
+.evals-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evals-gate-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.evals-gate-head h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-gate-verdict {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.evals-gate-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.evals-gate-means {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 13px;
+}
+
+.evals-gate-means dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.evals-gate-means dd {
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Drafted cases */
+.evals-draft-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evals-draft-case {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.evals-draft-case[data-status='discarded'] {
+  opacity: 0.6;
+}
+
+.evals-draft-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.evals-draft-prompts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.evals-draft-prompts dt {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-draft-prompts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.evals-draft-expects {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.evals-draft-kind {
+  color: var(--text-muted);
+}
+
+/* The pass-rate trend: one series, a recessive grid, a 2 px line and the interval as a band behind it */
+.evals-trend {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.evals-trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.evals-trend-svg {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+}
+
+.evals-trend-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.evals-trend-axis,
+.evals-trend-value {
+  fill: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.evals-trend-value {
+  fill: var(--text);
+}
+
+.evals-trend-band {
+  fill: var(--accent-soft);
+}
+
+.evals-trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.evals-trend-dot {
+  fill: var(--accent);
+  stroke: var(--bg-elev);
+  stroke-width: 2;
+}
+
+.evals-trend-hit {
+  fill: transparent;
+}
+
+/* A phone: the dialog is a sheet whose fields are 16 px and whose targets are 44 px */
+.evals-start-sheet input,
+.evals-start-sheet textarea {
+  font-size: 16px;
+}
+
+.evals-start-sheet .btn,
+.evals-start-sheet .select-trigger,
+.evals-sample-sheet .btn {
+  min-height: var(--touch);
+}
+
+.team-page.is-phone .evals-gate .btn,
+.team-page.is-phone .evals-draft .btn,
+.team-page.is-phone .evals-trend .segmented button {
+  min-height: var(--touch);
+}
+
+.team-page.is-phone .evals-gate-means {
+  flex-direction: column;
+  gap: 12px;
+}

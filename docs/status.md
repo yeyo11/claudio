@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - status
     - project-state
@@ -135,7 +135,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/agent-run-improvements.md`](plans/agent-run-improvements.md) | Built (2026-10-16), ECC ideas 6–10 and 12–15: pattern grounding, the graph's objective and retrieval rounds, fixer stop rules and plateau detection, a risk score on tool calls, optional template roles, the delegation contract, the daily spend cap and path-scoped rules. Verified on the merged branch by the integrator; see its [Outcome](plans/agent-run-improvements.md#outcome) |
 | [`plans/tool-rows-and-live-branches.md`](plans/tool-rows-and-live-branches.md) | Built (2026-10-16): opened tool calls read as what happened (lenses fed by the CLI's `tool_use_result`), a folded strip above the composer with every running subagent, background command and workflow and a line per subagent, and branch cards under the launching step. See [chat-tool-rows-and-branches.md](chat-tool-rows-and-branches.md) and the plan's [Outcome](plans/tool-rows-and-live-branches.md#outcome) |
 | [`plans/review-gate.md`](plans/review-gate.md) | Built (2026-10-16): the opt-in review gate inside verification (`verification.review`): reviewers per dimension under `--restricted`, a verifier, a fixer loop, the deterministic scans, the person-only **Accept anyway**, five routes, the card, the findings in the integration diff and the `review.depth` point (ships `off`). See [orchestrations.md](orchestrations.md#the-review-gate) and the plan's [Outcome](plans/review-gate.md#outcome) |
-| [`plans/guards.md`](plans/guards.md) (**built** 2026-10-16, see [`guards.md`](guards.md)), [`plans/lessons.md`](plans/lessons.md), [`plans/instruction-evals.md`](plans/instruction-evals.md) | Guards and the review gate built (2026-10-16); lessons and evals planned (2026-10-15), from [reports/ecc.md](reports/ecc.md); open questions resolved |
+| [`plans/guards.md`](plans/guards.md) (**built** 2026-10-16, see [`guards.md`](guards.md)), [`plans/lessons.md`](plans/lessons.md), [`plans/instruction-evals.md`](plans/instruction-evals.md) | Guards, the review gate and instruction evals phases 1 and 2 (Phase 2 behind `evalsPhase2`, see [evals.md](evals.md)) are built (2026-10-16); lessons were planned (2026-10-15), from [reports/ecc.md](reports/ecc.md); open questions resolved |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.

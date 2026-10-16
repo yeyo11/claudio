@@ -1,10 +1,10 @@
 import type { Effort, Project, TeamMember } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, Pencil, Undo2, UserMinus } from 'lucide-react';
-import { useState } from 'react';
+import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, FlaskConical, Pencil, Undo2, UserMinus } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
-import { api, keys, useMemoryProposals } from '../../api';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { api, keys, useEvalFiles, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MoreActions, Tooltip } from '@claudio/ui/components/controls';
 import { EffortPicker } from '../../components/EffortPicker';
@@ -18,6 +18,7 @@ import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
+import { clearSave, evalsForAgent, peekSave, stashProposed } from './evals/run-model';
 import { AnswersFor, FileState } from './Members';
 import { frontmatterProblem } from '../config/frontmatter';
 import {
@@ -28,6 +29,7 @@ import {
   sameCommands,
   sameWrites,
   stageOf,
+  teamSearch,
   writeScope,
   writesFor,
   type CommandScope,
@@ -61,26 +63,31 @@ function useAgentFile(projectId: string, member: TeamMember) {
   });
 }
 
+/** The proposed text a run's gate left for this member; none where there is no session storage (a server render). */
+const handedText = (projectId: string, agent: string): string | null => (typeof sessionStorage === 'undefined' ? null : peekSave(sessionStorage, projectId, agent));
+
 /**
  * One member: its responsibility, the paths it may write and its agent file in the existing editor,
  * with its model, its columns, what it does and its memory beside. Saving writes the metadata
  * through the team route and the file through the resources route, the one a terminal would read.
  */
 export function MemberPage({ project, member, backHref }: { project: Project; member: TeamMember; backHref: string }) {
-  const { t } = useTranslation(['team', 'config']);
+  const { t } = useTranslation(['team', 'config', 'evals']);
   const roleName = useRoleName();
   const name = roleName(member.role);
   const phone = useMediaQuery(NARROW);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const toast = useToast();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
+  const evalFiles = useEvalFiles(project.id);
   const file = useAgentFile(project.id, member);
   const memoryOn = project.modules.includes('memory');
   const proposals = useMemoryProposals(memoryOn ? project.id : null, 'pending');
   const mine = (proposals.data ?? []).filter((proposal) => proposal.proposedBy.role === member.role);
   const unavailable = useEffortUnavailable(undefined);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => handedText(project.id, member.agent) !== null);
   // A responsibility still the template's is shown, and edited, in the person's language; left as
   // shown, it is saved as core wrote it, in the English Claude reads
   const shownResponsibility = useResponsibility()(member);
@@ -97,7 +104,12 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   };
   // Only the fields the person touched: the rest follows what is saved, so a model changed on the
   // Flow screen, a file Claudio rewrote or another tab's save shows here instead of being overwritten
-  const [draft, setDraft] = useState<Partial<Draft>>({});
+  // The proposed text a run's gate handed over: shown unsaved, so the person's Save is what writes it
+  const [draft, setDraft] = useState<Partial<Draft>>(() => {
+    const handed = handedText(project.id, member.agent);
+    return handed === null ? {} : { content: handed };
+  });
+  useEffect(() => clearSave(sessionStorage, project.id, member.agent), [project.id, member.agent]);
   const now: Draft = { ...saved, ...draft };
   const writes = writesFor(now.scope, now.paths);
   const commands = commandsFor(now.commandScope, now.commands);
@@ -155,6 +167,17 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       (ok) => ok && remove.mutate(),
     );
 
+  // The unsaved text goes to the evals in this tab's session storage and is cleared once the start
+  // dialog has used it; an agent with no eval yet is offered "New eval" instead
+  const hasEvals = evalsForAgent(evalFiles.data ?? [], member.agent).length > 0;
+  const evaluate = () => {
+    if (!stashProposed(sessionStorage, project.id, member.agent, now.content)) {
+      toast.error(t('evals:member.tooLarge'));
+      return;
+    }
+    navigate({ search: teamSearch(params, { section: 'evals', member: null, eval: null, run: null, for: member.agent }) });
+  };
+
   const stage = member.columns[0] ? stageOf(member.columns[0]) : null;
   const unsaved = dirty && (
     <Tag tone="warn">
@@ -163,6 +186,10 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   );
   const actions = (
     <>
+      <button type="button" className="btn" disabled={!fileChanged || frontmatter !== null} onClick={evaluate} title={fileChanged ? undefined : t('evals:member.needsChange')}>
+        <FlaskConical {...ICON_SM} />
+        {hasEvals ? t('evals:member.evaluate') : t('evals:member.new')}
+      </button>
       <button type="button" className="btn" disabled={!dirty || save.isPending} onClick={() => setDraft({})}>
         <Undo2 {...ICON_SM} />
         {t('config:shared.discard')}

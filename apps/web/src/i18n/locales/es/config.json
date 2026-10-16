@@ -1304,6 +1304,12 @@
       "invalid": "Introduce un importe mayor que 0 y de hasta {{max}}.",
       "saved": "Tope de gasto diario guardado",
       "savedOff": "Tope de gasto diario desactivado"
+    },
+    "evals": {
+      "title": "Evaluaciones de instrucciones, fase 2",
+      "intro": "Niveles de presión, comprobaciones juzgadas, la puerta de promoción y la redacción de casos. Apagada, esas rutas y pantallas quedan ocultas.",
+      "switch": "Activar la fase 2 de las evaluaciones de instrucciones",
+      "saved": "Ajustes de las evaluaciones guardados"
     }
   },
   "lessons": {

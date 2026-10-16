@@ -9,6 +9,13 @@ import type { ConfigScope } from './scope.ts';
 const NAME_RE = /^[\w.-]{1,64}$/;
 export const RESOURCE_KINDS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'];
 
+/** Where a resource's file lives (or would be created) in a scope; the name is checked, never joined as given. */
+export function resourcePath(scope: ConfigScope, kind: ResourceKind, name: string): string {
+  if (!NAME_RE.test(name)) throw new Error('invalid resource name (letters, digits, _ . - only)');
+  const dir = join(scope.claudeDir, kind);
+  return kind === 'skills' ? join(dir, name, 'SKILL.md') : join(dir, `${name}.${kind === 'workflows' ? 'js' : 'md'}`);
+}
+
 function parseDescription(content: string): string | null {
   const frontmatter = /^---\n([\s\S]*?)\n---/.exec(content)?.[1];
   const match = frontmatter ? /^description:\s*(.+)$/m.exec(frontmatter) : null;
@@ -51,9 +58,7 @@ export class ConfigResources {
   }
 
   private file(scope: ConfigScope, kind: ResourceKind, name: string): string {
-    if (!NAME_RE.test(name)) throw new Error('invalid resource name (letters, digits, _ . - only)');
-    const dir = this.dir(scope, kind);
-    return kind === 'skills' ? join(dir, name, 'SKILL.md') : join(dir, `${name}.${kind === 'workflows' ? 'js' : 'md'}`);
+    return resourcePath(scope, kind, name);
   }
 
   /** Where a resource lives now, or would be created: an existing workflow keeps its own file. */

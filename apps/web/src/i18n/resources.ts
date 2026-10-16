@@ -31,6 +31,7 @@ import enSuggestion from './locales/en/suggestion.json';
 import enTasks from './locales/en/tasks.json';
 import enTerminal from './locales/en/terminal.json';
 import enTeam from './locales/en/team.json';
+import enEvals from './locales/en/evals.json';
 import enUsage from './locales/en/usage.json';
 import enWebhooks from './locales/en/webhooks.json';
 import enWork from './locales/en/work.json';
@@ -64,6 +65,7 @@ import esSuggestion from './locales/es/suggestion.json';
 import esTasks from './locales/es/tasks.json';
 import esTerminal from './locales/es/terminal.json';
 import esTeam from './locales/es/team.json';
+import esEvals from './locales/es/evals.json';
 import esUsage from './locales/es/usage.json';
 import esWebhooks from './locales/es/webhooks.json';
 import esWork from './locales/es/work.json';
@@ -102,6 +104,7 @@ export const en = {
   tasks: enTasks,
   terminal: enTerminal,
   team: enTeam,
+  evals: enEvals,
   workItem: enWorkItem,
   decisions: enDecisions,
   documents: enDocuments,
@@ -145,6 +148,7 @@ export const es = {
   tasks: esTasks,
   terminal: esTerminal,
   team: esTeam,
+  evals: esEvals,
   workItem: esWorkItem,
   decisions: esDecisions,
   documents: esDocuments,

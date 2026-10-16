@@ -74,6 +74,9 @@ function parseValue(key: keyof AppSettingValues, value: unknown): AppSettingValu
     case 'setupSeen':
       if (typeof value !== 'boolean') throw new Error('setupSeen must be true or false');
       return value;
+    case 'evalsPhase2':
+      if (typeof value !== 'boolean') throw new Error('evalsPhase2 must be true or false');
+      return value;
     case 'dailySpendCapUsd': {
       if (value === null) return null;
       const cap = normalizeSpendCap(value);
@@ -183,7 +186,7 @@ export class AppSettingsStore implements RunDefaults {
   ) {
     this.file = join(config.dataDir, 'app-settings.json');
     this.fromEnv = config.settingsFromEnv;
-    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen, dailySpendCapUsd: config.dailySpendCapUsd };
+    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen, dailySpendCapUsd: config.dailySpendCapUsd, evalsPhase2: config.evalsPhase2 };
     if (existsSync(this.file)) {
       try {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));
@@ -218,6 +221,11 @@ export class AppSettingsStore implements RunDefaults {
   /** The daily spend cap in USD; null for none. Read by the spend gate on every check. */
   get dailySpendCapUsd(): number | null {
     return this.current.dailySpendCapUsd;
+  }
+
+  /** Whether the instruction evals' Phase 2 routes answer; read on every request */
+  get evalsPhase2(): boolean {
+    return this.current.evalsPhase2;
   }
 
   get maxConcurrentRuns(): number {

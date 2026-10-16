@@ -210,6 +210,41 @@ function readResult(filePath) {
   }
 }
 
+/**
+ * An `Edit` or `Write` the fake performs for real, so a spec can read the change from disk. The input
+ * and result fields follow the CLI's tool shapes (`file_path`, `old_string`, `new_string`; `file_path`,
+ * `content`), paths absolute.
+ */
+function fileEditCall(kind, text) {
+  if (kind === 'edit') {
+    const filePath = resolve(process.cwd(), text);
+    let before = null;
+    try { before = readFileSync(filePath, 'utf8'); } catch { /* a missing file fails the call */ }
+    if (before === null) return { input: { file_path: filePath, old_string: '', new_string: '' }, content: `File does not exist: ${filePath}`, isError: true, detail: `File does not exist: ${filePath}` };
+    const after = `${before}${before === '' || before.endsWith('\n') ? '' : '\n'}edited by the fake CLI\n`;
+    writeFileSync(filePath, after);
+    return {
+      input: { file_path: filePath, old_string: before, new_string: after, replace_all: false },
+      content: `The file ${filePath} has been updated successfully.`,
+      isError: false,
+      detail: { filePath, oldString: before, newString: after, originalFile: before, structuredPatch: [], userModified: false, replaceAll: false },
+    };
+  }
+  const [target = '', ...rest] = text.split(/\s+/);
+  const filePath = resolve(process.cwd(), target);
+  const content = rest.join(' ');
+  const existed = existsSync(filePath);
+  const originalFile = existed ? readFileSync(filePath, 'utf8') : null;
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, content);
+  return {
+    input: { file_path: filePath, content },
+    content: `File ${existed ? 'updated' : 'created'} successfully at: ${filePath}`,
+    isError: false,
+    detail: { type: existed ? 'update' : 'create', filePath, content, structuredPatch: [], originalFile },
+  };
+}
+
 /** A finished `Bash` as the CLI answers it: the text, and `{ stdout, stderr, interrupted }` beside it, or the error as a string. */
 function commandResult(stdout, stderr, code, signal) {
   const ok = code === 0;
@@ -380,7 +415,7 @@ function startTurn(message, uuid = null) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|read|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|read|edit|write|skill|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
@@ -479,6 +514,21 @@ function nextStep() {
       own.current = null;
       const { content, detail } = readResult(filePath);
       toolResult(id, content, false, detail);
+      setTimeout(() => turn === own && nextStep(), SETTLE_MS);
+    }, READ_MS);
+    return;
+  }
+  if (step.kind === 'edit' || step.kind === 'write' || step.kind === 'skill') {
+    const id = newToolId();
+    const call = step.kind === 'skill'
+      ? { name: 'Skill', input: { skill: step.text }, content: `Launching skill: ${step.text}`, isError: false, detail: { success: true, commandName: step.text } }
+      : { name: step.kind === 'edit' ? 'Edit' : 'Write', ...fileEditCall(step.kind, step.text) };
+    assistant([{ type: 'tool_use', id, name: call.name, input: call.input }]);
+    own.current = { id, child: null, command: null };
+    setTimeout(() => {
+      if (turn !== own) return;
+      own.current = null;
+      toolResult(id, call.content, call.isError, call.detail);
       setTimeout(() => turn === own && nextStep(), SETTLE_MS);
     }, READ_MS);
     return;

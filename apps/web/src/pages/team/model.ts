@@ -285,20 +285,45 @@ export function sameList(a: readonly string[] | undefined, b: readonly string[] 
 
 /**
  * The Team tab's own address: `?view=team&section=flow`, `&section=activity` for the team's whole
- * activity, `&member=<agent>` for one member.
+ * activity, `&member=<agent>` for one member, `&section=evals` for the instruction evals, deepened by
+ * `&eval=<name>` (one eval) and `&run=<id>` (one run).
  */
-export type TeamSection = 'members' | 'flow' | 'activity';
+export type TeamSection = 'members' | 'flow' | 'activity' | 'evals';
 
 export function teamSection(value: string | null): TeamSection {
-  return value === 'flow' || value === 'activity' ? value : 'members';
+  return value === 'flow' || value === 'activity' || value === 'evals' ? value : 'members';
 }
 
-export function teamSearch(params: URLSearchParams, next: { section?: TeamSection; member?: string | null }): string {
+export function teamSearch(
+  params: URLSearchParams,
+  next: { section?: TeamSection; member?: string | null; eval?: string | null; run?: string | null; for?: string | null },
+): string {
   const query = new URLSearchParams(params);
   query.set('view', 'team');
   if (next.section) {
     if (next.section === 'members') query.delete('section');
     else query.set('section', next.section);
+    // The evals' own depth belongs to that section
+    if (next.section !== 'evals') {
+      query.delete('eval');
+      query.delete('run');
+      query.delete('for');
+    }
+  }
+  // The agent a member's page asked the evals about; the list is filtered to it
+  if (next.for !== undefined) {
+    if (next.for) query.set('for', next.for);
+    else query.delete('for');
+  }
+  if (next.eval !== undefined) {
+    if (next.eval) query.set('eval', next.eval);
+    else query.delete('eval');
+    // A run belongs to the eval it was opened under
+    if (next.run === undefined) query.delete('run');
+  }
+  if (next.run !== undefined) {
+    if (next.run) query.set('run', next.run);
+    else query.delete('run');
   }
   if (next.member !== undefined) {
     if (next.member) query.set('member', next.member);

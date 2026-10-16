@@ -285,11 +285,25 @@ export function a11ySpec(checks) {
       await api.post(`/projects/${projectId}/journal`, { kind: 'decision', text: 'Cards name their column in words' });
       await api.request('PATCH', `/work-items/${story.id}`, { assignee: { kind: 'role', role: 'developer' } });
       const project = `/?project=${projectId}`;
+      // An eval file for the instruction evals' list and editor (the pin is never resolved by a read)
+      const evalFile = await api.put(`/projects/${projectId}/evals/a11y-eval`, {
+        definition: {
+          version: 1,
+          title: 'Reads before it answers',
+          target: { kind: 'agent', scope: 'project', name: 'developer' },
+          pin: '0'.repeat(40),
+          cases: [{ id: 'reads', title: 'Reads first', prompt: 'Read the code, then answer.', expect: [{ kind: 'called', call: { tool: 'Read' } }] }],
+        },
+        ifMatch: null,
+      });
+      check(evalFile.status === 200 || evalFile.status === 201, `an eval file was written (${evalFile.status})`);
       const ecosystem = [
         `${project}&view=team`,
         `${project}&view=team&member=developer`,
         `${project}&view=team&section=flow`,
         `${project}&view=team&section=activity`,
+        `${project}&view=team&section=evals`,
+        `${project}&view=team&section=evals&eval=a11y-eval`,
         `${project}&view=documents`,
         `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}`,
         `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}&mode=edit`,

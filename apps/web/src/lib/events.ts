@@ -144,6 +144,8 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'spend.changed': true,
   'spend.alert': true,
   'guards.changed': true,
+  'eval.run': true,
+  'eval.sample': true,
 };
 
 /**
@@ -461,6 +463,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.spend, NOW]];
     case 'guards.changed':
       return [];
+    // The Evals screens (a later task) key their queries under 'evals'
+    case 'eval.run':
+    case 'eval.sample':
+      return [[['evals'], NOW]];
   }
 }
 

@@ -21,6 +21,8 @@ const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.m
 interface Options {
   /** Automated work: what the chat works for */
   work?: ChatWork | null;
+  /** The chats the eval runner says are its samples */
+  evalSample?: boolean;
 }
 
 function settingsOf(): ProvidersSettings {
@@ -45,6 +47,7 @@ function rig(o: Options = {}) {
     projectOf: () => null,
     emit: (event) => events.push(event),
     ...(o.work ? { work: () => o.work ?? null } : {}),
+    ...(o.evalSample ? { evalSample: () => true } : {}),
     ended: (m, end, reason) => ended.push({ move: m, end, reason }),
     now: () => Date.now() + offset,
     pollMs: 20,
@@ -136,6 +139,29 @@ test("a schedule's chat is a person's: at a limit it only asks, and nothing wait
     assert.equal(events.filter((e) => e.type === 'run.rateLimited').length, 1);
     assert.equal(db.providerMoves({ chatId: id }).length, 0);
     assert.equal(rotation.holds(id), false);
+  } finally {
+    close();
+  }
+});
+
+test('an eval sample at a limit is announced and never held, moved or replayed', async () => {
+  // The same chat as automated work would be waited on; a sample is run again from scratch instead
+  const control = rig({ work });
+  try {
+    const id = await control.limited();
+    assert.ok(control.rotation.holds(id) || control.db.providerMoves({ chatId: id }).length > 0, 'automated work is held');
+  } finally {
+    control.close();
+  }
+  const { chats, db, events, limited, rotation, close } = rig({ work, evalSample: true });
+  try {
+    const id = await limited();
+    assert.equal(events.filter((e) => e.type === 'run.rateLimited').length, 1);
+    assert.equal(db.providerMoves({ chatId: id }).length, 0);
+    assert.equal(rotation.holds(id), false);
+    assert.equal(rotation.waitOf(id), null);
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(chats.get(id)?.executions.length, 1, 'the turn was not replayed');
   } finally {
     close();
   }
