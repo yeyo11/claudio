@@ -76,6 +76,15 @@
   color: var(--text-muted);
 }
 
+/* A rule's Switch has no words of its own (the name sits beside it), so on a phone its label is grown to a finger's target */
+@media (max-width: 900px), (pointer: coarse) {
+  .guard-rule > .check {
+    min-width: var(--touch);
+    min-height: var(--touch);
+    justify-content: center;
+  }
+}
+
 /* The locked row says "Always on" in words: it has no Switch to say it */
 .guard-always {
   flex: none;
