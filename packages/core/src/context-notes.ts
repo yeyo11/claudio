@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ChatCompaction, ChatSessionNote, CompactRefusal, SessionNoteSection, TranscriptEntry } from '@claudio/shared';
 import { COMPACTION_LEASE_MS, type Db } from './db.ts';
+import { maskSecrets } from './decisions/redact.ts';
 import type { RunResult } from './live-chat.ts';
 
 /*
@@ -114,12 +115,23 @@ const textOf = (entry: TranscriptEntry): string =>
     .join('\n\n')
     .trim();
 
+/**
+ * A note as it leaves the server. The browser masks what looks like a secret before the journal
+ * prefill, but only the server knows Claudio's own (the vault's values, its tokens), so they go here,
+ * at every read, and a secret added to the vault later is masked in an older note too.
+ */
+function served(note: ChatSessionNote): ChatSessionNote {
+  if (note.text === null) return note;
+  const sections = note.sections ? (Object.fromEntries(Object.entries(note.sections).map(([key, text]) => [key, maskSecrets(text)])) as ChatSessionNote['sections']) : null;
+  return { ...note, text: maskSecrets(note.text), sections };
+}
+
 /** Session notes of a chat, and the three ways one comes to be (docs/plans/context-control.md) */
 export class ChatNotes {
   constructor(private readonly deps: ChatNotesDeps) {}
 
   list(chatId: string): ChatSessionNote[] {
-    return this.deps.db.notes(chatId);
+    return this.deps.db.notes(chatId).map(served);
   }
 
   /** Asks the agent for a note with no compaction: a paid housekeeping turn the person chose to spend */
@@ -169,7 +181,7 @@ export class ChatNotes {
       readyAt: now,
     };
     if (!this.deps.db.insertNote(note)) throw new ContextRefusal('saved');
-    return note;
+    return served(note);
   }
 
   /** A note that a compaction made, kept when its summary entry is seen; the entry is the note's anchor, so seeing it twice keeps one */

@@ -241,7 +241,7 @@ export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { orchestrationTimings, type TimingsChat } from './orchestration-timings.ts';
 export { chatRole } from './chat-service.ts';
 export { CONTEXT_USAGE_CACHE_MS, ContextControl, type CompactAndWaitOptions } from './context-control.ts';
-export { ChatNotes, compactText, ContextRefusal, NOTE_REQUEST_PROMPT, parseSessionNote, SESSION_NOTE_INSTRUCTIONS } from './context-notes.ts';
+export { ChatNotes, compactText, ContextRefusal, NOTE_REQUEST_PROMPT, parseSessionNote, SESSION_NOTE_INSTRUCTIONS, TYPED_COMPACT } from './context-notes.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
