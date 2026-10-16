@@ -6839,6 +6839,18 @@
       },
       {
         "$ref": "#/components/schemas/EvalSampleEvent"
+      },
+      {
+        "$ref": "#/components/schemas/CollaboratorsChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/CollaboratorsPeerEvent"
+      },
+      {
+        "$ref": "#/components/schemas/CollaboratorsSyncedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/CollaboratorsJoinRequestEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -12529,6 +12541,345 @@
       "unjudged"
     ],
     "description": "Only `passed` and `failed` are scored; the rest say why a sample says nothing about the target. `unjudged` (Phase 2): a judge failed, so the judged expectation has no verdict; it fails closed for the gate."
+  },
+  "CollaboratorsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "collaborators.changed"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/CollaboratorsChangeScope"
+      },
+      "groupId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The group, for `roster`; the project, for `sharing`; null otherwise"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "groupId",
+      "id",
+      "projectId",
+      "scope",
+      "title",
+      "type"
+    ],
+    "description": "The settings, a group's roster, the manual links or a project's sharing changed."
+  },
+  "CollaboratorsChangeScope": {
+    "type": "string",
+    "enum": [
+      "settings",
+      "roster",
+      "links",
+      "sharing"
+    ],
+    "description": "What changed in `collaborators.changed`."
+  },
+  "CollaboratorsPeerEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "collaborators.peer"
+      },
+      "endpointId": {
+        "$ref": "#/components/schemas/EndpointId"
+      },
+      "name": {
+        "type": "string"
+      },
+      "presence": {
+        "$ref": "#/components/schemas/PeerPresence"
+      }
+    },
+    "required": [
+      "at",
+      "endpointId",
+      "id",
+      "name",
+      "presence",
+      "title",
+      "type"
+    ],
+    "description": "A member's install came online, went offline or changed path."
+  },
+  "EndpointId": {
+    "type": "string",
+    "description": "An iroh endpoint id: the public key of an install, as iroh prints it."
+  },
+  "PeerPresence": {
+    "type": "object",
+    "properties": {
+      "online": {
+        "type": "boolean"
+      },
+      "path": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CollaboratorsPath"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How the connection travels while online; null while offline"
+      },
+      "lastSeenAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the install was last connected; null when it never was"
+      }
+    },
+    "required": [
+      "online",
+      "path",
+      "lastSeenAt"
+    ],
+    "description": "Whether a member's install is reachable now, from `collab_peers`."
+  },
+  "CollaboratorsPath": {
+    "type": "string",
+    "enum": [
+      "direct",
+      "relay"
+    ],
+    "description": "How a connection to a peer travels: a direct QUIC path, or through a relay (slower, not wrong)."
+  },
+  "CollaboratorsSyncedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "collaborators.synced"
+      },
+      "owner": {
+        "$ref": "#/components/schemas/EndpointId"
+      },
+      "shareKey": {
+        "type": "string"
+      },
+      "shareId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/CollaboratorsKind"
+      },
+      "sync": {
+        "$ref": "#/components/schemas/SyncState"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "kind",
+      "owner",
+      "shareId",
+      "shareKey",
+      "sync",
+      "title",
+      "type"
+    ],
+    "description": "A pull of one kind of a shared project ended."
+  },
+  "CollaboratorsKind": {
+    "type": "string",
+    "enum": [
+      "chats",
+      "memory",
+      "journal",
+      "documents",
+      "artifacts",
+      "board"
+    ],
+    "description": "What a project shares, by the receiver's tabs. `chats` carries their transcripts and `board` the work items with their milestones; terminal sessions are never shared."
+  },
+  "SyncState": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/SyncStateKind"
+      },
+      "lastSyncedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the last pull ended; null before the first"
+      },
+      "path": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CollaboratorsPath"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How the connection to the owner travels while connected"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The last pull failed, with a code a client translates; null when it did not"
+      }
+    },
+    "required": [
+      "state",
+      "lastSyncedAt",
+      "path",
+      "error"
+    ]
+  },
+  "SyncStateKind": {
+    "type": "string",
+    "enum": [
+      "live",
+      "synced",
+      "offline",
+      "pending"
+    ],
+    "description": "How current a shared project's copy is, in the words of §5.1:\n\n- `live`: the owner is connected and the watch stream is open (\"Up to date · syncing\");\n- `synced`: connected, between pulls (\"Synced 3 min ago\");\n- `offline`: the owner is not reachable (\"Owner offline · last synced 2 h ago\");\n- `pending`: nothing synced yet."
+  },
+  "CollaboratorsJoinRequestEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "collaborators.join-request"
+      },
+      "request": {
+        "$ref": "#/components/schemas/JoinRequest"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "request",
+      "title",
+      "type"
+    ],
+    "description": "A join reached the owner's install and waits for an answer; only the owner's install emits it."
+  },
+  "JoinRequest": {
+    "type": "object",
+    "properties": {
+      "groupId": {
+        "type": "string"
+      },
+      "from": {
+        "$ref": "#/components/schemas/EndpointId",
+        "description": "The joiner's endpoint id, the `:from` of the accept and deny routes"
+      },
+      "name": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string"
+      },
+      "relayedBy": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "endpointId": {
+                "$ref": "#/components/schemas/EndpointId"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "endpointId",
+              "name"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The member that relayed it while the owner was offline; null when it came straight to the owner"
+      },
+      "receivedAt": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "description": "The invite's expiry"
+      }
+    },
+    "required": [
+      "groupId",
+      "from",
+      "name",
+      "relayedBy",
+      "receivedAt",
+      "expiresAt"
+    ],
+    "description": "A join waiting for the owner's answer, on the owner's install (`GET /collaborators/groups/:id/join-requests`)."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -18452,6 +18803,10 @@
       "lessons": {
         "$ref": "#/components/schemas/ProjectLessonsSettings",
         "description": "What lessons this project's runs are handed; a missing field takes the default"
+      },
+      "sharing": {
+        "$ref": "#/components/schemas/ProjectSharingSettings",
+        "description": "Collaborators: the groups the project is shared with and its share key; absent while never shared"
       }
     },
     "required": [
@@ -19191,6 +19546,31 @@
       "useGlobal"
     ],
     "description": "In the project's settings document (`ProjectSettings.lessons`)"
+  },
+  "ProjectSharingSettings": {
+    "type": "object",
+    "properties": {
+      "groups": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The groups the project is shared with; empty shares it with none"
+      },
+      "shareKey": {
+        "type": "string",
+        "description": "Computed once as a default, then the person's to edit; unique among the install's projects"
+      },
+      "remote": {
+        "type": "string",
+        "description": "The git remote the key was computed from, when the person picked one other than the default"
+      }
+    },
+    "required": [
+      "groups",
+      "shareKey"
+    ],
+    "description": "`ProjectSettings.sharing`: what the project shares and under which key."
   },
   "ProjectTemplate": {
     "type": "object",
@@ -32780,5 +33160,1183 @@
       "confidence",
       "decisionId"
     ]
+  },
+  "CollaboratorsStatus": {
+    "type": "object",
+    "properties": {
+      "unavailable": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CollaboratorsUnavailable"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when the module did not load: the page shows the reason and no action"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/CollaboratorsSettings"
+      },
+      "endpointId": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EndpointId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "This install's endpoint id; null until Collaborators is turned on for the first time"
+      },
+      "connection": {
+        "$ref": "#/components/schemas/CollaboratorsConnection"
+      },
+      "homeRelay": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The relay the endpoint calls home, while it has one"
+      }
+    },
+    "required": [
+      "unavailable",
+      "settings",
+      "endpointId",
+      "connection",
+      "homeRelay"
+    ],
+    "description": "`GET /collaborators`."
+  },
+  "CollaboratorsUnavailable": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "$ref": "#/components/schemas/CollaboratorsUnavailableCode"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/Localized",
+        "description": "What the page says, with a code a client translates"
+      }
+    },
+    "required": [
+      "code",
+      "reason"
+    ]
+  },
+  "CollaboratorsUnavailableCode": {
+    "type": "string",
+    "enum": [
+      "platform",
+      "load",
+      "host"
+    ],
+    "description": "Why Collaborators cannot run on this install. `platform`: `@number0/iroh` has no prebuild for it (macOS Intel); `load`: the native module was there and did not load; `host`: the endpoint's child process keeps dying."
+  },
+  "CollaboratorsSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "displayName": {
+        "type": "string",
+        "description": "The person's name as teammates see it, carried in every roster entry they are added with"
+      },
+      "label": {
+        "type": "string",
+        "description": "Which of the person's installs this is (\"desktop\", \"laptop\"); empty when not set"
+      },
+      "relayUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A self-hosted `iroh-relay` that replaces n0's public relays; null for the default ones"
+      }
+    },
+    "required": [
+      "enabled",
+      "displayName",
+      "label",
+      "relayUrl"
+    ],
+    "description": "`<dataDir>/collaborators/settings.json`."
+  },
+  "CollaboratorsConnection": {
+    "type": "string",
+    "enum": [
+      "off",
+      "starting",
+      "online",
+      "no-relay",
+      "offline"
+    ],
+    "description": "This install's own connection, in the words of the You card:\n\n- `off`: Collaborators is off, or unavailable;\n- `starting`: the endpoint is binding and waiting to be online;\n- `online`: reachable, with a home relay;\n- `no-relay`: bound, but no relay answered in time (`online()` never resolves without one), so   only direct paths can work;\n- `offline`: no network at all."
+  },
+  "UpdateCollaboratorsRequest": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "displayName": {
+        "type": "string",
+        "description": "The person's name as teammates see it, carried in every roster entry they are added with"
+      },
+      "label": {
+        "type": "string",
+        "description": "Which of the person's installs this is (\"desktop\", \"laptop\"); empty when not set"
+      },
+      "relayUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A self-hosted `iroh-relay` that replaces n0's public relays; null for the default ones"
+      }
+    },
+    "description": "`PUT /collaborators`: the settings to change, and only those. Turning on generates the key once."
+  },
+  "RosterVersion": {
+    "type": "object",
+    "properties": {
+      "groupId": {
+        "type": "string",
+        "description": "sha256 of the canonical bytes of version 1, so the group id is self-certifying"
+      },
+      "version": {
+        "type": "number",
+        "description": "1 for the genesis version, +1 on every change"
+      },
+      "prevHash": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "sha256 of the canonical bytes of the previous version; null for version 1"
+      },
+      "name": {
+        "type": "string"
+      },
+      "owner": {
+        "$ref": "#/components/schemas/EndpointId",
+        "description": "The endpoint id that signs the next version"
+      },
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RosterMember"
+        }
+      },
+      "issuedAt": {
+        "type": "string"
+      },
+      "signature": {
+        "type": "string",
+        "description": "Ed25519 by the `owner` of the previous version, or by this version's own `owner` for version 1; hex"
+      }
+    },
+    "required": [
+      "groupId",
+      "version",
+      "prevHash",
+      "name",
+      "owner",
+      "members",
+      "issuedAt",
+      "signature"
+    ],
+    "description": "One signed version of a group's roster. Canonical bytes are RFC 8785 over the version without `signature`; `groupId` and `prevHash` are the sha256 of such bytes, hex."
+  },
+  "RosterMember": {
+    "type": "object",
+    "properties": {
+      "endpointId": {
+        "$ref": "#/components/schemas/EndpointId"
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name"
+      },
+      "label": {
+        "type": "string",
+        "description": "\"desktop\", \"laptop\"…"
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "member"
+        ]
+      },
+      "addedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "endpointId",
+      "name",
+      "role",
+      "addedAt"
+    ],
+    "description": "One person's install in a roster version. The owner is listed too, with role `owner`."
+  },
+  "Group": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The group id: sha256 of the signed genesis"
+      },
+      "name": {
+        "type": "string"
+      },
+      "head": {
+        "$ref": "#/components/schemas/RosterHead"
+      },
+      "owner": {
+        "$ref": "#/components/schemas/EndpointId"
+      },
+      "isOwner": {
+        "type": "boolean",
+        "description": "Whether this install is the owner, and so may invite, accept, remove and transfer"
+      },
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GroupMember"
+        },
+        "description": "The head version's members, the owner first"
+      },
+      "frozen": {
+        "type": "boolean",
+        "description": "The owner's install is gone (its key is lost): the group can no longer change"
+      },
+      "conflict": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number"
+              },
+              "hashes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "version",
+              "hashes"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The owner's install found two versions with the same number and different hashes (§3.3). Shown as an error until the owner signs a higher version over it; null when the chain is consistent."
+      },
+      "joinRequestCount": {
+        "type": "number",
+        "description": "Pending joins relayed to the owner; always 0 for a member"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "head",
+      "owner",
+      "isOwner",
+      "members",
+      "frozen",
+      "conflict",
+      "joinRequestCount"
+    ],
+    "description": "A group this install belongs to, as `GET /collaborators/groups` lists it."
+  },
+  "RosterHead": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "number"
+      },
+      "hash": {
+        "type": "string",
+        "description": "sha256 of the head version's canonical bytes, hex"
+      }
+    },
+    "required": [
+      "version",
+      "hash"
+    ],
+    "description": "The head of a group's chain: what every connection starts by comparing."
+  },
+  "GroupMember": {
+    "type": "object",
+    "properties": {
+      "endpointId": {
+        "$ref": "#/components/schemas/EndpointId"
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name"
+      },
+      "label": {
+        "type": "string",
+        "description": "\"desktop\", \"laptop\"…"
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "member"
+        ]
+      },
+      "addedAt": {
+        "type": "string"
+      },
+      "self": {
+        "type": "boolean",
+        "description": "This install's own entry"
+      },
+      "presence": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PeerPresence"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null on the install's own entry"
+      }
+    },
+    "required": [
+      "addedAt",
+      "endpointId",
+      "name",
+      "presence",
+      "role",
+      "self"
+    ],
+    "description": "A roster member with what this install knows about it now."
+  },
+  "GroupList": {
+    "type": "object",
+    "properties": {
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Group"
+        }
+      },
+      "pendingJoins": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PendingJoin"
+        },
+        "description": "Requests to join that wait for an owner, so the page shows them after a reload"
+      }
+    },
+    "required": [
+      "groups",
+      "pendingJoins"
+    ],
+    "description": "`GET /collaborators/groups`."
+  },
+  "PendingJoin": {
+    "type": "object",
+    "properties": {
+      "groupId": {
+        "type": "string"
+      },
+      "groupName": {
+        "type": "string",
+        "description": "The group's name, as the invite carried it"
+      },
+      "owner": {
+        "type": "object",
+        "properties": {
+          "endpointId": {
+            "$ref": "#/components/schemas/EndpointId"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpointId",
+          "name"
+        ]
+      },
+      "relayedBy": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "endpointId": {
+                "$ref": "#/components/schemas/EndpointId"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "endpointId",
+              "name"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The member holding the request until the owner is back; null while it is still being delivered"
+      },
+      "sentAt": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "description": "The invite's expiry: past it the owner refuses the request"
+      }
+    },
+    "required": [
+      "groupId",
+      "groupName",
+      "owner",
+      "relayedBy",
+      "sentAt",
+      "expiresAt"
+    ],
+    "description": "A `join` this install sent that the owner has not answered yet."
+  },
+  "CreateGroupRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "description": "`POST /collaborators/groups`: the creator becomes the owner, at version 1."
+  },
+  "GroupInvite": {
+    "type": "object",
+    "properties": {
+      "groupId": {
+        "type": "string"
+      },
+      "groupName": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string",
+        "description": "The text the invitee pastes; the QR code encodes the same text"
+      },
+      "expiresAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "groupId",
+      "groupName",
+      "text",
+      "expiresAt"
+    ],
+    "description": "`POST /collaborators/groups/:id/invites`: a one-time invite, valid 7 days."
+  },
+  "JoinGroupRequest": {
+    "type": "object",
+    "properties": {
+      "invite": {
+        "type": "string",
+        "description": "The invite's text, as pasted"
+      }
+    },
+    "required": [
+      "invite"
+    ],
+    "description": "`POST /collaborators/join`."
+  },
+  "JoinGroupResult": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "const": "joined"
+          },
+          "group": {
+            "$ref": "#/components/schemas/Group"
+          }
+        },
+        "required": [
+          "state",
+          "group"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "const": "pending"
+          },
+          "pending": {
+            "$ref": "#/components/schemas/PendingJoin"
+          }
+        },
+        "required": [
+          "state",
+          "pending"
+        ]
+      }
+    ],
+    "description": "The answer to a join: `joined` when the owner signed in the same round trip, `pending` when a member stored the request until the owner is back."
+  },
+  "TransferGroupOwnershipRequest": {
+    "type": "object",
+    "properties": {
+      "endpointId": {
+        "$ref": "#/components/schemas/EndpointId"
+      }
+    },
+    "required": [
+      "endpointId"
+    ],
+    "description": "`PUT /collaborators/groups/:id/owner`: the current owner signs a version naming the new one."
+  },
+  "ProjectSharing": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "groups": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The groups the project is shared with"
+      },
+      "shareKey": {
+        "type": "string",
+        "description": "The key in use: the stored one, or the default until something is stored"
+      },
+      "shareId": {
+        "type": "string",
+        "description": "`sha256(shareKey)`, 32 hex characters"
+      },
+      "defaultShareKey": {
+        "type": "string",
+        "description": "The key computed from the repository, so the section can offer to go back to it"
+      },
+      "edited": {
+        "type": "boolean",
+        "description": "Whether `shareKey` was edited by hand"
+      },
+      "remote": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The remote the key comes from; null when the repository has none (`local/<hex>`)"
+      },
+      "remotes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SharingRemote"
+        },
+        "description": "Every remote of the repository, for the `Select` when there are several"
+      },
+      "subpath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Inside the repository, for a project in a subdirectory (`--show-prefix`); null at its root"
+      },
+      "keyInUse": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "type": "string"
+              },
+              "projectName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "projectId",
+              "projectName"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Another project of this install already shares this key: the toggles stay off until it is edited"
+      },
+      "kinds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CollaboratorsKind"
+        },
+        "description": "What is included; not chosen per project"
+      },
+      "seenAs": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "remote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "remote"
+        ],
+        "description": "What a collaborator sees as the project's name and remote"
+      }
+    },
+    "required": [
+      "projectId",
+      "groups",
+      "shareKey",
+      "shareId",
+      "defaultShareKey",
+      "edited",
+      "remote",
+      "remotes",
+      "subpath",
+      "keyInUse",
+      "kinds",
+      "seenAs"
+    ],
+    "description": "`GET /projects/:id/sharing`, and the answer of `PUT`."
+  },
+  "SharingRemote": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string",
+        "description": "The remote's URL with credentials dropped"
+      },
+      "shareKey": {
+        "type": "string",
+        "description": "The key computed from this remote"
+      }
+    },
+    "required": [
+      "name",
+      "url",
+      "shareKey"
+    ],
+    "description": "A git remote of the project, as the Sharing section offers it."
+  },
+  "UpdateProjectSharingRequest": {
+    "type": "object",
+    "properties": {
+      "groups": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "shareKey": {
+        "type": "string",
+        "description": "An edited key: `[a-z0-9._/#-]{3,200}`, refused with 400 otherwise"
+      },
+      "remote": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Recomputes the key from this remote; null goes back to the default remote"
+      }
+    },
+    "description": "`PUT /projects/:id/sharing`: the fields to change, and only those."
+  },
+  "ShareKeyInUseError": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "share-key-in-use"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "projectId",
+      "projectName"
+    ],
+    "description": "The 409 body of `PUT /projects/:id/sharing` when another project already shares the key."
+  },
+  "SharedProject": {
+    "type": "object",
+    "properties": {
+      "owner": {
+        "$ref": "#/components/schemas/EndpointId",
+        "description": "The sharing install's endpoint id, the `:owner` of the routes"
+      },
+      "ownerName": {
+        "type": "string",
+        "description": "The person's display name: the page groups by it, then by `ownerLabel`"
+      },
+      "ownerLabel": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "groupIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The groups through which this install sees it"
+      },
+      "shareKey": {
+        "type": "string"
+      },
+      "shareId": {
+        "type": "string",
+        "description": "`sha256(shareKey)`, 32 hex characters: a share key holds `/` and `#`, so routes use this"
+      },
+      "name": {
+        "type": "string"
+      },
+      "remote": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "subpath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "kinds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CollaboratorsKind"
+        }
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "chats": {
+            "type": "number"
+          },
+          "memory": {
+            "type": "number"
+          },
+          "journal": {
+            "type": "number"
+          },
+          "documents": {
+            "type": "number"
+          },
+          "artifacts": {
+            "type": "number"
+          },
+          "board": {
+            "type": "number"
+          }
+        }
+      },
+      "sync": {
+        "$ref": "#/components/schemas/SyncState"
+      },
+      "matches": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Local projects whose default key equals `shareKey`; several for two clones"
+      },
+      "linkedProjectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The local project it was linked to by hand; null when it was not"
+      }
+    },
+    "required": [
+      "owner",
+      "ownerName",
+      "ownerLabel",
+      "groupIds",
+      "shareKey",
+      "shareId",
+      "name",
+      "remote",
+      "subpath",
+      "kinds",
+      "counts",
+      "sync",
+      "matches",
+      "linkedProjectId"
+    ],
+    "description": "A project a teammate's install shares with this one (`GET /collaborators/shared`)."
+  },
+  "LinkSharedProjectRequest": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "projectId"
+    ],
+    "description": "`PUT /collaborators/shared/:owner/:shareId/link`: shows the shared project inside a local one."
+  },
+  "SharedChat": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "firstPrompt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "messageCount": {
+        "type": "number"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "origin": {
+        "$ref": "#/components/schemas/ChatOrigin"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The worktree's branch, when the chat ran in one"
+      },
+      "live": {
+        "type": "boolean",
+        "description": "An agent is working in it on the owner's machine now: the row carries the live rail"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What that agent is doing, while `live`"
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "firstPrompt",
+      "messageCount",
+      "startedAt",
+      "updatedAt",
+      "model",
+      "origin",
+      "branch",
+      "live",
+      "activity"
+    ],
+    "description": "A teammate's chat, as copied: what its row and its header need, nothing of the owner's process."
+  },
+  "SharedTranscriptPage": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": "string"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TranscriptEntry"
+        },
+        "description": "Oldest first"
+      },
+      "from": {
+        "type": "number",
+        "description": "Index of the first entry in `entries` within the copied transcript"
+      },
+      "total": {
+        "type": "number"
+      },
+      "live": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "chatId",
+      "entries",
+      "from",
+      "total",
+      "live"
+    ],
+    "description": "`GET /collaborators/shared/:owner/:shareId/chats/:chatId/transcript`: a window of the copied transcript."
+  },
+  "SharedMemoryFile": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "isIndex": {
+        "type": "boolean"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "type": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "content": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "name",
+      "isIndex",
+      "description",
+      "type",
+      "content",
+      "updatedAt"
+    ],
+    "description": "A memory file of the owner's project, as copied."
+  },
+  "SharedDocument": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project"
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "sha256": {
+        "type": "string",
+        "description": "The content is the blob of this hash, fetched from the owner on first open"
+      }
+    },
+    "required": [
+      "path",
+      "title",
+      "size",
+      "updatedAt",
+      "sha256"
+    ],
+    "description": "A file of the owner's documents folder, or the project's `CLAUDE.md`, from the owner's working tree."
+  },
+  "SharedBoard": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemDetail"
+        }
+      },
+      "milestones": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Milestone"
+        }
+      }
+    },
+    "required": [
+      "items",
+      "milestones"
+    ],
+    "description": "`GET /collaborators/shared/:owner/:shareId/work-items`."
+  },
+  "SharedArtifact": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "orchestration"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "finalResult": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "finalResult",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "upload"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "chatId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "mediaType",
+          "sizeBytes",
+          "sha256",
+          "chatId",
+          "createdAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "plan"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "objective": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "taskCount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "objective",
+          "taskCount",
+          "createdAt"
+        ]
+      }
+    ],
+    "description": "An artifact of the owner's project: an orchestration's result, an upload of a shared chat, a plan draft."
   }
 }
