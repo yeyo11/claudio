@@ -420,7 +420,7 @@ plan's; create tracker items with these titles if the project tracks them.
 | CHAT-16 | Prompt history with ArrowUp | 4 | S | resend/edit last prompt quickly |
 | CHAT-17 | Repair half-written markdown | 4 | S | no `**` flashing, no broken links |
 | CHAT-18 | Calmer motion while text streams | 4 | S | less paint, cleaner look |
-| CHAT-19 | Reading typography | — | S | owner decision first |
+| CHAT-19 | Reading typography | — | S | closed: kept as is (owner, 2026-10-16) |
 
 ---
 
@@ -1330,7 +1330,7 @@ Status: built 2026-10-15. Run `night-shift-ui-check`.
 
 ### CHAT-19 — Reading typography (owner decision first)
 
-Status: **needs a decision**; do not implement without the owner's approval.
+Status: **closed, kept as is** (owner, 2026-10-16): the reading text stays at 14px with a 1.65 line height. Nothing changes.
 
 ChatGPT's measured CSS uses 14px base and 1.625 markdown leading, close to Claudio's 14px/1.65. The
 screenshot looked larger (≈16px rendered text). Options to try behind a quick A/B in the browser:
@@ -1385,7 +1385,7 @@ when each block ends, the question staying at the top, the composer keeping a dr
    `fork`. Research before planning.
 2. CHAT-13: is a 60-minute ceiling for warm viewed chats right, given memory per CLI process and
    MCP servers? The owner chooses; it is an environment variable either way.
-3. CHAT-19: typography, owner decision.
+3. CHAT-19: typography, closed by the owner on 2026-10-16 (kept at 14px / 1.65).
 4. The submit-key setting (Enter vs Ctrl+Enter, and Enter = newline on touch screens) is in ChatGPT;
    Claudio's phone layout blurs the box after sending instead. Worth a setting?
 
