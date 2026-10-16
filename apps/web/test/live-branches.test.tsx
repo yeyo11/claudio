@@ -16,7 +16,7 @@ import { ToastProvider } from '@claudio/ui/components/Toast';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
 import { patchSubagentActivity } from '../src/lib/events';
-import i18n from '../src/i18n';
+import { setLanguage } from '../src/i18n';
 
 // What the chat has running beside it, over the composer and under the step that started it
 // (docs/plans/tool-rows-and-live-branches.md §3.3).
@@ -27,7 +27,8 @@ import i18n from '../src/i18n';
 const config = { agentNameFor: () => 'Claude', paths: { chat: (id: string) => `/chats/${id}`, chatChangeStep: () => '/', connectors: '/connectors' } } as unknown as ChatUiConfig;
 
 function render(node: ReactNode, lang: 'en' | 'es' = 'en'): string {
-  void i18n.changeLanguage(lang);
+  // setLanguage, not i18n.changeLanguage: Intl follows the stored language, which otherwise stays the machine's
+  setLanguage(lang);
   return renderToStaticMarkup(
     <MemoryRouter>
       <ChatUiProvider value={config}>
@@ -131,7 +132,7 @@ test('a card under the step: live rail while it runs, never a gradient', () => {
   const record = render(<BranchCard branch={done!} />);
   assert.match(record, /class="chat-launch is-task"/);
   assert.match(record, /chat-launch-status is-completed">done</);
-  assert.match(record, /chat-launch-facts">pnpm test · 1 min 10 s</);
+  assert.match(record, /chat-launch-facts">pnpm test · 1m 10s</);
 });
 
 test("a step's calls lead to the branches they started", () => {
