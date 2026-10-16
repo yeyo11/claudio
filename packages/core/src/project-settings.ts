@@ -6,6 +6,7 @@ import type {
   ProjectDocumentsSettings,
   ProjectFlowSettings,
   ProjectModule,
+  ProjectLessonsSettings,
   ProjectProvidersSettings,
   ProjectSettings,
   ProjectTeamMember,
@@ -364,7 +365,20 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
     const providers = parseProviders(input.providers);
     if (Object.keys(providers).length > 0) settings.providers = providers;
   }
+  if (input.lessons !== undefined && input.lessons !== null) settings.lessons = parseLessons(input.lessons);
   return settings;
+}
+
+/** The three delivery switches: a missing one is on, and one that is not true or false is refused */
+function parseLessons(value: unknown): ProjectLessonsSettings {
+  if (!isObject(value)) throw new Error('lessons must be an object');
+  const flag = (field: 'deliverToChats' | 'deliverToWorkers' | 'useGlobal'): boolean => {
+    const v = value[field];
+    if (v === undefined) return true;
+    if (typeof v !== 'boolean') throw new Error(`lessons.${field} must be true or false`);
+    return v;
+  };
+  return { deliverToChats: flag('deliverToChats'), deliverToWorkers: flag('deliverToWorkers'), useGlobal: flag('useGlobal') };
 }
 
 /**
@@ -400,6 +414,8 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (decisions && Object.keys(decisions).length > 0) settings.decisions = decisions;
   const providers = attempt(() => (raw.providers == null ? null : parseProviders(raw.providers)), null);
   if (providers && Object.keys(providers).length > 0) settings.providers = providers;
+  const lessons = attempt(() => (raw.lessons == null ? null : parseLessons(raw.lessons)), null);
+  if (lessons) settings.lessons = lessons;
   return settings;
 }
 

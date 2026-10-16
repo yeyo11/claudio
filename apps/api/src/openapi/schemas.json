@@ -21042,6 +21042,389 @@
       }
     }
   },
+  "LessonList": {
+    "type": "object",
+    "properties": {
+      "lessons": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Lesson"
+        }
+      },
+      "handed": {
+        "type": "object",
+        "properties": {
+          "lessons": {
+            "type": "number"
+          },
+          "bytes": {
+            "type": "number"
+          },
+          "budget": {
+            "type": "number"
+          },
+          "overBudget": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "lessons",
+          "bytes",
+          "budget",
+          "overBudget"
+        ],
+        "description": "What a run in this project is handed now"
+      }
+    },
+    "required": [
+      "lessons",
+      "handed"
+    ]
+  },
+  "LessonJob": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "trigger": {
+        "$ref": "#/components/schemas/LessonJobTrigger"
+      },
+      "status": {
+        "$ref": "#/components/schemas/LessonJobStatus"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LessonJobOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "signals": {
+        "type": "number"
+      },
+      "candidates": {
+        "type": "number"
+      },
+      "proposed": {
+        "type": "number"
+      },
+      "merged": {
+        "type": "number"
+      },
+      "dropped": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "number"
+        },
+        "description": "Candidates dropped, by reason (`command-like`, `secret`, `url`, `suspicious`, `not-english`, `restates-instructions`, `duplicate-rejected`, `no-signal`, `too-long`, `empty`)"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "attempts": {
+        "type": "number"
+      },
+      "nextAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "chatId",
+      "trigger",
+      "status",
+      "outcome",
+      "signals",
+      "candidates",
+      "proposed",
+      "merged",
+      "dropped",
+      "costUsd",
+      "decisionId",
+      "attempts",
+      "nextAt",
+      "createdAt",
+      "startedAt",
+      "endedAt"
+    ]
+  },
+  "LessonJobTrigger": {
+    "type": "string",
+    "enum": [
+      "run-ended",
+      "rejected-proposal",
+      "manual"
+    ]
+  },
+  "LessonSettings": {
+    "type": "object",
+    "properties": {
+      "manualMining": {
+        "type": "boolean"
+      },
+      "miner": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Effort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxCostUsd": {
+            "type": "number"
+          },
+          "deadlineSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "model",
+          "effort",
+          "maxCostUsd",
+          "deadlineSeconds"
+        ]
+      },
+      "caps": {
+        "type": "object",
+        "properties": {
+          "perProjectDailyUsd": {
+            "type": "number"
+          },
+          "globalDailyUsd": {
+            "type": "number"
+          },
+          "perChatMinMinutes": {
+            "type": "number"
+          },
+          "perProjectDailyJobs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "perProjectDailyUsd",
+          "globalDailyUsd",
+          "perChatMinMinutes",
+          "perProjectDailyJobs"
+        ]
+      },
+      "confidence": {
+        "type": "object",
+        "properties": {
+          "approveFloor": {
+            "type": "number"
+          },
+          "deliverAt": {
+            "type": "number"
+          },
+          "seenStep": {
+            "type": "number"
+          },
+          "confirmStep": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "approveFloor",
+          "deliverAt",
+          "seenStep",
+          "confirmStep",
+          "max"
+        ]
+      },
+      "decay": {
+        "type": "object",
+        "properties": {
+          "graceDays": {
+            "type": "number"
+          },
+          "periodDays": {
+            "type": "number"
+          },
+          "step": {
+            "type": "number"
+          },
+          "retireBelow": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "graceDays",
+          "periodDays",
+          "step",
+          "retireBelow"
+        ]
+      },
+      "delivery": {
+        "type": "object",
+        "properties": {
+          "handoffBytes": {
+            "type": "number"
+          },
+          "looseChats": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "handoffBytes",
+          "looseChats"
+        ]
+      },
+      "signals": {
+        "type": "object",
+        "properties": {
+          "repeatedErrorsTrigger": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "repeatedErrorsTrigger"
+        ]
+      }
+    },
+    "required": [
+      "manualMining",
+      "miner",
+      "caps",
+      "confidence",
+      "decay",
+      "delivery",
+      "signals"
+    ],
+    "description": "`lessons.json`: the global settings document"
+  },
+  "UpdateLessonRequest": {
+    "type": "object",
+    "properties": {
+      "trigger": {
+        "type": "string"
+      },
+      "action": {
+        "type": "string"
+      },
+      "pinned": {
+        "type": "boolean"
+      }
+    }
+  },
+  "RetireLessonRequest": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string"
+      }
+    }
+  },
+  "DemoteLessonRequest": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      }
+    }
+  },
+  "LessonInstructionsRequest": {
+    "type": "object",
+    "properties": {
+      "section": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "PreviewMemoryProposalRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The text to preview instead of the proposed one, while the person edits it"
+      }
+    }
+  },
+  "MemoryProposalPreview": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "const": "CLAUDE.md"
+      },
+      "exists": {
+        "type": "boolean"
+      },
+      "sha256": {
+        "type": "string",
+        "description": "Of the file as read, which the approval sends back as `previewOf`"
+      },
+      "diff": {
+        "type": "string",
+        "description": "Unified text, drawn by `DiffView`"
+      },
+      "bytesAfter": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "path",
+      "exists",
+      "sha256",
+      "diff",
+      "bytesAfter"
+    ],
+    "description": "What approving an `instructions` proposal would do to `CLAUDE.md`, shown as a diff before anything is written."
+  },
   "ProjectDoc": {
     "type": "object",
     "properties": {

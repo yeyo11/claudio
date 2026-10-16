@@ -22,6 +22,7 @@ import { tunnelRoutes } from './routes/tunnel.ts';
 import { eventRoutes } from './routes/events.ts';
 import { flowRoutes } from './routes/flow.ts';
 import { journalRoutes } from './routes/journal.ts';
+import { lessonRoutes } from './routes/lessons.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
@@ -233,6 +234,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });
       await api.register(journalRoutes, { core });
+      await api.register(lessonRoutes, { core });
       await api.register(uploadRoutes, { core });
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });

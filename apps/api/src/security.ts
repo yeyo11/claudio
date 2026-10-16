@@ -291,6 +291,25 @@ const CHAT_FORBIDDEN_MEMORY = new Set([
 ]);
 
 /**
+ * A lesson rests on the person's corrections and is handed to every later run of the project, so a
+ * chat that could approve, edit, promote or mine one would write its own standing orders. Reading
+ * lessons stays open. Deciding a `lesson` proposal, or an `instructions` proposal made from a lesson,
+ * is covered by `CHAT_FORBIDDEN_MEMORY`: a chat's token decides no memory proposal.
+ */
+const CHAT_FORBIDDEN_LESSONS = new Set([
+  `PATCH ${API_PREFIX}/lessons/:lessonId`,
+  `POST ${API_PREFIX}/lessons/:lessonId/confirm`,
+  `POST ${API_PREFIX}/lessons/:lessonId/retire`,
+  `POST ${API_PREFIX}/lessons/:lessonId/restore`,
+  `DELETE ${API_PREFIX}/lessons/:lessonId`,
+  `POST ${API_PREFIX}/lessons/:lessonId/promote`,
+  `POST ${API_PREFIX}/lessons/:lessonId/demote`,
+  `POST ${API_PREFIX}/lessons/:lessonId/instructions`,
+  `POST ${API_PREFIX}/chats/:id/lessons/mine`,
+  `PUT ${API_PREFIX}/lessons/settings`,
+]);
+
+/**
  * Importing, linking and syncing issues writes the person's work items and their tracker, and an
  * issue's text is untrusted: an injection in one must not be able to import more issues, link or
  * unlink them, change which tracker a project uses or write to the tracker through a chat's token.
@@ -695,6 +714,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       }
       if (chat !== null && CHAT_FORBIDDEN_MEMORY.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot approve or reject a memory proposal: what is written into memory is the person's decision" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_LESSONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot decide, change or mine lessons: that is the person's" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

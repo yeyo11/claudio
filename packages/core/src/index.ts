@@ -70,7 +70,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -174,7 +174,6 @@ import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
 import { LessonMiningQueue, storeProposer } from './lessons/queue.ts';
 import { runMiner } from './lessons/miner.ts';
-import { LessonStore } from './lessons/store.ts';
 import { DEFAULT_LESSON_SETTINGS, LessonSettingsStore } from './lessons/settings.ts';
 import { SignalRecorder } from './lessons/signals.ts';
 import { ChecksFix } from './decisions/checks-fix.ts';
@@ -495,6 +494,8 @@ export class Core {
   /** What the team proposes to remember, written to its target only once a person approves it */
   readonly memoryProposals: MemoryProposalService;
   readonly lessons: LessonService;
+  /** `lessons.json`: read and changed through here so the queue and the service see the change at once */
+  readonly lessonSettings: { get(): Promise<LessonSettings>; update(patch: unknown): Promise<LessonSettings> };
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
@@ -908,7 +909,6 @@ export class Core {
       this.lessonSignals.rejectedProposal({ chatId: proposal.source.chatId, projectId: proposal.projectId }, proposal.rejectReason, `Proposal: ${proposal.text.slice(0, 200)}`);
       void this.lessonQueue.rejectedProposal(proposal.source.chatId);
     });
-    const lessonStore = new LessonStore({ db: this.db });
     // `lessons.json` is read asynchronously; the queue asks synchronously, so it reads a copy at most 10 s old
     const lessonSettingsFile = new LessonSettingsStore(config);
     let lessonSettings = DEFAULT_LESSON_SETTINGS;
@@ -920,6 +920,17 @@ export class Core {
       }
       return lessonSettings;
     };
+    this.lessonSettings = {
+      get: () => lessonSettingsFile.get(),
+      update: async (patch) => {
+        const next = await lessonSettingsFile.update(patch);
+        lessonSettings = next;
+        lessonSettingsAt = Date.now();
+        this.lessons.invalidate();
+        return next;
+      },
+    };
+    const lessonStore = new LessonStore({ db: this.db, settings: currentLessonSettings });
     this.lessonQueue = new LessonMiningQueue({
       db: this.db,
       settings: currentLessonSettings,
@@ -962,6 +973,7 @@ export class Core {
     this.lessons = new LessonService({
       store: lessonStore,
       proposals: this.memoryProposals,
+      settings: currentLessonSettings,
       emit: (event) => this.events.emit(event),
     });
     this.events.observe((event) => {
@@ -1453,6 +1465,15 @@ export class Core {
     const { deliverToChats = true, deliverToWorkers = true, useGlobal = true } = settings.lessons ?? {};
     if ((kind === 'chat' && !deliverToChats) || (kind === 'worker' && !deliverToWorkers)) return EMPTY_SECTION;
     return this.lessons.section(projectId, { useGlobal });
+  }
+
+  /** A project's lessons (or the global ones with `null`) and what a run is handed now */
+  lessonList(projectId: string | null, status?: LessonStatus): LessonList {
+    const section = projectId === null ? (this.lessons.delivery().looseChats ? this.lessons.section(null) : EMPTY_SECTION) : this.lessonSection(projectId, 'handoff');
+    return {
+      lessons: this.lessons.list(projectId, status),
+      handed: { lessons: section.lessons.length, bytes: section.bytes, budget: this.lessons.delivery().handoffBytes, overBudget: section.overBudget },
+    };
   }
 
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
@@ -2035,6 +2056,7 @@ export class Core {
   }
 
   private projectUpdated(project: ProjectRecord, changes: ProjectChange[], modules: ProjectModule[]): void {
+    this.lessons.invalidate();
     if (!changes.length) return;
     this.events.emit({ type: 'project.updated', title: `${project.name} updated`, projectId: project.id, projectName: project.name, changes, modules });
   }

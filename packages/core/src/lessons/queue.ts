@@ -5,6 +5,7 @@ import type {
   ClaudioEvent,
   DecisionMode,
   Lesson,
+  LessonJob,
   LessonJobOutcome,
   LessonJobStatus,
   LessonJobTrigger,
@@ -21,6 +22,7 @@ import type { MinerRun } from './miner.ts';
 import { signalsOf, type CorrectionState, type RecordedSignal } from './signals.ts';
 import type { EvidenceInput, LessonStore } from './store.ts';
 import { validateCandidates, type Candidate } from './validate.ts';
+import { WorkItemError } from '../work-item-validation.ts';
 
 /*
  * The mining queue (docs/plans/lessons.md, "Mining"). A trigger turns a chat's corrections into a
@@ -34,6 +36,8 @@ export const LEASE_MS = 5 * 60_000;
 export const GATE_RETRY_MS = 15 * 60_000;
 export const RATE_LIMIT_FALLBACK_MS = 60 * 60_000;
 export const MAX_ATTEMPTS = 2;
+/** A person may mine a chat by hand once in this long */
+const MANUAL_GAP_MS = 10 * 60_000;
 /** The gate sees at most this many signals, each cut to this many bytes */
 const GATE_SIGNALS = 20;
 const GATE_QUOTE_BYTES = 500;
@@ -144,6 +148,45 @@ interface JobRow {
   started_at: string | null;
 }
 
+interface FullJobRow extends JobRow {
+  signals: number;
+  candidates: number;
+  proposed: number;
+  merged: number;
+  dropped: string;
+  next_at: string | null;
+  ended_at: string | null;
+}
+
+function toJob(row: FullJobRow): LessonJob {
+  let dropped: Record<string, number> = {};
+  try {
+    dropped = JSON.parse(row.dropped) as Record<string, number>;
+  } catch {
+    // A row written by hand reads as nothing dropped
+  }
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    chatId: row.chat_id,
+    trigger: row.trigger as LessonJobTrigger,
+    status: row.status as LessonJobStatus,
+    outcome: row.outcome as LessonJobOutcome | null,
+    signals: row.signals,
+    candidates: row.candidates,
+    proposed: row.proposed,
+    merged: row.merged,
+    dropped,
+    costUsd: row.cost_usd,
+    decisionId: row.decision_id,
+    attempts: row.attempts,
+    nextAt: row.next_at,
+    createdAt: row.created_at,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+  };
+}
+
 interface Patch {
   outcome?: LessonJobOutcome | null;
   untilUuid?: string | null;
@@ -239,6 +282,48 @@ export class LessonMiningQueue {
   /** A person asked to look for lessons in a chat; it skips the gate and the point may be off */
   manual(chatId: string): Promise<string | null> {
     return this.enqueue('manual', chatId);
+  }
+
+  /**
+   * A person's click on "Look for lessons": the refusals the route answers with, then the job.
+   * One run per chat per 10 minutes, and none past the day's caps (429).
+   */
+  async mineByHand(chatId: string): Promise<LessonJob> {
+    const chat = await this.deps.chat(chatId);
+    if (!chat) throw new WorkItemError('chat not found', 404);
+    if (!chat.projectId) throw new WorkItemError('only a chat in a project can be mined for lessons', 409);
+    if (!this.deps.memoryOn(chat.projectId)) throw new WorkItemError("the Memory module is off in this project: switch it on in the project's settings to look for lessons", 409);
+    const settings = this.deps.settings();
+    if (!settings.manualMining) throw new WorkItemError('looking for lessons by hand is switched off in the lessons settings', 409);
+    const open = this.sql.prepare(`SELECT 1 FROM lesson_jobs WHERE chat_id = ? AND status IN ${OPEN}`).get(chatId);
+    if (open) throw new WorkItemError('a lesson job is already open for this chat', 409);
+    const recent = this.sql
+      .prepare("SELECT 1 FROM lesson_jobs WHERE chat_id = ? AND trigger = 'manual' AND created_at >= ?")
+      .get(chatId, new Date(this.now().getTime() - MANUAL_GAP_MS).toISOString());
+    if (recent) throw new WorkItemError('this chat was mined by hand less than 10 minutes ago', 429);
+    const cost = 'COALESCE(cost_usd, reserved_usd)';
+    const since = this.dayStart();
+    const project = this.sql.prepare(`SELECT COALESCE(SUM(${cost}), 0) AS usd, COUNT(*) AS jobs FROM lesson_jobs WHERE project_id = ? AND started_at >= ?`).get(chat.projectId, since) as { usd: number; jobs: number };
+    const global = this.sql.prepare(`SELECT COALESCE(SUM(${cost}), 0) AS usd FROM lesson_jobs WHERE started_at >= ?`).get(since) as { usd: number };
+    const reserve = settings.miner.maxCostUsd;
+    if (project.usd + reserve > settings.caps.perProjectDailyUsd + EPSILON || global.usd + reserve > settings.caps.globalDailyUsd + EPSILON || project.jobs >= settings.caps.perProjectDailyJobs) {
+      throw new WorkItemError("today's lesson mining cap is reached", 429);
+    }
+    const id = await this.enqueue('manual', chatId);
+    const job = id ? this.job(id) : null;
+    if (!job) throw new WorkItemError('a lesson job is already open for this chat', 409);
+    return job;
+  }
+
+  job(id: string): LessonJob | null {
+    const row = this.sql.prepare('SELECT * FROM lesson_jobs WHERE id = ?').get(id) as unknown as FullJobRow | undefined;
+    return row ? toJob(row) : null;
+  }
+
+  /** A project's jobs, newest first */
+  jobs(projectId: string, limit: number): LessonJob[] {
+    const rows = this.sql.prepare('SELECT * FROM lesson_jobs WHERE project_id = ? ORDER BY seq DESC LIMIT ?').all(projectId, limit) as unknown as FullJobRow[];
+    return rows.map(toJob);
   }
 
   // ---------- Triggers ----------
