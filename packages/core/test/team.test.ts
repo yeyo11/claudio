@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import type { ClaudioEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { agentFileContent, RECORDS_IN_ENGLISH, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
+import { projectTemplate } from '../src/project-templates.ts';
 import { SCOPE_AND_COMPLETION } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -105,6 +106,64 @@ test('roles are accepted one by one, and a role the template does not offer is r
     // A column the person gave to someone else is theirs: the template fills only empty ones
     const settings = await core.projectSettings(p.id);
     assert.deepEqual(settings.flow?.columns, { in_progress: 'developer', in_review: 'qa' });
+  });
+});
+
+test('the optional roles are added only when named, take no column, and an unknown role lists both sets', async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    await core.team.fromTemplate(p.id, {});
+    const today = (await core.team.team(p.id)).members.map((m) => m.role);
+    assert.deepEqual(today, ['product-owner', 'architect', 'developer', 'qa']);
+
+    const before = (await core.projectSettings(p.id)).flow?.columns;
+    const team = await core.team.fromTemplate(p.id, { roles: ['silent-failure-hunter'] });
+    const hunter = team.members.find((m) => m.role === 'silent-failure-hunter');
+    assert.deepEqual(hunter?.tools, ['Read', 'Grep', 'Glob', 'Bash']);
+    assert.deepEqual(hunter?.writes, []);
+    assert.deepEqual((await core.projectSettings(p.id)).flow?.columns, before, 'no column for an optional role');
+    assert.match(readFileSync(agentFile(p, 'silent-failure-hunter'), 'utf8'), /^tools: Read, Grep, Glob, Bash$/m);
+
+    await rejects(core.team.fromTemplate(p.id, { roles: ['ceo'] }), 400, /no role ceo; it offers product-owner, architect, developer, qa and, optionally, silent-failure-hunter, type-design-analyst, build-resolver, spec-miner/);
+  });
+});
+
+test('a research project is offered the spec miner only, and a simple one the full software team and its optional roles', async () => {
+  await withCore(async (core) => {
+    const research = await project(core, 'research', ['board', 'team']);
+    await core.team.fromTemplate(research.id, { roles: ['spec-miner'] });
+    await rejects(core.team.fromTemplate(research.id, { roles: ['build-resolver'] }), 400, /no role build-resolver/);
+    const simple = await project(core, 'simple', ['team']);
+    await core.team.fromTemplate(simple.id, { roles: ['build-resolver'] });
+    assert.deepEqual((await core.team.team(simple.id)).members.map((m) => m.role), ['build-resolver']);
+  });
+});
+
+test('the starting file of a review role, the spec miner and the build resolver say which tools they have', () => {
+  const roles = projectTemplate('software').optionalTeam;
+  const file = (role: string) => {
+    const r = roles.find((x) => x.role === role);
+    assert.ok(r, role);
+    return agentFileContent({ ...r, agent: role });
+  };
+  assert.match(file('silent-failure-hunter'), /^tools: Read, Grep, Glob, Bash$/m);
+  assert.match(file('type-design-analyst'), /^tools: Read, Grep, Glob, Bash$/m);
+  assert.match(file('spec-miner'), /^tools: Read, Grep, Glob, Bash, Write, Edit$/m);
+  assert.doesNotMatch(file('build-resolver'), /^tools:/m);
+  assert.match(file('build-resolver'), /Fix one error at a time/);
+  assert.match(file('build-resolver'), /Stop fixing when the same error survives three of your fixes/);
+  assert.match(file('silent-failure-hunter'), /You change no code/);
+});
+
+test("a member's tools are validated and kept, and null leaves every tool allowed", async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    const put = (tools: unknown) => core.team.putMember(p.id, 'reader', { role: 'reader', model: 'sonnet', responsibility: 'Reads', tools });
+    await rejects(put('Read'), 400, /tools must be an array/);
+    await rejects(put(['Read', 'not a tool']), 400, /not a tool name/);
+    await rejects(put(Array.from({ length: 31 }, (_, i) => `Tool${String(i)}`)), 400, /more than 30/);
+    assert.deepEqual((await put(['Read', 'Bash(git diff:*)', 'Read'])).tools, ['Read', 'Bash(git diff:*)']);
+    assert.equal((await put(null)).tools, undefined);
   });
 });
 

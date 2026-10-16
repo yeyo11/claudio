@@ -1231,6 +1231,27 @@ a.flow-run-item:hover .flow-run-item-title {
   justify-content: center;
 }
 
+/* "Más roles" is the quiet third action: its own row, under the two the page leads with */
+.team-phone-actions .team-more-roles {
+  grid-column: 1 / -1;
+}
+
+/* An optional role in the "Más roles" menu: its name, and under it what it answers for */
+.more-role {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  max-width: 320px;
+  text-align: left;
+  white-space: normal;
+}
+
+.more-role .team-muted {
+  font-size: 12px;
+}
+
 .team-page.is-phone .team-switch .segmented,
 .flow-page.is-phone .team-switch .segmented {
   width: 100%;

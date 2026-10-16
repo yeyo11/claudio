@@ -22,6 +22,36 @@ const REVIEWER: ProjectTeamRole = { role: 'reviewer', model: 'sonnet', responsib
 /** Every type, no limits: the board a template that has no opinion about it offers. */
 const OPEN_BOARD: BoardSettings = { types: [...WORK_ITEM_TYPES], columnLimits: {} };
 
+// The review roles are read-only: no edits outside the documents folder, and a shell for git reads only
+const GIT_READS = ['git diff *', 'git log *', 'git show *', 'git blame *', 'git grep *'];
+const SILENT_FAILURE_HUNTER: ProjectTeamRole = {
+  role: 'silent-failure-hunter',
+  model: 'sonnet',
+  responsibility: 'Finds failures that make no noise: swallowed errors, unawaited promises, hidden fallbacks',
+  tools: ['Read', 'Grep', 'Glob', 'Bash'],
+  writes: [],
+  commands: GIT_READS,
+};
+const TYPE_DESIGN_ANALYST: ProjectTeamRole = {
+  role: 'type-design-analyst',
+  model: 'opus',
+  responsibility: 'Judges whether the types make illegal states unrepresentable',
+  tools: ['Read', 'Grep', 'Glob', 'Bash'],
+  writes: [],
+  commands: GIT_READS,
+};
+// Meant to change code, so no `tools`, `writes` or `commands`: the stop rules in its guidance bound it
+const BUILD_RESOLVER: ProjectTeamRole = { role: 'build-resolver', model: 'sonnet', responsibility: 'Makes a failing build, type check or lint pass with the smallest change' };
+const SPEC_MINER: ProjectTeamRole = {
+  role: 'spec-miner',
+  model: 'opus',
+  responsibility: 'Writes down what the code does today, from the code and its tests',
+  tools: ['Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit'],
+  writes: [],
+  commands: GIT_READS,
+};
+const OPTIONAL_SOFTWARE_TEAM = [SILENT_FAILURE_HUNTER, TYPE_DESIGN_ANALYST, BUILD_RESOLVER, SPEC_MINER];
+
 const SOFTWARE_TEAM = [PRODUCT_OWNER, ARCHITECT, DEVELOPER, QA];
 
 export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
@@ -42,7 +72,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     // Small limits on the two columns a team of agents fills fastest, so a pile-up shows early
     board: { types: [...WORK_ITEM_TYPES], columnLimits: { in_progress: 3, in_review: 2 } },
     team: SOFTWARE_TEAM,
-    optionalTeam: [],
+    optionalTeam: OPTIONAL_SOFTWARE_TEAM,
   },
   {
     id: 'library',
@@ -52,7 +82,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     // A library has users of its API rather than product stories
     board: { types: ['epic', 'task', 'bug'], columnLimits: { in_progress: 2 } },
     team: [ARCHITECT, DEVELOPER, QA],
-    optionalTeam: [],
+    optionalTeam: OPTIONAL_SOFTWARE_TEAM,
   },
   {
     id: 'research',
@@ -61,7 +91,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     modules: ['board', 'documents', 'memory'],
     board: { types: ['epic', 'task'], columnLimits: {} },
     team: [RESEARCHER, WRITER, REVIEWER],
-    optionalTeam: [],
+    optionalTeam: [SPEC_MINER],
   },
   {
     id: 'custom',
@@ -71,7 +101,7 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     board: OPEN_BOARD,
     // Offered if the Team module is switched on later; the most complete team is the useful default
     team: SOFTWARE_TEAM,
-    optionalTeam: [],
+    optionalTeam: OPTIONAL_SOFTWARE_TEAM,
   },
 ];
 

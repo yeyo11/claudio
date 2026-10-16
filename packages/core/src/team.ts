@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { SCOPE_AND_COMPLETION } from './prompt-rules.ts';
+import { FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, REAL_VERIFICATION, SCOPE_AND_COMPLETION } from './prompt-rules.ts';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -19,7 +19,7 @@ import type {
   TeamMember,
   WorkItemStatus,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, isTeamToolName, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, teamCommandProblem, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -89,6 +89,13 @@ const ROLE_GUIDANCE: Readonly<Record<string, string>> = {
   writer: 'When a work item enters `in_progress`, turn the findings it points to into a document in the documents folder, clear and accurate.',
   reviewer:
     'When a work item enters `in_review`, check its documents for accuracy and clarity against their sources. Give a verdict: `pass` when they hold, `fail` otherwise, naming what to fix.',
+  'silent-failure-hunter':
+    'You are consulted to find failures that make no noise. In the code the request names, and the code around it, look for errors caught and dropped, promises nobody awaits or whose rejection nobody handles, fallbacks and defaults that hide a failure, exit codes ignored (`|| true`, unchecked results), and retries that end without a word. Report each finding with `path:line`, what fails silently, and the input or state that makes it happen. Report only what you can point to; no finding is a valid answer. You change no code.',
+  'type-design-analyst':
+    'You are consulted on type design. For the types the request names, judge whether they make illegal states unrepresentable: invariants held by the type rather than by comments, optional fields that some states always need (a discriminated union fits better), stringly typed values, casts and `any` that bypass the checker, and types wider than what their callers handle. Report each finding with `path:line`, the state it lets in, and the narrower type that would forbid it. Report only what you can point to; no finding is a valid answer. You change no code.',
+  'build-resolver': `When a build, a type check or a lint fails, make it pass with the smallest change, without loosening a test, a type or a lint rule. ${FIX_ONE_AT_A_TIME} ${FIX_STOP_WHEN} ${REAL_VERIFICATION}`,
+  'spec-miner':
+    'You are consulted to write down what the code does today. For the area the request names, read the code and its tests and write a specification of the current behaviour in the documents folder: inputs, outputs, errors, edge cases and the invariants the tests pin, each with the `path:line` it comes from. Say where the code and its tests disagree. Describe what is, not what should be. You change no code.',
 };
 
 export class TeamError extends Error {
@@ -254,6 +261,8 @@ export function agentFileContent(member: ProjectTeamMember): string {
     `name: ${yamlScalar(member.agent)}`,
     `description: ${yamlScalar(member.responsibility)}`,
     `model: ${yamlScalar(member.model)}`,
+    // The comma form, which `readFrontmatterList` reads; the CLI enforces it wherever it loads the file
+    ...(member.tools?.length ? [`tools: ${member.tools.join(', ')}`] : []),
     '---',
     '',
     `You are the ${title} of this project's team.`,
@@ -325,6 +334,15 @@ export function parseMemberRequest(agent: string, input: unknown): { member: Pro
     }
     member.commands = [...new Set(body.commands as string[])];
   }
+  // null, like leaving it out, allows every tool
+  if (body.tools !== undefined && body.tools !== null) {
+    if (!Array.isArray(body.tools)) throw new TeamError('tools must be an array of tool names', 400);
+    if (body.tools.length > MAX_TEAM_TOOLS) throw new TeamError(`tools lists more than ${MAX_TEAM_TOOLS} names`, 400);
+    for (const tool of body.tools as unknown[]) {
+      if (!isTeamToolName(tool)) throw new TeamError(`not a tool name: ${JSON.stringify(tool)}`, 400);
+    }
+    member.tools = [...new Set(body.tools as string[])];
+  }
   // null, like leaving it out, takes the recommendation for the member's model
   if (body.effort !== undefined && body.effort !== null) {
     if (!isEffort(body.effort)) throw new TeamError(`effort must be one of ${EFFORT_LEVELS.join(', ')}`, 400);
@@ -342,6 +360,15 @@ export function parseMemberRequest(agent: string, input: unknown): { member: Pro
 export function templateTeam(settings: ProjectSettings): ProjectTeamRole[] {
   const own = settings.template ? projectTemplate(settings.template).team : [];
   return own.length ? own : projectTemplate('custom').team;
+}
+
+/**
+ * The roles the template also offers, added only when named: the same template as {@link templateTeam}
+ * reads, and the custom one's when the project has none.
+ */
+export function templateOptionalTeam(settings: ProjectSettings): ProjectTeamRole[] {
+  const own = settings.template ? projectTemplate(settings.template) : null;
+  return (own?.team.length ? own : projectTemplate('custom')).optionalTeam;
 }
 
 /** Keeps, per project, the hash of each agent file Claudio wrote, so it knows which ones are still its own. */
@@ -527,14 +554,20 @@ export class TeamService {
     return this.serialized(async () => {
       const project = await this.deps.project(projectId);
       this.requireEnabled(project);
-      const offered = templateTeam(project.settings);
+      const base = templateTeam(project.settings);
+      const offered = [...base, ...templateOptionalTeam(project.settings).filter((o) => !base.some((r) => r.role === o.role))];
       const body = (input && typeof input === 'object' && !Array.isArray(input) ? input : {}) as Partial<Record<keyof TeamFromTemplateRequest, unknown>>;
-      let roles = offered.map((r) => r.role);
+      // Without `roles` only the team is added, as before; the optional roles are added when named
+      let roles = base.map((r) => r.role);
+      const nameable = offered.map((r) => r.role);
       if (body.roles !== undefined && body.roles !== null) {
         if (!Array.isArray(body.roles) || body.roles.some((r) => typeof r !== 'string')) throw new TeamError('roles must be an array of role names', 400);
-        const unknown = (body.roles as string[]).filter((r) => !roles.includes(r));
-        if (unknown.length) throw new TeamError(`the template offers no role ${unknown.join(', ')}; it offers ${roles.join(', ')}`, 400);
-        roles = roles.filter((r) => (body.roles as string[]).includes(r));
+        const unknown = (body.roles as string[]).filter((r) => !nameable.includes(r));
+        if (unknown.length) {
+          const optional = nameable.filter((r) => !roles.includes(r));
+          throw new TeamError(`the template offers no role ${unknown.join(', ')}; it offers ${roles.join(', ')}${optional.length ? ` and, optionally, ${optional.join(', ')}` : ''}`, 400);
+        }
+        roles = nameable.filter((r) => (body.roles as string[]).includes(r));
       }
       const members = [...(project.settings.team?.members ?? [])];
       const added: ProjectTeamMember[] = [];
