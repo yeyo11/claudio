@@ -30,7 +30,7 @@ const run = (over: Partial<AssistantRun> = {}): AssistantRun => ({
   template: 'software',
   sources: [],
   findings: [],
-  counts: { 'team-member': zero, resource: zero, 'work-item': zero },
+  counts: { 'team-member': zero, resource: zero, 'work-item': zero, 'eval-case': zero },
   costUsd: 0.08,
   durationMs: 72_000,
   error: null,
@@ -136,6 +136,6 @@ test('each state of a run asks for its own screen', () => {
 
 test('the pending proposals of every run add up, whatever their kind', () => {
   assert.equal(pendingProposalCount(undefined), 0);
-  const counts = (pending: number) => ({ 'team-member': { ...zero, pending }, resource: { ...zero, pending: 1 }, 'work-item': zero });
+  const counts = (pending: number) => ({ 'team-member': { ...zero, pending }, resource: { ...zero, pending: 1 }, 'work-item': zero, 'eval-case': zero });
   assert.equal(pendingProposalCount([run({ counts: counts(2) }), run({ id: 'r2', counts: counts(0) })]), 4);
 });
