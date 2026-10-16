@@ -29,7 +29,7 @@ export interface TickerActivity {
 }
 
 /** The verbs a ticker says; each has its text under `primitives:activity.<verb>`. */
-export const ACTIVITY_VERBS = ['editing', 'reading', 'running', 'searching', 'delegating', 'browsing', 'writing', 'thinking', 'waiting', 'working'] as const;
+export const ACTIVITY_VERBS = ['editing', 'reading', 'running', 'searching', 'delegating', 'browsing', 'writing', 'thinking', 'waiting', 'compacting', 'working'] as const;
 export type ActivityVerb = (typeof ACTIVITY_VERBS)[number];
 
 const TOOL_VERBS: Record<string, ActivityVerb> = {
@@ -59,8 +59,7 @@ export function activityVerb(activity: TickerActivity): ActivityVerb {
   if (activity.kind === 'writing') return 'writing';
   if (activity.kind === 'thinking') return 'thinking';
   if (activity.kind === 'waiting') return 'waiting';
-  // Until the ticker has a verb of its own for a compaction (x7), it says what is true of any turn
-  if (activity.kind === 'compacting') return 'working';
+  if (activity.kind === 'compacting') return 'compacting';
   const tool = activity.tool?.trim().toLowerCase() ?? '';
   return TOOL_VERBS[tool] ?? 'working';
 }

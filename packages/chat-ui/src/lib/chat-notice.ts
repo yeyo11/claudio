@@ -8,7 +8,7 @@
  * page can show them as what they are — something the system said, next to the conversation.
  */
 
-export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt';
+export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed';
 
 export interface Notice {
   kind: NoticeKind;
@@ -48,6 +48,10 @@ export function readNotices(text: string): { prose: string; notices: Notice[] } 
   };
   take('task-notification', (raw) => taskNotice(raw));
   take('system-reminder', (raw) => ({ kind: 'reminder', detail: firstLine(raw), body: rest(raw) }));
+  // The CLI's own error for a compaction that did not happen: the line says so, its words are the fold
+  take('local-command-stderr', (raw) =>
+    /compact/i.test(raw) ? { kind: 'compaction-failed', detail: firstLine(raw), body: rest(raw) } : { kind: 'output', detail: firstLine(raw), body: rest(raw) },
+  );
   take('local-command-stdout', (raw) => ({ kind: 'output', detail: firstLine(raw), body: rest(raw) }));
   // A slash command: its name is the line, its arguments and the message it expanded to are the body
   const command = /<command-name>([\s\S]*?)<\/command-name>/.exec(prose);
