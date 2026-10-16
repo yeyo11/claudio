@@ -47,6 +47,21 @@ describe('sign-in state', () => {
     assert.ok(['ok', 'unknown'].includes(s.get('default').signInState), 'the default account has a state too');
   });
 
+  it('keeps a login with no credentials file signed in and chosen: a keychain, a token or env sign-in is not signed out', async () => {
+    const { s, id, dir } = await fresh();
+    // The CLI says the dir is signed in (its own marker, not a credentials file), as with a keychain
+    writeFileSync(join(dir, 'fake-login.json'), JSON.stringify({ email: 'keychain@example.com', org: 'o' }));
+    await s.refresh(id);
+    const a = s.get(id);
+    assert.deepEqual([a.signedIn, a.signInState, a.authFailedAt], [true, 'unknown', undefined]);
+    // The CLI's own dir, never read and with no file, is assumed signed in and stays usable
+    const d = s.get('default');
+    assert.deepEqual([d.signedIn, d.signInState], [true, 'unknown']);
+    assert.equal(s.pick({ current: null, now: NOW }).account, 'default');
+    await s.setEnabled('default', false);
+    assert.equal(s.pick({ current: null, now: NOW }).account, id);
+  });
+
   it('flags a file with no, or an empty, refreshToken as incomplete and signed out; a fixed file is read again', async () => {
     const { s, id, dir } = await fresh();
     credentials(dir, { accessToken: ACCESS });
