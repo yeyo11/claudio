@@ -11,7 +11,9 @@ import { DecisionEngine, type DecisionProvider, type DecisionRequest, type Provi
 import { decisionPoint } from '../src/decisions/points.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { EventBus } from '../src/events.ts';
-import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
+import type { BackgroundTask, SubagentInfo } from '../src/cli-facts.ts';
+import { DELEGATION, FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, PATTERN_GROUNDING } from '../src/prompt-rules.ts';
+import { checkCommandRules, checksFixPrompt, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
 import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
@@ -38,7 +40,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] } } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -84,6 +86,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     cost: (id) => costs.get(id) ?? null,
     // No worktree is real here: nothing is uncommitted unless a test says so
     uncommitted: opts.uncommitted ?? (() => []),
+    ...(opts.delegates ? { delegates: opts.delegates } : {}),
     language: () => state.language,
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
@@ -2240,4 +2243,45 @@ test('a restart leaves a run that waits for a limit to reset where it is: the ro
   assert.equal(kept?.chatId, chat);
   assert.equal(kept?.restarts, 0);
   assert.equal(kept?.waiting?.provider, 'claude-code');
+});
+
+test('the refine stage cites patterns in both columns, and the work and verify stages do not', () => {
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Fix the cart', status: 'todo' });
+  const member = { agent: 'po', role: 'product-owner', model: 'sonnet', responsibility: 'Refines' };
+  const prompt = (stage: FlowStage, column: WorkItemStatus) => flowPrompt(stage, column, it, member, { documentsPath: 'docs', rejection: null });
+  assert.ok(prompt('refine', 'backlog').includes(PATTERN_GROUNDING));
+  assert.match(prompt('refine', 'backlog'), /Put the citations in the description, under a `## Patterns to follow` heading\./);
+  assert.ok(prompt('refine', 'todo').includes(PATTERN_GROUNDING));
+  assert.match(prompt('refine', 'todo'), /If it has no `## Patterns to follow` section, return the description with one added\./);
+  assert.ok(!prompt('work', 'in_progress').includes(PATTERN_GROUNDING));
+  assert.ok(!prompt('verify', 'in_review').includes(PATTERN_GROUNDING));
+  // The delegation contract is the work stage's alone
+  assert.ok(prompt('work', 'in_progress').includes(DELEGATION));
+  assert.ok(!prompt('verify', 'in_review').includes(DELEGATION));
+});
+
+test('the fix of failing checks carries the two stop rules and asks for locations and the stop kind', () => {
+  const prompt = checksFixPrompt([{ name: 'unit', state: 'failure', jobId: '1', url: null, logTail: 'boom' }]);
+  assert.ok(prompt.includes(FIX_ONE_AT_A_TIME));
+  assert.ok(prompt.includes(FIX_STOP_WHEN));
+  assert.match(prompt, /the `locations` you changed for it as `path:line`, and `stopped` \(`same-error`, `more-errors` or `design`\)/);
+});
+
+test('a work run whose result arrives with a background subagent still running is continued once, naming it', async () => {
+  let running = true;
+  const s = setup({
+    delegates: () => ({ subagents: running ? [{ toolUseId: 't1', subagentType: 'general-purpose', description: 'survey the routes', status: 'running', startedAt: '', endedAt: null, background: true }] : [] }),
+  });
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  await s.answer(it.id, ok('Implemented'), false, { stopReason: 'end_turn' });
+  assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
+  running = false;
+  s.flow.chatEnded(chat, null);
+  await s.flow.settled();
+  assert.match(s.launches.at(-1)?.prompt ?? '', /You ended your turn while work you delegated is still running: survey the routes/);
+  await s.answer(it.id, ok('Implemented'), false, { stopReason: 'end_turn' });
+  assert.equal(s.items.find(it.id)?.status, 'in_review');
+  assert.equal(s.flow.itemRuns(it.id).find((r) => r.stage === 'work')?.continuations, 1);
 });

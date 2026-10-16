@@ -65,12 +65,23 @@ Every builder imports these. No builder keeps its own copy of the text.
 | `pasted(text)`, `pastedId()`, `unpasted(text)` | Wraps text in `<pasted_content id="…">` … `</pasted_content id="…">`. The id is eight random hex digits, the same on both tags, and new on every call. Each tag is on its own line. A text that holds a closing tag of its own cannot close the block, because it cannot know the id. `unpasted` reads the planner's objective back out of its prompt. | 4 |
 | `FRONTEND`, `frontend(sources)`, `designSources(dir)` | The patterns to avoid, by name: values written by hand where the project has tokens, the default look (a system font stack, a centred hero with a purple-to-blue gradient, a shadow on every card, emoji as icons), gradients, glows and animation on things that are not live, native controls, placeholder copy and strings outside the translations, and one theme where the project has two. When the project has a design system document (`docs/design-system.md` or `DESIGN.md`) or a `CLAUDE.md`, the text points at them. | 11 |
 | `timeSignal(elapsedMs, budgetMs)` | `Time: elapsed Ns / budget Ms.`, or "Time matters here: …" when no budget is known. | 10 |
+| `PATTERN_GROUNDING` | For each convention the work depends on (naming, error handling, data access, tests, any other), cite one real place as `path:line` of a file opened in this run, or say the code has none and the work sets it. Never cite a place that was not read. Refine stages carry it, and the planner's guidance asks the same of task prompts. | 9 |
+| `RETRIEVAL` | Context a worker was not given is found in rounds aimed at the objective: search, read what looks relevant, judge what is still missing. Three rounds are enough for most gaps; after the third, work with what there is and name what was not found. A search handed to a subagent carries the objective as well as the question. It bounds searching for what is missing, never reading what the task names. | 8 |
+| `DELEGATION` | The run owns the results of what it delegates: wait for each subagent or background task, read what it returned and use it before the turn ends. Never end a turn by saying it is waiting for background work, because the end of the turn is the end of the process. | 3 |
+| `FIX_ONE_AT_A_TIME` | Fix one error at a time, the first one reported or the one the others follow from, with the narrowest check that shows it. | 5 |
+| `FIX_STOP_WHEN` | Stop when the same error survives three fixes, when a fix leaves more errors than it removed, or when the fix needs a change of design. Undo a fix that made things worse with a new commit, never by rewriting history. | 3 |
+| `FIXER_REPORT_ROWS` | The fixer ends its report with `[FIXED] path:line: what was wrong` per fix and, if it stopped early, `[STOP] same-error|more-errors|design: what a person must decide`. | 5 |
 
 The harness side lives in `packages/core/src/open-items.ts`:
 
 - `openItems(input)` is a pure function. It returns what the run still owes, one sentence per
-  item: a schema run with no structured result, uncommitted changes (it names up to 20 paths), and
-  a last paragraph that offers to continue, asks a question, or announces a next step.
+  item: a schema run with no structured result, uncommitted changes (it names up to 20 paths),
+  delegated work still running when the result arrived (`delegates`: the descriptions of the chat's
+  background subagents and of its background tasks the person did not send there, at most five
+  named; `delegatesOf` reads them from the chat), and a last paragraph that offers to continue,
+  asks a question, announces a next step, or says it is waiting for delegated work (`WAITING`).
+  The delegation item is a fact, like the uncommitted paths: code decides it and no decision point
+  can waive it.
 - `continuationPrompt(items, n, extra)` is the message that sends the run back. It says
   "continuation n of 3", lists the items, and adds what the caller passes (how the run ends, a time
   signal).
@@ -99,7 +110,8 @@ A turn that ends with text while work is still owed is a report, not completion.
 the result.
 
 - **Flow runs** (`FlowService.finish` → `continues`) are all schema runs. The check covers the
-  structured result, the final text, and, for a work run, `git status` of the item's worktree. With
+  structured result, the final text, the chat's running background subagents and tasks, and, for a
+  work run, `git status` of the item's worktree. With
   open items and fewer than three continuations, the run stays `running`. `flow_runs.continuations`
   is counted up in a guarded update (it is `FlowRun.continuations` in the API), and the message is
   held until the chat's process exits (`chatEnded`, since a chat has one process at most). Then the
@@ -107,7 +119,8 @@ the result.
   prompt. A chat that ends in an error meanwhile fails the run as usual. After the third
   continuation, the result the run has is judged as it is.
 - **Orchestration workers** (`Orchestrator.settle`) are not schema runs. Claudio commits what a
-  worker leaves uncommitted (`commitTask`), so only the final text is read. The worker goes back to
+  worker leaves uncommitted (`commitTask`), so only the final text and the chat's running background
+  subagents and tasks are read (`settleNow`). The worker goes back to
   its chat with the continuation prompt, `WORKER_CLOSING` and the time signal.
   `OrchestrationTaskState.continuations` counts it. It is not an attempt, since nothing failed.
 - The fixer and the integrator carry `UNATTENDED`, but their results are not continued. The fixer
@@ -147,8 +160,9 @@ the result.
 
 1. There was no such instruction, and there is none now.
 2. There was none, and there is none now.
-3. All three stages carry `UNATTENDED`. The harness continues a run with open items (see
-   [Runs that stop early](#runs-that-stop-early)).
+3. All three stages carry `UNATTENDED`, and the work stage carries `DELEGATION` after
+   `scopeAndCompletion()`. The harness continues a run with open items, among them delegated work
+   still running (see [Runs that stop early](#runs-that-stop-early)).
 4. The description and the criteria (`workItemPrompt`), the criteria QA judges (listed with their
    ids), and the rejection comment are wrapped. The journal in the system prompt is wrapped as well.
    `PASTED_NOTE` closes every stage.
@@ -161,7 +175,9 @@ the result.
    `max-tokens`.
 8. There was nothing that discouraged tool use.
 9. Refine, in both columns, now reads the documents and the code the item concerns, including the
-   parts it does not name, before it writes.
+   parts it does not name, before it writes. Right after that it carries `PATTERN_GROUNDING`: in
+   `backlog` the citations go in the description under a `## Patterns to follow` heading, and in
+   `todo` the run adds that section when the description has none. Work and verify do not carry it.
 10. n/a: a flow run is one agent with no budget of its own. `flow.maxCostUsd` is a cost ceiling the
     CLI enforces.
 11. Work runs carry `frontend(designSources(project))`.
@@ -220,23 +236,34 @@ a design, refining large or vague items, working unattended across many files fo
 7. `THINK_THROUGH` when the request's model is Sonnet. A `max_tokens` stop refuses the draft.
 8–9. "You may inspect the directory with read-only tools first" became "Before you plan, read the
    directory with the read-only tools, as much as the objective needs, so each task names the files
-   and commands it concerns."
+   and commands it concerns." `PLANNER_GRAPH_GUIDANCE` also asks that a task prompt that adds or
+   changes code name, for each convention its worker must follow, one real example as `path:line`
+   that the planner read, or say the code has none. That asks for more reading, never less.
 10. n/a: nothing is handed back to it.
 11–12. n/a.
 
 ### Worker (`workerHead`, `workerTask`, `buildPrompt`, `workerChecks`)
 
 1–2. There was none, and there is none now.
-3. It carries `UNATTENDED`, and a final text that offers, asks or announces is continued (see
-   above).
-4. The objective and the dependencies' results are wrapped. `PASTED_NOTE` is in every worker
+3. It carries `UNATTENDED` and, right after it, `DELEGATION`. A final text that offers, asks,
+   announces or says it is waiting for delegated work is continued, and so is a result that arrives
+   with a background subagent or task still running (see above).
+4. The objective, the list of the graph's other tasks and the dependencies' results are wrapped.
+   `workerHead(orch, task)` says either the objective or `The graph is named …`, then `The graph
+   has N tasks; yours is `id``, then the other tasks (id, name clipped to 80 characters, and what
+   each depends on) in one `pasted()` block, at most 30 and then "and N more". Task names are
+   supplied by a person, which is why the list is one block. A graph of one task lists none. `PASTED_NOTE` is in every worker
    prompt. The task prompt itself is the instruction the person wrote for the worker, so it stays
    bare. A task drafted from a work item carries the item's own blocks.
 5. It carries `scopeAndCompletion()`.
 6. It carries `REAL_VERIFICATION` beside `workerChecks`, which keeps its split: type check and unit
    tests while working, and the end-to-end suite once on the merged branch.
 7. n/a: it has no schema.
-8. There was nothing that discouraged tool use.
+8. There was nothing that discouraged tool use. `RETRIEVAL`, after `REAL_VERIFICATION`, is the
+   text at risk, so its reading is recorded here: it bounds the rounds of *searching for context
+   the worker was not given* at three, and says what to do after them. It never bounds reading the
+   files the task names, and it never says to avoid a tool or to read less. A test pins that it
+   holds none of "avoid", "minimi", "fewer tool" or "do not read".
 9. n/a: the planner wrote its task self-contained.
 10. The continuation after an interruption, an error or open items ends with `timeSignal`: elapsed
     time against `limits.maxMinutes` when the task has one, "Time matters here…" otherwise.
@@ -260,16 +287,28 @@ resolving needs").
 
 ### Fixer (`fixerPrompt`)
 
-3. It carries `UNATTENDED`. Its attempts are its loop, and the checks run again after each one.
+3. It carries `UNATTENDED` and, after it, `DELEGATION`. Its attempts are its loop, and the checks
+   run again after each one. Its rules block now holds `FIX_STOP_WHEN`: stop when the same error
+   survives three fixes, when a fix leaves more errors than it removed, or when the fix needs a
+   change of design, undoing a worse fix with a new commit.
 4. The objective, the failing command's output, the earlier attempts' reports and the task results
    are wrapped. `PASTED_NOTE` is present.
+5. After its closing "Finish with a short report" line it carries `FIXER_REPORT_ROWS`: one
+   `[FIXED] path:line: …` row per fix and, on an early stop, one `[STOP] …` row. Its rules block
+   also holds `FIX_ONE_AT_A_TIME`.
 6. It carries `REAL_VERIFICATION`. Its own rules stay: one spec at a time under `timeout`, never
    loosen a test.
 10. It already said "attempt n of m". Its time limit is the check's `timeoutMinutes`, which it is
     told.
 
-Points 1, 2, 5, 7–9, 11 and 12 are n/a or already met: "make the smallest change" is its scope
+Points 1, 2, 7–9, 11 and 12 are n/a or already met: "make the smallest change" is its scope
 rule.
+
+The fix of failing CI checks (`checksFixPrompt`, a section of the flow's work prompt) holds
+`FIX_ONE_AT_A_TIME` and `FIX_STOP_WHEN` after its untrusted-log paragraph. It asks for each check's
+`cause`, whether it was `fixed`, the `locations` changed as `path:line`, and `stopped`
+(`same-error`, `more-errors` or `design`) when it stopped before the fix. The flow is a schema run,
+so those rows go in the structured result and not in text.
 
 ### Synthesis (`synthesize`, `compile`)
 
@@ -288,7 +327,11 @@ worker prompt, so everything under Worker applies.
 10. The lead prompt ends with `timeSignal` from the graph's creation. A workflow has no budget
     today, so it reads "Time matters here…".
 
-Points 1–9, 11 and 12 are n/a: it only calls the Workflow tool with a generated script. "I
+3. The lead prompt carries `DELEGATION`, before the time signal. The structural delegation item is
+   not applied to the lead: its turn ends when the Workflow tool returns, and `followWorkflow`
+   follows the workflow run.
+
+Points 1, 2, 4–9, 11 and 12 are n/a: it only calls the Workflow tool with a generated script. "I
 explicitly ask you to run this workflow" is kept, because the CLI's tool asks for that consent.
 
 ### Supervisor (`supervisorPrompt`)
@@ -361,7 +404,10 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
   on its own, for every run that loads the project's settings, reaches the model as the CLI puts
   it, and Claudio cannot mark it.
 - **The open-item phrases are English.** A final text in another language that offers to continue
-  is not caught. It costs a run that ends early, not a wrong move.
+  is not caught. It costs a run that ends early, not a wrong move. The `WAITING` phrases (waiting
+  for or on background agents or tasks, "once the agents finish", "I'll report back when") are
+  English too. The delegation item itself is language-free, because it comes from the chat's own
+  list of running background work.
 - A continuation held in memory (`FlowService.nudges`) is lost to a restart between the result and
   the process exit. The run is then continued with the restart prompt instead, which still names
   the structured result.
@@ -370,14 +416,23 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 - `packages/core/test/prompt-rules.test.ts`: every shared text, `pasted` (id format, same id,
   lines, a new id per call), `isSonnet`, `timeSignal`, `frontend`, each case of `openItems`, the
-  continuation prompt, the `max_tokens` check, the fixer prompt, the worker checks' split, and a
-  search of `packages/core/src` for banned phrasing.
+  continuation prompt, the `max_tokens` check, the fixer prompt, the worker checks' split, the six
+  texts of ideas 6, 7, 8 and 12 word for word (`RETRIEVAL` against its banned words), the
+  delegation item (agents, tasks, both, the cap of five, person-backgrounded tasks left out,
+  `delegatesOf`), the `WAITING` phrases matched and not matched, and a search of
+  `packages/core/src` for banned phrasing.
 - `flow.test.ts`: the rules in every stage, what is wrapped, `THINK_THROUGH` both ways, the design
   pointer, the `max-tokens` failure, and three continuations then the outcome, with uncommitted
-  paths and an error after a continuation, on a scripted chat.
-- `orchestrator.test.ts`: over the fake CLI (`FAKE-TEXT-ONCE`, `FAKE-MAX-TOKENS`), the worker,
-  integrator and synthesis prompts, a worker continued once (not an attempt), the time signal, and
-  a planner cut by `max_tokens` whose stop reason came from stream-json.
+  paths and an error after a continuation, on a scripted chat. `PATTERN_GROUNDING` in both refine
+  branches and in neither work nor verify, `DELEGATION` in work, the stop rules and the
+  `locations`/`stopped` sentence of `checksFixPrompt`, and a work run continued once when its
+  result arrives with a running background subagent.
+- `orchestrator.test.ts`: over the fake CLI (`FAKE-TEXT-ONCE`, `FAKE-MAX-TOKENS`, `FAKE-BG-AGENT`),
+  the worker, integrator and synthesis prompts, a worker continued once (not an attempt), also for
+  a running background subagent, the time signal, the worker's head (its own id and the other tasks
+  in one block, the graph's name without an objective, the cap of 30 and "and N more"), the
+  planner guidance sentence, the workflow lead's `DELEGATION`, and a planner cut by `max_tokens`
+  whose stop reason came from stream-json.
 - `assistant.test.ts`: the `max_tokens` failure, `THINK_THROUGH` both ways, the model
   recommendation sentence, and what is wrapped.
 - `decisions/providers/cli` tests: the prompt's `pasted()` block and note, `thinkThrough` on Sonnet
