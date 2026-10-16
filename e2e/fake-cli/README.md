@@ -56,7 +56,12 @@ scripts file has `"@transcript": true` (read when the process starts) and `CLAUD
 then it appends to `$CLAUDE_CONFIG_DIR/projects/<cwd with every non-alphanumeric as ->/<session>.jsonl`
 what CLI 2.1 writes there: a `user` line per prompt a turn starts with, the `assistant` and
 `tool_result` lines with the uuids it streamed, and `queue-operation` lines (`enqueue`, `dequeue`,
-`remove` with `reason: "absorbed_mid_turn"`). A message read in the middle of a turn gets an
+`remove` with `reason: "absorbed_mid_turn"`). A result line has the tool's `toolUseResult`. A subagent
+writes to its own `<session>/subagents/agent-<agentId>.jsonl` (its prompt, then its sidechain, each
+line with `isSidechain: true`, `agentId` and `parentToolUseID`), beside an `agent-<agentId>.meta.json`
+(`agentType`, `description`, `toolUseId`, `requestShape: "background"` for a background one); its lines
+never go into the session's file. A branch that ends leaves the `<task-notification>` the CLI queues
+for the model, as a `queue-operation` `enqueue` line, which is what a reload reads its end from. A message read in the middle of a turn gets an
 `attachment` line of type `queued_command` and no `user` line, as the real CLI records it
 (docs/reports/chat-audit/repro.md).
 
@@ -82,6 +87,24 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 - `read: <path>` — one `Read` call (`input: { file_path }`, the path resolved against the working
   directory), held open for `CLAUDIO_FAKE_CLI_READ_MS` (default 400) and answered with the file's
   first 4000 characters, or `(file not found)`. It is what makes a page say "Reading <path>".
+- `agent: <description> | <sidechain script>` — one subagent: an `Agent` call (`input: { description,
+  subagent_type: "Explore", prompt: "Look around" }`), a `system` `task_started` (`task_type:
+  "local_agent"`, `task_id` the agent id, `tool_use_id` the call's, `is_backgrounded: false`), then its
+  sidechain: each `;`-separated step (`read: <path>` or `run: <command>`, played as the main ones) is an
+  `assistant` call and a `user` result with `parent_tool_use_id` the `Agent` call's id and
+  `isSidechain: true`, then a closing text. A `hold: <path>` in the sidechain keeps the call before it
+  open until `<path>` exists, so a page reads what the subagent is doing for as long as a spec needs.
+  Then the `Agent` call's `tool_result` (`tool_use_result: { agentId, description, prompt,
+  resolvedModel, status: "completed", content }`) and a `task_notification` (`status: "completed"`,
+  `summary`). With `background: ` as the first word of the description the call answers at once
+  (`status: "async_launched"`, `isAsync: true`; `is_backgrounded: true`), and the sidechain and the
+  notification follow the next step of the turn, outliving it if they have to. A command in the
+  sidechain cannot hold a `;`.
+- `background: <command>` — a `Bash` call with `run_in_background: true` (`description: "Run <command>"`),
+  answered at once (`tool_use_result: { stdout: "", stderr: "", interrupted: false, backgroundTaskId }`),
+  then a `task_started` (`task_type: "local_bash"`, `is_backgrounded: true`). The command runs for
+  real beside the turn, as a child of the fake, and its end is a `task_notification` (`completed`, or
+  `failed` when it did not exit 0), whether or not the turn is still running.
 - `json: <JSON on one line>` — the turn's `structured_output`, what `--json-schema` makes the CLI
   return beside its text: an assistant run's answer. A turn with a `json:` line and no `say:` ends
   with an empty `result` text.
@@ -103,6 +126,10 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   question with a `control_cancel_request` and ends the turn.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.
+- **What a result records beside it.** Every `tool_result` carries `tool_use_result` in the shape
+  the real tool gives (plans/tool-rows-and-live-branches.md §2): a `Read` `{ type: "text", file:
+  { filePath, content, numLines, startLine, totalLines } }`, a `Bash` `{ stdout, stderr, interrupted:
+  false, isImage, noOutputExpected }`, and a call that failed (or a path not found) the error as a string.
 - A turn with `run:` lines and no `say:` line starts with the text `Running N commands.` and ends
   with `All done.`; a turn with a `say:` line has only its own words, and its `result` is the last of
   them. One with neither answers `Heard: <its first line>`. Every turn ends with a `result` event
@@ -173,5 +200,9 @@ With `CLAUDIO_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid`
 | `absorbed` | `texts` — messages read inside the running turn, at its next step |
 | `asked` | `requestId`, `command` — an `ask:` step's permission request |
 | `answered` | `requestId`, `allowed` |
+| `agent` | `toolUseId`, `agentId`, `description`, `background` — an `agent:` step's subagent |
+| `agent-ended` | `toolUseId`, `agentId` |
+| `background` | `toolUseId`, `taskId`, `command`, `commandPid` — a `background:` step's command |
+| `background-ended` | `toolUseId`, `taskId`, `code`, `signal` |
 | `result` | `error`, `turns` |
 | `exit` | — |
