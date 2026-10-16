@@ -1011,6 +1011,18 @@ export class Core {
       language: () => this.language,
       limitHeld: (chatId) => this.rotation.holds(chatId),
       cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
+      contextOf: async (chatId) => {
+        const chat = await this.chats.get(chatId, { fresh: true });
+        if (!chat) return null;
+        const { used, window, compactedSince } = chat.context ?? { used: 0, window: null, compactedSince: undefined };
+        const tokens = compactedSince?.postTokens ?? used;
+        return {
+          share: window ? tokens / window : null,
+          usedTokens: tokens,
+          window,
+          compactable: !!chat.environment?.slashCommands.includes('compact') && !this.db.openCompaction(chatId),
+        };
+      },
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -2153,6 +2165,12 @@ export class Core {
         // The run knows its chat, and its result still lands; only the item's list of chats misses it
       }
     };
+    if (launch.resumeChatId && launch.compactFirst) {
+      // Before onStart, so the run never sees the compaction's chat, result or exit. It runs under the
+      // run's own policy and budget (so a push stays denied), and never fails the run: one that does
+      // not happen leaves the chat as it was
+      await this.context.compactAndWait(launch.resumeChatId, { flowRunId: run.id, options: { ...options, agent: member.agent, agentsFile } });
+    }
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
       // Told first: the result is matched to the run by its chat, and may not wait for the resume to return

@@ -116,6 +116,12 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ['needs-person', 'Needs a person: a decision, access or clarification only a person can give is missing'],
     ]),
   ]),
+  point({ id: 'context.compact', kind: 'act', scope: 'project', primitives: ['choice'], maxStateBytes: 1024, fields: ['stage', 'share', 'usedTokens', 'window', 'bounces', 'rejectionChars'] }, () => [
+    choice('compact', 'A developer is about to continue its own earlier conversation after QA sent the card back. Should that conversation be compacted first?', [
+      ['compact-first', 'Compact first: the context is full enough that the next round would likely be compacted mid-task anyway'],
+      ['continue', 'Continue as it is: there is room, and compacting would lose detail the next round needs'],
+    ]),
+  ]),
   point({ id: 'orchestration.retry', kind: 'act', scope: 'project', primitives: ['choice'], savesRun: true, fields: ['error', 'task', 'attempt'] }, () => [
     choice('retry', 'A task failed with this error. Will trying again in the same chat help?', [
       ['transient', 'Transient: the failure looks temporary and a plain retry will likely work'],
