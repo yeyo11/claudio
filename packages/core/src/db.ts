@@ -960,6 +960,70 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX chat_notes_chat ON chat_notes (chat_id, created_at);
    CREATE UNIQUE INDEX chat_notes_pending ON chat_notes (chat_id) WHERE state = 'pending';
    CREATE UNIQUE INDEX chat_notes_entry ON chat_notes (chat_id, entry_uuid) WHERE entry_uuid IS NOT NULL;`,
+  // docs/plans/instruction-evals.md: eval runs, their samples, calls and checks
+  `CREATE TABLE eval_runs (
+     id TEXT PRIMARY KEY,
+     project_id TEXT NOT NULL,
+     eval_name TEXT NOT NULL,
+     definition_sha TEXT NOT NULL,
+     definition TEXT NOT NULL,
+     variants TEXT NOT NULL,
+     samples_per_case INTEGER NOT NULL,
+     account TEXT,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','waiting','ended')),
+     outcome TEXT CHECK (outcome IN ('completed','capped','cancelled','interrupted','failed')),
+     reason TEXT,
+     resets_at TEXT,
+     max_cost_usd REAL NOT NULL,
+     cost_usd REAL NOT NULL DEFAULT 0,
+     started_by TEXT NOT NULL,
+     owner_pid INTEGER, owner_started_at TEXT,
+     created_at TEXT NOT NULL, started_at TEXT, ended_at TEXT
+   );
+   CREATE INDEX eval_runs_history ON eval_runs (project_id, eval_name, created_at);
+   CREATE UNIQUE INDEX eval_runs_live ON eval_runs (project_id) WHERE state IN ('queued','running','waiting');
+   CREATE TABLE eval_variants (
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     variant TEXT NOT NULL CHECK (variant IN ('pinned','current','proposed')),
+     target_path TEXT NOT NULL,
+     present INTEGER NOT NULL,
+     content_sha TEXT,
+     content TEXT,
+     PRIMARY KEY (run_id, variant)
+   );
+   CREATE TABLE eval_samples (
+     id TEXT PRIMARY KEY,
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     case_id TEXT NOT NULL, variant TEXT NOT NULL, attempt INTEGER NOT NULL, try INTEGER NOT NULL DEFAULT 1,
+     seq INTEGER NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','ended')),
+     outcome TEXT CHECK (outcome IN ('passed','failed','limit','interrupted','cancelled','skipped','infra')),
+     reason TEXT,
+     chat_id TEXT, account TEXT, model TEXT, cli_version TEXT, pin TEXT NOT NULL,
+     cost_usd REAL, duration_ms INTEGER, turns INTEGER, calls_truncated INTEGER NOT NULL DEFAULT 0,
+     result_text TEXT,
+     owner_pid INTEGER, started_at TEXT, ended_at TEXT,
+     UNIQUE (run_id, case_id, variant, attempt, try)
+   );
+   CREATE INDEX eval_samples_run ON eval_samples (run_id, seq);
+   CREATE TABLE eval_calls (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     seq INTEGER NOT NULL, message INTEGER NOT NULL, tool_use_id TEXT, name TEXT NOT NULL,
+     scope TEXT NOT NULL CHECK (scope IN ('main','sub')),
+     outcome TEXT NOT NULL CHECK (outcome IN ('ok','error','denied','open')),
+     input TEXT NOT NULL,
+     result TEXT,
+     at TEXT,
+     PRIMARY KEY (sample_id, seq)
+   );
+   CREATE TABLE eval_checks (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL, kind TEXT NOT NULL, passed INTEGER NOT NULL,
+     detail TEXT NOT NULL,
+     evidence_seq INTEGER,
+     output TEXT,
+     PRIMARY KEY (sample_id, idx)
+   );`,
 ];
 
 /**
@@ -1019,6 +1083,9 @@ export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 's
 
 /** The migration that added the compactions and session notes: a test starts a database from just before it */
 export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE chat_compactions')) + 1;
+
+/** The migration that added the instruction evals' tables: a test starts a database from just before it */
+export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
