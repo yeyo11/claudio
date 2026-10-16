@@ -243,7 +243,7 @@ export function SpendItem() {
             <span className="meter-track meter-thin statusbar-meter" aria-hidden>
               <span className={`meter-fill ${view.tone === 'neutral' ? '' : `is-${view.tone}`}`.trim()} style={{ width: `${view.fill}%` }} />
             </span>
-            <span className="mono">{view.percent} %</span>
+            <span className="mono">{t('statusbar.spend.percent', { value: view.percent })}</span>
             {view.tone === 'warn' && <span>{t('statusbar.spend.near')}</span>}
           </>
         )}

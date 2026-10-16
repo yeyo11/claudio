@@ -13,7 +13,7 @@ import { useEffortUnavailable } from '../../lib/provider-status';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Tag } from '@claudio/ui/components/ui';
+import { Segmented, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { columnMeta } from '../../lib/work-items';
@@ -47,6 +47,9 @@ function useColumnWords(): (status: WorkItemStatus) => { does: string; then: str
  * reference's "Save the flow" does: the flow goes into the project's settings, each model into its
  * member. The items QA sent back are Team activity's "Devueltas", which "See runs" leads to.
  */
+/** The plateau rule has three values, not two: observing is the default and is neither stopping nor off. */
+const PLATEAU_MODES = ['observe', 'stop', 'off'] as const;
+
 export function FlowEditor({
   project,
   team,
@@ -318,7 +321,13 @@ export function FlowEditor({
           <span className="flow-limit-name">{t('flow.plateauTitle')}</span>
           <span className="field-hint">{phone ? t('flow.plateauHintShort') : t('flow.plateauHint')}</span>
         </span>
-        <Switch checked={flow.plateau === 'stop'} onChange={(on) => edit({ ...flow, plateau: on ? 'stop' : 'observe' })} aria-label={t('flow.plateauTitle')} />
+        <Segmented
+          className="flow-plateau"
+          value={flow.plateau ?? 'observe'}
+          onChange={(plateau) => edit({ ...flow, plateau })}
+          options={PLATEAU_MODES.map((mode) => ({ value: mode, label: t(`flow.plateauMode.${mode}`) }))}
+          label={t('flow.plateauTitle')}
+        />
       </div>
       <div className="flow-limit-row">
         <span className="flow-limit-text">

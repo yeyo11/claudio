@@ -91,6 +91,7 @@
   },
   "cap": {
     "label": "Daily cap",
+    "percent": "{{value}} %",
     "figure": "{{spent}} of {{cap}}",
     "near": "near the cap",
     "reached": "cap reached · back at {{time}}",

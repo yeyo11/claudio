@@ -399,8 +399,8 @@ export function offeredRoles<R extends { role: string }>(optional: readonly R[],
   return optional.filter((r) => !members.some((m) => m.role === r.role));
 }
 
-/** The tools that let an agent change the project's files */
-const WRITING_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+/** The tools that can change the project's files; Bash can, whatever its pattern says (`sed -i`, `>`, `git commit`) */
+const WRITING_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash'];
 
 /**
  * A member whose agent file lists tools and none of them writes: it only reads, in every chat the CLI

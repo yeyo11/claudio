@@ -91,18 +91,25 @@ test("the item's history gives the plateau its own sentence and cause, in both l
   assert.equal(i18n.t('workItem:cause.flowPlateau'), 'sin mejora en dos rondas');
 });
 
-test('the Flow screen has the switch for stopping on a plateau, off unless the flow stops, and in both languages', async () => {
+test('the Flow screen has a three-value control for the plateau rule: observe by default, stop, off, in both languages', async () => {
   const editor = (flow: ProjectFlowSettings) => wrap(<FlowEditor project={project} team={team} flow={flow} proposal={null} switcher={null} activityHref="" />);
-  const off = editor(FLOW);
-  assert.match(off, /role="switch"[^>]*aria-checked="false"[^>]*aria-label="Stop if two rounds don&#x27;t improve"/);
-  assert.match(text(off), /the card waits for you instead of bouncing again/);
-  assert.match(editor({ ...FLOW, plateau: 'observe' }), /aria-checked="false"[^>]*aria-label="Stop if two rounds/);
-  assert.match(editor({ ...FLOW, plateau: 'stop' }), /aria-checked="true"[^>]*aria-label="Stop if two rounds/);
+  const control = (html: string, label: string) => {
+    const group = new RegExp(`role="radiogroup"[^>]*aria-label="${label}"(.*?)</div>`, 's').exec(html)?.[1] ?? '';
+    return /aria-checked="true"[^>]*>(?:<[^>]*>)*([^<]+)</.exec(group)?.[1];
+  };
+  assert.doesNotMatch(editor(FLOW), /role="switch"[^>]*aria-label="Two rounds without improvement"/, 'a switch has two positions and the rule three values');
+  assert.match(text(editor(FLOW)), /Observe only notes it in a comment/);
+  assert.equal(control(editor(FLOW), 'Two rounds without improvement'), 'Observe');
+  assert.equal(control(editor({ ...FLOW, plateau: 'observe' }), 'Two rounds without improvement'), 'Observe');
+  assert.equal(control(editor({ ...FLOW, plateau: 'stop' }), 'Two rounds without improvement'), 'Stop');
+  assert.equal(control(editor({ ...FLOW, plateau: 'off' }), 'Two rounds without improvement'), 'Off');
   await i18n.changeLanguage('es');
-  assert.match(editor({ ...FLOW, plateau: 'stop' }), /aria-checked="true"[^>]*aria-label="Parar si dos rondas no mejoran"/);
+  assert.equal(control(editor({ ...FLOW, plateau: 'stop' }), 'Dos rondas sin mejora'), 'Parar');
+  assert.equal(control(editor({ ...FLOW, plateau: 'off' }), 'Dos rondas sin mejora'), 'Desactivado');
 });
 
 test('turning the stop on is a change to save, and observe and an absent value are the same', () => {
   assert.equal(sameFlow(FLOW, { ...FLOW, plateau: 'observe' }), true);
   assert.equal(sameFlow(FLOW, { ...FLOW, plateau: 'stop' }), false);
+  assert.equal(sameFlow(FLOW, { ...FLOW, plateau: 'off' }), false, 'off is a change from observing');
 });

@@ -91,6 +91,7 @@
   },
   "cap": {
     "label": "Tope diario",
+    "percent": "{{value}} %",
     "figure": "{{spent}} de {{cap}}",
     "near": "cerca del tope",
     "reached": "tope alcanzado · vuelve a las {{time}}",

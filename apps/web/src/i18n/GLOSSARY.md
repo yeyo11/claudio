@@ -375,6 +375,12 @@ and the reasons below are the factors a person can read next to it.
 | English | Spanish |
 |---|---|
 | Daily spend cap | Tope de gasto diario |
+| Daily cap (the short form on a bar, a line or a card) | Tope diario |
+| Go on today anyway (the pass past the cap) | Seguir hoy de todos modos |
+| Risk (the word on a tag or a heading) | Riesgo; never *peligro* |
+| build (the step, the script, a pass of the compiler) | build, los builds; kept as developers in Spain say it, never *compilación* for the command `pnpm build` |
+| lint (the check and the tool) | lint, los lints; never *linter* for the check |
+| Observe / Stop / Off (the plateau rule's three values) | Observar / Parar / Desactivado |
 | Spend today | Gasto de hoy |
 | Risk (of a tool call) | Riesgo |
 | Irreversible | Irreversible |

@@ -28,7 +28,7 @@ export function SpendLineView({ state }: { state: SpendState }) {
       <span className="meter-track meter-thin usage-cap-meter" aria-hidden>
         <span className={`meter-fill ${view.tone === 'neutral' ? '' : `is-${view.tone}`}`.trim()} style={{ width: `${view.fill}%` }} />
       </span>
-      <span className="mono usage-cap-pct">{view.percent} %</span>
+      <span className="mono usage-cap-pct">{t('cap.percent', { value: view.percent })}</span>
       {word && <span className="usage-cap-word">{word}</span>}
       {view.overUsd > 0 && <span className="usage-cap-sub">{t('cap.over', { amount: formatCost(view.overUsd) })}</span>}
       {state.unreported > 0 && <span className="usage-cap-sub">{t('cap.unreported', { count: state.unreported })}</span>}

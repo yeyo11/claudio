@@ -274,9 +274,14 @@
     "costPhone": "Highest cost per run",
     "costHintPhone": "Empty, no limit. With a limit, the run that reaches it fails and says so on its item.",
     "bouncesHint": "how many times QA sends it back before it waits for you",
-    "plateauTitle": "Stop if two rounds don't improve",
-    "plateauHint": "When QA finds the same criteria unmet two rounds in a row, the card waits for you instead of bouncing again. Off, Claudio only notes it in a comment and bounces as usual.",
-    "plateauHintShort": "no better after two rounds: it waits for you",
+    "plateauTitle": "Two rounds without improvement",
+    "plateauHint": "When QA finds the same criteria unmet two rounds in a row: Observe only notes it in a comment and bounces as usual (the default), Stop makes the card wait for you instead of bouncing again, and Off does not look.",
+    "plateauHintShort": "no better after two rounds: observe, stop or off",
+    "plateauMode": {
+      "observe": "Observe",
+      "stop": "Stop",
+      "off": "Off"
+    },
     "seeRuns": "See runs",
     "limitsFoot": "With a cost limit, the run that reaches it stops, fails and says so on its item. The items sent back are in Activity, under the Sent back filter."
   },

@@ -69,6 +69,7 @@
     "account": "Cuenta en la que empiezan los chats nuevos",
     "spend": {
       "label": "tope diario",
+      "percent": "{{value}} %",
       "near": "cerca del tope",
       "reached": "tope alcanzado · vuelve a las {{time}}",
       "tipSpent": "{{spent}} de {{cap}} hoy, según el CLI",

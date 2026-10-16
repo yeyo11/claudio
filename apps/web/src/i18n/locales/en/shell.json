@@ -69,6 +69,7 @@
     "account": "Account new chats start on",
     "spend": {
       "label": "daily cap",
+      "percent": "{{value}} %",
       "near": "near the cap",
       "reached": "cap reached · back at {{time}}",
       "tipSpent": "{{spent}} of {{cap}} today, as the CLI reported it",

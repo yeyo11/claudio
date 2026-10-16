@@ -97,8 +97,9 @@ for (const [lang, more, readOnly] of [
 }
 
 test('only a member whose list of tools has none that writes is read-only', () => {
-  assert.equal(isReadOnlyMember({ tools: ['Read', 'Grep', 'Glob', 'Bash'] }), true);
-  assert.equal(isReadOnlyMember({ tools: ['Read', 'Bash(git diff:*)'] }), true);
+  assert.equal(isReadOnlyMember({ tools: ['Read', 'Grep', 'Glob'] }), true);
+  assert.equal(isReadOnlyMember({ tools: ['Read', 'Grep', 'Glob', 'Bash'] }), false, 'a shell can write files');
+  assert.equal(isReadOnlyMember({ tools: ['Read', 'Bash(git diff:*)'] }), false, 'a pattern on Bash does not make it read-only');
   assert.equal(isReadOnlyMember({ tools: ['Read', 'Write', 'Edit'] }), false);
   assert.equal(isReadOnlyMember({ tools: ['Read', 'Edit(src/**)'] }), false);
   assert.equal(isReadOnlyMember({ tools: [] }), false, 'an empty list is no list');
