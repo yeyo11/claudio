@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { GuardEventStore } from './guards/events.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_FLOW_MAX_PARALLEL,
@@ -2172,6 +2173,15 @@ export class FlowService {
     return (this.sql.prepare('SELECT * FROM flow_runs WHERE id = ?').get(runId) as RunRow | undefined) ?? null;
   }
 
+  /** Tool calls the guard blocked in a run, from the audit trail; 0 where there are none */
+  private guardBlocks(runId: string): number {
+    try {
+      return new GuardEventStore(this.sql).countByFlowRun([runId]).get(runId) ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
   private runOf(row: RunRow): FlowRun {
     const item = this.deps.items.find(row.item_id);
     const ref: WorkItemRef | null = item ? { id: item.id, key: item.key, title: item.title, type: item.type, status: item.status } : null;
@@ -2181,6 +2191,7 @@ export class FlowService {
     const next = failed ? this.nextRun(row) : null;
     const waiting = this.waitingOf(row);
     const checks = checksOf(row.checks);
+    const guardBlocks = this.guardBlocks(row.id);
     return {
       id: row.id,
       projectId: row.project_id,
@@ -2205,6 +2216,7 @@ export class FlowService {
       retryOf: row.retry_of ?? null,
       queuedBy: row.queued_by === 'person' ? 'person' : null,
       ...(checks.length ? { checks } : {}),
+      ...(guardBlocks ? { guardBlocks } : {}),
       retriedBy: next ? refOf(next) : null,
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,

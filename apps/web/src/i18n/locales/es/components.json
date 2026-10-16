@@ -382,5 +382,61 @@
     "send": "Enviar igualmente",
     "goOn": "Seguir hoy de todos modos",
     "declined": "No se ha iniciado nada: se alcanzó el tope de gasto diario."
+  },
+  "guards": {
+    "alwaysOn": "Siempre activa",
+    "row": {
+      "label": "Guardas",
+      "help": "Bloquean comandos peligrosos y escrituras de archivos en las ejecuciones de este grafo.",
+      "rules": "Reglas",
+      "off": "Los workers se ejecutarán sin guardas.",
+      "without": "Los workers se ejecutarán sin",
+      "workflowHint": "Los subagentes de un workflow pueden no pasar por la guarda, así que Claudio puede negarse a lanzarlo con las guardas activadas. Desactiva las guardas de este grafo para ejecutarlo igualmente."
+    },
+    "sheet": {
+      "title": "Reglas de la guarda",
+      "body": "Desactiva solo lo imprescindible. Lo que dejes como está sigue los Ajustes."
+    },
+    "rule": {
+      "integrity": {
+        "name": "Integridad",
+        "hint": "Protege la propia guarda."
+      },
+      "no-verify": {
+        "name": "Sin saltarse comprobaciones",
+        "hint": "Bloquea --no-verify y los ajustes que desactivan los hooks."
+      },
+      "push": {
+        "name": "Sin push",
+        "hint": "Bloquea cualquier escritura en un remoto."
+      },
+      "destructive": {
+        "name": "Sin comandos destructivos",
+        "hint": "Bloquea force push, reset --hard y rm -rf fuera del worktree."
+      },
+      "secrets": {
+        "name": "Sin secretos en archivos",
+        "hint": "Bloquea escribir un secreto en un archivo."
+      },
+      "protect-configs": {
+        "name": "Proteger configuraciones",
+        "hint": "Bloquea editar configuraciones existentes de lint, formato y CI."
+      }
+    },
+    "chip_one": "{{n}} bloqueo",
+    "chip_other": "{{n}} bloqueos",
+    "chipOpen": "Abrir el chat en el primer aviso de la guarda",
+    "tag": {
+      "armed": "Guardas",
+      "observe": "Observar",
+      "missing": "Guardas sin ejecutarse"
+    },
+    "popover": {
+      "title": "Guardas de este chat",
+      "armed": "Estas reglas comprueban cada llamada a una herramienta de este chat.",
+      "observe": "Modo observar: la guarda registra lo que bloquearía y no bloquea nada.",
+      "missing": "Una llamada a una herramienta pasó sin la guarda, así que el chat se ha interrumpido.",
+      "settings": "Ajustes de las guardas"
+    }
   }
 }

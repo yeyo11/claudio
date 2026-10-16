@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
 import { EffortPicker } from '../../components/EffortPicker';
+import { GuardRow } from '../../components/GuardControls';
 import { ModelPicker } from '../../components/ModelPicker';
 import { useEffortUnavailable } from '../../lib/provider-status';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -18,7 +19,7 @@ import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { columnMeta } from '../../lib/work-items';
 import { FlowWaitingPrompt, switchesFlowOn, waitingToAsk } from './FlowWaiting';
-import { FLOW_COLUMNS, MAX_BOUNCES, memberBody, sameFlow, setColumnRole, settledFlow } from './model';
+import { FLOW_COLUMNS, FLOW_GUARD_STAGES, MAX_BOUNCES, memberBody, sameFlow, setColumnRole, setStageGuards, settledFlow } from './model';
 import { PersonMark } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
@@ -294,6 +295,24 @@ export function FlowEditor({
     </span>
   );
 
+  // Per stage, the same row a graph's launch form has: a stage that sets nothing follows Settings
+  const guardsCard = (
+    <section className="card flow-guards" aria-labelledby="flow-guards-title">
+      <h2 id="flow-guards-title" className={phone ? 'sr-only' : undefined}>
+        {t('flow.guardsTitle')}
+      </h2>
+      {FLOW_GUARD_STAGES.map((stage) => (
+        <GuardRow
+          key={stage}
+          value={flow.guards?.[stage]}
+          onChange={(override) => edit(setStageGuards(flow, stage, override))}
+          label={t('flow.guardsStage', { stage: t(`step.${stage}.name`) })}
+          help={phone ? undefined : t('flow.guardsHint')}
+        />
+      ))}
+    </section>
+  );
+
   // Bounces, runs at once and the cost of a run: the flow's three limits in one card, as steppers and a field
   const limitsCard = (
     <section className="card flow-limits" aria-labelledby="flow-limits-title">
@@ -403,6 +422,8 @@ export function FlowEditor({
         {switcher}
         {autoCard}
         {rows}
+        <span className="section-label flow-limits-label">{t('flow.guardsTitle')}</span>
+        {guardsCard}
         <span className="section-label flow-limits-label">{t('flow.limitsTitle')}</span>
         {limitsCard}
         <div className="member-phone-foot">{actions}</div>
@@ -422,6 +443,7 @@ export function FlowEditor({
         <div className="team-main">
           {autoCard}
           {rows}
+          {guardsCard}
         </div>
         <div className="team-side">
           {limitsCard}

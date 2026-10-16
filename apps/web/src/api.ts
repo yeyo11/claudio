@@ -797,6 +797,8 @@ export const api = {
   /** Lets a flow card's queued run start past today's cap */
   grantItemSpendPass: (itemId: string) => request<FlowSpendPass>(`/work-items/${enc(itemId)}/spend-pass`, { method: 'POST' }),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  guardSettings: (o: ReadOptions = {}) => request<GuardSettingsView>('/settings/guards', o),
+  updateGuardSettings: (body: UpdateGuardSettingsRequest) => request<GuardSettingsView>('/settings/guards', { method: 'PUT', body }),
   /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
   dashboardLayout: (project: string, o: ReadOptions = {}) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, o),
   saveDashboardLayout: (project: string, body: SaveDashboardLayoutRequest) =>
@@ -806,8 +808,6 @@ export const api = {
   updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
   startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
   stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
-  guardSettings: (o: ReadOptions = {}) => request<GuardSettingsView>('/settings/guards', o),
-  updateGuardSettings: (body: UpdateGuardSettingsRequest) => request<GuardSettingsView>('/settings/guards', { method: 'PUT', body }),
   guardEvents: (page: { limit?: number; before?: number } = {}, o: ReadOptions = {}) =>
     request<GuardEventPage>(`/guard-events${qs({ limit: num(page.limit), before: num(page.before) })}`, o),
   checkGuard: (body: GuardCheckRequest) => request<GuardCheckResult>('/guards/check', { method: 'POST', body }),

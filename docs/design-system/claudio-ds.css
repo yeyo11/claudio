@@ -2458,3 +2458,17 @@ a.cont-from:hover { color: var(--fg); }
 .guard-event { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 0; min-width: 0; font-variant-numeric: tabular-nums; }
 .guard-event + .guard-event { border-top: 1px solid var(--line); }
 /* ---------- end of Guards: the Settings card ---------- */
+
+/* ---------- Guards: the row, the rules sheet, the header tag and the "N blocked" chip (plans/guards.md) ---------- */
+.guard-row { display: flex; flex-direction: column; gap: 6px; }
+.guard-row-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
+.guard-rules { display: flex; flex-direction: column; gap: 4px; }
+.guard-rule { display: flex; align-items: flex-start; gap: 12px; min-height: var(--touch); padding: 8px 0; border-bottom: 1px solid var(--line); }
+.guard-rule:last-child { border-bottom: 0; }
+.guard-rule-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.guard-rule-id, .guard-always { font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
+.guard-rule.is-locked > svg { color: var(--fg-2); }
+.guard-tag { cursor: pointer; }
+.chip.guard { border-color: transparent; background: var(--warn-soft); color: var(--fg); font-variant-numeric: tabular-nums; text-decoration: none; }
+.chip.guard > svg { color: var(--warn); }
+.chip.guard:hover { border-color: var(--warn); }

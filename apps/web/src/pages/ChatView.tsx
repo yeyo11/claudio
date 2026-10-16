@@ -19,6 +19,7 @@ import { LiveBranches } from '@claudio/chat-ui/components/LiveBranches';
 import type { Branch } from '@claudio/chat-ui/lib/chat-branches';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@claudio/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
+import { GUARD_NOTICE_TEXT } from '../lib/guards';
 import '../components/changes/steps/at-jump.css';
 import { Empty, ErrorBox, PageHeader, Skeleton, usePageTitle } from '@claudio/ui/components/ui';
 import { api, ApiRequestError, keys, useProjects } from '../api';
@@ -178,6 +179,26 @@ export function ChatView() {
     setSidechains(false);
     setJump({ index: at });
   }, [loaded, atParam, setSearch]);
+
+  // `?guard=1` (a task's "N blocked" chip): the first guard notice, found the way a search finds
+  // it, so it is reached even when it is on a page the view has not read yet
+  const guardParam = search.get('guard');
+  useEffect(() => {
+    if (!loaded || guardParam === null) return;
+    const now = new URLSearchParams(window.location.search);
+    now.delete('guard');
+    setSearch(now, { replace: true });
+    // Not cancelled by the effect's cleanup: dropping the param above re-runs it before the answer is here
+    void api
+      .searchChat(id, false, GUARD_NOTICE_TEXT)
+      .then((found) => {
+        const first = found.hits[0];
+        if (!first) return;
+        setSidechains(false);
+        setJump({ index: first.index });
+      })
+      .catch(() => undefined);
+  }, [loaded, guardParam, id, setSearch]);
 
   // Reached the way a search hit is, reading back to its page when needed; a hit wins over the link
   const focus = useFindFocus(find.target ?? jump, transcript.items, transcript.from, transcript.reach);

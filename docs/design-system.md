@@ -1832,6 +1832,26 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
 - **Copy.** "Terminal" is feminine in Spanish ("la terminal"); buttons in the infinitive ("Nueva terminal",
   "Cerrar terminal"); sentence case.
 
+### Guards: the row, the rules sheet, the header tag and the "N blocked" chip
+
+Built for [guards](plans/guards.md). A block is not a live state, so nothing here moves; warn and
+bad always sit beside a word and the shield icon.
+
+- **`.guard-row`** is a graph's or a flow stage's row: a `Switch` with a visible label, a "Rules"
+  button, a `.field-hint` and, when the guard or a rule that is on in Settings is off for this
+  graph, a `.alert.alert-warn` line ("Workers will run without …", the rule ids in mono). It edits an
+  override of the global settings, so what is left alone follows Settings.
+- **`.guard-rules`** is the rules `Sheet` (a bottom sheet on a phone): one **`.guard-rule`** per
+  rule with a `Switch`, the name, a one-line description and the id in mono. The **locked rule**
+  (`.guard-rule.is-locked`, `integrity`) has a lock icon and the word "Always on"
+  (**`.guard-always`**) instead of a Switch.
+- **`.guard-tag`** is the chat header's `.badge`, a button: neutral "Guards" when armed, warn
+  "Observe", bad "Guards not running". A press opens a `Sheet` with **`.guard-rules-list`**.
+- **`.chip.guard`** is the warn chip of a task or a flow run, "N blocked" in tabular figures, a link
+  to the chat at its first guard notice. It shows only when the count is above 0. Warn fill
+  (`--warn-soft`), text in `--fg`, the shield in `--warn`.
+- **`notice.is-guard`** is the transcript strip, warn; `.is-bad` when the guard did not run.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
