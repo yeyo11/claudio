@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { systemTempDirs } from './temp-dirs.ts';
@@ -151,6 +150,7 @@ import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
+import { agentsFileFor } from './agents-file.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
@@ -2288,21 +2288,13 @@ export class Core {
     const prompt = content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
     const tools = readFrontmatterList(content, 'tools');
     const disallowedTools = readFrontmatterList(content, 'disallowedTools');
-    const definition = {
-      [agent]: {
-        description: fields.description || agent,
-        prompt: prompt || fields.description || agent,
-        model: member.model,
-        ...(tools?.length ? { tools } : {}),
-        ...(disallowedTools?.length ? { disallowedTools } : {}),
-      },
-    };
-    const body = `${JSON.stringify(definition, null, 2)}\n`;
-    const dir = join(this.config.dataDir, 'flow-agents');
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
-    await writeFile(file, body, { mode: 0o600 });
-    return file;
+    return agentsFileFor(this.config.dataDir, agent, {
+      description: fields.description || agent,
+      prompt: prompt || fields.description || agent,
+      model: member.model,
+      ...(tools?.length ? { tools } : {}),
+      ...(disallowedTools?.length ? { disallowedTools } : {}),
+    });
   }
 
   // ---------- work items ----------
