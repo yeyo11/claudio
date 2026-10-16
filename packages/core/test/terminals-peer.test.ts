@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 import test from 'node:test';
 import { processTable } from '../src/processes.ts';
@@ -113,4 +114,30 @@ test('IPv6 loopback and a v4-mapped peer are found in the right table', linux, a
 test('a peer that cannot be found is unknown, never "not an agent"', linux, () => {
   assert.equal(new PeerCheck().check({ address: '127.0.0.1', port: 1, serverPort: 2 }), 'unknown');
   assert.equal(new PeerCheck().check({ address: '::1', port: 1, serverPort: 2 }), 'unknown');
+});
+
+test('a chat process that ended and waits to be reaped does not make the answer unknown', linux, async () => {
+  const { port, next } = await listen('127.0.0.1');
+  client(port, '127.0.0.1', {});
+  const socket = await next();
+  assert.ok(socket.remotePort && socket.remoteAddress);
+  await new Promise((done) => setTimeout(done, 100));
+  const dead = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+  // Without yielding to the event loop nothing reaps the child, so it stays a zombie, whose
+  // descriptor directory the kernel refuses to list
+  const state = (): string => {
+    try {
+      return readFileSync(`/proc/${String(dead.pid)}/stat`, 'utf8').split(') ')[1]?.[0] ?? '';
+    } catch {
+      return '';
+    }
+  };
+  for (const end = Date.now() + 5000; state() !== 'Z' && Date.now() < end; ) {
+    // busy wait
+  }
+  assert.equal(state(), 'Z');
+  const check = new PeerCheck({ table: processTable, chatPids: () => [dead.pid as number] });
+  const found = check.check({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  socket.destroy();
+  assert.equal(found, 'not-agent');
 });
