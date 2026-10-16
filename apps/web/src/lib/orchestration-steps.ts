@@ -152,6 +152,17 @@ function integrationState(orch: Orchestration): StepState {
   return orch.tasks.some((t) => t.status === 'completed' && t.branch) ? 'pending' : 'skipped';
 }
 
+/**
+ * Where the review gate is while it works: the round, how many the gate may take at most, and how
+ * many of the round's runs have finished. The review is inside the verification step (D2), so this
+ * feeds that step's meta and its bar and never makes a step of its own. Null when it is not running.
+ */
+export function reviewProgress(orch: Pick<Orchestration, 'verification'>): { round: number; rounds: number; done: number; total: number } | null {
+  const gate = orch.verification?.review;
+  if (!gate || gate.status !== 'running') return null;
+  return { round: Math.max(gate.round, 1), rounds: gate.maxFixRounds + 1, done: gate.runs.done, total: gate.runs.total };
+}
+
 function verificationState(orch: Orchestration): StepState {
   const status = orch.verification?.status;
   if (status === 'running') return 'current';

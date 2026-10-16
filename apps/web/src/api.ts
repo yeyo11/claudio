@@ -185,6 +185,10 @@ import type {
   RegisterPushSubscriptionRequest,
   RejectMemoryProposalRequest,
   RelaunchOrchestrationRequest,
+  ReviewGateDetail,
+  ReviewRoleInfo,
+  AcceptReviewRequest,
+  VerifyOrchestrationRequest,
   RemovePushSubscriptionRequest,
   ResourceKind,
   ResumeChatRequest,
@@ -676,6 +680,23 @@ export const api = {
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
   chatExecutions: (id: string) => request<ChatDetail>(`/chats/${enc(id)}?limit=1`).then((detail) => detail.chat.executions),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
+  verifyOrchestration: (id: string, req: VerifyOrchestrationRequest = {}) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/verify`, { method: 'POST', body: req }),
+  orchestrationReview: (id: string, q: { round?: number; blocking?: boolean; limit?: number; offset?: number } = {}, o?: ReadOptions) => {
+    const params = new URLSearchParams();
+    if (q.round !== undefined) params.set('round', String(q.round));
+    if (q.blocking) params.set('blocking', '1');
+    if (q.limit !== undefined) params.set('limit', String(q.limit));
+    if (q.offset !== undefined) params.set('offset', String(q.offset));
+    const qs = params.toString();
+    return request<ReviewGateDetail>(`/orchestrations/${enc(id)}/review${qs ? `?${qs}` : ''}`, o);
+  },
+  retryOrchestrationReview: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/review/retry`, { method: 'POST' }),
+  acceptOrchestrationReview: (id: string, req: AcceptReviewRequest) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/review/accept`, { method: 'POST', body: req }),
+  reviewRoles: (projectId: string, o?: ReadOptions) => request<ReviewRoleInfo[]>(`/projects/${enc(projectId)}/review-roles`, o),
+  createReviewRole: (projectId: string, role: ReviewRoleInfo['role']) =>
+    request<ReviewRoleInfo>(`/projects/${enc(projectId)}/review-roles/${enc(role)}`, { method: 'POST' }),
   integrateOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/integrate`, { method: 'POST' }),
   orchestrationWorkflow: (id: string) => request<{ path: string; script: string }>(`/orchestrations/${enc(id)}/workflow`),
   saveOrchestrationWorkflow: (id: string, req: SaveOrchestrationWorkflowRequest) =>
@@ -1187,6 +1208,7 @@ export const keys = {
   changeRequest: (id: string) => ['change-request', id] as const,
   changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
   // The review's reads sit under the request too: `change-request.review` refreshes them all
+  orchestrationReview: (id: string) => ['orchestration', id, 'review'] as const,
   changeRequestThreads: (id: string) => ['change-request', id, 'threads'] as const,
   reviewDrafts: (id: string) => ['change-request', id, 'review-drafts'] as const,
   reviewPosts: (id: string) => ['change-request', id, 'review-posts'] as const,

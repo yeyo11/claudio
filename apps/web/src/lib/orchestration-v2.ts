@@ -1,4 +1,4 @@
-import type { Effort, Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@claudio/shared';
+import type { Effort, Orchestration, OrchestrationPullRequest, OrchestrationTaskState, ReviewGateSpec, ReviewGateState, VerificationSpec } from '@claudio/shared';
 
 // The spec a graph is read back as, and the rules for starting one over, are the server's too: they
 // live in @claudio/shared so a schedule filled here starts what a relaunch there would.
@@ -54,6 +54,83 @@ export function commandsText(commands: ReadonlyArray<string | readonly string[]>
  */
 export type InstallMode = 'detected' | 'command' | 'none';
 
+/** What the launch form holds for the review gate (docs/plans/review-gate.md), before it is a spec. */
+export interface ReviewDraft {
+  enabled: boolean;
+  /** `correctness` always runs, so it has no switch */
+  tests: boolean;
+  conventions: boolean;
+  security: 'auto' | 'always' | 'off';
+  depth: 'light' | 'full';
+  fixer: boolean;
+  maxFixRounds: number;
+  maxCostUsd: number;
+  maxRunCostUsd: number;
+  reviewerModel: string;
+  verifierModel: string;
+  /** One glob per line */
+  exclude: string;
+}
+
+/** The spec's own defaults, so a draft left alone writes no key */
+export const EMPTY_REVIEW: ReviewDraft = {
+  enabled: false,
+  tests: true,
+  conventions: true,
+  security: 'auto',
+  depth: 'full',
+  fixer: true,
+  maxFixRounds: 2,
+  maxCostUsd: 5,
+  maxRunCostUsd: 1,
+  reviewerModel: '',
+  verifierModel: '',
+  exclude: '',
+};
+
+/** The review spec of a draft: off is no spec, and only what differs from the defaults is written. */
+export function reviewOf(draft: ReviewDraft): ReviewGateSpec | undefined {
+  if (!draft.enabled) return undefined;
+  const d = EMPTY_REVIEW;
+  const reviewer = draft.reviewerModel.trim();
+  const verifier = draft.verifierModel.trim();
+  const exclude = draft.exclude.split('\n').map((line) => line.trim()).filter(Boolean);
+  const dimensions: NonNullable<ReviewGateSpec['dimensions']> = {
+    ...(draft.tests !== d.tests ? { tests: draft.tests } : {}),
+    ...(draft.security !== d.security ? { security: draft.security } : {}),
+    ...(draft.conventions !== d.conventions ? { conventions: draft.conventions } : {}),
+  };
+  return {
+    ...(Object.keys(dimensions).length > 0 ? { dimensions } : {}),
+    ...(draft.depth !== d.depth ? { depth: draft.depth } : {}),
+    ...(draft.fixer !== d.fixer ? { fixer: draft.fixer } : {}),
+    ...(draft.maxFixRounds !== d.maxFixRounds ? { maxFixRounds: draft.maxFixRounds } : {}),
+    ...(draft.maxCostUsd !== d.maxCostUsd && draft.maxCostUsd > 0 ? { maxCostUsd: draft.maxCostUsd } : {}),
+    ...(draft.maxRunCostUsd !== d.maxRunCostUsd && draft.maxRunCostUsd > 0 ? { maxRunCostUsd: draft.maxRunCostUsd } : {}),
+    ...(reviewer || verifier ? { models: { ...(reviewer ? { reviewer } : {}), ...(verifier ? { verifier } : {}) } } : {}),
+    ...(exclude.length > 0 ? { exclude } : {}),
+  };
+}
+
+export function draftOfReview(spec: ReviewGateSpec | undefined): ReviewDraft {
+  if (!spec) return EMPTY_REVIEW;
+  const d = EMPTY_REVIEW;
+  return {
+    enabled: true,
+    tests: spec.dimensions?.tests ?? d.tests,
+    conventions: spec.dimensions?.conventions ?? d.conventions,
+    security: spec.dimensions?.security ?? d.security,
+    depth: spec.depth ?? d.depth,
+    fixer: spec.fixer ?? d.fixer,
+    maxFixRounds: spec.maxFixRounds ?? d.maxFixRounds,
+    maxCostUsd: spec.maxCostUsd ?? d.maxCostUsd,
+    maxRunCostUsd: spec.maxRunCostUsd ?? d.maxRunCostUsd,
+    reviewerModel: spec.models?.reviewer ?? '',
+    verifierModel: spec.models?.verifier ?? '',
+    exclude: (spec.exclude ?? []).join('\n'),
+  };
+}
+
 /** What the launch form holds for the verification phase, before it is a spec. */
 export interface VerificationDraft {
   enabled: boolean;
@@ -70,6 +147,8 @@ export interface VerificationDraft {
   failGraph: boolean;
   /** The browser specs the changes touch, run by a task of the graph before the merge (on unless turned off) */
   e2eSpecs: boolean;
+  /** The review of the merged branch, after the checks pass */
+  review: ReviewDraft;
 }
 
 export const EMPTY_VERIFICATION: VerificationDraft = {
@@ -82,12 +161,17 @@ export const EMPTY_VERIFICATION: VerificationDraft = {
   installCommand: '',
   failGraph: false,
   e2eSpecs: true,
+  review: EMPTY_REVIEW,
 };
 
-/** A draft with no command is no verification: checks of nothing would only add a phase that always passes. */
+/**
+ * A draft with no command is no verification: checks of nothing would only add a phase that always
+ * passes. With the review on, the commands may be empty: a repository with no checks can still be reviewed.
+ */
 export function verificationOf(draft: VerificationDraft): VerificationSpec | undefined {
   const commands = parseCommands(draft.commands);
-  if (!draft.enabled || commands.length === 0) return undefined;
+  const review = reviewOf(draft.review);
+  if (!draft.enabled || (commands.length === 0 && !review)) return undefined;
   const installCommand = draft.installCommand.trim();
   return {
     commands,
@@ -101,6 +185,7 @@ export function verificationOf(draft: VerificationDraft): VerificationSpec | und
     ...(draft.install === 'none' ? { install: null } : draft.install === 'command' && installCommand ? { install: installCommand } : {}),
     ...(draft.failGraph ? { failGraph: true } : {}),
     ...(draft.e2eSpecs ? {} : { e2eSpecs: false }),
+    ...(review ? { review } : {}),
   };
 }
 
@@ -118,12 +203,22 @@ export function draftOfVerification(spec: VerificationSpec | undefined): Verific
     installCommand: typeof spec.install === 'string' ? spec.install : '',
     failGraph: spec.failGraph ?? false,
     e2eSpecs: spec.e2eSpecs !== false,
+    review: draftOfReview(spec.review),
   };
 }
 
 /** The server refuses a pull request for a graph its own failed checks failed, so none is offered. */
 export function pullRequestHeld(orch: Pick<Orchestration, 'verificationSpec' | 'verification'>): boolean {
+  if (reviewHolds(orch.verification?.review)) return true;
   return orch.verificationSpec?.failGraph === true && orch.verification?.status === 'failed';
+}
+
+/**
+ * The review gate holds the pull request whatever `failGraph` says (D7): until it has passed or a
+ * person accepted it. A graph with no review has no gate.
+ */
+export function reviewHolds(gate: ReviewGateState | null | undefined): boolean {
+  return !!gate && gate.status !== 'passed' && gate.status !== 'accepted' && gate.status !== 'skipped';
 }
 
 type WithRow = Pick<OrchestrationPullRequest, 'id' | 'phase'> & { id: string };

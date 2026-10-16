@@ -77,7 +77,8 @@
     "failedGraphBody": "Every task finished, but the checks on the merged branch failed and the graph was launched to fail when they do. The verification card below says what failed; checks that pass on a later run bring the graph back.",
     "pullRequestHeld": "No pull request is offered: the checks failed and this graph was launched to fail when they do.",
     "e2eSpecs": "Run the browser specs the changes touch before the merge",
-    "e2eSpecsHint": "A task added to the end of the graph runs only the browser specs that the other tasks' work touches, each alone on a port of its own, and fixes a spec the work left stale. Workers themselves run none."
+    "e2eSpecsHint": "A task added to the end of the graph runs only the browser specs that the other tasks' work touches, each alone on a port of its own, and fixes a spec the work left stale. Workers themselves run none.",
+    "summaryReview": "The checks passed, but the review of the merged branch did not. Read its findings before opening a pull request."
   },
   "templates": {
     "none": "No templates yet",
@@ -259,5 +260,160 @@
     "noRuns": "Its runs were not recorded.",
     "missing": "Older graph: some phases were not recorded.",
     "error": "The figures could not be read."
+  },
+  "review": {
+    "enable": "Review the merged branch before it can pass",
+    "enableHint": "Reviewers read the integration branch after the checks pass. A blocking finding goes to a fixer, and a review that does not pass holds the pull request.",
+    "dimensions": "What reviewers look for",
+    "always": "always",
+    "dimension": {
+      "correctness": "correctness",
+      "tests": "tests",
+      "security": "security",
+      "conventions": "conventions"
+    },
+    "security": "Security review",
+    "securityMode": {
+      "auto": "Auto",
+      "always": "Always",
+      "off": "Off"
+    },
+    "securityHint": {
+      "auto": "Runs when the diff touches code that handles secrets, auth or input.",
+      "always": "Runs on every diff.",
+      "off": "Never runs. A committed secret is still blocked by Claudio's own scan."
+    },
+    "depth": "Depth",
+    "depthFull": "Full",
+    "depthLight": "Light",
+    "depthHint": {
+      "full": "Every dimension you ticked, in chunks of a normal size.",
+      "light": "Correctness, and security when it triggers, in chunks twice as large. Cheaper, less thorough."
+    },
+    "fixer": "Launch an agent to fix blocking findings",
+    "fixRounds": "Fix rounds",
+    "fixRoundsHint": "The gate reviews at most this many times plus one",
+    "maxCost": "Review budget (USD)",
+    "maxCostHint": "Over every reviewer, verifier and fixer of the gate. A diff estimated above it stops before spending.",
+    "maxRunCost": "Budget per run (USD)",
+    "maxRunCostHint": "The ceiling of one reviewer or verifier",
+    "reviewerModel": "Reviewer model",
+    "verifierModel": "Verifier model",
+    "modelDefault": "{{model}} by default",
+    "exclude": "Extra exclusions",
+    "excludeHint": "One glob per line, added to the built-in ones. Excluded files are never reviewed and never block.",
+    "excludePlaceholder": "docs/generated/**",
+    "cost": "A review costs money on every graph. Reviewers run on your account, and a blocked review holds the pull request until a person accepts it.",
+    "title": "Review",
+    "status": {
+      "pending": "pending",
+      "running": "reviewing",
+      "passed": "passed",
+      "blocked": "blocked",
+      "incomplete": "incomplete",
+      "accepted": "accepted",
+      "skipped": "skipped"
+    },
+    "phase": {
+      "preparing": "Preparing",
+      "reviewing": "Reviewing",
+      "verifying": "Verifying findings",
+      "fixing": "Fixing",
+      "rechecking": "Re-running the checks"
+    },
+    "facts": "round {{round}} of {{max}}",
+    "costOf": "{{cost}} of {{limit}}",
+    "waiting": "Waiting for a usage limit to reset at",
+    "runsUnit": "review runs",
+    "runsOf": "{{done}} of {{total}} runs",
+    "runState": {
+      "pending": "queued",
+      "running": "running",
+      "waiting": "waiting",
+      "done": "done",
+      "invalid": "invalid answer",
+      "budget": "over budget",
+      "failed": "failed",
+      "timed-out": "timed out",
+      "cancelled": "cancelled",
+      "interrupted": "interrupted",
+      "incomplete-coverage": "partial"
+    },
+    "kind": {
+      "reviewer": "reviewer",
+      "verifier": "verifier",
+      "fixer": "fixer"
+    },
+    "runChat": "Open the chat of the {{name}} run",
+    "noFindings": "No findings",
+    "pendingNote": "The review starts once the checks have passed.",
+    "group": {
+      "blocking": "Blocking",
+      "advisory": "Advisory",
+      "refuted": "Refuted",
+      "outside": "Outside the diff",
+      "skipped": "Not reviewed"
+    },
+    "skipReason": {
+      "excluded": "excluded",
+      "binary": "binary file",
+      "submodule": "submodule",
+      "renamed": "renamed, not changed",
+      "not-reviewable": "too large or over the budget"
+    },
+    "moreFindings": "Showing {{shown}} of {{total}} findings.",
+    "retry": "Retry the review",
+    "retryFailed": "Could not retry the review",
+    "acceptAnyway": "Accept anyway",
+    "acceptAfterRetry": "A review that could not finish can be accepted only after a retry that also ends incomplete.",
+    "verifyAgain": "Verify again",
+    "verifyFailed": "Could not verify again",
+    "holdsPullRequest": "A review that has not passed holds the pull request.",
+    "meta": "Review · round {{round}} of {{rounds}} · {{done}} of {{total}} reviewers",
+    "reason": {
+      "accepted": "Accepted by {{by}}, who wrote:"
+    },
+    "accept": {
+      "title": "Accept the review",
+      "warning": "Verification will pass without the review. This is recorded with your name, and a new commit voids it.",
+      "reason": "Why it is safe to go on",
+      "placeholder": "What you checked, or why the findings do not matter here",
+      "required": "Write a reason to accept.",
+      "cancel": "Cancel",
+      "confirm": "Accept without the review",
+      "failed": "Could not accept the review"
+    },
+    "severity": {
+      "critical": "critical",
+      "high": "high",
+      "medium": "medium",
+      "low": "low"
+    },
+    "verdict": {
+      "not-asked": "not verified",
+      "confirmed": "confirmed",
+      "refuted": "refuted",
+      "uncertain": "uncertain",
+      "unverified": "unverified",
+      "deterministic": "Claudio's check"
+    },
+    "finding": {
+      "label": "Review finding on {{where}}",
+      "noPlace": "the diff",
+      "claudio": "Claudio's check",
+      "failure": "What fails",
+      "evidence": "Evidence",
+      "suggestion": "Suggestion",
+      "verifier": "Verifier",
+      "show": "Show",
+      "hide": "Hide",
+      "foldOutdated_one": "{{count}} outdated finding · from an earlier commit",
+      "foldOutdated_other": "{{count}} outdated findings · from an earlier commit",
+      "chip_one": "{{count}} finding",
+      "chip_other": "{{count}} findings",
+      "chipTitle": "Findings of the review on this file",
+      "pill_one": "{{count}} finding",
+      "pill_other": "{{count}} findings"
+    }
   }
 }
