@@ -846,8 +846,11 @@
       },
       "cause": {
         "type": "string",
-        "const": "rate-limit",
-        "description": "`rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution recorded before it was kept. The error's wording is never read for it."
+        "enum": [
+          "rate-limit",
+          "auth"
+        ],
+        "description": "`rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution recorded before it was kept. The error's wording is never read for it. `auth` when it died on its account's sign-in (a result with a 401): the account is marked signed out, which is what the rotation passes over, so it does not count among the accounts a limit passed over."
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -6849,7 +6852,8 @@
       "threshold",
       "person",
       "disabled",
-      "signed-out"
+      "signed-out",
+      "auth"
     ],
     "description": "Why the chosen account changed."
   },
@@ -22825,6 +22829,14 @@
         "type": "boolean",
         "description": "`claude auth status` says it is logged in"
       },
+      "signInState": {
+        "$ref": "#/components/schemas/AccountSignInState",
+        "description": "Whether the sign-in can be relied on: `expired` after a run on it failed to authenticate, `incomplete` when its credentials file has no refresh token (a broken copy), `ok` when neither is so and the account is signed in, `unknown` when nothing says either way. Anything but `ok` or `unknown` makes `signedIn` false."
+      },
+      "authFailedAt": {
+        "type": "string",
+        "description": "ISO time a run on it failed because the CLI could not authenticate; cleared when the account signs in again. Absent while it can authenticate"
+      },
       "limits": {
         "anyOf": [
           {
@@ -22846,6 +22858,7 @@
       "plan",
       "enabled",
       "signedIn",
+      "signInState",
       "limits"
     ],
     "description": "One Claude account: a config directory of its own, chosen per process."
@@ -22858,6 +22871,16 @@
       "api-key"
     ],
     "description": "How an account signs in: `login` is `claude auth login` in the account's own config dir (it has an email, an organization and a plan); `token` is a `claude setup-token` and `api-key` an API key, which have no identity of their own, so they need an alias."
+  },
+  "AccountSignInState": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "expired",
+      "incomplete",
+      "unknown"
+    ],
+    "description": "How far an account's sign-in can be trusted."
   },
   "AccountLimit": {
     "type": "object",

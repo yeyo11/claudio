@@ -11,7 +11,8 @@ import type { ChatSummary, ProviderMove, ProviderStatus } from '@claudio/shared'
 import { buildApp } from '../src/app.ts';
 
 // What happens at a usage limit, over HTTP: a chat on the fake Claude that dies against its limit
-// (`FAKE-LIMIT-ONCE`) and the routes a person's click calls: a wait, and cancelling it.
+// (`FAKE-LIMIT-REPORTED-ONCE`: the CLI's rejected report, then its 429; the 429 alone records no
+// limit) and the routes a person's click calls: a wait, and cancelling it.
 const FIXTURES = fileURLToPath(new URL('../../../packages/core/test/fixtures/', import.meta.url));
 const FAKE_CLAUDE = `${FIXTURES}fake-claude.mjs`;
 
@@ -31,9 +32,9 @@ async function until(what: string, ready: () => boolean): Promise<void> {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-/** A chat whose first turn dies against the provider's usage limit. */
+/** A chat whose first turn dies against the provider's usage limit, reported as the CLI reports it. */
 async function chatAtLimit(): Promise<string> {
-  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'FAKE-LIMIT-ONCE', cwd: repo }) });
+  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'FAKE-LIMIT-REPORTED-ONCE', cwd: repo }) });
   assert.equal(res.statusCode, 201, res.body);
   const { id } = res.json<ChatSummary>();
   await until('the chat to reach its limit', () => core.runtime.atLimit(id));

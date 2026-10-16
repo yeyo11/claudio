@@ -552,9 +552,11 @@ export interface Execution {
   /**
    * `rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a
    * rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution
-   * recorded before it was kept. The error's wording is never read for it.
+   * recorded before it was kept. The error's wording is never read for it. `auth` when it died on
+   * its account's sign-in (a result with a 401): the account is marked signed out, which is what the
+   * rotation passes over, so it does not count among the accounts a limit passed over.
    */
-  cause?: 'rate-limit';
+  cause?: 'rate-limit' | 'auth';
   permissionMode: PermissionMode;
   model: string | null;
   /** Id of the {@link Account} its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login */
@@ -4863,6 +4865,18 @@ export interface Account {
   enabled: boolean;
   /** `claude auth status` says it is logged in */
   signedIn: boolean;
+  /**
+   * Whether the sign-in can be relied on: `expired` after a run on it failed to authenticate,
+   * `incomplete` when its credentials file has no refresh token (a broken copy), `ok` when neither
+   * is so and the account is signed in, `unknown` when nothing says either way. Anything but `ok`
+   * or `unknown` makes `signedIn` false.
+   */
+  signInState: AccountSignInState;
+  /**
+   * ISO time a run on it failed because the CLI could not authenticate; cleared when the account
+   * signs in again. Absent while it can authenticate
+   */
+  authFailedAt?: string;
   /** Null until something was read */
   limits: AccountLimit | null;
 }
@@ -4883,8 +4897,11 @@ export interface AccountsSettings {
   strategy: AccountStrategy;
 }
 
+/** How far an account's sign-in can be trusted. */
+export type AccountSignInState = 'ok' | 'expired' | 'incomplete' | 'unknown';
+
 /** Why the chosen account changed. */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth';
 
 /**
  * Which accounts the chats of some projects may use, in what order, and when to move on. A project

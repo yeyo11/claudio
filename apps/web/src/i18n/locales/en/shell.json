@@ -85,7 +85,10 @@
     "limitUnknown": "Limit not known",
     "limitNone": "Does not report its limit",
     "ready": "Ready",
-    "ofTotal": "{{ready}} of {{total}} ready"
+    "ofTotal": "{{ready}} of {{total}} ready",
+    "signInExpired": "{{name}}: sign-in expired",
+    "signInIncomplete": "{{name}}: sign-in incomplete",
+    "signInAgain": "Sign in again"
   },
   "notFound": {
     "body": "The address may be mistyped, or the page is no longer there.",

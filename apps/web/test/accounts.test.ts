@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Account, AccountLimit } from '@claudio/shared';
-import { accountName, accountUsable, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
+import { accountName, accountUsable, canSignInAgain, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
 
 const limit = (state: AccountLimit['state'], utilization: number | null): AccountLimit => ({
   state,
@@ -22,6 +22,7 @@ const account = (id: string, over: Partial<Account> = {}): Account => ({
   plan: null,
   enabled: true,
   signedIn: true,
+  signInState: 'ok',
   limits: null,
   ...over,
 });
@@ -46,4 +47,20 @@ test('usable accounts come first and exhausted ones last, keeping the server ord
 
 test('windows are drawn five hours first, then seven days', () => {
   assert.deepEqual(windowRows(limit('ok', 0.5)).map((w) => [w.key, w.pct]), [['five_hour', 50], ['seven_day', 20]]);
+});
+
+test('an expired or incomplete sign-in is a problem to sign in again, and takes the account out of use', () => {
+  const expired = account('a', { signedIn: false, signInState: 'expired' });
+  const incomplete = account('b', { signedIn: false, signInState: 'incomplete' });
+  assert.equal(signInProblem(expired), 'expired');
+  assert.equal(signInProblem(incomplete), 'incomplete');
+  assert.equal(signInProblem(account('c')), null);
+  assert.equal(signInProblem(account('d', { signInState: 'unknown' })), null);
+  assert.equal(accountUsable(expired), false);
+  assert.deepEqual(sortAccounts([expired, account('e')]).map((a) => a.id), ['e', 'a']);
+});
+
+test('only a login account can sign in again', () => {
+  assert.equal(canSignInAgain(account('a')), true);
+  assert.equal(canSignInAgain(account('b', { kind: 'token' })), false);
 });

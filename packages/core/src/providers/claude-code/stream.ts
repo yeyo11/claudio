@@ -268,6 +268,8 @@ export class ClaudeStream {
         budget: subtype === BUDGET_SUBTYPE,
         // The status code, not the text: an error result quoting "usage limit" may be the work's own failure
         rateLimited: isError && raw.api_error_status === 429,
+        // Likewise the 401 of an expired or unrefreshable OAuth session: never the wording of the result
+        ...(isError && raw.api_error_status === 401 ? { authFailed: true } : {}),
         run: {
           kind: 'result',
           text,

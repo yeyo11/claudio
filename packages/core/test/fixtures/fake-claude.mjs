@@ -13,6 +13,8 @@
 //   FAKE-BUDGET                   ends the turn as the CLI does when --max-budget-usd ran out
 //   FAKE-LIMIT-ONCE               the session's first turn dies against the rate limit (a 429), and
 //                                 the same prompt sent again (the rotation's replay) goes on as usual
+//   FAKE-LIMIT-REPORTED-ONCE      the same, with the rejected rate_limit_event the CLI sends before the 429
+//                                 (replay/rate-limit.jsonl), which is what records the provider's limit
 //
 //   FAKE-TEXT-ONCE <text>         the session's first turn ends with that text as its result, and every
 //                                 later turn answers `continued: <the prompt it got>`: a worker that
@@ -49,6 +51,8 @@
 //                                 the process was given, which are the account it runs on
 //   FAKE_CLAUDE_LIMITED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies against
 //                                 the rate limit (a 429): an account that is out
+//   FAKE_CLAUDE_EXPIRED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies on the
+//                                 sign-in (a 401, replay/auth-expired.jsonl): an account whose session expired
 //   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
 //                                 test can read what a run was told and where
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
@@ -191,9 +195,18 @@ lines.on('line', (line) => {
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
     return;
   }
+  if (process.env.CLAUDE_CONFIG_DIR && (process.env.FAKE_CLAUDE_EXPIRED_DIRS ?? '').split(',').includes(process.env.CLAUDE_CONFIG_DIR)) {
+    for (const recorded of readFileSync(new URL('./replay/auth-expired.jsonl', import.meta.url), 'utf8').trim().split('\n')) out(JSON.parse(recorded));
+    return;
+  }
   const limited = join(tmpdir(), `fake-claude-limit-${sessionId}`);
-  if (/^FAKE-LIMIT-ONCE$/m.test(prompt) && !existsSync(limited)) {
+  const reported = /^FAKE-LIMIT-REPORTED-ONCE$/m.test(prompt);
+  if ((reported || /^FAKE-LIMIT-ONCE$/m.test(prompt)) && !existsSync(limited)) {
     writeFileSync(limited, '1');
+    if (reported) {
+      const resetsAt = Math.floor(Date.now() / 1000) + 3600;
+      out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt, unifiedWindows: { '5h': { utilization: 1 } } } });
+    }
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
     return;
   }

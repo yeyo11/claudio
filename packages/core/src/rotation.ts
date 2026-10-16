@@ -12,6 +12,9 @@ import { defaultRotationSettings } from './providers/settings.ts';
  * What happens when Claude Code reaches its usage limit. The chat manager announces `limit-hit` once
  * per attempt; this decides.
  *
+ * - A turn that died on the account's sign-in (the CLI's 401) takes the same path: the chat manager
+ *   marks the account signed out, which keeps `choose` from picking it until it signs in again, and
+ *   the rotation records `reason: 'auth'`. A wait then ends when an account can take the turn.
  * - With several accounts the limited account is marked out until its reset (the chat manager does
  *   it as the limit is read), the next one is chosen, and the turn is replayed in the same chat,
  *   resumed on it. Automated work always does; a person's chat does when `rotateOnLimit` is on.
@@ -35,6 +38,8 @@ const CLAIM_MS = 2 * 60_000;
 /** `setTimeout` takes a signed 32-bit number */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 const HOUR_MS = 3_600_000;
+/** The reason a wait carries when it began on a sign-in failure: it ends when an account can take the turn, not at a reset */
+const AUTH_WAIT = 'sign-in expired';
 
 /** What a chat is told once its wait has ended and no turn of its own is left to replay */
 const CONTINUE_TEXT = "The provider's usage limit has reset. Continue the work you were doing where you left off.";
@@ -43,7 +48,7 @@ export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 
 export interface RotationDeps {
   db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent'>;
-  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'warmModels' | 'accountOf' | 'rotatesOnLimit'>;
+  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
@@ -146,11 +151,16 @@ export class ProviderRotation {
   /** Announces the limit and, for automated work, acts on it. Never throws: it runs from an event. */
   async onLimitHit(run: ChatRuntime, limit: ProviderLimit | null): Promise<void> {
     const provider = run.provider ?? LEGACY_PROVIDER;
-    this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limit?.resetsAt ?? null });
+    const auth = this.deps.runtime.signInFailed(run.id);
+    // A sign-in failure is no limit: it has its notice below, and the account's own state says it needs signing in
+    if (!auth) this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limit?.resetsAt ?? null });
     const work = this.deps.work?.(run.id) ?? null;
     const automated = this.isAutomated(run, work);
     // A person's chat moves to another account only when they asked for it; otherwise it has its banner
-    if (!automated && !this.deps.runtime.rotatesOnLimit()) return;
+    if (!automated && !this.deps.runtime.rotatesOnLimit()) {
+      if (auth) this.deps.runtime.notice(run.id, 'The sign-in of the chat\'s account expired; sign in to it again, or move the chat to another account.');
+      return;
+    }
     this.handling.add(run.id);
     try {
       // A run held to a schema that nobody waits for already handed its result over: replaying the
@@ -158,23 +168,23 @@ export class ProviderRotation {
       if (automated && !work && (run.orchestrationId || this.deps.runtime.heldToSchema(run.id))) {
         await new Promise<void>((resolve) => setImmediate(resolve));
         if (run.orchestrationId || !this.deps.awaiting?.(run.id)) {
-          this.deps.runtime.notice(run.id, `${provider} reached its usage limit; this turn is not replayed.`);
+          this.deps.runtime.notice(run.id, auth ? `The sign-in of ${provider}'s account expired; this turn is not replayed.` : `${provider} reached its usage limit; this turn is not replayed.`);
           return;
         }
       }
-      const moved = await this.moveToAccount(run);
+      const moved = await this.moveToAccount(run, auth);
       if (moved.moved || !automated) return;
       // The accounts know when the first of them is back; the provider's reading is whichever ran last
       const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : (limit?.resetsAt ?? null);
-      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
+      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
-      this.deps.runtime.notice(run.id, `Handling the usage limit failed: ${why}`);
+      this.deps.runtime.notice(run.id, `Handling the ${auth ? 'sign-in failure' : 'usage limit'} failed: ${why}`);
       // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
       // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
       if (automated && !this.waits.has(run.id)) {
         try {
-          this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: `handling the limit failed: ${why}`, resetsAt: limit?.resetsAt ?? null, projectId: null });
+          this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : `handling the limit failed: ${why}`, resetsAt: limit?.resetsAt ?? null, projectId: null });
         } catch {
           /* the notice above is all that is left to say */
         }
@@ -191,7 +201,7 @@ export class ProviderRotation {
    * earliest reset among the accounts when it is known, when the chat runs on no account or none
    * other can take it.
    */
-  private async moveToAccount(run: ChatRuntime): Promise<{ moved: boolean; waitUntil: number | null }> {
+  private async moveToAccount(run: ChatRuntime, auth = false): Promise<{ moved: boolean; waitUntil: number | null }> {
     const from = this.deps.runtime.accountOf(run.id);
     // The choice looks at which account can run the chat's model: read the lists it has not seen yet
     await this.deps.runtime.warmModels();
@@ -200,13 +210,13 @@ export class ProviderRotation {
     const to = choice.account;
     if (!to || to === from) {
       if (!to && run.model) this.deps.runtime.notice(run.id, `No other account can run ${run.model} now; the turn waits for one that can.`);
-      this.record('wait', from, null, 'limit', run, { waitUntil: choice.waitUntil });
+      this.record('wait', from, null, auth ? 'auth' : 'limit', run, { waitUntil: choice.waitUntil });
       return { moved: false, waitUntil: choice.waitUntil };
     }
     const resumed = await this.deps.runtime.replayLastTurn(run.id, to);
     if (!resumed) return { moved: false, waitUntil: choice.waitUntil };
-    this.record('switch', from, to, choice.reason ?? 'limit', run, null);
-    this.deps.runtime.notice(run.id, `Account ${from} reached its usage limit; the turn goes on with account ${to}.`);
+    this.record('switch', from, to, auth ? 'auth' : (choice.reason ?? 'limit'), run, null);
+    this.deps.runtime.notice(run.id, auth ? `The sign-in of account ${from} expired; the turn goes on with account ${to}.` : `Account ${from} reached its usage limit; the turn goes on with account ${to}.`);
     this.deps.emit({ type: 'run.accountRotated', title: `${run.name} moved from account ${from} to ${to}`, ...runRef(run), from, to, resumed });
     return { moved: true, waitUntil: null };
   }
@@ -263,7 +273,9 @@ export class ProviderRotation {
     const label = this.deps.runtime.providers.list().find((m) => m.id === provider)?.label ?? provider;
     this.deps.runtime.notice(
       run.id,
-      move.resetsAt
+      opts.reason === AUTH_WAIT
+        ? `No account can take the turn: the sign-in of ${label}'s accounts expired. Sign in again to one of them; the turn goes on then, waiting up to ${this.maxWaitHours(move)} h.`
+        : move.resetsAt
         ? `${label} reached its usage limit. Waiting for it to reset at ${move.resetsAt}; the turn goes on then.${opts.reason ? ` (${opts.reason})` : ''}`
         : `${label} reached its usage limit and gave no reset time. Waiting up to ${this.maxWaitHours(move)} h; the turn goes on when it does.${opts.reason ? ` (${opts.reason})` : ''}`,
     );
@@ -305,6 +317,11 @@ export class ProviderRotation {
         return;
       }
       const now = this.now();
+      // A sign-in failure has no reset to wait for: it ends when an account can take the turn again
+      if (row.reason === AUTH_WAIT && this.deps.runtime.chooseNext(row.fromChat)?.account) {
+        await this.resume(row);
+        return;
+      }
       const reset = row.resetsAt ?? this.learned.get(id) ?? null;
       if (reset) {
         if (now >= Date.parse(reset) + this.slackMs) await this.resume(row);

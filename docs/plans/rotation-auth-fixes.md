@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: an expired sign-in is out, rotates, and a retry chooses again
 
-Status: **planned** (2026-10-16). Fixes R2–R5 of [requests.md](../requests.md), found when the ECC
+Status: **done** (2026-10-16), see Outcome. Fixes R2–R5 of [requests.md](../requests.md), found when the ECC
 orchestration stalled on 2026-10-16: one account's OAuth session expired and could not be refreshed
 (its stored copy had an empty `refreshToken`), and nine tasks failed on it while another account had
 room. The limit fixes merged the same day (`1d2b21087`, `3ee906fb4`, `2d79a7daa`, `43611759d`) are
@@ -126,6 +126,26 @@ runs e2e: task `z` does.
   8850–8853 are yours.
 - Update `docs/accounts.md` (the states, the move on a sign-in failure, retry), `docs/requests.md`
   (R2–R5 closed with their commits) and this plan's status and Outcome.
+
+## Outcome
+
+Built on 2026-10-16, one commit per task: `c3480b0e0` (a1, the `signInState`), `6597a0341` (a2, a 401
+result marks the account and moves the turn), `c493a8be9` (a3, a guard test) and `38810ccc6` (a4,
+the state shown and `POST /accounts/:id/login`); z adds the fake CLI line and the e2e case.
+
+- A sign-in failure is recognised from the error `result`'s `api_error_status: 401`, never from its
+  wording. The recording is `packages/core/test/fixtures/replay/auth-expired.jsonl`; it follows the
+  documented message and was not captured from a real expired session, so if a live run differs,
+  change the one condition in `stream.ts`.
+- a3 needed no source change: `chooseAccount` already runs at every launch, so a retry chooses
+  again and a limit on it moves the turn. R5 is confirmed by `orchestration-retry-account.test.ts`.
+  A retry does not skip an account that only 429'd earlier with no reading; it costs one turn.
+- `AccountSwitchReason` gained `'auth'`.
+- z: the fake CLI answers `FAKE-AUTH-EXPIRED-ACCOUNT` on a `fake-expired` token and
+  `e2e/specs/accounts.spec.mjs` covers the move, the "Sign-in expired" state and an orchestration
+  task after it. An e2e case for a task retried after an account ran out was not written: a task
+  cannot be made to fail on one account in the fake, and core guards it. The e2e suite was not run
+  by this task; it runs once on the merged branch.
 
 ## Related
 
