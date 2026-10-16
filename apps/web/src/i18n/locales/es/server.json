@@ -46,8 +46,13 @@
       "budget": {
         "time": "Estás cerca de su límite de tiempo de {{limitMinutes}} min. Ve cerrando: haz commit de lo que funciona e informa de lo que falta.",
         "cost": "Estás cerca de su límite de coste de {{limitUsd}}. Ve cerrando: haz commit de lo que funciona e informa de lo que falta."
-      }
-    }
+      },
+      "guardBlocked": "La guarda ha rechazado lo que has intentado ({{rule}}). No busques otro camino para esquivarla: haz la tarea sin esa acción, o di qué necesitas y deja que lo decida una persona.",
+      "guardMissing": "La guarda no responde a tus llamadas a herramientas. Para lo que estás haciendo y di qué ibas a ejecutar."
+    },
+    "guardBlocked_one": "La guarda ha bloqueado {{count}} llamada a una herramienta en los últimos 15 min (última regla: {{rule}}).",
+    "guardBlocked_other": "La guarda ha bloqueado {{count}} llamadas a herramientas en los últimos 15 min (última regla: {{rule}}).",
+    "guardMissing": "Una llamada a una herramienta se ha ejecutado sin respuesta de la guarda, o la guarda no llegó a armarse: nada dice qué ejecuta este worker."
   },
   "connectors": {
     "authorise": {

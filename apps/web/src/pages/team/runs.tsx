@@ -12,6 +12,8 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { formatDuration, formatHour, timeAgo } from '@claudio/ui/lib/format';
 import { activityTarget, elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
 import { useClockTick } from '@claudio/ui/lib/motion';
+import { GuardChip } from '../../components/GuardControls';
+import { guardChatPath } from '../../lib/guards';
 import { chatActivity } from '../../lib/shell-live';
 import { columnMeta, taskPath } from '../../lib/work-items';
 import { runDuration, runReason, runStep, runTimeOf } from './model';
@@ -279,6 +281,8 @@ export function FlowRunRow({ run, days, context, phone, projectId }: { run: Flow
           <RunBadge run={run} />
         </span>
         {itemLine}
+        {/* On a phone the row is the chat's link already, which opens at the notice: a chip would nest a link in it */}
+        {(run.guardBlocks ?? 0) > 0 && (phone ? <GuardChip count={run.guardBlocks} /> : <GuardChip count={run.guardBlocks} chatId={run.chatId} />)}
         {live ? <RunNow run={run} /> : line && <span className="flow-run-line">{line}</span>}
         {phone && durationText && <span className="flow-run-duration">{durationText}</span>}
       </div>
@@ -298,7 +302,7 @@ export function FlowRunRow({ run, days, context, phone, projectId }: { run: Flow
   const status = flowRunStatus(run);
   if (phone && run.chatId)
     return (
-      <Link to={`/chats/${run.chatId}`} className={className} aria-label={label} data-status={status}>
+      <Link to={(run.guardBlocks ?? 0) > 0 ? guardChatPath(run.chatId) : `/chats/${run.chatId}`} className={className} aria-label={label} data-status={status}>
         {body}
       </Link>
     );

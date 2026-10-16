@@ -265,7 +265,11 @@
       "documents_other": "{{n}} documentos",
       "journal_one": "diario con {{n}} entrada",
       "journal_other": "diario con {{n}} entradas"
-    }
+    },
+    "guardsTitle": "Guardas",
+    "guardsLabel": "Guardas en los chats de este proyecto",
+    "guardsHint": "Los chats interactivos de este proyecto se ejecutan con estas reglas: {{rules}}. Las orquestaciones y el flujo siguen los Ajustes.",
+    "guardsLink": "Ajustes de las guardas"
   },
   "decisions": {
     "title": "Decisiones",

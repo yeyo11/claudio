@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useDetailPanel } from '../lib/detail';
+import { GuardChip } from './GuardControls';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '@claudio/ui/lib/format';
 import { useClockTick } from '@claudio/ui/lib/motion';
@@ -498,6 +499,7 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
             </span>
           )}
           {task.model && <span className="mono">{task.model}</span>}
+          <GuardChip count={task.guardBlocks} chatId={task.sessionId} />
           {/* The branch is how the work is found afterwards, so it is worth the space */}
           {task.branch && (
             <span className="mono ellipsis" title={task.worktree ?? undefined}>

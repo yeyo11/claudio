@@ -114,7 +114,7 @@ function ProposalRow({
 }
 
 /** The signals a person can do something about; the rest of a chat's facts stay in the side card. */
-const STEP_IN = new Set<HealthSignal['kind']>(['hung-command', 'repeat-stall', 'no-progress', 'loop', 'weakened-test', 'silence', 'budget']);
+const STEP_IN = new Set<HealthSignal['kind']>(['hung-command', 'repeat-stall', 'no-progress', 'loop', 'weakened-test', 'silence', 'budget', 'guard-blocked', 'guard-missing']);
 
 export const isStepIn = (signal: HealthSignal): boolean => STEP_IN.has(signal.kind);
 

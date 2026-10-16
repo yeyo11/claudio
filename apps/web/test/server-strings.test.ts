@@ -10,8 +10,8 @@ import { connectorActionLabel, connectorLimitName, healthReason, localized, serv
 
 // Every figure any sentence names, twice: once past each threshold of the formatting, once below
 const FIGURES = [
-  { command: 'pnpm test', minutes: 4, usualSeconds: 81, limitMinutes: 10, percent: 85, count: 3, kind: 'Bash', limitSeconds: 120, tool: 'Read', error: 'ENOENT', file: 'a.test.ts', spentUsd: 0.5, limitUsd: 2 },
-  { command: 'make', minutes: 1, usualSeconds: 300, limitMinutes: 1, percent: 99, count: 1, kind: 'Grep', limitSeconds: 45, tool: 'Edit', error: 'boom', file: 'b.spec.ts', spentUsd: 0.004, limitUsd: 0.05 },
+  { command: 'pnpm test', minutes: 4, usualSeconds: 81, limitMinutes: 10, percent: 85, count: 3, kind: 'Bash', limitSeconds: 120, tool: 'Read', error: 'ENOENT', file: 'a.test.ts', spentUsd: 0.5, limitUsd: 2, rule: 'push' },
+  { command: 'make', minutes: 1, usualSeconds: 300, limitMinutes: 1, percent: 99, count: 1, kind: 'Grep', limitSeconds: 45, tool: 'Edit', error: 'boom', file: 'b.spec.ts', spentUsd: 0.004, limitUsd: 0.05, rule: 'destructive' },
 ];
 
 // setLanguage, as the UI does: the figures follow the language as well as the words

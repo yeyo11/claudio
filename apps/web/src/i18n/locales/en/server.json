@@ -46,8 +46,13 @@
       "budget": {
         "time": "You are close to its time limit of {{limitMinutes}} min. Wrap up: commit what works and report what is left.",
         "cost": "You are close to its cost limit of {{limitUsd}}. Wrap up: commit what works and report what is left."
-      }
-    }
+      },
+      "guardBlocked": "The guard refused what you tried ({{rule}}). Do not look for another way round it: do the task without that action, or say what you need and let a person decide.",
+      "guardMissing": "The guard is not answering for your tool calls. Stop what you are doing and say what you were about to run."
+    },
+    "guardBlocked_one": "The guard blocked {{count}} tool call in the last 15 min (last rule: {{rule}}).",
+    "guardBlocked_other": "The guard blocked {{count}} tool calls in the last 15 min (last rule: {{rule}}).",
+    "guardMissing": "A tool call ran with no answer from the guard, or the guard never armed: nothing says what this worker runs."
   },
   "connectors": {
     "authorise": {

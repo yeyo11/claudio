@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocuments, useJournal, useProjects, useProjectSettings, useTeam, useWorkItemBoard } from '../../api';
-import { Sheet } from '@claudio/ui/components/controls';
+import { Sheet, Switch } from '@claudio/ui/components/controls';
+import { useGuardSettings } from '../../components/GuardControls';
+import { SWITCHABLE_RULES } from '../../lib/guards';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ProgramMark } from '@claudio/ui/components/BrandMark';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -159,6 +161,9 @@ export function ProjectGeneral({ project }: { project: Project }) {
   const toast = useToast();
   const settings = useProjectSettings(project.id);
   const projects = useProjects(false).data;
+  // The rules a guarded chat would run with, named in the switch's help: the integrity rule always, then the ones that are on
+  const globalGuards = useGuardSettings();
+  const guardRules = ['integrity', ...SWITCHABLE_RULES.filter((id) => globalGuards?.rules[id])].join(', ');
   // Read with the module off too: it says how much a switched-off board still keeps
   const board = useWorkItemBoard(project.id, {}).data;
   const has = (module: ProjectModule) => project.modules.includes(module);
@@ -168,13 +173,14 @@ export function ProjectGeneral({ project }: { project: Project }) {
     journal: useJournal(has('memory') ? project.id : null, { limit: 1 }).data?.total,
   };
   const saved = useMemo(
-    () => ({ name: project.name, prefix: project.key, modules: project.modules, limits: settings.data?.board.columnLimits ?? {} }),
+    () => ({ name: project.name, prefix: project.key, modules: project.modules, limits: settings.data?.board.columnLimits ?? {}, guards: settings.data?.guards?.chats ?? false }),
     [project.name, project.key, project.modules, settings.data],
   );
   const [name, setName] = useState(saved.name);
   const [prefix, setPrefix] = useState(saved.prefix);
   const [modules, setModules] = useState<ProjectModule[]>(saved.modules);
   const [limits, setLimits] = useState<Limits>(saved.limits);
+  const [guards, setGuards] = useState(saved.guards);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
 
@@ -185,6 +191,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
     if (prefix === base.prefix) setPrefix(saved.prefix);
     if (sameModules(modules, base.modules)) setModules(saved.modules);
     if (sameLimits(limits, base.limits)) setLimits(saved.limits);
+    if (guards === base.guards) setGuards(saved.guards);
     setBase(saved);
     // Only a change of what is saved re-seeds the form
   }, [saved]);
@@ -196,8 +203,9 @@ export function ProjectGeneral({ project }: { project: Project }) {
     prefix: prefix !== saved.prefix,
     modules: !sameModules(modules, saved.modules),
     limits: settings.data !== undefined && !sameLimits(limits, saved.limits),
+    guards: settings.data !== undefined && guards !== saved.guards,
   };
-  const dirty = changed.name || changed.prefix || changed.modules || changed.limits;
+  const dirty = changed.name || changed.prefix || changed.modules || changed.limits || changed.guards;
   useDirty('project', dirty);
 
   const save = useMutation({
@@ -216,10 +224,14 @@ export function ProjectGeneral({ project }: { project: Project }) {
           throw error;
         }
       }
-      if (changed.limits) {
+      if (changed.limits || changed.guards) {
         // Read again right before writing: the document is replaced whole, and the call above changed it
         const fresh = await api.projectSettings(project.id);
-        await api.putProjectSettings(project.id, { ...fresh, board: { ...fresh.board, columnLimits: columnLimitsOf(limits) } });
+        await api.putProjectSettings(project.id, {
+          ...fresh,
+          ...(changed.limits ? { board: { ...fresh.board, columnLimits: columnLimitsOf(limits) } } : {}),
+          ...(changed.guards ? { guards: { chats: guards } } : {}),
+        });
       }
     },
     onSuccess: () => toast.success(t('general.saved')),
@@ -234,6 +246,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
     setPrefix(saved.prefix);
     setModules(saved.modules);
     setLimits(saved.limits);
+    setGuards(saved.guards);
     setKeyError(null);
     save.reset();
   };
@@ -291,6 +304,19 @@ export function ProjectGeneral({ project }: { project: Project }) {
     <ModulesOffNote>
       <Trans t={t} i18nKey={narrow ? 'modules.offMeansShort' : 'modules.offMeansLong'} components={{ strong: <strong /> }} />
     </ModulesOffNote>
+  );
+  const guardsSwitch = (
+    <div className="project-guards">
+      <Switch checked={guards} disabled={settings.data === undefined} onChange={setGuards}>
+        {t('general.guardsLabel')}
+      </Switch>
+      <span className="field-hint">
+        {t('general.guardsHint', { rules: guardRules })}{' '}
+        <Link to="/settings?tab=security#guards" className="team-link">
+          {t('general.guardsLink')}
+        </Link>
+      </span>
+    </div>
   );
   const actions = (
     <div className="project-general-actions">
@@ -364,6 +390,10 @@ export function ProjectGeneral({ project }: { project: Project }) {
             </Sheet>
           </>
         )}
+        <section className="settings-cells-group">
+          <h2 className="section-label settings-cells-label">{t('general.guardsTitle')}</h2>
+          <div className="card settings-cells project-guard-cells">{guardsSwitch}</div>
+        </section>
         <section className="card project-remove">
           <h2>{t('general.removeTitle')}</h2>
           <p className="small muted">{t('general.removeBody')}</p>
@@ -418,6 +448,10 @@ export function ProjectGeneral({ project }: { project: Project }) {
               <LimitFields limits={limits} onChange={setLimits} />
             </section>
           )}
+          <section className="card project-general-card" aria-labelledby="project-guards-title">
+            <h2 id="project-guards-title">{t('general.guardsTitle')}</h2>
+            {guardsSwitch}
+          </section>
           <section className="card project-remove">
             <div className="project-remove-text">
               <h2>{t('general.removeTitle')}</h2>

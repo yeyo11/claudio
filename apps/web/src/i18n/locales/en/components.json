@@ -382,5 +382,61 @@
     "send": "Send anyway",
     "goOn": "Go on today anyway",
     "declined": "Nothing was started: the daily spend cap was reached."
+  },
+  "guards": {
+    "alwaysOn": "Always on",
+    "row": {
+      "label": "Guards",
+      "help": "Block dangerous commands and file writes in this graph's runs.",
+      "rules": "Rules",
+      "off": "Workers will run without guards.",
+      "without": "Workers will run without",
+      "workflowHint": "A workflow's subagents may not pass through the guard, so Claudio can refuse to launch it while guards are on. Switch guards off for this graph to run it anyway."
+    },
+    "sheet": {
+      "title": "Guard rules",
+      "body": "Switch off only what you must. What you leave as it is follows Settings."
+    },
+    "rule": {
+      "integrity": {
+        "name": "Integrity",
+        "hint": "Protects the guard itself."
+      },
+      "no-verify": {
+        "name": "No skipping checks",
+        "hint": "Blocks --no-verify and settings that turn hooks off."
+      },
+      "push": {
+        "name": "No pushing",
+        "hint": "Blocks any write to a remote."
+      },
+      "destructive": {
+        "name": "No destructive commands",
+        "hint": "Blocks force pushes, reset --hard and rm -rf outside the worktree."
+      },
+      "secrets": {
+        "name": "No secrets in files",
+        "hint": "Blocks writing a secret to a file."
+      },
+      "protect-configs": {
+        "name": "Protect configs",
+        "hint": "Blocks edits to existing lint, format and CI configs."
+      }
+    },
+    "chip_one": "{{n}} blocked",
+    "chip_other": "{{n}} blocked",
+    "chipOpen": "Open the chat at the first guard notice",
+    "tag": {
+      "armed": "Guards",
+      "observe": "Observe",
+      "missing": "Guards not running"
+    },
+    "popover": {
+      "title": "Guards on this chat",
+      "armed": "These rules check every tool call of this chat.",
+      "observe": "Observe mode: the guard records what it would block and blocks nothing.",
+      "missing": "A tool call went by without the guard, so the chat was interrupted.",
+      "settings": "Guard settings"
+    }
   }
 }

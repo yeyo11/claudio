@@ -122,6 +122,7 @@ import type {
   FlowStartWaitingResult,
   FlowWaiting,
   ForkChatRequest,
+  GuardSettingsView,
   HintRequest,
   ImportProjectRequest,
   InstructionsDoc,
@@ -243,6 +244,7 @@ import type {
   UpdateProjectRequest,
   UpdateScheduleRequest,
   UpdateSupervisorConfigRequest,
+  UpdateGuardSettingsRequest,
   UpdateTunnelSettingsRequest,
   UpdateWorkItemRequest,
   UsageBreakdown,
@@ -792,6 +794,8 @@ export const api = {
   /** Lets a flow card's queued run start past today's cap */
   grantItemSpendPass: (itemId: string) => request<FlowSpendPass>(`/work-items/${enc(itemId)}/spend-pass`, { method: 'POST' }),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  guardSettings: (o: ReadOptions = {}) => request<GuardSettingsView>('/settings/guards', o),
+  updateGuardSettings: (body: UpdateGuardSettingsRequest) => request<GuardSettingsView>('/settings/guards', { method: 'PUT', body }),
   /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
   dashboardLayout: (project: string, o: ReadOptions = {}) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, o),
   saveDashboardLayout: (project: string, body: SaveDashboardLayoutRequest) =>
@@ -1333,6 +1337,7 @@ export const keys = {
   pushSubscriptions: ['push', 'subscriptions'] as const,
   // Both are written whole from their events (lib/events.ts), never refetched for them
   appSettings: ['settings', 'app'] as const,
+  guardSettings: ['security', 'guards'] as const,
   // Read again on `spend.changed` (lib/events.ts)
   spend: ['spend'] as const,
   tunnel: ['tunnel'] as const,

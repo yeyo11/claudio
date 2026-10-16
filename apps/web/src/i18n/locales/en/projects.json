@@ -265,7 +265,11 @@
       "documents_other": "{{n}} documents",
       "journal_one": "journal with {{n}} entry",
       "journal_other": "journal with {{n}} entries"
-    }
+    },
+    "guardsTitle": "Guards",
+    "guardsLabel": "Guards in this project's chats",
+    "guardsHint": "Interactive chats in this project run with these rules: {{rules}}. Orchestrations and the flow follow Settings.",
+    "guardsLink": "Guard settings"
   },
   "decisions": {
     "title": "Decisions",
