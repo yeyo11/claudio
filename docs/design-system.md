@@ -1245,6 +1245,57 @@ suggestion on), `DesktopRevisionHilosPlegados` (an outdated and a resolved threa
 phone's `MobileRevisionHilos` (GitLab), `MobileRevisionHilosNota` (the Sheet) and
 `MobileRevisionHilosPlegados`.
 
+- **A finding (`.rt.finding`)** is the review gate's card under the line it is about
+  ([plans/review-gate.md](plans/review-gate.md), task `v8a`): the same `.rt` card, with no new kind
+  of diff row and no reply field, because a finding is Claudio's record, not a conversation. Head:
+  the severity word with its colour (`.rt-sev`: critical and high `.bad`, medium `.warn`, low
+  neutral, always a word, the warning icon on bad and warn), the dimension chips (`.rt-dim`),
+  `path:line` in mono and the verdict word on the right (`.rt-verdict`; neutral, `.warn` for
+  "sin certeza" and "sin verificar"). Body (`.rt-finding-body`): the title (`.rt-title`), "Qué
+  falla", "Evidencia" in `.rt-evidence` and "Sugerencia", each a `.rt-fact`; the verifier's reason
+  is the foot (`.rt-verifier`). A refuted finding (`.rt.finding.refuted`) is dimmed. Finding text is
+  the English record and is never translated; the labels are chrome. The line's pill
+  (`.dv-note-pill`) carries the warning icon and the count, and a finding of an earlier round folds
+  with `.rt-fold` as "desactualizado". File-level findings sit at the top of the file; the file map
+  and the header show a count. Nothing is live.
+
+Reference screens: `DesktopRevisionHallazgos` and `MobileRevisionHallazgos` (the pill is not drawn
+on a phone).
+
+### Review gate on the verification card
+
+Drawn by `reviews.py` (`r_gate()`, task `v8a`). The review is a section (`.rg`) inside the
+verification card, not a new step (D2 of the plan). Classes `.rg-*` and `.rt-*` in §18 of
+`claudio-ds.css`.
+
+- **Head (`.rg-head`).** The gate status as a word plus colour (`.badge`: pendiente, superada ok,
+  bloqueada bad, incompleta warn, aceptada warn, omitida neutral); while it runs, the braille
+  spinner beside the verb (`.rg-verb`: Preparando, Revisando, Verificando, Corrigiendo), and the
+  round and cost of budget in mono on the right (`.facts`).
+- **Reason (`.rg-reason`, `.warn`, `.bad`).** One sentence when blocked, incomplete or accepted;
+  an acceptance quotes the person's reason and names the head it binds to. A usage-limit wait is a
+  warn line with the reset time in mono. A pass with no findings is one ok line (`.rg-quiet`).
+- **Runs (`.rg-run`).** Dimension, chunk `i/n`, model, state word, cost, a link to the run's chat.
+  Only the running row is live (`.spin-ring`, `.rail-live`). The step's bar is the segmented bar
+  (`.segbar`), one cell per run of the round: ok, live, bad.
+- **Findings (`.rg-group`, `.rg-group-head`, `.rg-group-body`).** Bloqueantes (open), Informativos,
+  Refutados, Fuera del diff and Sin revisar (`.rg-skipped`: path and why) fold. Inside, the cards
+  are `.rt.finding`.
+- **Actions (`.rg-foot`).** Retry is the zone's one gradient (`.btn-primary`) when incomplete;
+  accept anyway and verify again are plain buttons. Accepting an incomplete gate is offered after a
+  retry also ended incomplete (disabled with its hint before). Accept opens a `Dialog` (a `Sheet`
+  on a phone) with the required reason, a warn callout and `.btn-primary` as the dialog's confirm.
+- **Energy border.** `.rg.energy` only while reviewers run; it is then the screen's one such
+  surface. Every animation stops under `data-motion` subtle and off.
+- **Phone.** Rows stack (name and state, then cost and the 44 px link), actions are full width,
+  the dialog is a Sheet.
+
+Reference screens: `DesktopOrquestacionRevision` (running), `DesktopOrquestacionRevisionBloqueada`,
+`DesktopOrquestacionRevisionAceptar`, `DesktopOrquestacionRevisionEstados` (pending, each running
+sub-phase, waiting for a limit, passed, passed with advisories, blocked, each incomplete reason,
+accepted, skipped, fixing round 2 of 3, stopped), and the phone's `MobileOrquestacionRevision`,
+`…Bloqueada`, `…Aceptar` and `…Estados` (two sheets: `…Estados`, `…Estados2`).
+
 ---
 
 ### Orchestration checks: the change request's CI and the fix that waits

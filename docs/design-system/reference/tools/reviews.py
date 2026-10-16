@@ -1016,8 +1016,482 @@ def all_r_p3():
   ds_revision()
 
 
+# ---------------------------------------------------------------- review gate (plans/review-gate.md, v8a)
+# The finding card is a variant of .rt (.rt.finding, .rt-sev) and the review section of the verification card is .rg.
+# Chrome is Spanish like every screen here; what Claudio and the reviewers wrote (finding text, reasons) is the English record.
+SEV = {'critical': ('crítica', 'bad'), 'high': ('alta', 'bad'), 'medium': ('media', 'warn'), 'low': ('baja', '')}
+DIM = {'correctness': 'corrección', 'tests': 'pruebas', 'security': 'seguridad', 'conventions': 'convenciones'}
+VERDICT = {
+  'confirmed': ('confirmado', ''), 'refuted': ('refutado', ''), 'uncertain': ('sin certeza', 'warn'),
+  'unverified': ('sin verificar', 'warn'), 'deterministic': ('comprobación de Claudio', ''), 'not-asked': ('sin verificar', ''),
+}
+GATE_HEAD = 'a1b2c3d'
+GATE_COST = '$1,84 de $5,00'
+
+CHEV = '<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>'
+
+
+def sev_tag(sev):
+  word, cls = SEV[sev]
+  icon = ico('warn', 'ico ico-sm') if cls else ''
+  return f'<span class="rt-sev {cls}">{icon}{word}</span>'
+
+
+def finding(sev, dims, where, title, scenario, evidence, suggestion=None, verdict='confirmed', vreason=None, cls='', ver_label=True):
+  """A finding as a card under its line. No reply field and no monogram: it is Claudio's record, not a conversation."""
+  vword, vcls = VERDICT[verdict]
+  vicon = ico('warn', 'ico ico-sm') if vcls else ''
+  chips = ''.join(f'<span class="rt-dim">{DIM[d]}</span>' for d in dims)
+  head = (f'<div class="rt-head">{sev_tag(sev)}{chips}<span class="where">{where}</span><span class="grow"></span>'
+          f'<span class="rt-verdict {vcls}">{vicon}{vword}</span></div>')
+  sg = (f'<div class="rt-fact"><span class="k">Sugerencia</span><pre class="rt-evidence">{_html.escape(suggestion)}</pre></div>') if suggestion else ''
+  body = (f'<div class="rt-finding-body"><h4 class="rt-title">{_html.escape(title)}</h4>'
+          f'<div class="rt-fact"><span class="k">Qué falla</span><p>{_html.escape(scenario)}</p></div>'
+          f'<div class="rt-fact"><span class="k">Evidencia</span><pre class="rt-evidence">{hl(evidence)}</pre></div>{sg}</div>')
+  ver = (f'<div class="rt-verifier"><span class="t-label">Verificador</span><span class="rt-verdict {vcls}">{vicon}{vword}</span>'
+         f'<span>{_html.escape(vreason)}</span></div>') if vreason else ''
+  return f'<article class="rt finding {cls}" aria-label="Hallazgo en {where}">{head}{body}{ver}</article>'
+
+
+F_BLOCK = lambda: finding(
+  'high', ['correctness'], f'{FILE_NAME}:10', 'A half-written settings file aborts the whole project load',
+  'JSON.parse throws on a truncated file and nothing catches it, so opening the project fails instead of falling back to the defaults.',
+  L10, L10_FIX, 'confirmed', 'Reproduced with a settings file cut at 40 bytes: readSettings throws SyntaxError.')
+F_CRIT = lambda: finding(
+  'critical', ['security'], '.env.local:3', 'A committed API key reaches the integration branch',
+  'The merged branch adds a live-looking token to a tracked file, so it would be pushed with the pull request.',
+  'ANTHROPIC_API_KEY=sk-ant-…c91f (masked)', None, 'deterministic', 'Matched the secret scan; no verifier is asked about it.')
+F_ADV1 = lambda: finding(
+  'medium', ['tests'], f'{FILE_NAME}:38', 'writeSettings has no test for a failed write',
+  'The new write path is only covered when it succeeds; a permission error leaves the caller with a rejected promise nobody asserts on.',
+  L38, None, 'confirmed', 'The test file has no case for a read-only directory.')
+F_ADV2 = lambda: finding(
+  'low', ['conventions'], f'{FILE_NAME}:37', 'The .claudio directory name repeats as a literal',
+  'The folder name is written inline instead of from SETTINGS_FILE, so renaming one forgets the other.',
+  L37, None, 'confirmed', 'Both literals name the same folder.')
+F_REF = lambda: finding(
+  'medium', ['correctness'], f'{FILE_NAME}:9', 'readFileSync may block the event loop',
+  'A synchronous read inside a request handler could stall other requests.',
+  L9, None, 'refuted', 'readSettings runs once at startup, never inside a handler.', cls='refuted')
+F_OUT = lambda: finding(
+  'medium', ['correctness'], 'apps/api/src/routes/projects.ts:204', 'The route still returns the old settings shape',
+  'The handler line is outside this diff, but it reads a field the change renamed.',
+  "  return reply.send({ settings: project.settings.templates });", None, 'uncertain', 'The verifier could not trace the field to the handler.')
+
+
+def mark_for(state):
+  if state == 'running':
+    return '<span class="spin-ring" role="img" aria-label="en marcha"></span>'
+  if state == 'done':
+    return ico('check', 'ico ico-sm', 'color: var(--ok)')
+  if state in ('failed', 'invalid', 'budget', 'timed-out', 'interrupted'):
+    return ico('x', 'ico ico-sm', 'color: var(--bad)')
+  if state in ('waiting', 'incomplete-coverage', 'cancelled'):
+    return ico('warn', 'ico ico-sm', 'color: var(--warn)')
+  return '<span style="width: 8px; height: 8px; border-radius: var(--r-full); background: var(--bg-4); display: inline-block"></span>'
+
+
+RUN_WORD = {
+  'pending': ('en cola', ''), 'running': ('en marcha', 'live'), 'waiting': ('esperando el límite', 'warn'), 'done': ('hecha', 'ok'),
+  'invalid': ('salida no válida', 'bad'), 'budget': ('sin presupuesto', 'bad'), 'failed': ('fallida', 'bad'), 'timed-out': ('tiempo agotado', 'bad'),
+  'cancelled': ('cancelada', 'warn'), 'interrupted': ('interrumpida', 'bad'), 'incomplete-coverage': ('cobertura incompleta', 'warn'),
+}
+
+
+def run_row(dim, chunk, model, state, cost, mobile=False, kind=''):
+  word, wcls = RUN_WORD[state]
+  live = ' rail-live' if state == 'running' else ''
+  name = f'{kind or DIM[dim]}'
+  chunk_html = f'<span class="mono">{chunk}</span>' if chunk else ''
+  link = ('<a href="#" class="btn btn-ghost btn-icon btn-lg" aria-label="Abrir el chat de la ejecución">' + ico('link', 'ico') + '</a>') if mobile \
+    else ('<a href="#" class="btn btn-ghost btn-icon btn-sm" aria-label="Abrir el chat de la ejecución">' + ico('link', 'ico ico-sm') + '</a>')
+  if mobile:
+    return (f'<div class="rg-run{live}"><span>{mark_for(state)}</span><span class="dim">{name}{chunk_html}</span><span class="state {wcls}">{word}</span>'
+            f'<span class="meta"><span class="model">{model}</span><span class="cost">{cost}</span><span class="grow"></span>{link}</span></div>')
+  return (f'<div class="rg-run{live}"><span>{mark_for(state)}</span><span class="dim">{name}{chunk_html}</span><span class="model">{model}</span>'
+          f'<span class="state {wcls}">{word}</span><span class="cost">{cost}</span>{link}</div>').replace('56px', '56px')
+
+
+def runs_block(rows, label='Ejecuciones'):
+  return f'<div class="rg-runs" role="list" aria-label="{label}">{rows}</div>'
+
+
+def group(label, n, body='', open_=False):
+  head = (f'<button type="button" class="rg-group-head" aria-expanded="{"true" if open_ else "false"}">{CHEV if open_ else ico("right", "ico ico-sm")}'
+          f'<span class="t-label">{label}</span><span class="n">{n}</span></button>')
+  inner = f'<div class="rg-group-body">{body}</div>' if open_ else ''
+  return f'<div class="rg-group">{head}{inner}</div>'
+
+
+def skipped_rows(items):
+  rows = ''.join(f'<div class="rg-skipped"><span class="mono">{p}</span><span class="why">{w}</span></div>' for p, w in items)
+  return rows
+
+
+def segs(cells, label):
+  i = ''.join(f'<i class="{c}"' + (' style="--p: 55%"' if c == 'live' else '') + '></i>' for c in cells)
+  return f'<div class="rg-segs"><span class="segbar" role="img" aria-label="{label}">{i}</span></div>'
+
+
+def gate_badge(status):
+  word, cls, icon = {
+    'pending': ('pendiente', '', None), 'passed': ('superada', 'b-ok', 'check'), 'blocked': ('bloqueada', 'b-bad', 'warn'),
+    'incomplete': ('incompleta', 'b-warn', 'warn'), 'accepted': ('aceptada', 'b-warn', 'check'), 'skipped': ('omitida', '', None),
+  }[status]
+  return f'<span class="badge {cls}">{ico(icon, "ico ico-sm") if icon else ""}{word}</span>'
+
+
+def reason(kind, text, quote=None, icon='warn'):
+  q = f' <q>{_html.escape(quote)}</q>' if quote else ''
+  return f'<div class="rg-reason {kind}" role="note">{ico(icon, "ico ico-sm", "color: var(--" + {"warn": "warn", "bad": "bad", "": "fg-3"}[kind] + ")")}<span>{text}{q}</span></div>'
+
+
+def gate(status, facts='', verb=None, why='', bar='', runs='', groups='', foot='', mobile=False):
+  """The review section of the verification card. Running: the braille spinner beside the verb and the energy border,
+  the only live surface of the screen. Every other state stands still: a word and a colour, never a loop."""
+  running = verb is not None
+  state = (f'<span class="rg-verb"><span class="spin-braille" aria-hidden="true"></span>{verb}</span>' if running else gate_badge(status))
+  head = f'<div class="rg-head"><h3>Revisión</h3>{state}<span class="grow"></span><span class="facts">{facts}</span></div>'
+  cls = 'rg energy' if running else 'rg'
+  return f'<section class="{cls}" aria-label="Revisión de la rama integrada">{head}{why}{bar}{runs}{groups}{foot}</section>'
+
+
+def foot_actions(kind, mobile=False):
+  size = 'btn-lg' if mobile else ''
+  if kind == 'retry':
+    return (f'<div class="rg-foot"><button type="button" class="btn btn-primary {size}">{ico("retry", "ico")}Repetir la revisión</button>'
+            f'<button type="button" class="btn {size}">Aceptar de todos modos</button><button type="button" class="btn {size}">Verificar de nuevo</button></div>')
+  if kind == 'retry-first':
+    return (f'<div class="rg-foot"><button type="button" class="btn btn-primary {size}">{ico("retry", "ico")}Repetir la revisión</button>'
+            f'<button type="button" class="btn {size}" disabled>Aceptar de todos modos</button><button type="button" class="btn {size}">Verificar de nuevo</button>'
+            f'<span class="hint">Aceptar se ofrece cuando un reintento también termina incompleto.</span></div>')
+  if kind == 'blocked':
+    return (f'<div class="rg-foot"><button type="button" class="btn {size}">Aceptar de todos modos</button>'
+            f'<button type="button" class="btn {size}">Verificar de nuevo</button>'
+            f'<span class="hint">Una revisión bloqueada mantiene la pull request retenida.</span></div>')
+  return f'<div class="rg-foot"><button type="button" class="btn {size}">Verificar de nuevo</button></div>'
+
+
+# --- the verification card and the orchestration page that holds it
+def checks_line(mobile=False):
+  return (f'<div class="row" style="gap: 8px; flex-wrap: wrap"><span class="row t-sm" style="gap: 6px">{ico("check", "ico ico-sm", "color: var(--ok)")}Comprobaciones</span>'
+          f'<span class="mono t-xs fg-3">3 superadas · la revisión empieza con la rama integrada</span></div>')
+
+
+def verification_card(inner, status_badge, mobile=False):
+  pad = 'padding: 14px; gap: 12px' if mobile else 'gap: 14px'
+  cls = 'card col' if mobile else 'card card-pad col'
+  return (f'<section class="{cls}" style="{pad}" aria-label="Verificación"><div class="row" style="gap: 10px"><h2 class="t-h2 grow">Verificación</h2>{status_badge}</div>'
+          f'{checks_line(mobile)}{inner}</section>')
+
+
+STEP_NAMES = ['Etapa 1', 'Etapa 2', 'Etapa 3', 'Integración', 'Verificación', 'Síntesis']
+
+
+def steps(state, cells=None, mobile=False):
+  """Six steps; verification is the live one while the review runs and its bar is the segmented one: a segment per run."""
+  out = ''
+  for s in STEP_NAMES:
+    if s in ('Etapa 1', 'Etapa 2', 'Etapa 3', 'Integración'):
+      out += f'<li class="col" style="gap: 8px"><div class="bar ok"><i style="width: 100%"></i></div><span class="row t-sm" style="gap: 6px; font-weight: 500">{ico("check", "ico ico-sm", "color: var(--ok)")}{s}</span><span class="mono t-xs fg-3">hecha</span></li>'
+    elif s == 'Verificación':
+      bar = ''.join(f'<i class="{c}"' + (' style="--p: 55%"' if c == 'live' else '') + '></i>' for c in (cells or []))
+      if state == 'running':
+        out += (f'<li class="col" style="gap: 8px"><span class="segbar" role="img" aria-label="Ejecuciones de la revisión">{bar}</span>'
+                f'<span class="row t-sm" style="gap: 6px; font-weight: 500"><span class="spin-ring" aria-hidden="true"></span>{s}</span>'
+                f'<span class="mono t-xs fg-2">revisión · ronda 1 de 3 · 3 de 4 revisores</span></li>')
+      else:
+        out += (f'<li class="col" style="gap: 8px"><div class="bar bad"><i style="width: 100%"></i></div>'
+                f'<span class="row t-sm" style="gap: 6px; font-weight: 500">{ico("warn", "ico ico-sm", "color: var(--bad)")}{s}</span><span class="mono t-xs c-bad">revisión bloqueada</span></li>')
+    else:
+      out += f'<li class="col" style="gap: 8px"><div class="bar"><i style="width: 0"></i></div><span class="t-sm fg-2">{s}</span><span class="mono t-xs fg-3">pendiente</span></li>'
+  return f'<ol aria-label="Pasos" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">{out}</ol>'
+
+
+def orch_header(state):
+  badge = ('<span class="badge b-live" style="height: 24px"><span class="spin-braille" aria-hidden="true"></span>verificando</span>' if state == 'running'
+           else '<span class="badge b-bad" style="height: 24px">' + ico('warn', 'ico ico-sm') + 'verificación fallida</span>')
+  return (f'<div class="row" style="gap: 12px"><a href="DesktopOrquestaciones.html" class="btn btn-icon btn-sm" aria-label="Volver a orquestaciones">{ico("left")}</a>'
+          f'<h1 class="t-h1">spanish-copy</h1>{badge}<span class="grow"></span><button type="button" class="btn">{ico("folder")}Ver worktree</button></div>')
+
+
+RUNS_RUNNING = lambda m=False: ''.join([
+  run_row('correctness', '1/2', 'sonnet', 'done', '$0,41', m), run_row('correctness', '2/2', 'sonnet', 'done', '$0,38', m),
+  run_row('tests', '1/1', 'sonnet', 'running', '$0,22', m), run_row('conventions', '1/1', 'sonnet', 'pending', '—', m)])
+
+
+def running_gate(mobile=False):
+  return gate('running', f'ronda 1 de 3 · {GATE_COST}', verb='Revisando',
+              bar=segs(['ok', 'ok', 'live', ''], 'Ejecuciones de la ronda: 2 hechas, 1 en marcha, 1 en cola'),
+              runs=runs_block(RUNS_RUNNING(mobile)), mobile=mobile)
+
+
+def blocked_gate(mobile=False):
+  m = mobile
+  blocking = F_CRIT() + F_BLOCK()
+  advisory = F_ADV1() + F_ADV2()
+  rows = ''.join([run_row('correctness', '1/2', 'sonnet', 'done', '$0,41', m), run_row('correctness', '2/2', 'sonnet', 'done', '$0,38', m),
+                  run_row('tests', '1/1', 'sonnet', 'done', '$0,29', m), run_row('security', '1/1', 'sonnet', 'done', '$0,33', m),
+                  run_row('conventions', '1/1', 'sonnet', 'done', '$0,17', m), run_row('', '', 'sonnet', 'done', '$0,26', m, kind='verificador')])
+  skipped = skipped_rows([('docs/assets/demo.png', 'binario'), ('pnpm-lock.yaml', 'excluido')])
+  groups = ''.join([
+    group('Bloqueantes', 2, blocking, True), group('Informativos', 2, advisory), group('Refutados', 1, F_REF()),
+    group('Fuera del diff', 1, F_OUT()), group('Sin revisar', 2, skipped)])
+  return gate('blocked', f'ronda 3 de 3 · {GATE_HEAD} · $3,12 de $5,00',
+              why=reason('bad', '2 hallazgos bloqueantes siguen abiertos tras 2 rondas de arreglo.'),
+              runs=runs_block(rows), groups=groups, foot=foot_actions('blocked', mobile), mobile=mobile)
+
+
+def orch_desktop(name, title, state, card, overlay='', h=1024):
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: 500">spanish-copy</span>'
+  cells = ['ok', 'ok', 'live', ''] if state == 'running' else None
+  main = f'<main class="page" style="gap: 18px; overflow: hidden">{orch_header(state)}{steps(state, cells)}{card}</main>'
+  write(name, desktop(title, 'orch', crumb, main, overlay=overlay).replace('height: 1024px', f'height: {h}px', 1))
+
+
+def orch_mobile(name, title, state, card, overlay=''):
+  chips = ''.join(f'<span class="badge b-ok" style="height: 28px; flex-shrink: 0">✓ {s}</span>' for s in ['etapas', 'integración'])
+  chips += ('<span class="badge b-live" style="height: 28px; flex-shrink: 0"><span class="spin-braille" aria-hidden="true"></span>verificando</span>' if state == 'running'
+            else '<span class="badge b-bad" style="height: 28px; flex-shrink: 0">verificación fallida</span>')
+  head = (f'<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px"><a href="MobileOrquestaciones.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
+          f'<span class="col grow" style="gap: 2px"><span style="font-weight: 600; font-size: 16px">spanish-copy</span><span class="mono t-xs fg-3">6 tareas · 20:32</span></span>'
+          f'<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico("more", "ico ico-lg", "stroke-width: 3")}</button></header>')
+  inner = f'{head}\n<div class="m-body" style="gap: 14px; overflow: hidden"><div class="row" style="gap: 6px; overflow: hidden">{chips}</div>{card}</div>\n{overlay}'
+  write(name, mobile(title, inner, 'glow-top', 'background-size: 100% 300px'))
+
+
+def accept_body(mobile=False):
+  size = 'btn-lg' if mobile else ''
+  return (f'<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">La revisión está <b>incompleta</b>: un revisor falló dos veces. Si la aceptas, la verificación pasa sin ella.</p>'
+          f'<label class="col" style="gap: 6px"><span class="t-label">Motivo <span class="fg-3">· obligatorio</span></span>'
+          f'<span class="field field-area"><textarea rows="3" aria-label="Motivo" style="{"font-size: 16px" if mobile else ""}">The reviewer crashed on the generated lockfile twice; the rest of the diff was reviewed and the checks pass.</textarea></span></label>'
+          f'<div class="callout callout-warn" role="note" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
+          f'<span class="col" style="gap: 4px"><span>La verificación pasará sin la revisión. Queda registrado con tu nombre.</span>'
+          f'<span class="mono t-xs fg-3">Vale solo para {GATE_HEAD}: un commit nuevo la anula.</span></span></div>')
+
+
+def accept_dialog():
+  return f'''<div class="scrim" style="z-index: 30">
+<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="acc-title" style="width: 520px">
+<div class="dialog-head"><h2 id="acc-title" class="t-h2 grow">¿Aceptar la revisión incompleta?</h2><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
+<div class="dialog-body">{accept_body()}</div>
+<div class="dialog-foot"><span class="grow"></span><button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">Aceptar y continuar</button></div>
+</div></div>'''
+
+
+def accept_sheet():
+  return f'''{scrim()}
+<div class="sheet" role="dialog" aria-label="Aceptar la revisión incompleta" style="z-index: 11; padding: 10px 16px 28px; display: flex; flex-direction: column; gap: 12px; max-height: 92%; overflow: hidden">
+<div class="grab" style="margin-bottom: 0"></div>
+<div class="row" style="gap: 10px"><h2 class="t-h2 grow">¿Aceptar la revisión incompleta?</h2><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar">{ico('x', 'ico ico-lg')}</button></div>
+{accept_body(True)}
+<div class="row" style="gap: 8px"><button type="button" class="btn btn-lg">Cancelar</button><button type="button" class="btn btn-primary btn-lg grow" style="justify-content: center">Aceptar y continuar</button></div>
+</div>'''
+
+
+def incomplete_gate(mobile=False, first=False):
+  m = mobile
+  rows = ''.join([run_row('correctness', '1/2', 'sonnet', 'done', '$0,41', m), run_row('correctness', '2/2', 'sonnet', 'failed', '$0,12', m),
+                  run_row('tests', '1/1', 'sonnet', 'done', '$0,29', m), run_row('conventions', '1/1', 'sonnet', 'done', '$0,17', m)])
+  return gate('incomplete', f'ronda 1 de 3 · {GATE_HEAD} · $0,99 de $5,00',
+              why=reason('warn', 'Un revisor falló y parte de la rama no se revisó.'),
+              runs=runs_block(rows), foot=foot_actions('retry-first' if first else 'retry', m), mobile=m)
+
+
+# --- every state, condensed
+def small_runs(rows, m):
+  return runs_block(''.join(rows))
+
+
+def gate_states(m):
+  B = lambda s: gate_badge(s)
+  adv = group('Informativos', 2, F_ADV1() + F_ADV2())
+  return [
+    ('Pendiente', 'Está activada y espera a que las comprobaciones pasen. Nada se mueve.',
+     gate('pending', f'{GATE_COST.split(" de ")[0]} de $5,00', why=reason('', 'Empieza cuando las comprobaciones pasen.', icon='wait'), mobile=m)),
+    ('En marcha · preparando', 'Calcula el diff y el coste antes de gastar nada. Braille junto al verbo y borde de energía: la única superficie viva.',
+     gate('running', 'ronda 1 de 3 · $0,00 de $5,00', verb='Preparando', mobile=m)),
+    ('En marcha · revisando', 'Un segmento por ejecución de la ronda: hecha, en marcha, en cola.',
+     gate('running', f'ronda 1 de 3 · {GATE_COST}', verb='Revisando', bar=segs(['ok', 'ok', 'live', ''], 'Ejecuciones: 2 hechas, 1 en marcha, 1 en cola'),
+          runs=small_runs([run_row('correctness', '1/1', 'sonnet', 'done', '$0,41', m), run_row('tests', '1/1', 'sonnet', 'running', '$0,22', m)], m), mobile=m)),
+    ('En marcha · verificando', 'Un verificador por hallazgo que puede bloquear; su veredicto llega a cada tarjeta.',
+     gate('running', 'ronda 1 de 3 · $2,10 de $5,00', verb='Verificando', bar=segs(['ok', 'ok', 'ok', 'live'], 'Verificadores: 3 hechos, 1 en marcha'),
+          runs=small_runs([run_row('', '2/3', 'sonnet', 'running', '$0,20', m, kind='verificador')], m), mobile=m)),
+    ('En marcha · corrigiendo, ronda 2 de 3', 'El arreglador mueve la rama; las comprobaciones vuelven a empezar desde la primera.',
+     gate('running', 'ronda 2 de 3 · $3,05 de $5,00', verb='Corrigiendo', bar=segs(['ok', 'ok', 'bad', 'live'], 'Ronda 2: dos hechas, una fallida, una en marcha'),
+          runs=small_runs([run_row('', '', 'sonnet', 'running', '$0,64', m, kind='arreglador')], m), mobile=m)),
+    ('En marcha · esperando el límite de uso', 'Aviso en warn con la hora de reanudación en mono. La ejecución espera; el resto no se detiene.',
+     gate('running', 'ronda 1 de 3 · $1,10 de $5,00', verb='Revisando',
+          why=reason('warn', 'Esperando el límite de uso. Se reanuda a las <span class="mono">18:40</span>.', icon='wait'),
+          bar=segs(['ok', 'ok', 'live', ''], 'Ejecuciones: 2 hechas, 1 esperando, 1 en cola'),
+          runs=small_runs([run_row('security', '1/1', 'sonnet', 'waiting', '$0,22', m)], m), mobile=m)),
+    ('Superada · sin hallazgos', 'Cero hallazgos: una línea en ok, sin lista.',
+     gate('passed', f'ronda 1 de 3 · $1,32 de $5,00',
+          why=f'<div class="rg-quiet">{ico("check", "ico", "color: var(--ok)")}<span>Sin hallazgos en 4 revisiones.</span></div>', mobile=m)),
+    ('Superada con avisos', 'Los informativos no bloquean: quedan plegados.',
+     gate('passed', 'ronda 1 de 3 · $1,32 de $5,00', why=reason('', '2 hallazgos informativos. Ninguno bloquea.', icon='info'), groups=adv, mobile=m)),
+    ('Bloqueada', 'Un hallazgo confirmado, de severidad alta o crítica, sigue abierto. Aceptar es una acción de una persona.',
+     gate('blocked', f'ronda 3 de 3 · {GATE_HEAD}', why=reason('bad', '2 hallazgos bloqueantes siguen abiertos tras 2 rondas de arreglo.'),
+          groups=group('Bloqueantes', 2), foot=foot_actions('blocked', m), mobile=m)),
+    ('Incompleta · un revisor falló', 'Falla un revisor: Reintentar es la única acción primaria. Aceptar queda desactivado hasta que un reintento también termine incompleto.',
+     gate('incomplete', f'ronda 1 de 3 · {GATE_HEAD}', why=reason('warn', 'Un revisor falló y parte de la rama no se revisó.'),
+          runs=small_runs([run_row('correctness', '2/2', 'sonnet', 'failed', '$0,12', m)], m), foot=foot_actions('retry-first', m), mobile=m)),
+    ('Incompleta · un archivo no se puede revisar', 'Cada archivo que debía revisarse y no se pudo (D15) la deja incompleta; los excluidos, nunca.',
+     gate('incomplete', f'ronda 1 de 3 · {GATE_HEAD}', why=reason('warn', 'Un archivo es demasiado grande para revisarlo. Añádelo a las exclusiones, sube el límite o acéptalo con un motivo.'),
+          groups=group('Sin revisar', 1, skipped_rows([('apps/web/src/generated/schema.ts', 'demasiado grande · 412 KB')]), True), foot=foot_actions('retry', m), mobile=m)),
+    ('Incompleta · el coste supera el tope', 'Se detiene antes de gastar, con la estimación junto a «Subir el tope».',
+     gate('incomplete', 'ronda 1 de 3 · estimado $7,40 de $5,00', why=reason('warn', 'La estimación supera el tope de la revisión. No se ha gastado nada.'),
+          foot=(f'<div class="rg-foot"><button type="button" class="btn btn-primary {"btn-lg" if m else ""}">Subir el tope</button>'
+                f'<button type="button" class="btn {"btn-lg" if m else ""}">Aceptar de todos modos</button><button type="button" class="btn {"btn-lg" if m else ""}">Verificar de nuevo</button></div>'), mobile=m)),
+    ('Aceptada', 'Una persona la dejó pasar, con su motivo citado y la rama a la que se aplica. En warn, con su palabra.',
+     gate('accepted', f'ronda 1 de 3 · {GATE_HEAD}',
+          why=reason('warn', 'yeyo aceptó la revisión incompleta el 16 oct, 11:02, para <span class="mono">a1b2c3d</span>:',
+                     'The reviewer crashed on the generated lockfile twice; the rest of the diff was reviewed.', icon='check'),
+          foot=foot_actions('verify', m), mobile=m)),
+    ('Omitida', 'No hay nada que revisar (solo archivos excluidos o sin cambios): pasa de forma determinista.',
+     gate('skipped', '', why=reason('', 'Sin archivos que revisar en esta rama.', icon='info'), mobile=m)),
+    ('Detenida', 'Detener o cancelar la deja incompleta, con la razón «detenida».',
+     gate('incomplete', f'ronda 1 de 3 · {GATE_HEAD}', why=reason('warn', 'La revisión se detuvo antes de terminar.'),
+          runs=small_runs([run_row('tests', '1/1', 'sonnet', 'cancelled', '$0,11', m)], m), foot=foot_actions('retry-first', m), mobile=m)),
+  ]
+
+
+def gate_states_desktop():
+  grid = ''.join(cell(a, b, c) for a, b, c in gate_states(False))
+  head = ('<header class="col" style="gap: 6px"><span class="t-label">Revisión de la rama integrada</span><h1 class="t-h1">Los estados de la revisión en la tarjeta de verificación</h1>'
+          '<p class="t-sm fg-2" style="margin: 0; max-width: 860px; line-height: 1.5">Cada estado es una sección <span class="mono">.rg</span> de la tarjeta de verificación. Solo «en marcha» se mueve, y lleva el borde de energía; '
+          'en una pantalla solo hay una superficie así. El estado es siempre una palabra con su color. Con el movimiento apagado, los giros se quedan quietos y el borde no gira.</p></header>')
+  body = (f'<div class="app col" data-theme="dark" style="width: 1440px; height: {GATE_STATES_H}px; padding: 32px 40px; gap: 22px; overflow: hidden">{head}'
+          f'<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 28px; align-items: start">{grid}</div></div>')
+  write('DesktopOrquestacionRevisionEstados.html', page('Orquestación, estados de la revisión (desktop)', body))
+
+
+def gate_states_mobile():
+  # Two sheets: a phone capture at 2x must stay under WebP's 16383 px
+  cells = gate_states(True)
+  for name, part, title in (('MobileOrquestacionRevisionEstados.html', cells[:8], 'Estados de la revisión'), ('MobileOrquestacionRevisionEstados2.html', cells[8:], 'Estados de la revisión (2)')):
+    grid = ''.join(cell(a, b, c) for a, b, c in part)
+    body = (f'<div class="app m-screen" data-theme="dark" style="height: auto; overflow: visible"><div class="m-body stack" style="gap: 22px; overflow: visible; padding-top: 16px">'
+            f'<h1 class="t-h1">{title}</h1>{grid}</div></div>')
+    write(name, page('Orquestación, ' + title.lower() + ' (móvil)', body, mobile=True))
+
+
+GATE_STATES_H = 6000
+MOBILE_STATES_H = 7000
+MOBILE_STATES2_H = 7000
+BLOCKED_H = 2300
+
+
+# --- the integration diff with its findings
+def finding_pill(n):
+  return f'<span class="dv-note-pill" role="img" aria-label="{n} hallazgo{"s" if n != 1 else ""}">{ico("warn", "ico ico-sm")}{n}</span>'
+
+
+def finding_diff(mobile=False):
+  rows = [
+    fold('1 hallazgo de una ronda anterior · desactualizado', mobile),
+    row('ctx', 4, ''),
+    row('add', 5, L5),
+    row('add', 6, L6),
+    row('ctx', 7, ''),
+    row('ctx', 8, L8),
+    row('add', 9, L9),
+    row('add', 10, L10, pill_html='' if mobile else finding_pill(1), noted=True),
+    F_BLOCK(),
+    row('ctx', 11, '}'),
+  ]
+  if not mobile:
+    rows += [gap('24 líneas sin cambios', 'writeSettings()'), row('ctx', 36, L36), row('add', 37, L37, pill_html=finding_pill(1), noted=True), F_ADV2(), row('add', 38, L38), row('ctx', 39, '}')]
+  body = '\n'.join(rows)
+  if mobile:
+    return f'<div class="app dv dv-read dv-wrap dv-review" data-theme="dark" style="display: block; width: 390px; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 10px 0 0">{body}</div>'
+  return f'{WRAP}{body}</div>'
+
+
+def finding_page():
+  aside = file_aside().replace('3 hilos', '3 hallazgos').replace('title="3 hilos"', 'title="3 hallazgos"')
+  head = review_head('github').replace('Cambios de la PR #12', 'Cambios integrados').replace('<span class="chip" style="height: 32px">' + ico('edit', 'ico ico-sm') + 'Tu borrador<span class="n">1 nota</span></span>',
+         f'<span class="chip" style="height: 32px">{ico("warn", "ico ico-sm")}Hallazgos<span class="n">2 bloqueantes</span></span>')
+  fh = file_head('github').replace('3 hilos', '2 hallazgos').replace('1 sin resolver', '1 bloqueante')
+  main = f'''{head}
+<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0">
+{aside}
+<section class="col grow" style="gap: 0; min-width: 0" aria-label="{FILE_DIR}{FILE_NAME}">
+{fh}
+{finding_diff()}
+</section>
+</div>'''
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span class="fg-2">spanish-copy</span><span class="fg-3">/</span><span style="font-weight: 500">Cambios</span>'
+  write('DesktopRevisionHallazgos.html', desktop('Revisión, hallazgos en el diff', 'orch', crumb, main, agents=2, running=2))
+
+
+def finding_phone():
+  head = phone_head().replace('MobileTareaMR.html', 'MobileOrquestacion.html').replace('Volver a la tarea', 'Volver a la orquestación')
+  bar_ = (f'<div class="row" style="flex-shrink: 0; gap: 10px; padding: 10px 16px; flex-wrap: wrap"><div class="seg" role="radiogroup" aria-label="Cómo comparar"><button type="button" role="radio" aria-checked="true" class="on" style="height: 30px">Lectura</button>'
+          f'<button type="button" role="radio" aria-checked="false" style="height: 30px">Unificado</button></div><span class="grow"></span><span class="mono t-xs fg-2">3 hallazgos · 2 bloqueantes</span></div>')
+  inner = f'{head}\n{bar_}\n<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; border-top: 1px solid var(--line); display: flex; flex-direction: column">{finding_diff(True)}</div>'
+  write('MobileRevisionHallazgos.html', mobile('Revisión, hallazgos en el diff', inner))
+
+
+# --- the pages
+def r_gate():
+  orch_desktop('DesktopOrquestacionRevision.html', 'Orquestación, la revisión en marcha', 'running',
+               verification_card(running_gate(), '<span class="badge b-live"><span class="spin-braille" aria-hidden="true"></span>verificando</span>'))
+  orch_desktop('DesktopOrquestacionRevisionBloqueada.html', 'Orquestación, la revisión bloqueada', 'failed',
+               verification_card(blocked_gate(), '<span class="badge b-bad">' + ico('warn', 'ico ico-sm') + 'fallida</span>'), h=BLOCKED_H)
+  orch_desktop('DesktopOrquestacionRevisionAceptar.html', 'Orquestación, aceptar la revisión incompleta', 'failed',
+               verification_card(incomplete_gate(), '<span class="badge b-bad">' + ico('warn', 'ico ico-sm') + 'fallida</span>'), overlay=accept_dialog())
+  orch_mobile('MobileOrquestacionRevision.html', 'Orquestación, la revisión en marcha', 'running',
+              verification_card(running_gate(True), '<span class="badge b-live"><span class="spin-braille" aria-hidden="true"></span>verificando</span>', True))
+  orch_mobile('MobileOrquestacionRevisionBloqueada.html', 'Orquestación, la revisión bloqueada', 'failed',
+              verification_card(blocked_gate(True), '<span class="badge b-bad">' + ico('warn', 'ico ico-sm') + 'fallida</span>', True))
+  orch_mobile('MobileOrquestacionRevisionAceptar.html', 'Orquestación, aceptar la revisión incompleta', 'failed',
+              verification_card(incomplete_gate(True), '<span class="badge b-bad">' + ico('warn', 'ico ico-sm') + 'fallida</span>', True), overlay=accept_sheet())
+  gate_states_desktop()
+  gate_states_mobile()
+  finding_page()
+  finding_phone()
+
+
+GATE_SCREENS = [
+  ('DesktopOrquestacionRevision.html', 'Desktop · Orquestación, la revisión en marcha', 1440, 1024),
+  ('DesktopOrquestacionRevisionBloqueada.html', 'Desktop · Orquestación, la revisión bloqueada', 1440, BLOCKED_H),
+  ('DesktopOrquestacionRevisionAceptar.html', 'Desktop · Orquestación, aceptar la revisión incompleta', 1440, 1024),
+  ('DesktopOrquestacionRevisionEstados.html', 'Desktop · Orquestación, estados de la revisión', 1440, GATE_STATES_H),
+  ('DesktopRevisionHallazgos.html', 'Desktop · Revisión, hallazgos en el diff', 1440, 1024),
+  ('MobileOrquestacionRevision.html', 'Móvil · Orquestación, la revisión en marcha', 390, 844),
+  ('MobileOrquestacionRevisionBloqueada.html', 'Móvil · Orquestación, la revisión bloqueada', 390, 844),
+  ('MobileOrquestacionRevisionAceptar.html', 'Móvil · Orquestación, aceptar la revisión incompleta', 390, 844),
+  ('MobileOrquestacionRevisionEstados.html', 'Móvil · Orquestación, estados de la revisión', 390, MOBILE_STATES_H),
+  ('MobileOrquestacionRevisionEstados2.html', 'Móvil · Orquestación, estados de la revisión (2)', 390, MOBILE_STATES2_H),
+  ('MobileRevisionHallazgos.html', 'Móvil · Revisión, hallazgos en el diff', 390, 844),
+]
+
+
+def register_gate():
+  import json, os
+  from common import OUT
+  mf = os.path.join(OUT, 'manifest.json')
+  entries = json.load(open(mf))
+  have = {e['file'] for e in entries}
+  entries += [dict(file=f, title=t, w=w, h=h) for f, t, w, h in GATE_SCREENS if f not in have]
+  with open(mf, 'w') as fh:
+    fh.write(json.dumps(entries, indent=2, ensure_ascii=False) + '\n')
+  ix = os.path.join(OUT, 'index.html')
+  s = open(ix).read()
+  if 'DesktopOrquestacionRevision.html' in s:
+    return
+  shots = ''.join(f'<div class="shot"><a href="{f}"><img src="screenshots/{f[:-5]}-dark.webp" alt="{t}"></a><a href="{f}" class="t-sm">{t}</a>'
+                  f'<span class="mono t-xs fg-3">{f} · {w}×{h} · <a class="c-accent" href="screenshots/{f[:-5]}-light.webp">light</a></span></div>\n' for f, t, w, h in GATE_SCREENS)
+  sec = (f'<section class="col" style="gap:12px"><h2 class="t-h2">Review gate <span class="t-label" style="margin-left:8px">Plan: review-gate.md</span></h2><div class="grid">\n'
+         f'{shots}</div></section>\n')
+  open(ix, 'w').write(s.replace('</div></body></html>', sec + '</div></body></html>'))
+
+
 # ---------------------------------------------------------------- run
 if __name__ == '__main__':
   r_p1()
   r_p2()
   all_r_p3()
+  r_gate()
+  register_gate()
