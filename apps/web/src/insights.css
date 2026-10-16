@@ -936,7 +936,7 @@
   min-height: 40px;
   margin-bottom: 16px;
   padding: 0 16px;
-  border-radius: var(--r-lg);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--bg-1);
   font-size: 13px;
@@ -1169,7 +1169,7 @@
   min-height: 40px;
   margin-bottom: 16px;
   padding: 0 16px;
-  border-radius: var(--r-lg);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--bg-1);
   font-size: 13px;
