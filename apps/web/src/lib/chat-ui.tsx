@@ -30,6 +30,8 @@ export const chatClient: ChatClient = {
 const slots: ChatUiConfig['slots'] = {
   StartOptions: lazy(() => import('../pages/chat/Controls').then((m) => ({ default: m.StartOptions }))),
   LiveOptions: lazy(() => import('../pages/chat/Controls').then((m) => ({ default: m.LiveOptions }))),
+  // Lazy too: the comparator is only needed once a reader opens an edit
+  Diff: lazy(() => import('../components/changes/DiffSlot').then((m) => ({ default: m.DiffSlot }))),
 };
 
 const paths: ChatUiConfig['paths'] = {

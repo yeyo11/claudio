@@ -759,17 +759,216 @@
   font: 11.5px var(--mono);
 }
 
-.call-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 0 6px 6px;
-}
-
 .icon-btn.call-open {
   flex: none;
   width: 26px;
   height: 26px;
+}
+
+/* The pattern of a search, then where it looked, a step quieter */
+.tool-hint-aside {
+  color: var(--text-faint);
+}
+
+/* ---- an opened call: a lens per tool, read as what happened (plans/tool-rows-and-live-branches.md §3.2) ---- */
+.call-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 6px 10px 8px;
+}
+
+.call-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.call-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.call-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  font: 12px var(--mono);
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+/* What a command printed: the terminal's words, no syntax, wrapped so nothing scrolls sideways */
+.call-term,
+.call-stderr {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  font: 12px/1.6 var(--mono);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.call-stderr {
+  border-color: color-mix(in srgb, var(--bad) 30%, transparent);
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+/* A read file: the stylesheet numbers the lines from where the read started, so a copy leaves them out */
+.call-lines > span {
+  display: grid;
+  grid-template-columns: var(--ln-w) minmax(0, 1fr);
+  column-gap: 14px;
+  counter-increment: call-ln;
+}
+
+.call-lines > span::before {
+  content: counter(call-ln);
+  text-align: right;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.call-files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 12px var(--mono);
+  color: var(--text-muted);
+}
+
+.call-files li {
+  padding: 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.call-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  font-size: 13px;
+}
+
+.call-field-key {
+  padding-top: 3px;
+  font: 11px var(--mono);
+  color: var(--text-faint);
+}
+
+.call-field {
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.call-tree {
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  border-left: 1px solid var(--border);
+  font: 12px/1.7 var(--mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.call-tree > li > .k {
+  color: var(--text-faint);
+}
+
+.call-tree .v {
+  color: var(--text);
+}
+
+.call-tree .v.n {
+  color: var(--sx-num);
+}
+
+/* The patch the CLI recorded, through the app's comparator: held to a height, with its own scroll */
+.call-diff {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+
+.call-diff.is-all {
+  max-height: none;
+}
+
+.call-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.call-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.call-checklist svg {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.call-checklist .is-completed svg {
+  color: var(--ok);
+}
+
+.call-checklist .word {
+  flex: none;
+  font: 11px var(--mono);
+  color: var(--text-faint);
+}
+
+.btn.call-more,
+.btn.call-raw {
+  height: 26px;
+  padding: 0 8px;
+  font: 11.5px var(--mono);
+}
+
+.btn.call-more {
+  align-self: flex-start;
+}
+
+.btn.call-raw {
+  align-self: flex-end;
+  color: var(--text-faint);
+}
+
+@media (pointer: coarse) {
+  .btn.call-more,
+  .btn.call-raw {
+    height: var(--touch);
+  }
 }
 
 .fold[data-state='open']:not(.fold-call, .fold-thinking, .tool-step) > .collapsible-trigger {
