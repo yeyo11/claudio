@@ -33,6 +33,7 @@ const host = {
   persist: () => {},
   noteActivity: () => {},
   observeLimit: () => {},
+  observeSignIn: () => {},
   learnModelCosts: () => {},
   learnWindows: () => {},
   maybeLimit: () => {},
