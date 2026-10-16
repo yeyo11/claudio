@@ -1394,9 +1394,10 @@ test('a limit the rotation holds is not a failure and not an attempt', async () 
   db.close();
 });
 
-test('a task whose limit the rotation answers with another account completes when the replayed turn ends', async () => {
-  // Not held: the rotation does not wait, it replays the turn in the same chat on another account
-  const { db, repo, runs, orchestrator, taskOf } = providerGraph({ held: false });
+for (const held of [true, false]) test(`a task whose limit the rotation answers with another account completes when the replayed turn ends (held while deciding: ${held})`, async () => {
+  // The rotation does not wait: it replays the turn in the same chat on another account. While it
+  // decides, \`holds\` is true (its \`handling\` set), which is the case seen in production
+  const { db, repo, runs, orchestrator, taskOf } = providerGraph({ held });
   const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false }));
   const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
   await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
