@@ -206,6 +206,8 @@ const CHAT_FORBIDDEN = new Set([
   // It names a binary Claudio will run, so a prompt injection must not be able to point it at one
   `PUT ${API_PREFIX}/providers/settings`,
   `POST ${API_PREFIX}/providers/refresh`,
+  // Letting a graph run past the daily spend cap is the person's click: an agent that could grant itself the pass would have no cap
+  `POST ${API_PREFIX}/orchestrations/:id/spend-pass`,
   // Same for the code hosts: the settings name the gh or glab binary Claudio will run
   `PUT ${API_PREFIX}/hosts/settings`,
   `POST ${API_PREFIX}/hosts/refresh`,

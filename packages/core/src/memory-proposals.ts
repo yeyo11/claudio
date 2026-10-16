@@ -6,6 +6,7 @@ import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import {
   MEMORY_PROPOSAL_STATUSES,
   MEMORY_PROPOSAL_TARGET_KINDS,
+  rulePathsProblem,
   type ApproveMemoryProposalRequest,
   type FlowMemoryProposal,
   type MemoryProposal,
@@ -18,12 +19,15 @@ import {
   type WorkItemSource,
 } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
+import { ConfigResources } from './config/resources.ts';
+import { projectScope } from './config/scope.ts';
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import type { ClaudioEventInput } from './events.ts';
 import type { JournalService } from './journal.ts';
 import { JOURNAL_ENTRY_MAX } from './journal.ts';
 import { MemoryStore } from './memory.ts';
+import { readFrontmatterList } from './team.ts';
 import { actorOf, sourceOf } from './work-item-rows.ts';
 import { PERSON, WorkItemError } from './work-item-validation.ts';
 
@@ -59,6 +63,8 @@ export interface MemoryProposalServiceDeps {
   item?: (itemId: string) => WorkItemRef | null;
   /** The decision engine, for `memory.triage`; without it the list stays in arrival order */
   decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
+  /** The resources a `rule` target is written through; without it a plain one writes the file */
+  resources?: () => ConfigResources;
 }
 
 /** How a triaged proposal is ordered: the higher its usefulness, the earlier the person sees it */
@@ -81,6 +87,8 @@ interface ProposalRow {
   target_kind: string;
   target_file: string | null;
   target_section: string | null;
+  /** A JSON array of globs, for a `rule`; null for the other kinds */
+  target_paths: string | null;
   text: string;
   reason: string;
   status: string;
@@ -230,10 +238,10 @@ export class MemoryProposalService {
     const wanted = sameText(text);
     const rows = this.sql
       .prepare(
-        `SELECT * FROM memory_proposals WHERE project_id = ? AND target_kind = ? AND target_file IS ? AND target_section IS ?
+        `SELECT * FROM memory_proposals WHERE project_id = ? AND target_kind = ? AND target_file IS ? AND target_section IS ? AND target_paths IS ?
          ORDER BY seq DESC`,
       )
-      .all(projectId, target.kind, target.file, target.section) as unknown as ProposalRow[];
+      .all(projectId, target.kind, target.file, target.section, target.paths ? JSON.stringify(target.paths) : null) as unknown as ProposalRow[];
     const row = rows.find((r) => sameText(r.text) === wanted || (r.approved_text !== null && sameText(r.approved_text) === wanted));
     return row ? this.proposalOf(row) : null;
   }
@@ -249,10 +257,10 @@ export class MemoryProposalService {
   ): void {
     this.sql
       .prepare(
-        `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, text, reason, status,
+        `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, target_paths, text, reason, status,
            proposed_by_kind, proposed_by_role, source_kind, source_chat_id, source_orchestration_id, source_task_id,
            flow_run_id, item_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -260,6 +268,7 @@ export class MemoryProposalService {
         target.kind,
         target.file,
         target.section,
+        target.paths ? JSON.stringify(target.paths) : null,
         text,
         reason,
         origin.proposedBy.kind,
@@ -294,6 +303,10 @@ export class MemoryProposalService {
           ...(before.source ? { sources: [before.source] } : {}),
         });
         this.sql.prepare('UPDATE memory_proposals SET journal_entry_id = ? WHERE id = ?').run(entry.id, proposalId);
+      } else if (before.target.kind === 'rule') {
+        const file = (input as Partial<ApproveMemoryProposalRequest> | undefined)?.file;
+        const written = await this.writeRule(project.path, ruleFile(file === undefined || file === null ? before.target.file : file), before.target.paths ?? [], text);
+        if (written !== before.target.file) this.sql.prepare('UPDATE memory_proposals SET target_file = ? WHERE id = ?').run(written, proposalId);
       } else if (before.target.kind === 'memory') {
         await this.deps.memory.append(project.memoryKey, before.target.file ?? '', text, before.reason);
       } else {
@@ -308,6 +321,28 @@ export class MemoryProposalService {
     const approved = this.mustFind(proposalId);
     this.announce(approved, 'approved');
     return approved;
+  }
+
+  /**
+   * `.claude/rules/<file>` through the project's resources: a new file with the paths as front
+   * matter, or the text appended to a rule that already scopes the same set of paths. A rule with
+   * other paths (or none) is not touched: the person approves under another name.
+   */
+  private async writeRule(projectPath: string, file: string, paths: string[], text: string): Promise<string> {
+    const resources = this.deps.resources?.() ?? new ConfigResources();
+    const scope = projectScope(projectPath);
+    const name = file.slice(0, -'.md'.length);
+    const existing = await resources.get(scope, 'rules', name);
+    if (!existing) {
+      const front = ['---', 'paths:', ...paths.map((g) => `  - "${g}"`), '---', '', text.trim(), ''].join('\n');
+      await resources.save(scope, 'rules', name, front);
+      return file;
+    }
+    const own = readFrontmatterList(existing.content, 'paths') ?? [];
+    const same = own.length === paths.length && new Set(own).size === new Set(paths).size && paths.every((g) => own.includes(g));
+    if (!same) throw new WorkItemError(`.claude/rules/${file} exists with other paths; approve it under another name`, 409);
+    await resources.save(scope, 'rules', name, `${existing.content.trimEnd()}\n\n${text.trim()}\n`);
+    return file;
   }
 
   reject(proposalId: string, input: RejectMemoryProposalRequest = {}, decidedBy: WorkItemActor = PERSON): MemoryProposal {
@@ -366,7 +401,7 @@ export class MemoryProposalService {
     return {
       id: r.id,
       projectId: r.project_id,
-      target: { kind, file: r.target_file, section: r.target_section },
+      target: { kind, file: r.target_file, section: r.target_section, ...(kind === 'rule' ? { paths: pathsOf(r.target_paths) } : {}) },
       text: r.text,
       reason: r.reason,
       status,
@@ -420,12 +455,36 @@ function targetOf(value: unknown): MemoryProposalTarget {
     }
     return { kind, file, section: null };
   }
+  if (kind === 'rule') {
+    const paths = (value as { paths?: unknown }).paths;
+    const problem = rulePathsProblem(paths);
+    if (problem) throw new WorkItemError(`target.${problem}`, 400);
+    return { kind, file: ruleFile(v.file), section: null, paths: [...new Set((paths as string[]).map((g) => g.trim()))] };
+  }
   if (kind === 'instructions') {
     const section = typeof v.section === 'string' ? v.section.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim() : '';
     if (section.length > SECTION_MAX) throw new WorkItemError(`target.section is longer than ${String(SECTION_MAX)} characters`, 400);
     return { kind, file: null, section: section || null };
   }
   return { kind, file: null, section: null };
+}
+
+/** A rule file name: a resource name and `.md`, as `.claude/rules/` holds it */
+function ruleFile(value: unknown): string {
+  const file = typeof value === 'string' ? value.trim() : '';
+  if (!/^[\w.-]{1,61}\.md$/.test(file) || file.startsWith('.')) {
+    throw new WorkItemError("target.file must name a rule file: letters, digits, _ . - and a '.md' extension", 400);
+  }
+  return file;
+}
+
+function pathsOf(stored: string | null): string[] | null {
+  try {
+    const paths: unknown = stored ? JSON.parse(stored) : null;
+    return Array.isArray(paths) ? paths.filter((g): g is string => typeof g === 'string') : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The text as two proposals are compared: the same words, whatever their case and spacing */

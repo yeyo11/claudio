@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T21:00:00Z
-updated_at: 2026-10-15T21:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - plan
     - spec
@@ -13,11 +13,11 @@ tags:
     - team
     - ecc
     - claudio
-    - planned
+    - built
 ---
 # Plan: smaller improvements to agent runs (ECC ideas 6–10 and 12–15)
 
-Status: **planned** (2026-10-15). Nothing here is built yet.
+Status: **built** (2026-10-16). Every idea is merged; what differs from this plan is in [Outcome](#outcome).
 
 This plan builds nine of the smaller ideas ranked in [reports/ecc.md](../reports/ecc.md) §2, on
 `feat/claude-only` (`~/Escritorio/claudio-stage-a`). Idea 11, the structured session note, is
@@ -2605,6 +2605,48 @@ the answer wins, and the task that builds the affected part follows it.
    signal ("would have stopped here") without stopping anything, like the decision engine's
    shadow mode. After the backtest and two weeks of signals the owner switches it to `stop`.
    Setting: `plateau: 'observe' | 'stop' | 'off'`, default `observe`.
+
+## Outcome
+
+Built on 2026-10-16 by the orchestration `agent-run-improvements` (tasks `s0`–`s8`). The ideas work as
+the sections above describe unless this list says otherwise. The resolved questions won where they
+differed from the text above.
+
+**What changed from the plan**
+
+- **Plateau is `plateau`, not `stopOnPlateau`.** The project setting is
+  `flow.plateau: 'observe' | 'stop' | 'off'`, default `observe` (resolved question 3), and it replaces
+  the boolean of decision 9. It records an item comment instead of a health signal: health signals
+  are per chat and a plateau spans rounds. `WorkItem.waitingCause?: 'plateau'` was added so the
+  board strip can tell a plateau wait from the bounce limit.
+- **The risk scorer counts the checkout as inside.** Beside the chat's directory and worktree, the
+  checkout counts as inside, so a chat in a subdirectory editing a sibling is not flagged high.
+  `notification.urgency` is at `stateVersion` 2. `Tag` in `@claudio/ui` takes an optional `icon`,
+  `StepScrubber` moved to its own file, and `@claudio/chat-ui` exports `./lib/tool-risk-tag`.
+- **The cap is asked in `request()`.** The web's `api.ts` shows `SpendCapDialog` on any `409 spend-cap`
+  and resends with the override header, so no page wires it. While the dialog is open a chat message
+  sits in the composer's "sending" card and returns to the composer on cancel. The cap's card lives
+  on Settings → Security, where `AppSettingsCards` is; there is no "Runtime" tab. The per-item
+  "Keep going today" pass exists for graphs only: a flow card waits at the cap with its wait line
+  and has no pass of its own yet (resolved question 2 is open for the flow).
+- **Optional roles and rules.** `ApproveMemoryProposalRequest` gained an optional `file` for the
+  rename after a `409`. A role accepted from the assistant keeps the template's `tools` and
+  `commands`. `MemoryProposalTarget.paths` stays optional in the type.
+- **Delegation.** `FlowDeps.delegates` is optional and wired to the runtime's chat, and `fake-claude.mjs`
+  gained `FAKE-BG-AGENT` and a multi-line `FAKE-TEXT-ONCE`.
+
+**Not done, or left to the integrator**
+
+- `ChecksFix` is not constructed in the source, only in tests, so `ChecksFixDeps.comment` is unwired:
+  `historyAllows` still refuses, but its item comment is not written until `ChecksFix` is built with the
+  work-item service as its actor.
+- The backtest script over `flow_runs` (idea 14, "How to measure") is not written. Plateau stays in
+  `observe` until the owner has the backtest and two weeks of comments.
+- `e2e/specs/spend-cap.spec.mjs` is written and was not run by its task. The end-to-end suite, the
+  docker build and `pnpm desktop:dist` run once on the merged branch.
+- The visual pass in both themes and on a phone (the risk tag on a long path, `motion.spec.mjs`)
+  is the integrator's.
+- Known miss in the scorer: `bash -c '…'` is not looked into.
 
 ## Related
 

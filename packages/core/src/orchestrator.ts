@@ -30,7 +30,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -66,6 +66,9 @@ import {
   commitsSince,
   fixerPrompt,
   installStep,
+  errorCount,
+  failureSignature,
+  parseFixerReport,
   normalizeVerification,
   runCommand,
   tail,
@@ -79,11 +82,11 @@ import {
   type InstallStep,
 } from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
-import { continuationPrompt, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
+import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
-import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
+import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
@@ -96,6 +99,8 @@ export const PLANNER_RUN_NAME = 'orchestration-planner';
 const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
+/** A failure whose signature survives this many fixer attempts is the same error: more attempts will not help */
+const SAME_ERROR_ATTEMPTS = 3;
 /** How every worker's prompt, and each message that sends it back to its chat, ends */
 const WORKER_CLOSING = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
 const DEFAULT_ATTEMPTS = 2;
@@ -313,7 +318,12 @@ export const PLANNER_GRAPH_GUIDANCE =
   'A documentation task depends on the implementation tasks, never on a review task, so it runs in parallel with the review. ' +
   'A review task, when there is one, reviews the design and what automated checks cannot see, and does not re-run the whole test suite. ' +
   'A task that only writes prose (documentation) sets model to "sonnet"; leave model out for every other task. ' +
-  'Every task prompt names the files, modules or routes it will touch, so its worker does not spend turns finding them.';
+  'Every task prompt names the files, modules or routes it will touch, so its worker does not spend turns finding them. ' +
+  'Every task prompt that adds or changes code also names, for each convention its worker must follow (naming, error handling, data access, tests), one real example as `path:line` that you read, or says that the code has none, so the worker copies a pattern instead of inventing one.';
+
+/** Tasks listed in a worker's head, and the longest name shown: the head stays small in a graph of a hundred tasks */
+const WORKER_HEAD_TASKS = 30;
+const WORKER_HEAD_NAME = 80;
 
 export const PLAN_SCHEMA = {
   type: 'object',
@@ -450,6 +460,12 @@ export class Orchestrator {
   waitOf: ((chatId: string) => LimitWait | null) | null = null;
   /** Ends the wait a chat is in, for a task that is stopped; set by Core */
   releaseWait: ((chatId: string) => void) | null = null;
+  /**
+   * Whether the daily spend cap lets this graph start new work: true below the cap and for a graph
+   * that holds today's pass. Only the start of a pending task and of a workflow ask; what is in
+   * flight (retries, integration, verification and its fixer, synthesis) never does. Set by Core.
+   */
+  spendOpen: ((orchestrationId: string) => boolean) | null = null;
 
   constructor(
     private readonly config: CoreConfig,
@@ -765,6 +781,49 @@ export class Orchestrator {
     return orch;
   }
 
+  /**
+   * The daily cap opened (raised, off, a new day) or a graph got its pass: starts what waited for
+   * it, in every running graph.
+   */
+  spendChanged(): void {
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running') continue;
+      if (orch.engine === 'workflow') {
+        if (!orch.workflow?.runId) this.launchWorkflow(orch, null);
+      } else this.schedule(orch);
+    }
+  }
+
+  /** Lets a graph start new work past today's cap; kept in its document, for the local day it names. */
+  grantSpendPass(id: string, day: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    orch.spendPass = day;
+    this.persist();
+    return orch;
+  }
+
+  /** The day a graph was let past the cap; null when it was not. */
+  spendPassOf(id: string): string | null {
+    return this.items.get(id)?.spendPass ?? null;
+  }
+
+  /** Tasks ready to start that only the cap holds back: what the graph's wait line counts. */
+  waitingForSpend(): number {
+    if (!this.spendOpen) return 0;
+    let n = 0;
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running' || this.spendOpen(orch.id)) continue;
+      if (orch.engine === 'workflow') {
+        if (!orch.workflow?.runId) n += orch.tasks.filter((t) => t.status === 'pending').length;
+        continue;
+      }
+      const byId = new Map(orch.tasks.map((t) => [t.id, t]));
+      n += orch.tasks.filter((t) => t.status === 'pending' && !t.runId && (t.dependsOn ?? []).every((d) => byId.get(d)?.status === 'completed')).length;
+    }
+    return n;
+  }
+
   stop(id: string): Orchestration {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
@@ -928,8 +987,21 @@ export class Orchestrator {
   }
 
   /** What every worker is told first; shared by both engines, so a task reads the same either way. */
-  private workerHead(orch: Orchestration): string {
-    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective, as the person wrote it:\n${pasted(orch.objective)}` : '';
+  private workerHead(orch: Orchestration, task: OrchestrationTaskState): string {
+    const others = orch.tasks.filter((t) => t.id !== task.id);
+    const listed = others.slice(0, WORKER_HEAD_TASKS).map((t) => {
+      const name = t.name.length > WORKER_HEAD_NAME ? `${t.name.slice(0, WORKER_HEAD_NAME - 1)}…` : t.name;
+      return `- \`${t.id}\` ${name}${t.dependsOn?.length ? ` (depends on: ${t.dependsOn.join(', ')})` : ''}`;
+    });
+    const more = others.length - listed.length;
+    const count = orch.tasks.length;
+    return [
+      'You are one worker in a multi-agent orchestration.',
+      orch.objective ? `Overall objective, as the person wrote it:\n${pasted(orch.objective)}` : `The graph is named ${pasted(orch.name)}.`,
+      `The graph has ${String(count)} task${count === 1 ? '' : 's'}; yours is \`${task.id}\`.` +
+        (listed.length ? ' The others, so you neither redo nor undo their work:' : ''),
+      ...(listed.length ? [pasted([...listed, ...(more > 0 ? [`and ${String(more)} more`] : [])].join('\n'))] : []),
+    ].join('\n');
   }
 
   private workerTask(orch: Orchestration, task: OrchestrationTaskState): string {
@@ -939,9 +1011,11 @@ export class Orchestrator {
       `Your task (${task.name}):\n${task.prompt}`,
       task.builtIn === 'e2e-specs' ? e2eSpecsChecks() : workerChecks(!!orch.verificationSpec),
       REAL_VERIFICATION,
+      RETRIEVAL,
       frontend(designSources(orch.cwd)),
       scopeAndCompletion(),
       UNATTENDED,
+      DELEGATION,
       PASTED_NOTE,
       WORKER_CLOSING,
     ].join('\n\n');
@@ -952,8 +1026,7 @@ export class Orchestrator {
     // A chat is listed by its first line: a node working on a task of the board opens with its name,
     // `KEY · title` in a draft, rather than with the same English sentence as every other node
     if (task.workItemId && task.name.trim()) parts.push(task.name.trim());
-    const head = this.workerHead(orch);
-    if (head) parts.push(head);
+    parts.push(this.workerHead(orch, task));
     const deps = orch.tasks.filter((t) => task.dependsOn?.includes(t.id));
     if (deps.length > 0) {
       parts.push(
@@ -1025,6 +1098,8 @@ export class Orchestrator {
       if (running >= orch.concurrency) break;
       if (t.status !== 'pending' && t.status !== 'interrupted') continue;
       if (!(t.dependsOn ?? []).every((d) => byId.get(d)?.status === 'completed')) continue;
+      // A task that never ran waits for the cap, and so does every one after it; one that has a chat goes on in it
+      if (t.status === 'pending' && !t.runId && this.spendOpen?.(orch.id) === false) break;
       if (this.launch(orch, t)) running++;
       else break;
     }
@@ -1117,6 +1192,7 @@ export class Orchestrator {
           disallowedTools: [...PUSH_DENIED],
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:${task.id}`.slice(0, 60),
+          purpose: 'orchestration',
           keepAlive: false,
           // The CLI ends the turn itself when this is spent
           ...(limits?.maxCostUsd !== undefined ? { maxBudgetUsd: limits.maxCostUsd } : {}),
@@ -1168,7 +1244,7 @@ export class Orchestrator {
         this.relaunching.delete(key);
         if (task.status !== 'running') return; // stopped meanwhile
         try {
-          this.runs.resume(chatId, { prompt, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
+          this.runs.resume(chatId, { prompt, purpose: 'orchestration', ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
           // The chat has answered before: only a result after this call is this attempt's
           void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
           task.error = null;
@@ -1252,8 +1328,21 @@ ${quoted}
     });
   }
 
+  /**
+   * Whether a failed attempt ended with the error the one before it did. A third attempt at an error
+   * that came back unchanged is the loop around the chat being stuck, not the chat, so code ends it
+   * (numbers, paths and times are washed out of the comparison, see `failureSignature`).
+   */
+  private repeatsError(task: OrchestrationTaskState, result: RunResult): boolean {
+    if (!result.isError || result.cause) return false;
+    const signature = failureSignature(result.result);
+    return signature !== null && signature === task.lastErrorSignature;
+  }
+
   private settleNow(orch: Orchestration, task: OrchestrationTaskState, result: RunResult, verdict: SettleVerdict): void {
-    if (result.isError && !result.cause && task.attempts < orch.maxAttempts && task.runId && !verdict.permanent) {
+    const repeated = this.repeatsError(task, result);
+    if (result.isError && !result.cause) task.lastErrorSignature = failureSignature(result.result);
+    if (result.isError && !result.cause && task.attempts < orch.maxAttempts && task.runId && !verdict.permanent && !repeated) {
       this.charge(orch, task, result);
       task.error = result.result;
       this.continueChat(orch, task, task.runId);
@@ -1264,7 +1353,7 @@ ${quoted}
     const open =
       result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS
         ? []
-        : [...structuralItems({ schema: false, structured: true, uncommitted: [] }), ...(verdict.phrases ?? phraseItems(result.result))];
+        : [...structuralItems({ schema: false, structured: true, uncommitted: [], delegates: delegatesOf(this.runs.get(task.runId)) }), ...(verdict.phrases ?? phraseItems(result.result))];
     if (open.length && task.runId) {
       this.charge(orch, task, result);
       const count = (task.continuations ?? 0) + 1;
@@ -1273,6 +1362,7 @@ ${quoted}
       return this.persist();
     }
     this.record(orch, task, result);
+    if (repeated && task.status === 'failed') task.error = `${result.result}\n\nThe same error came back on two attempts in a row, so Claudio did not try again.`;
     this.schedule(orch);
   }
 
@@ -1318,7 +1408,8 @@ ${quoted}
     const projectId = this.projectIdOf(orch.cwd);
     const id = `${orch.id}:${task.id}`;
     if (result.isError) {
-      if (result.cause || task.attempts >= orch.maxAttempts) return null;
+      // A repeated error ends the retries in code: the point is not asked about a retry that will not happen
+      if (result.cause || task.attempts >= orch.maxAttempts || this.repeatsError(task, result)) return null;
       const stance = stanceOf(this.decisions, 'orchestration.retry', projectId);
       if (stance === 'off') return null;
       const attempt = `${ORDINALS[task.attempts - 1] ?? 'a later'} attempt`;
@@ -1598,6 +1689,7 @@ ${quoted}
         disallowedTools: [...PUSH_DENIED],
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:integration`.slice(0, 60),
+        purpose: 'integrator',
         keepAlive: false,
       },
       { orchestrationId: orch.id, orchestrationTaskId: '__integration__' },
@@ -1662,6 +1754,7 @@ ${quoted}
           ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
           permissionMode: orch.permissionMode,
           name: `${orch.name}:synthesis`.slice(0, 60),
+          purpose: 'synthesis',
           disallowedTools: [...PUSH_DENIED],
           keepAlive: false,
         },
@@ -1828,6 +1921,11 @@ ${quoted}
     // What each fixer attempt said, and which checks it was at: an attempt at a group is at each of them
     const notes: { covers: ReadonlySet<number>; note: string }[] = [];
     const mended = new Set<number>();
+    // What each failed check looked like the last time it failed: its signature, its error count (null
+    // when unknown) and how many failures in a row had that signature. A check that passes is forgotten
+    const observed = new Map<number, { signature: string | null; count: number | null; streak: number }>();
+    // A fixer's own `[STOP]` is kept until the checks have run again, since a fix that passed still counts
+    let fixerStop: { kind: FixStopKind; note: string } | null = null;
     const conclude = (status: 'passed' | 'fixed' | 'failed', headline: string) => {
       state.status = status;
       const left = state.commands.filter((c) => c.status === 'pending').map((c) => c.command);
@@ -1887,6 +1985,17 @@ ${quoted}
       }
 
       const named = failed.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ');
+      const seen = failed.map((f) => {
+        const entry = state.commands[f.i] as VerificationCommand;
+        const signature = failureSignature(entry.output);
+        // A timeout prints no summary, so only the signature can be compared after one
+        const count = f.outcome.timedOut ? null : errorCount(entry.command, entry.output);
+        const before = observed.get(f.i);
+        const streak = signature !== null && before?.signature === signature ? before.streak + 1 : 1;
+        observed.set(f.i, { signature, count, streak });
+        return { f, entry, count, before, streak };
+      });
+      for (const i of [...observed.keys()]) if (!failed.some((f) => f.i === i) && (state.commands[i] as VerificationCommand).status !== 'pending') observed.delete(i);
       if (!spec.fixer) return conclude('failed', `${named}. The fixer is off, so nothing was changed.`);
       const spentOut = failed.filter((f) => (spent[f.i] ?? 0) >= spec.maxAttempts);
       if (spentOut.length) {
@@ -1904,6 +2013,36 @@ ${quoted}
         return conclude(
           'failed',
           `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Claudio stopped there.`,
+        );
+      }
+      // Code's own stop rules, before the decision point is asked about the same thing
+      const lastFix = state.fixes?.at(-1);
+      const stopWith = (kind: FixStopKind, note: string, report: string) => {
+        if (lastFix) lastFix.stop = { kind, note, by: 'claudio' };
+        this.persist();
+        return conclude('failed', report);
+      };
+      if (fixerStop) {
+        return conclude('failed', `${named}. The fixer stopped: ${fixerStop.note}. Claudio made no further attempt.`);
+      }
+      const worse = seen.find((x) => x.before?.count != null && x.count !== null && x.count > x.before.count);
+      if (worse && worse.before?.count != null && worse.count !== null) {
+        const made = state.commits.length;
+        return stopWith(
+          'more-errors',
+          `\`${worse.entry.command}\`: ${String(worse.count)} errors after attempt ${String(state.attempts)}, ${String(worse.before.count)} before`,
+          `${named}. Attempt ${String(state.attempts)} left more errors in \`${worse.entry.command}\` (${String(worse.count)}) than before it (${String(worse.before.count)}), so Claudio stopped there.` +
+            (made ? ` What the fixer committed stays on the branch, unreverted: ${state.commits.map((c) => c.subject).join('; ')}.` : ''),
+        );
+      }
+      const same = seen.find((x) => x.streak > SAME_ERROR_ATTEMPTS);
+      if (same) {
+        const made = state.commits.length;
+        return stopWith(
+          'same-error',
+          `\`${same.entry.command}\` failed with the same error after ${String(SAME_ERROR_ATTEMPTS)} attempts`,
+          `${named}. The same error survived ${String(SAME_ERROR_ATTEMPTS)} fixer attempts in \`${same.entry.command}\`, so Claudio stopped there.` +
+            (made ? ` What the fixer committed is on the branch: ${state.commits.map((c) => c.subject).join('; ')}.` : ''),
         );
       }
       // Asked once per failed step, with all of its failed checks; "stop" only ends the fixing, and the checks stay failed
@@ -1935,6 +2074,7 @@ ${quoted}
         control,
       );
       notes.push({ covers, note: attempt.note });
+      fixerStop = attempt.stop;
       state.commits = commitsSince(root, startHead);
       if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
       if (attempt.budget) {
@@ -2021,13 +2161,14 @@ ${quoted}
     earlier: string[],
     budgetUsd: number | null,
     control: VerificationControl,
-  ): Promise<{ note: string; budget: boolean }> {
+  ): Promise<{ note: string; budget: boolean; stop: { kind: FixStopKind; note: string } | null }> {
     const checks = failures.map(({ index, failure }) => {
       const entry = state.commands[index] as VerificationCommand;
       return { command: entry.command, failure: `It ${failure}.`, output: entry.output };
     });
     let note: string;
     let budget = false;
+    let stop: { kind: FixStopKind; note: string } | null = null;
     // One attempt can be at a parallel group's failed checks: the record names every one
     const record: VerificationFix = { runId: null, command: checks.map((c) => c.command).join('; '), attempt: state.attempts, startedAt: now(), endedAt: null, costUsd: 0 };
     (state.fixes ??= []).push(record);
@@ -2060,6 +2201,7 @@ ${quoted}
           disallowedTools: [...PUSH_DENIED],
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:verification`.slice(0, 60),
+          purpose: 'fixer',
           keepAlive: false,
           // The CLI ends the turn itself when this is spent
           ...(budgetUsd !== null ? { maxBudgetUsd: budgetUsd } : {}),
@@ -2077,6 +2219,15 @@ ${quoted}
       record.costUsd = result.costUsd;
       budget = result.cause === 'budget';
       note = budget ? 'its cost limit ran out before it finished' : result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
+      // Read from the whole report: the rows are at its end, which `tail` below would keep but a long one could cut
+      if (!result.isError) {
+        const report = parseFixerReport(result.result);
+        if (report.fixed.length) record.fixed = report.fixed;
+        if (report.stop) {
+          stop = report.stop;
+          record.stop = { ...report.stop, by: 'fixer' };
+        }
+      }
     } catch (err) {
       note = `the fixer could not run: ${(err as Error).message}`;
     }
@@ -2089,7 +2240,7 @@ ${quoted}
     } catch {
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
-    return { note: tail(note, 1500), budget };
+    return { note: tail(note, 1500), budget, stop };
   }
 
   /**
@@ -2113,6 +2264,7 @@ ${quoted}
         disallowedTools: [...PUSH_DENIED],
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:checks-fix`.slice(0, 60),
+        purpose: 'fixer',
         keepAlive: false,
         ...(spec?.maxCostUsd !== undefined ? { maxBudgetUsd: spec.maxCostUsd } : {}),
       },
@@ -2208,6 +2360,7 @@ ${quoted}
       allowedTools: rulesFor('claude-code', PLANNER_POLICY).allowedTools,
       disallowedTools: [...PUSH_DENIED],
       name: PLANNER_RUN_NAME,
+      purpose: 'planner',
       keepAlive: false,
       internal: true,
       jsonSchema: PLAN_SCHEMA,
@@ -2561,7 +2714,6 @@ ${quoted}
 
   /** The graph as a workflow script: the same prompts, dependencies, concurrency and synthesis. */
   private compile(orch: Orchestration): string {
-    const head = this.workerHead(orch);
     return compileWorkflow({
       name: orch.name,
       description: orch.objective ?? orch.name,
@@ -2572,7 +2724,7 @@ ${quoted}
         name: t.name,
         dependsOn: t.dependsOn ?? [],
         ...(t.model ? { model: t.model } : {}),
-        before: head,
+        before: this.workerHead(orch, t),
         after: this.workerTask(orch, t),
       })),
       synthesis: orch.synthesize
@@ -2588,6 +2740,12 @@ ${quoted}
    * the cache that replays the agents that had already finished.
    */
   private launchWorkflow(orch: Orchestration, resumeFrom: string | null): void {
+    // The first start of a workflow waits for the daily cap like a graph's first task; the tasks stay
+    // pending and `spendChanged` launches it. A resume goes back to a session that already ran.
+    if (!resumeFrom && !orch.workflow?.runId && this.spendOpen?.(orch.id) === false) {
+      this.persist();
+      return;
+    }
     const scriptPath = this.scriptPath(orch);
     try {
       // A resume replays the script that ran: regenerating it could miss the cache
@@ -2599,6 +2757,7 @@ ${quoted}
         `Run the workflow Claudio generated for the orchestration "${orch.name}": call the Workflow tool with ` +
         `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
         'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
+        `${DELEGATION}\n\n` +
         // No budget for a workflow today: the signal says time matters all the same
         timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)));
       const previous = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
@@ -2628,6 +2787,7 @@ ${quoted}
             disallowedTools: [...PUSH_DENIED],
             ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
             name: `${orch.name}:workflow`.slice(0, 60),
+            purpose: 'orchestration',
             keepAlive: false,
           },
           { orchestrationId: orch.id, orchestrationTaskId: '__workflow__' },

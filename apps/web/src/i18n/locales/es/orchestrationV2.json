@@ -40,6 +40,16 @@
     "output": "Lo que imprimió",
     "commits_one": "{{count}} commit del agente",
     "commits_other": "{{count}} commits del agente",
+    "fixes": "Arreglos",
+    "fixAttempt": "Intento {{number}}",
+    "fixRows_one": "{{count}} arreglo",
+    "fixRows_other": "{{count}} arreglos",
+    "stopped": "Detenido",
+    "stop": {
+      "same-error": "el mismo error tras tres intentos",
+      "more-errors": "más errores que antes",
+      "design": "necesita una decisión de diseño"
+    },
     "holdsPush": "La rama se podrá subir cuando terminen las comprobaciones.",
     "install": "Paso de instalación",
     "installMode": {

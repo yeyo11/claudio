@@ -294,3 +294,29 @@ button.attachment-chip {
   font: inherit;
   cursor: pointer;
 }
+
+/* The daily spend cap's question (SpendCapDialog): the figure, why it matters, and where to change the cap */
+.spend-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spend-dialog-amounts {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.spend-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.spend-dialog-foot.is-sheet .btn {
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: var(--touch);
+}

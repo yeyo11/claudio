@@ -69,7 +69,7 @@ import { addReads, initialSources, NO_READS, projectIsEmpty, projectPath, sameRe
 import type { Db } from './db.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
-import { agentFileContent, MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, MAX_WRITES as MEMBER_WRITES_MAX, roleTitle, templateTeam } from './team.ts';
+import { agentFileContent, MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, MAX_WRITES as MEMBER_WRITES_MAX, roleTitle, templateOptionalTeam, templateTeam } from './team.ts';
 import type { WorkItemService } from './work-items.ts';
 import { MAX_TOKENS_ERROR, stoppedOnMaxTokens } from './open-items.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
@@ -544,7 +544,7 @@ export class AssistantService {
     request: { kind: AssistantRunKind; description: string | null; focus: string | null; resourceKind: AssistantResourceKind | null },
     proposes: AssistantProposalKind[],
     empty: boolean,
-    offered: { template: ProjectTemplateId; team: ProjectTemplateTeam },
+    offered: { template: ProjectTemplateId; team: ProjectTemplateTeam; optionalTeam: ProjectTemplateTeam },
     language: AssistantLanguage,
   ): AssistantBrief {
     const items = this.deps.items.list({ projectId: project.id });
@@ -559,6 +559,7 @@ export class AssistantService {
       proposes,
       templateName: projectTemplate(offered.template).name,
       templateTeam: offered.team,
+      optionalTeam: offered.optionalTeam,
       team: (project.settings.team?.members ?? []).map((m) => ({ agent: m.agent, role: m.role, model: m.model, responsibility: m.responsibility })),
       resources: known.resources,
       workItems: listed.map((i) => ({ key: i.key, type: i.type, status: i.status, title: i.title })),
@@ -802,6 +803,7 @@ export class AssistantService {
       resourceKind: (row.resource_kind as AssistantResourceKind | null) ?? null,
       description: row.description,
       templateTeam: project ? templateOffered(project).team : [],
+      optionalTeam: project ? templateOffered(project).optionalTeam : [],
     };
     const answer = parseAnswer(result.structuredOutput, brief);
     if (!answer) {
@@ -1076,6 +1078,11 @@ export class AssistantService {
       const members = project.settings.team?.members ?? [];
       if (members.some((x) => x.agent === m.agent)) throw new AssistantError(`${m.agent} is already on the team`, 409);
       const member: ProjectTeamMember = { agent: m.agent, role: m.role, model: m.model, responsibility: m.responsibility, writes: m.writes };
+      // A template role keeps the limits the template gives it: a read-only reviewer stays one
+      const fromRole = m.fromTemplate ? [...templateTeam(project.settings), ...templateOptionalTeam(project.settings)].find((r) => r.role === m.role) : undefined;
+      if (fromRole?.writes) member.writes = fromRole.writes;
+      if (fromRole?.tools) member.tools = fromRole.tools;
+      if (fromRole?.commands) member.commands = fromRole.commands;
       const instructions = m.instructions.trim();
       await this.deps.addMember(project, member, instructions ? memberFile(member, instructions, m.description) : null);
       return { acceptedAgent: m.agent };
@@ -1362,9 +1369,9 @@ export class AssistantService {
 type ProjectTemplateTeam = ReturnType<typeof templateTeam>;
 
 /** The template whose team a project is offered, and that team: its own, or the software one. */
-function templateOffered(settings: ProjectSettings): { template: ProjectTemplateId; team: ProjectTemplateTeam } {
+function templateOffered(settings: ProjectSettings): { template: ProjectTemplateId; team: ProjectTemplateTeam; optionalTeam: ProjectTemplateTeam } {
   const own = settings.template ? projectTemplate(settings.template).team : [];
-  return { template: own.length && settings.template ? settings.template : 'software', team: templateTeam(settings) };
+  return { template: own.length && settings.template ? settings.template : 'software', team: templateTeam(settings), optionalTeam: templateOptionalTeam(settings) };
 }
 
 /** CLAUDE.md past this is cut, and the run told to read the rest */

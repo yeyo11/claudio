@@ -226,11 +226,52 @@ export function isTeamCommandPattern(value: unknown): value is string {
   return teamCommandProblem(value) === null;
 }
 
+/** The most globs a path-scoped rule may list in `paths` */
+export const MAX_RULE_PATHS = 10;
+
+/** The longest glob of a rule's `paths` */
+export const RULE_GLOB_MAX = 200;
+
+/**
+ * Why a glob cannot scope a rule (`.claude/rules/<file>.md`, front matter `paths:`), or null when it
+ * can: relative, no `..` segment, at most {@link RULE_GLOB_MAX} characters, and only the characters
+ * a glob needs, so a value can be written between quotes in YAML without escaping.
+ */
+export function ruleGlobProblem(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return 'is not a non-empty string';
+  if (value.length > RULE_GLOB_MAX) return `is longer than ${String(RULE_GLOB_MAX)} characters`;
+  if (value.startsWith('/')) return 'is absolute; it must be relative to the project';
+  if (value.split('/').includes('..')) return 'has a ".." segment';
+  if (!/^[A-Za-z0-9_.*?{}[\]/, -]+$/.test(value)) return 'uses a character a glob does not need';
+  return null;
+}
+
+/** The problem with a rule's whole `paths` list, or null: 1 to {@link MAX_RULE_PATHS} valid globs. */
+export function rulePathsProblem(paths: unknown): string | null {
+  if (!Array.isArray(paths) || paths.length === 0) return 'paths must list at least one glob';
+  if (paths.length > MAX_RULE_PATHS) return `paths lists more than ${String(MAX_RULE_PATHS)} globs`;
+  for (const glob of paths as unknown[]) {
+    const problem = ruleGlobProblem(glob);
+    if (problem) return `paths has the glob ${JSON.stringify(glob)}, which ${problem}`;
+  }
+  return null;
+}
+
+/** The most tool names a member may list in `tools` */
+export const MAX_TEAM_TOOLS = 30;
+
+const TEAM_TOOL = /^[A-Za-z][A-Za-z0-9_]*(\([^()\n]{0,200}\))?$/;
+
+/** A CLI tool name a member's agent file may allow: `Read`, `Bash`, or one with a pattern. */
+export function isTeamToolName(value: unknown): value is string {
+  return typeof value === 'string' && TEAM_TOOL.test(value);
+}
+
 export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'decision', 'memory', 'note']);
 
 export const JOURNAL_CHANGE_ACTIONS = valuesOf<JournalChangeAction>()(['added', 'removed']);
 
-export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal']);
+export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal', 'rule']);
 
 export const MEMORY_PROPOSAL_STATUSES = valuesOf<MemoryProposalStatus>()(['pending', 'approved', 'rejected']);
 

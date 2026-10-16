@@ -433,7 +433,10 @@ export class Changes {
   /** Every edit of a chat's main transcript, oldest first, each with its patch and its why. */
   async chatSteps(id: string): Promise<EditStep[]> {
     const chat = await this.chatOf(id);
-    const opts = { root: this.stepRoot(chat), running: chat.execution !== null };
+    const root = this.stepRoot(chat);
+    // The checkout counts as inside beside the chat's directory and its worktree: a chat in a subdirectory edits its siblings
+    const risk = { cwd: chat.cwd, roots: [root, ...(chat.worktree ? [chat.worktree.path] : [])] };
+    const opts = { root, running: chat.execution !== null, risk };
     const fromDisk = await this.deps.sessions.editSteps(id);
     let steps: EditStep[];
     if (fromDisk) steps = editStepsOf(fromDisk, opts);

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { assistantLanguage, type Core } from '@claudio/core';
 import type { AcceptAssistantProposalRequest, StartClaudioAssistantChatRequest, StartAssistantRunRequest } from '@claudio/shared';
 import { chatWriteContext } from './work-items.ts';
+import { spendGate } from './spend.ts';
 
 /**
  * The project assistant: read-only runs through the CLI that propose a team, resources and work
@@ -9,7 +10,7 @@ import { chatWriteContext } from './work-items.ts';
  * accepted, and then through the service that owns it. Validation lives in core.
  */
 export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.post<{ Params: { id: string }; Body: StartAssistantRunRequest }>('/projects/:id/assistant/runs', async (req, reply) => {
+  app.post<{ Params: { id: string }; Body: StartAssistantRunRequest }>('/projects/:id/assistant/runs', { preHandler: spendGate(core) }, async (req, reply) => {
     // The chat's title is written in the language the person reads Claudio in, which the web sends
     const run = await core.assistant.start(req.params.id, req.body ?? {}, assistantLanguage(req.headers['accept-language']));
     return reply.code(201).send(run);
@@ -17,7 +18,7 @@ export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, {
 
   // The Claudio assistant: a global, confined chat that reads Claudio through its MCP server. The body
   // carries a prompt, a project for context and a model and no other option of a chat
-  app.post<{ Body: StartClaudioAssistantChatRequest }>('/assistant/chats', async (req, reply) =>
+  app.post<{ Body: StartClaudioAssistantChatRequest }>('/assistant/chats', { preHandler: spendGate(core) }, async (req, reply) =>
     reply.code(201).send(await core.startClaudioAssistantChat(req.body, assistantLanguage(req.headers['accept-language']))),
   );
 

@@ -3,6 +3,7 @@
 import type { DashboardLayout } from './dashboard-layout.ts';
 import type { Effort, EffortReason } from './effort.ts';
 import type { NotificationKind, NotificationLevel, NotificationPriority } from './notifications.ts';
+import type { ToolRisk } from './tool-risk.ts';
 
 // ---------- System ----------
 
@@ -1346,6 +1347,16 @@ export interface ProjectTeamRole {
   model: string;
   /** One line on what it answers for */
   responsibility: string;
+  /**
+   * The CLI tools the role may use (`Read`, `Grep`, `Bash`…), written into its agent file's `tools:`
+   * line, which the CLI enforces wherever it loads the file, a subagent included. Absent means all of
+   * them.
+   */
+  tools?: string[];
+  /** Where a template's role may write, as {@link ProjectTeamMember.writes} reads it; absent means no limit of Claudio's */
+  writes?: string[];
+  /** The shell commands a template's role may run, as {@link ProjectTeamMember.commands} reads them; absent means none are restricted */
+  commands?: string[];
 }
 
 /**
@@ -1375,6 +1386,8 @@ export interface ProjectTeamMember extends ProjectTeamRole {
   commands?: string[];
   /** How hard the member thinks in the flow's runs; absent takes the recommendation for its model and the stage */
   effort?: Effort;
+  /** The CLI tools its agent file allows, as {@link ProjectTeamRole.tools}; absent means all of them */
+  tools?: string[];
 }
 
 /**
@@ -1402,7 +1415,17 @@ export interface ProjectFlowSettings {
    * reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it.
    */
   checksFixAttempts?: number;
+  /**
+   * What the flow does when two verify rounds in a row improve no criterion. `observe` (the default
+   * when absent) only records a `plateau` signal, "would have stopped here", so the rule can be
+   * judged on real runs before it ends anything; `stop` makes the card wait for a person; `off`
+   * does not look. Like `maxBounces`, it can only end a loop sooner.
+   */
+  plateau?: FlowPlateauMode;
 }
+
+/** What the flow does about a plateau of verify rounds; see {@link ProjectFlowSettings.plateau}. */
+export type FlowPlateauMode = 'observe' | 'stop' | 'off';
 
 /** The Documents module: the repository's documents folder, and documents tied to work items. */
 export interface ProjectDocumentsSettings {
@@ -1458,6 +1481,11 @@ export interface ProjectTemplate {
   board: BoardSettings;
   /** The starting team, offered when the Team module is switched on and there is nothing in the project to read */
   team: ProjectTeamRole[];
+  /**
+   * Roles the template offers without adding them: "Add the template's team" with no `roles` adds
+   * `team` only, and a person or the assistant picks these by name. Empty when it offers none.
+   */
+  optionalTeam: ProjectTeamRole[];
 }
 
 // ---------- Work items ----------
@@ -1890,6 +1918,11 @@ export interface WorkItem {
    * by the flow by column: absent reads as null, waiting for nothing.
    */
   waiting?: WorkItemWaitReason | null;
+  /**
+   * Why it waits for bounces when that was the plateau rule (`flow.plateau`) and not the limit, so
+   * the board can say "no improvement in two rounds"; absent for every other wait.
+   */
+  waitingCause?: 'plateau';
   /** Its newest pull request; absent or null when it never had one */
   pullRequest?: WorkItemPullRequest | null;
   /** The tracker issues it was imported from or linked to; absent reads as none */
@@ -2294,10 +2327,12 @@ export interface TeamFromTemplateRequest {
  * Creates or replaces a member's metadata (`PUT /projects/:id/team/:agent`). The agent file itself is
  * edited through `/config/resources/agents/:name?project=`.
  */
-export interface PutTeamMemberRequest extends ProjectTeamRole {
+export interface PutTeamMemberRequest extends Omit<ProjectTeamRole, 'commands' | 'tools'> {
   writes?: string[];
   /** Absent or null leaves the shell unrestricted in the work stage ({@link ProjectTeamMember.commands}) */
   commands?: string[] | null;
+  /** Absent or null leaves every tool allowed ({@link ProjectTeamMember.tools}); at most 30 names, each a tool name with an optional `(pattern)` */
+  tools?: string[] | null;
   /** Absent or null takes the recommendation for the member's model and the stage ({@link ProjectTeamMember.effort}) */
   effort?: Effort | null;
   /** Write a starting agent file for the role when there is none; an existing file is never overwritten */
@@ -2470,6 +2505,8 @@ export interface FlowRun {
   queuedAt: string;
   startedAt: string | null;
   endedAt: string | null;
+  /** On a run that fixed failing checks, what the Developer decided about each; absent on other runs */
+  checks?: FlowCheckVerdict[];
 }
 
 /** Who queued a flow run by hand, when a card entering its column did not. */
@@ -2663,9 +2700,12 @@ export interface CreateJournalEntryRequest {
 /**
  * Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section`
  * when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`,
- * appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal.
+ * appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal;
+ * `rule`, a path-scoped rule file of the project's `.claude/rules/` (`file`, loaded by the CLI only
+ * for the files `paths` matches), which keeps guidance that concerns part of the project out of
+ * `CLAUDE.md`.
  */
-export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal';
+export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal' | 'rule';
 
 /** Flat rather than a union so it maps onto one row; the fields that do not apply are null. */
 export interface MemoryProposalTarget {
@@ -2674,6 +2714,8 @@ export interface MemoryProposalTarget {
   file: string | null;
   /** For `instructions`: the heading it goes under; null appends at the end */
   section: string | null;
+  /** For `rule`: the globs, relative to the project, the rule is for (1 to 10); null or absent for the other kinds */
+  paths?: string[] | null;
 }
 
 export type MemoryProposalStatus = 'pending' | 'approved' | 'rejected';
@@ -2710,6 +2752,8 @@ export interface MemoryProposal {
 export interface ApproveMemoryProposalRequest {
   /** The text to write instead of the proposed one */
   text?: string;
+  /** For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths */
+  file?: string;
 }
 
 export interface RejectMemoryProposalRequest {
@@ -2822,7 +2866,7 @@ export type AssistantRunKind = 'project' | 'work-items' | 'resources';
 export type AssistantRunStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
 /** The resources an assistant proposes or creates: the ones a project's `.claude/` holds as Markdown. */
-export type AssistantResourceKind = Extract<ResourceKind, 'agents' | 'skills' | 'commands'>;
+export type AssistantResourceKind = Extract<ResourceKind, 'agents' | 'skills' | 'commands' | 'rules'>;
 
 /**
  * What an entry of "what it read" is: the project's files (`file`, `dir`), the CLI's `instructions`
@@ -3211,6 +3255,11 @@ export interface EditStep {
   entryIndex: number | null;
   /** The call has no result yet: the chat is still working on it */
   pending: boolean;
+  /**
+   * How risky the call is, scored from its input and the chat's directory; absent when `low`, so a
+   * client draws a tag only where there is something to say. A reading aid: nothing is blocked by it.
+   */
+  risk?: ToolRisk;
 }
 
 /** A file a chat wrote where git cannot answer, read from the chat's own transcript. */
@@ -3410,6 +3459,11 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   clockStartedAt?: string | null;
   /** What the task had cost when that clock started, so a cost limit counts from the same moment */
   clockCostUsd?: number;
+  /**
+   * The normalised signature of the error the task's last failed attempt ended with, so a retry that
+   * fails the same way is recognised and not repeated; internal, kept in the stored document.
+   */
+  lastErrorSignature?: string | null;
 }
 
 export interface Orchestration {
@@ -3469,6 +3523,11 @@ export interface Orchestration {
   templateId?: string | null;
   /** The planner run whose draft filled the form it was launched from; lets `orchestration.model` compare its suggestion */
   plannerRunId?: string | null;
+  /**
+   * The local day (`YYYY-MM-DD`) a person let this graph run past the daily spend cap; its tasks
+   * start until the day ends. Person only: a chat's token cannot grant it.
+   */
+  spendPass?: string | null;
 }
 
 /** A task as a list shows it: its prompt and its result are left out, and the graph's own page has them. */
@@ -3583,6 +3642,39 @@ export interface VerificationFix {
   costUsd: number;
   /** The effort the fixer ran with; null when none was passed, absent before it was kept */
   effort?: Effort | null;
+  /** Each error the fixer reported fixing (`[FIXED] path:line: note`), at most 50; absent before it was read */
+  fixed?: VerificationFixedLocation[];
+  /** Why no further attempt was made after this one; absent when the loop went on or ended on its own limits */
+  stop?: VerificationFixStop;
+}
+
+/** One error a fixer fixed. `line` is null when it named none; the path is shown as text, never resolved to a file. */
+export interface VerificationFixedLocation {
+  path: string;
+  line: number | null;
+  /** What was wrong, at most 200 characters */
+  note: string;
+}
+
+/** Why a fixer's loop ended early: the fixer said so (`by: 'fixer'`) or Claudio saw it from the outside. */
+export interface VerificationFixStop {
+  kind: FixStopKind;
+  note: string;
+  by: 'fixer' | 'claudio';
+}
+
+/** The three conditions after which more fixing attempts stop helping. */
+export type FixStopKind = 'same-error' | 'more-errors' | 'design';
+
+/** The Developer's call on one failing check of a fix: this branch caused it, did not, or it is unclear. */
+export interface FlowCheckVerdict {
+  name: string;
+  cause: 'branch' | 'not-branch' | 'uncertain';
+  fixed: boolean;
+  /** Where the Developer changed things for this check, as `path:line` (at most 20, each at most 200 characters) */
+  locations?: string[];
+  /** Set when the Developer stopped before the check was fixed, and why */
+  stopped?: FixStopKind;
 }
 
 export interface VerificationState {
@@ -4103,6 +4195,13 @@ export interface AppSettingValues {
    * stored value and its variable, `CLAUDIO_PROVIDERS_STEP_SEEN`, still count.
    */
   setupSeen: boolean;
+  /**
+   * What all of Claudio's automation may spend in a local day, in USD, summing the cost the CLI
+   * reports for each result. A start gate, not a kill switch: over it new automated work waits and
+   * nothing running is stopped. Null (the default) is no cap; otherwise above 0 and at most 100,000,
+   * in cents.
+   */
+  dailySpendCapUsd: number | null;
 }
 
 /**
@@ -6928,6 +7027,69 @@ export interface LoginUpdatedEvent extends ClaudioEventBase {
   login: LoginSession;
 }
 
+// ---------- Daily spend cap ----------
+
+/** Why a unit of automated work spent money; the ledger keeps it per row so the cap can say what used it. */
+export type SpendPurpose =
+  | 'person'
+  | 'flow'
+  | 'orchestration'
+  | 'planner'
+  | 'fixer'
+  | 'integrator'
+  | 'synthesis'
+  | 'assistant'
+  | 'decision'
+  | 'supervisor'
+  | 'schedule'
+  | 'other';
+
+/** Follows the usage bars: neutral below 60 %, warn from 60 %, bad from 75 %, exhausted at 100 %; off with no cap. */
+export type SpendLevel = 'off' | 'ok' | 'warn' | 'bad' | 'exhausted';
+
+/** Today's spend against the cap (`GET /spend`), in the server's local day. */
+export interface SpendState {
+  /** Local `YYYY-MM-DD` */
+  day: string;
+  /** The server's resolved time zone, so a client can say whose midnight this is */
+  timezone: string;
+  capUsd: number | null;
+  spentUsd: number;
+  /** `spentUsd / capUsd`; null with no cap */
+  share: number | null;
+  level: SpendLevel;
+  /** Whether new automated work waits */
+  blocked: boolean;
+  /** The next local midnight (ISO 8601), when the day's spend starts again from zero */
+  resetsAt: string;
+  /** Results today that carried no cost, which the sum cannot include */
+  unreported: number;
+  byPurpose: Partial<Record<SpendPurpose, number>>;
+  /** For subscription accounts (`login`, `token`) the figure is the API price of the use, not a bill */
+  byAccountKind: { login: number; token: number; apiKey: number; unknown: number };
+  waiting: { flowRuns: number; orchestrationTasks: number };
+}
+
+/** The 409 body of a person's request refused at the cap. */
+export interface SpendCapRefusal {
+  error: string;
+  code: 'spend-cap';
+  spend: SpendState;
+}
+
+/** The day's spend crossed a level, a cap changed, a pass was granted or the day turned. */
+export interface SpendChangedEvent extends ClaudioEventBase {
+  type: 'spend.changed';
+  spend: SpendState;
+}
+
+/** Spend reached 75 % or 100 % of the cap; emitted once per day and level, whichever process saw it first. */
+export interface SpendAlertEvent extends ClaudioEventBase {
+  type: 'spend.alert';
+  level: 'warn' | 'exhausted';
+  spend: SpendState;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type ClaudioEvent =
   | RunCreatedEvent
@@ -6986,7 +7148,9 @@ export type ClaudioEvent =
   | TunnelChangedEvent
   | TerminalChangedEvent
   | WebhookChangedEvent
-  | LoginUpdatedEvent;
+  | LoginUpdatedEvent
+  | SpendChangedEvent
+  | SpendAlertEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 
@@ -7132,7 +7296,8 @@ export type DecisionUnavailableReason =
   | 'max-tokens'
   | 'server-error'
   | 'network'
-  | 'invalid-answer';
+  | 'invalid-answer'
+  | 'spend-cap';
 
 /** What a point tells the engine once what really happened is known (shadow accuracy) */
 export interface DecisionResolution {

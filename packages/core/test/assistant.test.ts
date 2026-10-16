@@ -81,7 +81,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   const dir = opts.dir ?? repo();
   const state = {
     settings: opts.settings ?? settingsWith(),
-    resources: { agents: [] as string[], skills: [] as string[], commands: [] as string[] },
+    resources: { agents: [] as string[], skills: [] as string[], commands: [] as string[], rules: [] as string[] },
     instructions: null as string | null,
     git: { branch: 'main', commits: ['a1b2c3d 2026-09-20 Add the webhook'], changes: [' M src/a.ts'], moreChanges: 0 } as AssistantGit | null,
   };
@@ -202,8 +202,9 @@ function assistantBrief(): AssistantBrief {
     proposes: ['team-member', 'resource', 'work-item'],
     templateName: 'software',
     templateTeam: [],
+    optionalTeam: [],
     team: [],
-    resources: { agents: [], skills: [], commands: [] },
+    resources: { agents: [], skills: [], commands: [], rules: [] },
     workItems: [],
     moreWorkItems: 0,
     milestones: [],
@@ -762,6 +763,43 @@ test('the answer is read defensively: bad entries are dropped, long lists cut, a
   assert.deepEqual([only?.workItems, only?.findings], [[], []]);
 });
 
+test('the prompt lists the optional roles and when to propose one, and a template optional role is a template proposal', () => {
+  const hunter = { role: 'silent-failure-hunter', model: 'sonnet', responsibility: 'Finds failures that make no noise' };
+  const prompt = assistantPrompt({ ...assistantBrief(), templateTeam: [{ role: 'qa', model: 'sonnet', responsibility: 'Verifies' }], optionalTeam: [hunter] });
+  assert.match(prompt, /The template also offers these optional roles; propose one only where what you read shows the need \(for example many caught-and-ignored errors for the silent-failure hunter, or a large untested module for the spec miner\): silent-failure-hunter \(sonnet\): Finds failures that make no noise\./);
+  assert.doesNotMatch(assistantPrompt(assistantBrief()), /optional roles/);
+  const b = { kind: 'project' as const, proposes: ['team-member' as const], resourceKind: null, description: null, templateTeam: [], optionalTeam: [hunter] };
+  const parsed = parseAnswer({ summary: 's', read: [], teamMembers: [{ role: 'silent-failure-hunter', responsibility: 'Finds them' }, { role: 'other', responsibility: 'x' }] }, b);
+  assert.deepEqual(parsed?.members.map((m) => [m.role, m.fromTemplate]), [['silent-failure-hunter', true], ['other', false]]);
+});
+
+test('the prompt and the schema ask for rules, and a rule that names no valid paths is dropped with a finding', () => {
+  const brief = assistantBrief();
+  assert.match(assistantPrompt(brief), /Propose a rule for guidance that concerns only part of the project \(one package, one language, the tests, the migrations\) instead of a CLAUDE\.md addition; keep CLAUDE\.md for what holds everywhere\. A rule names in `paths` the files it is for\./);
+  assert.match(assistantPrompt(brief), /A rule's frontmatter carries `paths` \(a YAML list of globs relative to the project/);
+  const items = ((assistantSchema(brief).properties as Record<string, { items: { properties: { kind: { enum: string[] } } } }>).resources?.items.properties.kind.enum) ?? [];
+  assert.ok(items.includes('rules'));
+
+  const b = { kind: 'project' as const, proposes: ['resource' as const], resourceKind: null, description: null, templateTeam: [] };
+  const rule = (name: string, content: string) => ({ kind: 'rules', name, content, description: '', reason: 'r' });
+  const parsed = parseAnswer(
+    {
+      summary: 's',
+      read: [],
+      findings: [],
+      resources: [
+        rule('migrations', '---\npaths:\n  - "packages/core/src/db.ts"\n---\nAppend migrations at the end.\n'),
+        rule('everywhere', '---\ndescription: Applies to everything\n---\nBe kind.\n'),
+        rule('escape', '---\npaths:\n  - "../outside/**"\n---\nNo.\n'),
+        rule('inline', '---\npaths: [src/**, test/**]\n---\nYes.\n'),
+      ],
+    },
+    b,
+  );
+  assert.deepEqual(parsed?.resources.map((r) => r.name), ['migrations', 'inline']);
+  assert.deepEqual(parsed?.findings.map((f) => f.label), ['dropped rule everywhere: it names no paths', 'dropped rule escape: its paths are not valid globs']);
+});
+
 test('the prompt and the schema say what a run is and is not', () => {
   const brief: AssistantBrief = {
     kind: 'work-items',
@@ -773,8 +811,9 @@ test('the prompt and the schema say what a run is and is not', () => {
     proposes: ['work-item'],
     templateName: null,
     templateTeam: [],
+    optionalTeam: [],
     team: [],
-    resources: { agents: [], skills: [], commands: [] },
+    resources: { agents: [], skills: [], commands: [], rules: [] },
     workItems: [{ key: 'AGN-45', type: 'story', status: 'backlog', title: 'Saved filters' }],
     moreWorkItems: 3,
     milestones: [],
@@ -804,8 +843,9 @@ test('every kind of run proposes in English, naming what it proposes, while a Sp
     proposes: ['team-member', 'resource', 'work-item'],
     templateName: null,
     templateTeam: [],
+    optionalTeam: [],
     team: [],
-    resources: { agents: [], skills: [], commands: [] },
+    resources: { agents: [], skills: [], commands: [], rules: [] },
     workItems: [],
     moreWorkItems: 0,
     milestones: [],

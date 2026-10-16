@@ -6,6 +6,7 @@ import {
   type ClaudioLanguage,
   WORK_ITEM_TYPES,
   assistantResourcePath,
+  rulePathsProblem,
   type AssistantFinding,
   type AssistantProposalKind,
   type AssistantResourceKind,
@@ -17,7 +18,7 @@ import {
   type WorkItemType,
 } from '@claudio/shared';
 import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
-import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, RECORDS_IN_ENGLISH, roleTitle } from './team.ts';
+import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, RECORDS_IN_ENGLISH, readFrontmatterList, roleTitle } from './team.ts';
 
 /**
  * What an assistant run is asked and how its answer is read: the prompt, the JSON Schema its result
@@ -57,6 +58,8 @@ export interface AssistantBrief {
   proposes: AssistantProposalKind[];
   templateName: string | null;
   templateTeam: ProjectTeamRole[];
+  /** The roles the template also offers, proposed only where what the run reads shows the need */
+  optionalTeam: ProjectTeamRole[];
   team: Array<{ agent: string; role: string; model: string; responsibility: string }>;
   resources: Record<AssistantResourceKind, string[]>;
   workItems: Array<{ key: string; type: WorkItemType; status: string; title: string }>;
@@ -124,6 +127,7 @@ const FRONTMATTER: Record<AssistantResourceKind, string> = {
   agents: '`name` (the file name) and `description` (when to use it), optionally `tools` and `model`',
   skills: '`name` (the directory name) and `description` (when it applies)',
   commands: '`description`, optionally `argument-hint`',
+  rules: '`paths` (a YAML list of globs relative to the project; the CLI loads the rule only when it works on matching files) and optionally `description`',
 };
 
 /**
@@ -246,7 +250,7 @@ export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName
   if (brief.kind === 'project') return es ? `Asistente de ${name}` : `Assistant for ${name}`;
   if (brief.kind === 'work-items') return es ? `Sugerir tareas · ${name}` : `Suggest tasks · ${name}`;
   if (brief.description && brief.resourceKind) {
-    const what = es ? { agents: 'agente', skills: 'skill', commands: 'comando' }[brief.resourceKind] : singular(brief.resourceKind);
+    const what = es ? { agents: 'agente', skills: 'skill', commands: 'comando', rules: 'regla' }[brief.resourceKind] : singular(brief.resourceKind);
     return es ? `Crear ${what} con IA · ${name}` : `Create ${what} with AI · ${name}`;
   }
   return es ? `Sugerir recursos · ${name}` : `Suggest resources · ${name}`;
@@ -332,6 +336,11 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
         template.length
           ? `  Start from the roles of the ${brief.templateName ?? 'project'} template, adapted to the project: ${template.join('; ')}. Add a role beyond them only where the project clearly needs it, and leave out a role the team already has.`
           : '  Leave out a role the team already has.',
+        ...(brief.optionalTeam.length
+          ? [
+              `  The template also offers these optional roles; propose one only where what you read shows the need (for example many caught-and-ignored errors for the silent-failure hunter, or a large untested module for the spec miner): ${brief.optionalTeam.map((r) => `${r.role} (${r.model}): ${r.responsibility}`).join('; ')}.`,
+            ]
+          : []),
         '  Give each one what it may write (`writes`), keeping the roles that decide or verify to documents and tests.',
         `  For its \`model\`, ${MODEL_CHOICE}`,
       );
@@ -339,6 +348,7 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
     if (brief.proposes.includes('resource')) {
       lines.push(
         "- `resources`: agents, skills and commands that would help in this repository, each with its whole file content, for the project's `.claude/`. Propose only what the project's own rules or repeated work justify, and nothing it already has.",
+        '  Propose a rule for guidance that concerns only part of the project (one package, one language, the tests, the migrations) instead of a CLAUDE.md addition; keep CLAUDE.md for what holds everywhere. A rule names in `paths` the files it is for.',
         ...ASSISTANT_RESOURCE_KINDS.map((k) => `  A ${singular(k)}'s frontmatter carries ${FRONTMATTER[k]}.`),
       );
     }
@@ -370,7 +380,7 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
 export const RESUME_PROMPT = 'Claudio restarted while you were working on this. Carry on from where you were, still read-only, and end with the structured result.';
 
 function singular(kind: AssistantResourceKind): string {
-  return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : 'command';
+  return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : kind === 'rules' ? 'rule' : 'command';
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -416,7 +426,7 @@ function roleId(v: unknown): string | null {
  * ignored, entries that cannot be used are dropped, and oversized lists are cut, never refused: a
  * run is paid for, and one bad proposal should not throw away the good ones.
  */
-export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | 'proposes' | 'resourceKind' | 'description' | 'templateTeam'>): AssistantAnswer | null {
+export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | 'proposes' | 'resourceKind' | 'description' | 'templateTeam'> & Partial<Pick<AssistantBrief, 'optionalTeam'>>): AssistantAnswer | null {
   const value = typeof raw === 'string' ? safeJson(raw) : raw;
   if (!isObject(value)) return null;
   const summary = typeof value.summary === 'string' ? value.summary.trim().slice(0, TEXT_MAX) : null;
@@ -448,7 +458,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
 
   const members: AnsweredMember[] = [];
   if (brief.proposes.includes('team-member')) {
-    const templateRoles = new Set(brief.templateTeam.map((r) => r.role));
+    const templateRoles = new Set([...brief.templateTeam, ...(brief.optionalTeam ?? [])].map((r) => r.role));
     const roles = new Set<string>();
     const agents = new Set<string>();
     for (const m of arrayOf(value.teamMembers, PROPOSALS_MAX * 2)) {
@@ -489,6 +499,14 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
       const rawName = str(r.name, 64)?.replace(/^\//, '').replace(/\.md$/i, '') ?? null;
       const content = body(r.content, CONTENT_MAX);
       if (!kind || (single && kind !== single) || !rawName || !RESOURCE_NAME.test(rawName) || !content) continue;
+      // A rule without paths would load everywhere, which is what CLAUDE.md is for
+      if (kind === 'rules') {
+        const paths = readFrontmatterList(content, 'paths');
+        if (!paths?.length || rulePathsProblem(paths)) {
+          findings.push({ kind: 'gap', label: `dropped rule ${rawName}: ${paths?.length ? 'its paths are not valid globs' : 'it names no paths'}` });
+          continue;
+        }
+      }
       if (names.has(`${kind}/${rawName}`)) continue;
       names.add(`${kind}/${rawName}`);
       resources.push({

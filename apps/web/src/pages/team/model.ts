@@ -8,7 +8,7 @@ import { daysAgo } from '@claudio/ui/lib/format';
  */
 
 /** Roles the built-in templates bring; their names are translated, any other role is shown as written. */
-export const KNOWN_ROLES = ['product-owner', 'architect', 'developer', 'qa', 'researcher', 'writer', 'reviewer'] as const;
+export const KNOWN_ROLES = ['product-owner', 'architect', 'developer', 'qa', 'researcher', 'writer', 'reviewer', 'silent-failure-hunter', 'type-design-analyst', 'build-resolver', 'spec-miner'] as const;
 export type KnownRole = (typeof KNOWN_ROLES)[number];
 
 export const isKnownRole = (role: string): role is KnownRole => (KNOWN_ROLES as readonly string[]).includes(role);
@@ -22,6 +22,10 @@ const INITIALS: Record<KnownRole, string> = {
   researcher: 'RES',
   writer: 'DOC',
   reviewer: 'REV',
+  'silent-failure-hunter': 'SFH',
+  'type-design-analyst': 'TDA',
+  'build-resolver': 'BR',
+  'spec-miner': 'SM',
 };
 
 /** What a role avatar says: the template's acronym, or the initials of a role someone named. */
@@ -50,6 +54,10 @@ const ROLE_HUES: Record<KnownRole, number> = {
   writer: 45,
   researcher: 250,
   reviewer: 275,
+  'silent-failure-hunter': 240,
+  'type-design-analyst': 262,
+  'build-resolver': 105,
+  'spec-miner': 65,
 };
 
 /** Hues no template role takes and no status is told by */
@@ -119,6 +127,7 @@ export function sameFlow(a: ProjectFlowSettings, b: ProjectFlowSettings): boolea
     a.maxBounces === b.maxBounces &&
     (a.maxParallel ?? null) === (b.maxParallel ?? null) &&
     (a.maxCostUsd ?? null) === (b.maxCostUsd ?? null) &&
+    (a.plateau ?? 'observe') === (b.plateau ?? 'observe') &&
     FLOW_COLUMNS.every((status) => (a.columns[status] ?? '') === (b.columns[status] ?? ''))
   );
 }
@@ -374,11 +383,33 @@ export const TEMPLATE_RESPONSIBILITIES: Readonly<Record<KnownRole, string>> = {
   researcher: 'Reads the sources and sets out what is known',
   writer: 'Turns findings into documents',
   reviewer: 'Checks documents for accuracy and clarity',
+  'silent-failure-hunter': 'Finds failures that make no noise: swallowed errors, unawaited promises, hidden fallbacks',
+  'type-design-analyst': 'Judges whether the types make illegal states unrepresentable',
+  'build-resolver': 'Makes a failing build, type check or lint pass with the smallest change',
+  'spec-miner': 'Writes down what the code does today, from the code and its tests',
 };
 
 /** The role whose template responsibility this still is, word for word, or null once someone edited it. */
 export function templateResponsibilityRole(member: Pick<TeamMember, 'role' | 'responsibility'>): KnownRole | null {
   return isKnownRole(member.role) && member.responsibility.trim() === TEMPLATE_RESPONSIBILITIES[member.role] ? member.role : null;
+}
+
+/** The template's optional roles the team does not have yet, in the order the template lists them. */
+export function offeredRoles<R extends { role: string }>(optional: readonly R[], members: ReadonlyArray<{ role: string }>): R[] {
+  return optional.filter((r) => !members.some((m) => m.role === r.role));
+}
+
+/** The tools that let an agent change the project's files */
+const WRITING_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+
+/**
+ * A member whose agent file lists tools and none of them writes: it only reads, in every chat the CLI
+ * loads the file for. A member with no list can use every tool, so it is not shown as read-only.
+ */
+export function isReadOnlyMember(member: Pick<TeamMember, 'tools'>): boolean {
+  const tools = member.tools;
+  if (!tools?.length) return false;
+  return !tools.some((tool) => WRITING_TOOLS.includes(tool.replace(/\(.*$/, '')));
 }
 
 /** When a run last did something: it ended, it started, or it was queued. */

@@ -75,6 +75,15 @@ A worker starts in a fresh worktree with none of the planner's context. A prompt
 files, modules and routes it touches (`packages/core/src/orchestrator.ts`, `GET /orchestrations/:id`)
 saves the turns the worker would spend finding them, and keeps two parallel tasks off the same file.
 
+### 7. Cite one pattern per convention
+
+A task that adds or changes code names, for each convention its worker must follow (naming, error
+handling, data access, tests), one real example as `path:line` that the author read, or says that
+the code has none. A worker that is shown a pattern copies it; one that is only told the convention
+invents its own, and two parallel workers invent different ones. The line number is a pointer for
+reading, not a contract: the worker opens the file and finds the pattern by name. Never cite a place
+you have not opened.
+
 ## A worked example
 
 The usual shape, five stages in series:

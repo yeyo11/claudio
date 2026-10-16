@@ -96,10 +96,12 @@
     "savedDone": "saved",
     "review": "Review",
     "reviewNamed": "Review {{name}}",
+    "paths": "Paths",
     "kind": {
       "agents": "Agent",
       "skills": "Skill",
-      "commands": "Command"
+      "commands": "Command",
+      "rules": "Rule"
     },
     "scope": {
       "project": "project",

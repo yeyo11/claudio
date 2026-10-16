@@ -299,7 +299,10 @@
     "conflictResolving_one": "{{count}} file in {{branch}}.",
     "conflictResolving_other": "{{count}} files in {{branch}}.",
     "fromSubagent": "Started by a subagent.",
-    "supervisorProposed": "{{name}}: the supervisor proposes a hint"
+    "supervisorProposed": "{{name}}: the supervisor proposes a hint",
+    "spendWarnTitle": "Today's spend is at 75 % of the cap",
+    "spendExhaustedTitle": "Daily spend cap reached: automatic work waits until 00:00",
+    "spendBody": "{{spent}} of {{cap}}, as the CLI reported it."
   },
   "projectExport": {
     "title": "Export {{name}}",
@@ -368,5 +371,16 @@
       "sonnet-high": "Sonnet 5.5 does better at high for planning and for fixing what failed, where the work is hard or long."
     },
     "unavailableModel": "This model does not take an effort level."
+  },
+  "spendCap": {
+    "title": "The daily spend cap was reached",
+    "amounts": "{{spent}} of {{cap}} today, as the CLI reported it.",
+    "body": "Automatic work is waiting for tomorrow. This goes on only because you say so, and you will not be asked about it again today.",
+    "over": "{{amount}} over the cap, from work that was already running.",
+    "change": "Change the cap",
+    "cancel": "Cancel",
+    "send": "Send anyway",
+    "goOn": "Go on today anyway",
+    "declined": "Nothing was started: the daily spend cap was reached."
   }
 }

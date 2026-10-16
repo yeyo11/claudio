@@ -28,6 +28,9 @@ export function scrubDots(steps: readonly EditStep[], currentId: string | null):
   return steps.map((s, i) => (i === at ? 'current' : s.pending ? 'live' : at >= 0 && i < at ? 'done' : 'ahead'));
 }
 
+/** How many steps made a call of high risk, for the scrubber to say in words what its rings show */
+export const riskySteps = (steps: readonly EditStep[]): number => steps.filter((s) => s.risk?.level === 'high').length;
+
 /** The distinct files the steps touched, in the order they were first touched */
 export function stepPaths(steps: readonly EditStep[]): string[] {
   return [...new Set(steps.map((s) => s.path))];

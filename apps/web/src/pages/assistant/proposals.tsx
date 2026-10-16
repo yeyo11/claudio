@@ -1,6 +1,6 @@
 import type { AssistantProposal, AssistantResourceProposal, AssistantTeamMemberProposal, AssistantWorkItemProposal } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Package, SquareCheck, Undo2, Users, X, Zap, Terminal, SquareSlash, Pencil } from 'lucide-react';
+import { Check, Package, SquareCheck, Undo2, Users, X, Zap, Terminal, SquareSlash, ScrollText, Pencil } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../components/work-item-icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ModelTag, RoleAvatar, useRoleName } from '../team/RoleAvatar';
-import { resourceReviewHref } from './model';
+import { resourceReviewHref, rulePaths } from './model';
 
 /** Accept, discard and restore, each on its own (decision 36); the run is read again once it answers. */
 export function useDecide(runId: string) {
@@ -35,7 +35,7 @@ type Decide = ReturnType<typeof useDecide>;
 
 /** The icon a section or a proposed resource is known by. */
 export const SECTION_ICON = { team: Users, resources: Package, tasks: SquareCheck } as const;
-const RESOURCE_ICON = { agents: Terminal, skills: Zap, commands: SquareSlash } as const;
+const RESOURCE_ICON = { agents: Terminal, skills: Zap, commands: SquareSlash, rules: ScrollText } as const;
 
 /** A card's head: its icon, its name, the tally in mono, and a note at its right. */
 export function SectionHead({ section, tally, note }: { section: keyof typeof SECTION_ICON; tally?: ReactNode; note?: ReactNode }) {
@@ -227,6 +227,13 @@ export function ResourceProposalRow({ proposal, projectId, decide, phone }: { pr
     </Link>
   );
   const accepted = proposal.status === 'accepted';
+  // A rule is for some files only: its front matter says which, so the list does
+  const paths = resource.kind === 'rules' ? rulePaths(resource.content) : [];
+  const pathsLine = paths.length > 0 && (
+    <span className="mono small muted assistant-resource-path">
+      {t('resources.paths')} · {paths.join(', ')}
+    </span>
+  );
   return (
     <li className={rowClass(proposal, phone)} data-proposal={proposal.id} data-status={proposal.status}>
       <div className={phone ? 'assistant-member-line' : 'assistant-resource-lead'}>
@@ -240,6 +247,7 @@ export function ResourceProposalRow({ proposal, projectId, decide, phone }: { pr
               <span className="badge">{t(`resources.kind.${resource.kind}`)}</span>
             </span>
             {resource.description && <span className="small muted assistant-resource-desc">{resource.description}</span>}
+            {pathsLine}
             {!accepted && (
               <span className="mono small muted assistant-resource-path">
                 {t(`resources.scope.${resource.scope}`)} · {resource.path}
@@ -257,6 +265,7 @@ export function ResourceProposalRow({ proposal, projectId, decide, phone }: { pr
           {accepted
             ? resource.description && <span className="small muted assistant-resource-desc">{resource.description}</span>
             : proposal.reason && <p className="suggestion-reason">{proposal.reason}</p>}
+          {pathsLine}
         </div>
       )}
       {phone && !accepted && proposal.reason && <p className="suggestion-reason">{proposal.reason}</p>}

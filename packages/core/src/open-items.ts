@@ -1,4 +1,5 @@
 import { MAX_CONTINUATIONS } from '@claudio/shared';
+import type { BackgroundTask, SubagentInfo } from './cli-facts.ts';
 
 /**
  * What an unattended run still owes when its turn ended: a turn that ends with text while work is
@@ -25,14 +26,33 @@ export interface OpenItemsInput {
   structured: boolean;
   /** Paths with changes nobody committed, in the place the run should have committed its work */
   uncommitted: readonly string[];
+  /** Descriptions of the background subagents and tasks still running when the result arrived */
+  delegates?: { agents: readonly string[]; tasks: readonly string[] };
   /** The text the run's last turn ended with */
   finalText: string;
+}
+
+/**
+ * The delegated work a chat still has running: background subagents and background tasks, minus the
+ * tasks the person sent to the background, which are theirs to outlive the turn.
+ */
+export function delegatesOf(chat: { subagents?: readonly SubagentInfo[]; backgroundTasks?: readonly BackgroundTask[] } | null | undefined): {
+  agents: string[];
+  tasks: string[];
+} {
+  return {
+    agents: (chat?.subagents ?? []).filter((s) => s.background && s.status === 'running').map((s) => s.description || s.subagentType),
+    tasks: (chat?.backgroundTasks ?? []).filter((t) => t.status === 'running' && !t.backgroundedByUser).map((t) => t.description || t.command || t.id),
+  };
 }
 
 /** Paths named in an open item at most; the rest are counted */
 const PATHS_NAMED = 20;
 /** The end of the final text the phrases are looked for in: where a turn says what comes next */
 const TAIL_CHARS = 600;
+
+/** Delegated work named in the item, at most; the rest are counted */
+const DELEGATES_NAMED = 5;
 
 const OFFERS = [
   /\blet me know if\b/i,
@@ -53,6 +73,13 @@ const NEXT_STEPS = [
   /\bi('ll| will) now\b/i,
   /\blet me now\b/i,
   /\b(the )?next step (is|will be)\b/i,
+];
+
+// A final text that says it is waiting for delegated work: nobody resumes the run when it finishes
+const WAITING = [
+  /\bwaiting (for|on) (the )?(background|sub-?agents?|agents?|tasks?|workers?)\b/i,
+  /\b(once|when) (the |they |it )?(background )?(sub-?agents?|agents?|tasks?) (finish|complete|report|return)/i,
+  /\bi('ll| will) (report|check|update) (back )?(when|once)\b/i,
 ];
 
 /** A question put to the person, not one the text asks itself: a verdict can end on a rhetorical one */
@@ -80,6 +107,14 @@ export function structuralItems(input: Omit<OpenItemsInput, 'finalText'>): strin
       `These paths have changes that are not committed: ${named.join(', ')}${more > 0 ? `, and ${String(more)} more` : ''}. Commit what belongs to the work on this branch, and restore what does not.`,
     );
   }
+  const delegated = [...(input.delegates?.agents ?? []), ...(input.delegates?.tasks ?? [])];
+  if (delegated.length) {
+    const named = delegated.slice(0, DELEGATES_NAMED).join(', ');
+    const more = delegated.length - DELEGATES_NAMED;
+    items.push(
+      `You ended your turn while work you delegated is still running: ${named}${more > 0 ? `, and ${String(more)} more` : ''}. Wait for it to finish, read what it returns and use it; this process ends with your turn.`,
+    );
+  }
   return items;
 }
 
@@ -97,6 +132,9 @@ export function phraseItems(finalText: string): string[] {
       items.push('Your last message asks a question nobody will answer. If it does not block you, choose, say in your report what you chose and why, and carry on; if it does block you, say what you need and stop.');
     }
     if (NEXT_STEPS.some((re) => re.test(last))) items.push('Your last message announces a next step without taking it. Take it now.');
+    if (WAITING.some((re) => re.test(last))) {
+      items.push('Your last message says you are waiting for delegated work. Nobody resumes you when it finishes: wait for it now, in this turn, and use its results.');
+    }
   }
   return items;
 }

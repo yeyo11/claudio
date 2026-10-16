@@ -182,6 +182,78 @@ test('removing an entry announces it and unknown ones are refused', () => {
 
 // ---------- memory proposals ----------
 
+const RULE_ORIGIN = { proposedBy: QA, source: { kind: 'chat' as const, chatId: 'qa-chat', orchestrationId: null, taskId: null }, flowRunId: 'run-1' };
+const rule = (file: string, paths: string[] | null, text?: string) => proposal({ kind: 'rule', file, section: null, paths }, text);
+
+test('a rule target is validated: a rule file name and 1 to 10 relative globs', () => {
+  const { proposals } = setup();
+  const refused = (file: string, paths: string[] | null, message: RegExp) =>
+    assert.throws(
+      () => proposals.propose('p1', rule(file, paths), RULE_ORIGIN),
+      (err: unknown) => err instanceof WorkItemError && err.statusCode === 400 && message.test(err.message),
+    );
+  refused('tests.md', ['../src/**'], /\.\./);
+  refused('tests.md', ['/etc/**'], /absolute/);
+  refused('tests.md', Array.from({ length: 11 }, (_, i) => `d${String(i)}/**`), /more than 10/);
+  refused('tests.md', [], /at least one glob/);
+  refused('tests.md', null, /at least one glob/);
+  refused('tests.md', ['a"b'], /character/);
+  refused('tests', ['src/**'], /rule file/);
+  refused('../tests.md', ['src/**'], /rule file/);
+  assert.equal(proposals.list('p1', 'pending').length, 0);
+});
+
+test('a rule proposal keeps its paths, and approving it writes .claude/rules/<file> with them as front matter', async () => {
+  const { proposals, projectDir } = setup();
+  const made = proposals.propose('p1', rule('migrations.md', ['packages/core/src/db.ts', 'apps/**/*.{ts,tsx}']), RULE_ORIGIN);
+  assert.deepEqual(made.target, { kind: 'rule', file: 'migrations.md', section: null, paths: ['packages/core/src/db.ts', 'apps/**/*.{ts,tsx}'] });
+  assert.deepEqual(proposals.list('p1')[0]?.target.paths, ['packages/core/src/db.ts', 'apps/**/*.{ts,tsx}']);
+  assert.equal(existsSync(join(projectDir, '.claude', 'rules', 'migrations.md')), false);
+
+  const approved = await proposals.approve(made.id);
+  assert.equal(approved.status, 'approved');
+  assert.equal(approved.target.paths?.length, 2);
+  assert.equal(
+    readFileSync(join(projectDir, '.claude', 'rules', 'migrations.md'), 'utf8'),
+    '---\npaths:\n  - "packages/core/src/db.ts"\n  - "apps/**/*.{ts,tsx}"\n---\n\nRun the tests with --test-concurrency=1\n',
+  );
+  assert.equal(existsSync(join(projectDir, 'CLAUDE.md')), false, 'a rule never touches CLAUDE.md');
+});
+
+test('approving a rule appends to a rule with the same paths and refuses one with other paths, until it is renamed', async () => {
+  const { proposals, projectDir } = setup();
+  const file = join(projectDir, '.claude', 'rules', 'tests.md');
+  await proposals.approve(proposals.propose('p1', rule('tests.md', ['src/**', 'test/**']), RULE_ORIGIN).id);
+
+  // The same paths in another order: the text is appended
+  const same = proposals.propose('p1', rule('tests.md', ['test/**', 'src/**'], 'Name tests after the behaviour'), RULE_ORIGIN);
+  await proposals.approve(same.id);
+  assert.match(readFileSync(file, 'utf8'), /Run the tests with --test-concurrency=1\n\nName tests after the behaviour\n$/);
+
+  // Other paths: 409, the proposal stays pending and nothing is written
+  const other = proposals.propose('p1', rule('tests.md', ['docs/**'], 'Docs are English'), RULE_ORIGIN);
+  const before = readFileSync(file, 'utf8');
+  await assert.rejects(
+    proposals.approve(other.id),
+    (err: unknown) => err instanceof WorkItemError && err.statusCode === 409 && /\.claude\/rules\/tests\.md exists with other paths; approve it under another name/.test(err.message),
+  );
+  assert.equal(readFileSync(file, 'utf8'), before);
+  assert.equal(proposals.find(other.id)?.status, 'pending');
+
+  // Renamed in the approval: written to the new file, and the proposal says where it went
+  const renamed = await proposals.approve(other.id, { file: 'docs.md' });
+  assert.equal(renamed.target.file, 'docs.md');
+  assert.match(readFileSync(join(projectDir, '.claude', 'rules', 'docs.md'), 'utf8'), /^---\npaths:\n {2}- "docs\/\*\*"\n---\n\nDocs are English\n$/);
+  await assert.rejects(proposals.approve(proposals.propose('p1', rule('x.md', ['a/**']), RULE_ORIGIN).id, { file: '../x.md' }), refusal(400));
+});
+
+test('a rule file that has no paths counts as a rule with other paths', async () => {
+  const { proposals, projectDir } = setup();
+  mkdirSync(join(projectDir, '.claude', 'rules'), { recursive: true });
+  writeFileSync(join(projectDir, '.claude', 'rules', 'all.md'), 'Applies everywhere\n');
+  await assert.rejects(proposals.approve(proposals.propose('p1', rule('all.md', ['src/**']), RULE_ORIGIN).id), refusal(409));
+});
+
 test('a proposal writes nothing anywhere until a person approves it', () => {
   const { proposals, journal, projectDir, memoryDir, events } = setup();
   const origin = { proposedBy: QA, source: { kind: 'chat' as const, chatId: 'qa-chat', orchestrationId: null, taskId: null }, flowRunId: 'run-1' };

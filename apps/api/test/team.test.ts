@@ -85,6 +85,32 @@ test('a team is built from the template, edited member by member and read back',
   assert.deepEqual((await app.inject(`/api/projects/${p.id}/team`)).json<Team>().unassignedAgents, ['qa']);
 });
 
+test('from-template adds an optional role only when it is named, with its tools and no column', async () => {
+  const p = await importProject(['board', 'team']);
+  const url = `/api/projects/${p.id}/team/from-template`;
+  const plain = await app.inject({ method: 'POST', url, ...json({}) });
+  assert.equal(plain.statusCode, 201, plain.body);
+  assert.deepEqual(plain.json<Team>().members.map((m) => m.role), ['product-owner', 'architect', 'developer', 'qa']);
+
+  const hunter = await app.inject({ method: 'POST', url, ...json({ roles: ['silent-failure-hunter'] }) });
+  assert.equal(hunter.statusCode, 201, hunter.body);
+  const member = hunter.json<Team>().members.find((m) => m.role === 'silent-failure-hunter');
+  assert.deepEqual(member?.tools, ['Read', 'Grep', 'Glob', 'Bash']);
+  assert.deepEqual(member?.columns, []);
+  assert.match(readFileSync(join(p.path, '.claude', 'agents', 'silent-failure-hunter.md'), 'utf8'), /^tools: Read, Grep, Glob, Bash$/m);
+
+  const unknown = await app.inject({ method: 'POST', url, ...json({ roles: ['ceo'] }) });
+  assert.equal(unknown.statusCode, 400);
+  assert.match(unknown.json<{ error: string }>().error, /optionally, silent-failure-hunter, type-design-analyst, build-resolver, spec-miner/);
+
+  const put = await app.inject({ method: 'PUT', url: `/api/projects/${p.id}/team/reader`, ...json({ role: 'reader', model: 'sonnet', responsibility: 'Reads', tools: ['Read', 'bad tool'] }) });
+  assert.equal(put.statusCode, 400);
+  assert.match(put.json<{ error: string }>().error, /not a tool name/);
+  const templates = (await app.inject('/api/projects/templates')).json<Array<{ id: string; optionalTeam: Array<{ role: string }> }>>();
+  assert.deepEqual(templates.find((t) => t.id === 'research')?.optionalTeam.map((r) => r.role), ['spec-miner']);
+  assert.deepEqual(templates.find((t) => t.id === 'simple')?.optionalTeam, []);
+});
+
 test('the routes answer 400, 404 and 409 where they should', async () => {
   assert.equal((await app.inject('/api/projects/nope/team')).statusCode, 404);
   const off = await importProject(['board']);

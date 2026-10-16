@@ -315,6 +315,13 @@ export function FlowEditor({
       </div>
       <div className="flow-limit-row">
         <span className="flow-limit-text">
+          <span className="flow-limit-name">{t('flow.plateauTitle')}</span>
+          <span className="field-hint">{phone ? t('flow.plateauHintShort') : t('flow.plateauHint')}</span>
+        </span>
+        <Switch checked={flow.plateau === 'stop'} onChange={(on) => edit({ ...flow, plateau: on ? 'stop' : 'observe' })} aria-label={t('flow.plateauTitle')} />
+      </div>
+      <div className="flow-limit-row">
+        <span className="flow-limit-text">
           <span className="flow-limit-name">{phone ? t('flow.parallelShort') : t('flow.parallel')}</span>
           <span className="field-hint">{t('flow.parallelHint')}</span>
         </span>

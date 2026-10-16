@@ -596,3 +596,15 @@ test("a project's tracker is stored, reported as a settings change, and a bad st
     assert.deepEqual(read.modules, before.modules);
   });
 });
+
+test('flow.plateau is observe, stop or off, and absent stays absent', () => {
+  const base = defaultProjectSettings('AGN');
+  const flow = { enabled: true, columns: {}, maxBounces: 3 };
+  const parse = (plateau: unknown) => parseProjectSettings({ ...base, flow: { ...flow, plateau } }).flow?.plateau;
+  assert.equal(parse('stop'), 'stop');
+  assert.equal(parse('off'), 'off');
+  assert.equal(parse('observe'), 'observe');
+  assert.equal(parse(undefined), undefined);
+  assert.throws(() => parse('sometimes'), /flow\.plateau/);
+  assert.throws(() => parse(true), /flow\.plateau/);
+});

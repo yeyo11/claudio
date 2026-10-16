@@ -65,6 +65,12 @@ export interface ScheduleLauncher {
   running?(run: Pick<ScheduleRun, 'chatId' | 'orchestrationId'>): boolean;
 }
 
+/** How the reason of a slot held by the daily spend cap begins, so its event reads as that and not as an outage */
+export const SPEND_HELD = "Today's spend cap was reached";
+
+/** Why a slot was not started because of the daily spend cap; amounts in USD. */
+export const spendHeldReason = (spentUsd: number, capUsd: number): string => `${SPEND_HELD} (${spentUsd.toFixed(2)} of ${capUsd.toFixed(2)} USD), so this slot was skipped, not run late.`;
+
 const OVERLAPS: readonly ScheduleOverlap[] = ['parallel', 'skip', 'queue'];
 
 interface RunRow {
@@ -285,6 +291,11 @@ export class Scheduler {
   private readonly launching = new Set<string>();
   /** Where `schedule.changed` and `schedule.fired` go; the API's global feed */
   bus: Pick<EventBus, 'emit'> | null = null;
+  /**
+   * The daily spend cap. Over it a slot is skipped with its reason, never run late after midnight;
+   * returns that reason, or null when the slot may start. Set by Core.
+   */
+  spendHold: (() => string | null) | null = null;
 
   constructor(
     config: CoreConfig,
@@ -474,7 +485,7 @@ export class Scheduler {
     const titles: Record<ScheduleRunStatus, string> = {
       started: `Schedule ${stored.name} started its ${stored.target.kind}`,
       failed: `Schedule ${stored.name} could not start: ${run.error ?? 'unknown error'}`,
-      skipped: `Schedule ${stored.name} skipped slots missed while Claudio was down`,
+      skipped: run.error?.startsWith(SPEND_HELD) ? `Schedule ${stored.name} skipped a slot: the daily spend cap was reached` : `Schedule ${stored.name} skipped slots missed while Claudio was down`,
       overlapped: `Schedule ${stored.name} did not start a slot: ${run.error ?? 'the last run was still going'}`,
       queued: `Schedule ${stored.name} will start when its last run ends`,
     };
@@ -638,6 +649,14 @@ export class Scheduler {
       ...(slot ? { slot } : {}),
       status: 'started',
     };
+    // A slot is held by the daily cap; a person's "run now" is theirs to decide and goes through
+    const hold = slot ? (this.spendHold?.() ?? null) : null;
+    if (hold) {
+      run.status = 'skipped';
+      run.error = hold;
+      if (this.runs.claim(run)) this.fired(stored, run);
+      return run;
+    }
     // Claimed before launching: a crash in between leaves a run that started nothing, which is
     // better than a chat that starts twice
     if (!this.runs.claim(run)) return run;

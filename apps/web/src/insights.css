@@ -936,7 +936,7 @@
   min-height: 40px;
   margin-bottom: 16px;
   padding: 0 16px;
-  border-radius: var(--r-lg);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--bg-1);
   font-size: 13px;
@@ -1158,3 +1158,73 @@
 }
 
 /* ==== end Usage ==== */
+
+/* The daily cap, one quiet line like the decisions' above it; the bar and the words are the status bar's */
+.usage-cap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 40px;
+  margin-bottom: 16px;
+  padding: 0 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.usage-cap svg {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+.usage-cap .lead {
+  font-weight: 500;
+  color: var(--fg);
+}
+.usage-cap .sep {
+  color: var(--fg-3);
+}
+.usage-cap-meter {
+  width: 96px;
+}
+.usage-cap-sub,
+.usage-cap-note {
+  color: var(--fg-3);
+}
+.usage-cap-note {
+  flex: 1 1 100%;
+  font-size: 12px;
+}
+.usage-cap a {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+.usage-cap.is-warn .usage-cap-word,
+.usage-cap.is-warn .usage-cap-pct {
+  color: var(--warn);
+}
+.usage-cap.is-bad .usage-cap-word,
+.usage-cap.is-bad .usage-cap-pct {
+  color: var(--bad);
+}
+@media (max-width: 900px) {
+  /* The title leads a line and the facts follow, as the decisions' line does */
+  .usage-cap {
+    padding: 10px 14px;
+    gap: 4px 8px;
+  }
+  .usage-cap .lead {
+    flex: 1 1 100%;
+  }
+  .usage-cap .lead + .sep {
+    display: none;
+  }
+  .usage-cap a {
+    min-height: var(--touch);
+    display: inline-flex;
+    align-items: center;
+  }
+}

@@ -11,7 +11,7 @@ import { Orchestrator, PLAN_SCHEMA, PUSH_DENIED, PLANNER_GRAPH_GUIDANCE, summari
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
-import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
+import { DELEGATION, FRONTEND, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { openWaitOf } from '../src/rotation.ts';
 import { tempConfig } from './helpers.ts';
@@ -585,6 +585,20 @@ test('a failed task is tried again in the same chat, told what went wrong, and k
   assert.equal(flaky.costUsd, runs.get(flaky.runId as string)?.costUsd);
   assert.ok(flaky.costUsd >= 0.02);
   assert.equal(orch.costUsd, flaky.costUsd + (runs.get(orch.synthesisRunId as string)?.costUsd ?? 0));
+  db.close();
+});
+
+test('two attempts that fail with the same error fail the task without a third, even with attempts left', async () => {
+  const { db, repo, orchestrator, runs } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'broken', prompt: 'FAKE-FAIL-ALWAYS error: the build failed in 12ms' }], { maxAttempts: 3 }));
+  const orch = await settle(orchestrator, started.id);
+
+  const broken = orch.tasks[0] as OrchestrationTaskState;
+  assert.equal(broken.status, 'failed');
+  assert.equal(broken.attempts, 2);
+  assert.equal(runs.get(broken.runId as string)?.executions.length, 2);
+  assert.match(broken.error ?? '', /The same error came back on two attempts in a row, so Claudio did not try again\./);
+  assert.match(broken.lastErrorSignature ?? '', /^[0-9a-f]{16}$/);
   db.close();
 });
 
@@ -1496,6 +1510,79 @@ test('a restart leaves a task that waits for a limit to reset running: the rotat
   db.close();
 });
 
+// ---------- what a worker knows of the graph ----------
+
+test("a worker is told the graph's other tasks in one pasted block, with its own id outside it, and carries retrieval and delegation", async () => {
+  const { db, repo, runs, orchestrator } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt server' }, { id: 'ui', prompt: 'FAKE-WRITE ui.txt screen', dependsOn: ['api'] }], { objective: 'Ship it.' }),
+  );
+  const orch = await settle(orchestrator, started.id);
+  const ui = runs.get(orch.tasks.find((t) => t.id === 'ui')?.runId ?? '')?.prompt ?? '';
+  assert.match(ui, /The graph has 2 tasks; yours is `ui`\. The others, so you neither redo nor undo their work:\n<pasted_content id="([0-9a-f]{8})">\n- `api` api\n<\/pasted_content id="\1">/);
+  assert.ok(ui.includes(RETRIEVAL));
+  assert.ok(ui.includes(DELEGATION));
+  assert.ok(ui.indexOf(REAL_VERIFICATION) < ui.indexOf(RETRIEVAL));
+  assert.ok(ui.indexOf(UNATTENDED) < ui.indexOf(DELEGATION));
+  const api = runs.get(orch.tasks.find((t) => t.id === 'api')?.runId ?? '')?.prompt ?? '';
+  assert.match(api, /- `ui` ui \(depends on: api\)/);
+  db.close();
+});
+
+test("a graph with no objective names itself in the worker's head, and a graph of one task lists no others", async () => {
+  const { db, repo, runs, orchestrator } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'only', prompt: 'FAKE-WRITE only.txt x' }], { name: 'nightly cleanup' }));
+  const orch = await settle(orchestrator, started.id);
+  const prompt = runs.get(orch.tasks[0]?.runId ?? '')?.prompt ?? '';
+  assert.match(prompt, /^You are one worker in a multi-agent orchestration\.\nThe graph is named <pasted_content id="([0-9a-f]{8})">\nnightly cleanup\n<\/pasted_content id="\1">\.\nThe graph has 1 task; yours is `only`\.\n/);
+  assert.ok(!prompt.includes('The others, so you neither redo'));
+  db.close();
+});
+
+test('the other tasks are capped at 30 lines of 80 characters, then "and N more"', async () => {
+  const { db, repo, runs, orchestrator } = retryGraph();
+  const long = 'x'.repeat(200);
+  const tasks = Array.from({ length: 33 }, (_, i) => ({ id: `t${String(i)}`, name: i === 1 ? long : `task ${String(i)}`, prompt: `FAKE-WRITE f${String(i)}.txt x` }));
+  const started = orchestrator.create({ ...graphOf(repo, tasks, { objective: 'many', concurrency: 33, synthesize: false }), tasks });
+  const orch = await settle(orchestrator, started.id);
+  const prompt = runs.get(orch.tasks.find((t) => t.id === 't0')?.runId ?? '')?.prompt ?? '';
+  const block = /The others, so you neither redo nor undo their work:\n<pasted_content id="([0-9a-f]{8})">\n([\s\S]*?)\n<\/pasted_content id="\1">/.exec(prompt)?.[2] ?? '';
+  const lines = block.split('\n');
+  // 32 others: thirty listed and the rest counted
+  assert.equal(lines.length, 31);
+  assert.equal(lines.at(-1), 'and 2 more');
+  assert.ok(lines.every((l) => l.length <= 120));
+  assert.ok(lines.some((l) => l.includes('x'.repeat(79)) && !l.includes('x'.repeat(80))));
+  assert.match(prompt, /The graph has 33 tasks; yours is `t0`\./);
+  db.close();
+});
+
+test('a worker whose result arrives with a background subagent still running goes on in its chat, once, and it is not an attempt', async () => {
+  const { db, repo, runs, orchestrator } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'lead', prompt: 'FAKE-BG-AGENT\nFAKE-TEXT-ONCE The survey is running.' }]));
+  const orch = await settle(orchestrator, started.id);
+  const lead = orch.tasks[0] as OrchestrationTaskState;
+  assert.equal(lead.status, 'completed');
+  assert.equal(lead.continuations, 1);
+  assert.equal(lead.attempts, 1);
+  assert.match(lead.result ?? '', /You ended your turn while work you delegated is still running: survey the routes\./);
+  assert.equal(runs.get(lead.runId ?? '')?.executions.length, 2);
+  db.close();
+});
+
+test('the workflow lead is given the delegation contract, and each task of the script its own head', () => {
+  const { db, repo, runs, orchestrator } = retryGraph();
+  const started = orchestrator.create({ ...graphOf(repo, [{ id: 'one', prompt: 'a' }, { id: 'two', prompt: 'b' }], { objective: 'go', worktree: false, synthesize: false }), engine: 'workflow' });
+  const run = runs.get(started.workflow?.runId ?? '');
+  assert.ok(run?.prompt.includes(DELEGATION));
+  const text = run?.prompt ?? '';
+  assert.ok(text.indexOf(DELEGATION) < text.indexOf('Time matters here'));
+  const script = readFileSync(started.workflow?.scriptPath ?? '', 'utf8');
+  assert.ok(script.includes('yours is `one`') && script.includes('yours is `two`'));
+  orchestrator.stop(started.id);
+  db.close();
+});
+
 // ---------- the planner ----------
 
 test('the planner is told to keep graphs short: four stages, no types task, docs beside review, sonnet for prose, files named', () => {
@@ -1505,6 +1592,7 @@ test('the planner is told to keep graphs short: four stages, no types task, docs
   assert.match(PLANNER_GRAPH_GUIDANCE, /review .* does not re-run the whole test suite/);
   assert.match(PLANNER_GRAPH_GUIDANCE, /sonnet/);
   assert.match(PLANNER_GRAPH_GUIDANCE, /files, modules or routes/);
+  assert.match(PLANNER_GRAPH_GUIDANCE, /names, for each convention its worker must follow \(naming, error handling, data access, tests\), one real example as `path:line` that you read/);
 });
 
 test('a planner task may name a model and nothing else beyond its fields', () => {
@@ -1568,4 +1656,69 @@ test('every process an orchestration starts is denied git push, not only told no
   } finally {
     delete process.env.FAKE_CLAUDE_SPAWNS;
   }
+});
+
+// ---------- the daily spend cap ----------
+
+test('over the daily spend cap pending tasks do not start unless the graph holds today\'s pass, and start when the gate opens', async () => {
+  const { db, repo, orchestrator, taskOf } = retryGraph();
+  const day = '2026-10-16';
+  const gate = { open: false };
+  orchestrator.spendOpen = (id) => gate.open || orchestrator.spendPassOf(id) === day;
+  const started = orchestrator.create({ ...graphOf(repo, [{ id: 'a', prompt: 'work' }, { id: 'b', prompt: 'work', dependsOn: ['a'] }, { id: 'c', prompt: 'work' }]), worktree: false, synthesize: false });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(['a', 'b', 'c'].map((id) => taskOf(started.id, id)?.status), ['pending', 'pending', 'pending']);
+  assert.equal(orchestrator.get(started.id)?.status, 'running', 'the graph waits, it does not fail');
+  assert.equal(orchestrator.waitingForSpend(), 2, 'the tasks ready to start; b still waits for a');
+
+  // Another pass of the scheduler changes nothing while the gate is shut
+  orchestrator.spendChanged();
+  assert.equal(taskOf(started.id, 'a')?.status, 'pending');
+
+  // A pass is for one graph: it lets this one through
+  orchestrator.grantSpendPass(started.id, day);
+  orchestrator.spendChanged();
+  const orch = await settle(orchestrator, started.id);
+  assert.equal(orch.status, 'completed');
+  assert.deepEqual(orch.tasks.map((t) => t.status), ['completed', 'completed', 'completed']);
+  assert.equal(orch.spendPass, day);
+  assert.equal(orchestrator.waitingForSpend(), 0);
+  db.close();
+});
+
+test('the first start of a workflow waits for the daily spend cap like a graph\'s first task', async () => {
+  const { db, repo, orchestrator } = retryGraph();
+  const gate = { open: false };
+  orchestrator.spendOpen = () => gate.open;
+  const started = orchestrator.create({ ...graphOf(repo, [{ id: 'a', prompt: 'work' }]), worktree: false, engine: 'workflow' });
+  assert.equal(started.engine, 'workflow');
+  assert.equal(orchestrator.get(started.id)?.workflow ?? null, null, 'no session was started');
+  assert.equal(orchestrator.get(started.id)?.tasks[0]?.status, 'pending');
+  assert.equal(orchestrator.waitingForSpend(), 1);
+  orchestrator.stop(started.id);
+  db.close();
+});
+
+test('a graph whose tasks have all started goes on to its verification and its fixer over the daily spend cap', async () => {
+  const { db, repo, orchestrator } = retryGraph();
+  const gate = { open: true };
+  orchestrator.spendOpen = () => gate.open;
+  const command = "echo 'FAKE-WRITE marker.txt repaired'; test -f marker.txt";
+  const started = orchestrator.create({
+    ...graphOf(repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt server' }]),
+    verification: { commands: [command], fixer: true, maxAttempts: 1, e2eSpecs: false },
+  });
+  // The task started under the cap; the cap is reached while it works
+  gate.open = false;
+  await until(
+    () => orchestrator.get(started.id),
+    (o) => !!o && o.status !== 'running' && o.verification?.status !== 'running',
+    'the graph to finish',
+  );
+  const orch = orchestrator.get(started.id) as Orchestration;
+  assert.equal(orch.verification?.status, 'fixed', orch.verification?.report ?? '');
+  assert.equal(orch.verification?.fixes?.length, 1, 'the fixer ran');
+  assert.equal(orch.tasks[0]?.status, 'completed');
+  assert.ok(orch.synthesisRunId, 'and so did the synthesis');
+  db.close();
 });

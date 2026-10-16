@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - team
     - flow
@@ -90,6 +90,24 @@ A role the template knows also fills the flow's **empty** columns: the Product O
 Researcher) takes `backlog` and `todo`, the Developer (or the Writer) `in_progress`, and QA (or the
 Reviewer) `in_review`. The Architect is consulted and takes no column. A flow created this way is
 **off**, with `maxBounces` 3: turning it on is the person's choice.
+
+### Optional roles in the templates
+
+Each project template can offer more roles than it adds by default (`ProjectTemplate.optionalTeam`
+in `packages/core/src/project-templates.ts`; plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md)). The four are `silent-failure-hunter`,
+`type-design-analyst`, `build-resolver` and `spec-miner`. The Professional software, Library or
+package and Custom templates offer all four, Research or documentation offers the spec miner, and
+Simple offers none.
+
+- `POST /projects/:id/team/from-template` with no `roles` adds exactly the template's own team, as
+  before. With `roles` it also adds the optional roles it names, and they take no flow column. An
+  unknown name is refused with a list of both sets.
+- The review roles carry `tools`, which `agentFileContent` writes as `tools:` in the agent file: no
+  `Write` and no `Edit`, so the CLI itself keeps them read-only wherever it loads the file. The
+  team route and the settings parser validate the names with `isTeamToolName` (`@claudio/shared`).
+- The Team screen has a "Más roles" menu (`Members.tsx`, `.more-role`) and a muted "solo lectura" tag
+  on a member whose tools all read. The project assistant knows the optional roles too: a role it
+  proposes from a template keeps that template's `tools` and `commands`.
 
 ## The flow by column
 
@@ -544,6 +562,35 @@ continued by a later run is not left without one. An assistant run's turn, also 
 (`ChatManager.heldToSchema`), is still not replayed: the run that started it ended on the error, and
 replaying it would spend on a result nobody reads.
 
+### Plateau, and the history of `checks.fix`
+
+Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
+
+- **Plateau (`flow.plateau`).** A rejected verify that leaves the same acceptance criteria unmet for
+  two rounds in a row is a plateau (`plateaued()` in `packages/core/src/flow.ts`). The project
+  setting `flow.plateau` is `observe` (the default), `stop` or `off`, parsed in
+  `project-settings.ts`. In `observe` the card goes back as usual and one item comment records that
+  it would have stopped; in `stop` the card waits for a person with `waiting: 'bounces'`,
+  `WorkItem.waitingCause: 'plateau'` and the cause `flow.plateau`, shown on the board strip and in
+  the history as "Sin mejora en dos rondas"; `off` does nothing. The bounce limit is checked first.
+  Team → Flow has the switch (`stop` on, `observe` off). The orchestration side has its own rule: in
+  `Orchestrator.settleNow` a task whose two consecutive attempts failed with the same error stops
+  retrying.
+- **The fixer's stop rules and `flow_runs.checks`.** The work stage reports, for each check it was
+  asked to fix, whether it was `fixed`, the `locations` (`path:line`) and why it `stopped`
+  (`same-error`, `more-errors` or `design`). The result schema asks for them and they are stored in
+  `flow_runs.checks` and served on `FlowRun.checks`. The fix panel shows them as verdicts.
+- **`ChecksFix.historyAllows`** (`packages/core/src/decisions/checks-fix.ts`) runs before `hasRoom`.
+  It refuses to start another fix by itself when the newest fix stopped for a design decision on a
+  check that fails now, or when the last two fixes each reported the same check fixed and it fails
+  again. Each refusal writes one comment on the item (`ChecksFixDeps.comment`). A person's "Fix
+  checks" never goes through it.
+- **Orchestration verification** (`verification.ts`): `failureSignature`, `errorCount` and
+  `parseFixerReport` read the fixer's `[FIXED] path:line: note` and `[STOP] same-error|more-errors|design:`
+  rows. Verification concludes `failed` on a fixer `[STOP]`, on more errors than before, and on the
+  same signature after three attempts. The rows land on `VerificationFix.fixed` and show on the
+  verification card.
+
 ## The journal
 
 `packages/core/src/journal.ts` (`JournalService`), decision 32. The CLI's own memory (`CLAUDE.md` and
@@ -600,6 +647,22 @@ writes the target. A target that cannot be written hands the proposal back to `p
 
 The journal's and the proposals' changes need the Memory module on (409); reads do not. There is no
 route that creates a proposal: only a flow run's result makes one.
+
+### Rule proposals
+
+A memory proposal of kind `rule` is guidance that only holds for some files, so it goes to
+`.claude/rules/<file>` with a `paths:` list in its front matter instead of growing `CLAUDE.md`
+(plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md)). The project assistant proposes them, and a flow member may report `paths` in its
+result.
+
+- A rule must name valid `paths` (`rulePathsProblem` in `@claudio/shared`) and a file name; the
+  assistant's `parseAnswer` drops a rule without them and records a finding. Guidance that holds
+  everywhere stays an `instructions` proposal.
+- Approving writes through `ConfigResources` (`packages/core/src/memory-proposals.ts`): a new file;
+  an append when the file exists with the same paths; a `409` when it exists with other paths. The
+  paths are stored in `memory_proposals.target_paths`.
+- The memory card's target line reads `Regla · .claude/rules/<file> · <paths>`. On a `409` it offers
+  an inline rename; `POST /memory-proposals/:proposalId/approve` takes an optional `file` for the new name.
 
 ## Documents
 

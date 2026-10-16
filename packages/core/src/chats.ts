@@ -243,6 +243,7 @@ export class ChatManager extends EventEmitter {
       learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
       learnWindows: (modelUsage) => this.learnWindows(modelUsage),
       maybeLimit: (chat) => this.maybeLimit(chat),
+      recordSpend: (chat, execution, usd) => this.recordSpend(chat, execution, usd),
       failProtocol: (chat, message) => this.failProtocol(chat, message),
     };
   }
@@ -262,6 +263,44 @@ export class ChatManager extends EventEmitter {
       if (usd === undefined) continue;
       execution.modelCosts = { ...execution.modelCosts, [model]: Math.max(execution.modelCosts?.[model] ?? 0, usd) };
     }
+  }
+
+  /**
+   * One row of the daily spend ledger per result, so the cap sums what was spent on the day it was
+   * spent. The account's kind is looked up now: the ledger keeps it as it was.
+   */
+  private recordSpend(chat: LiveChat, execution: Execution, usd: number | null): void {
+    let kind: string | null = null;
+    const account = execution.account ?? chat.account ?? null;
+    try {
+      kind = this.accounts?.ref(account ?? DEFAULT_ID).kind ?? null;
+    } catch {
+      // an account removed since: its kind is unknown
+    }
+    let projectId: string | null = null;
+    try {
+      projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
+    } catch {
+      // a row without its project is still a row
+    }
+    try {
+      this.db.addSpend({
+        at: new Date().toISOString(),
+        chatId: chat.id,
+        executionId: execution.id,
+        usd: usd ?? 0,
+        reported: usd !== null,
+        purpose: chat.opts.purpose ?? 'other',
+        account: account && account !== DEFAULT_ID ? account : null,
+        accountKind: kind,
+        projectId,
+        orchestrationId: chat.meta.orchestrationId ?? null,
+      });
+    } catch {
+      // Output still draining after the database closed (shutdown): a missing row must not become an uncaught error
+      return;
+    }
+    this.emit('spend-recorded');
   }
 
   /** The context window the CLI reports for each model that answered: the only real source of one. */
@@ -618,7 +657,7 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack'>, source: AdoptedChat): ChatRuntime {
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack' | 'purpose'>, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     const known = this.chats.get(sourceId);
     const driver = known?.driver ?? this.driverFor(request.provider);
@@ -723,6 +762,7 @@ export class ChatManager extends EventEmitter {
       else opts.uploads = options.uploads;
     }
     if (options.keepAlive !== undefined) opts.keepAlive = options.keepAlive;
+    if (options.purpose !== undefined) opts.purpose = options.purpose;
     if (options.account !== undefined) opts.account = options.account;
     if (options.confine !== undefined) {
       if (options.confine === null) delete opts.confine;
@@ -1235,6 +1275,8 @@ export class ChatManager extends EventEmitter {
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
     if (account) chat.account = account.id;
+    // The CLI's total is cumulative over its process, so a new process counts from zero again
+    chat.lastReportedCostUsd = 0;
     chat.stopRequested = false;
     chat.endedAt = null;
     chat.error = null;

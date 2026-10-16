@@ -1,5 +1,5 @@
 import type { AssistantResourceKind, AssistantResourceProposal, AssistantRun, ConfigResource, ResourceKind } from '@claudio/shared';
-import { Check, ChevronDown, ChevronRight, Pencil, SquareSlash, Terminal, Undo2, Users, X, Zap, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Pencil, ScrollText, SquareSlash, Terminal, Undo2, Users, X, Zap, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { savePath, shownName } from './model';
 
-const KIND_ICON: Record<AssistantResourceKind, LucideIcon> = { agents: Terminal, skills: Zap, commands: SquareSlash };
+const KIND_ICON: Record<AssistantResourceKind, LucideIcon> = { agents: Terminal, skills: Zap, commands: SquareSlash, rules: ScrollText };
 
 export function KindIcon({ kind }: { kind: AssistantResourceKind }) {
   const Icon = KIND_ICON[kind];

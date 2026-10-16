@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T19:30:00Z
-updated_at: 2026-10-15T19:30:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - research
     - ecc
@@ -117,6 +117,8 @@ Claude Code. Effort is S (days), M (a week or two) or L (several weeks). ★ mar
 | 13 | Global daily spend cap across all chats and orchestrations | `ecc2` `cost_budget_usd`, `enforce_budget_hard_limits` | Budgets per chat, task, graph, flow, fixer and supervisor. Limits per account | Low-medium | S | A runtime setting. Over the cap, new automated runs wait and chats ask first |
 | 14 | Plateau detection in loops: stop when the score has not improved for two rounds after round three | `commands/gan-build.md` | `maxBounces` in flow, `maxAttempts` in tasks | Low | S | Track the verify result per bounce and stop early on repeats. This partly overlaps the `repeat-stall` health signal |
 | 15 | Path-scoped rules (`paths:` globs) to keep `CLAUDE.md` small | `rules/` | The CLI already supports `.claude/rules/` with `paths:`; Claudio edits `rules` resources (`config/resources.ts`) | Low | S | Have the project assistant propose path-scoped rules instead of growing `CLAUDE.md` |
+
+Ideas 6–10 and 12–15 are built by [plans/agent-run-improvements.md](../plans/agent-run-improvements.md).
 
 ## 3. Design notes for the top five
 

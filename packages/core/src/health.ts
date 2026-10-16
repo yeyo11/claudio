@@ -108,7 +108,7 @@ const WINDOW = 12;
 /** The same call with the same answer this many times within the window is a loop. */
 const LOOP_AT = 4;
 
-const flatten = (text: string): string => text.replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 200);
+export const flatten = (text: string): string => text.replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 200);
 
 /**
  * The same step over and over with nothing new coming back: one call, with the same input, that

@@ -143,7 +143,26 @@
     "asThen": "as it was at that moment",
     "sameFile": "This file, step by step",
     "seeResult": "See how it ended up",
-    "thisOne": "this one"
+    "thisOne": "this one",
+    "risk": {
+      "level": {
+        "high": "High risk",
+        "medium": "Medium risk"
+      },
+      "factor": {
+        "irreversible": "Irreversible",
+        "history-rewrite": "Rewrites history",
+        "leaves-machine": "Leaves this machine",
+        "privilege": "Privileged",
+        "outside-workdir": "Outside the working directory",
+        "secrets": "Reads secrets",
+        "sensitive-path": "Sensitive file",
+        "wide-scope": "Wide scope"
+      },
+      "reason": "{{level}}: {{factors}}",
+      "highCount_one": "{{count}} step of high risk",
+      "highCount_other": "{{count}} steps of high risk"
+    }
   },
   "thread": {
     "label": "Review thread on {{where}}",

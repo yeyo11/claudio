@@ -560,5 +560,22 @@
       "context": "Más contexto en uso",
       "messages": "Más mensajes"
     }
+  },
+  "risk": {
+    "level": {
+      "high": "Riesgo alto",
+      "medium": "Riesgo medio"
+    },
+    "factor": {
+      "irreversible": "Irreversible",
+      "history-rewrite": "Reescribe el historial",
+      "leaves-machine": "Sale de esta máquina",
+      "privilege": "Con privilegios",
+      "outside-workdir": "Fuera del directorio de trabajo",
+      "secrets": "Lee secretos",
+      "sensitive-path": "Archivo sensible",
+      "wide-scope": "Alcance amplio"
+    },
+    "reason": "{{level}}: {{factors}}"
   }
 }

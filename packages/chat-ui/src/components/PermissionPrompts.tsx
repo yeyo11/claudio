@@ -13,6 +13,7 @@ import { useChatPermissions } from '../lib/chats';
 import { PROMPT_PARAM } from '../lib/permission-param';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { RichText } from './Transcript';
+import { RiskLine, useToolRisk } from './RiskTag';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from '@claudio/ui/components/ui';
 
 const promptDomId = (permissionId: string) => `prompt-${permissionId}`;
@@ -68,6 +69,7 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   const suggestions = write ? [] : (request.suggestions ?? []);
   const described = request.description ?? request.input.description;
   const description = !write && typeof described === 'string' ? described : '';
+  const risk = useToolRisk(request.toolName, request.input);
   const deny = () => answer.mutate({ behavior: 'deny', ...(reason.trim() ? { message: reason.trim() } : {}) });
 
   return (
@@ -77,6 +79,7 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
         <strong>{write ? write.title : toolKindLabel(request.toolName)}</strong>
         {!write && <span className="muted small">{t('permissions.wantsToRun')}</span>}
       </div>
+      <RiskLine risk={risk} />
       {/* Focusable so a long command can be scrolled sideways from the keyboard */}
       {(!write || write.detail) && (
         <pre className="permission-input" role="group" aria-label={t('permissions.whatItWantsToRun')} tabIndex={0}>

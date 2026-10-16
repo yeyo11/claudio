@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { PERMISSION_MODES, type AllowedHostLayers, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { ClaudioEventInput } from './events.ts';
-import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, type CoreConfig } from './paths.ts';
+import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, MAX_DAILY_SPEND_CAP_USD, normalizeSpendCap, type CoreConfig } from './paths.ts';
 
 /*
  * Settings that used to be read from the environment once, at startup, and can now change while
@@ -74,6 +74,12 @@ function parseValue(key: keyof AppSettingValues, value: unknown): AppSettingValu
     case 'setupSeen':
       if (typeof value !== 'boolean') throw new Error('setupSeen must be true or false');
       return value;
+    case 'dailySpendCapUsd': {
+      if (value === null) return null;
+      const cap = normalizeSpendCap(value);
+      if (cap === null) throw new Error(`dailySpendCapUsd must be an amount above 0 and up to ${String(MAX_DAILY_SPEND_CAP_USD)}, or null for no cap`);
+      return cap;
+    }
   }
 }
 
@@ -167,6 +173,8 @@ export class AppSettingsStore implements RunDefaults {
    * Exact names the tunnel adds and removes; the guard answers them beside `allowedHosts`. A change
    * goes out as `settings.changed`, so the settings page lists the tunnel's host while it is lent.
    */
+  /** Told after a write that names the daily spend cap, so the gate re-dispatches what waited; set by Core */
+  onSpendCapChange: (() => void) | null = null;
   readonly runtimeHosts = new RuntimeHosts(() => this.deps.emit?.({ type: 'settings.changed', title: 'Settings changed', settings: this.get() }));
 
   constructor(
@@ -175,7 +183,7 @@ export class AppSettingsStore implements RunDefaults {
   ) {
     this.file = join(config.dataDir, 'app-settings.json');
     this.fromEnv = config.settingsFromEnv;
-    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen };
+    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen, dailySpendCapUsd: config.dailySpendCapUsd };
     if (existsSync(this.file)) {
       try {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));
@@ -205,6 +213,11 @@ export class AppSettingsStore implements RunDefaults {
    */
   get allowedHosts(): readonly string[] {
     return this.current.allowedHosts;
+  }
+
+  /** The daily spend cap in USD; null for none. Read by the spend gate on every check. */
+  get dailySpendCapUsd(): number | null {
+    return this.current.dailySpendCapUsd;
   }
 
   get maxConcurrentRuns(): number {
@@ -250,6 +263,7 @@ export class AppSettingsStore implements RunDefaults {
     await write;
     const settings = this.get();
     this.deps.emit?.({ type: 'settings.changed', title: 'Settings changed', settings });
+    if (changes.dailySpendCapUsd !== undefined) this.onSpendCapChange?.();
     return settings;
   }
 

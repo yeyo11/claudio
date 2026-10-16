@@ -2,10 +2,11 @@ import type { UsageBucket, UsagePoint, UsageSlice } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, keys, useUsageBreakdown, useUsageSeries, type UsageRange } from '../api';
+import { api, keys, useSpend, useUsageBreakdown, useUsageSeries, type UsageRange } from '../api';
 import { BarChart } from '../components/BarChart';
 import { DecisionsLineView } from '../components/DecisionsLine';
 import { ProjectExportCard } from '../components/ProjectExport';
+import { SpendLineView } from '../components/SpendLine';
 import { DatePicker } from '@claudio/ui/components/controls';
 import { Card, Empty, ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
@@ -179,6 +180,7 @@ export function Usage() {
         </div>
       )}
 
+      <SpendLine />
       <DecisionsLine range={applied} />
 
       <Card
@@ -222,6 +224,12 @@ export function Usage() {
       {project && <ProjectExportCard project={project} wholeProject />}
     </>
   );
+}
+
+/** Today against the daily cap, which is today's whatever range the page shows; nothing with no cap. */
+function SpendLine() {
+  const state = useSpend().data;
+  return state ? <SpendLineView state={state} /> : null;
 }
 
 /** The start of the page's window as the decision stats take it; "all time" reaches back to the epoch. */

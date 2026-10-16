@@ -1013,12 +1013,14 @@
     "kind": {
       "agents": "Agent",
       "skills": "Skill",
-      "commands": "Command"
+      "commands": "Command",
+      "rules": "Rule"
     },
     "kindLower": {
       "agents": "agent",
       "skills": "skill",
-      "commands": "command"
+      "commands": "command",
+      "rules": "rule"
     },
     "scope": {
       "project": "Project",
@@ -1060,7 +1062,8 @@
     "whatPlaceholder": {
       "agents": "An agent that reviews every new migration before the commit",
       "skills": "A skill that knows the design system's tokens and rules",
-      "commands": "A command that runs the checks and sums up what failed"
+      "commands": "A command that runs the checks and sums up what failed",
+      "rules": "A rule for the migrations folder: how a migration is named and what it must never touch"
     },
     "create": "Create",
     "again": "Try again",
@@ -1188,6 +1191,17 @@
       "concurrent": "Runs at once",
       "concurrentHint": "From {{min}} to {{max}}. A new chat past the limit is refused until one ends, and an orchestration runs no more workers than this at once.",
       "saved": "Run defaults saved"
+    },
+    "spend": {
+      "title": "Daily spend cap",
+      "switch": "Limit daily spend",
+      "amount": "Cap per day, in USD",
+      "hintToday": "Today: {{spent}} according to the CLI. Over the cap, automatic work waits and your chats ask before sending.",
+      "hintApi": "On subscription accounts it is what it would cost on the API, not what you pay.",
+      "hintOff": "No cap: nothing waits for the day’s spend.",
+      "invalid": "Enter an amount above 0 and up to {{max}}.",
+      "saved": "Daily spend cap saved",
+      "savedOff": "Daily spend cap turned off"
     }
   }
 }
