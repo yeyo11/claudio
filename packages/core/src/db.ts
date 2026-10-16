@@ -6,6 +6,13 @@ import type {
   AuditFilter,
   HealthSignalKind,
   AuditPage,
+  ChatCompaction,
+  ChatNoteSource,
+  ChatNoteState,
+  ChatSessionNote,
+  CompactionFailure,
+  CompactionOrigin,
+  CompactionState,
   DecisionAnswer,
   DecisionFeedback,
   DecisionPaletteAction,
@@ -847,6 +854,52 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    WHERE CASE WHEN json_valid(json) THEN json_extract(json, '$.origin') = 'agentry' ELSE 0 END;
    UPDATE audit SET actor = 'claudio' WHERE actor = 'agentry';
    UPDATE change_request_merges SET requested_by = 'claudio' WHERE requested_by = 'agentry';`,
+  // Context control (docs/plans/context-control.md). One row per compaction Claudio saw or asked for;
+  // the unique partial index holds one open housekeeping turn per chat across the processes sharing
+  // the data directory, and lease_until frees it if the process that claimed it died.
+  `CREATE TABLE chat_compactions (
+     id            TEXT PRIMARY KEY,
+     chat_id       TEXT NOT NULL,
+     origin        TEXT NOT NULL,
+     state         TEXT NOT NULL,
+     trigger_kind  TEXT,
+     focus         TEXT,
+     structured    INTEGER NOT NULL DEFAULT 1,
+     flow_run_id   TEXT,
+     requested_by  TEXT,
+     boundary_uuid TEXT,
+     pre_tokens    INTEGER,
+     post_tokens   INTEGER,
+     duration_ms   INTEGER,
+     cost_usd      REAL,
+     failure       TEXT,
+     error         TEXT,
+     note_id       TEXT,
+     requested_at  TEXT NOT NULL,
+     started_at    TEXT,
+     ended_at      TEXT,
+     lease_until   TEXT NOT NULL
+   );
+   CREATE INDEX chat_compactions_chat ON chat_compactions (chat_id, requested_at);
+   CREATE UNIQUE INDEX chat_compactions_open ON chat_compactions (chat_id) WHERE state IN ('requested', 'running');
+   CREATE UNIQUE INDEX chat_compactions_boundary ON chat_compactions (boundary_uuid) WHERE boundary_uuid IS NOT NULL;
+   CREATE TABLE chat_notes (
+     id            TEXT PRIMARY KEY,
+     chat_id       TEXT NOT NULL,
+     source        TEXT NOT NULL,
+     state         TEXT NOT NULL,
+     text          TEXT,
+     sections      TEXT,
+     compaction_id TEXT,
+     entry_uuid    TEXT,
+     error         TEXT,
+     created_at    TEXT NOT NULL,
+     ready_at      TEXT,
+     lease_until   TEXT
+   );
+   CREATE INDEX chat_notes_chat ON chat_notes (chat_id, created_at);
+   CREATE UNIQUE INDEX chat_notes_pending ON chat_notes (chat_id) WHERE state = 'pending';
+   CREATE UNIQUE INDEX chat_notes_entry ON chat_notes (chat_id, entry_uuid) WHERE entry_uuid IS NOT NULL;`,
 ];
 
 /**
@@ -901,6 +954,9 @@ export const PROVIDER_ROTATION_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => type
 
 /** The migration that rewrote the values stored under the old product name: a test starts a database from just before it */
 export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes("'$.agentryAssistant'")) + 1;
+
+/** The migration that added the compactions and session notes: a test starts a database from just before it */
+export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE chat_compactions')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -1100,6 +1156,132 @@ function toProviderMove(row: ProviderMoveRow): ProviderMove {
     reason: row.reason,
     updatedAt: row.updated_at,
   };
+}
+
+/** How long a claimed compaction is held before another process may take it for lost */
+export const COMPACTION_LEASE_MS = 15 * 60_000;
+
+/** A new housekeeping turn: a compaction, or a session-note turn with no compaction */
+export type HousekeepingClaim =
+  | {
+      kind: 'compaction';
+      leaseUntil: string;
+      row: { id: string; origin: CompactionOrigin; focus: string | null; structuredNote: boolean; flowRunId: string | null; requestedBy: string | null; requestedAt: string };
+    }
+  | { kind: 'note'; leaseUntil: string; row: { id: string; source: ChatNoteSource; entryUuid: string | null; createdAt: string } };
+
+export type CompactionPatch = Partial<{
+  state: CompactionState;
+  trigger: 'manual' | 'auto' | null;
+  preTokens: number | null;
+  postTokens: number | null;
+  durationMs: number | null;
+  costUsd: number | null;
+  failure: CompactionFailure | null;
+  error: string | null;
+  boundaryUuid: string | null;
+  noteId: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  leaseUntil: string;
+}>;
+
+export type NotePatch = Partial<{
+  state: ChatNoteState;
+  text: string | null;
+  sections: ChatSessionNote['sections'];
+  compactionId: string | null;
+  error: string | null;
+  readyAt: string | null;
+  leaseUntil: string | null;
+}>;
+
+interface CompactionRow {
+  id: string;
+  chat_id: string;
+  origin: string;
+  state: string;
+  trigger_kind: string | null;
+  focus: string | null;
+  structured: number;
+  flow_run_id: string | null;
+  boundary_uuid: string | null;
+  pre_tokens: number | null;
+  post_tokens: number | null;
+  duration_ms: number | null;
+  cost_usd: number | null;
+  failure: string | null;
+  error: string | null;
+  note_id: string | null;
+  requested_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+function compactionOf(r: CompactionRow): ChatCompaction {
+  return {
+    id: r.id,
+    chatId: r.chat_id,
+    origin: r.origin as CompactionOrigin,
+    state: r.state as CompactionState,
+    trigger: r.trigger_kind === 'manual' || r.trigger_kind === 'auto' ? r.trigger_kind : null,
+    focus: r.focus,
+    structuredNote: r.structured !== 0,
+    flowRunId: r.flow_run_id,
+    preTokens: r.pre_tokens,
+    postTokens: r.post_tokens,
+    durationMs: r.duration_ms,
+    costUsd: r.cost_usd,
+    failure: r.failure as CompactionFailure | null,
+    error: r.error,
+    boundaryUuid: r.boundary_uuid,
+    noteId: r.note_id,
+    requestedAt: r.requested_at,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+  };
+}
+
+interface NoteRow {
+  id: string;
+  chat_id: string;
+  source: string;
+  state: string;
+  text: string | null;
+  sections: string | null;
+  compaction_id: string | null;
+  entry_uuid: string | null;
+  error: string | null;
+  created_at: string;
+  ready_at: string | null;
+}
+
+function noteOf(r: NoteRow): ChatSessionNote {
+  let sections: ChatSessionNote['sections'] = null;
+  if (r.sections) {
+    try {
+      sections = JSON.parse(r.sections) as ChatSessionNote['sections'];
+    } catch {
+      // A damaged sections object costs the headings, never the note's text
+    }
+  }
+  return {
+    id: r.id,
+    chatId: r.chat_id,
+    source: r.source as ChatNoteSource,
+    state: r.state as ChatNoteState,
+    text: r.text,
+    sections,
+    compactionId: r.compaction_id,
+    entryUuid: r.entry_uuid,
+    error: r.error,
+    createdAt: r.created_at,
+    readyAt: r.ready_at,
+  };
+}
+
+function isConstraintError(err: unknown): boolean {
+  return /constraint/i.test((err as { message?: string }).message ?? '');
 }
 
 export class Db {
@@ -1344,7 +1526,198 @@ export class Db {
     this.tx(() => {
       this.db.prepare('DELETE FROM chats WHERE id = ?').run(id);
       this.db.prepare('DELETE FROM chat_entries WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM chat_compactions WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM chat_notes WHERE chat_id = ?').run(id);
     });
+  }
+
+  // ---------- context control: compactions and session notes ----------
+
+  /**
+   * Takes the chat's one housekeeping slot (a compaction or a note turn) in a single IMMEDIATE
+   * transaction, so a second process cannot slip in between the check and the insert. An open row
+   * whose lease has passed is closed as lost first; null when another open one remains.
+   */
+  claimHousekeeping(chatId: string, claim: HousekeepingClaim, now: string): ChatCompaction | ChatSessionNote | null {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.closeExpired(now, chatId);
+      const open = this.db
+        .prepare("SELECT 1 FROM chat_compactions WHERE chat_id = ? AND state IN ('requested', 'running') UNION ALL SELECT 1 FROM chat_notes WHERE chat_id = ? AND state = 'pending'")
+        .get(chatId, chatId);
+      if (open) {
+        this.db.exec('COMMIT');
+        return null;
+      }
+      if (claim.kind === 'compaction') {
+        const c = claim.row;
+        this.db
+          .prepare(
+            `INSERT INTO chat_compactions (id, chat_id, origin, state, focus, structured, flow_run_id, requested_by, requested_at, lease_until)
+             VALUES (?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(c.id, chatId, c.origin, c.focus, c.structuredNote ? 1 : 0, c.flowRunId, c.requestedBy, c.requestedAt, claim.leaseUntil);
+      } else {
+        const n = claim.row;
+        this.db
+          .prepare("INSERT INTO chat_notes (id, chat_id, source, state, entry_uuid, created_at, lease_until) VALUES (?, ?, ?, 'pending', ?, ?, ?)")
+          .run(n.id, chatId, n.source, n.entryUuid, n.createdAt, claim.leaseUntil);
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      // The unique indexes are the second line of defence: losing that race means another one is open
+      if (isConstraintError(err)) return null;
+      throw err;
+    }
+    return claim.kind === 'compaction' ? this.compactionById(claim.row.id) : this.noteById(claim.row.id);
+  }
+
+  /** Closes the open rows whose lease has passed (every chat, or one); the caller holds the write lock */
+  private closeExpired(now: string, chatId?: string): void {
+    const scope = chatId === undefined ? '' : ' AND chat_id = ?';
+    const args = chatId === undefined ? [] : [chatId];
+    this.db
+      .prepare(`UPDATE chat_compactions SET state = 'failed', failure = 'lost', ended_at = ? WHERE state IN ('requested', 'running') AND lease_until <= ?${scope}`)
+      .run(now, now, ...args);
+    this.db
+      .prepare(`UPDATE chat_notes SET state = 'failed', error = 'lost' WHERE state = 'pending' AND lease_until IS NOT NULL AND lease_until <= ?${scope}`)
+      .run(now, ...args);
+  }
+
+  /** At boot: closes what a dead process left open. A row still inside its lease may be the other process's and stays. */
+  sweepHousekeeping(now: string): void {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.closeExpired(now);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /** A guarded update: only a row still in one of the `from` states changes. Returns whether it did. */
+  updateCompaction(id: string, patch: CompactionPatch, guard: { from: CompactionState[] }): boolean {
+    if (guard.from.length === 0) return false;
+    const columns: Record<keyof CompactionPatch, string> = {
+      state: 'state', trigger: 'trigger_kind', preTokens: 'pre_tokens', postTokens: 'post_tokens', durationMs: 'duration_ms',
+      costUsd: 'cost_usd', failure: 'failure', error: 'error', boundaryUuid: 'boundary_uuid', noteId: 'note_id',
+      startedAt: 'started_at', endedAt: 'ended_at', leaseUntil: 'lease_until',
+    };
+    const sets: string[] = [];
+    const args: Array<string | number | null> = [];
+    for (const key of Object.keys(columns) as Array<keyof CompactionPatch>) {
+      const value = patch[key];
+      if (value === undefined) continue;
+      sets.push(`${columns[key]} = ?`);
+      args.push(value);
+    }
+    if (sets.length === 0) return false;
+    const marks = guard.from.map(() => '?').join(', ');
+    try {
+      const result = this.db.prepare(`UPDATE chat_compactions SET ${sets.join(', ')} WHERE id = ? AND state IN (${marks})`).run(...args, id, ...guard.from);
+      return Number(result.changes) > 0;
+    } catch (err) {
+      // A boundary already recorded by another row: this one did not change
+      if (isConstraintError(err)) return false;
+      throw err;
+    }
+  }
+
+  compactionById(id: string): ChatCompaction | null {
+    const row = this.db.prepare('SELECT * FROM chat_compactions WHERE id = ?').get(id) as CompactionRow | undefined;
+    return row ? compactionOf(row) : null;
+  }
+
+  /** The chat's compactions, newest first */
+  compactions(chatId: string, limit = 50): ChatCompaction[] {
+    const rows = this.db.prepare('SELECT * FROM chat_compactions WHERE chat_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT ?').all(chatId, limit) as unknown as CompactionRow[];
+    return rows.map(compactionOf);
+  }
+
+  openCompaction(chatId: string): ChatCompaction | null {
+    const row = this.db.prepare("SELECT * FROM chat_compactions WHERE chat_id = ? AND state IN ('requested', 'running')").get(chatId) as CompactionRow | undefined;
+    return row ? compactionOf(row) : null;
+  }
+
+  compactionByBoundary(uuid: string): ChatCompaction | null {
+    const row = this.db.prepare('SELECT * FROM chat_compactions WHERE boundary_uuid = ?').get(uuid) as CompactionRow | undefined;
+    return row ? compactionOf(row) : null;
+  }
+
+  /**
+   * Records a compaction the CLI did on its own (auto-compaction, or one typed in the terminal): it is
+   * already over, so it takes no slot. False when its boundary is already recorded.
+   */
+  insertCompaction(row: ChatCompaction): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT INTO chat_compactions (id, chat_id, origin, state, trigger_kind, focus, structured, flow_run_id, boundary_uuid, pre_tokens, post_tokens, duration_ms, cost_usd, failure, error, note_id, requested_at, started_at, ended_at, lease_until)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+      )
+      .run(
+        row.id, row.chatId, row.origin, row.state, row.trigger, row.focus, row.structuredNote ? 1 : 0, row.flowRunId, row.boundaryUuid,
+        row.preTokens, row.postTokens, row.durationMs, row.costUsd, row.failure, row.error, row.noteId, row.requestedAt, row.startedAt, row.endedAt,
+        row.endedAt ?? row.requestedAt,
+      );
+    return Number(result.changes) > 0;
+  }
+
+  /** Stores a note that needs no turn (a saved summary); false when that entry already has one */
+  insertNote(note: ChatSessionNote): boolean {
+    try {
+      this.db
+        .prepare('INSERT INTO chat_notes (id, chat_id, source, state, text, sections, compaction_id, entry_uuid, error, created_at, ready_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(note.id, note.chatId, note.source, note.state, note.text, note.sections ? JSON.stringify(note.sections) : null, note.compactionId, note.entryUuid, note.error, note.createdAt, note.readyAt);
+      return true;
+    } catch (err) {
+      if (isConstraintError(err)) return false;
+      throw err;
+    }
+  }
+
+  /** Guarded like `updateCompaction`: only a note still in one of the `from` states changes */
+  updateNote(id: string, patch: NotePatch, guard: { from: ChatNoteState[] }): boolean {
+    if (guard.from.length === 0) return false;
+    const sets: string[] = [];
+    const args: Array<string | null> = [];
+    const put = (column: string, value: string | null | undefined) => {
+      if (value === undefined) return;
+      sets.push(`${column} = ?`);
+      args.push(value);
+    };
+    put('state', patch.state);
+    put('text', patch.text);
+    put('sections', patch.sections === undefined || patch.sections === null ? patch.sections : JSON.stringify(patch.sections));
+    put('compaction_id', patch.compactionId);
+    put('error', patch.error);
+    put('ready_at', patch.readyAt);
+    put('lease_until', patch.leaseUntil);
+    if (sets.length === 0) return false;
+    const marks = guard.from.map(() => '?').join(', ');
+    try {
+      const result = this.db.prepare(`UPDATE chat_notes SET ${sets.join(', ')} WHERE id = ? AND state IN (${marks})`).run(...args, id, ...guard.from);
+      return Number(result.changes) > 0;
+    } catch (err) {
+      if (isConstraintError(err)) return false;
+      throw err;
+    }
+  }
+
+  noteById(id: string): ChatSessionNote | null {
+    const row = this.db.prepare('SELECT * FROM chat_notes WHERE id = ?').get(id) as NoteRow | undefined;
+    return row ? noteOf(row) : null;
+  }
+
+  /** The chat's notes, newest first */
+  notes(chatId: string, limit = 50): ChatSessionNote[] {
+    const rows = this.db.prepare('SELECT * FROM chat_notes WHERE chat_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?').all(chatId, limit) as unknown as NoteRow[];
+    return rows.map(noteOf);
+  }
+
+  deleteNote(chatId: string, id: string): boolean {
+    return Number(this.db.prepare('DELETE FROM chat_notes WHERE chat_id = ? AND id = ?').run(chatId, id).changes) > 0;
   }
 
   /** Records the id the provider gave a chat's session; `saveChats` leaves the column alone, so it outlives a re-save. */
