@@ -128,6 +128,8 @@ WORKDIR /app
 # The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
 COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
 COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
+# The guard program: root-owned and read-only, so the agent's user cannot replace the hook that checks it
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/guard.mjs /app/guard.mjs
 # The person's terminals: the host process the server forks, and node-pty beside it, the one native
 # module (a prebuilt binary: nothing is compiled in either stage). The folder is the only
 # node_modules in the image

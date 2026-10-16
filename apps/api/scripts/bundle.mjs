@@ -2,6 +2,7 @@
 //   server.mjs  the child process the desktop app spawns (src/standalone.ts)
 //   api.mjs     the long-lived service the container starts (src/index.ts)
 //   mcp.mjs     the MCP server a chat's CLI starts (packages/mcp/src/main.ts)
+//   guard.mjs  the guard program, the hook the CLI runs before each tool call (packages/core/src/guards/main.ts)
 //   terminal-host.mjs  the process the server forks for the person's terminals (packages/core/src/terminals/host/main.ts)
 // Only node: builtins stay external (node:sqlite among them), so no file needs node_modules, a source
 // tree or a transpiler beside it. The one exception is node-pty, the only native module Claudio ships:
@@ -24,6 +25,8 @@ await build({
     api: `${root}src/index.ts`,
     mcp: `${root}../../packages/mcp/src/main.ts`,
     'terminal-host': `${root}../../packages/core/src/terminals/host/main.ts`,
+    // The PreToolUse hook the CLI runs per tool call (packages/core/src/guards/main.ts): it ships alone and read-only
+    guard: `${root}../../packages/core/src/guards/main.ts`,
   },
   external: ['node-pty'],
   outdir: `${root}dist`,
