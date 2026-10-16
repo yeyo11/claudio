@@ -13,6 +13,7 @@ import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
 import { chatRoutes } from './routes/chats.ts';
+import { collaboratorRoutes } from './routes/collaborators.ts';
 import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
 import { appSettingsRoutes } from './routes/app-settings.ts';
@@ -252,6 +253,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(pushRoutes, { core });
       await api.register(webhookRoutes, { core });
       await api.register(terminalRoutes, { core, guard });
+      await api.register(collaboratorRoutes, { core });
     },
     { prefix: '/api' },
   );
