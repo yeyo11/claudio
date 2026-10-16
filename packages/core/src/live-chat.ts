@@ -217,6 +217,8 @@ export interface ExecutionExtras {
 export interface RunMeta {
   orchestrationId?: string;
   orchestrationTaskId?: string;
+  /** The eval sample this chat is: its limit is the runner's to handle, so the rotation leaves it alone */
+  evalSampleId?: string;
 }
 
 /** What is known of a chat that already exists when an execution resumes it from outside the store. */

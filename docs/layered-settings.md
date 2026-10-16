@@ -19,6 +19,7 @@ Claudio runs, from Settings → Security:
 | `defaultPermissionMode` | `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | the next run that does not choose one |
 | `setupSeen` | `CLAUDIO_SETUP_SEEN` (`on` or `off`; the older `CLAUDIO_PROVIDERS_STEP_SEEN` still counts) | `off` | the next start: the setup assistant is shown only while it is off. A `providersStepSeen` stored before the rename counts as `setupSeen` |
 | `dailySpendCapUsd` | `CLAUDIO_DAILY_SPEND_CAP_USD` (an amount above 0, up to 100000, rounded to cents) | none: no cap until one is set | the next start of a unit of work. Over it new automated work waits and a person is asked first; nothing running stops. See the [design system](design-system.md#the-daily-spend-cap) |
+| `evalsPhase2` | `CLAUDIO_EVALS_PHASE2` (`on` or `off`) | `off` | the next request: pressure levels, judged expectations, the promotion gate and case drafting of the [instruction evals](plans/instruction-evals.md); while off those routes answer 409 `evals-phase2-off` |
 
 ## Which value wins
 

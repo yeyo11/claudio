@@ -35,6 +35,60 @@ export function toolCallsOf(entries: Iterable<TranscriptEntry>, names: ReadonlyS
   return [...calls.values()];
 }
 
+/** A call in the order the stream carried it, as an eval reads it. */
+export interface SeenCall extends ToolCall {
+  /** 1-based, in stream order */
+  seq: number;
+  /** Index of the assistant message that carried it; calls in one message are simultaneous */
+  message: number;
+  scope: 'main' | 'sub';
+  /** `open`: no result before the end. `denied`: its id is in the result's `permission_denials` */
+  outcome: 'ok' | 'error' | 'denied' | 'open';
+}
+
+/**
+ * Every call of a transcript, whatever the tool, numbered in stream order. Entries that share a
+ * `uuid` are one assistant message (the CLI writes one entry per content block), so the calls in
+ * them get the same `message`. `deniedIds` are the `tool_use` ids from the result's
+ * `permission_denials`; a denied call is `denied` even when a result text came back for it.
+ */
+export function allToolCalls(entries: Iterable<TranscriptEntry>, deniedIds: ReadonlySet<string> = new Set()): SeenCall[] {
+  const calls = new Map<string, SeenCall>();
+  let message = -1;
+  let lastUuid: string | null = null;
+  let seq = 0;
+  for (const entry of entries) {
+    if (entry.role === 'assistant' && (entry.uuid !== lastUuid || message < 0)) {
+      message++;
+      lastUuid = entry.uuid;
+    }
+    for (const block of entry.blocks) {
+      if (block.type === 'tool_use') {
+        if (calls.has(block.id)) continue;
+        calls.set(block.id, {
+          id: block.id,
+          name: block.name,
+          input: asRecord(block.input),
+          at: entry.timestamp,
+          isError: null,
+          result: '',
+          seq: ++seq,
+          message: Math.max(message, 0),
+          scope: entry.isSidechain || entry.parentToolUseId ? 'sub' : 'main',
+          outcome: deniedIds.has(block.id) ? 'denied' : 'open',
+        });
+      } else if (block.type === 'tool_result') {
+        const call = calls.get(block.toolUseId);
+        if (!call) continue;
+        call.isError = block.isError;
+        call.result = block.content;
+        if (call.outcome !== 'denied') call.outcome = block.isError ? 'error' : 'ok';
+      }
+    }
+  }
+  return [...calls.values()];
+}
+
 /** The tools a worker plans with. `TodoWrite` is the older one; a CLI has one or the other. */
 export const CHECKLIST_TOOLS: ReadonlySet<string> = new Set(['TaskCreate', 'TaskUpdate', 'TodoWrite']);
 

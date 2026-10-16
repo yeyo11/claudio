@@ -89,6 +89,15 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 - `read: <path>` — one `Read` call (`input: { file_path }`, the path resolved against the working
   directory), held open for `CLAUDIO_FAKE_CLI_READ_MS` (default 400) and answered with the file's
   first 4000 characters, or `(file not found)`. It is what makes a page say "Reading <path>".
+- `edit: <path>` — one `Edit` call (`input: { file_path, old_string, new_string, replace_all }`, the path
+  absolute): the file is rewritten for real, a line `edited by the fake CLI` appended, and the call is
+  answered with the CLI's `tool_use_result` (`filePath`, `oldString`, `newString`, `originalFile`,
+  `structuredPatch`, `userModified`, `replaceAll`). A missing file fails the call. Held for `CLAUDIO_FAKE_CLI_READ_MS`.
+- `write: <path> <text>` — one `Write` call (`input: { file_path, content }`): the file is written for
+  real (parents created), `tool_use_result` is `{ type: "create" | "update", filePath, content,
+  structuredPatch, originalFile }`.
+- `skill: <name>` — one `Skill` call (`input: { skill }`), answered `Launching skill: <name>` with
+  `tool_use_result: { success: true, commandName }`.
 - `agent: <description> | <sidechain script>` — one subagent: an `Agent` call (`input: { description,
   subagent_type: "Explore", prompt: "Look around" }`), a `system` `task_started` (`task_type:
   "local_agent"`, `task_id` the agent id, `tool_use_id` the call's, `is_backgrounded: false`), then its

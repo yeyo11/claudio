@@ -5,18 +5,26 @@ import {
   effortRecommendation,
   type ClaudioLanguage,
   WORK_ITEM_TYPES,
+  EVAL_CASE_ID_PATTERN,
+  EVAL_LIMITS,
+  EXPECTATION_KINDS,
   assistantResourcePath,
   rulePathsProblem,
   type AssistantFinding,
   type AssistantProposalKind,
   type AssistantResourceKind,
   type AssistantRunKind,
+  type EvalCase,
+  type EvalExpectation,
+  type EvalJudgedExpectation,
+  type EvalTarget,
   type ProjectTeamRole,
   type ProposedResource,
   type ProposedTeamMember,
   type WorkItemPriority,
   type WorkItemType,
 } from '@claudio/shared';
+import { evalDefinitionProblems } from './evals/definition.ts';
 import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
 import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, RECORDS_IN_ENGLISH, readFrontmatterList, roleTitle } from './team.ts';
 
@@ -71,6 +79,21 @@ export interface AssistantBrief {
   git: AssistantGit | null;
   /** The person's language, for the title line a chat is listed by */
   language: AssistantLanguage;
+  /** For an `evals` run, the eval it drafts cases for */
+  evalName?: string | null;
+  evalFile?: AssistantEvalBrief | null;
+}
+
+/** What an `evals` run is told of the eval it drafts for: the target to read and the cases it has. */
+export interface AssistantEvalBrief {
+  title: string;
+  target: EvalTarget;
+  /** The target's path relative to the project, so the run can read it; null for a file outside the project */
+  targetPath: string | null;
+  /** Ids the draft must not reuse */
+  caseIds: string[];
+  /** Titles, so a draft does not repeat a case */
+  caseTitles: string[];
 }
 
 /** The languages Claudio speaks; a chat's title is written in the person's. */
@@ -114,6 +137,11 @@ export interface AnsweredWorkItem {
   reason: string;
 }
 
+export interface AnsweredEvalCase {
+  case: EvalCase;
+  reason: string;
+}
+
 export interface AssistantAnswer {
   summary: string;
   findings: AssistantFinding[];
@@ -121,6 +149,7 @@ export interface AssistantAnswer {
   members: AnsweredMember[];
   resources: AnsweredResource[];
   workItems: AnsweredWorkItem[];
+  evalCases: AnsweredEvalCase[];
 }
 
 const FRONTMATTER: Record<AssistantResourceKind, string> = {
@@ -195,6 +224,30 @@ function workItemSchema(): Record<string, unknown> {
   };
 }
 
+function evalCaseSchema(): Record<string, unknown> {
+  return {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'Lowercase letters, digits and dashes, up to 48, starting with a letter or digit' },
+      title: { type: 'string', description: 'What the case checks, in a few words' },
+      supportive: { type: 'string', description: 'The task with a reminder of the rule' },
+      neutral: { type: 'string', description: 'The task alone, as someone would ask it' },
+      mustHold: { type: 'boolean', description: 'True when this is a regression guard that must keep passing' },
+      expect: {
+        type: 'array',
+        description: 'The checks, deterministic ones first; a judged one only for what no matcher can see',
+        items: {
+          type: 'object',
+          properties: { kind: { type: 'string', enum: [...EXPECTATION_KINDS, 'judged'] } },
+          required: ['kind'],
+        },
+      },
+      reason: { type: 'string', description: 'Which sentence of the file the case guards, in one or two sentences' },
+    },
+    required: ['id', 'title', 'supportive', 'neutral', 'mustHold', 'expect', 'reason'],
+  };
+}
+
 /** The JSON Schema a run's result is held to. Only the lists the run proposes are asked for. */
 export function assistantSchema(brief: Pick<AssistantBrief, 'kind' | 'proposes' | 'resourceKind' | 'description'>): Record<string, unknown> {
   const properties: Record<string, unknown> = {
@@ -235,6 +288,10 @@ export function assistantSchema(brief: Pick<AssistantBrief, 'kind' | 'proposes' 
     properties.workItems = { type: 'array', items: workItemSchema() };
     required.push('workItems');
   }
+  if (brief.proposes.includes('eval-case')) {
+    properties.evalCases = { type: 'array', maxItems: EVAL_LIMITS.draftCases, items: evalCaseSchema() };
+    required.push('evalCases');
+  }
   return { type: 'object', properties, required };
 }
 
@@ -244,11 +301,15 @@ const list = (values: readonly string[], none = 'none') => (values.length ? valu
  * The first line of a run's prompt, which is what its chat is listed by (a chat's title is its first
  * prompt): short, and in the person's language, where the instructions below it stay in English.
  */
-export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName' | 'description' | 'resourceKind' | 'language'>): string {
+export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName' | 'description' | 'resourceKind' | 'language'> & Partial<Pick<AssistantBrief, 'evalName'>>): string {
   const es = brief.language === 'es';
   const name = brief.projectName;
   if (brief.kind === 'project') return es ? `Asistente de ${name}` : `Assistant for ${name}`;
   if (brief.kind === 'work-items') return es ? `Sugerir tareas · ${name}` : `Suggest tasks · ${name}`;
+  if (brief.kind === 'evals') {
+    const evalName = brief.evalName ?? name;
+    return es ? `Redactar casos · ${evalName}` : `Draft cases · ${evalName}`;
+  }
   if (brief.description && brief.resourceKind) {
     const what = es ? { agents: 'agente', skills: 'skill', commands: 'comando', rules: 'regla' }[brief.resourceKind] : singular(brief.resourceKind);
     return es ? `Crear ${what} con IA · ${name}` : `Create ${what} with AI · ${name}`;
@@ -320,7 +381,32 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
   }
 
   lines.push('## What to propose', '');
-  if (brief.kind === 'resources' && brief.description && brief.resourceKind) {
+  if (brief.kind === 'evals' && brief.evalFile) {
+    const e = brief.evalFile;
+    lines.push(
+      `Draft test cases for the instruction eval "${brief.evalName ?? ''}" (${e.title}). It measures whether an agent keeps the rules of one instruction file: the ${e.target.kind} \`${e.target.name}\` (${e.target.scope} scope).`,
+      e.targetPath ? `Read it first, at \`${e.targetPath}\`, and draft cases for the rules it states that a case does not cover yet.` : 'Read it first, and draft cases for the rules it states that a case does not cover yet.',
+      '',
+      `The eval already has these cases (ids; do not reuse them, and do not repeat what they check): ${list(e.caseIds)}.`,
+    );
+    if (e.caseTitles.length) lines.push(pasted(e.caseTitles.map((t) => `- ${t}`).join('\n')));
+    lines.push(
+      '',
+      `Return up to ${String(EVAL_LIMITS.draftCases)} cases in \`evalCases\`, fewer if the file has fewer rules worth checking. Each case has:`,
+      '- `supportive` and `neutral`: the same task at two levels of pressure. `supportive` reminds the agent of the rule; `neutral` is the task alone, as a person would ask it, never naming the rule. Both are sent as the first and only message of a fresh session in a checkout of this repository, so they must be doable there. Do not write a prompt that gives a reason to skip the rule: that level is written by the person.',
+      "- `expect`: deterministic checks first, which a program evaluates on the session's tool calls and files, never a judgment. A check is an object with a `kind`:",
+      '  - `called` / `not-called`: `{kind, call}`, where `call` matches a tool call: `{tool: "Edit"}` or `{tool: ["Edit","Write"], path: {contains: "src/"}}`; `command` and `path` take a string or `{equals}`, `{contains}` or `{regex}`. `called` also takes `min` and `max`.',
+      '  - `before` / `after`: `{kind, call, anchor}`, one call strictly earlier or later than another.',
+      '  - `sequence`: `{kind, calls: [call, call, ...]}`.',
+      '  - `text`: `{kind, match}` against the final answer. `file`: `{kind, path, exists?, contains?}`. `touched`: `{kind, path: matcher, expect: boolean}`.',
+      '  - `command`: `{kind, run, exitCode?}`, a shell command run in the checkout after the session; use one only when no other kind can check it. The person is shown every command before it runs.',
+      '- `judged`, at the end and only when no deterministic check can see it: `{kind: "judged", statement}`, a statement a model reads against the transcript (for example "explains why before editing"). At most one per case.',
+      '- `mustHold`: true for a rule whose breaking would be a regression the person must be told of; false otherwise.',
+      '- `id` (lowercase letters, digits and dashes), `title`, and `reason`: which sentence of the file the case guards.',
+      '',
+      'Propose fewer, better cases rather than many.',
+    );
+  } else if (brief.kind === 'resources' && brief.description && brief.resourceKind) {
     lines.push(
       `Build exactly one ${singular(brief.resourceKind)} from this description, fitted to this project:`,
       '',
@@ -426,7 +512,7 @@ function roleId(v: unknown): string | null {
  * ignored, entries that cannot be used are dropped, and oversized lists are cut, never refused: a
  * run is paid for, and one bad proposal should not throw away the good ones.
  */
-export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | 'proposes' | 'resourceKind' | 'description' | 'templateTeam'> & Partial<Pick<AssistantBrief, 'optionalTeam'>>): AssistantAnswer | null {
+export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | 'proposes' | 'resourceKind' | 'description' | 'templateTeam'> & Partial<Pick<AssistantBrief, 'optionalTeam' | 'evalFile'>>): AssistantAnswer | null {
   const value = typeof raw === 'string' ? safeJson(raw) : raw;
   if (!isObject(value)) return null;
   const summary = typeof value.summary === 'string' ? value.summary.trim().slice(0, TEXT_MAX) : null;
@@ -545,7 +631,56 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
     }
   }
 
-  return { summary, findings, read, members, resources, workItems };
+  const evalCases = brief.proposes.includes('eval-case') ? parseEvalCases(value.evalCases, new Set(brief.evalFile?.caseIds ?? [])) : [];
+
+  return { summary, findings, read, members, resources, workItems, evalCases };
+}
+
+/** A stand-in definition, so a drafted case is held to the parser's own rules for its checks. */
+const STUB_TARGET: EvalTarget = { kind: 'agent', scope: 'project', name: 'x' };
+
+function probeCase(id: string, prompt: string, expect: unknown[]): string[] {
+  return evalDefinitionProblems({ version: 1, title: 'x', target: STUB_TARGET, pin: '0'.repeat(40), cases: [{ id, prompt, expect }] });
+}
+
+function parseEvalCases(raw: unknown, taken: ReadonlySet<string>): AnsweredEvalCase[] {
+  const out: AnsweredEvalCase[] = [];
+  const ids = new Set(taken);
+  for (const c of arrayOf(raw, EVAL_LIMITS.draftCases * 2)) {
+    if (!isObject(c)) continue;
+    const id = str(c.id, 48);
+    const neutral = str(c.neutral, EVAL_LIMITS.promptChars.max);
+    if (!id || !EVAL_CASE_ID_PATTERN.test(id) || ids.has(id) || !neutral) continue;
+    const title = str(c.title, EVAL_LIMITS.titleChars.max);
+    const supportive = str(c.supportive, EVAL_LIMITS.promptChars.max);
+    const deterministic: unknown[] = [];
+    const judged: EvalJudgedExpectation[] = [];
+    for (const e of arrayOf(c.expect, EVAL_LIMITS.expectPerCase.max)) {
+      if (!isObject(e)) continue;
+      if (e.kind === 'judged') {
+        const statement = str(e.statement, EVAL_LIMITS.judgeStatementChars.max);
+        // One judged check per case, and a judge is the last resort: later ones are cut
+        if (statement && !judged.length) judged.push({ kind: 'judged', statement });
+      } else deterministic.push(e);
+    }
+    // Held to the parser's own rules for each check; a check it refuses is dropped, a case left with none is too
+    const problems = probeCase(id, neutral, deterministic);
+    const kept = deterministic.filter((_, i) => !problems.some((p) => p.startsWith(`cases[0].expect[${String(i)}]`)));
+    if (!kept.length || probeCase(id, neutral, kept).length) continue;
+    ids.add(id);
+    const drafted: EvalCase = {
+      id,
+      ...(title ? { title } : {}),
+      prompt: neutral,
+      // The competing level is the person's to write, so a draft never carries one
+      ...(supportive ? { prompts: { supportive, neutral } } : {}),
+      ...(c.mustHold === true ? { mustHold: true } : {}),
+      expect: [...(kept as EvalExpectation[]), ...judged],
+    };
+    out.push({ case: drafted, reason: body(c.reason, 2000) });
+    if (out.length >= EVAL_LIMITS.draftCases) break;
+  }
+  return out;
 }
 
 function safeJson(text: string): unknown {

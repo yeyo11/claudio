@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T12:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - prompts
     - flow
@@ -152,6 +152,8 @@ the result.
 | Lesson miner | `lessons/miner.ts` · `minerPrompt`, `MINER_SCHEMA` | one confined one-shot chat per mined stretch, one turn, no tools | first prompt, `--json-schema`, `--max-budget-usd`, `--restricted --tools= --setting-sources=`, `--no-session-persistence` | `haiku` (`miner.model`) |
 | Lessons delivered | `lessons/render.ts` · `renderSection` | every flow and assistant run; chats and workers when the project allows | the journal handoff, or `--append-system-prompt` | — |
 | Decision (cli provider) | `decisions/providers/cli.ts` · `decisionPrompt`, `decisionSchema` | one housekeeping chat per batch of questions, one turn, no tools | first prompt, `--json-schema`, `--effort`, `--max-budget-usd`, `--restricted --tools= --setting-sources=` | `haiku` (`cli.model`), effort `low` |
+| Instruction eval sample | `evals/runner.ts` · `startChat` (the prompt is the case's `prompt`, sent as the only message; no builder adds text) | one housekeeping chat per sample, in a throwaway worktree ([evals.md](evals.md)) | first prompt, `--max-budget-usd`, `--agents` (agent targets), `--model`, `--effort`; `internal`, `keepAlive: false`, no API token, no uploads, no journal | the eval's `runAs.model`, else the member's, else the CLI's default |
+| Instruction eval judge | `evals/judge.ts` · `judgePrompt` (statement, numbered calls and final text inside `pasted()` with `PASTED_NOTE`) | one housekeeping chat per judged expectation and sample, Phase 2 ([evals.md](evals.md)) | `--json-schema` `{ pass, reason, evidence }`, no tools, no settings files, `--max-budget-usd` from `limits.maxJudgeCostUsd`, effort `low`; `internal`, no API token | the expectation's `model`, else `sonnet` |
 | Work on it | `work-links.ts` · `workItemPrompt(item)` (mode `chat`) | a person's chat from a work item | first prompt | the chat's model |
 | Orchestration draft of work items | `work-links.ts` · `orchestrationDraft` → `workItemPrompt(item, 'task')` | becomes each node's task prompt | — | the draft's |
 | Team agent files | `team.ts` · `agentFileContent`; `assistant.ts` · `memberFile` | `.claude/agents/*.md` body | a file the CLI reads (`--agents`) | the member's model |
@@ -499,4 +501,4 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Related
 
-[[decision-engine.md]] · [[lessons.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]
+[[decision-engine.md]] · [[lessons.md]] · [[evals.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]

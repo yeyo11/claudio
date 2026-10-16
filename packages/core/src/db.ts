@@ -1150,6 +1150,133 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   CREATE UNIQUE INDEX lesson_jobs_open ON lesson_jobs (chat_id) WHERE status IN ('queued', 'deferred', 'running') AND chat_id IS NOT NULL;
   ALTER TABLE memory_proposals ADD COLUMN lesson_id TEXT REFERENCES lessons (id) ON DELETE SET NULL;
 `,
+  // docs/plans/instruction-evals.md: eval runs, their samples, calls and checks
+  `CREATE TABLE eval_runs (
+     id TEXT PRIMARY KEY,
+     project_id TEXT NOT NULL,
+     eval_name TEXT NOT NULL,
+     definition_sha TEXT NOT NULL,
+     definition TEXT NOT NULL,
+     variants TEXT NOT NULL,
+     samples_per_case INTEGER NOT NULL,
+     account TEXT,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','waiting','ended')),
+     outcome TEXT CHECK (outcome IN ('completed','capped','cancelled','interrupted','failed')),
+     reason TEXT,
+     resets_at TEXT,
+     max_cost_usd REAL NOT NULL,
+     cost_usd REAL NOT NULL DEFAULT 0,
+     started_by TEXT NOT NULL,
+     owner_pid INTEGER, owner_started_at TEXT,
+     created_at TEXT NOT NULL, started_at TEXT, ended_at TEXT
+   );
+   CREATE INDEX eval_runs_history ON eval_runs (project_id, eval_name, created_at);
+   CREATE UNIQUE INDEX eval_runs_live ON eval_runs (project_id) WHERE state IN ('queued','running','waiting');
+   CREATE TABLE eval_variants (
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     variant TEXT NOT NULL CHECK (variant IN ('pinned','current','proposed')),
+     target_path TEXT NOT NULL,
+     present INTEGER NOT NULL,
+     content_sha TEXT,
+     content TEXT,
+     PRIMARY KEY (run_id, variant)
+   );
+   CREATE TABLE eval_samples (
+     id TEXT PRIMARY KEY,
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     case_id TEXT NOT NULL, variant TEXT NOT NULL, attempt INTEGER NOT NULL, try INTEGER NOT NULL DEFAULT 1,
+     seq INTEGER NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','ended')),
+     outcome TEXT CHECK (outcome IN ('passed','failed','limit','interrupted','cancelled','skipped','infra')),
+     reason TEXT,
+     chat_id TEXT, account TEXT, model TEXT, cli_version TEXT, pin TEXT NOT NULL,
+     cost_usd REAL, duration_ms INTEGER, turns INTEGER, calls_truncated INTEGER NOT NULL DEFAULT 0,
+     result_text TEXT,
+     owner_pid INTEGER, started_at TEXT, ended_at TEXT,
+     UNIQUE (run_id, case_id, variant, attempt, try)
+   );
+   CREATE INDEX eval_samples_run ON eval_samples (run_id, seq);
+   CREATE TABLE eval_calls (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     seq INTEGER NOT NULL, message INTEGER NOT NULL, tool_use_id TEXT, name TEXT NOT NULL,
+     scope TEXT NOT NULL CHECK (scope IN ('main','sub')),
+     outcome TEXT NOT NULL CHECK (outcome IN ('ok','error','denied','open')),
+     input TEXT NOT NULL,
+     result TEXT,
+     at TEXT,
+     PRIMARY KEY (sample_id, seq)
+   );
+   CREATE TABLE eval_checks (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL, kind TEXT NOT NULL, passed INTEGER NOT NULL,
+     detail TEXT NOT NULL,
+     evidence_seq INTEGER,
+     output TEXT,
+     PRIMARY KEY (sample_id, idx)
+   );`,
+  // Instruction evals v2. SQLite cannot widen a CHECK, so eval_samples (and the two tables that
+  // reference it) are rebuilt to admit the 'unjudged' outcome and the pressure column; children go
+  // first so no cascade deletes their rows.
+  `CREATE TABLE eval_samples_v2 (
+     id TEXT PRIMARY KEY,
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     case_id TEXT NOT NULL, variant TEXT NOT NULL, pressure TEXT NOT NULL DEFAULT 'neutral', attempt INTEGER NOT NULL, try INTEGER NOT NULL DEFAULT 1,
+     seq INTEGER NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','ended')),
+     outcome TEXT CHECK (outcome IN ('passed','failed','limit','interrupted','cancelled','skipped','infra','unjudged')),
+     reason TEXT,
+     chat_id TEXT, account TEXT, model TEXT, cli_version TEXT, pin TEXT NOT NULL,
+     cost_usd REAL, duration_ms INTEGER, turns INTEGER, calls_truncated INTEGER NOT NULL DEFAULT 0,
+     result_text TEXT,
+     owner_pid INTEGER, started_at TEXT, ended_at TEXT,
+     UNIQUE (run_id, case_id, variant, pressure, attempt, try)
+   );
+   CREATE TABLE eval_calls_v2 (
+     sample_id TEXT NOT NULL REFERENCES eval_samples_v2(id) ON DELETE CASCADE,
+     seq INTEGER NOT NULL, message INTEGER NOT NULL, tool_use_id TEXT, name TEXT NOT NULL,
+     scope TEXT NOT NULL CHECK (scope IN ('main','sub')),
+     outcome TEXT NOT NULL CHECK (outcome IN ('ok','error','denied','open')),
+     input TEXT NOT NULL,
+     result TEXT,
+     at TEXT,
+     PRIMARY KEY (sample_id, seq)
+   );
+   CREATE TABLE eval_checks_v2 (
+     sample_id TEXT NOT NULL REFERENCES eval_samples_v2(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL, kind TEXT NOT NULL, passed INTEGER NOT NULL,
+     detail TEXT NOT NULL,
+     evidence_seq INTEGER,
+     output TEXT,
+     PRIMARY KEY (sample_id, idx)
+   );
+   INSERT INTO eval_samples_v2 (id, run_id, case_id, variant, attempt, try, seq, state, outcome, reason, chat_id, account, model, cli_version, pin,
+     cost_usd, duration_ms, turns, calls_truncated, result_text, owner_pid, started_at, ended_at)
+     SELECT id, run_id, case_id, variant, attempt, try, seq, state, outcome, reason, chat_id, account, model, cli_version, pin,
+     cost_usd, duration_ms, turns, calls_truncated, result_text, owner_pid, started_at, ended_at FROM eval_samples;
+   INSERT INTO eval_calls_v2 SELECT sample_id, seq, message, tool_use_id, name, scope, outcome, input, result, at FROM eval_calls;
+   INSERT INTO eval_checks_v2 SELECT sample_id, idx, kind, passed, detail, evidence_seq, output FROM eval_checks;
+   DROP TABLE eval_calls;
+   DROP TABLE eval_checks;
+   DROP TABLE eval_samples;
+   ALTER TABLE eval_samples_v2 RENAME TO eval_samples;
+   ALTER TABLE eval_calls_v2 RENAME TO eval_calls;
+   ALTER TABLE eval_checks_v2 RENAME TO eval_checks;
+   CREATE INDEX eval_samples_run ON eval_samples (run_id, seq);
+   CREATE TABLE eval_judgements (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL,
+     pass INTEGER,
+     reason TEXT NOT NULL,
+     evidence TEXT NOT NULL DEFAULT '[]',
+     cost_usd REAL,
+     model TEXT,
+     status TEXT NOT NULL CHECK (status IN ('judged','unjudged')),
+     PRIMARY KEY (sample_id, idx)
+   );
+   ALTER TABLE eval_runs ADD COLUMN gate TEXT;
+   ALTER TABLE eval_runs ADD COLUMN gate_detail TEXT;`,
+  // Phase 2: the eval an assistant `evals` run drafts cases for
+  `ALTER TABLE assistant_runs ADD COLUMN eval_name TEXT;`,
 ];
 
 /**
@@ -1225,6 +1352,9 @@ export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof
 export const REVIEW_GATE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_rounds')) + 1;
 /** The migration that added the lessons tables: a test starts a database from just before it */
 export const LESSONS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE lessons')) + 1;
+/** The migration that added the instruction evals' tables: a test starts a database from just before it */
+export const EVALS_V2_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_judgements')) + 1;
+export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

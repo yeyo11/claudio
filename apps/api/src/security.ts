@@ -27,12 +27,13 @@ const WEBHOOK_RECEIVER = /^\/api\/webhooks\/(?:github|gitlab)\/[^/]+$/;
 
 /**
  * `EventSource` and the browser's own GETs (an `<img src>`, a link) cannot carry an
- * `Authorization` header, so these five accept the credential as `?token=`. They are the only
+ * `Authorization` header, so these six accept the credential as `?token=`. They are the only
  * ones: a token in a query string ends up in access logs, and a route that can be called with
  * `fetch` has no excuse. `GET /api/events` is the one the plan names; the chat stream is the same
  * kind of `EventSource`, an attachment is what the chat renders inline, and a transcript export is
  * a download link the browser follows itself — fetching a whole transcript into a blob to save it
- * would hold it twice in memory for no gain. A project export is the same download, only longer.
+ * would hold it twice in memory for no gain. A project export is the same download, only longer,
+ * and so is an eval run's.
  */
 const QUERY_TOKEN = [
   /^\/api\/events$/,
@@ -40,6 +41,7 @@ const QUERY_TOKEN = [
   /^\/api\/uploads\/[^/]+\/content$/,
   /^\/api\/chats\/[^/]+\/export$/,
   /^\/api\/projects\/[^/]+\/export$/,
+  /^\/api\/eval-runs\/[^/]+\/export$/,
 ];
 
 /**
@@ -324,6 +326,23 @@ const CHAT_FORBIDDEN_TRACKERS = new Set([
   `POST ${API_PREFIX}/work-items/:itemId/issues`,
   `DELETE ${API_PREFIX}/work-items/:itemId/issues/:key`,
   `POST ${API_PREFIX}/work-items/:itemId/issues/:key/sync`,
+]);
+
+/**
+ * An instruction eval spends the person's account and runs commands a file asks for, and a consent
+ * is the person's alone: an injection in a chat must not write an eval file, consent to one, start
+ * or resume a run, or delete a run's results. Reading, estimating and cancelling stay open.
+ */
+const CHAT_FORBIDDEN_EVALS = new Set([
+  `PUT ${API_PREFIX}/projects/:id/evals/:name`,
+  `DELETE ${API_PREFIX}/projects/:id/evals/:name`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/consent`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/runs`,
+  `POST ${API_PREFIX}/eval-runs/:runId/resume`,
+  `POST ${API_PREFIX}/eval-runs/:runId/rejudge`,
+  `POST ${API_PREFIX}/eval-runs/:runId/accept-judge`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/draft-cases`,
+  `DELETE ${API_PREFIX}/eval-runs/:runId`,
 ]);
 
 /**
@@ -736,6 +755,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       }
       if (chat !== null && CHAT_FORBIDDEN_LESSONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot decide, change or mine lessons: that is the person's" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_EVALS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot write, consent to, start, resume, re-judge, draft cases for or delete an eval: that spends money and runs commands on the person's behalf" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

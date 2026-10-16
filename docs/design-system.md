@@ -18,7 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/claudio-ds.css`](design-system/claudio-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 16 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 | Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
@@ -1946,7 +1946,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Claudio has its own set of 15 SVG illustrations, drawn in the interface's language: hairline
+Claudio has its own set of 16 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
@@ -1962,6 +1962,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `projects` | no projects, a project without worktrees | accent |
 | `board` | a project's board without work items, the task list without items. The five fixed columns and the first card floating into Por hacer with the project's key | accent |
 | `team` | a project whose Team module is on but has no members yet. The flow's three roles in order, the first arriving | accent |
+| `evals` | a project's Team → Evals list without evals. A prompt card (the one gradient element, floating) over three tool-call rows: two ticks and one failed | accent |
 | `no-results` | search or filters without matches, an empty usage range | accent |
 | `not-found` | 404, a chat or orchestration that no longer exists | accent |
 | `install` | Settings → Install, turning push on | accent |

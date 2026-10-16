@@ -1,0 +1,580 @@
+{
+  "title": "Evals",
+  "run": {
+    "passed": "Passed",
+    "failed": "Failed",
+    "capped": "Capped",
+    "interrupted": "Interrupted",
+    "running": "Running",
+    "waiting": "Waiting for reset",
+    "cancelled": "Cancelled",
+    "queued": "Queued",
+    "back": "Back",
+    "summary": "Run summary",
+    "cost": "{{spent}} of {{ceiling}}",
+    "samples": "attempts",
+    "announce": "{{done}} of {{total}} attempts finished",
+    "counts": {
+      "done_one": "{{count}} passed",
+      "done_other": "{{count}} passed",
+      "failed_one": "{{count}} failed",
+      "failed_other": "{{count}} failed",
+      "running_one": "{{count}} running",
+      "running_other": "{{count}} running",
+      "pending_one": "{{count}} queued",
+      "pending_other": "{{count}} queued",
+      "skipped_one": "{{count}} not scored",
+      "skipped_other": "{{count}} not scored"
+    },
+    "stop": "Stop",
+    "cancel": "Cancel run",
+    "cancelFailed": "Could not cancel the run",
+    "resume": "Resume",
+    "resumeTitle": "Resume this run?",
+    "resumeBody_one": "{{count}} attempt was not run. Resuming may spend up to {{cost}} in total.",
+    "resumeBody_other": "{{count}} attempts were not run. Resuming may spend up to {{cost}} in total.",
+    "resumeConfirm": "Resume · up to {{cost}}",
+    "resumeFailed": "Could not resume the run"
+  },
+  "list": {
+    "new": "New eval",
+    "invalid": "Invalid file",
+    "notCommitted": "Not committed",
+    "cases_one": "{{count}} case",
+    "cases_other": "{{count}} cases",
+    "problems_one": "{{count}} problem",
+    "problems_other": "{{count}} problems",
+    "scored": "{{passed}}/{{of}} cases",
+    "never": "Never run",
+    "empty": {
+      "title": "No evals yet",
+      "body": "An eval gives an agent file, a skill, a rule or CLAUDE.md a few prompts and checks the tool calls Claude makes, so you can tell whether a change makes it follow its instructions better or worse."
+    },
+    "notGit": {
+      "title": "This project is not a git repository",
+      "body": "An eval pins a commit and runs each sample on it. Turn the folder into a git repository and make a first commit to use evals."
+    },
+    "noCommit": {
+      "title": "No commit to pin yet",
+      "body": "An eval pins a commit and runs each sample on it. Make a first commit in this repository to use evals."
+    },
+    "evaluate": "Evaluate this change",
+    "forAgent": "Evals for {{agent}}",
+    "showAll": "Show all",
+    "noneForAgent": "No eval measures {{agent}} yet."
+  },
+  "invalid": {
+    "title": "This file cannot run",
+    "body": "Claudio lists a file it cannot read, with the reason, and never runs it. Fix it in the repository, or remove it here."
+  },
+  "matcher": {
+    "glob": "Glob",
+    "equals": "Equals",
+    "contains": "Contains",
+    "regex": "Regex",
+    "mode": "How {{field}} is compared",
+    "flags": "flags",
+    "flagsLabel": "Regex flags of {{field}}"
+  },
+  "call": {
+    "tool": "Tool or tools, e.g. Edit, MultiEdit",
+    "toolLabel": "Tool of {{call}}",
+    "command": "Command",
+    "path": "Path",
+    "outcome": {
+      "default": "Any outcome",
+      "ok": "Succeeded",
+      "error": "Failed",
+      "denied": "Denied",
+      "any": "Any outcome"
+    },
+    "outcomeLabel": "Outcome of {{call}}",
+    "scope": {
+      "default": "Main agent",
+      "main": "Main agent",
+      "sub": "Subagents",
+      "any": "Any agent"
+    },
+    "scopeLabel": "Who makes {{call}}",
+    "inputKept_one": "{{count}} input matcher, edited in JSON",
+    "inputKept_other": "{{count}} input matchers, edited in JSON"
+  },
+  "expect": {
+    "row": "Check {{n}}",
+    "kindLabel": "Kind of check {{n}}",
+    "remove": "Remove check {{n}}",
+    "kind": {
+      "called": "Called",
+      "not-called": "Never called",
+      "before": "Before",
+      "after": "After",
+      "sequence": "Sequence",
+      "text": "Final text",
+      "file": "File",
+      "touched": "Touched",
+      "command": "Command",
+      "judged": "Judged"
+    },
+    "hint": {
+      "called": "A call happens, as many times as asked",
+      "not-called": "No call matches",
+      "before": "A call comes before another one",
+      "after": "A call comes after another one",
+      "sequence": "Calls happen in this order",
+      "text": "The final answer matches",
+      "file": "A file exists or holds something",
+      "touched": "A path changed, or did not",
+      "command": "A command run in the lane exits as expected",
+      "judged": "A model checks a statement against what happened"
+    },
+    "call": "Call",
+    "min": "At least",
+    "max": "At most",
+    "anchor": "The anchor call",
+    "ifAnchor": "Only when the anchor happens",
+    "step": "Step {{n}}",
+    "addStep": "Add a step",
+    "removeStep": "Remove the last step",
+    "strict": "Nothing may come between the steps",
+    "text": "Final text",
+    "file": "Path of the file",
+    "exists": {
+      "default": "Existence not checked",
+      "true": "Must exist",
+      "false": "Must not exist"
+    },
+    "existsLabel": "Whether the file must exist",
+    "contains": "Content",
+    "touchedPath": "Path",
+    "touched": {
+      "true": "Must be touched",
+      "false": "Must not be touched"
+    },
+    "touchedLabel": "Whether the path must be touched",
+    "run": "Command",
+    "runHint": "Runs on this machine, in the lane, once you accept the file",
+    "exitCode": "Exit code",
+    "timeoutSeconds": "Timeout (s)",
+    "statement": "Statement",
+    "statementHint": "What a judge model must find true, for example “Explains why it chose X over Y before editing”. The judge sees only the calls and the final answer.",
+    "judgeModel": "Judge model",
+    "examplesKept_one": "{{count}} calibration example, edited in JSON",
+    "examplesKept_other": "{{count}} calibration examples, edited in JSON"
+  },
+  "editor": {
+    "back": "Evals",
+    "delete": "Delete",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteBody": "The file is removed from the repository's folder. The runs already made stay in the history.",
+    "deleteFailed": "Could not delete the eval",
+    "newTitle": "New eval",
+    "view": "Editor view",
+    "form": "Form",
+    "jsonInvalid": "The JSON cannot be read as an eval",
+    "jsonLabel": "The eval file as JSON",
+    "changedOnDisk": "The file changed on disk",
+    "changedBody": "It is not the file you opened (a pull or another editor changed it). Reload it and lose your edits, or overwrite it with yours.",
+    "shaYours": "yours",
+    "shaDisk": "on disk",
+    "reload": "Reload",
+    "overwrite": "Overwrite",
+    "saveFailed": "Could not save the eval",
+    "problems": "The file was not saved",
+    "discardBody": "Leaving drops what you changed in this eval.",
+    "saved": "Eval saved",
+    "saving": "Saving…",
+    "save": "Save",
+    "sections": {
+      "eval": "Eval",
+      "target": "What it measures",
+      "runAs": "Run as",
+      "pin": "Commit",
+      "limits": "Samples and limits",
+      "cases_one": "{{count}} case",
+      "cases_other": "{{count}} cases"
+    },
+    "title": "Title",
+    "english": "Prompts, titles and notes are written in English. A person's own words stay as written.",
+    "fileName": "File name",
+    "name": {
+      "pattern": "Lower case letters, digits and hyphens, starting with a letter or digit.",
+      "taken": "An eval with this name already exists."
+    },
+    "targetKind": "Kind",
+    "kind": {
+      "agent": "Agent file",
+      "skill": "Skill",
+      "rule": "Rule",
+      "instructions": "CLAUDE.md"
+    },
+    "targetScope": "Scope",
+    "scope": {
+      "project": "This project",
+      "user": "Your user folder"
+    },
+    "userScope": "A user file is measured as it is: it cannot be pinned or proposed.",
+    "targetName": "Name",
+    "targetNamePlaceholder": "Pick or type a name",
+    "runAsNote": "A team member runs under the flow's own rules for the stage, as it does on the board.",
+    "runAsAgent": "Agent",
+    "runAsNobody": "No agent",
+    "runAsStage": "Stage",
+    "stageDefault": "Implement (default)",
+    "stage": {
+      "refine": "Refine",
+      "work": "Implement",
+      "verify": "Verify"
+    },
+    "runAsModel": "Model",
+    "runAsEffort": "Effort",
+    "effortDefault": "Model default",
+    "pin": "Pinned commit",
+    "pinHint": "A full 40-character SHA: a branch name would move.",
+    "pinHead": "Pin to HEAD",
+    "samples": "Samples per case",
+    "samplesHint": "Two or more tell a flaky case from a failing one.",
+    "perSample": "Cost cap per sample (USD)",
+    "timeout": "Time limit per sample (min)",
+    "ceiling": "Cost ceiling of a run (USD)",
+    "ceilingHint": "The start dialog may lower it, never raise it.",
+    "setup": "Setup command",
+    "setupWarn": "Runs this repository's code on this machine.",
+    "policyKept": "This eval carries its own tool policy, which is edited in JSON.",
+    "addCase": "Add a case",
+    "caseUntitled": "(no id)",
+    "expectCount_one": "{{count}} check",
+    "expectCount_other": "{{count}} checks",
+    "caseProblems_one": "{{count}} problem",
+    "caseProblems_other": "{{count}} problems",
+    "caseId": "Case id",
+    "caseTitle": "Case title",
+    "casePin": "Commit for this case",
+    "casePinHint": "Leave empty to use the eval's commit.",
+    "prompt": "Prompt",
+    "promptHint": "Sent as the sample's only message, up to {{max}} characters.",
+    "expectations": "Checks",
+    "addExpectation": "Add a check",
+    "removeCase": "Remove the case",
+    "run": "Run eval",
+    "saveFirst": "Save the eval first: a run uses the file as it is on disk.",
+    "k": "k for pass@k and pass^k",
+    "kHint": "At most the attempts per case. Default {{default}}.",
+    "mustHold": "Must hold",
+    "mustHoldHint": "A regression guard: the promotion gate reads its pass^k."
+  },
+  "notice": {
+    "waiting": {
+      "title": "Waiting for a usage limit to reset",
+      "until": "Nothing spends meanwhile. It continues at {{time}}.",
+      "body": "Nothing spends meanwhile. It continues when the limit resets."
+    },
+    "capped_one": "Stopped at the ceiling; {{count}} attempt not run.",
+    "capped_other": "Stopped at the ceiling; {{count}} attempts not run.",
+    "interrupted_one": "Interrupted; {{count}} attempt not run.",
+    "interrupted_other": "Interrupted; {{count}} attempts not run.",
+    "failed": "The run failed",
+    "cancelled": "This run was cancelled."
+  },
+  "variant": {
+    "pinned": "Committed at the pin",
+    "current": "Current file",
+    "proposed": "Proposed text"
+  },
+  "matrix": {
+    "title": "Cases",
+    "caption": "Attempts per case and variant",
+    "case": "Case",
+    "compared": "Compared",
+    "flaky": "Flaky",
+    "empty": "No attempts yet.",
+    "attempt": "Attempt {{attempt}}: {{state}}"
+  },
+  "cell": {
+    "passed": "Passed",
+    "failed": "Failed",
+    "running": "Running",
+    "queued": "Queued",
+    "notScored": "Not scored"
+  },
+  "verdict": {
+    "regressed": "Regressed",
+    "improved": "Improved",
+    "same": "Same"
+  },
+  "sample": {
+    "title": "{{case}} · {{variant}} · attempt {{attempt}}",
+    "description": "The calls Claude made, what the checks found and its final answer.",
+    "calls": "Calls",
+    "noCalls": "No calls were recorded.",
+    "subagent": "subagent",
+    "outcome": {
+      "ok": "OK",
+      "error": "Error",
+      "denied": "Denied",
+      "open": "No result"
+    },
+    "truncated": "Only the first calls are kept; the checks ran on all of them.",
+    "checks": "Checks",
+    "noChecks": "No checks ran.",
+    "evidence": "Call #{{seq}}",
+    "finalText": "Final answer",
+    "noText": "No final answer was recorded.",
+    "notScored": "Not scored",
+    "why": {
+      "limit": "A usage limit stopped this attempt. It says nothing about the target and is run again from scratch.",
+      "interrupted": "The run was interrupted before this attempt finished.",
+      "cancelled": "The run was cancelled before this attempt finished.",
+      "skipped": "The run stopped at its ceiling before this attempt.",
+      "infra": "Something outside the target failed (the CLI, the worktree or the setup), so the attempt says nothing about it.",
+      "unjudged": "A judge failed (an error, a limit or an unreadable answer), so a judged expectation has no verdict. It is not scored, and the gate treats it as missing."
+    },
+    "fact": {
+      "cost": "Cost",
+      "duration": "Duration",
+      "turns": "Turns",
+      "account": "Account",
+      "model": "Model",
+      "cli": "CLI",
+      "pin": "Pin"
+    },
+    "unjudged": "Not judged",
+    "judge": "Judge {{model}}"
+  },
+  "history": {
+    "open": "History",
+    "title": "Runs",
+    "titleFor": "Runs of {{name}}",
+    "filter": "Variant",
+    "allVariants": "All variants",
+    "empty": "This eval has not run yet.",
+    "emptyFiltered": "No run used this variant.",
+    "more": "Show more",
+    "compareWith": "Compare with…",
+    "compareTwo": "Compare these two",
+    "stopPicking": "Done",
+    "pickTwo_one": "Pick two runs to compare. {{count}} picked.",
+    "pickTwo_other": "Pick two runs to compare. {{count}} picked.",
+    "pick": "Pick the run from {{when}}",
+    "compareTitle": "Comparison",
+    "compareCaption": "Cases of two runs on the {{variant}} variant",
+    "closeCompare": "Close comparison",
+    "noShared": "These runs share no variant, so their cases cannot be set side by side.",
+    "differ": "These runs are less comparable than they look",
+    "differs": {
+      "definition": "The eval file changed between them.",
+      "model": "They ran on different models.",
+      "cli": "They ran on different CLI versions.",
+      "account": "They ran on different accounts."
+    }
+  },
+  "start": {
+    "title": "Run “{{title}}”",
+    "titleBare": "Run eval",
+    "notReady": "The estimate is not ready yet.",
+    "failed": "Could not start the run",
+    "openEditor": "Open the eval",
+    "cancel": "Cancel",
+    "starting": "Starting…",
+    "run": "Run eval · up to {{cost}}",
+    "variants": "What to run",
+    "variant": {
+      "pinned": "Committed at the pin",
+      "current": "Current file",
+      "proposed": "Proposed text"
+    },
+    "variantHint": {
+      "pinned": "The target as it was at the eval's commit.",
+      "current": "The target as it is in the checkout now, saved or not.",
+      "proposed": "Text you write or paste here. It is never saved to a file."
+    },
+    "userScopeHint": "A file in your user folder is measured as it is.",
+    "proposedLabel": "Proposed text of {{path}}",
+    "proposedAria": "Proposed text",
+    "proposedFromMember": "This is the unsaved text from the member's page.",
+    "proposedSame": "The proposed text is the current file, so only one of them runs.",
+    "proposedEmpty": "Write or paste the text to try.",
+    "cases": "Cases",
+    "samples": "Attempts per case",
+    "account": "Account",
+    "accountAuto": "Chosen automatically",
+    "accountHint": "A pinned account waits at its limit instead of switching.",
+    "nothing": "Pick something to run.",
+    "estimating": "Estimating the cost…",
+    "estimate": {
+      "title": "Estimate",
+      "line_one": "{{count}} attempt · up to {{cost}}",
+      "line_other": "{{count}} attempts · up to {{cost}}",
+      "typical": "typically {{cost}}",
+      "perLevel": "Per pressure level",
+      "level_one": "{{level}}: {{count}} attempt · up to {{cost}}",
+      "level_other": "{{level}}: {{count}} attempts · up to {{cost}}"
+    },
+    "warning": {
+      "dirty-checkout": "The checkout has uncommitted changes. Only the target's current text is used; other uncommitted changes are not in the eval.",
+      "large-checkout": "The repository is large, so preparing each worktree takes longer.",
+      "target-absent": "The target file does not exist in one of the variants, which then runs with no file.",
+      "models-differ": "The variants will run on different models.",
+      "user-scope": "This run reads the target from your user folder.",
+      "pin-behind-head": "The pinned commit is behind HEAD. It still runs on the pin."
+    },
+    "consent": {
+      "title": "Review what this eval runs",
+      "body": "This file may have been written by someone else. Nothing runs until you accept what is below.",
+      "prompts_one": "{{count}} prompt",
+      "prompts_other": "{{count}} prompts",
+      "commands_one": "{{count}} command",
+      "commands_other": "{{count}} commands",
+      "accept": "I understand these run on this machine"
+    },
+    "refused": {
+      "pin-missing": {
+        "title": "The pinned commit is missing",
+        "fix": "It may have been garbage-collected or the history rewritten. Open the eval and pin to HEAD."
+      },
+      "target-missing": {
+        "title": "The target file does not exist",
+        "fix": "The agent this eval runs as has no file. Open the eval and fix the target."
+      },
+      "not-git": {
+        "title": "This project is not a git repository",
+        "fix": "An eval runs on a pinned commit. Turn the folder into a repository first."
+      },
+      "no-commit": {
+        "title": "There is no commit to run on",
+        "fix": "Make a first commit in this repository."
+      },
+      "lanes-root-contaminated": {
+        "title": "A CLAUDE.md sits above the worktrees folder",
+        "fix": "It would leak into every variant. Move or remove it: {{detail}}"
+      },
+      "user-scope-proposal": {
+        "title": "A user file cannot be proposed",
+        "fix": "A proposal is never written to your user folder. Untick the proposed text."
+      },
+      "eval-running": {
+        "title": "An eval is already running in this project",
+        "fix": "Wait for it to end, or cancel it, then start this one."
+      },
+      "cost-not-confirmed": {
+        "title": "The ceiling changed",
+        "fix": "The estimate was refreshed. Check the new ceiling and run again."
+      },
+      "consent-needed": {
+        "title": "The file changed since you reviewed it",
+        "fix": "The estimate was refreshed. Review what it runs and accept again."
+      },
+      "team-off": {
+        "title": "The Team module is off",
+        "fix": "Switch it on in the project's settings to use evals."
+      }
+    },
+    "pressures": "Pressure levels",
+    "pressureHint": {
+      "supportive": "Prompts that remind the agent of the rule",
+      "neutral": "The task alone",
+      "competing": "Prompts that give a reason to skip the rule"
+    }
+  },
+  "member": {
+    "evaluate": "Evaluate this change",
+    "new": "New eval",
+    "needsChange": "Change the agent file first: an eval compares a change.",
+    "tooLarge": "The file is too large to hand to an eval (256 KiB at most)."
+  },
+  "pressure": {
+    "label": "Pressure level",
+    "supportive": "Supportive",
+    "neutral": "Neutral",
+    "competing": "Competing",
+    "promptAt": "Prompt at the {{level}} level",
+    "hint": {
+      "supportive": "Reminds the agent of the rule. Written by you; up to {{max}} characters.",
+      "neutral": "The task alone, sent as the attempt's only message, up to {{max}} characters.",
+      "competing": "The task plus a plausible reason to skip the rule, such as urgency. Written by you; up to {{max}} characters."
+    }
+  },
+  "draft": {
+    "title": "Draft cases",
+    "note": "The project assistant reads the target file and proposes up to five cases, with prompts at each pressure level. Nothing is written until you accept a case.",
+    "start": "Draft cases",
+    "again": "Draft again",
+    "drafting": "Drafting…",
+    "startFailed": "Could not start the draft",
+    "decideFailed": "Could not update the case",
+    "failed": "The draft failed. Try again.",
+    "none": "The assistant proposed no cases.",
+    "accept": "Add to eval",
+    "discard": "Discard",
+    "accepted": "Added to the eval",
+    "discarded": "Discarded",
+    "mustHold": "Must hold",
+    "commands_one": "This case runs {{count}} command. Adding it changes the file, so you will be asked for consent again.",
+    "commands_other": "This case runs {{count}} commands. Adding it changes the file, so you will be asked for consent again.",
+    "saveFirst": "Save the eval to draft cases for it."
+  },
+  "metrics": {
+    "title": "Metrics",
+    "note": "Rates are shown with the number of attempts and a 95 % interval: with few attempts the interval is wide.",
+    "caption": "Pass rate per case and variant at the {{pressure}} level",
+    "empty": "No attempt was scored at this level.",
+    "notScored": "Not scored",
+    "unjudged_one": "{{count}} unjudged",
+    "unjudged_other": "{{count}} unjudged",
+    "rate": "{{c}}/{{n}} · {{rate}}",
+    "interval": "95 % interval {{range}}",
+    "barLabel": "{{rate}}, 95 % interval {{range}}",
+    "passAt": "pass@{{k}} {{value}}",
+    "passHat": "pass^{{k}} {{value}}",
+    "dropTitle": "Pressure",
+    "dropNote": "How much the pass rate falls from supportive to competing: how much pressure it takes to break the rule.",
+    "drop": "−{{points}} points"
+  },
+  "gate": {
+    "title": "Promotion gate",
+    "verdict": {
+      "promotable": "May be promoted",
+      "regressed": "Regressed",
+      "incomplete": "Incomplete"
+    },
+    "explain": {
+      "promotable": "No must-hold case fell and the mean pass rate did not fall by more than its interval. Nothing is applied: you decide.",
+      "regressed": "A must-hold case fell, or the mean pass rate fell by more than its interval. Nothing is applied.",
+      "incomplete": "Some attempts could not be scored, so the gate does not say it may be promoted."
+    },
+    "regressedList": "Cases that fell",
+    "regressedLine": "{{case}} · {{pressure}}: pass^k {{from}} → {{to}}",
+    "incompleteList": "Why it is incomplete",
+    "reason": {
+      "unjudged": "a judge failed, so the attempt is not scored",
+      "not-scored": "no attempt was scored",
+      "small-n": "fewer than {{min}} scored attempts",
+      "judge-unreliable": "its judge disagreed with the calibration examples"
+    },
+    "unreliable": {
+      "title": "Judge unreliable",
+      "body": "A judge disagreed with its calibration examples. The gate stays incomplete until you accept it or edit the statement.",
+      "which": "{{case}} · expectation {{n}}",
+      "accept": "Accept this judge"
+    },
+    "meanBar": "Proposed mean {{rate}} against the current interval {{range}}",
+    "accountPinned": "Run on the pinned account {{account}}.",
+    "accountRotation": "Run on the account rotation.",
+    "rejudge": "Judge again",
+    "rejudgeFailed": "Could not judge again",
+    "acceptFailed": "Could not accept the judge",
+    "saveProposed": "Save proposed",
+    "saveFailed": "Could not hand over the proposed text"
+  },
+  "trend": {
+    "title": "Pass rate over time",
+    "view": "View",
+    "chart": "Chart",
+    "table": "Table",
+    "few": "Two scored runs are needed to draw a trend.",
+    "aria": "Pass rate over {{count}} runs, the latest {{rate}}",
+    "point": "{{when}}: {{passed}}/{{of}} cases, {{rate}} (95 % interval {{range}})",
+    "when": "Run",
+    "cases": "Cases",
+    "rate": "Pass rate (95 % interval)"
+  }
+}
