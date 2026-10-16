@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { compileWorkflow, readCompiledResult, workflowName, type CompileInput } from '../src/workflow-engine.ts';
+import { readJournalTasks } from '../src/workflow-journal.ts';
 import { scriptMeta } from '../src/workflows.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -123,12 +124,17 @@ function setup() {
   // Where the fake CLI leaves each session's record, standing in for the files beside a transcript
   orchestrator.workflowRecords = async (sessionId) => {
     const file = join(records, `${sessionId}.json`);
-    if (!existsSync(file)) return [];
+    // A run without a record yet is known by its journal's directory, as the CLI's files have it
+    if (!existsSync(file)) {
+      const runsDir = join(records, sessionId, 'subagents', 'workflows');
+      return existsSync(runsDir) ? readdirSync(runsDir).map((id) => ({ id, taskId: null, status: 'running' }) as WorkflowRun) : [];
+    }
     const r = JSON.parse(readFileSync(file, 'utf8')) as { runId: string; taskId: string; status: string; result: unknown };
     return [{ id: r.runId, taskId: r.taskId, status: 'completed', result: r.result } as WorkflowRun];
   };
+  orchestrator.workflowJournal = (sessionId, runId, from) => readJournalTasks(join(records, `${sessionId}.jsonl`), runId, from);
   mkdirSync(config.workspaceDir, { recursive: true });
-  return { config, db, runs, orchestrator };
+  return { config, db, runs, orchestrator, records };
 }
 
 async function settle(orchestrator: Orchestrator, id: string): Promise<Orchestration> {
@@ -221,6 +227,104 @@ test('a failed workflow resumes in the same session from its run id, keeping wha
   const run = runs.get(resumed.workflow?.runId ?? '');
   assert.equal(run?.id, chatId);
   assert.match(resultText(runs, run?.id ?? ''), /workflow wf_fake-001 completed/);
+  runs.stopAll();
+  db.close();
+});
+
+const LIMIT_TEXT = "You've hit your session limit · resets 2:40am (Europe/Madrid)";
+
+async function until(orchestrator: Orchestrator, id: string, done: (o: Orchestration) => boolean): Promise<Orchestration> {
+  for (let i = 0; i < 400; i++) {
+    const orch = orchestrator.get(id);
+    if (orch && done(orch)) return orch;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`never got there: ${JSON.stringify(orchestrator.get(id)?.tasks.map((t) => [t.id, t.status, t.error]))}`);
+}
+
+const states = (orch: Orchestration) => orch.tasks.map((t) => [t.id, t.status, t.result, t.error]);
+
+test('task states follow the journal while the workflow runs: a task refused at a limit fails at once, with what it said', async () => {
+  const { db, runs, orchestrator, records } = setup();
+  const started = orchestrator.create({
+    name: 'Live',
+    engine: 'workflow',
+    synthesize: true,
+    concurrency: 3,
+    tasks: [
+      { id: 'ok', name: 'OK', prompt: 'fine' },
+      { id: 'limited', name: 'Limited', prompt: 'LIMIT here' },
+      { id: 'held', name: 'Held', prompt: 'HOLD until released' },
+    ],
+  });
+  // The stream never reports the refused agent's end: only the journal does
+  const live = await until(orchestrator, started.id, (o) => o.tasks[0]?.status === 'completed' && o.tasks[1]?.status === 'failed' && o.tasks[2]?.status === 'running');
+  assert.equal(live.status, 'running');
+  assert.deepEqual(states(live), [
+    ['ok', 'completed', 'done:ok', null],
+    ['limited', 'failed', null, LIMIT_TEXT],
+    ['held', 'running', null, null],
+  ]);
+  assert.ok(live.tasks[1]?.endedAt && live.tasks[2]?.startedAt && !live.tasks[2].endedAt);
+  // Learnt from the run's directory, before any record of it was written
+  assert.equal(live.workflow?.workflowRunId, 'wf_fake-001');
+
+  writeFileSync(join(records, 'release'), '');
+  const orch = await settle(orchestrator, started.id);
+  assert.equal(orch.status, 'failed');
+  // The script's result says only that the refused agent returned nothing: what it said stays
+  assert.deepEqual(states(orch), [
+    ['ok', 'completed', 'done:ok', null],
+    ['limited', 'failed', null, LIMIT_TEXT],
+    ['held', 'completed', 'done:held', null],
+  ]);
+  assert.equal(orch.finalResult, 'done:synthesis');
+  assert.ok(orch.synthesisStartedAt && orch.synthesisEndedAt);
+  runs.stopAll();
+  db.close();
+});
+
+test('a synthesis refused at a limit is the graph’s failed synthesis, with what it said', async () => {
+  const { db, runs, orchestrator } = setup();
+  const started = orchestrator.create({ name: 'Report', engine: 'workflow', synthesize: true, tasks: [{ id: 'a', name: 'SYNTH-LIMIT a', prompt: 'fine' }] });
+  const orch = await settle(orchestrator, started.id);
+  assert.deepEqual(states(orch), [['a', 'completed', 'done:a', null]]);
+  assert.equal(orch.finalResult, `Synthesis failed: ${LIMIT_TEXT}`);
+  assert.ok(orch.synthesisStartedAt && orch.synthesisEndedAt);
+  runs.stopAll();
+  db.close();
+});
+
+test('a resumed workflow runs the task the limit failed again, and the failure it left in the journal does not come back', async () => {
+  const { db, runs, orchestrator, records } = setup();
+  const started = orchestrator.create({
+    name: 'Again',
+    engine: 'workflow',
+    tasks: [
+      { id: 'ok', name: 'OK', prompt: 'fine' },
+      { id: 'limited', name: 'Limited', prompt: 'LIMIT then HOLD' },
+    ],
+  });
+  const failed = await settle(orchestrator, started.id);
+  assert.deepEqual(states(failed), [
+    ['ok', 'completed', 'done:ok', null],
+    ['limited', 'failed', null, LIMIT_TEXT],
+  ]);
+
+  orchestrator.resume(failed.id);
+  // Its failed line is still in the journal, before the lines the resume adds
+  const again = await until(orchestrator, failed.id, (o) => o.tasks[1]?.status === 'running');
+  assert.deepEqual(states(again)[1], ['limited', 'running', null, null]);
+  await new Promise((r) => setTimeout(r, 1200)); // a watcher tick reads the journal again
+  assert.deepEqual(states(orchestrator.get(failed.id) as Orchestration)[1], ['limited', 'running', null, null]);
+
+  writeFileSync(join(records, 'release'), '');
+  const resumed = await settle(orchestrator, failed.id);
+  assert.equal(resumed.status, 'completed');
+  assert.deepEqual(states(resumed), [
+    ['ok', 'completed', 'done:ok', null],
+    ['limited', 'completed', 'done:limited', null],
+  ]);
   runs.stopAll();
   db.close();
 });

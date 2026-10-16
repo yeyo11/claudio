@@ -94,6 +94,7 @@ import { REVIEW_TOOLS } from './review-roles.ts';
 import { securityTriggered, type ScanFinding } from './review-scan.ts';
 import { ReviewStore, ReviewStoreError } from './review-store.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
+import { isSynthesis, journalError, type JournalRead, type JournalTask } from './workflow-journal.ts';
 import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
@@ -465,6 +466,17 @@ export class Orchestrator {
   workflowRecords: ((sessionId: string) => Promise<WorkflowRun[]>) | null = null;
   /** Workflows the run already had before the current launch, so an old one is not taken for it */
   private readonly workflowBaseline = new Map<string, number>();
+  /**
+   * Reads a workflow run's journal beside its session's transcript, from line `from` on, with the
+   * last message of each agent that failed. Set by Core, which owns the session store.
+   */
+  workflowJournal: ((sessionId: string, workflowRunId: string, from: number) => Promise<JournalRead | null>) | null = null;
+  /** Journal lines a workflow run already had before the current launch: a resume reads only what it adds */
+  private readonly journalFrom = new Map<string, number>();
+  /** The tasks each workflow graph's journal last named: the stream's progress gives way to it for those */
+  private readonly journalTasks = new Map<string, Set<string>>();
+  /** Workflow graphs whose journal is being read, so a slow read is not stacked under the next tick */
+  private readonly journalReading = new Set<string>();
   /** Where status changes, task changes and merge conflicts are announced; set by Core */
   bus: EventBus | null = null;
   private readonly tracker = new OrchestrationEventTracker();
@@ -3437,7 +3449,9 @@ ${quoted}
         orch.workflow = { scriptPath, runId: previous.id, workflowRunId: resumeFrom };
         // Back to the session that holds the cache. Its last process may still be on its way out
         // from the previous turn, and whatever is sent before it exits would be lost with it.
-        void this.runs.exited(previous.id).then(() => {
+        void this.runs.exited(previous.id).then(async () => {
+          if (orch.status !== 'running') return;
+          await this.markJournal(orch, previous.id, resumeFrom);
           if (orch.status !== 'running') return;
           this.workflowBaseline.set(orch.id, this.runs.get(previous.id)?.workflows?.length ?? 0);
           this.runs.send(previous.id, prompt);
@@ -3469,6 +3483,8 @@ ${quoted}
         );
         orch.workflow = { scriptPath, runId: run.id, workflowRunId: null };
         this.workflowBaseline.set(orch.id, 0);
+        this.journalFrom.set(orch.id, 0);
+        this.journalTasks.delete(orch.id);
         this.followWorkflow(orch, run.id);
       }
     } catch (err) {
@@ -3503,6 +3519,7 @@ ${quoted}
     const watcher = setInterval(() => {
       if (orch.status !== 'running') return stop();
       this.syncWorkflow(orch);
+      void this.followJournal(orch);
       const workflow = this.currentWorkflow(orch);
       const now = this.runs.get(runId);
       const ended = workflow !== null && workflow.status !== 'running';
@@ -3523,17 +3540,21 @@ ${quoted}
     return all.length > (this.workflowBaseline.get(orch.id) ?? 0) ? (all.at(-1) ?? null) : null;
   }
 
-  /** Mirrors the live progress of the workflow's agents onto the tasks they run: one agent per task, labelled with its id. */
+  /**
+   * Mirrors the live progress the stream reports onto the tasks: one agent per task, labelled with
+   * its id. The stream was seen to miss an agent the API refused, so a task the journal names is the
+   * journal's (`applyJournal`).
+   */
   private syncWorkflow(orch: Orchestration): void {
     if (orch.status !== 'running') return;
     const workflow = this.currentWorkflow(orch);
     if (!workflow) return;
-    if (orch.workflow && !orch.workflow.workflowRunId) void this.learnWorkflowRunId(orch, workflow);
     const byId = new Map(orch.tasks.map((t) => [t.id, t]));
+    const journalled = this.journalTasks.get(orch.id);
     let changed = false;
     for (const agent of workflow.agents) {
       const task = byId.get(agent.label);
-      if (!task || task.status === 'completed') continue;
+      if (!task || task.status === 'completed' || journalled?.has(task.id)) continue;
       const status = agent.state === 'done' ? 'completed' : agent.state === 'error' ? 'failed' : 'running';
       if (task.status === status) continue;
       task.status = status;
@@ -3551,20 +3572,117 @@ ${quoted}
    * id; the files do from the start, since the journal is written before the record, so a graph
    * stopped half way can still be resumed from cache.
    */
-  private async learnWorkflowRunId(orch: Orchestration, workflow: WorkflowRun): Promise<void> {
+  private async learnWorkflowRunId(orch: Orchestration): Promise<void> {
     const run = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
     if (!run || !this.workflowRecords) return;
+    const workflow = this.currentWorkflow(orch);
     const records = await this.workflowRecords(run.id).catch(() => []);
-    const match = records.find((r) => r.taskId === workflow.taskId) ?? records.find((r) => r.status === 'running');
+    // The stream may not have reported the run yet, or ever: a fresh session's only running `wf_`
+    // directory is the one this launch started
+    const match =
+      (workflow?.taskId ? records.find((r) => r.taskId === workflow.taskId) : undefined) ?? records.find((r) => r.status === 'running' && r.id.startsWith('wf_'));
     if (match?.id.startsWith('wf_') && orch.workflow && !orch.workflow.workflowRunId) {
       orch.workflow.workflowRunId = match.id;
       this.persist();
     }
   }
 
+  /**
+   * Before a launch goes back into a run that already has a journal, notes how far it goes: its
+   * failed lines belong to the attempt being resumed, and the tasks they name are pending again
+   * until the resumed run starts them.
+   */
+  private async markJournal(orch: Orchestration, sessionId: string, workflowRunId: string): Promise<void> {
+    const read = this.workflowJournal ? await this.workflowJournal(sessionId, workflowRunId, Number.MAX_SAFE_INTEGER).catch(() => null) : null;
+    this.journalFrom.set(orch.id, read?.lines ?? 0);
+    this.journalTasks.delete(orch.id);
+  }
+
+  /** One read of the journal per watcher tick at most: a read still going skips the tick. */
+  private async followJournal(orch: Orchestration): Promise<void> {
+    if (this.journalReading.has(orch.id)) return;
+    this.journalReading.add(orch.id);
+    try {
+      await this.syncJournal(orch);
+    } finally {
+      this.journalReading.delete(orch.id);
+    }
+  }
+
+  /**
+   * Task states from the workflow's journal, which the CLI writes as each agent starts and ends:
+   * what the script returns only exists once the workflow ends, and an agent the API refused was
+   * seen to reach the journal and never the stream.
+   */
+  private async syncJournal(orch: Orchestration): Promise<void> {
+    if (orch.status !== 'running' || !orch.workflow?.runId) return;
+    if (!orch.workflow.workflowRunId) await this.learnWorkflowRunId(orch);
+    const sessionId = orch.workflow?.runId;
+    const workflowRunId = orch.workflow?.workflowRunId;
+    if (!this.workflowJournal || !sessionId || !workflowRunId) return;
+    const read = await this.workflowJournal(sessionId, workflowRunId, this.journalFrom.get(orch.id) ?? 0).catch(() => null);
+    // Stopped, relaunched or closed while the files were read: what was read belongs to what is gone
+    if (!read || this.closed || orch.status !== 'running' || orch.workflow?.runId !== sessionId || orch.workflow.workflowRunId !== workflowRunId) return;
+    this.applyJournal(orch, read.tasks);
+  }
+
+  /**
+   * Started → running, result → completed with the agent's whole answer, failed → failed with what
+   * the agent last said. The synthesis agent's state is the graph's synthesis and final result.
+   */
+  private applyJournal(orch: Orchestration, entries: JournalTask[]): void {
+    const byId = new Map(orch.tasks.map((t) => [t.id, t]));
+    const journalled = new Set<string>();
+    let changed = false;
+    for (const entry of entries) {
+      if (isSynthesis(entry)) {
+        changed = this.applySynthesisJournal(orch, entry) || changed;
+        continue;
+      }
+      const task = byId.get(entry.label);
+      if (!task) continue;
+      journalled.add(task.id);
+      // A person's decision (skipped, stopped) is not undone by the journal, nor a finished task by an older line
+      if (!['pending', 'running', 'failed', 'completed'].includes(task.status)) continue;
+      if (task.status === 'completed' && entry.state !== 'completed') continue;
+      const result = entry.state === 'completed' ? entry.result : null;
+      const error = entry.state === 'failed' ? journalError(entry) : null;
+      if (task.status === entry.state && task.result === result && task.error === error) continue;
+      const wasRunning = task.status === 'running';
+      task.status = entry.state;
+      task.result = result;
+      task.error = error;
+      task.startedAt ??= now();
+      if (entry.state === 'running') task.endedAt = null;
+      else if (wasRunning || !task.endedAt) task.endedAt = now();
+      changed = true;
+    }
+    this.journalTasks.set(orch.id, journalled);
+    if (changed) this.persist();
+  }
+
+  /** Whether the synthesis agent's journal entry changed the graph's synthesis. */
+  private applySynthesisJournal(orch: Orchestration, entry: JournalTask): boolean {
+    const before = [orch.synthesisStartedAt, orch.synthesisEndedAt, orch.finalResult].join('\0');
+    orch.synthesisStartedAt ??= now();
+    if (entry.state === 'running') {
+      // Started again by a resume: what the failed attempt left is no longer the report
+      orch.synthesisEndedAt = null;
+      orch.finalResult = null;
+    } else {
+      orch.synthesisEndedAt ??= now();
+      // The words the graph engine's synthesis gives a failure
+      orch.finalResult = entry.state === 'completed' ? entry.result : `Synthesis failed: ${journalError(entry)}`;
+    }
+    return [orch.synthesisStartedAt, orch.synthesisEndedAt, orch.finalResult].join('\0') !== before;
+  }
+
   private async finishWorkflow(orch: Orchestration, runId: string): Promise<void> {
     if (orch.status !== 'running') return; // stopped meanwhile
     this.syncWorkflow(orch);
+    // The journal's last lines may have been written after the latest tick read it
+    await this.syncJournal(orch);
+    if (orch.status !== 'running') return;
     const live = this.currentWorkflow(orch);
     const run = this.runs.get(runId);
     // The record is written as the workflow ends, around the notification: give it a moment
@@ -3601,6 +3719,7 @@ ${quoted}
     orch.costUsd = run?.costUsd ?? orch.costUsd;
     orch.status = orch.tasks.every((t) => t.status === 'completed') ? 'completed' : 'failed';
     orch.endedAt = now();
+    this.journalTasks.delete(orch.id);
     this.persist();
   }
 
