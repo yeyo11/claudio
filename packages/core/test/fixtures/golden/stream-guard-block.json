@@ -1,0 +1,33 @@
+{
+  "blocked": [
+    {
+      "kind": "guard",
+      "guard": {
+        "outcome": "blocked",
+        "toolUseId": "toolu_019JunvYp41jvbBmUBxPXSJp",
+        "toolName": "Bash",
+        "rule": "push",
+        "matcher": "push.git-verb",
+        "reason": "Pushing is not allowed in this run.",
+        "excerpt": "echo mode-block"
+      },
+      "run": {
+        "kind": "guard",
+        "guard": {
+          "outcome": "blocked",
+          "toolUseId": "toolu_019JunvYp41jvbBmUBxPXSJp",
+          "toolName": "Bash",
+          "rule": "push",
+          "matcher": "push.git-verb",
+          "reason": "Pushing is not allowed in this run.",
+          "excerpt": "echo mode-block"
+        }
+      }
+    }
+  ],
+  "armed": [
+    {
+      "kind": "guard-armed"
+    }
+  ]
+}

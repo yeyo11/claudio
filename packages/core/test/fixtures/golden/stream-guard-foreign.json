@@ -1,0 +1,28 @@
+{
+  "missing": [
+    {
+      "kind": "guard-missing",
+      "guard": {
+        "outcome": "missing",
+        "toolUseId": "toolu_019JunvYp41jvbBmUBxPXSJp",
+        "toolName": "Bash",
+        "rule": "integrity",
+        "matcher": "integrity.no-marker",
+        "reason": "The tool call ran and no guard marker came before its result",
+        "excerpt": "echo mode-block"
+      },
+      "run": {
+        "kind": "guard",
+        "guard": {
+          "outcome": "missing",
+          "toolUseId": "toolu_019JunvYp41jvbBmUBxPXSJp",
+          "toolName": "Bash",
+          "rule": "integrity",
+          "matcher": "integrity.no-marker",
+          "reason": "The tool call ran and no guard marker came before its result",
+          "excerpt": "echo mode-block"
+        }
+      }
+    }
+  ]
+}

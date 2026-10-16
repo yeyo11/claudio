@@ -52,11 +52,23 @@ const CASES: Case[] = [
   { name: 'no uploads', chat: { uploads: false } },
   { name: 'internal', chat: { internal: true } },
   { name: 'bypass mode', chat: { permissionMode: 'bypassPermissions' } },
+  // The settings file and the hook events, and neither `--bare` nor `--safe-mode`; this CLI never arms, so the run fails at once
+  {
+    name: 'guarded',
+    chat: { guards: { rules: ['integrity', 'push'], mode: 'enforce', settingsPath: '/guards/0123456789abcdef.settings.json', rulesSha256: '0'.repeat(64) } },
+  },
+  {
+    name: 'guarded resume',
+    then: 'resume',
+    chat: { guards: { rules: ['integrity', 'push'], mode: 'enforce', settingsPath: '/guards/0123456789abcdef.settings.json', rulesSha256: '0'.repeat(64) } },
+  },
 ];
 
 async function argvOf(c: Case, dir: string): Promise<string[][]> {
   const spawns = join(dir, `${c.name.replace(/\W+/g, '-')}.spawns`);
   process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  // A guarded process of the stand-in never arms: the run fails after this long, which is all the argv needs
+  process.env.CLAUDIO_GUARD_ARM_MS = '2000';
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const chats = new ChatManager(config, db);
@@ -98,6 +110,11 @@ test('the argv and command of a chat are what they were before chats.ts was spli
   mkdirSync(dir, { recursive: true });
   const actual: Record<string, string[][]> = {};
   for (const c of CASES) actual[c.name] = await argvOf(c, dir);
+  for (const [name, argvs] of Object.entries(actual)) {
+    assert.ok(argvs.every((argv) => !argv.includes('--bare') && !argv.includes('--safe-mode')), `${name} has no --bare or --safe-mode`);
+  }
+  assert.ok(actual.guarded?.[0]?.includes('--include-hook-events'));
+  assert.ok(!actual.new?.[0]?.includes('--settings'));
   if (process.env.UPDATE_GOLDEN || !existsSync(GOLDEN)) writeFileSync(GOLDEN, `${JSON.stringify(actual, null, 2)}\n`);
   assert.deepEqual(actual, JSON.parse(readFileSync(GOLDEN, 'utf8')));
 });

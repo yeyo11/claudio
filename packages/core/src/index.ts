@@ -79,6 +79,7 @@ import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
+import { GuardSettingsStore } from './guards/settings.ts';
 import { SpendGate } from './spend.ts';
 import { DashboardLayoutStore } from './dashboard-layouts.ts';
 import { stateFromRun } from './chat-model.ts';
@@ -217,6 +218,19 @@ export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, t
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
+export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
+export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
+export { type GuardFiles, startGuardSweep, sweepGuardFiles, writeGuardFiles } from './guards/files.ts';
+export {
+  GUARD_ENTRY_ENV,
+  GuardPreflight,
+  GuardUnavailableError,
+  type GuardUnavailableCode,
+  type PreflightInput,
+  checkGuardPreflight,
+  runGuardSelfTest,
+} from './guards/preflight.ts';
+export { guardsWeakened,projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
@@ -447,6 +461,8 @@ export class Core {
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
    */
   readonly appSettings: AppSettingsStore;
+  /** The global guard settings, `guards.json` (docs/plans/guards.md); the same store is `core.guards` */
+  readonly guards: GuardSettingsStore;
   /** Each Home's layout, per project and for All projects: `dashboard-layouts.json` */
   readonly dashboardLayouts: DashboardLayoutStore;
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
@@ -577,6 +593,7 @@ export class Core {
         summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
+    this.guards = new GuardSettingsStore(config.dataDir);
     this.appSettings = new AppSettingsStore(config, {
       emit: (event) => {
         // `system()` carries the default permission mode, and a cached copy would show the old one

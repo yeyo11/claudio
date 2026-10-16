@@ -238,6 +238,23 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       foldDelivered(host, chat, event.ids);
       return;
 
+    case 'guard-armed':
+      host.guardArmed(chat);
+      return;
+
+    case 'guard':
+      chat.push(event.run);
+      host.emit('chat-guard', chat.id, event.guard);
+      return;
+
+    case 'guard-missing':
+      // The synthetic results of an interrupt or a stop carry no marker either, and a chat already stopped for it says so once
+      if (chat.guardState === 'missing' || chat.interruptRequested || chat.stopRequested) return;
+      chat.push(event.run);
+      host.emit('chat-guard', chat.id, event.guard);
+      host.guardMissing(chat);
+      return;
+
     case 'stderr':
       chat.push({ kind: 'stderr', text: event.text });
       return;
