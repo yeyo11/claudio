@@ -3,6 +3,7 @@ import {
   type Lesson,
   type LessonChangeAction,
   type LessonStatus,
+  type MemoryProposal,
   type UpdateLessonRequest,
   type WorkItemActor,
   type WorkItemSource,
@@ -347,6 +348,31 @@ export class LessonService implements LessonApprovals {
   }
 
   /** A global lesson goes back to the project it came from, or to `projectId` when it has no origin */
+  /**
+   * Proposes the lesson for `CLAUDE.md`: an `instructions` proposal the person approves in the
+   * Proposals card, after its diff. One at a time per lesson; approving it retires the lesson.
+   */
+  toInstructions(lessonId: string, section?: string): MemoryProposal {
+    const lesson = this.deps.store.find(lessonId);
+    if (!lesson) throw new WorkItemError('lesson not found', 404);
+    if (lesson.status !== 'active') throw new WorkItemError('only an active lesson can be moved into CLAUDE.md', 409);
+    if (lesson.projectId === null) throw new WorkItemError('a global lesson has no project CLAUDE.md: demote it to a project first', 400);
+    if (section !== undefined && typeof section !== 'string') throw new WorkItemError('section must be text', 400);
+    if (this.deps.proposals.pendingInstructionsFor(lessonId)) throw new WorkItemError('this lesson already has a proposal for CLAUDE.md waiting', 409);
+    const proposal = this.deps.proposals.propose(
+      lesson.projectId,
+      {
+        target: { kind: 'instructions', file: null, section: section?.trim() || 'Lessons' },
+        text: `- ${lessonLine(lesson.trigger, lesson.action)}`,
+        reason: 'A lesson the person moved into CLAUDE.md',
+      },
+      { proposedBy: PERSON, lessonId },
+    );
+    // The same text decided before is answered as it was, not proposed again
+    if (proposal.status !== 'pending' || proposal.lessonId !== lessonId) throw new WorkItemError(`this text was already proposed for CLAUDE.md (${proposal.status})`, 409);
+    return proposal;
+  }
+
   demote(lessonId: string, projectId?: string, by: WorkItemActor = PERSON): Lesson {
     const lesson = this.deps.store.demote(lessonId, projectId, by);
     this.emit('demoted', lesson);

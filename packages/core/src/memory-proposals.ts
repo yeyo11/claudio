@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,8 +12,10 @@ import {
   type Lesson,
   type MemoryProposal,
   type MemoryProposalAction,
+  type MemoryProposalPreview,
   type MemoryProposalStatus,
   type MemoryProposalTarget,
+  type PreviewMemoryProposalRequest,
   type RejectMemoryProposalRequest,
   type WorkItemActor,
   type WorkItemRef,
@@ -349,6 +351,29 @@ export class MemoryProposalService {
       );
   }
 
+  /** What approving an `instructions` proposal would do to `CLAUDE.md`, as a diff: the person reads it before Approve is enabled */
+  async preview(proposalId: string, input: PreviewMemoryProposalRequest = {}): Promise<MemoryProposalPreview> {
+    const proposal = this.pending(proposalId);
+    if (proposal.target.kind !== 'instructions') throw new WorkItemError('only an instructions proposal has a preview', 400);
+    const edited = (input as Partial<PreviewMemoryProposalRequest> | undefined)?.text;
+    const text = edited === undefined || edited === null ? proposal.text : proposalText(edited);
+    const project = this.deps.project(proposal.projectId);
+    if (!project) throw new WorkItemError('its project is not imported: import the directory again to write its memory', 409);
+    const path = join(project.path, 'CLAUDE.md');
+    const exists = existsSync(path);
+    const current = exists ? await readFile(path, 'utf8') : '';
+    const after = withText(current, text, proposal.target.section);
+    return { path: 'CLAUDE.md', exists, sha256: sha256(current), diff: lineDiff(current, after, 3), bytesAfter: Buffer.byteLength(after) };
+  }
+
+  /** The proposal waiting to move a lesson into `CLAUDE.md`, if any */
+  pendingInstructionsFor(lessonId: string): MemoryProposal | null {
+    const row = this.sql
+      .prepare("SELECT * FROM memory_proposals WHERE lesson_id = ? AND target_kind = 'instructions' AND status = 'pending' ORDER BY seq DESC LIMIT 1")
+      .get(lessonId) as ProposalRow | undefined;
+    return row ? this.proposalOf(row) : null;
+  }
+
   /** Writes the target, with `text` instead of the proposed text when the person edited it. */
   async approve(proposalId: string, input: ApproveMemoryProposalRequest = {}, decidedBy: WorkItemActor = PERSON): Promise<MemoryProposal> {
     const before = this.pending(proposalId);
@@ -357,6 +382,12 @@ export class MemoryProposalService {
     const text = edited === undefined || edited === null ? before.text : proposalText(edited);
     const project = this.deps.project(before.projectId);
     if (!project) throw new WorkItemError('its project is not imported: import the directory again to write its memory', 409);
+    const previewOf = (input as Partial<ApproveMemoryProposalRequest> | undefined)?.previewOf;
+    if (previewOf !== undefined && previewOf !== null && typeof previewOf !== 'string') throw new WorkItemError('previewOf must be the sha256 of the preview', 400);
+    // A lesson goes into CLAUDE.md only after the person saw the diff; a flow run's proposal may skip it, for older clients
+    if (before.target.kind === 'instructions' && !previewOf && this.row(proposalId)?.lesson_id) {
+      throw new WorkItemError('previewOf is required to approve a lesson into CLAUDE.md: preview it first', 400);
+    }
     this.claim(proposalId, 'approved', decidedBy, { approvedText: text === before.text ? null : text });
     // An `instructions` proposal made from a lesson retires it with the claim: CLAUDE.md holds it now
     const fromLesson = before.target.kind === 'instructions' ? this.row(proposalId)?.lesson_id : null;
@@ -382,6 +413,7 @@ export class MemoryProposalService {
       } else {
         const path = join(project.path, 'CLAUDE.md');
         const current = existsSync(path) ? await readFile(path, 'utf8') : '';
+        if (previewOf && previewOf !== sha256(current)) throw new WorkItemError('CLAUDE.md changed since you saw the diff', 409);
         await writeAtomic(path, withText(current, text, before.target.section));
       }
     } catch (err) {
@@ -653,4 +685,51 @@ export function withText(current: string, text: string, section: string | null):
   if (tail.length) out.push('', ...tail);
   const joined = out.join('\n');
   return joined.endsWith('\n') ? joined : `${joined}\n`;
+}
+
+export function sha256(text: string): string {
+  return createHash('sha256').update(text).digest('hex');
+}
+
+/** A last line without its newline differs from the same line with one, as it does for git */
+const NO_EOL = '\u0000';
+
+function diffLines(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  else lines[lines.length - 1] += NO_EOL;
+  return lines;
+}
+
+/**
+ * A unified diff of `before` and `after` as one hunk: the lines between their common prefix and
+ * suffix, with `context` lines around. Exact for what `withText` does, which only inserts one block;
+ * for any other pair it is still a correct patch, only not a minimal one. Empty when they are equal.
+ */
+export function lineDiff(before: string, after: string, context = 3): string {
+  if (before === after) return '';
+  const a = diffLines(before);
+  const b = diffLines(after);
+  const max = Math.min(a.length, b.length);
+  let prefix = 0;
+  while (prefix < max && a[prefix] === b[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < max - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+  const start = Math.max(0, prefix - context);
+  const tail = Math.min(context, suffix);
+  const oldEnd = a.length - suffix + tail;
+  const newEnd = b.length - suffix + tail;
+  const oldCount = oldEnd - start;
+  const newCount = newEnd - start;
+  const out = ['--- a/CLAUDE.md', '+++ b/CLAUDE.md', `@@ -${String(oldCount === 0 ? start : start + 1)},${String(oldCount)} +${String(newCount === 0 ? start : start + 1)},${String(newCount)} @@`];
+  const emit = (mark: string, line: string) => {
+    out.push(`${mark}${line.endsWith(NO_EOL) ? line.slice(0, -NO_EOL.length) : line}`);
+    if (line.endsWith(NO_EOL)) out.push('\\ No newline at end of file');
+  };
+  for (let i = start; i < prefix; i++) emit(' ', a[i] ?? '');
+  for (let i = prefix; i < a.length - suffix; i++) emit('-', a[i] ?? '');
+  for (let i = prefix; i < b.length - suffix; i++) emit('+', b[i] ?? '');
+  for (let i = a.length - suffix; i < oldEnd; i++) emit(' ', a[i] ?? '');
+  return `${out.join('\n')}\n`;
 }

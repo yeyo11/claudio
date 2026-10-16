@@ -10,7 +10,7 @@ import { JournalService } from '../src/journal.ts';
 import { LessonService, type MiningContext } from '../src/lessons/service.ts';
 import { LessonStore, type EvidenceInput } from '../src/lessons/store.ts';
 import type { Candidate } from '../src/lessons/validate.ts';
-import { MemoryProposalService } from '../src/memory-proposals.ts';
+import { lineDiff, MemoryProposalService, sha256, withText } from '../src/memory-proposals.ts';
 import { MemoryStore } from '../src/memory.ts';
 import { WorkItemError } from '../src/work-item-validation.ts';
 import { tempConfig } from './helpers.ts';
@@ -312,7 +312,7 @@ test('an instructions proposal made from a lesson retires it on approval, and a 
 
     // CLAUDE.md that cannot be read: the write fails after the lesson was retired with the claim
     mkdirSync(join(s.projectDir, 'CLAUDE.md'));
-    await assert.rejects(s.proposals.approve(made.id));
+    await assert.rejects(s.proposals.approve(made.id, { previewOf: sha256('') }));
     assert.equal(s.proposals.find(made.id)?.status, 'pending');
     assert.equal(s.store.find(lesson.id)?.status, 'active');
     assert.equal(s.store.find(lesson.id)?.retiredReason, null);
@@ -331,11 +331,99 @@ test('approving an instructions proposal made from a lesson writes CLAUDE.md and
       { proposedBy: { kind: 'person', role: null }, lessonId: lesson.id },
     );
     writeFileSync(join(s.projectDir, 'CLAUDE.md'), '# Project\n');
-    await s.proposals.approve(made.id);
+    await s.proposals.approve(made.id, { previewOf: (await s.proposals.preview(made.id)).sha256 });
     assert.match(readFileSync(join(s.projectDir, 'CLAUDE.md'), 'utf8'), /keep totals in cents/);
     const retired = s.store.find(lesson.id);
     assert.equal(retired?.status, 'retired');
     assert.equal(retired?.retiredReason, 'instructions');
+  } finally {
+    s.db.close();
+  }
+});
+
+test('lineDiff is exact for an empty file, a file with the section and a file without it', () => {
+  const line = '- When editing the cart: keep totals in cents';
+  assert.equal(lineDiff('', withText('', line, 'Lessons')), `--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -0,0 +1,3 @@\n+## Lessons\n+\n+${line}\n`);
+  assert.equal(lineDiff('same\n', 'same\n'), '');
+
+  const without = '# Project\n\nIntro\n';
+  assert.equal(
+    lineDiff(without, withText(without, line, 'Lessons')),
+    `--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1,3 +1,7 @@\n # Project\n \n Intro\n+\n+## Lessons\n+\n+${line}\n`,
+  );
+
+  const withSection = '# Project\n\n## Lessons\n\n- first\n\n## Other\n\nx\n';
+  assert.equal(
+    lineDiff(withSection, withText(withSection, line, 'Lessons')),
+    `--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -4,6 +4,8 @@\n \n - first\n \n+${line}\n+\n ## Other\n \n x\n`,
+  );
+
+  // A file without its last newline: the line is the same text, but git sees it differ
+  assert.equal(lineDiff('a', 'a\nb\n'), '--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1,1 +1,2 @@\n-a\n\\ No newline at end of file\n+a\n+b\n');
+});
+
+test('preview shows the diff of CLAUDE.md with the edited text, and approval checks previewOf against its sha256', async () => {
+  const s = setup();
+  try {
+    const lesson = await activeLesson(s);
+    const made = s.lessons.toInstructions(lesson.id);
+    assert.equal(made.target.section, 'Lessons');
+    assert.equal(made.lessonId, lesson.id);
+
+    const empty = await s.proposals.preview(made.id);
+    assert.equal(empty.exists, false);
+    assert.equal(empty.sha256, sha256(''));
+    assert.match(empty.diff, /@@ -0,0 \+1,3 @@/);
+    assert.match((await s.proposals.preview(made.id, { text: '- edited' })).diff, /\+- edited/);
+
+    // Without previewOf: 400, nothing claimed
+    await assert.rejects(s.proposals.approve(made.id), refuses(400));
+    assert.equal(s.proposals.find(made.id)?.status, 'pending');
+
+    // CLAUDE.md changed after the preview: 409, the lesson is untouched
+    writeFileSync(join(s.projectDir, 'CLAUDE.md'), '# Changed\n');
+    await assert.rejects(s.proposals.approve(made.id, { previewOf: empty.sha256 }), refuses(409));
+    assert.equal(s.proposals.find(made.id)?.status, 'pending');
+    assert.equal(s.store.find(lesson.id)?.status, 'active');
+
+    const fresh = await s.proposals.preview(made.id);
+    assert.equal(fresh.exists, true);
+    await s.proposals.approve(made.id, { previewOf: fresh.sha256 });
+    assert.equal(s.store.find(lesson.id)?.retiredReason, 'instructions');
+  } finally {
+    s.db.close();
+  }
+});
+
+test('an instructions proposal from a flow run accepts previewOf as optional', async () => {
+  const s = setup();
+  try {
+    const made = s.proposals.propose(
+      'p1',
+      { target: { kind: 'instructions', file: null, section: null }, text: 'Run pnpm test', reason: 'seen' },
+      { proposedBy: { kind: 'person', role: null } },
+    );
+    await s.proposals.approve(made.id);
+    assert.match(readFileSync(join(s.projectDir, 'CLAUDE.md'), 'utf8'), /Run pnpm test/);
+  } finally {
+    s.db.close();
+  }
+});
+
+test('toInstructions proposes an active lesson once, and refuses the others', async () => {
+  const s = setup();
+  try {
+    const lesson = await activeLesson(s);
+    const made = s.lessons.toInstructions(lesson.id, 'Cart');
+    assert.equal(made.target.kind, 'instructions');
+    assert.equal(made.target.section, 'Cart');
+    assert.equal(made.text, '- When editing the cart: Keep totals in cents');
+    assert.throws(() => s.lessons.toInstructions(lesson.id), refuses(409));
+    assert.throws(() => s.lessons.toInstructions('L-nope'), refuses(404));
+
+    s.lessons.retire(lesson.id);
+    s.proposals.reject(made.id);
+    assert.throws(() => s.lessons.toInstructions(lesson.id), refuses(409));
   } finally {
     s.db.close();
   }
