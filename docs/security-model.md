@@ -186,6 +186,27 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 - **The override.** `X-Claudio-Spend-Override: 1` lets a person's request through a `409 spend-cap`.
   On a chat token the header is ignored, so the request still answers `409`.
 
+## Guards
+
+Orchestration workers and the flow run with deterministic `PreToolUse` hooks that block skipping git
+hooks, any push, destructive commands and secrets written into files, even in `bypassPermissions`
+([guards.md](guards.md), [the plan](plans/guards.md)).
+
+- **The guard is the app's.** It ships with the server (`guard.mjs`) and is never resolved from a
+  project or a plugin cache. In the image it is root-owned and read-only; preflight refuses an entry
+  that is group- or world-writable. It fails closed, and the launch fails when it cannot be armed.
+- **A chat cannot weaken it.** A chat's token gets `403` on `PUT /settings/guards` and
+  `POST /guards/check`, can read only its own `/guard-events`, and cannot save an override weaker
+  than the global rules (project settings, orchestration launch, relaunch, resume, templates).
+- **No secret leaves through it.** Reasons name a pattern, not the value; the stored excerpt is
+  masked and cut to 240 characters.
+
+**Explicitly not guaranteed.** Guards are not a sandbox. They do not stop a compiled or opaque
+program, a Makefile, a script fetched from the network, a secret encoded or assembled at runtime, the
+person's shell aliases, or a repository whose own hooks lie. They guarantee that the documented
+forms in the bypass corpus are blocked, that every block is visible, and that the guard cannot be
+switched off from inside the run without the run being stopped.
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
@@ -193,5 +214,5 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 
 ## Related
 
-[[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
 [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]

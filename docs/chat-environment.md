@@ -66,4 +66,11 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
 - **Nothing is added to the system prompt.** The variable is there for whoever looks. This repo's
   `CLAUDE.md` tells agents to use it; other projects do not call Claudio's API.
 
+## Guards
+
+A chat in a project that opted in (*Guards in this project's chats*) runs with [[guards]]. Its
+`TMPDIR` points at a scratch folder of the run, `rm -rf /tmp/...` is blocked, and the header shows a
+"Guards" tag (warn "Observe", bad "Guards not running"). A block appears as a "Guard blocked" line in
+the transcript. A chat of a project that did not opt in has no guard.
+
 Related: [[desktop]], [[pinned-chat-rotation]], [[plans/chat-api-token.md]], [[plans/flow-start-and-chat-token.md]].

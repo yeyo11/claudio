@@ -254,6 +254,12 @@ tree, no transpiler and no `node_modules` but `node-pty`'s: `docker build -f doc
 you, the image is smaller and it starts faster. pnpm is still installed, for the projects Claude
 works on under `/workspace`, not to start anything.
 
+**The guard.** `/app/guard.mjs` is the program the CLI runs on each tool call
+([guards.md](guards.md)). It is copied `root:root` at mode 0444, so the `node` user the agents run as
+cannot change it, and `CLAUDIO_GUARD_ENTRY` points at it. The Helm chart needs no change: the
+`guards/` and `tmp/` folders live on the data volume. The pinned CLI must support `--settings` and
+`--include-hook-events`.
+
 **One agent.** Claude Code is the only agent in the image; the other tools it carries are below.
 
 **The code hosts' and YouTrack's CLIs.** `gh` and `glab`, the only way Claudio reaches GitHub and
@@ -518,4 +524,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]]
+[[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]]
