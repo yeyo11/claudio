@@ -1258,3 +1258,163 @@ button.master-item-on:hover {
     min-height: 44px;
   }
 }
+
+/* Settings → Security → Guards. Status colours pair with a word and the shield; nothing here moves */
+.guard-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.guard-status.is-ok {
+  color: var(--ok);
+}
+
+.guard-status.is-warn {
+  color: var(--warn);
+}
+
+.guard-status.is-bad {
+  color: var(--bad);
+}
+
+.guard-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guard-row p,
+.guard-rule p {
+  margin: 4px 0 0;
+}
+
+.guard-rules {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.guard-rule {
+  padding: 10px 12px;
+}
+
+.guard-rule + .guard-rule {
+  border-top: 1px solid var(--line);
+}
+
+.guard-rule-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+/* The rule nobody can switch: a lock, its name and "Always on" instead of a Switch */
+.guard-rule-locked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-2);
+}
+
+.guard-subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+
+.guard-problems {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.guard-try-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.guard-try-row > input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.guard-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.guard-events {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guard-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 0;
+  min-width: 0;
+}
+
+.guard-event + .guard-event {
+  border-top: 1px solid var(--line);
+}
+
+.guard-event .mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.guard-excerpt {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .guard-try-row > .btn,
+  .guard-configs .form-actions > .btn {
+    min-height: 44px;
+  }
+
+  .guard-try-row > input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .guard-configs textarea,
+  .guard-try textarea {
+    font-size: 16px;
+  }
+
+  /* Wrap, never scroll sideways */
+  .guard-excerpt {
+    flex-basis: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .guard-event > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

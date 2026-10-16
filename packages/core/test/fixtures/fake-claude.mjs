@@ -41,6 +41,27 @@
 //                                 its StructuredOutput tool call: the first half, then, once <file>
 //                                 exists, the rest, and only then the result
 //
+//   FAKE-TOOL <tool> <json>       makes one tool call as the CLI does with `--settings`: the assistant's tool_use, the
+//                                 PreToolUse command of the settings file run with the hook input on stdin (its hook
+//                                 events streamed with --include-hook-events), then the tool_result: an error for exit 2
+//   FAKE-TOOL-UNGUARDED <tool> <json>
+//                                 the same call with its hook never run: a guard that was not there
+//   FAKE-FOREIGN-HOOK             streams the hook events of a hook that is the person's own
+//   FAKE_CLAUDE_NO_ARM=1          the SessionStart hook never runs: a guard that cannot arm
+//   FAKE_CLAUDE_ARM_DELAY_MS=<ms> waits that long before the SessionStart hook runs
+//   FAKE_CLAUDE_TIMELINE=<file>   appends `armed` when SessionStart ran and `message` when the first message was read
+//   FAKE_CLAUDE_INTERRUPTS=<file> appends a line per interrupt control request it is sent
+//   The review gate (docs/plans/review-gate.md), scripted by lines of the graph's objective, which every
+//   review prompt carries:
+//   FAKE-RESULT-REVIEW[-<DIMENSION>] <json>  the findings a reviewer answers (the dimension in lower
+//                                 case, as the prompt names it); without a line, zero findings
+//   FAKE-REVIEW-CLEAN-IF <file>   a reviewer whose checkout has that file answers zero findings: a fix landed
+//   FAKE-REVIEW-IF <file> <json> a reviewer whose checkout has that file answers that instead: a fix made it worse
+//   FAKE-REVIEW-INVALID           a reviewer ends successfully with no structured output
+//   FAKE-REVIEW-SLOW <ms>         a reviewer or verifier waits that long before answering
+//   FAKE-REVIEW-VERDICT <status>  what the verifier answers for every claim; default confirmed
+//   FAKE-REVIEW-FIX <file> <content>  the review fixer's prompt makes it write that file
+//
 //   --model fake-refused          exits 1 at once with an error on stderr, as the CLI does with an
 //                                 option it refuses: a chat that never starts its turn
 //
@@ -60,7 +81,7 @@
 //                                 background work finishes
 //
 // It reports the files it could see and its working directory, which is what the tests check.
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -109,6 +130,31 @@ if (!existsSync(dir)) {
   process.exit(1);
 }
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
+
+// The hooks of --settings, run as the CLI does: a shell command with the hook input on stdin
+const settingsFile = flag('--settings');
+const hookCommands = settingsFile ? (JSON.parse(readFileSync(settingsFile, 'utf8')).hooks ?? {}) : {};
+const hookEvents = args.includes('--include-hook-events');
+function runHook(event, name, input, sessionId, streamed) {
+  const command = hookCommands[event]?.[0]?.hooks?.[0]?.command;
+  if (!command) return null;
+  const hookId = randomUUID();
+  if (streamed) out({ type: 'system', subtype: 'hook_started', hook_id: hookId, hook_name: name, hook_event: event, uuid: randomUUID(), session_id: sessionId });
+  const run = spawnSync('/bin/sh', ['-c', command], { input: JSON.stringify({ session_id: sessionId, cwd: process.cwd(), hook_event_name: event, ...input }), encoding: 'utf8' });
+  const code = run.status ?? 1;
+  if (streamed) {
+    out({ type: 'system', subtype: 'hook_response', hook_id: hookId, hook_name: name, hook_event: event, output: `${run.stdout}${run.stderr}`, stdout: run.stdout, stderr: run.stderr, exit_code: code, outcome: code === 0 ? 'success' : 'error', uuid: randomUUID(), session_id: sessionId });
+  }
+  return { code, stderr: run.stderr };
+}
+const startedSession = flag('--session-id') ?? flag('--resume') ?? randomUUID();
+// SessionStart runs at the process's start, before any message and before `init` (g0, F9)
+const mark = (what) => process.env.FAKE_CLAUDE_TIMELINE && appendFileSync(process.env.FAKE_CLAUDE_TIMELINE, `${what}\n`);
+if (settingsFile && process.env.FAKE_CLAUDE_NO_ARM !== '1') {
+  if (process.env.FAKE_CLAUDE_ARM_DELAY_MS) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_CLAUDE_ARM_DELAY_MS));
+  runHook('SessionStart', `SessionStart:${flag('--resume') ? 'resume' : 'startup'}`, { source: flag('--resume') ? 'resume' : 'startup' }, startedSession, true);
+  mark('armed');
+}
 const git = (...a) => execFileSync('git', ['-C', dir, '-c', 'user.name=Worker', '-c', 'user.email=w@example.com', ...a], { stdio: 'pipe' });
 
 // One tool call, in the events the CLI streams for it: the assistant's tool_use, the user's tool_result, the result
@@ -166,15 +212,24 @@ lines.on('line', async (line) => {
     out({ type: 'control_response', response: { subtype: 'success', request_id: hello.request_id, response: { commands: [], models, account: { apiProvider: 'firstParty' } } } });
     return;
   }
+  if (line.includes('"interrupt"') && process.env.FAKE_CLAUDE_INTERRUPTS) appendFileSync(process.env.FAKE_CLAUDE_INTERRUPTS, `${line}\n`);
+  if (line.includes('"interrupt"')) {
+    const asked = JSON.parse(line);
+    out({ type: 'control_response', response: { subtype: 'success', request_id: asked.request_id, response: {} } });
+  }
   if (handled) return;
   handled = true;
+  mark('message');
   const content = JSON.parse(line).message?.content;
   const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
-  const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
+  const sessionId = startedSession;
   out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: dir, model: flag('--model') ?? 'fake', tools: [] });
   if (process.env.FAKE_CLAUDE_PROMPTS) appendFileSync(process.env.FAKE_CLAUDE_PROMPTS, `${JSON.stringify({ cwd: dir, resume: flag('--resume') ?? null, prompt })}\n`);
 
   for (const [, file, text] of prompt.matchAll(/^FAKE-WRITE (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
+  if (prompt.startsWith('You are the review fixer')) {
+    for (const [, file, text] of prompt.matchAll(/^FAKE-REVIEW-FIX (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
+  }
   if (prompt.includes('You are integrating the work')) {
     for (const [, branch] of prompt.matchAll(/^- (worktree-[\w-]+)$/gm)) {
       try {
@@ -189,6 +244,24 @@ lines.on('line', async (line) => {
 
   const nap = /^FAKE-SLEEP (\d+)$/m.exec(prompt);
   if (nap) await new Promise((resolve) => setTimeout(resolve, Number(nap[1])));
+  if (/^FAKE-FOREIGN-HOOK$/m.test(prompt)) {
+    out({ type: 'system', subtype: 'hook_started', hook_id: 'person-1', hook_name: 'PreToolUse:Bash', hook_event: 'PreToolUse', uuid: randomUUID(), session_id: sessionId });
+    out({ type: 'system', subtype: 'hook_response', hook_id: 'person-1', hook_name: 'PreToolUse:Bash', hook_event: 'PreToolUse', output: 'lint ok\n', stdout: '', stderr: 'lint ok\n', exit_code: 0, outcome: 'success', uuid: randomUUID(), session_id: sessionId });
+  }
+  const calls = [...prompt.matchAll(/^FAKE-TOOL(-UNGUARDED)? (\S+) (.*)$/gm)];
+  for (const [, unguarded, tool, json] of calls) {
+    const id = `toolu_${randomUUID().slice(0, 8)}`;
+    const input = JSON.parse(json);
+    out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id, name: tool, input }] } });
+    const verdict = unguarded ? null : runHook('PreToolUse', `PreToolUse:${tool}`, { tool_name: tool, tool_input: input, tool_use_id: id, permission_mode: 'acceptEdits' }, sessionId, hookEvents);
+    const blocked = verdict?.code === 2;
+    out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: blocked ? `PreToolUse:${tool} hook error: ${verdict.stderr}` : 'ok', is_error: blocked }] } });
+  }
+  if (calls.length && !/^FAKE-HANG$/m.test(prompt)) {
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 2, total_cost_usd: 0.01, result: `tools: ${calls.length}` });
+    return;
+  }
+
   if (/^FAKE-HANG$/m.test(prompt)) return;
   if (/^FAKE-BUDGET$/m.test(prompt)) {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
@@ -257,6 +330,32 @@ lines.on('line', async (line) => {
   }
 
   const schema = flag('--json-schema');
+  if (schema && (JSON.parse(schema).properties?.findings || JSON.parse(schema).properties?.verdicts)) {
+    const reviewing = JSON.parse(schema).properties.findings !== undefined;
+    const answer = () => {
+      if (reviewing) {
+        if (/^FAKE-REVIEW-INVALID$/m.test(prompt)) return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: 'no structure' });
+        const clean = /^FAKE-REVIEW-CLEAN-IF (\S+)$/m.exec(prompt);
+        const dimension = /Your dimension is `(\w+)`/.exec(prompt)?.[1] ?? '';
+        const scripted = new RegExp(`^FAKE-RESULT-REVIEW-${dimension.toUpperCase()} (.*)$`, 'm').exec(prompt) ?? /^FAKE-RESULT-REVIEW (.*)$/m.exec(prompt);
+        const zero = { findings: [], coverage: { complete: true } };
+        const worse = /^FAKE-REVIEW-IF (\S+) (.*)$/m.exec(prompt);
+        let output = scripted && !(clean && existsSync(join(dir, clean[1]))) ? JSON.parse(scripted[1]) : zero;
+        if (worse && existsSync(join(dir, worse[1]))) output = JSON.parse(worse[2]);
+        return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: output });
+      }
+      // A claim re-asked after a fix, with the file the fix leaves behind present, is gone
+      const mended = /^FAKE-REVIEW-CLEAN-IF (\S+)$/m.exec(prompt);
+      const gone = mended && existsSync(join(dir, mended[1])) && prompt.includes('still present at the current head');
+      const status = gone ? 'refuted' : (/^FAKE-REVIEW-VERDICT (\w+)$/m.exec(prompt)?.[1] ?? 'confirmed');
+      const verdicts = [...prompt.matchAll(/^Claim (f\d+)\./gm)].map((m) => ({ id: m[1], status, reason: `fake verifier: ${status}` }));
+      return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: { verdicts } });
+    };
+    const slow = /^FAKE-REVIEW-SLOW (\d+)$/m.exec(prompt);
+    if (slow) setTimeout(answer, Number(slow[1]));
+    else answer();
+    return;
+  }
   if (schema) {
     const props = JSON.parse(schema).properties ?? {};
     const stage = props.read ? 'ASSISTANT' : props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';

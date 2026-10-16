@@ -54,6 +54,8 @@ export interface CoreConfig {
   maxConcurrentRuns: number;
   /** The daily spend cap from `CLAUDIO_DAILY_SPEND_CAP_USD` (or the default, no cap) */
   dailySpendCapUsd: number | null;
+  /** The instruction evals' Phase 2 switch from `CLAUDIO_EVALS_PHASE2` (or the default, off) */
+  evalsPhase2: boolean;
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
    * complain to. It has to name a real domain — Apple refuses the whole JWT with `403 BadJwtToken`
@@ -206,6 +208,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   defaultPermissionMode: 'acceptEdits',
   setupSeen: false,
   dailySpendCapUsd: null,
+  evalsPhase2: false,
 });
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -230,6 +233,7 @@ export const APP_SETTING_ENV = {
   defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
   setupSeen: 'CLAUDIO_SETUP_SEEN',
   dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
+  evalsPhase2: 'CLAUDIO_EVALS_PHASE2',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 /**
@@ -288,6 +292,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     defaultPermissionMode: isSet(env.CLAUDIO_DEFAULT_PERMISSION_MODE) ? (env.CLAUDIO_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
     setupSeen: setupSeenFromEnv(env) ?? DEFAULT_APP_SETTINGS.setupSeen,
     dailySpendCapUsd: spendCapFromEnv(env.CLAUDIO_DAILY_SPEND_CAP_USD),
+    evalsPhase2: isSet(env.CLAUDIO_EVALS_PHASE2) ? parseSeenSwitch('CLAUDIO_EVALS_PHASE2', env.CLAUDIO_EVALS_PHASE2) : DEFAULT_APP_SETTINGS.evalsPhase2,
     maxConcurrentRuns: isSet(env.CLAUDIO_MAX_CONCURRENT_RUNS) ? Number(env.CLAUDIO_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
     pushSubject: env.CLAUDIO_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/claudio',
     allowedHosts: parseAllowedHosts(env.CLAUDIO_ALLOWED_HOSTS),

@@ -27,6 +27,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'assistant.rerank',
   'assistant.sources',
   'journal.relevance',
+  'lesson.mine',
   'board.triage',
   'team.assign',
   'flow.scope-drift',
@@ -46,6 +47,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'review.triage',
   'issue.triage',
   'account.model-fallback',
+  'review.depth',
 ];
 
 /** The provider points of the multi-vendor days, which an old `project.json` may still carry */

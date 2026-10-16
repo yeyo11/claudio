@@ -3,8 +3,8 @@ import { DEFAULT_ID, readingFromEvent, type AccountRef, type AccountStore, type 
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
-import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   type AccountSwitchReason,
@@ -27,6 +27,7 @@ import {
   type ProvidersSettings,
   type ResumeChatRequest,
   type RunEvent,
+  type RunGuardEvent,
   type RunStatus,
   type TranscriptEntry,
   type UsageHistoryPoint,
@@ -59,7 +60,7 @@ import {
 } from './live-chat.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { runningCommands, type ToolCall, type Trace } from './health.ts';
+import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
 import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
@@ -68,6 +69,7 @@ import { ProviderLimits } from './providers/limits.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
+import { LESSONS_ARG_MAX_BYTES } from './lessons/render.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
@@ -124,6 +126,10 @@ export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'mark
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
+/** How long a guarded process may take to arm before the run fails (F9: the marker comes about 0.7 s after launch); read when used so a test can shorten it */
+const guardArmMs = (): number => Number(process.env.CLAUDIO_GUARD_ARM_MS ?? 20_000);
+/** How long the interrupt of a run with an unguarded call is given to be read before the process is taken down */
+const GUARD_INTERRUPT_WAIT_MS = 1500;
 const STOPPED = 'the chat was stopped before the agent read it';
 /** ...and when its process ended for another reason, with nothing better to say */
 const ENDED = 'the process ended before the agent read it';
@@ -202,6 +208,11 @@ export class ChatManager extends EventEmitter {
   accounts: ChatAccounts | null = null;
   /** The project a directory belongs to, for its rotation policy; Core sets it */
   projectOf: ((dir: string) => string | null) | null = null;
+  /**
+   * What a process of an interactive chat or an orchestration worker is appended: the Lessons
+   * section and the note on pasted text, or '' when the project gives none; Core sets it
+   */
+  lessonsFor: ((projectId: string | null, orchestrated: boolean) => string) | null = null;
   /** Epoch ms of the last time a chat moved to another account, for the cooldown between switches */
   private lastSwitchAt: number | null = null;
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
@@ -272,6 +283,8 @@ export class ChatManager extends EventEmitter {
       maybeLimit: (chat) => this.maybeLimit(chat),
       recordSpend: (chat, execution, usd) => this.recordSpend(chat, execution, usd),
       failProtocol: (chat, message) => this.failProtocol(chat, message),
+      guardArmed: (chat) => this.guardArmed(chat),
+      guardMissing: (chat) => this.guardMissing(chat),
     };
   }
 
@@ -561,8 +574,13 @@ export class ChatManager extends EventEmitter {
     const live = chat?.execution;
     if (!chat || !live || !chat.alive) return null;
     const calls = new Map<string, ToolCall>();
+    const guards: GuardTraceEntry[] = [];
     for (const event of chat.events) {
       if (event.ts < live.startedAt) continue;
+      if (event.kind === 'guard' && event.guard) {
+        guards.push({ at: event.ts, outcome: event.guard.outcome, rule: event.guard.rule });
+        continue;
+      }
       if (event.kind === 'result') {
         for (const call of calls.values()) call.endedAt ??= event.ts;
         continue;
@@ -577,7 +595,7 @@ export class ChatManager extends EventEmitter {
         }
       }
     }
-    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats) };
+    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats), ...(guards.length ? { guards } : {}) };
   }
 
   /**
@@ -714,7 +732,7 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack' | 'purpose'>, source: AdoptedChat): ChatRuntime {
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack' | 'purpose' | 'guards'>, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     const known = this.chats.get(sourceId);
     const driver = known?.driver ?? this.driverFor(request.provider);
@@ -793,7 +811,7 @@ export class ChatManager extends EventEmitter {
   private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools & ExecutionExtras): void {
     const { opts } = chat;
     if (options.handBack) {
-      for (const key of ['agent', 'agentsFile', 'jsonSchema', 'systemPromptSnapshot', 'uploads', 'confine', 'keepAlive', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'toolConfig', 'mcp'] as const) {
+      for (const key of ['lessons', 'agent', 'agentsFile', 'jsonSchema', 'systemPromptSnapshot', 'uploads', 'confine', 'keepAlive', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'toolConfig', 'mcp'] as const) {
         delete opts[key];
       }
       chat.setSettings({ permissionMode: options.permissionMode ?? this.defaults.defaultPermissionMode });
@@ -814,6 +832,10 @@ export class ChatManager extends EventEmitter {
       if (options.systemPromptSnapshot === null) delete opts.systemPromptSnapshot;
       else opts.systemPromptSnapshot = options.systemPromptSnapshot;
     }
+    if (options.lessons !== undefined) {
+      if (options.lessons === null) delete opts.lessons;
+      else opts.lessons = options.lessons;
+    }
     if (options.uploads !== undefined) {
       if (options.uploads === null) delete opts.uploads;
       else opts.uploads = options.uploads;
@@ -824,6 +846,10 @@ export class ChatManager extends EventEmitter {
     if (options.confine !== undefined) {
       if (options.confine === null) delete opts.confine;
       else opts.confine = options.confine;
+    }
+    if (options.guards !== undefined) {
+      if (options.guards === null) delete opts.guards;
+      else opts.guards = options.guards;
     }
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
     // A rewind point belongs to the one process the resume starts, not to the ones after it
@@ -1059,6 +1085,7 @@ export class ChatManager extends EventEmitter {
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
       ...(opts.systemPromptSnapshot ? { systemPromptSnapshot: opts.systemPromptSnapshot } : {}),
       ...(opts.uploads === false ? { uploads: false as const } : {}),
+      ...(opts.lessons ? { lessons: opts.lessons } : {}),
       ...(opts.confine ? { confine: opts.confine } : {}),
       // A compaction spends for what the chat is for, not as a person's turn
       ...(opts.purpose ? { purpose: opts.purpose } : {}),
@@ -1206,6 +1233,28 @@ export class ChatManager extends EventEmitter {
     chat.setSettings({ permissionMode: launch.permissionMode });
   }
 
+  /**
+   * The chat's own `appendSystemPrompt` and, per spawn, the Lessons section after it. The section is
+   * read now so a lesson approved since the last process reaches this one, and it is never written
+   * to `chat.opts`, which is what a resume or a fork carries on. Housekeeping, confined and assistant
+   * chats get none, and neither does a run whose handoff already holds it.
+   */
+  private appendedPrompt(chat: LiveChat): { appendSystemPrompt?: string } {
+    const { opts } = chat;
+    const own = opts.appendSystemPrompt ?? '';
+    const skip = opts.internal || opts.confine || opts.claudioAssistant || opts.lessons === 'handoff' || chat.origin === 'internal';
+    const projectId = skip ? null : (this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null);
+    const section = skip ? '' : (this.lessonsFor?.(projectId, chat.origin === 'orchestration') ?? '');
+    if (!section) return own ? { appendSystemPrompt: own } : {};
+    const joined = own ? `${own}\n\n${section}` : section;
+    // One argument of `claude`: past this the person's text is kept whole and the section is dropped
+    if (Buffer.byteLength(joined) > LESSONS_ARG_MAX_BYTES) {
+      chat.push({ kind: 'notice', text: 'The lessons were left out of this process: the instructions already appended to this chat leave no room for them.' });
+      return own ? { appendSystemPrompt: own } : {};
+    }
+    return { appendSystemPrompt: joined };
+  }
+
   /** What a process of the chat is started from: the driver turns it into a command line. */
   private launchSpec(chat: LiveChat, account: AccountRef | null): SessionLaunch {
     const { opts } = chat;
@@ -1220,7 +1269,7 @@ export class ChatManager extends EventEmitter {
       permissionMode: chat.permissionMode,
       ...(opts.model ? { model: opts.model } : {}),
       ...(chat.effort ? { effort: chat.effort } : {}),
-      ...(opts.appendSystemPrompt ? { appendSystemPrompt: opts.appendSystemPrompt } : {}),
+      ...this.appendedPrompt(chat),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
       ...(opts.mcp?.config ? { mcpConfig: opts.mcp.config } : {}),
@@ -1243,6 +1292,7 @@ export class ChatManager extends EventEmitter {
       ...(opts.internal ? { internal: true } : {}),
       ...(opts.agent ? { agent: opts.agent } : {}),
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
+      ...(opts.guards ? { guard: { settingsPath: opts.guards.settingsPath } } : {}),
       policy: opts.toolConfig?.policy ?? null,
     };
   }
@@ -1407,6 +1457,11 @@ export class ChatManager extends EventEmitter {
     chat.reportsDelivery = null;
     chat.carrying = false;
     chat.beginExecution();
+    // Each process arms on its own: the guard's hooks are read at its start, and a resume registers them again
+    if (chat.armingTimer) clearTimeout(chat.armingTimer);
+    chat.armingTimer = null;
+    chat.armingQueue = [];
+    chat.guardState = chat.opts.guards ? 'arming' : null;
     // Whatever the last process was doing went with it
     chat.activity.clear();
     chat.branchActivity.clear();
@@ -1424,6 +1479,12 @@ export class ChatManager extends EventEmitter {
       token = this.chatTokens.mint(chat.id);
       env.CLAUDIO_API_TOKEN = token;
     } else delete env.CLAUDIO_API_URL;
+    // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
+    const tmpDir = chat.opts.guards?.tmpDir;
+    if (tmpDir) {
+      mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+      env.TMPDIR = tmpDir;
+    }
     let proc: ChildProcessWithoutNullStreams;
     try {
       proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
@@ -1448,8 +1509,15 @@ export class ChatManager extends EventEmitter {
       { write: (text) => proc.stdin.write(text), end: () => proc.stdin.end(), up: () => processUp(proc) },
       (event) => foldEvent(this.host, chat, event),
       chat.branches,
+      chat.opts.guards ? { rulesSha256: chat.opts.guards.rulesSha256 } : undefined,
     );
     chat.session = session;
+    if (chat.opts.guards) {
+      chat.armingTimer = setTimeout(() => {
+        if (current() && chat.guardState === 'arming') this.guardUnarmed(chat, `the guard did not start within ${Math.round(guardArmMs() / 1000)} s`);
+      }, guardArmMs());
+      chat.armingTimer.unref();
+    }
     createInterface({ input: proc.stdout }).on('line', (line) => {
       if (!current()) return;
       session.readLine(line);
@@ -1475,7 +1543,8 @@ export class ChatManager extends EventEmitter {
       revokeToken();
       if (!current()) return;
       chat.procClosed = true;
-      if (chat.stopRequested) this.finalize(chat, 'stopped');
+      if (chat.guardState === 'arming' && !chat.stopRequested) this.guardUnarmed(chat, 'the process ended before the guard started');
+      else if (chat.stopRequested) this.finalize(chat, 'stopped');
       else if (code === 0) this.finalize(chat, 'completed');
       else {
         chat.error ??= chat.events.filter((e) => e.kind === 'stderr').slice(-3).map((e) => e.text).join('\n') || `exit code ${code}`;
@@ -1505,6 +1574,16 @@ export class ChatManager extends EventEmitter {
     chat.idleSince = null;
     // Before the write: a driver that starts the turn at once reports it taken from inside `send`
     if (chat.reportsDelivery !== false) chat.pending.set(message.id, { ...message, state: 'written' });
+    // The agent must not read a word before its guard is live: the message goes out when `armed` arrives
+    if (chat.guardState === 'arming') {
+      chat.armingQueue.push({ message, announce });
+      return;
+    }
+    this.deliver(chat, message, announce);
+  }
+
+  private deliver(chat: LiveChat, message: SentMessage, announce: boolean): void {
+    const { text, attachments } = message;
     const uploads = this.uploads;
     const shown = chat.session?.send({ id: message.id, text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
     const entry = userEntry(message, shown);
@@ -1514,6 +1593,52 @@ export class ChatManager extends EventEmitter {
     chat.setStatus('busy');
   }
 
+  /** The guard is live: the messages that waited for it go out, in order */
+  private guardArmed(chat: LiveChat): void {
+    if (chat.guardState !== 'arming') return;
+    chat.guardState = 'armed';
+    if (chat.armingTimer) clearTimeout(chat.armingTimer);
+    chat.armingTimer = null;
+    const queue = chat.armingQueue;
+    chat.armingQueue = [];
+    for (const { message, announce } of queue) this.deliver(chat, message, announce);
+  }
+
+  /** The process never armed: nothing was written to it, so the run ends before it spends anything */
+  private guardUnarmed(chat: LiveChat, why: string): void {
+    // Said once: the exit that follows the kill finds the chat no longer arming
+    chat.guardState = null;
+    const guard: RunGuardEvent = { outcome: 'unarmed', toolUseId: null, toolName: '', rule: 'integrity', matcher: 'integrity.unarmed', reason: why, excerpt: '' };
+    chat.push({ kind: 'guard', guard });
+    this.emit('chat-guard', chat.id, guard);
+    this.failProtocol(chat, `guard-unarmed: ${why}`);
+  }
+
+  /**
+   * A tool call ran with no guard marker (D6). The turn is interrupted. A run that nobody watches
+   * ends failed, `guard-missing`. A person's chat is stopped without an error and shows the tag: its
+   * next message starts a process that must arm again, and nothing is sent on its own.
+   */
+  private guardMissing(chat: LiveChat): void {
+    chat.guardState = 'missing';
+    const why = 'a tool call ran without a guard marker, so the guards are not running';
+    // The interrupt is asked for first and given a moment to be read: a process taken down in the same
+    // breath may never see it. A CLI that does not answer is taken down all the same.
+    const settled = chat.session ? chat.session.interrupt().catch(() => {}) : Promise.resolve();
+    let timer: NodeJS.Timeout | undefined;
+    const patience = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, GUARD_INTERRUPT_WAIT_MS);
+    });
+    void Promise.race([settled, patience]).then(() => {
+      clearTimeout(timer);
+      if (chat.endedAt) return;
+      if (chat.opts.guards?.interactive) {
+        chat.push({ kind: 'notice', text: `Guards not running: ${why}. The chat was stopped; send your next message again to continue.` });
+        this.stop(chat.id);
+      } else this.failProtocol(chat, `guard-missing: ${why}`);
+    });
+  }
+
   /** A fault in what the agent said about itself: the execution fails with the reason, and nothing carries on beside it. */
   private failProtocol(chat: LiveChat, message: string): void {
     chat.error = message;
@@ -1521,9 +1646,19 @@ export class ChatManager extends EventEmitter {
     chat.proc?.kill('SIGTERM');
   }
 
+  /** The run's scratch dir goes with it; only one under `<data>/tmp`, whatever a plan says */
+  private removeGuardTmp(chat: LiveChat): void {
+    const dir = chat.opts.guards?.tmpDir;
+    if (!dir || !resolve(dir).startsWith(join(resolve(this.config.dataDir), 'tmp') + sep)) return;
+    rmSync(dir, { recursive: true, force: true });
+  }
+
   private finalize(chat: LiveChat, status: RunStatus): void {
     if (chat.endedAt) return;
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    if (chat.armingTimer) clearTimeout(chat.armingTimer);
+    chat.armingTimer = null;
+    this.removeGuardTmp(chat);
     chat.idleSince = null;
     chat.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.

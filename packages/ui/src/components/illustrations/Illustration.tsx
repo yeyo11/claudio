@@ -3,6 +3,7 @@ import { Board } from './board';
 import { Chats } from './chats';
 import { CliMissing } from './cli-missing';
 import { Connector } from './connector';
+import { Evals } from './evals';
 import { Install } from './install';
 import { NoResults } from './no-results';
 import { NotFound } from './not-found';
@@ -32,6 +33,7 @@ const ILLUSTRATIONS = {
   projects: [Projects, 'accent'],
   board: [Board, 'accent'],
   team: [Team, 'accent'],
+  evals: [Evals, 'accent'],
   'no-results': [NoResults, 'accent'],
   'not-found': [NotFound, 'accent'],
   install: [Install, 'accent'],

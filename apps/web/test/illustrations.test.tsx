@@ -13,7 +13,7 @@ const rootTag = (html: string) => html.match(/^<svg[^>]*>/)?.[0] ?? '';
 const rootClasses = (html: string) => (rootTag(html).match(/class="([^"]*)"/)?.[1] ?? '').split(' ');
 
 test('every illustration renders its drawing', () => {
-  assert.equal(ILLUSTRATION_NAMES.length, 15);
+  assert.equal(ILLUSTRATION_NAMES.length, 16);
   for (const name of ILLUSTRATION_NAMES) {
     const html = renderToStaticMarkup(<Illustration name={name} />);
     assert.match(rootTag(html), /viewBox="0 0 240 160"/, name);
@@ -87,6 +87,15 @@ test('the board and team drawings of the project ecosystem join the set in the a
   }
   // The board's card carries a key, not a word: it reads the same in every language
   assert.match(renderToStaticMarkup(<Illustration name="board" />), />AGN-1</);
+});
+
+test('the evals drawing is a prompt card in the gradient over two ticks and a failed call', () => {
+  const html = renderToStaticMarkup(<Illustration name="evals" />);
+  assert.deepEqual(rootClasses(html), ['il']);
+  assert.equal(html.match(/class="cg"/g)?.length, 1, 'the gradient is on one element');
+  assert.equal(html.match(/class="ln-ok"/g)?.length, 2);
+  assert.equal(html.match(/class="ln-bad"/g)?.length, 1);
+  assert.match(html, /class="a-float"/);
 });
 
 test("the board draws the key it is given, the project's own first one, and fits a long one in its card", () => {

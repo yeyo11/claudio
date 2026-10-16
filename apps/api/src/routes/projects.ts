@@ -1,7 +1,8 @@
 import { Readable } from 'node:stream';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import { projectExportFilename, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
+import { projectExportFilename, REVIEW_ROLES, type ReviewRole, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
+import { refuseWeakerProjectSettings } from './guards.ts';
 import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
@@ -26,6 +27,24 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>('/projects/:id', (req) => core.updateProject(req.params.id, req.body ?? {}));
 
+  // Which text each reviewer of the review gate runs with: the project's own file or Claudio's built-in
+  app.get<{ Params: { id: string } }>('/projects/:id/review-roles', async (req) => {
+    const roles = await core.reviewRoles(req.params.id);
+    if (!roles) throw Object.assign(new Error(`project ${req.params.id} not found`), { statusCode: 404 });
+    return roles;
+  });
+
+  // Writes Claudio's default where no file exists, never over one; a chat's token is refused in security.ts
+  app.post<{ Params: { id: string; role: string } }>('/projects/:id/review-roles/:role', async (req, reply) => {
+    const role = REVIEW_ROLES.find((r) => r === req.params.role);
+    if (!role) throw Object.assign(new Error(`unknown review role ${req.params.role}`), { statusCode: 404 });
+    const written = await core.writeReviewRole(req.params.id, role as ReviewRole);
+    if (!written) throw Object.assign(new Error(`project ${req.params.id} not found`), { statusCode: 404 });
+    if (!written.written) throw Object.assign(new Error(`${written.file} exists already: Claudio never overwrites it`), { statusCode: 409, reason: 'role-exists' });
+    const info = (await core.reviewRoles(req.params.id))?.find((r) => r.role === role);
+    return reply.status(201).send(info);
+  });
+
   app.get<{ Params: { id: string } }>('/projects/:id/settings', (req) => core.projectSettings(req.params.id));
 
   // Whether the project can open pull and merge requests, and where `origin` points
@@ -36,15 +55,18 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   });
 
   // Validated in core, whole: a document is replaced, never merged
-  // Two parts are not a chat's to save, so its copy of the document keeps the stored ones:
+  // Three parts are not a chat's to save, so its copy of the document keeps the stored ones:
   // - the tracker: its scope, query and status map decide what is imported and written to it;
-  // - the providers: their order and what happens at a limit decide which vendor the work spends on.
+  // - the providers: their order and what happens at a limit decide which vendor the work spends on;
+  // - the lessons: whether approved lessons reach chats, workers and other projects is the person's call.
   app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', async (req) => {
     const body = req.body;
+    // A chat may tighten its project's guards but never loosen them
+    await refuseWeakerProjectSettings(core, req, req.params.id, body);
     if (req.actor?.startsWith('chat:') && typeof body === 'object' && body !== null && !Array.isArray(body)) {
-      const { tracker: _tracker, providers: _providers, ...rest } = body as Record<string, unknown>;
-      const { tracker, providers } = await core.projectSettings(req.params.id);
-      return core.saveProjectSettings(req.params.id, { ...rest, ...(tracker ? { tracker } : {}), ...(providers ? { providers } : {}) });
+      const { tracker: _tracker, providers: _providers, lessons: _lessons, ...rest } = body as Record<string, unknown>;
+      const { tracker, providers, lessons } = await core.projectSettings(req.params.id);
+      return core.saveProjectSettings(req.params.id, { ...rest, ...(tracker ? { tracker } : {}), ...(providers ? { providers } : {}), ...(lessons ? { lessons } : {}) });
     }
     return core.saveProjectSettings(req.params.id, body);
   });

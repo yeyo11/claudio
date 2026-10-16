@@ -18,7 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/claudio-ds.css`](design-system/claudio-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 16 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 | Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
@@ -1245,6 +1245,57 @@ suggestion on), `DesktopRevisionHilosPlegados` (an outdated and a resolved threa
 phone's `MobileRevisionHilos` (GitLab), `MobileRevisionHilosNota` (the Sheet) and
 `MobileRevisionHilosPlegados`.
 
+- **A finding (`.rt.finding`)** is the review gate's card under the line it is about
+  ([plans/review-gate.md](plans/review-gate.md), task `v8a`): the same `.rt` card, with no new kind
+  of diff row and no reply field, because a finding is Claudio's record, not a conversation. Head:
+  the severity word with its colour (`.rt-sev`: critical and high `.bad`, medium `.warn`, low
+  neutral, always a word, the warning icon on bad and warn), the dimension chips (`.rt-dim`),
+  `path:line` in mono and the verdict word on the right (`.rt-verdict`; neutral, `.warn` for
+  "sin certeza" and "sin verificar"). Body (`.rt-finding-body`): the title (`.rt-title`), "Qué
+  falla", "Evidencia" in `.rt-evidence` and "Sugerencia", each a `.rt-fact`; the verifier's reason
+  is the foot (`.rt-verifier`). A refuted finding (`.rt.finding.refuted`) is dimmed. Finding text is
+  the English record and is never translated; the labels are chrome. The line's pill
+  (`.dv-note-pill`) carries the warning icon and the count, and a finding of an earlier round folds
+  with `.rt-fold` as "desactualizado". File-level findings sit at the top of the file; the file map
+  and the header show a count. Nothing is live.
+
+Reference screens: `DesktopRevisionHallazgos` and `MobileRevisionHallazgos` (the pill is not drawn
+on a phone).
+
+### Review gate on the verification card
+
+Drawn by `reviews.py` (`r_gate()`, task `v8a`). The review is a section (`.rg`) inside the
+verification card, not a new step (D2 of the plan). Classes `.rg-*` and `.rt-*` in §18 of
+`claudio-ds.css`.
+
+- **Head (`.rg-head`).** The gate status as a word plus colour (`.badge`: pendiente, superada ok,
+  bloqueada bad, incompleta warn, aceptada warn, omitida neutral); while it runs, the braille
+  spinner beside the verb (`.rg-verb`: Preparando, Revisando, Verificando, Corrigiendo), and the
+  round and cost of budget in mono on the right (`.facts`).
+- **Reason (`.rg-reason`, `.warn`, `.bad`).** One sentence when blocked, incomplete or accepted;
+  an acceptance quotes the person's reason and names the head it binds to. A usage-limit wait is a
+  warn line with the reset time in mono. A pass with no findings is one ok line (`.rg-quiet`).
+- **Runs (`.rg-run`).** Dimension, chunk `i/n`, model, state word, cost, a link to the run's chat.
+  Only the running row is live (`.spin-ring`, `.rail-live`). The step's bar is the segmented bar
+  (`.segbar`), one cell per run of the round: ok, live, bad.
+- **Findings (`.rg-group`, `.rg-group-head`, `.rg-group-body`).** Bloqueantes (open), Informativos,
+  Refutados, Fuera del diff and Sin revisar (`.rg-skipped`: path and why) fold. Inside, the cards
+  are `.rt.finding`.
+- **Actions (`.rg-foot`).** Retry is the zone's one gradient (`.btn-primary`) when incomplete;
+  accept anyway and verify again are plain buttons. Accepting an incomplete gate is offered after a
+  retry also ended incomplete (disabled with its hint before). Accept opens a `Dialog` (a `Sheet`
+  on a phone) with the required reason, a warn callout and `.btn-primary` as the dialog's confirm.
+- **Energy border.** `.rg.energy` only while reviewers run; it is then the screen's one such
+  surface. Every animation stops under `data-motion` subtle and off.
+- **Phone.** Rows stack (name and state, then cost and the 44 px link), actions are full width,
+  the dialog is a Sheet.
+
+Reference screens: `DesktopOrquestacionRevision` (running), `DesktopOrquestacionRevisionBloqueada`,
+`DesktopOrquestacionRevisionAceptar`, `DesktopOrquestacionRevisionEstados` (pending, each running
+sub-phase, waiting for a limit, passed, passed with advisories, blocked, each incomplete reason,
+accepted, skipped, fixing round 2 of 3, stopped), and the phone's `MobileOrquestacionRevision`,
+`…Bloqueada`, `…Aceptar` and `…Estados` (two sheets: `…Estados`, `…Estados2`).
+
 ---
 
 ### Orchestration checks: the change request's CI and the fix that waits
@@ -1438,6 +1489,24 @@ improvements".
   team button, a `Sheet` on a phone where it takes its own row. Each item is the role's name and
   under it, in `--fg-3`, what it answers for. The member list shows a muted "solo lectura" tag on a
   role whose agent file allows only tools that read, with a tooltip saying so.
+- **Lessons (`.lessons`, `.lesson-row`, `.lesson-main`, `.lesson-key`, `.lesson-text`, `.lesson-when`,
+  `.lesson-facts`, `.lesson-conf`, `.lesson-evidence*`, `.lesson-quote`, `.lesson-edit`,
+  `.lesson-proposal`, `.lesson-badges`, `.lessons-foot`, `.lessons-mining`, `.lesson-jobs`,
+  `.lesson-job`).** The Memory tab's Lessons card (`DesktopMemoria`, `MobileMemoria*`), beside the CLI
+  card, and the same rows in Settings → Lessons. A row is the key `L-12` in mono, "Cuando …:" in
+  `--fg-2` then the action, the confidence in mono, and tags that always carry a word: `ok`
+  "entregada", `warn` "desvaneciéndose", neutral "fijada". Evidence opens inline as quotes in the
+  person's words with the context in mono. Nothing in it is live: no `--live`, no gradient, no spinner;
+  a mining job says "en cola", "en curso" or "hecha" in neutral words (`warn` for a daily cap or rate
+  limit, `bad` for failed). On a phone the row's `⋯` is a `Sheet` of 44 px rows, and fields are 16 px.
+  A lesson proposal in the Proposals card shows the sentence, at most two quotes, and `warn` badges
+  ("Contradice a L-3", "Choca con CLAUDE.md").
+- **CLAUDE.md diff (`.instr-diff`, `-head`, `-section`, `-view`, `-foot`, `.instr-diff-sheet`).** Approving
+  an `instructions` proposal opens a `Dialog` (a full-height `Sheet` on a phone) with the `DiffView` of
+  the preview in Reading mode, the path in mono, "bytes after", a section field for a lesson's
+  proposal, Cancel and Approve (enabled once the diff loaded). Only what changed carries colour.
+- **Project lessons (`.project-lessons`, `.project-lessons-cell`).** Three switches under Memory in a
+  project's settings: chats, workers, global lessons.
 - **Rule target line (`.memory-proposal-to`).** The memory card's "→ destino" line for a proposal of
   kind rule reads `Regla · .claude/rules/<file> · <paths>` in mono, folded past three paths. When
   the name is taken by a rule with other paths, `.memory-proposal-taken` says so in `warn` and in
@@ -1755,6 +1824,26 @@ Claudio. Methods: Código, Clave. Waiting: "Esperando a que lo apruebes", "caduc
 step, "Omitido" on a summary line. The `en` source follows the same structure ("Back", "Skip", "Continue", "Sign in",
 "Code", "Key", "Waiting for you to approve").
 
+### Guards: the Settings card and its locked rule
+
+Settings → Security → Guards (`GuardsCard`, `?tab=security#guards`) sits after the app-settings cards and before the audit
+log. A `Card` with the status `Tag` (shield icon and a word: ok "activas", warn "observando", bad "no disponibles") and,
+under the intro, one `.guard-status` line in the same colour. Then, in this order: the `Switch` of the automated runs, the
+rule list, the `Switch` of "Solo observar" with a warn hint, the protected-files textarea (only while `protect-configs` is
+on, with "Restaurar valores predeterminados"), "Probar un comando" and "Bloqueos recientes". There is no illustration: the
+card sits beside other content.
+
+- `.guard-rules` is one bordered list; each `.guard-rule` holds a `Switch` with the rule's name, its id in mono on the right,
+  and a one-line description under it.
+- **The locked rule** (`.guard-rule.is-locked`, `integrity`): a lock icon, the name and a neutral `Tag` "Siempre activa"
+  instead of a `Switch`. It is a word, so a screen reader announces it without a control.
+- "Probar un comando" is a `Select` (Bash, Write, Edit), a mono input at 16 px on a phone and the primary "Probar". Its
+  `.guard-result` is an `aria-live="polite"` region: ok `Tag` "Pasa", or warn `Tag` "Se bloquearía" with the rule in mono and
+  the reason.
+- `.guard-event` rows (time in mono and tabular, rule, outcome `Tag`, excerpt, link to the chat) wrap on a phone and never
+  scroll sideways. A block is warn; `missing`, `unarmed` and `error` are bad; `observed` and `allowed-once` are neutral.
+- Nothing moves: a block is not a live state.
+
 ### Terminal: the person's own shell
 
 The terminal ([plans/terminal.md](plans/terminal.md), §4) is the person's own shell, not an agent working. The
@@ -1812,6 +1901,26 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
 - **Copy.** "Terminal" is feminine in Spanish ("la terminal"); buttons in the infinitive ("Nueva terminal",
   "Cerrar terminal"); sentence case.
 
+### Guards: the row, the rules sheet, the header tag and the "N blocked" chip
+
+Built for [guards](plans/guards.md). A block is not a live state, so nothing here moves; warn and
+bad always sit beside a word and the shield icon.
+
+- **`.guard-row`** is a graph's or a flow stage's row: a `Switch` with a visible label, a "Rules"
+  button, a `.field-hint` and, when the guard or a rule that is on in Settings is off for this
+  graph, a `.alert.alert-warn` line ("Workers will run without …", the rule ids in mono). It edits an
+  override of the global settings, so what is left alone follows Settings.
+- **`.guard-rules`** is the rules `Sheet` (a bottom sheet on a phone): one **`.guard-rule`** per
+  rule with a `Switch`, the name, a one-line description and the id in mono. The **locked rule**
+  (`.guard-rule.is-locked`, `integrity`) has a lock icon and the word "Always on"
+  (**`.guard-always`**) instead of a Switch.
+- **`.guard-tag`** is the chat header's `.badge`, a button: neutral "Guards" when armed, warn
+  "Observe", bad "Guards not running". A press opens a `Sheet` with **`.guard-rules-list`**.
+- **`.chip.guard`** is the warn chip of a task or a flow run, "N blocked" in tabular figures, a link
+  to the chat at its first guard notice. It shows only when the count is above 0. Warn fill
+  (`--warn-soft`), text in `--fg`, the shield in `--warn`.
+- **`notice.is-guard`** is the transcript strip, warn; `.is-bad` when the guard did not run.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
@@ -1837,7 +1946,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Claudio has its own set of 15 SVG illustrations, drawn in the interface's language: hairline
+Claudio has its own set of 16 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
@@ -1853,6 +1962,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `projects` | no projects, a project without worktrees | accent |
 | `board` | a project's board without work items, the task list without items. The five fixed columns and the first card floating into Por hacer with the project's key | accent |
 | `team` | a project whose Team module is on but has no members yet. The flow's three roles in order, the first arriving | accent |
+| `evals` | a project's Team → Evals list without evals. A prompt card (the one gradient element, floating) over three tool-call rows: two ticks and one failed | accent |
 | `no-results` | search or filters without matches, an empty usage range | accent |
 | `not-found` | 404, a chat or orchestration that no longer exists | accent |
 | `install` | Settings → Install, turning push on | accent |

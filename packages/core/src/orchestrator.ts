@@ -19,6 +19,9 @@ import type {
   PermissionMode,
   PlanDraftSummary,
   PlanRequest,
+  ReviewFinding,
+  ReviewGateSpec,
+  ReviewGateState,
   RelaunchOrchestrationRequest,
   ResumeOrchestrationRequest,
   SaveOrchestrationTemplateRequest,
@@ -65,6 +68,8 @@ import type { TaskContext } from './health-service.ts';
 import {
   commitsSince,
   fixerPrompt,
+  reviewFixerPrompt,
+  REVIEW_DEFAULTS,
   installStep,
   errorCount,
   failureSignature,
@@ -81,6 +86,12 @@ import {
   type CommandHandle,
   type InstallStep,
 } from './verification.ts';
+import { awaitReviewRun, estimateRoundUsd, runReviewRound, type ReviewHost, type RoundOutcome } from './review-gate.ts';
+import { collectReviewDiff } from './review-diff.ts';
+import { worseAfterFix } from './review-findings.ts';
+import { REVIEW_TOOLS } from './review-roles.ts';
+import { securityTriggered, type ScanFinding } from './review-scan.ts';
+import { ReviewStore, ReviewStoreError } from './review-store.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
@@ -89,9 +100,18 @@ import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, taskBlock, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
+import { GuardEventStore } from './guards/events.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
+import { parseGuardOverride } from './guards/settings.ts';
+import type { GuardRunKind } from './guards/resolve.ts';
+import { GuardSelfTestPending, GuardUnavailableError } from './guards/preflight.ts';
+import type { GuardLauncher } from './guards/launch.ts';
+import type { ChatGuardPlan } from './live-chat.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
+/** How the hint a person sends a worker begins; the lessons' signals recognise it by this */
+export const ORCHESTRATION_HINT_PREFIX = 'A hint from the person following this orchestration:';
+
 /** The planner's own name, which is how a past planner run is recognised later. */
 export const PLANNER_RUN_NAME = 'orchestration-planner';
 // The objective is read back out of the prompt when recovering a draft, so both halves are built
@@ -99,6 +119,15 @@ export const PLANNER_RUN_NAME = 'orchestration-planner';
 const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
+/** The `orchestrationTaskId` of the review's chats; `chatRole()` links it with role `review` */
+const REVIEW_ROLE_ID = '__review__';
+/** Bounds of a person's reason for accepting the gate (D8): enough to say why, not an essay */
+const ACCEPT_REASON_MIN = 10;
+const ACCEPT_REASON_MAX = 1000;
+/** Paths shown to the `review.depth` decision: the first of a diff says what kind of change it is */
+const REVIEW_DEPTH_PATHS = 60;
+/** The largest delay a timer takes: the review fixer has no clock of its own, as the check fixer has none */
+const NO_CLOCK_MS = 2 ** 31 - 1;
 /** A failure whose signature survives this many fixer attempts is the same error: more attempts will not help */
 const SAME_ERROR_ATTEMPTS = 3;
 /** How every worker's prompt, and each message that sends it back to its chat, ends */
@@ -185,6 +214,10 @@ interface VerificationControl {
   /** Every command running now: the install step alone, or all of a parallel group */
   commands: Set<CommandHandle>;
   fixerRunId: string | null;
+  /** The review gate's chats, which a stop reaches */
+  reviewRunIds: Set<string>;
+  /** Aborted by a stop: the review round stops its runs and ends incomplete */
+  abort: AbortController;
 }
 
 /** Whether a finished graph has a task that did not get done: failed, stopped, or none completed at all. */
@@ -194,6 +227,7 @@ const tasksUndone = (orch: Orchestration): boolean =>
 /** Why the graph fails by its checks, when it was launched with `failGraph` and they failed; null otherwise. */
 function checksFailGraph(orch: Orchestration): string | null {
   if (!orch.verificationSpec?.failGraph || orch.verification?.status !== 'failed') return null;
+  if (orch.verification.gate === 'review') return `The review on the merged branch did not pass: ${orch.verification.report}`;
   return `The checks on the merged branch failed: ${orch.verification.report}`;
 }
 
@@ -444,6 +478,9 @@ export class Orchestrator {
   private limitsTimer: NodeJS.Timeout | null = null;
   /** Graphs whose checks are running: what a stop has to reach, and what other decisions wait for */
   private readonly verifying = new Map<string, VerificationControl>();
+  private reviews: ReviewStore | null = null;
+  /** Names this process on the rounds it claims, so a restart frees only its own */
+  private readonly processId = randomUUID();
   /** Graphs saved to be launched again on another objective */
   readonly templates: OrchestrationTemplates;
   /** The decision engine the points of docs/plans/decision-engine.md ask; set by Core. Absent, every point is off */
@@ -467,6 +504,9 @@ export class Orchestrator {
    */
   spendOpen: ((orchestrationId: string) => boolean) | null = null;
 
+  /** Guards the runs that can run commands or write files (docs/plans/guards.md). Set by Core; none leaves every run unguarded. */
+  guards: GuardLauncher | null = null;
+
   constructor(
     private readonly config: CoreConfig,
     private readonly runs: ChatManager,
@@ -475,6 +515,11 @@ export class Orchestrator {
     this.file = join(config.dataDir, 'orchestrations.json');
     this.templates = new OrchestrationTemplates(join(config.dataDir, 'orchestration-templates.json'), (spec) => validateTasks(spec.tasks ?? []));
     this.load();
+    try {
+      this.reviewStore().interruptRunning(now());
+    } catch {
+      // a database without the review tables is an older one; nothing was running
+    }
     this.tracker.baseline(this.list());
     this.runs.on('chat-result', (runId: string, result: RunResult) => this.follow(runId, result));
     this.limitsTimer = setInterval(() => this.enforceLimits(), LIMITS_CHECK_MS);
@@ -510,6 +555,18 @@ export class Orchestrator {
         // The restart is the latest it can have stopped at; without an end the timings would count it up for ever
         if (o.verification.startedAt && !o.verification.endedAt) o.verification.endedAt = now();
         for (const f of o.verification.fixes ?? []) f.endedAt ??= now();
+      }
+      const gate = o.verification?.review;
+      if (o.verification && gate && (gate.status === 'running' || gate.status === 'pending')) {
+        const running = gate.status === 'running';
+        o.verification.status = 'failed';
+        o.verification.gate = running ? 'review' : 'checks';
+        gate.status = running ? 'incomplete' : 'skipped';
+        gate.phase = null;
+        gate.waiting = null;
+        gate.endedAt ??= now();
+        gate.reason = running ? 'Interrupted by a wrapper restart before the review finished; verify again or retry the review' : 'Interrupted by a wrapper restart before the checks finished';
+        if (running) o.verification.report = `The review did not finish: ${gate.reason}.`;
       }
       if (o.integration && ['merging', 'resolving'].includes(o.integration.status)) {
         o.integration.status = 'failed';
@@ -615,8 +672,25 @@ export class Orchestrator {
     }
     // Nothing of this moment to say: the stored graph is already the answer, copies and all
     const pullRequest = this.pullRequests?.newest(orch.id) ?? null;
-    if (!pullRequest && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
-    return { ...orch, ...(pullRequest ? { pullRequest } : {}), tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
+    const blocks = this.guardBlocks(orch.id);
+    if (!pullRequest && !blocks.size && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
+    return {
+      ...orch,
+      ...(pullRequest ? { pullRequest } : {}),
+      tasks: orch.tasks.map((t) => {
+        const guardBlocks = blocks.get(t.id);
+        return now.has(t.id) || guardBlocks ? { ...t, ...now.get(t.id), ...(guardBlocks ? { guardBlocks } : {}) } : t;
+      }),
+    };
+  }
+
+  /** Blocks per task, read from the audit trail; a table that cannot be read says none */
+  private guardBlocks(orchestrationId: string): Map<string, number> {
+    try {
+      return new GuardEventStore(this.db.connection).countByTask(orchestrationId);
+    } catch {
+      return new Map();
+    }
   }
 
   /** The graph and task a chat works for, with the limits that apply to it; null for a chat that is not a running task. */
@@ -713,6 +787,7 @@ export class Orchestrator {
       maxAttempts: attemptsOf(spec.maxAttempts),
       allowedTools: (spec.allowedTools ?? []).map(String).filter(Boolean),
       permissionPrompts: spec.permissionPrompts === 'host' ? 'host' : 'none',
+      ...(spec.guards !== undefined ? { guards: parseGuardOverride(spec.guards) } : {}),
       createdAt: now(),
       endedAt: null,
       finalResult: null,
@@ -1165,6 +1240,24 @@ export class Orchestrator {
     return prepared;
   }
 
+  /**
+   * The guard plan of one of the graph's runs, or null when its kind is not guarded (the resolution
+   * table, `resolveGuards`). A guard that cannot run throws `GuardUnavailableError`, so the caller
+   * fails before the CLI spawns.
+   */
+  private guardPlan(orch: Orchestration, kind: GuardRunKind, cwd: string, worktree?: string | null, policy?: ToolPolicy): ChatGuardPlan | null {
+    return (
+      this.guards?.prepareNow({
+        kind,
+        cwd,
+        worktree: worktree ?? null,
+        mainCheckout: orch.cwd,
+        graph: orch.guards,
+        ...(policy ? { policy: { commands: policy.commands.allow !== 'none', edits: policy.edit.allow !== 'none' } } : {}),
+      }) ?? null
+    );
+  }
+
   /** The task's, then the graph's, then the recommendation for the model it runs on. */
   private workerEffort(orch: Orchestration, task: OrchestrationTaskState): Effort | undefined {
     return resolveEffort('worker', task.model ?? orch.model, task.effort, orch.effort);
@@ -1178,10 +1271,14 @@ export class Orchestrator {
       const limits = effectiveLimits(orch.limits, task.limits);
       const name = worktreeName(orch, task);
       const prepared = isolated ? this.prepareWorktree(orch, task, name) : null;
+      const cwd = prepared?.cwd ?? task.cwd ?? orch.cwd;
+      // With `adopt` the CLI moves into the worktree itself, so the root is the worktree, not the cwd it is started in
+      const guards = this.guardPlan(orch, 'worker', cwd, prepared ? task.worktree : null);
       const run = this.runs.start(
         {
           prompt: this.buildPrompt(orch, task, prepared?.pendingMerge ?? null),
-          cwd: prepared?.cwd ?? task.cwd ?? orch.cwd,
+          cwd,
+          ...(guards ? { guards } : {}),
           // The CLI adopts the worktree prepared above, locks it and works in it
           ...(prepared?.adopt ? { worktree: name } : {}),
           provider: 'claude-code',
@@ -1224,7 +1321,9 @@ export class Orchestrator {
   private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string, nudge: string | null = null): boolean {
     const key = `${orch.id}:${task.id}`;
     try {
-      if (orch.worktree && !task.cwd) this.prepareWorktree(orch, task, worktreeName(orch, task));
+      const prepared = orch.worktree && !task.cwd ? this.prepareWorktree(orch, task, worktreeName(orch, task)) : null;
+      // Planned before anything changes: a guard that cannot run fails the task without a process
+      const guards = this.guardPlan(orch, 'worker', this.runs.get(chatId)?.cwd ?? prepared?.cwd ?? task.cwd ?? orch.cwd, prepared ? task.worktree : null);
       const prompt = nudge ?? this.continuation(orch, task);
       const limits = effectiveLimits(orch.limits, task.limits);
       // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
@@ -1244,7 +1343,7 @@ export class Orchestrator {
         this.relaunching.delete(key);
         if (task.status !== 'running') return; // stopped meanwhile
         try {
-          this.runs.resume(chatId, { prompt, purpose: 'orchestration', ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
+          this.runs.resume(chatId, { prompt, purpose: 'orchestration', guards, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
           // The chat has answered before: only a result after this call is this attempt's
           void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
           task.error = null;
@@ -1269,12 +1368,13 @@ export class Orchestrator {
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('Concurrent run limit')) {
+    if (message.includes('Concurrent run limit') || err instanceof GuardSelfTestPending) {
       setTimeout(() => this.schedule(orch), 3000).unref();
       return false;
     }
     task.status = 'failed';
-    task.error = `could not ${doing}: ${message}`;
+    // The code leads, so the failure reads as the guard's and not as the task's
+    task.error = err instanceof GuardUnavailableError ? `guard-unavailable (${err.code}): could not ${doing}: ${message}` : `could not ${doing}: ${message}`;
     task.endedAt = now();
     setTimeout(() => this.schedule(orch), 0).unref();
     return false;
@@ -1686,6 +1786,8 @@ ${quoted}
   /** Runs an agent in the integration worktree to merge the branches git could not. */
   private async resolveConflicts(orch: Orchestration, state: OrchestrationIntegration, tasks: OrchestrationTaskState[]): Promise<void> {
     state.status = 'resolving';
+    const integrationDir = state.worktree ?? orch.cwd;
+    const guards = this.guardPlan(orch, 'integration', integrationDir, state.worktree);
     const run = this.runs.start(
       {
         prompt:
@@ -1702,7 +1804,8 @@ ${quoted}
           `${REAL_VERIFICATION}\n\n${UNATTENDED}\n\n${PASTED_NOTE}\n\n` +
           'What each task did:\n' +
           tasks.map((t) => taskBlock(t, (t.result ?? '').slice(0, MAX_DEP_CONTEXT))).join('\n'),
-        cwd: state.worktree ?? orch.cwd,
+        cwd: integrationDir,
+        ...(guards ? { guards } : {}),
         model: orch.model ?? undefined,
         ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
         permissionMode: orch.permissionMode,
@@ -1752,6 +1855,8 @@ ${quoted}
     orch.synthesisStartedAt = now();
     orch.synthesisEndedAt = null;
     try {
+      const synthesisDir = onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd;
+      const guards = this.guardPlan(orch, 'synthesis', synthesisDir, onBranch ? synthesisDir : null);
       const run = this.runs.start(
         {
           prompt:
@@ -1773,7 +1878,8 @@ ${quoted}
             orch.tasks
               .map((t) => taskBlock(t, (t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT), t.status))
               .join('\n'),
-          cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
+          cwd: synthesisDir,
+          ...(guards ? { guards } : {}),
           model: orch.model ?? undefined,
           ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
           permissionMode: orch.permissionMode,
@@ -1832,6 +1938,9 @@ ${quoted}
     control.cancelled = true;
     for (const handle of control.commands) handle.cancel();
     if (control.fixerRunId && this.runs.get(control.fixerRunId)) this.runs.stop(control.fixerRunId);
+    // The round stops its own runs when aborted; the ones already started are stopped here too
+    control.abort.abort();
+    for (const runId of control.reviewRunIds) if (this.runs.get(runId)) this.runs.stop(runId);
   }
 
   /**
@@ -1889,14 +1998,22 @@ ${quoted}
       this.persist();
       return;
     }
-    // What passed on this very head does not need to run again
-    if (before && (before.status === 'passed' || before.status === 'fixed') && before.commit === integration.commit) return;
+    // What passed on this very head does not need to run again; with the gate on, the review must have too
+    if (
+      before &&
+      (before.status === 'passed' || before.status === 'fixed') &&
+      before.commit === integration.commit &&
+      (!spec.review || ((before.review?.status === 'passed' || before.review?.status === 'accepted') && before.review.head === integration.commit))
+    ) {
+      return;
+    }
 
     const root = integration.worktree;
-    const control: VerificationControl = { cancelled: false, commands: new Set(), fixerRunId: null };
+    const control: VerificationControl = { cancelled: false, commands: new Set(), fixerRunId: null, reviewRunIds: new Set(), abort: new AbortController() };
     this.verifying.set(orch.id, control);
     const startHead = headCommit(root);
-    const install = installStep(spec, root, this.integratedDir(orch, root));
+    // A repository reviewed with no checks has nothing to install for
+    const install = spec.commands.length === 0 ? null : installStep(spec, root, this.integratedDir(orch, root));
     const state: VerificationState = (orch.verification = {
       status: 'running',
       startedAt: now(),
@@ -1908,13 +2025,34 @@ ${quoted}
       commit: startHead,
       report: '',
       costUsd: 0,
+      ...(spec.review ? { review: this.reviewState(spec.review) } : {}),
     });
     this.persist();
     try {
       await this.checkAll(orch, spec, state, root, startHead, install, control);
+      if (spec.review && state.review) {
+        if (state.status === 'passed' || state.status === 'fixed') {
+          if (control.cancelled) {
+            state.status = 'failed';
+            state.gate = 'review';
+            state.review = this.reviewState(spec.review, { status: 'incomplete', reason: 'stopped', endedAt: now() });
+          } else await this.reviewLoop(orch, spec, state, root, startHead, install, control, { status: state.status, report: state.report });
+        } else {
+          state.gate = 'checks';
+          state.review = this.reviewState(spec.review, { status: 'skipped', reason: 'the checks failed, so the review did not run' });
+        }
+      }
     } catch (err) {
+      const rs = state.review;
+      const reviewing = rs?.status === 'running';
       state.status = 'failed';
-      state.report = `The checks could not run: ${(err as Error).message}`;
+      state.report = `${reviewing ? 'The review' : 'The checks'} could not run: ${(err as Error).message}`;
+      if (rs) {
+        state.gate = reviewing ? 'review' : 'checks';
+        rs.status = reviewing ? 'incomplete' : 'skipped';
+        rs.phase = null;
+        rs.reason = state.report;
+      }
     } finally {
       this.verifying.delete(orch.id);
     }
@@ -1958,7 +2096,8 @@ ${quoted}
 
     let s = 0;
     // Goes up each time a fix sends every check back to pending, so each run says which pass it was
-    let pass = 1;
+    // A run after a review fix continues the numbering, so the history says which pass each run was
+    let pass = Math.max(0, ...state.commands.flatMap((c) => (c.runs ?? []).map((r) => r.pass))) + 1;
     while (s < steps.length) {
       const step = steps[s] as number[];
       for (const i of step) (state.commands[i] as VerificationCommand).status = 'running';
@@ -2116,6 +2255,7 @@ ${quoted}
       pass += 1;
     }
 
+    if (state.commands.length === 0) return conclude('passed', 'No checks are set; the review gate decides.');
     if (mended.size === 0) return conclude('passed', `All ${String(state.commands.length)} checks passed on the merged branch.`);
     const made = state.commits.length;
     conclude(
@@ -2197,6 +2337,7 @@ ${quoted}
     const record: VerificationFix = { runId: null, command: checks.map((c) => c.command).join('; '), attempt: state.attempts, startedAt: now(), endedAt: null, costUsd: 0 };
     (state.fixes ??= []).push(record);
     try {
+      const guards = this.guardPlan(orch, 'verification-fixer', dir, dir);
       const run = this.runs.start(
         {
           prompt: fixerPrompt({
@@ -2215,6 +2356,7 @@ ${quoted}
             timeoutMinutes: spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES,
           }),
           cwd: dir,
+          ...(guards ? { guards } : {}),
           model: spec.model ?? orch.model ?? undefined,
           ...effortOption(resolveEffort('fixer', spec.model ?? orch.model, spec.effort)),
           permissionMode: orch.permissionMode,
@@ -2267,6 +2409,480 @@ ${quoted}
     return { note: tail(note, 1500), budget, stop };
   }
 
+
+  // ---------- review gate ----------
+
+  private reviewStore(): ReviewStore {
+    return (this.reviews ??= new ReviewStore(this.db.connection));
+  }
+
+  /** The directory the review runs read: what the workers worked in, inside the integration worktree */
+  private reviewHost(orch: Orchestration, control: VerificationControl): ReviewHost {
+    return {
+      start: (req) => {
+        const run = this.runs.start(
+          {
+            prompt: req.prompt,
+            cwd: req.cwd,
+            model: req.model,
+            ...effortOption(resolveEffort('reviewer', req.model, null)),
+            provider: 'claude-code',
+            // Never the graph's mode: `--restricted` refuses bypassPermissions
+            permissionMode: 'dontAsk',
+            permissionPrompts: 'none',
+            confine: { tools: [...REVIEW_TOOLS], settingSources: [] },
+            mcp: { servers: [] },
+            // The reviewer holds no credential to call Claudio back with
+            api: false,
+            ...(req.agent ? { agent: req.agent } : {}),
+            ...(req.agentsFile ? { agentsFile: req.agentsFile } : {}),
+            ...(req.appendSystemPrompt ? { appendSystemPrompt: req.appendSystemPrompt } : {}),
+            jsonSchema: req.jsonSchema,
+            maxBudgetUsd: req.maxBudgetUsd,
+            maxTurns: req.maxTurns,
+            keepAlive: false,
+            systemPromptSnapshot: 'off',
+            purpose: 'orchestration',
+            name: `${orch.name}:${req.name}`.slice(0, 60),
+          },
+          { orchestrationId: orch.id, orchestrationTaskId: REVIEW_ROLE_ID },
+        );
+        control.reviewRunIds.add(run.id);
+        return run.id;
+      },
+      waitForResult: (id) => this.runs.waitForResult(id),
+      nextResult: (id) => this.runs.nextResult(id),
+      stop: (id) => {
+        if (this.runs.get(id)) this.runs.stop(id);
+      },
+      limitHeld: (id) => this.limitHeld?.(id) ?? false,
+      waitOf: (id) => this.waitOf?.(id) ?? null,
+    };
+  }
+
+  /** The depth of a review the graph did not fix: `review.depth` decides, and off or shadow means full */
+  private async reviewDepth(orch: Orchestration, spec: ReviewGateSpec, root: string, base: string, head: string): Promise<'light' | 'full'> {
+    if (spec.depth) return spec.depth;
+    const projectId = this.projectIdOf(orch.cwd);
+    const stance = stanceOf(this.decisions, 'review.depth', projectId);
+    if (stance === 'off') return 'full';
+    let data: Record<string, unknown>;
+    try {
+      const diff = collectReviewDiff<ScanFinding>({ worktree: root, base, head, ...(spec.exclude ? { exclude: spec.exclude } : {}), depth: 'full' });
+      const scan = diff.files.filter((f) => f.class !== 'excluded').map((f) => ({ path: f.path, added: f.added }));
+      data = {
+        files: diff.stats.files,
+        added: diff.stats.additions,
+        deleted: diff.stats.deletions,
+        paths: diff.files.slice(0, REVIEW_DEPTH_PATHS).map((f) => f.path),
+        securityHit: securityTriggered(scan),
+        dimensions: ['correctness', 'tests', 'security', 'conventions'].filter((d) => d !== 'security' || spec.dimensions?.security !== 'off'),
+        estimateUsd: Math.round(estimateRoundUsd(diff.chunks, 3) * 100) / 100,
+      };
+    } catch {
+      return 'full';
+    }
+    const asked = this.ask('review.depth', { kind: 'task', id: `${orch.id}:__review__`, data }, projectId);
+    if (stance === 'watch') {
+      this.track(asked);
+      return 'full';
+    }
+    const answer = (await asked)?.answers?.depth;
+    return answer?.kind === 'choice' && answer.value === 'light' ? 'light' : 'full';
+  }
+
+  private reviewState(spec: ReviewGateSpec, patch: Partial<ReviewGateState> = {}): ReviewGateState {
+    return {
+      status: 'pending',
+      phase: null,
+      round: 0,
+      maxFixRounds: spec.maxFixRounds ?? REVIEW_DEFAULTS.maxFixRounds,
+      head: null,
+      startedAt: null,
+      endedAt: null,
+      costUsd: 0,
+      reason: null,
+      counts: { blocking: 0, advisory: 0, refuted: 0, outside: 0 },
+      runs: { total: 0, done: 0, running: 0, failed: 0 },
+      depth: spec.depth ?? 'full',
+      ...patch,
+    };
+  }
+
+  /**
+   * The review gate's rounds after the checks passed: review, and when it blocks, fix, run every check
+   * again from the first, and review the whole branch again. The verification stays `running` while
+   * this works; it ends `passed`/`fixed` only when the review passed, and `failed` with `gate:
+   * 'review'` otherwise (D6).
+   */
+  private async reviewLoop(
+    orch: Orchestration,
+    spec: VerificationSpec,
+    state: VerificationState,
+    root: string,
+    startHead: string,
+    install: InstallStep | null,
+    control: VerificationControl,
+    checks: { status: 'passed' | 'fixed'; report: string },
+  ): Promise<void> {
+    const review = spec.review as ReviewGateSpec;
+    const integration = orch.integration as OrchestrationIntegration;
+    const store = this.reviewStore();
+    const dir = this.integratedDir(orch, root);
+    const maxFix = review.maxFixRounds ?? REVIEW_DEFAULTS.maxFixRounds;
+    const budget = review.maxCostUsd ?? REVIEW_DEFAULTS.maxCostUsd;
+    const rs = (state.review = this.reviewState(review, { status: 'running', phase: 'preparing', startedAt: now() }));
+    state.status = 'running';
+    delete state.gate;
+    this.persist();
+    const finish = (status: 'passed' | 'blocked' | 'incomplete', reason: string) => {
+      rs.status = status;
+      rs.phase = null;
+      rs.waiting = null;
+      rs.reason = reason;
+      rs.endedAt = now();
+      if (status === 'passed') {
+        state.status = checks.status;
+        state.report = `${checks.report} Review passed: ${reason}`;
+      } else {
+        state.status = 'failed';
+        state.gate = 'review';
+        state.report = `The review ${status === 'blocked' ? 'blocked the branch' : 'did not finish'}: ${reason}`;
+      }
+      this.persist();
+    };
+    let pass = 1;
+    try {
+      pass = Math.max(0, ...store.rounds(orch.id).map((r) => r.pass)) + 1;
+    } catch {
+      // the first pass
+    }
+    let base = orch.baseCommit;
+    if (!base) {
+      try {
+        base = orch.baseCommit = this.forkPoint(orch);
+      } catch {
+        return finish('incomplete', 'no base commit');
+      }
+    }
+    let carry: ReviewFinding[] = [];
+    let fixerNote: string | null = null;
+    let previousBlocking: ReviewFinding[] | null = null;
+    let changedByFixer = new Set<string>();
+    let depth: 'light' | 'full' = review.depth ?? 'full';
+    for (let round = 1; round <= maxFix + 1; round += 1) {
+      if (control.cancelled) return finish('incomplete', 'stopped');
+      let head: string;
+      try {
+        head = headCommit(root);
+      } catch {
+        return finish('incomplete', 'the integration worktree is gone');
+      }
+      integration.commit = head;
+      state.commit = head;
+      if (round === 1) depth = await this.reviewDepth(orch, review, root, base, head);
+      rs.depth = depth;
+      rs.round = round;
+      rs.head = head;
+      rs.phase = 'preparing';
+      const roundId = randomUUID();
+      try {
+        store.claimRound({ id: roundId, orchestrationId: orch.id, round, pass, base, head, depth, claimedBy: this.processId, startedAt: now() });
+      } catch (err) {
+        return finish('incomplete', (err as Error).message);
+      }
+      const costBefore = rs.costUsd;
+      const outcome = await runReviewRound({
+        roundId,
+        round,
+        dir,
+        worktree: root,
+        base,
+        head,
+        projectHome: checkoutOf(orch.cwd).home,
+        dataDir: this.config.dataDir,
+        spec: review,
+        depth,
+        objective: orch.objective ?? orch.name,
+        tasks: orch.tasks.filter((t) => t.status === 'completed').map((t) => ({ name: t.name, result: t.result ?? '' })),
+        host: this.reviewHost(orch, control),
+        store,
+        signal: control.abort.signal,
+        budgetUsd: budget - rs.costUsd,
+        carry,
+        fixerNote,
+        onProgress: (p) => {
+          if (p.phase) rs.phase = p.phase;
+          if (p.costUsd !== undefined) rs.costUsd = costBefore + p.costUsd;
+          if (p.waiting !== undefined) rs.waiting = p.waiting;
+          if (p.runs) rs.runs = p.runs;
+          this.persist();
+        },
+      }).catch((err: unknown): RoundOutcome => ({
+        status: 'incomplete',
+        reason: `The review could not run: ${(err as Error).message}`,
+        findings: [],
+        blocking: [],
+        resolved: [],
+        costUsd: 0,
+        estimateUsd: null,
+        files: 0,
+        added: 0,
+        deleted: 0,
+        chunks: 0,
+        skippedFiles: [],
+        incompleteReasons: [],
+        runs: rs.runs,
+      }));
+      rs.costUsd = costBefore + outcome.costUsd;
+      orch.costUsd += outcome.costUsd;
+      rs.runs = outcome.runs;
+      if (outcome.resolved.length) store.resolveFindings(outcome.resolved, round);
+      try {
+        store.endRound(roundId, {
+          state: outcome.status,
+          reason: outcome.reason,
+          files: outcome.files,
+          added: outcome.added,
+          deleted: outcome.deleted,
+          chunks: outcome.chunks,
+          skippedFiles: outcome.skippedFiles,
+          estimateUsd: outcome.estimateUsd,
+          costUsd: outcome.costUsd,
+          endedAt: now(),
+        });
+      } catch {
+        // the row is gone with its graph
+      }
+      rs.counts = {
+        blocking: outcome.blocking.length,
+        advisory: outcome.findings.filter((f) => !f.blocking && f.verdict !== 'refuted' && f.anchor !== 'outside').length,
+        refuted: outcome.findings.filter((f) => f.verdict === 'refuted').length,
+        outside: outcome.findings.filter((f) => f.anchor === 'outside').length,
+      };
+      this.persist();
+      if (control.cancelled) return finish('incomplete', 'stopped');
+      if (outcome.status === 'passed') return finish('passed', outcome.reason);
+      if (outcome.status === 'incomplete' && outcome.blocking.length === 0) return finish('incomplete', outcome.reason);
+      // Blocked, or incomplete with blocking findings: the fixer takes the blocking ones
+      if (previousBlocking && worseAfterFix(previousBlocking, outcome.blocking, changedByFixer)) {
+        return finish('blocked', "the review fixer's change added blocking findings");
+      }
+      const left = budget - rs.costUsd;
+      if (review.fixer === false) return finish('blocked', `${outcome.reason} The fixer is off.`);
+      if (round > maxFix) return finish('blocked', `blocking findings remain after ${String(maxFix)} fix round${maxFix === 1 ? '' : 's'}`);
+      if (left <= 0) return finish('blocked', `${outcome.reason} The review's cost limit of ${usd(budget)} is spent.`);
+      // ---- fixing ----
+      rs.phase = 'fixing';
+      this.persist();
+      const headBefore = head;
+      const fixed = await this.reviewFix(orch, review, state, root, dir, outcome.blocking, round, maxFix, left, control);
+      orch.costUsd += fixed.costUsd;
+      rs.costUsd += fixed.costUsd;
+      fixerNote = fixed.note;
+      if (control.cancelled) return finish('incomplete', 'stopped');
+      if (fixed.budget) return finish('blocked', `${outcome.reason} The fixer's cost limit ran out.`);
+      state.commits = commitsSince(root, startHead);
+      let headAfter = headBefore;
+      try {
+        headAfter = headCommit(root);
+        changedByFixer = new Set(
+          git(root, ['diff', '--name-only', '-z', headBefore, headAfter])
+            .split('\0')
+            .filter(Boolean),
+        );
+      } catch {
+        changedByFixer = new Set();
+      }
+      previousBlocking = outcome.blocking;
+      carry = outcome.blocking;
+      // ---- rechecking: every check again from the first (a fix for one can break another) ----
+      rs.phase = 'rechecking';
+      for (const c of state.commands) c.status = 'pending';
+      state.status = 'running';
+      this.persist();
+      await this.checkAll(orch, spec, state, root, startHead, install, control);
+      if (control.cancelled) return finish('incomplete', 'stopped');
+      if ((state.status as VerificationState['status']) === 'failed') {
+        rs.status = 'skipped';
+        rs.phase = null;
+        rs.endedAt = now();
+        rs.reason = 'the checks failed after a review fix';
+        state.gate = 'checks';
+        this.persist();
+        return;
+      }
+      checks = { status: state.status as 'passed' | 'fixed', report: state.report };
+    }
+  }
+
+  /** One attempt of the fixer at the blocking findings of a round; it commits what it leaves behind. */
+  private async reviewFix(
+    orch: Orchestration,
+    spec: ReviewGateSpec,
+    state: VerificationState,
+    root: string,
+    dir: string,
+    findings: readonly ReviewFinding[],
+    round: number,
+    maxFix: number,
+    budgetUsd: number,
+    control: VerificationControl,
+  ): Promise<{ note: string; budget: boolean; costUsd: number }> {
+    const verification = orch.verificationSpec as VerificationSpec;
+    const record: VerificationFix = { runId: null, command: `review round ${String(round)}`, attempt: (state.fixes?.length ?? 0) + 1, startedAt: now(), endedAt: null, costUsd: 0 };
+    (state.fixes ??= []).push(record);
+    let note: string;
+    let budget = false;
+    let costUsd = 0;
+    try {
+      const run = this.runs.start(
+        {
+          prompt: reviewFixerPrompt({
+            objective: orch.objective ?? orch.name,
+            branch: orch.integration?.branch ?? '',
+            worktree: root,
+            commands: commandsInOrder(state.commands),
+            findings,
+            round,
+            maxFixRounds: maxFix,
+            tasks: orch.tasks.filter((t) => t.status === 'completed').map((t) => ({ id: t.id, name: t.name, result: (t.result ?? '').slice(0, MAX_DEP_CONTEXT) })),
+          }),
+          cwd: dir,
+          model: spec.models?.fixer ?? verification.model ?? orch.model ?? undefined,
+          ...effortOption(resolveEffort('fixer', spec.models?.fixer ?? verification.model ?? orch.model, verification.effort)),
+          permissionMode: orch.permissionMode,
+          provider: 'claude-code',
+          allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+          disallowedTools: [...PUSH_DENIED],
+          ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
+          name: `${orch.name}:review-fix`.slice(0, 60),
+          purpose: 'fixer',
+          keepAlive: false,
+          maxBudgetUsd: budgetUsd,
+        },
+        { orchestrationId: orch.id, orchestrationTaskId: REVIEW_ROLE_ID },
+      );
+      control.fixerRunId = run.id;
+      record.runId = run.id;
+      record.effort = usedEffort(run);
+      this.persist();
+      // A held usage limit is waited on, unlike `fix()`, through the same wait the reviewers use
+      const waited = await awaitReviewRun(this.reviewHost(orch, control), run.id, NO_CLOCK_MS, control.abort.signal);
+      if ('result' in waited) {
+        const result = waited.result;
+        costUsd = result.costUsd;
+        record.costUsd = result.costUsd;
+        budget = result.cause === 'budget';
+        note = budget ? 'its cost limit ran out before it finished' : result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
+      } else note = 'the fixer was stopped';
+    } catch (err) {
+      note = `the fixer could not run: ${(err as Error).message}`;
+    }
+    record.endedAt = now();
+    control.fixerRunId = null;
+    try {
+      commitAll(root, `chore: keep what the review fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), review round ${String(round)}.`);
+    } catch {
+      // the re-run of the checks says whether it matters
+    }
+    return { note: tail(note, 1500), budget, costUsd };
+  }
+
+  /**
+   * Runs the review again on a branch whose checks passed: a new round, no checks. Allowed only when
+   * the checks passed on the current head and nothing is running.
+   */
+  retryReview(id: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new ReviewStoreError('orchestration not found', 404, 'review-not-found');
+    const spec = orch.verificationSpec;
+    const v = orch.verification;
+    if (!spec?.review) throw new ReviewStoreError('this graph has no review gate', 409, 'review-not-acceptable');
+    if (this.verifying.has(orch.id) || v?.review?.status === 'running') throw new ReviewStoreError('The review is already running for this orchestration', 409, 'review-running');
+    const integration = orch.integration;
+    if (!v || !integration || integration.status !== 'merged' || !integration.worktree || !existsSync(integration.worktree)) {
+      throw new ReviewStoreError('the checks have not passed on the integration branch', 409, 'checks-not-passed');
+    }
+    const checksPassed = v.gate !== 'checks' && v.commands.every((c) => c.status === 'passed' || c.status === 'fixed') && v.status !== 'running' && v.status !== 'pending';
+    if (!checksPassed) throw new ReviewStoreError('the checks have not passed on the integration branch', 409, 'checks-not-passed');
+    if (v.commit !== integration.commit) throw new ReviewStoreError('the integration branch moved since the checks passed: verify again', 409, 'head-moved');
+    void this.reviewOnly(orch, spec, v, integration.worktree);
+    return orch;
+  }
+
+  private async reviewOnly(orch: Orchestration, spec: VerificationSpec, state: VerificationState, root: string): Promise<void> {
+    const control: VerificationControl = { cancelled: false, commands: new Set(), fixerRunId: null, reviewRunIds: new Set(), abort: new AbortController() };
+    this.verifying.set(orch.id, control);
+    try {
+      const startHead = state.commits[0] ? `${state.commits[0].hash}^` : headCommit(root);
+      const install = installStep(spec, root, this.integratedDir(orch, root));
+      await this.reviewLoop(orch, spec, state, root, startHead, install, control, {
+        status: state.fixes?.some((f) => f.command !== undefined && !f.command.startsWith('review round')) ? 'fixed' : 'passed',
+        report: `All ${String(state.commands.length)} checks passed on the merged branch.`,
+      });
+    } catch (err) {
+      const rs = state.review;
+      state.status = 'failed';
+      state.gate = 'review';
+      state.report = `The review could not run: ${(err as Error).message}`;
+      if (rs) {
+        rs.status = 'incomplete';
+        rs.phase = null;
+        rs.reason = state.report;
+      }
+    } finally {
+      this.verifying.delete(orch.id);
+    }
+    state.endedAt = now();
+    this.persist();
+    this.settleByChecks(orch);
+  }
+
+  /**
+   * A person accepts a gate that is blocked or incomplete, with a written reason (D8). The acceptance
+   * binds to the head it was given on; an incomplete gate is accepted only after a retry also ended
+   * incomplete (owner decision, 2026-10-15).
+   */
+  acceptReview(id: string, reason: string, actor: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new ReviewStoreError('orchestration not found', 404, 'review-not-found');
+    const text = typeof reason === 'string' ? reason.trim() : '';
+    if (text.length < ACCEPT_REASON_MIN || text.length > ACCEPT_REASON_MAX) {
+      throw new ReviewStoreError(`reason must be ${String(ACCEPT_REASON_MIN)} to ${String(ACCEPT_REASON_MAX)} characters`, 400, 'bad-reason');
+    }
+    const v = orch.verification;
+    const rs = v?.review;
+    const integration = orch.integration;
+    const refuse = (why: string): never => {
+      throw new ReviewStoreError(why, 409, 'review-not-acceptable');
+    };
+    if (!v || !rs || !orch.verificationSpec?.review) return refuse('this graph has no review to accept');
+    if (this.verifying.has(orch.id) || rs.status === 'running') throw new ReviewStoreError('The review is already running for this orchestration', 409, 'review-running');
+    if (rs.status !== 'blocked' && rs.status !== 'incomplete') return refuse(`a review that is ${rs.status} cannot be accepted`);
+    if (v.gate !== 'review' || !v.commands.every((c) => c.status === 'passed' || c.status === 'fixed')) return refuse('the checks did not pass on this head');
+    if (!integration || v.commit !== integration.commit || rs.head !== integration.commit) return refuse('the integration branch moved since the review: it must run again');
+    const store = this.reviewStore();
+    const rounds = store.rounds(orch.id).filter((r) => r.head === integration.commit);
+    const latest = rounds.at(-1);
+    if (!latest) return refuse('there is no review round to accept');
+    if (rs.status === 'incomplete' && rounds.filter((r) => r.state === 'incomplete').length < 2) {
+      return refuse('an incomplete review is accepted only after a retry also ended incomplete');
+    }
+    const at = now();
+    store.accept(latest.id, actor, text, at);
+    const incomplete = latest.state === 'incomplete' ? 1 : 0;
+    rs.status = 'accepted';
+    rs.phase = null;
+    rs.accepted = { by: actor, reason: text, at, head: integration.commit ?? '' };
+    v.status = 'passed';
+    delete v.gate;
+    v.report = `Passed: a person accepted the review (${String(rs.counts.blocking)} blocking, ${String(incomplete)} incomplete): ${text}`;
+    this.persist();
+    this.settleByChecks(orch);
+    return orch;
+  }
+
   /**
    * The fixer's chat for the failing checks of an orchestration's change request: in the integration
    * worktree, with the verification's fixer model, never pushing. It commits what it leaves behind
@@ -2276,10 +2892,13 @@ ${quoted}
     const orch = this.items.get(req.orchestrationId);
     if (!orch) return { ok: false };
     const spec = orch.verificationSpec;
+    // A guard that cannot run fails the fix like any other launch that throws: the caller reports it
+    const guards = this.guardPlan(orch, 'checks-fix', req.cwd, req.cwd);
     const run = this.runs.start(
       {
         prompt: req.prompt,
         cwd: req.cwd,
+        ...(guards ? { guards } : {}),
         model: spec?.model ?? orch.model ?? undefined,
         permissionMode: orch.permissionMode,
         // These rules are Claude Code's, so a default provider set to another one never receives them
@@ -2344,6 +2963,13 @@ ${quoted}
     // A branch being fixed is a moving one, and what is pushed must be what was checked
     if (this.verifying.has(orch.id)) throw new Error('the checks are still running on the integration branch: wait for their outcome before opening a pull request');
     if (checksFailGraph(orch)) throw new Error('the checks failed on the integration branch, and the graph was launched to fail with them: fix the branch and verify again before opening a pull request');
+    // The gate fails closed where work leaves the machine (D7), whatever `failGraph` says
+    if (orch.verificationSpec?.review) {
+      const gate = orch.verification?.review;
+      if (!gate || (gate.status !== 'passed' && gate.status !== 'accepted') || gate.head !== integration.commit) {
+        throw new Error(`the review gate has not passed on this branch (${gate?.status ?? 'not run'}): fix the findings and verify again, or accept the review with a reason, before opening a pull request`);
+      }
+    }
     if (!this.pullRequests) throw new Error('pull requests are not available');
     const opened = await this.pullRequests.open(orch);
     if (opened.url && !integration.pullRequestUrl) {
@@ -2708,7 +3334,7 @@ ${quoted}
     );
     if (!text?.trim()) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
-    this.runs.send(task.runId, `A hint from the person following this orchestration:\n\n${text.trim()}`);
+    this.runs.send(task.runId, `${ORCHESTRATION_HINT_PREFIX}\n\n${text.trim()}`);
     return orch;
   }
 
@@ -2796,10 +3422,13 @@ ${quoted}
           this.followWorkflow(orch, previous.id);
         });
       } else {
+        // No tool policy: the engine's own calls are none, but the subagents it spawns edit and run commands, and F10 shows their calls are hooked
+        const guards = this.guardPlan(orch, 'workflow', orch.cwd);
         const run = this.runs.start(
           {
             prompt,
             cwd: orch.cwd,
+            ...(guards ? { guards } : {}),
             model: orch.model ?? undefined,
             // Its tasks are subagents of this session: the graph's effort is the only one that applies
             ...effortOption(resolveEffort('worker', orch.model, orch.effort)),

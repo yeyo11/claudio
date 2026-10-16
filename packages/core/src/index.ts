@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ClaudioLanguage,
@@ -51,6 +50,9 @@ import type {
   Orchestration,
   OrchestrationSpec,
   OrchestrationTimings,
+  ReviewGateDetail,
+  ReviewRoleInfo,
+  ReviewRound,
   RelaunchOrchestrationRequest,
   WorkflowDefinition,
   WorkItem,
@@ -70,7 +72,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -79,6 +81,10 @@ import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
+import { GuardLauncher } from './guards/launch.ts';
+import type { ChatGuardPlan } from './live-chat.ts';
+import { GuardSettingsStore } from './guards/settings.ts';
+import { GuardEventStore } from './guards/events.ts';
 import { SpendGate } from './spend.ts';
 import { DashboardLayoutStore } from './dashboard-layouts.ts';
 import { stateFromRun } from './chat-model.ts';
@@ -138,7 +144,13 @@ import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
+import { EMPTY_SECTION, type LessonSection } from './lessons/render.ts';
+import { PASTED_NOTE } from './prompt-rules.ts';
+import { LessonService } from './lessons/service.ts';
+import { LessonStore } from './lessons/store.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
+import { ReviewStore } from './review-store.ts';
+import { DEFAULT_ROLE_BODIES, readRole, REVIEW_ROLES, roleFileName, type ReviewRole } from './review-roles.ts';
 import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
@@ -150,8 +162,14 @@ import { AuthStore } from './security/auth.ts';
 import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
-import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
-import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
+import { agentsDefinitionFile } from './agents-file.ts';
+import { EvalConsents, EvalDefinitionStore, EvalFileError, evalTargetPath } from './evals/definition.ts';
+import { EvalJudge } from './evals/judge.ts';
+import { EvalRunner } from './evals/runner.ts';
+import { EvalService } from './evals/service.ts';
+import { EvalStore } from './evals/store.ts';
+import { TeamService } from './team.ts';
+import { FlowError, FlowService, stagePolicy, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
 import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
@@ -168,6 +186,10 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { LessonMiningQueue, storeProposer } from './lessons/queue.ts';
+import { runMiner } from './lessons/miner.ts';
+import { DEFAULT_LESSON_SETTINGS, LessonSettingsStore } from './lessons/settings.ts';
+import { SignalRecorder } from './lessons/signals.ts';
 import { ChecksFix } from './decisions/checks-fix.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
@@ -217,15 +239,38 @@ export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, t
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
+export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
+export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
+export { type GuardFiles, startGuardSweep, sweepGuardFiles, writeGuardFiles } from './guards/files.ts';
+export {
+  GUARD_ENTRY_ENV,
+  GuardPreflight,
+  GuardUnavailableError,
+  type GuardUnavailableCode,
+  type PreflightInput,
+  checkGuardPreflight,
+  runGuardSelfTest,
+} from './guards/preflight.ts';
+export { type GuardRequest, GuardLauncher, guardFailure } from './guards/launch.ts';
+export { GuardEventStore, type GuardEventFilter } from './guards/events.ts';
+export { decide as decideGuard } from './guards/decide.ts';
+export { DEFAULT_LIMITS as GUARD_DEFAULT_LIMITS, type GuardRulesFile } from './guards/input.ts';
+export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { AccountSwitchRefusal, ChatRefusal } from './chats.ts';
+export { ReviewStoreError } from './review-store.ts';
+export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { ProviderRotation, effectiveOnLimit, openWaitOf } from './rotation.ts';
+export { EvalService } from './evals/service.ts';
+export { EvalStartError } from './evals/runner.ts';
+export { EvalFileError } from './evals/definition.ts';
+export { exportRun, type EvalExportFormat } from './evals/export.ts';
 export { stanceOf } from './decisions/stance.ts';
 
 export {
@@ -332,7 +377,9 @@ export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading,
 export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
 export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
 export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
-export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
+export { MemoryProposalService, type LessonApprovals, type ProposalOrigin } from './memory-proposals.ts';
+export { LessonService, type MiningContext, type MiningResult } from './lessons/service.ts';
+export { LessonStore } from './lessons/store.ts';
 export {
   installDirs,
   nvmBinDirs,
@@ -369,6 +416,7 @@ const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ??
 export class Core {
   readonly config: CoreConfig;
   readonly db: Db;
+  private readonly reviewStore: ReviewStore;
   /** Every change worth telling a client about; what `GET /api/events` streams */
   readonly events = new EventBus();
   /**
@@ -418,6 +466,10 @@ export class Core {
   readonly decisionCredentials: DecisionCredentialStore;
   /** The one door every decision point asks through; providers register themselves on it */
   readonly decisions: DecisionEngine;
+  /** The `lesson_signals` rows a transcript cannot tell: a person's deny, a rewind, a rejected proposal */
+  readonly lessonSignals: SignalRecorder;
+  /** Turns a chat's corrections into lesson proposals, one miner run at a time (docs/plans/lessons.md, "Mining") */
+  readonly lessonQueue: LessonMiningQueue;
   private readonly decisionResolvers: DecisionResolvers;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
@@ -447,6 +499,12 @@ export class Core {
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
    */
   readonly appSettings: AppSettingsStore;
+  /** The global guard settings, `guards.json` (docs/plans/guards.md); the same store is `core.guards` */
+  readonly guards: GuardSettingsStore;
+  /** Resolves, checks and writes the guard of every launch path (docs/plans/guards.md) */
+  readonly guardLauncher: GuardLauncher;
+  /** The guards' audit trail, `guard_events` (docs/plans/guards.md) */
+  readonly guardEvents: GuardEventStore;
   /** Each Home's layout, per project and for All projects: `dashboard-layouts.json` */
   readonly dashboardLayouts: DashboardLayoutStore;
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
@@ -454,6 +512,8 @@ export class Core {
   readonly uploads: UploadStore;
   /** What happens when Claude reaches its limit: the account to move to, else the waits and the timers behind them */
   readonly rotation: ProviderRotation;
+  /** The instruction evals: files, runs and their export (docs/plans/instruction-evals.md) */
+  readonly evals: EvalService;
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
@@ -479,6 +539,9 @@ export class Core {
   readonly journal: JournalService;
   /** What the team proposes to remember, written to its target only once a person approves it */
   readonly memoryProposals: MemoryProposalService;
+  readonly lessons: LessonService;
+  /** `lessons.json`: read and changed through here so the queue and the service see the change at once */
+  readonly lessonSettings: { get(): Promise<LessonSettings>; update(patch: unknown): Promise<LessonSettings> };
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
@@ -563,6 +626,7 @@ export class Core {
       youtrackCredentials: () => this.youtrackCredentials.get(),
     });
     this.db = new Db(config);
+    this.reviewStore = new ReviewStore(this.db.connection);
     this.permissions = new PermissionBroker();
     this.credentials = new CredentialStore(config, this.vault);
     this.security = new AuthStore(config);
@@ -577,6 +641,10 @@ export class Core {
         summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
+    this.guards = new GuardSettingsStore(config.dataDir, {
+      onChange: (settings) => this.events.emit({ type: 'guards.changed', title: 'Guard settings changed', settings }),
+    });
+    this.guardEvents = new GuardEventStore(this.db.connection);
     this.appSettings = new AppSettingsStore(config, {
       emit: (event) => {
         // `system()` carries the default permission mode, and a cached copy would show the old one
@@ -649,12 +717,27 @@ export class Core {
         toolName: request.toolName,
         outcome,
       });
+      // S-denied: a deny a person wrote, kept for the lessons' pre-filter when the project allows it
+      if (decision?.behavior === 'deny') {
+        void this.chats
+          .get(request.runId)
+          .then((chat) => this.lessonSignals.denied(request, decision, { chatId: request.runId, projectId: chat?.project?.id ?? null }))
+          .catch(() => undefined);
+      }
     });
     // Hangs off the bus as an observer, so it hears every event without counting as a client
     this.push = new PushService({ config, db: this.db, events: this.events });
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
+    this.guardLauncher = new GuardLauncher({
+      dataDir: config.dataDir,
+      settings: this.guards,
+      capabilities: () => PROVIDER_MANIFESTS.find((m) => m.id === LEGACY_PROVIDER)?.capabilities ?? [],
+    });
+    this.orchestrator.guards = this.guardLauncher;
+    // A broken guard is known before the first launch; the orchestrator's launches cannot wait for the self-test
+    this.guardLauncher.warm();
     this.spend = new SpendGate({
       db: this.db,
       cap: () => this.appSettings.dailySpendCapUsd,
@@ -731,6 +814,7 @@ export class Core {
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
+    this.lessonSignals = new SignalRecorder({ db: this.db, mode: (projectId) => this.decisions.effective('lesson.mine', projectId).mode });
     this.decisionResolvers = new DecisionResolvers({
       sql: this.db.connection,
       db: this.db,
@@ -772,9 +856,11 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
+      guardsForChat: (cwd) => this.guardsForChat(cwd),
       compact: (chat) => this.context.availability(chat),
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
+      rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),
     });
     this.notes = new ChatNotes({
       db: this.db,
@@ -852,6 +938,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
       decisions: this.decisions,
+      lessons: (projectId) => this.lessonSection(projectId, 'handoff'),
       sources: (id) =>
         this.workItems
           .links(id)
@@ -874,6 +961,89 @@ export class Core {
       // Built further down; read when a rule is approved
       resources: () => this.resources,
     });
+    // S-rejected-proposal: a rejection that says why, for the chat the proposal came from
+    this.events.observe((event) => {
+      if (event.type !== 'memory.proposal' || event.action !== 'rejected') return;
+      const proposal = this.memoryProposals.find(event.proposalId);
+      if (!proposal?.rejectReason || !proposal.source?.chatId) return;
+      this.lessonSignals.rejectedProposal({ chatId: proposal.source.chatId, projectId: proposal.projectId }, proposal.rejectReason, `Proposal: ${proposal.text.slice(0, 200)}`);
+      void this.lessonQueue.rejectedProposal(proposal.source.chatId);
+    });
+    // `lessons.json` is read asynchronously; the queue asks synchronously, so it reads a copy at most 10 s old
+    const lessonSettingsFile = new LessonSettingsStore(config);
+    let lessonSettings = DEFAULT_LESSON_SETTINGS;
+    let lessonSettingsAt = 0;
+    const currentLessonSettings = () => {
+      if (Date.now() - lessonSettingsAt > 10_000) {
+        lessonSettingsAt = Date.now();
+        void lessonSettingsFile.get().then((read) => (lessonSettings = read), () => undefined);
+      }
+      return lessonSettings;
+    };
+    this.lessonSettings = {
+      get: () => lessonSettingsFile.get(),
+      update: async (patch) => {
+        const next = await lessonSettingsFile.update(patch);
+        lessonSettings = next;
+        lessonSettingsAt = Date.now();
+        this.lessons.invalidate();
+        return next;
+      },
+    };
+    const lessonStore = new LessonStore({ db: this.db, settings: currentLessonSettings });
+    this.lessonQueue = new LessonMiningQueue({
+      db: this.db,
+      settings: currentLessonSettings,
+      store: lessonStore,
+      proposer: storeProposer(lessonStore),
+      decisions: this.decisions,
+      chat: async (chatId) => {
+        const chat = await this.chats.get(chatId);
+        if (!chat) return null;
+        return {
+          id: chat.id,
+          projectId: chat.project?.id ?? null,
+          origin: chat.origin,
+          internal: chat.origin === 'internal',
+          confined: false,
+          assistant: !!chat.claudioAssistant,
+          live: chat.execution !== null && chat.state !== 'idle',
+          driven: chat.origin === 'orchestration' || this.flow.ownsChat(chat.id),
+        };
+      },
+      memoryOn: (projectId) => {
+        const record = this.projectStore.get(projectId);
+        return !!record && !!this.projectSettingsStore.stored(projectId, record.name)?.modules.includes('memory');
+      },
+      entries: async (chatId) => (await this.sessions.getSession(chatId, { limit: 1000 }))?.entries ?? [],
+      corrections: (chatId) => this.sessions.corrections(chatId),
+      rows: (chatId) => this.lessonSignals.forChat(chatId),
+      instructions: async (projectId) => {
+        const record = this.projectStore.get(projectId);
+        const file = record ? join(record.path, 'CLAUDE.md') : null;
+        return file && existsSync(file) ? await readFile(file, 'utf8') : null;
+      },
+      projectKey: (projectId) => this.projectStore.get(projectId)?.name ?? projectId,
+      mine: (input, opts) => runMiner({ runtime: this.runtime, settings: currentLessonSettings }, input, opts),
+      limitResetsAt: () => this.limitReadings().find((l) => l.resetsAt)?.resetsAt ?? null,
+      emit: (event) => this.events.emit(event),
+    });
+    this.events.observe((event) => this.lessonQueue.observe(event));
+    this.lessonQueue.start();
+    this.lessons = new LessonService({
+      store: lessonStore,
+      proposals: this.memoryProposals,
+      settings: currentLessonSettings,
+      emit: (event) => this.events.emit(event),
+    });
+    this.events.observe((event) => {
+      if (event.type === 'lesson.changed') this.lessons.invalidate();
+    });
+    this.runtime.lessonsFor = (projectId, orchestrated) => {
+      const section = this.lessonSection(projectId, orchestrated ? 'worker' : 'chat');
+      return section.text ? `${section.text}\n${PASTED_NOTE}` : '';
+    };
+    this.lessons.start();
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
@@ -1109,6 +1279,19 @@ export class Core {
       saveResource: async (project, scope, kind, name, content) => {
         await this.resources.save(this.assistantScope(project, scope), kind, name, content);
       },
+      evalFile: async (project, name) => {
+        const file = await this.evals.file(project.id, name).catch((err: unknown) => {
+          if (err instanceof EvalFileError && err.code === 'not-found') return null;
+          throw err;
+        });
+        if (!file) return null;
+        const target = file.definition?.target;
+        const targetPath = target && target.scope === 'project' ? relative(project.path, evalTargetPath(target, project.path, config)).split(sep).join('/') : null;
+        return { file, targetPath };
+      },
+      appendEvalCase: async (project, name, evalCase, ifMatch) => {
+        await this.evals.appendCase(project.id, name, evalCase, ifMatch);
+      },
       emit: (event) => this.events.emit(event),
       decisions: this.decisions,
     });
@@ -1168,6 +1351,7 @@ export class Core {
     });
     void this.runtime.restore(this.sessions).finally(() => {
       this.orchestrator.recover();
+      void this.evals.load().catch(() => undefined);
       try {
         this.flow.recover();
         // The waits this process owns: its chats are back, so their timers can be armed
@@ -1192,8 +1376,48 @@ export class Core {
       const path = change.scope.projectPath;
       for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
     });
+    const evalStore = new EvalStore(this.db.connection);
+    const evalDefinitions = new EvalDefinitionStore();
+    const evalConsents = new EvalConsents(config);
+    const evalProjectPath = (id: string): string | null => this.projectStore.get(id)?.path ?? null;
+    const evalRunner = new EvalRunner({
+      store: evalStore,
+      runtime: this.runtime,
+      config,
+      consents: evalConsents,
+      definitions: evalDefinitions,
+      emit: (event) => this.events.emit(event),
+      projectPath: evalProjectPath,
+      maxConcurrentRuns: () => this.runtime.defaults.maxConcurrentRuns,
+      // No judge while Phase 2 is off, and none past the daily cap: a judged check then ends `unjudged` and spends nothing
+      judgeFor: (maxCostUsd) => (this.appSettings.evalsPhase2 ? new EvalJudge({ runtime: this.runtime, maxCostUsd, spendOpen: () => this.spend.allows('person') }) : null),
+      memberRun: (projectId, agent, stage) => {
+        const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
+        const member = settings?.team?.members.find((m) => m.agent === agent);
+        if (!member) return null;
+        const { permissionMode, policy } = stagePolicy(stage, member.writes, {
+          documentsPath: settings?.documents?.path ?? DEFAULT_DOCUMENTS_PATH,
+          checks: [],
+          commands: member.commands,
+        });
+        return { permissionMode, policy, model: member.model };
+      },
+      // Null when an account can take a sample; else when the earliest of the ones that could resets
+      availability: (_model, account) => {
+        const now = Date.now();
+        const ready = this.accounts.list().filter((a) => a.enabled && a.signedIn && (account === null || a.id === account));
+        const out = (a: (typeof ready)[number]): boolean => a.limits?.state === 'exhausted' && (a.limits.resetsAt === null || Date.parse(a.limits.resetsAt) > now);
+        if (ready.length === 0 || !ready.every(out)) return null;
+        const resets = ready.flatMap((a) => (a.limits?.resetsAt ? [Date.parse(a.limits.resetsAt)] : []));
+        return { waitUntil: resets.length === ready.length ? Math.min(...resets) : null };
+      },
+    });
+    this.evals = new EvalService({ store: evalStore, runner: evalRunner, definitions: evalDefinitions, consents: evalConsents, projectPath: evalProjectPath,
+      teamOn: (id) => this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.modules.includes('team') ?? false,
+    });
     this.rotation = new ProviderRotation({
       db: this.db,
+      evalSample: (chatId) => this.evals.isSample(chatId),
       runtime: this.runtime,
       settings: () => this.providersSettings.get(),
       projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
@@ -1343,6 +1567,29 @@ export class Core {
    * The project a directory belongs to and the worktree it is in, which is what a chat records. The
    * project is null when the directory is under none that was imported: a loose chat.
    */
+  /**
+   * The Lessons section a run is handed, or an empty one when the project does not allow it: the
+   * Memory module off, the switch of that kind of run off, or a chat outside any project when
+   * loose chats do not get global lessons. `handoff` is the journal's, for flow and assistant runs.
+   */
+  private lessonSection(projectId: string | null, kind: 'handoff' | 'chat' | 'worker'): LessonSection {
+    if (projectId === null) return kind === 'handoff' || !this.lessons.delivery().looseChats ? EMPTY_SECTION : this.lessons.section(null);
+    const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
+    if (!settings?.modules.includes('memory')) return EMPTY_SECTION;
+    const { deliverToChats = true, deliverToWorkers = true, useGlobal = true } = settings.lessons ?? {};
+    if ((kind === 'chat' && !deliverToChats) || (kind === 'worker' && !deliverToWorkers)) return EMPTY_SECTION;
+    return this.lessons.section(projectId, { useGlobal });
+  }
+
+  /** A project's lessons (or the global ones with `null`) and what a run is handed now */
+  lessonList(projectId: string | null, status?: LessonStatus): LessonList {
+    const section = projectId === null ? (this.lessons.delivery().looseChats ? this.lessons.section(null) : EMPTY_SECTION) : this.lessonSection(projectId, 'handoff');
+    return {
+      lessons: this.lessons.list(projectId, status),
+      handed: { lessons: section.lessons.length, bytes: section.bytes, budget: this.lessons.delivery().handoffBytes, overBudget: section.overBudget },
+    };
+  }
+
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
     const attached = this.attach(dir);
     const facts = attached ? attached.worktree : this.locator.worktreeOf(dir);
@@ -1472,6 +1719,12 @@ export class Core {
   }
 
   /** The CLI in use against the newest published one, as the last check left it: no network here. */
+  /** Whether guards can run here, for Settings: the pre-launch checks (`guards/preflight.ts`) say why not */
+  async guardStatus(): Promise<GuardStatus> {
+    const version = (await this.system()).cli.version;
+    return { ...(await this.guardLauncher.status()), cliVersion: version ?? null };
+  }
+
   async cliVersionInfo(): Promise<CliVersionInfo> {
     return this.cliVersion.info((await this.system()).cli.version);
   }
@@ -1923,6 +2176,7 @@ export class Core {
   }
 
   private projectUpdated(project: ProjectRecord, changes: ProjectChange[], modules: ProjectModule[]): void {
+    this.lessons.invalidate();
     if (!changes.length) return;
     this.events.emit({ type: 'project.updated', title: `${project.name} updated`, projectId: project.id, projectName: project.name, changes, modules });
   }
@@ -2078,7 +2332,7 @@ export class Core {
       quiet(async () => (await this.resources.list(scope, 'commands')).map((r) => r.name), [] as string[]),
       quiet(() => this.sessions.listSessions(encodeProjectId(project.path)), []),
     ]);
-    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0 });
+    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
     const items = await quiet(() => this.workItems.list({ projectId: project.id }), []);
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
     const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
@@ -2221,6 +2475,16 @@ export class Core {
       // The short "carry on" prompt of a restart keeps to itself: the chat was already told
       if (line && !launch.continuing) prompt = withDocumentsLine(prompt, line);
     }
+    // Guarded or not by the stage's override, the project and the global settings; a guard that cannot run fails the run before a chat exists
+    const guards = await this.guardLauncher.prepare({
+      kind: 'flow',
+      stage: run.stage,
+      cwd: place?.cwd ?? record.path,
+      worktree: place?.cwd ?? null,
+      mainCheckout: record.path,
+      project: await this.projectSettings(item.projectId),
+      policy: { commands: launch.policy.commands.allow !== 'none', edits: launch.policy.edit.allow !== 'none' },
+    });
     const options = {
       model: member.model,
       ...effortOption(effort),
@@ -2232,7 +2496,7 @@ export class Core {
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const };
+    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const, lessons: 'handoff' as const };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
@@ -2244,7 +2508,7 @@ export class Core {
       // Before onStart, so the run never sees the compaction's chat, result or exit. It runs under the
       // run's own policy and budget (so a push stays denied), and never fails the run: one that does
       // not happen leaves the chat as it was
-      await this.context.compactAndWait(launch.resumeChatId, { flowRunId: run.id, options: { ...options, agent: member.agent, agentsFile } });
+      await this.context.compactAndWait(launch.resumeChatId, { flowRunId: run.id, options: { ...options, agent: member.agent, agentsFile, guards } });
     }
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
@@ -2252,7 +2516,7 @@ export class Core {
       // A chat goes on with the last execution's effort unless the run gives one
       onStart(chatId, LEGACY_PROVIDER, this.effortPassed(options.effort) ?? (resumed ? usedEffort(resumed) : null));
       try {
-        await this.chats.resume(chatId, { ...options, prompt }, extras);
+        await this.chats.resume(chatId, { ...options, prompt }, { ...extras, guards });
         link(chatId);
         return;
       } catch (err) {
@@ -2261,10 +2525,23 @@ export class Core {
         // otherwise falls through to a chat of its own
       }
     }
-    await this.chats.create({ ...options, ...extras, provider: LEGACY_PROVIDER, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path }, (started) => {
-      onStart(started.id, LEGACY_PROVIDER, usedEffort(started));
-      link(started.id);
-    });
+    await this.chats.create(
+      { ...options, ...extras, provider: LEGACY_PROVIDER, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path },
+      (started) => {
+        onStart(started.id, LEGACY_PROVIDER, usedEffort(started));
+        link(started.id);
+      },
+      undefined,
+      guards,
+    );
+  }
+
+  /** A person's chat in `cwd`: guarded when its project opted in. Null leaves it as it always ran. */
+  private async guardsForChat(cwd: string): Promise<ChatGuardPlan | null> {
+    const project = this.projectOf(resolve(cwd)).project;
+    if (!project) return null;
+    const settings = await this.projectSettings(project.id);
+    return this.guardLauncher.prepare({ kind: 'chat', cwd: resolve(cwd), mainCheckout: this.projectStore.get(project.id)?.path ?? null, project: settings, interactive: true });
   }
 
   /**
@@ -2284,25 +2561,7 @@ export class Core {
     } catch {
       throw new Error(`the agent file .claude/agents/${agent}.md is missing: write it again from the Team screen`);
     }
-    const fields = readFrontmatter(content);
-    const prompt = content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
-    const tools = readFrontmatterList(content, 'tools');
-    const disallowedTools = readFrontmatterList(content, 'disallowedTools');
-    const definition = {
-      [agent]: {
-        description: fields.description || agent,
-        prompt: prompt || fields.description || agent,
-        model: member.model,
-        ...(tools?.length ? { tools } : {}),
-        ...(disallowedTools?.length ? { disallowedTools } : {}),
-      },
-    };
-    const body = `${JSON.stringify(definition, null, 2)}\n`;
-    const dir = join(this.config.dataDir, 'flow-agents');
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
-    await writeFile(file, body, { mode: 0o600 });
-    return file;
+    return agentsDefinitionFile(content, agent, member.model, join(this.config.dataDir, 'flow-agents'));
   }
 
   // ---------- work items ----------
@@ -2710,7 +2969,68 @@ export class Core {
   orchestrationTimings(id: string): OrchestrationTimings | null {
     const orch = this.orchestrator.get(id);
     if (!orch) return null;
-    return orchestrationTimings(orch, this.runtime.list().filter((c) => c.orchestrationId === id));
+    return orchestrationTimings(orch, this.runtime.list().filter((c) => c.orchestrationId === id), new Date(), this.reviewRounds(id));
+  }
+
+  // ---------- review gate ----------
+
+  /** The rounds a graph's review ran, oldest first; none for a graph without a review */
+  reviewRounds(id: string): ReviewRound[] {
+    return this.reviewStore.rounds(id);
+  }
+
+  /**
+   * The review gate of a graph: its summary, every round, and one page of the findings of a round (the
+   * latest unless `round` names another). Null for an unknown id.
+   */
+  reviewDetail(id: string, query: { round?: number; blocking?: boolean; limit?: number; offset?: number } = {}): ReviewGateDetail | null {
+    const orch = this.orchestrator.get(id);
+    if (!orch) return null;
+    const rounds = this.reviewStore.rounds(id);
+    const chosen = query.round === undefined ? rounds.at(-1) : rounds.filter((r) => r.round === query.round).at(-1);
+    const page = chosen
+      ? this.reviewStore.findings(chosen.id, { limit: query.limit ?? 50, offset: query.offset ?? 0, ...(query.blocking !== undefined ? { blocking: query.blocking } : {}) })
+      : { findings: [], total: 0 };
+    return { state: orch.verification?.review ?? null, rounds, findings: page.findings, totalFindings: page.total };
+  }
+
+  acceptReview(id: string, reason: string, actor: string): Orchestration {
+    return this.orchestrator.acceptReview(id, reason, actor);
+  }
+
+  retryReview(id: string): Orchestration {
+    return this.orchestrator.retryReview(id);
+  }
+
+  /** Which text each reviewer role runs with in a project: its own file or Claudio's built-in */
+  async reviewRoles(projectId: string): Promise<ReviewRoleInfo[] | null> {
+    const project = this.projectStore.get(projectId);
+    if (!project) return null;
+    return Promise.all(
+      REVIEW_ROLES.map(async (role): Promise<ReviewRoleInfo> => {
+        const r = await readRole(project.path, role);
+        return { role, file: `.claude/agents/${roleFileName(role)}`, source: r.source, sha: r.sha, bytes: Buffer.byteLength(r.body), problem: r.problem };
+      }),
+    );
+  }
+
+  /**
+   * Writes the built-in text of a role into the project's checkout, only where no file exists (`wx`),
+   * as the team's agent files are written: a person's file is never overwritten. Null for an unknown project.
+   */
+  async writeReviewRole(projectId: string, role: ReviewRole): Promise<{ written: boolean; file: string } | null> {
+    const project = this.projectStore.get(projectId);
+    if (!project) return null;
+    const file = `.claude/agents/${roleFileName(role)}`;
+    const full = join(project.path, file);
+    await mkdir(dirname(full), { recursive: true });
+    try {
+      await writeFile(full, `${DEFAULT_ROLE_BODIES[role]}\n`, { flag: 'wx' });
+      return { written: true, file };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') return { written: false, file };
+      throw err;
+    }
   }
 
   /** The items a chat worked on or created, for its header. Those of projects no longer imported are left out. */
@@ -2836,13 +3156,16 @@ export class Core {
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
     this.logins.close();
+    this.lessons.stop();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();
     this.providers.close();
     this.hosts.close();
+    this.lessonQueue.stop();
     this.decisionResolvers.stop();
     this.decisions.stop();
+    void this.evals.close().catch(() => undefined);
     this.orchestrator.close();
     this.spend.close();
     this.schedules.close();

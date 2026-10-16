@@ -74,6 +74,7 @@ import type { ChatTools } from './chat-tools.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { DECISION_EFFORTS } from './decisions/settings.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
+import type { ChatGuardPlan } from './live-chat.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -92,6 +93,10 @@ import { usageBreakdown, usageSeries } from './usage-series.ts';
  * background; past `CLI_STALE_MS` a caller waits for the new one. Our own chats starting and ending
  * drop it at once.
  */
+/** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
+export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
+export const CANCEL_NOTICE_PREFIX = 'A person cancelled the command';
+
 const CLI_FRESH_MS = 1_500;
 const CLI_STALE_MS = 10_000;
 /** Ended chats whose delegated work is still listed; each costs a stat per poll. */
@@ -175,6 +180,8 @@ export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
       return 'synthesis';
     case '__workflow__':
       return 'workflow';
+    case '__review__':
+      return 'review';
     default:
       return 'task';
   }
@@ -213,8 +220,12 @@ export interface ChatServiceDeps {
    * answered with how it was taken; null when it is an ordinary message after all
    */
   typedCompact?: (id: string, request: ChatMessageRequest) => Promise<ChatMessageReceipt | null>;
+  /** The guard of a person's chat in a folder, when its project opted in (docs/plans/guards.md); null when it runs unguarded */
+  guardsForChat?: (cwd: string) => Promise<ChatGuardPlan | null>;
   /** Told of every page of a transcript read, so a summary that was not streamed is noticed when it is read (E34) */
   transcriptRead?: (id: string, entries: TranscriptEntry[]) => void;
+  /** A person continued a chat from an earlier message (`resumeSessionAt`): the lessons' S-rewound */
+  rewound?: (chat: ChatSummary, resumeSessionAt: string) => void;
 }
 
 /** The run, task or item a chat works for: what makes its limit the rotation's rather than a person's. */
@@ -422,6 +433,7 @@ export class ChatService {
       ...(runtime?.account ? { account: runtime.account } : {}),
       ...(runtime?.pendingAccount ? { pendingAccount: runtime.pendingAccount } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
+      ...(runtime?.guards ? { guards: runtime.guards } : {}),
       state,
       control,
       execution: live,
@@ -705,9 +717,11 @@ export class ChatService {
     onStart?: (chat: ChatRuntime) => void,
     /** Only the core's own entry for the Claudio assistant passes it: a body sent to the API never makes a chat one */
     claudioAssistant?: ClaudioAssistantMarker,
+    /** Only core's launch paths pass it, with the files already written: `null` is a run that is not guarded, absent leaves it to the project's opt-in */
+    guards?: ChatGuardPlan | null,
   ): Promise<ChatSummary> {
     // The name before the rename is dropped too, so a stored or replayed old body cannot carry it in
-    const { claudioAssistant: _sent, agentryAssistant: _legacy, ...rest } = body as typeof body & { claudioAssistant?: unknown; agentryAssistant?: unknown };
+    const { claudioAssistant: _sent, agentryAssistant: _legacy, guards: _plan, ...rest } = body as typeof body & { claudioAssistant?: unknown; agentryAssistant?: unknown; guards?: unknown };
     const request = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
@@ -732,7 +746,8 @@ export class ChatService {
         : undefined;
       // A new chat thinks as hard as the guides recommend for its model; a provider without `effort` is passed none
       const effort = request.effort ?? recommendedEffort(request.model, 'chat') ?? undefined;
-      started = this.deps.runtime.start({ purpose: 'person', ...request, ...(effort ? { effort } : {}), ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
+      const plan = guards !== undefined ? guards : (await this.deps.guardsForChat?.(resolve(request.cwd ?? this.deps.config.workspaceDir))) ?? null;
+      started = this.deps.runtime.start({ purpose: 'person', ...request, ...(effort ? { effort } : {}), ...chosen, ...(toolConfig ? { toolConfig } : {}), ...(plan ? { guards: plan } : {}), provider });
       onStart?.(started);
     } catch (err) {
       throw startFailure(err);
@@ -751,7 +766,7 @@ export class ChatService {
     const runtime = this.deps.runtime.get(id);
     if (!runtime) throw new Error('chat not found');
     if (runtime.pid === null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
-    this.deps.runtime.send(id, `A hint from the person following this chat:\n\n${text}`);
+    this.deps.runtime.send(id, `${CHAT_HINT_PREFIX}\n\n${text}`);
     return this.require(id);
   }
 
@@ -769,11 +784,11 @@ export class ChatService {
       throw new ChatConflictError(err instanceof Error ? err.message : String(err), null);
     }
     const reason = request?.reason?.trim();
-    this.deps.runtime.notice(id, `A person cancelled the command \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
+    this.deps.runtime.notice(id, `${CANCEL_NOTICE_PREFIX} \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
     try {
       this.deps.runtime.send(
         id,
-        `A person cancelled the command \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
+        `${CANCEL_NOTICE_PREFIX} \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
       );
     } catch {
       // the process went with it: there is nobody left to tell
@@ -787,7 +802,9 @@ export class ChatService {
    * last saw: a chat a terminal opened a second ago is closed to this, and one nobody holds any
    * more, even if it was born in a terminal, is adopted.
    */
-  async resume(id: string, request: ResumeChatRequest, extras: ExecutionExtras = {}): Promise<ChatSummary> {
+  async resume(id: string, body: ResumeChatRequest, extras: ExecutionExtras = {}): Promise<ChatSummary> {
+    // A plan is core's to hand over, in `extras`; one in a body is dropped
+    const { guards: _plan, ...request } = body as ResumeChatRequest & { guards?: unknown };
     const chat = await this.summaryOf(id, true);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
@@ -801,12 +818,15 @@ export class ChatService {
     const fallback = handBack && request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
     const chosen = await this.deps.tools.resolve(picked, adoption.cwd, handBack ? null : (this.deps.runtime.get(id)?.tools ?? null));
+    // A person's own turn is guarded by the project's opt-in; a starter that ran guarded (or not) says so itself
+    const guards = extras.guards !== undefined ? extras.guards : ((await this.deps.guardsForChat?.(adoption.cwd)) ?? null);
     this.deps.runtime.resume(
       id,
       {
         ...request,
         ...chosen,
         provider,
+        guards,
         agent: extras.agent ?? null,
         agentsFile: extras.agentsFile ?? null,
         jsonSchema: extras.jsonSchema ?? null,
@@ -821,6 +841,7 @@ export class ChatService {
       },
       adoption,
     );
+    if (request.resumeSessionAt && !extras.agent) this.deps.rewound?.(chat, request.resumeSessionAt);
     return this.require(id);
   }
 
@@ -831,7 +852,8 @@ export class ChatService {
    * The rules of a flow or assistant run were never the person's, though: a copy of such a chat is
    * handed back as `resume` hands it back, with the mode and tools a new chat gets.
    */
-  async fork(id: string, request: ForkChatRequest): Promise<ChatSummary> {
+  async fork(id: string, body: ForkChatRequest): Promise<ChatSummary> {
+    const { guards: _plan, ...request } = body as ForkChatRequest & { guards?: unknown };
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
@@ -843,7 +865,8 @@ export class ChatService {
     const chosen = handBack
       ? await this.deps.tools.resolve(picked, adoption.cwd, null)
       : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
-    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, purpose: 'person', ...(handBack ? { handBack } : {}) }, adoption);
+    const guards = (await this.deps.guardsForChat?.(adoption.cwd)) ?? null;
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, ...(guards ? { guards } : {}), purpose: 'person', ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
   }
 

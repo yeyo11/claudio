@@ -1,0 +1,126 @@
+---
+created_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-16T12:00:00Z
+tags:
+    - guards
+    - hooks
+    - security
+    - orchestration
+    - flow
+    - claudio
+---
+# Guards: deterministic PreToolUse hooks for Claude Code runs
+
+Guards are a small set of rules that hold whatever the permission mode is, including
+`bypassPermissions`. Prompts are forgotten some of the time; a hook runs on every tool call. They are
+**defence in depth against mistakes and prompt pressure, not a sandbox**
+([what is not guaranteed](#what-is-not-guaranteed)). The plan is [plans/guards.md](plans/guards.md);
+the idea comes from [the ECC report](reports/ecc.md#3-guard-hooks-through---settings), and no ECC
+code is used.
+
+## What they block
+
+| Rule | Default | Switchable | Blocks |
+| --- | --- | --- | --- |
+| `integrity` | on whenever guards are on | no | Anything that would weaken the guard itself: writes to its folder, its settings and rules files, `GIT_EXEC_PATH`, an unknown git verb or alias |
+| `no-verify` | on | yes | Skipping git hooks: `--no-verify`, `-n` on commit, `-c core.hooksPath=…`, the variables that disable hooks, and writes to a hook script |
+| `push` | on | yes | Any `git push`, in any spelling the shell reader recognises (agents never push; see [security-model.md](security-model.md#agents-never-push)) |
+| `destructive` | on | yes | Force push, `git reset --hard`, and recursive deletion outside the worktree. Scratch files go in `$TMPDIR`: each guarded run has its own folder, `<data>/tmp/<id>`, removed when the run ends |
+| `secrets` | on | yes | Writing a secret into a file, through `Write`, `Edit`, a shell redirect or here-document, or a content field of an MCP tool |
+| `protect-configs` | off | yes | Edits to **existing** lint, format and CI configs, from a list of globs the person can edit |
+
+A command is read by a shell reader (`packages/core/src/guards/shell.ts`) that follows wrappers,
+`cd`, `env`, `sudo`, `xargs`, `bash -c` and the like. A line it cannot read is blocked, and the
+reason asks for a script file. Every call the rules do not look at passes with exit 0 and no
+decision, so the CLI's normal permission flow still decides.
+
+## Where they run
+
+- **On by default:** orchestration workers (launch and resume), the integration, the synthesis, the
+  verification fixer, the checks fix, the workflow engine, and flow runs.
+- **Opt in per project:** a person's interactive chats, with the project setting *Guards in this
+  project's chats*.
+- **Never:** the planner and other read-only internal runs, confined chats and the assistant (the
+  restricted modes already confine them).
+
+A graph or a flow stage can switch guards off or switch rules off for its own runs
+(`guards: { enabled?, rules? }`). `integrity` cannot be switched, and a chat's own token cannot
+weaken any of these (it gets `403`; see [security-model.md](security-model.md#guards)). The launch form warns that workers
+will run without the guards you switch off.
+
+## How it works
+
+1. At launch Claudio resolves the rules for the run, checks that the guard can run (preflight), and
+   writes two files under `<data>/guards/`, named by content hash, mode 0600 in a 0700 folder: a
+   settings file holding only Claudio's own hooks, and a rules file.
+2. It starts `claude` with `--settings <file> --include-hook-events`. On every `PreToolUse` the CLI
+   runs `claudio-guard` (`guard.mjs`, bundled beside the server like `mcp.mjs`), which reads the
+   hook's JSON on stdin, checks the rules file's SHA-256 against the hash in its own arguments, and
+   answers **exit 0** (pass, no decision) or **exit 2** with the reason on stderr (block).
+3. Every answer carries a `claudio-guard/1` marker that Claudio reads back from the stream's
+   `hook_response` events. A `SessionStart` marker proves the guard is armed; a tool call with no
+   marker means the guard did not run, and the run is stopped (liveness).
+4. A block is a row in `guard_events`, a line in the transcript, and a signal in the run's health.
+
+The guard fails closed: bad input, oversized input, a tampered or missing rules file, an exception
+and the deadline (3 s) all block. The launch fails when the guard cannot be armed.
+
+## Settings
+
+**Settings → Security → Guards** (`#guards`), or `GET`/`PUT /settings/guards`, stored in `guards.json`
+in the data directory:
+
+- **Automated runs:** a switch for workers and the flow.
+- **Rules:** one switch per switchable rule; `integrity` shows as a locked "Always on" row.
+- **Mode:** `enforce`, or `observe`, which records "would block" rows and passes, for rolling back
+  after a false positive.
+- **Protected files:** the globs `protect-configs` uses, with *Restore defaults*.
+- **Extra roots:** more folders where recursive deletes are allowed.
+- **Try a command:** runs the decision engine on a tool call and shows the verdict; nothing runs or is
+  recorded (`POST /guards/check`).
+- **Recent blocks:** the last events, each linking to its chat.
+
+A change applies to the **next process Claudio spawns**; a running CLI keeps the hooks it started
+with. The card says so. If `guards.json` is corrupt, the defaults (on) apply and writes are refused.
+
+## Where they show
+
+- **Transcript:** a "Guard blocked" line with the rule and the reason.
+- **Chat header:** a tag: neutral "Guards" when armed, warn "Observe", bad "Guards not running".
+- **Task cards and flow run rows:** an "N blocked" chip that opens the chat at the first notice.
+- **Health:** the signals `guard-blocked` and `guard-missing`.
+- **Launch form, relaunch panel, flow settings and project settings:** the per-graph, per-stage and
+  per-project switches.
+
+## What is not guaranteed
+
+Guards are **not a sandbox**. An agent that can run arbitrary code can, with enough effort, do what
+they block: a compiled or opaque program, a Makefile, a script fetched from the network, a secret
+encoded or assembled at runtime, the person's shell aliases, a repository whose own hooks lie.
+
+What they do guarantee is narrower: every documented form in the plan's bypass corpus is blocked,
+every block is visible, and the guard cannot be switched off from inside the run without the run
+being stopped. Real isolation is the container, the user account and the worktree.
+
+## Troubleshooting
+
+When a guard cannot run, a run fails before any CLI starts, with `guard-unavailable (<problem>)` (a
+flow run ends `failed`, cause `not-started`), and Settings shows the same problem.
+
+| Problem | Meaning | What to do |
+| --- | --- | --- |
+| `entry-missing` | `guard.mjs` is not beside the server and `CLAUDIO_GUARD_ENTRY` does not point at one | Reinstall, or set `CLAUDIO_GUARD_ENTRY` to a file |
+| `entry-untrusted` | The entry is under a project, a root or a plugin cache, or is group- or world-writable | Use the bundled file; in Docker it is root-owned 0444 |
+| `self-test-failed` | The guard did not block the self-test call on this machine | Check the Node build and the data folder's permissions |
+| `cli-unsupported` | The installed CLI lacks `--settings` or `--include-hook-events` | Update Claude Code |
+| `hooks-disabled` | A user, project or local settings file sets `disableAllHooks: true` (the message names it) | Remove the setting, or switch guards off for that run |
+| `managed-hooks-only` | An organisation policy sets `allowManagedHooksOnly` | Guards cannot run under that policy |
+| `hooks-conflict` | One of the person's own hooks answers `allow` in a way that would override a block | Change that hook |
+| `bad-path` | A guard path or root cannot be resolved | Fix the root in Settings |
+
+A run that stalls with every call blocked and health "bad" usually means the rules file changed
+under the guard (`rules-unavailable`); relaunch it.
+
+## Related
+
+[[plans/guards.md]] · [[reports/ecc.md]] · [[security-model.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[chat-environment.md]] · [[deploy.md]] · [[desktop.md]] · [[design-system.md]] · [[status.md]]

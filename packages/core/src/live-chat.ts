@@ -7,6 +7,7 @@ import type {
   Attachment,
   ChatActivity,
   ChatFork,
+  ChatGuards,
   ChatMessageReceipt,
   ChatOrigin,
   ChatPendingMessage,
@@ -14,6 +15,8 @@ import type {
   EffectiveEnvironment,
   Effort,
   Execution,
+  GuardMode,
+  GuardRuleId,
   NewChatRequest,
   PermissionMode,
   RunEvent,
@@ -92,6 +95,24 @@ export interface RunResult {
   stopReason?: string;
 }
 
+/**
+ * The guard a chat's processes are launched with, once the launch path has resolved the rules and
+ * written their files (`resolveGuards`, `writeGuardFiles`). Absent: the chat is not guarded.
+ */
+export interface ChatGuardPlan {
+  /** The effective rules, `integrity` first */
+  rules: GuardRuleId[];
+  mode: GuardMode;
+  /** The `--settings` file that registers the hooks */
+  settingsPath: string;
+  /** SHA-256 of the rules file the hooks check; the `armed` marker must name it */
+  rulesSha256: string;
+  /** A person is in the chat: a tool call with no marker stops the process but ends no run as failed, and the next turn waits for them */
+  interactive?: boolean;
+  /** The run's own scratch dir (`<data>/tmp/<id>`), exported as `TMPDIR` and removed when the run ends; the rules name it */
+  tmpDir?: string;
+}
+
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
 export interface NewChat extends NewChatRequest {
   name?: string;
@@ -132,6 +153,13 @@ export interface NewChat extends NewChatRequest {
    * prompt, the core sets them again at every process (`ChatManager.assistantLaunch`).
    */
   claudioAssistant?: ClaudioAssistantMarker;
+  /** Runs its processes under the guard's hooks (docs/plans/guards.md) */
+  guards?: ChatGuardPlan;
+  /**
+   * Core-only, never read from a request: `handoff` says the Lessons section is already in
+   * `appendSystemPrompt` (the flow's journal handoff carries it), so `launchSpec` does not add it again.
+   */
+  lessons?: 'handoff';
 }
 
 /**
@@ -164,6 +192,8 @@ export interface ExecutionExtras {
   jsonSchema?: unknown;
   systemPromptSnapshot?: 'off' | null;
   uploads?: false | null;
+  /** See `NewChat.lessons`; `null` drops it, as a chat a person continues gets the section itself */
+  lessons?: 'handoff' | null;
   keepAlive?: boolean;
   /**
    * The chat goes back to a person: whatever a member's run set (its mode, its allow and deny lists,
@@ -173,6 +203,8 @@ export interface ExecutionExtras {
    */
   handBack?: boolean;
   confine?: ChatConfinement | null;
+  /** The guard this execution runs under; `null` drops it. Only core's launch paths pass it, never a request body */
+  guards?: ChatGuardPlan | null;
   /** Why this execution spends, for the daily spend ledger; left out, the chat keeps the purpose it had */
   purpose?: SpendPurpose;
   /**
@@ -185,6 +217,8 @@ export interface ExecutionExtras {
 export interface RunMeta {
   orchestrationId?: string;
   orchestrationTaskId?: string;
+  /** The eval sample this chat is: its limit is the runner's to handle, so the rotation leaves it alone */
+  evalSampleId?: string;
 }
 
 /** What is known of a chat that already exists when an execution resumes it from outside the store. */
@@ -250,6 +284,8 @@ export interface ChatRuntime {
   workflows: WorkflowRun[];
   /** Messages the agent has not taken yet, and those lost since: what the page builds its queued cards from */
   pending?: ChatPendingMessage[];
+  /** The guards on its live process; absent when none runs or the chat is not guarded */
+  guards?: ChatGuards | null;
 }
 
 /** A shell command the process started and has had no answer to yet. */
@@ -300,6 +336,10 @@ export interface ChatHost {
   recordSpend(chat: LiveChat, execution: Execution, usd: number | null): void;
   /** Ends the chat's execution as failed for a protocol fault and takes the process down */
   failProtocol(chat: LiveChat, message: string): void;
+  /** The guard's `SessionStart` marker arrived: the chat is armed, and what waited for it is written */
+  guardArmed(chat: LiveChat): void;
+  /** A tool call went by with no guard marker: the process is interrupted and the run ends, or waits for the person */
+  guardMissing(chat: LiveChat): void;
 }
 
 /**
@@ -369,6 +409,14 @@ export class LiveChat {
   partialSent: { block: 'text' | 'thinking'; length: number } | null = null;
   /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
   structured: string | null = null;
+  /**
+   * The live process's guard: `arming` from the spawn until its `SessionStart` marker arrives, then
+   * `armed`; `missing` after a tool call went by unguarded. Null when the chat is not guarded.
+   */
+  guardState: ChatGuards['state'] | null = null;
+  /** Messages written while arming, in order: the process is sent them when it is armed */
+  armingQueue: Array<{ message: SentMessage; announce: boolean }> = [];
+  armingTimer: NodeJS.Timeout | null = null;
   /** Prompts the CLI is holding for a person */
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
@@ -556,6 +604,14 @@ export class LiveChat {
     return { preset: null, allowedTools: allowedTools ?? [], disallowedTools: disallowedTools ?? [], mcp: null };
   }
 
+  /** The guards on the live process, for the page's tag; a process stopped for a missing marker still says so */
+  get guards(): ChatGuards | null {
+    const plan = this.opts.guards;
+    if (!plan || !this.guardState) return null;
+    if (!this.alive && this.guardState !== 'missing') return null;
+    return { rules: plan.rules, mode: plan.mode, state: this.guardState };
+  }
+
   /** The provider whose agent runs the chat */
   get provider(): string {
     return this.driver.manifest.id;
@@ -700,6 +756,7 @@ export class LiveChat {
       }),
       workflows: [...this.branches.workflows.values()],
       pending: this.pendingList(),
+      ...(this.guards ? { guards: this.guards } : {}),
     };
   }
 

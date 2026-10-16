@@ -2,6 +2,7 @@
 
 import type { DashboardLayout } from './dashboard-layout.ts';
 import type { Effort, EffortReason } from './effort.ts';
+import type { EVAL_KINDS, EVAL_PRESSURES, EVAL_VARIANTS, EXPECTATION_KINDS_V2 } from './evals.ts';
 import type { NotificationKind, NotificationLevel, NotificationPriority } from './notifications.ts';
 import type { ToolRisk } from './tool-risk.ts';
 
@@ -407,7 +408,7 @@ export interface RunWorkflowRequest {
  * `append`, with where it starts in `at`), reuse the seq of the last stored event, are never buffered or replayed, and are
  * superseded by the next `message` event.
  */
-export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial' | 'delivery';
+export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial' | 'delivery' | 'guard';
 
 export interface RunEvent {
   seq: number;
@@ -434,6 +435,8 @@ export interface RunEvent {
   data?: Record<string, unknown>;
   /** For `delivery` events: what became of one message the person sent */
   delivery?: MessageDelivery;
+  /** For `guard` events: what the guard said about one tool call, so a live viewer can show a block without polling */
+  guard?: RunGuardEvent;
 }
 
 /**
@@ -781,7 +784,9 @@ export type HealthSignalKind =
   | 'no-progress'
   | 'loop'
   | 'weakened-test'
-  | 'budget';
+  | 'budget'
+  | 'guard-blocked'
+  | 'guard-missing';
 
 export interface HealthSignal {
   kind: HealthSignalKind;
@@ -960,7 +965,7 @@ export interface ChatWorktree {
 }
 
 /** What a chat does for the orchestration it works for. */
-export type OrchestrationChatRole = 'task' | 'integration' | 'verification' | 'synthesis' | 'workflow';
+export type OrchestrationChatRole = 'task' | 'integration' | 'verification' | 'synthesis' | 'workflow' | 'review';
 
 /** The orchestration a chat works for. */
 export interface ChatOrchestration {
@@ -1144,6 +1149,8 @@ export interface Chat {
   claudioAssistant?: ClaudioAssistantMarker | null;
   /** Whether Compact now is offered, and why not; only on a chat read alone, a list does not pay for it */
   compact?: ChatCompactAvailability;
+  /** The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md) */
+  guards?: ChatGuards | null;
 }
 
 /**
@@ -1628,6 +1635,11 @@ export interface ProjectFlowSettings {
    * does not look. Like `maxBounces`, it can only end a loop sooner.
    */
   plateau?: FlowPlateauMode;
+  /**
+   * Per-stage guard overrides for this project's flow runs; a stage absent here inherits the global
+   * settings. A chat token may not weaken what is stored (403).
+   */
+  guards?: Partial<Record<FlowStage, GuardOverride>>;
 }
 
 /** What the flow does about a plateau of verify rounds; see {@link ProjectFlowSettings.plateau}. */
@@ -1664,6 +1676,10 @@ export interface ProjectSettings {
   tracker?: ProjectTrackerSettings | null;
   /** Per-project overrides of the provider order and of what happens at a limit; a missing field inherits */
   providers?: ProjectProvidersSettings;
+  /** Guards for interactive chats started in this project; the flow's are in `flow.guards` */
+  guards?: ProjectGuardSettings;
+  /** What lessons this project's runs are handed; a missing field takes the default */
+  lessons?: ProjectLessonsSettings;
 }
 
 /**
@@ -2713,6 +2729,8 @@ export interface FlowRun {
   endedAt: string | null;
   /** On a run that fixed failing checks, what the Developer decided about each; absent on other runs */
   checks?: FlowCheckVerdict[];
+  /** Tool calls the guard blocked in this run; filled on read from `guard_events` */
+  guardBlocks?: number;
 }
 
 /** Who queued a flow run by hand, when a card entering its column did not. */
@@ -2890,13 +2908,141 @@ export interface JournalEntry {
   createdAt: string;
 }
 
+// Lessons: what a person's corrections taught, kept as rows because they accumulate and decay.
+
+/** proposed: waits for the person; active: handed to runs; retired: kept, not handed; rejected: refused, never proposed again; superseded: replaced by its global copy */
+export type LessonStatus = 'proposed' | 'active' | 'retired' | 'rejected' | 'superseded';
+/** Why a lesson stopped being handed */
+export type LessonRetiredReason = 'person' | 'decayed' | 'instructions' | 'merged' | 'contradicted';
+/** What the person did that a lesson rests on */
+export type LessonSignalKind = 'correction' | 'hint' | 'denied' | 'cancelled' | 'reverted' | 'rewound' | 'interrupted' | 'repeated-error' | 'rejected-proposal';
+
+export interface LessonEvidence {
+  id: string;
+  signal: LessonSignalKind;
+  /** The person's own words, as written (any language), redacted; empty for a denial without a message */
+  quote: string;
+  /** What the agent had just done, in English, redacted: "Edit src/cart.ts", "Bash: npm install" */
+  context: string;
+  chatId: string | null;
+  /** Filled in when read: null when the chat is gone, which the UI says */
+  chatTitle: string | null;
+  /** The transcript line it points at, for the chat's "jump to" link */
+  entryUuid: string | null;
+  at: string;
+}
+
+export interface Lesson {
+  id: string;
+  /** `L-<seq>`, stable, what runs and people refer to */
+  key: string;
+  /** Null for a global lesson */
+  projectId: string | null;
+  status: LessonStatus;
+  /** When it applies: English, starting with "When", at most 160 characters */
+  trigger: string;
+  /** What to do or avoid then: at most 240 characters, behaviour only */
+  action: string;
+  /** Stored base confidence, 0.3 to 0.95 */
+  confidence: number;
+  /** After decay, as of the read; what delivery compares */
+  effectiveConfidence: number;
+  /** Whether it is handed to runs now */
+  delivered: boolean;
+  seenCount: number;
+  pinned: boolean;
+  /** About one command, tool or path: a candidate for a guard rule (plans/guards.md) */
+  mechanical: boolean;
+  /** The miner said it conflicts with CLAUDE.md */
+  conflictsWithInstructions: boolean;
+  /** The lesson it contradicts, when the person kept both */
+  contradicts: string | null;
+  /** A project lesson that overrides this global one in its project */
+  overrides: string | null;
+  /** For a global lesson: the project lesson it was promoted from */
+  promotedFrom: string | null;
+  /** Active lessons in other projects that say the same (similarity rule), counted when read */
+  alsoInProjects: number;
+  retiredReason: LessonRetiredReason | null;
+  proposalId: string | null;
+  /** The pending or decided `instructions` proposal made from it */
+  instructionsProposalId: string | null;
+  evidence: LessonEvidence[];
+  proposedBy: WorkItemActor;
+  decidedBy: WorkItemActor | null;
+  decidedAt: string | null;
+  editedAt: string | null;
+  lastSeenAt: string;
+  lastConfirmedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonList {
+  lessons: Lesson[];
+  /** What a run in this project is handed now */
+  handed: { lessons: number; bytes: number; budget: number; overBudget: number };
+}
+
+export interface UpdateLessonRequest { trigger?: string; action?: string; pinned?: boolean }
+export interface RetireLessonRequest { reason?: string }
+export interface DemoteLessonRequest { projectId?: string }
+export interface LessonInstructionsRequest { section?: string | null }
+
+export type LessonJobStatus = 'queued' | 'deferred' | 'running' | 'done' | 'skipped' | 'failed' | 'cancelled';
+export type LessonJobTrigger = 'run-ended' | 'rejected-proposal' | 'manual';
+/** Why a finished job proposed nothing, or what it dropped */
+export type LessonJobOutcome = 'proposed' | 'nothing' | 'shadow' | 'gate-no' | 'gate-unavailable' | 'daily-cap' | 'rate-limited' | 'invalid-output' | 'interrupted' | 'chat-removed' | 'over-budget';
+export interface LessonJob {
+  id: string;
+  projectId: string;
+  chatId: string | null;
+  trigger: LessonJobTrigger;
+  status: LessonJobStatus;
+  outcome: LessonJobOutcome | null;
+  signals: number;
+  candidates: number;
+  proposed: number;
+  merged: number;
+  /** Candidates dropped, by reason (`command-like`, `secret`, `url`, `suspicious`, `not-english`, `restates-instructions`, `duplicate-rejected`, `no-signal`, `too-long`, `empty`) */
+  dropped: Record<string, number>;
+  costUsd: number | null;
+  decisionId: string | null;
+  attempts: number;
+  nextAt: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** `lessons.json`: the global settings document */
+export interface LessonSettings {
+  manualMining: boolean;
+  miner: { model: string; effort: Effort | null; maxCostUsd: number; deadlineSeconds: number };
+  caps: { perProjectDailyUsd: number; globalDailyUsd: number; perChatMinMinutes: number; perProjectDailyJobs: number };
+  confidence: { approveFloor: number; deliverAt: number; seenStep: number; confirmStep: number; max: number };
+  decay: { graceDays: number; periodDays: number; step: number; retireBelow: number };
+  delivery: { handoffBytes: number; looseChats: boolean };
+  signals: { repeatedErrorsTrigger: boolean };
+}
+
+/** In the project's settings document (`ProjectSettings.lessons`) */
+export interface ProjectLessonsSettings {
+  /** Interactive chats in the project get the Lessons section (default true) */
+  deliverToChats: boolean;
+  /** Orchestration workers, the integrator, the fixer and the planner get it (default true) */
+  deliverToWorkers: boolean;
+  /** Global lessons are handed in this project too (default true) */
+  useGlobal: boolean;
+}
+
 /** `GET /projects/:id/journal?limit=&before=`, newest first. */
 export interface JournalPage {
   entries: JournalEntry[];
   /** Every entry of the project */
   total: number;
   /** What a flow run is handed: the newest entries that fit the cap */
-  handed: { entries: number; bytes: number };
+  handed: { entries: number; bytes: number; lessons: number; lessonBytes: number };
   /** Pass as `before` for the next page; null on the last */
   nextBefore: string | null;
 }
@@ -2916,9 +3062,11 @@ export interface CreateJournalEntryRequest {
  * appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal;
  * `rule`, a path-scoped rule file of the project's `.claude/rules/` (`file`, loaded by the CLI only
  * for the files `paths` matches), which keeps guidance that concerns part of the project out of
- * `CLAUDE.md`.
+ * `CLAUDE.md`; `lesson`, a row of the lessons store (`MemoryProposal.lesson`), which approval makes
+ * active. Only the lesson miner proposes it: a lesson rests on a person's correction, so flow runs
+ * and chats cannot.
  */
-export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal' | 'rule';
+export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal' | 'rule' | 'lesson';
 
 /** Flat rather than a union so it maps onto one row; the fields that do not apply are null. */
 export interface MemoryProposalTarget {
@@ -2959,14 +3107,48 @@ export interface MemoryProposal {
   rejectReason: string | null;
   /** The journal entry an approval to the journal wrote */
   journalEntryId: string | null;
+  /** Filled in when read, for `target.kind === 'lesson'`: the lesson and its evidence, which the card shows */
+  lesson: Lesson | null;
+  /** Set for an `instructions` proposal made from a lesson, so the lesson can be retired once it is approved */
+  lessonId: string | null;
   createdAt: string;
 }
 
 export interface ApproveMemoryProposalRequest {
   /** The text to write instead of the proposed one */
   text?: string;
+  /** For a `lesson` proposal: the person's edit of it, kept in their words */
+  lesson?: { trigger: string; action: string };
+  /** For a `lesson` proposal: approve it by folding it into this existing lesson instead of adding one */
+  mergeInto?: string;
+  /** For a `lesson` proposal: contradicted lessons to retire with the approval */
+  retire?: string[];
+  /** For a `lesson` proposal: keep a contradicted lesson too, marking both */
+  keepBoth?: boolean;
+  /** For an `instructions` proposal made from a lesson: the sha256 of the `CLAUDE.md` the person saw the diff against, so a file that changed since is refused */
+  previewOf?: string;
+  /** For an `instructions` target: the heading to write under instead of the proposed one; empty for the end of the file */
+  section?: string;
   /** For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths */
   file?: string;
+}
+
+/** What approving an `instructions` proposal would do to `CLAUDE.md`, shown as a diff before anything is written. */
+export interface MemoryProposalPreview {
+  path: 'CLAUDE.md';
+  exists: boolean;
+  /** Of the file as read, which the approval sends back as `previewOf` */
+  sha256: string;
+  /** Unified text, drawn by `DiffView` */
+  diff: string;
+  bytesAfter: number;
+}
+
+export interface PreviewMemoryProposalRequest {
+  /** The text to preview instead of the proposed one, while the person edits it */
+  text?: string;
+  /** The heading to preview under instead of the proposed one, while the person picks it */
+  section?: string;
 }
 
 export interface RejectMemoryProposalRequest {
@@ -3066,9 +3248,9 @@ export interface TieDocumentRequest {
 /**
  * `project`: team, resources and first work items, after creating a project or on demand from its
  * page. `work-items`: "Suggest tasks" on the board. `resources`: "Suggest" on the Resources tab, or
- * "Create with AI" for one resource from a description.
+ * "Create with AI" for one resource from a description. `evals`: "Draft cases" in an eval's editor (Phase 2).
  */
-export type AssistantRunKind = 'project' | 'work-items' | 'resources';
+export type AssistantRunKind = 'project' | 'work-items' | 'resources' | 'evals';
 
 /**
  * `running` has its chat, or is about to; `completed` answered and its proposals are served;
@@ -3138,7 +3320,7 @@ export interface AssistantFinding {
 /** `pending` waits for the person; `superseded` was pending when the person asked to suggest again. */
 export type AssistantProposalStatus = 'pending' | 'accepted' | 'discarded' | 'superseded';
 
-export type AssistantProposalKind = 'team-member' | 'resource' | 'work-item';
+export type AssistantProposalKind = 'team-member' | 'resource' | 'work-item' | 'eval-case';
 
 /** How many proposals of a kind a run made, by status: "2 of 6 accepted", "3 to review". */
 export interface AssistantProposalCount {
@@ -3166,6 +3348,8 @@ export interface AssistantRun {
    * absent or null otherwise, and on a run stored before it was its own field
    */
   focus?: string | null;
+  /** For an `evals` run, the eval it drafts cases for; absent or null otherwise */
+  evalName?: string | null;
   /**
    * The person's language when it started, which its chat's title is written in, kept so a run
    * started again after a restart words it the same. Absent on a run stored before it was kept,
@@ -3254,6 +3438,8 @@ export interface StartAssistantRunRequest {
   focus?: string;
   /** Required with a `resources` run's `description` */
   resourceKind?: AssistantResourceKind;
+  /** Required with an `evals` run: the eval to draft cases for. Refused on the other kinds */
+  evalName?: string;
   /** Mark the pending proposals of the latest finished run of this kind `superseded`. Default false */
   supersede?: boolean;
 }
@@ -3357,8 +3543,25 @@ export interface AssistantWorkItemProposal extends AssistantProposalBase {
   created: WorkItemRef | null;
 }
 
+/**
+ * Phase 2: a case drafted for an existing eval, with prompts at each pressure level and deterministic
+ * expectations first. Accepting appends it to the eval file through the write that takes `ifMatch`.
+ */
+export interface AssistantEvalCaseProposal extends AssistantProposalBase {
+  kind: 'eval-case';
+  /** The eval the case is for */
+  evalName: string;
+  case: EvalCase;
+  /** The case as appended, by id, once accepted; null otherwise */
+  acceptedCaseId: string | null;
+}
+
 /** One proposal of a run, accepted or discarded on its own (decision 36). */
-export type AssistantProposal = AssistantTeamMemberProposal | AssistantResourceProposal | AssistantWorkItemProposal;
+export type AssistantProposal =
+  | AssistantTeamMemberProposal
+  | AssistantResourceProposal
+  | AssistantWorkItemProposal
+  | AssistantEvalCaseProposal;
 
 /**
  * `POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting;
@@ -3370,6 +3573,8 @@ export interface AcceptAssistantProposalRequest {
   /** The editor's save: the name, content and scope the person left */
   resource?: { name?: string; content?: string; scope?: ConfigScopeKind };
   workItem?: Partial<Omit<ProposedWorkItem, 'epic' | 'similarTo'>>;
+  /** What the person edited of an `eval-case`, and the SHA of the eval file they saw (`ifMatch`) */
+  evalCase?: { case?: EvalCase; ifMatch: string };
 }
 
 // ---------- What changed on disk ----------
@@ -3602,6 +3807,8 @@ export interface OrchestrationSpec {
   limits?: TaskLimits;
   /** Checks to run on the integration branch once the graph is merged; none when absent */
   verification?: VerificationSpec;
+  /** Guard override for this graph's runs; kept by templates, relaunch and resume. Absent inherits the global settings */
+  guards?: GuardOverride;
   tasks: OrchestrationTaskSpec[];
 }
 
@@ -3677,6 +3884,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
    * fails the same way is recognised and not repeated; internal, kept in the stored document.
    */
   lastErrorSignature?: string | null;
+  /** Tool calls the guard blocked in this task's runs; filled on read from `guard_events` */
+  guardBlocks?: number;
 }
 
 export interface Orchestration {
@@ -3699,6 +3908,8 @@ export interface Orchestration {
   allowedTools: string[];
   /** Where a worker's permission prompts go */
   permissionPrompts: 'host' | 'none';
+  /** The graph's guard override, from the spec it was launched with; absent inherits the global settings */
+  guards?: GuardOverride;
   createdAt: string;
   endedAt: string | null;
   tasks: OrchestrationTaskState[];
@@ -3765,6 +3976,175 @@ export interface OrchestrationSummary extends Omit<Orchestration, 'tasks' | 'fin
   verification?: VerificationSummary | null;
 }
 
+// ---------- Review gate (docs/plans/review-gate.md) ----------
+
+/** What a reviewer looks at; `correctness` always runs, the others as the spec sets */
+export type ReviewDimension = 'correctness' | 'tests' | 'security' | 'conventions';
+export type ReviewSeverity = 'critical' | 'high' | 'medium' | 'low';
+/**
+ * - `incomplete` (warn): something that should be reviewed could not be, so the gate cannot pass
+ * - `blocked` (bad): a blocking finding is left
+ * - `accepted`: a person let a blocked or incomplete gate through, with a reason
+ */
+export type ReviewGateStatus = 'pending' | 'running' | 'passed' | 'blocked' | 'incomplete' | 'accepted' | 'skipped';
+export type ReviewGatePhase = 'preparing' | 'reviewing' | 'verifying' | 'fixing' | 'rechecking';
+export type ReviewRunKind = 'reviewer' | 'verifier' | 'fixer';
+export type ReviewRunState =
+  | 'pending' | 'running' | 'waiting' | 'done' | 'invalid' | 'budget' | 'failed' | 'timed-out' | 'cancelled' | 'interrupted' | 'incomplete-coverage';
+/** `deterministic` is a finding Claudio's own scan made, which no verifier is asked about */
+export type ReviewVerdict = 'not-asked' | 'confirmed' | 'refuted' | 'uncertain' | 'unverified' | 'deterministic';
+/** Where a finding could be placed in the diff; `outside` is a line the diff does not touch */
+export type ReviewAnchor = 'line' | 'file' | 'outside' | 'none';
+
+/** The review gate (docs/plans/review-gate.md). Present means on; absent means no review. */
+export interface ReviewGateSpec {
+  /** `correctness` always runs; the others as set here */
+  dimensions?: {
+    /** default true: weak or missing tests for the changed behaviour */
+    tests?: boolean;
+    /** default 'auto': runs when the trigger matches; 'always' runs it on every diff */
+    security?: 'auto' | 'always' | 'off';
+    /** default true when the base commit has CLAUDE.md, CONTRIBUTING.md or .claude/rules */
+    conventions?: boolean;
+  };
+  /** default 'full'. 'light' runs correctness (plus security when triggered) and packs chunks twice as large */
+  depth?: 'light' | 'full';
+  /** default true: blocking findings go to a fixer */
+  fixer?: boolean;
+  /** default 2, 0–5: fixer rounds; the gate reviews at most maxFixRounds + 1 times */
+  maxFixRounds?: number;
+  /** default 5, > 0: USD over the whole gate (reviewers, verifiers, fixers, every round) */
+  maxCostUsd?: number;
+  /** default 1, > 0: USD ceiling of one reviewer or verifier run */
+  maxRunCostUsd?: number;
+  /** default 15, 1–60: minutes of one run's own work; a usage-limit wait does not count */
+  timeoutMinutes?: number;
+  /** default 3, 1–6: review runs of this graph at the same time */
+  concurrency?: number;
+  /** defaults: reviewer 'sonnet', verifier 'opus', fixer = verification.model ?? graph model */
+  models?: { reviewer?: string; verifier?: string; fixer?: string };
+  /** globs added to the built-in exclusions (gitignore syntax, relative to the repository top) */
+  exclude?: string[];
+}
+
+/** The gate's summary, on the orchestration's verification; rounds, runs and findings are rows */
+export interface ReviewGateState {
+  status: ReviewGateStatus;
+  phase: ReviewGatePhase | null;
+  round: number;
+  maxFixRounds: number;
+  /** The commit the latest round reviewed */
+  head: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  costUsd: number;
+  /** English, Claudio's own sentence */
+  reason: string | null;
+  counts: { blocking: number; advisory: number; refuted: number; outside: number };
+  runs: { total: number; done: number; running: number; failed: number };
+  /** Set while a run waits for a usage limit to reset */
+  waiting?: LimitWait | null;
+  /** Bound to the head it was given on: a new commit voids it */
+  accepted?: { by: string; reason: string; at: string; head: string } | null;
+  depth: 'light' | 'full';
+}
+
+export interface ReviewRound {
+  id: string;
+  round: number;
+  pass: number;
+  base: string;
+  head: string;
+  depth: 'light' | 'full';
+  state: Exclude<ReviewGateStatus, 'pending' | 'skipped'>;
+  reason: string | null;
+  files: number;
+  added: number;
+  deleted: number;
+  chunks: number;
+  /** A file that should be reviewed but was not (anything but `excluded`) makes the round incomplete */
+  skippedFiles: { path: string; why: 'excluded' | 'binary' | 'submodule' | 'renamed' | 'not-reviewable'; detail?: string }[];
+  estimateUsd: number | null;
+  costUsd: number;
+  startedAt: string;
+  endedAt: string | null;
+  accepted: { by: string; reason: string; at: string } | null;
+  runs: ReviewRun[];
+}
+
+export interface ReviewRun {
+  id: string;
+  kind: ReviewRunKind;
+  dimension: ReviewDimension | null;
+  chunk: number | null;
+  chunks: number | null;
+  chatId: string | null;
+  model: string | null;
+  effort: Effort | null;
+  account: string | null;
+  /** Whether the role file was Claudio's or the project's, so a weakened reviewer shows */
+  roleSource: 'builtin' | 'project' | null;
+  state: ReviewRunState;
+  failure: string | null;
+  /** Findings the run reported that failed validation and were dropped */
+  dropped: number;
+  costUsd: number;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+export interface ReviewFinding {
+  id: string;
+  roundId: string;
+  /** Stable across rounds, so a finding is deduplicated and can be marked resolved */
+  fingerprint: string;
+  source: 'model' | 'claudio';
+  rule: string | null;
+  dimensions: ReviewDimension[];
+  /** How many reviewers reported it */
+  reportedBy: number;
+  severity: ReviewSeverity;
+  confidence: number;
+  title: string;
+  path: string | null;
+  line: number | null;
+  /** The diff's side as `ReviewSide`: a finding's `old` is `left` and its `new` is `right` */
+  side: ReviewSide | null;
+  anchor: ReviewAnchor;
+  /** Masked before it is stored: a finding must never copy a secret into the database */
+  evidence: string;
+  failureScenario: string;
+  suggestion: string | null;
+  verdict: ReviewVerdict;
+  verdictReason: string | null;
+  verifierChatId: string | null;
+  blocking: boolean;
+  resolvedInRound: number | null;
+}
+
+/** GET /orchestrations/:id/review */
+export interface ReviewGateDetail {
+  state: ReviewGateState | null;
+  rounds: ReviewRound[];
+  findings: ReviewFinding[];
+  totalFindings: number;
+}
+
+/** A person's acceptance of a blocked or incomplete gate; a chat token is refused */
+export interface AcceptReviewRequest {
+  reason: string;
+}
+
+/** GET /projects/:id/review-roles */
+export interface ReviewRoleInfo {
+  role: ReviewDimension | 'verifier';
+  file: string;
+  source: 'builtin' | 'project';
+  sha: string;
+  bytes: number;
+  problem: string | null;
+}
+
 // ---------- Verification ----------
 //
 // Workers run typecheck and unit tests; the whole suite runs once, here, on the integration branch.
@@ -3806,6 +4186,8 @@ export interface VerificationSpec {
    * before the merge (CW-15). On by default; `false` leaves the task out.
    */
   e2eSpecs?: boolean;
+  /** The review gate, after the checks pass; absent means no review. `commands` may then be empty */
+  review?: ReviewGateSpec;
 }
 
 /** Runs the checks on a finished graph's integration branch, or runs them again. */
@@ -3892,6 +4274,10 @@ export interface FlowCheckVerdict {
 
 export interface VerificationState {
   status: VerificationStatus;
+  /** Which gate made a `failed` verification fail; `VerificationStatus` has no member for the review */
+  gate?: 'checks' | 'review';
+  /** The review gate's summary; absent when the graph has no review */
+  review?: ReviewGateState;
   /** When the checks started and ended; absent on graphs stored before they were recorded */
   startedAt?: string | null;
   endedAt?: string | null;
@@ -3996,6 +4382,7 @@ export interface CriticalPathLink {
 }
 
 export interface VerificationTimings {
+  review?: { startedAt: string | null; endedAt: string | null; rounds: { round: number; reviewMs: number; verifyMs: number; fixMs: number; costUsd: number }[] };
   /** Every run of every command */
   checksMs: number;
   /** Every fixer attempt */
@@ -4091,6 +4478,8 @@ export interface ResumeOrchestrationRequest {
   limits?: TaskLimits | null;
   /** Attempts a failed task gets from here on, the first included */
   maxAttempts?: number;
+  /** Guards for the runs still to start; a chat's token may not weaken them (docs/plans/guards.md) */
+  guards?: GuardOverride;
 }
 
 export interface PlanRequest {
@@ -4415,6 +4804,12 @@ export interface AppSettingValues {
    * in cents.
    */
   dailySpendCapUsd: number | null;
+  /**
+   * Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case
+   * drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals
+   * are not affected.
+   */
+  evalsPhase2: boolean;
 }
 
 /**
@@ -5560,6 +5955,8 @@ export type ProviderCapability =
   | 'subagents'
   | 'mcp'
   | 'worktreeFlag'
+  | 'settingsFlag'
+  | 'hookEvents'
   | 'budgetLimit'
   | 'effort'
   | 'costReport'
@@ -6765,6 +7162,27 @@ export interface JournalChangedEvent extends ClaudioEventBase {
   itemId: string | null;
 }
 
+export type LessonChangeAction =
+  | 'proposed' | 'approved' | 'rejected' | 'edited' | 'confirmed' | 'pinned'
+  | 'retired' | 'restored' | 'deleted' | 'promoted' | 'demoted' | 'merged';
+
+/** A lesson changed. `projectId` is null for a global lesson, which every project's list shows. */
+export interface LessonChangedEvent extends ClaudioEventBase {
+  type: 'lesson.changed';
+  projectId: string | null;
+  lessonId: string;
+  action: LessonChangeAction;
+}
+
+/** A mining job moved on, so the Lessons tab can show it without polling. */
+export interface LessonJobEvent extends ClaudioEventBase {
+  type: 'lesson.job';
+  projectId: string;
+  jobId: string;
+  status: LessonJobStatus;
+  outcome: LessonJobOutcome | null;
+}
+
 export type MemoryProposalAction = 'created' | 'approved' | 'rejected';
 
 /**
@@ -7341,6 +7759,491 @@ export interface SpendAlertEvent extends ClaudioEventBase {
   spend: SpendState;
 }
 
+/** The global guard settings changed (`PUT /settings/guards`); applies to the next process spawned. */
+export interface GuardsChangedEvent extends ClaudioEventBase {
+  type: 'guards.changed';
+  settings: GuardSettings;
+}
+
+// ---------------------------------------------------------------------------
+// Instruction-compliance evals (docs/plans/instruction-evals.md). Constants live in evals.ts.
+// ---------------------------------------------------------------------------
+
+/** What an eval measures: an agent file, a skill, a rule, or CLAUDE.md / CLAUDE.local.md. */
+export type EvalTargetKind = (typeof EVAL_KINDS)[number];
+
+/** The target variants a run compares; `proposed` is text the person sends, never written outside a lane. */
+export type EvalVariant = (typeof EVAL_VARIANTS)[number];
+
+/** `judged` is Phase 2 and appears only in a version 2 file. */
+export type EvalExpectationKind = (typeof EXPECTATION_KINDS_V2)[number];
+
+/** Phase 2: how hard a prompt pushes against the rule; each level is its own cell of a run. */
+export type EvalPressure = (typeof EVAL_PRESSURES)[number];
+
+/**
+ * The file under test. The path is derived from kind, scope and name by Claudio's own resolvers and
+ * never read from the eval file, so a committed eval cannot point a run at an arbitrary file.
+ */
+export interface EvalTarget {
+  kind: EvalTargetKind;
+  /** `user` allows only the `current` variant: a proposal must never be written to the person's config dir */
+  scope: 'project' | 'user';
+  /** `agent`/`skill`/`rule`: the resource name. `instructions`: `CLAUDE.md` or `CLAUDE.local.md` */
+  name: string;
+}
+
+/** How the sample's session is started, so the eval measures the member as the flow really runs it. */
+export interface EvalRunAs {
+  /** Must equal `target.name` for an agent target; may name a team member for other targets */
+  agent?: string;
+  /** Picks the flow's `stagePolicy`; only when `agent` is a team member. Defaults to `work` */
+  stage?: FlowStage;
+  /** Exact ids are recommended; the model the CLI reports is recorded per sample */
+  model?: string;
+  effort?: Effort | null;
+}
+
+export interface EvalLimits {
+  /** Passed to the CLI as `--max-budget-usd` */
+  maxCostUsdPerSample?: number;
+  /** Claudio's own clock per sample */
+  timeoutMinutes?: number;
+  /** The run's ceiling. The start dialog may lower it, never raise it */
+  maxCostUsd?: number;
+  /** Phase 2: passed to the judge as `--max-budget-usd`, per judged expectation and sample */
+  maxJudgeCostUsd?: number;
+}
+
+/** A string matcher: a bare string is a glob over the whole value. */
+export type EvalStringMatcher =
+  | string
+  | { equals: string }
+  | { contains: string }
+  | { regex: string; flags?: string };
+
+/** A call matcher; every field given must match. */
+export interface EvalCallMatcher {
+  /** A name glob (`mcp__*`) or a list of them */
+  tool?: string | string[];
+  /** Against each segment of a Bash command, or the whole command */
+  command?: EvalStringMatcher;
+  /** Against the call's path, relative to the lane root */
+  path?: EvalStringMatcher;
+  /** Against top-level string fields of the input, for tools the other fields do not cover */
+  input?: Record<string, EvalStringMatcher>;
+  /** Defaults to `any` */
+  outcome?: 'ok' | 'error' | 'denied' | 'any';
+  /** Defaults to `main` */
+  scope?: 'main' | 'sub' | 'any';
+}
+
+/** A check a case makes of a sample; all of a case's expectations must pass. */
+export type EvalExpectation =
+  | { kind: 'called'; call: EvalCallMatcher; min?: number; max?: number }
+  | { kind: 'not-called'; call: EvalCallMatcher }
+  /** Strictly earlier assistant message than the first anchor: calls in one message are simultaneous */
+  | { kind: 'before'; call: EvalCallMatcher; anchor: EvalCallMatcher; ifAnchor?: boolean }
+  | { kind: 'after'; call: EvalCallMatcher; anchor: EvalCallMatcher; ifAnchor?: boolean }
+  | { kind: 'sequence'; calls: EvalCallMatcher[]; strict?: boolean }
+  | { kind: 'text'; match: EvalStringMatcher }
+  | { kind: 'file'; path: string; exists?: boolean; contains?: EvalStringMatcher }
+  | { kind: 'touched'; path: EvalStringMatcher; expect: boolean }
+  /** Runs in the lane; needs the person's consent for the file's content */
+  | { kind: 'command'; run: string; exitCode?: number; timeoutSeconds?: number }
+  /** Phase 2, version 2 files only */
+  | EvalJudgedExpectation;
+
+/** One folded call as the judge sees it, with the verdict the person expects of it. */
+export interface EvalJudgeExample {
+  /** Call summaries in order, as the judge reads them */
+  calls: string[];
+  /** The sample's final text */
+  final: string;
+  pass: boolean;
+}
+
+/**
+ * Phase 2: a statement a model checks against the sample's transcript. Deterministic expectations
+ * come first in a case; this one is for what a matcher cannot see ("explains why before editing").
+ */
+export interface EvalJudgedExpectation {
+  kind: 'judged';
+  statement: string;
+  /** Default `haiku` */
+  model?: string;
+  /** Run on the judge once before a run; a judge that disagrees is shown as unreliable */
+  examples?: EvalJudgeExample[];
+}
+
+/** Phase 2: the prompt at each pressure level. `neutral` is Phase 1's single `prompt`. */
+export interface EvalCasePrompts {
+  /** Reminds the agent of the rule */
+  supportive?: string;
+  /** The task alone */
+  neutral: string;
+  /** The task plus a plausible reason to skip the rule. Written by the person, never by Claudio */
+  competing?: string;
+}
+
+export interface EvalCase {
+  id: string;
+  title?: string;
+  /**
+   * English; sent as the sample's first and only message. In a parsed definition it is always the
+   * `neutral` prompt: a version 1 file's only one, or `prompts.neutral` of a version 2 file.
+   */
+  prompt: string;
+  /** Phase 2: the other pressure levels; absent in a version 1 file and in a v2 file with one prompt */
+  prompts?: EvalCasePrompts;
+  /** Phase 2: a regression guard; its pass^k is what the promotion gate reads */
+  mustHold?: boolean;
+  /** Overrides the file's pin for this case */
+  pin?: string;
+  expect: EvalExpectation[];
+}
+
+/** The content of `<project>/.claude/claudio-evals/<name>.json`. */
+export interface EvalDefinition {
+  /** 2 allows `prompts`, `mustHold`, `k` and `judged`; a version 1 file reads as neutral-only */
+  version: 1 | 2;
+  title: string;
+  target: EvalTarget;
+  runAs?: EvalRunAs;
+  /** A full 40-hex SHA: a branch name moves */
+  pin: string;
+  /** n: samples per case, variant and pressure level. Up to 10 in a version 2 file */
+  samples?: number;
+  /** Phase 2: the k of pass@k and pass^k, at most `samples`. Default 3 */
+  k?: number;
+  limits?: EvalLimits;
+  /** Ignored when `runAs.stage` applies */
+  policy?: ToolPolicy | null;
+  /** Runs once per lane before its first sample, under consent */
+  setup?: string | null;
+  cases: EvalCase[];
+}
+
+/** An eval file as listed: a file that does not parse is listed with its problems, never run. */
+export interface EvalFile {
+  name: string;
+  path: string;
+  /** SHA-256 of the file's bytes: the key of consent and of `ifMatch` */
+  sha: string;
+  definition: EvalDefinition | null;
+  /** One entry per problem, each starting with the path of the field */
+  problems: string[];
+}
+
+export interface EvalRunRequest {
+  variants: EvalVariant[];
+  /** Phase 2: the levels to run; absent runs `neutral` only */
+  pressures?: EvalPressure[];
+  /** Required with `proposed` */
+  proposed?: string;
+  /** A subset of the case ids */
+  cases?: string[];
+  samples?: number;
+  maxCostUsd?: number;
+  /** Must equal the ceiling the estimate showed, so a client cannot start a run whose ceiling the person never saw */
+  confirmMaxCostUsd: number;
+  /** Pin one account; the run then waits at a limit rather than switching */
+  account?: string;
+}
+
+export type EvalWarning =
+  | 'dirty-checkout'
+  | 'large-checkout'
+  | 'target-absent'
+  | 'models-differ'
+  | 'user-scope'
+  | 'pin-behind-head';
+
+/** What a start would cost and need, computed without starting anything. */
+export interface EvalEstimate {
+  samples: number;
+  ceilingUsd: number;
+  /** From the eval's history; null when there is none */
+  typicalUsd: number | null;
+  /** Every setup and assertion command the person must consent to */
+  commands: string[];
+  prompts: string[];
+  /** Phase 2: samples and ceiling per pressure level, for the dialog's breakdown */
+  perLevel?: Partial<Record<EvalPressure, { samples: number; ceilingUsd: number }>>;
+  consentNeeded: boolean;
+  warnings: EvalWarning[];
+}
+
+export type EvalRunState = 'queued' | 'running' | 'waiting' | 'ended';
+export type EvalRunOutcome = 'completed' | 'capped' | 'cancelled' | 'interrupted' | 'failed';
+export type EvalSampleState = 'queued' | 'running' | 'ended';
+/**
+ * Only `passed` and `failed` are scored; the rest say why a sample says nothing about the target.
+ * `unjudged` (Phase 2): a judge failed, so the judged expectation has no verdict; it fails closed for the gate.
+ */
+export type EvalSampleOutcome = 'passed' | 'failed' | 'limit' | 'interrupted' | 'cancelled' | 'skipped' | 'infra' | 'unjudged';
+
+export interface EvalVariantInfo {
+  variant: EvalVariant;
+  targetPath: string;
+  /** False when the target does not exist in this variant: a baseline of "no file" */
+  present: boolean;
+  contentSha: string | null;
+  /** Null above 256 KiB; the SHA stays */
+  content: string | null;
+}
+
+export interface EvalRunSummary {
+  id: string;
+  projectId: string;
+  evalName: string;
+  definitionSha: string;
+  variants: EvalVariant[];
+  samplesPerCase: number;
+  /** Phase 2: the levels this run covers; `['neutral']` for a Phase 1 run */
+  pressures: EvalPressure[];
+  account: string | null;
+  state: EvalRunState;
+  outcome: EvalRunOutcome | null;
+  reason: string | null;
+  /** Set while waiting for a usage limit to reset */
+  resetsAt: string | null;
+  maxCostUsd: number;
+  costUsd: number;
+  /** Samples per outcome; `running` and `queued` count the unfinished ones */
+  counts: Partial<Record<EvalSampleOutcome | 'queued' | 'running', number>>;
+  /** Per variant: cases with every scored sample passing, out of cases with at least one scored sample */
+  scored: Partial<Record<EvalVariant, { passed: number; of: number }>>;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+export interface EvalCheck {
+  idx: number;
+  kind: EvalExpectationKind | 'sample';
+  passed: boolean;
+  /** English: why, e.g. "Bash `pnpm test` (#14) is after the last Edit (#11)" */
+  detail: string;
+  /** The call that proves it, so the UI can scroll to it */
+  evidenceSeq: number | null;
+  /** A command check's tail, 4 KiB, masked */
+  output: string | null;
+  /** Phase 2: for a `judged` check, its judgement; null for the others */
+  judgement?: EvalJudgement | null;
+}
+
+/** What the judge answered for one judged expectation of one sample. */
+export interface EvalJudgement {
+  /** The expectation's index in its case */
+  idx: number;
+  /** Null when `status` is `unjudged` */
+  pass: boolean | null;
+  /** English, at most 400 characters */
+  reason: string;
+  /** Call seqs it points at */
+  evidence: number[];
+  costUsd: number | null;
+  model: string | null;
+  status: 'judged' | 'unjudged';
+}
+
+export interface EvalCall {
+  seq: number;
+  /** Index of the assistant message that carried it; calls in one message are simultaneous */
+  message: number;
+  toolUseId: string | null;
+  name: string;
+  scope: 'main' | 'sub';
+  /** `open` means no result before the end */
+  outcome: 'ok' | 'error' | 'denied' | 'open';
+  /** JSON, cut to 4 KiB and masked */
+  input: string;
+  /** Cut to 1 KiB and masked */
+  result: string | null;
+  at: string | null;
+}
+
+export interface EvalSample {
+  id: string;
+  runId: string;
+  caseId: string;
+  variant: EvalVariant;
+  /** Phase 2; `neutral` for a Phase 1 sample */
+  pressure: EvalPressure;
+  attempt: number;
+  /** A sample hit by a usage limit is run again from scratch as a new try, never replayed */
+  try: number;
+  /** Queue order */
+  seq: number;
+  state: EvalSampleState;
+  outcome: EvalSampleOutcome | null;
+  reason: string | null;
+  chatId: string | null;
+  account: string | null;
+  model: string | null;
+  cliVersion: string | null;
+  pin: string;
+  costUsd: number | null;
+  durationMs: number | null;
+  turns: number | null;
+  /** The checks ran on the full list; only the stored one was cut */
+  callsTruncated: boolean;
+  /** Cut to 8 KiB and masked */
+  resultText: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  checks: EvalCheck[];
+}
+
+/** A run with its variants and samples (calls omitted: they come with one sample). */
+export interface EvalRun extends EvalRunSummary {
+  /** The file as run: the record of what was measured */
+  definition: EvalDefinition;
+  variantInfo: EvalVariantInfo[];
+  samples: EvalSample[];
+}
+
+export type EvalCaseVerdict = 'regressed' | 'improved' | 'same';
+
+/**
+ * Phase 2: one cell (case × variant × pressure) read as metrics. `n` counts scored samples,
+ * `c` the passing ones; a rate is never shown without `n`.
+ */
+export interface EvalCellMetrics {
+  caseId: string;
+  variant: EvalVariant;
+  pressure: EvalPressure;
+  n: number;
+  c: number;
+  /** Clamped to `n` */
+  k: number;
+  /** At least one of k passes; null when n < k */
+  passAtK: number | null;
+  /** All k pass; null when n < k */
+  passHatK: number | null;
+  /** Wilson 95 % interval around c / n */
+  interval: { low: number; high: number };
+  /** Samples left out because a judge failed */
+  unjudged: number;
+  mustHold: boolean;
+}
+
+export type EvalGateVerdictKind = 'promotable' | 'regressed' | 'incomplete';
+
+/**
+ * Phase 2: the verdict on a run with `current` and `proposed`. Nothing is written by it: "Save
+ * proposed" opens the editor's Save with the proposed text.
+ */
+export interface EvalGate {
+  runId: string;
+  verdict: EvalGateVerdictKind;
+  /** `mustHold` cases whose pass^k fell, with the levels; set for `regressed` */
+  regressed: { caseId: string; pressure: EvalPressure; from: number; to: number }[];
+  /** Why it is `incomplete`: unjudged or not-scored `mustHold` samples, a unreliable judge, n below the gate minimum */
+  incomplete: { caseId: string | null; pressure: EvalPressure | null; reason: 'unjudged' | 'not-scored' | 'small-n' | 'judge-unreliable' }[];
+  /** Mean pass rate across cells, with the interval the fall is compared against */
+  meanRate: {
+    current: number | null;
+    proposed: number | null;
+    interval: { low: number; high: number } | null;
+  };
+  /** Judged expectations whose judge disagreed with its calibration examples, not yet accepted */
+  unreliableJudges: { caseId: string; idx: number }[];
+  /** Pinned account or rotation, shown on the card; no effect on the verdict */
+  account: string | null;
+  cells: EvalCellMetrics[];
+}
+
+/** Two variants of one run, per case. States facts only: no verdict on whether to promote. */
+export interface EvalComparison {
+  runId: string;
+  base: EvalVariant;
+  other: EvalVariant;
+  cases: {
+    caseId: string;
+    base: { passed: number; scored: number; flaky: boolean };
+    other: { passed: number; scored: number; flaky: boolean };
+    verdict: EvalCaseVerdict;
+  }[];
+  /** Per variant */
+  mean: Partial<Record<EvalVariant, { costUsd: number | null; durationMs: number | null }>>;
+}
+
+/** An eval file in the project's list, with the newest run of that eval (null when it never ran). */
+export interface EvalFileListItem extends EvalFile {
+  latestRun: EvalRunSummary | null;
+}
+
+/**
+ * The checkout's repository state, for the evals screens: `git` false is "not a repository", and
+ * `sha` null with `git` true is "no commit yet". `uncommitted` names the eval files the repository
+ * does not have as they are on disk (untracked or changed).
+ */
+export interface EvalHead {
+  git: boolean;
+  sha: string | null;
+  subject: string | null;
+  uncommitted: string[];
+}
+
+/** One eval file; `consented` says whether the person accepted this very content (consent is per SHA). */
+export interface EvalFileDetail extends EvalFile {
+  consented: boolean;
+}
+
+/** `ifMatch` is the SHA the editor read, or null when it expects there to be no file yet. */
+export interface PutEvalFileRequest {
+  definition: EvalDefinition;
+  ifMatch: string | null;
+}
+
+export interface EvalConsentRequest {
+  sha: string;
+}
+
+export interface ResumeEvalRunRequest {
+  /** Must equal the new ceiling the person was shown: what was spent plus the worst case of what is left */
+  confirmMaxCostUsd: number;
+}
+
+/** A page of runs, newest first; pass `next` back as `before` for the following page. */
+export interface EvalRunPage {
+  runs: EvalRunSummary[];
+  next: string | null;
+}
+
+/** A sample with the tool calls it made, which `EvalRun` leaves out. */
+export interface EvalSampleDetail extends EvalSample {
+  calls: EvalCall[];
+}
+
+/** An eval run changed state, counts or cost. */
+export interface EvalRunEvent extends ClaudioEventBase {
+  type: 'eval.run';
+  runId: string;
+  projectId: string;
+  evalName: string;
+  state: EvalRunState;
+  outcome: EvalRunOutcome | null;
+  counts: EvalRunSummary['counts'];
+  costUsd: number;
+  resetsAt: string | null;
+}
+
+/** One sample of an eval run started or ended. */
+export interface EvalSampleEvent extends ClaudioEventBase {
+  type: 'eval.sample';
+  runId: string;
+  projectId: string;
+  sampleId: string;
+  caseId: string;
+  variant: EvalVariant;
+  attempt: number;
+  state: EvalSampleState;
+  outcome: EvalSampleOutcome | null;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type ClaudioEvent =
   | RunCreatedEvent
@@ -7390,6 +8293,8 @@ export type ClaudioEvent =
   | ProjectRemovedEvent
   | TeamChangedEvent
   | JournalChangedEvent
+  | LessonChangedEvent
+  | LessonJobEvent
   | MemoryProposalEvent
   | DocumentChangedEvent
   | FlowRunEvent
@@ -7402,7 +8307,10 @@ export type ClaudioEvent =
   | WebhookChangedEvent
   | LoginUpdatedEvent
   | SpendChangedEvent
-  | SpendAlertEvent;
+  | SpendAlertEvent
+  | GuardsChangedEvent
+  | EvalRunEvent
+  | EvalSampleEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 
@@ -7453,6 +8361,7 @@ export type DecisionPointId =
   | 'assistant.rerank'
   | 'assistant.sources'
   | 'journal.relevance'
+  | 'lesson.mine'
   | 'board.triage'
   | 'team.assign'
   | 'flow.scope-drift'
@@ -7471,7 +8380,8 @@ export type DecisionPointId =
   | 'checks.fix'
   | 'review.triage'
   | 'issue.triage'
-  | 'account.model-fallback';
+  | 'account.model-fallback'
+  | 'review.depth';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
@@ -7806,4 +8716,171 @@ export interface DecisionPaletteResult {
   commandId: string | null;
   confidence: number | null;
   decisionId: string | null;
+}
+
+// ── Guards (docs/plans/guards.md) ────────────────────────────────────────────────────────────────
+
+/**
+ * A rule of the guard program. `integrity` protects the guard itself and is always on whenever
+ * guards are; it is deliberately not a key of any settings or override type, so it cannot be
+ * switched off through the API ({@link GuardSwitchableRuleId}).
+ */
+export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs';
+
+/** The rules a person can switch: every rule but `integrity`. */
+export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity'>;
+
+/** `enforce` blocks; `observe` records "would block" and passes, for rollback after a false positive. */
+export type GuardMode = 'enforce' | 'observe';
+
+/** The global guard settings (`guards.json`, `GET`/`PUT /settings/guards`). */
+export interface GuardSettings {
+  /** Default `enforce`; `observe` is a person's choice and is never picked automatically */
+  mode: GuardMode;
+  /** Guard workers, the integrator, fixers, synthesis and flow stages; default true (O1) */
+  automated: boolean;
+  /** Which switchable rules are on; `protect-configs` ships off, the others on (O2, O3) */
+  rules: Record<GuardSwitchableRuleId, boolean>;
+  /** Globs, relative to a root, of the existing config files `protect-configs` guards; at most 200, none absolute or with `..` */
+  protectConfigs: string[];
+  /** Absolute directories `destructive` treats as roots besides the run's worktree */
+  extraRoots: string[];
+}
+
+/** `PUT /settings/guards`: only the keys that change; `rules` merges over the stored ones. */
+export interface UpdateGuardSettingsRequest {
+  mode?: GuardMode;
+  automated?: boolean;
+  rules?: Partial<Record<GuardSwitchableRuleId, boolean>>;
+  protectConfigs?: string[];
+  extraRoots?: string[];
+}
+
+/** What a graph or a flow stage changes of the global settings; absent fields inherit. */
+export interface GuardOverride {
+  /** Absent inherits; `false` switches the guard off for the graph or stage (shown as "Guards off") */
+  enabled?: boolean;
+  /** Merged over the global rules; `integrity` cannot be named */
+  rules?: Partial<Record<GuardSwitchableRuleId, boolean>>;
+}
+
+/** `ProjectSettings.guards`. */
+export interface ProjectGuardSettings {
+  /** Guard every new chat process in the project with the global rules; absent reads as false (O1) */
+  chats: boolean;
+}
+
+/** One rule as the UI lists it; the words are the UI's own (i18n), not the server's. */
+export interface GuardRuleInfo {
+  id: GuardRuleId;
+  /** On in a fresh install */
+  defaultOn: boolean;
+  /** False for `integrity` only */
+  switchable: boolean;
+}
+
+/** Why the guard cannot run: the codes of the pre-launch checks (`guards/preflight.ts`). */
+export type GuardProblem =
+  | 'entry-missing'
+  | 'entry-untrusted'
+  | 'self-test-failed'
+  | 'cli-unsupported'
+  | 'hooks-disabled'
+  | 'managed-hooks-only'
+  | 'hooks-conflict'
+  | 'bad-path';
+
+/** Whether guards can run on this machine, so Settings can say why not instead of failing a launch. */
+export interface GuardStatus {
+  available: boolean;
+  /** Null when available */
+  problem: GuardProblem | null;
+  /** The CLI the check ran against; null when none was found */
+  cliVersion: string | null;
+}
+
+/** `GET`/`PUT /settings/guards`. */
+export interface GuardSettingsView {
+  settings: GuardSettings;
+  status: GuardStatus;
+  rules: GuardRuleInfo[];
+}
+
+/**
+ * What became of one guarded tool call. `blocked` and `observed` are the guard's verdicts;
+ * `missing` is a tool call with no guard marker, `unarmed` a run that started without the guard
+ * being live, `error` a guard that failed and so blocked, `allowed-once` a block a person let
+ * through once in an interactive chat.
+ */
+export type GuardOutcome = 'blocked' | 'observed' | 'missing' | 'unarmed' | 'error' | 'allowed-once';
+
+/** One row of `guard_events`. */
+export interface GuardEvent {
+  seq: number;
+  at: string;
+  chatId: string;
+  projectId: string | null;
+  orchestrationId: string | null;
+  taskId: string | null;
+  flowRunId: string | null;
+  /** The CLI's id of the tool call; null for an event that belongs to no call (`unarmed`) */
+  toolUseId: string | null;
+  toolName: string;
+  rule: GuardRuleId;
+  /** Stable id of the check that fired, such as `push.git-verb` */
+  matcher: string;
+  outcome: GuardOutcome;
+  /** English, from the guard, never holding a secret */
+  reason: string;
+  /** The command or path, masked, at most 240 characters */
+  excerpt: string;
+}
+
+/** `GET /guard-events`: newest first; `next` is the `before` cursor of the following page, null at the end. */
+export interface GuardEventPage {
+  events: GuardEvent[];
+  next: number | null;
+}
+
+/** `POST /guards/check`: asks the pure decision engine about one tool call; backs "Try a command". */
+export interface GuardCheckRequest {
+  tool: string;
+  input: Record<string, unknown>;
+  /** Rules to check with; the current settings when absent */
+  rules?: GuardSwitchableRuleId[];
+  /** Absolute directories treated as the run's roots */
+  roots?: string[];
+}
+
+export interface GuardCheckResult {
+  verdict: 'pass' | 'block';
+  /** Present on a block */
+  rule?: GuardRuleId;
+  matcher?: string;
+  /** English, to show and to hand the agent */
+  reason?: string;
+}
+
+/**
+ * The guards on a chat's live process (`Chat.guards`). `arming`: waiting for the guard's session
+ * marker before the first prompt; `armed`: live; `missing`: a tool call went by unguarded and the
+ * run was interrupted; `off`: the chat is not guarded.
+ */
+export interface ChatGuards {
+  /** The effective rules, `integrity` first */
+  rules: GuardRuleId[];
+  mode: GuardMode;
+  state: 'arming' | 'armed' | 'missing' | 'off';
+}
+
+/** The payload of a `guard` {@link RunEvent}. */
+export interface RunGuardEvent {
+  outcome: GuardOutcome;
+  toolUseId: string | null;
+  toolName: string;
+  rule: GuardRuleId;
+  matcher: string;
+  reason: string;
+  /** The command or path, masked, at most 240 characters */
+  excerpt: string;
 }

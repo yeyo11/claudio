@@ -1,6 +1,6 @@
 import type { MemoryFile } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { BookText, ChevronRight, FileText, Folder, GitCommitVertical, Pencil } from 'lucide-react';
+import { BookText, GraduationCap, ChevronRight, FileText, Folder, GitCommitVertical, Pencil } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -119,6 +119,11 @@ export function HandedCard({ projectId, cli }: { projectId: string; cli: CliMemo
           <GitCommitVertical {...ICON} className="tree-icon" />
           <span className="doc-fill">{t('memoryTab.handed.journal', { count: handed?.entries ?? 0, n: formatNumber(handed?.entries ?? 0) })}</span>
           <span className="mono small muted tnum">{formatBytes(handed?.bytes ?? 0)}</span>
+        </li>
+        <li>
+          <GraduationCap {...ICON} className="tree-icon" />
+          <span className="doc-fill">{t('memoryTab.handed.lessons', { count: handed?.lessons ?? 0, n: formatNumber(handed?.lessons ?? 0) })}</span>
+          <span className="mono small muted tnum">{formatBytes(handed?.lessonBytes ?? 0)}</span>
         </li>
       </ul>
       <p className="small muted memory-card-note">{t('memoryTab.handed.note')}</p>

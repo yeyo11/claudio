@@ -40,7 +40,7 @@ function chat(env = {}, { args = [], setup } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-'));
   const logFile = join(dir, 'log.jsonl');
   setup?.(dir);
-  const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...args], {
+  const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...(typeof args === 'function' ? args(dir) : args)], {
     cwd: dir,
     env: { ...process.env, CLAUDIO_FAKE_CLI_LOG: logFile, ...env },
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -203,6 +203,30 @@ test('an issue.triage question is answered without a script: the marks go round 
   const result = await c.next((e) => e.type === 'result');
   assert.deepEqual(result.structured_output, { 32: 'ready', 33: 'needs-refining', 34: 'not-for-agents', 35: 'ready' });
   await c.done();
+});
+
+test('a lesson.mine question is answered true without a script', async () => {
+  const c = chat();
+  c.say('Answer the questions below from the state that follows, in the structured result.\n\nQuestions:\n\nmine: Do these signals show a person correcting, stopping or overruling the agent in a way that should change how agents work in this project from now on, beyond this one task? Answer true or false.');
+  const result = await c.next((e) => e.type === 'result');
+  assert.deepEqual(result.structured_output, { mine: true });
+  await c.done();
+});
+
+test('the lesson miner\'s prompt is answered with the scripts file\'s "@lesson-miner" line, or with no lessons', async () => {
+  const prompt = 'You review part of a chat between a person and a coding agent working in one project. The person corrected the agent.\n\nSignals, newest first:\n\nS1 no, usa pnpm siempre';
+  const dir = mkdtempSync(join(tmpdir(), 'fake-miner-'));
+  const scripts = join(dir, 'scripts.json');
+  const lesson = { trigger: 'When installing dependencies', action: 'Use `pnpm`.', signals: ['S1'], quote: 'no, usa pnpm siempre', confidence: 0.8, restates: '', contradicts: '', instructions: 'none', mechanical: false };
+  writeFileSync(scripts, JSON.stringify({ '@lesson-miner': `json: ${JSON.stringify({ lessons: [lesson] })}` }));
+  const scripted = chat({ CLAUDIO_FAKE_CLI_SCRIPTS: scripts });
+  scripted.say(prompt);
+  assert.deepEqual((await scripted.next((e) => e.type === 'result')).structured_output, { lessons: [lesson] });
+  await scripted.done();
+  const bare = chat();
+  bare.say(prompt);
+  assert.deepEqual((await bare.next((e) => e.type === 'result')).structured_output, { lessons: [] });
+  await bare.done();
 });
 
 test('read: holds a Read call open, and json: is the structured output of the result', async () => {
@@ -562,4 +586,89 @@ test('a transcript records toolUseResult, the subagent in its own file, and the 
   } finally {
     rmSync(config, { recursive: true, force: true });
   }
+});
+
+/** A settings file like the guard's: SessionStart and PreToolUse run one script, which blocks a command that contains `push` */
+function guardSetup(dir) {
+  const script = join(dir, 'hook.sh');
+  writeFileSync(script, 'input=$(cat)\ncase "$input" in *\'"hook_event_name":"SessionStart"\'*) echo "claudio-guard/1 armed" >&2; exit 0;; esac\ncase "$input" in *push*) echo "Claudio guard blocked this (push): no pushing" >&2; exit 2;; esac\necho "claudio-guard/1 pass" >&2\nexit 0\n');
+  const hook = { matcher: '*', hooks: [{ type: 'command', command: `sh ${script}` }] };
+  const settings = join(dir, 'settings.json');
+  writeFileSync(settings, JSON.stringify({ disableAllHooks: false, hooks: { SessionStart: [hook], PreToolUse: [hook] } }));
+  return ['--settings', settings, '--include-hook-events'];
+}
+const hookResponse = (event) => (e) => e.type === 'system' && e.subtype === 'hook_response' && e.hook_event === event;
+
+test('--settings: SessionStart runs before init, a passing command runs and a hook_response follows its call', async () => {
+  const c = chat({}, { args: guardSetup });
+  const start = await c.next(hookResponse('SessionStart'));
+  assert.equal(start.exit_code, 0);
+  const init = await c.next((e) => e.subtype === 'init');
+  assert.equal(c.events.indexOf(init), c.events.indexOf(start) + 1);
+  c.say('run: echo fine');
+  await c.next(toolUse);
+  const pass = await c.next(hookResponse('PreToolUse'));
+  assert.equal(pass.hook_name, 'PreToolUse:Bash');
+  assert.match(pass.stderr, /claudio-guard\/1 pass/);
+  const result = await c.next((e) => e.type === 'user');
+  assert.deepEqual([result.message.content[0].content, result.message.content[0].is_error], ['fine', false]);
+  await c.done();
+});
+
+test('--settings: exit 2 blocks the command, which never runs, and the tool_result carries the CLI\'s text', async () => {
+  const c = chat({}, { args: guardSetup });
+  await c.next(hookResponse('SessionStart'));
+  c.say('run: touch ran-push && git push');
+  const call = await c.next(toolUse);
+  const response = await c.next(hookResponse('PreToolUse'));
+  assert.equal(response.exit_code, 2);
+  assert.equal(response.outcome, 'error');
+  const result = await c.next((e) => e.type === 'user');
+  assert.equal(result.message.content[0].tool_use_id, call.message.content[0].id);
+  assert.equal(result.message.content[0].is_error, true);
+  assert.match(result.message.content[0].content, /^PreToolUse:Bash hook error: \[sh .*hook\.sh\]: Claudio guard blocked this \(push\): no pushing/);
+  assert.ok(!existsSync(join(c.dir, 'ran-push')), 'a blocked command never runs');
+  assert.ok(c.log().some((l) => l.event === 'command-blocked'));
+  await c.done();
+});
+
+test('--settings: CLAUDIO_FAKE_CLI_NO_HOOKS=1 leaves a call with no hook_response, and NO_ARM=1 no SessionStart', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_NO_HOOKS: '1', CLAUDIO_FAKE_CLI_NO_ARM: '1' }, { args: guardSetup });
+  await c.next((e) => e.subtype === 'init');
+  c.say('run: echo push');
+  await c.next(toolUse);
+  const result = await c.next((e) => e.type === 'user');
+  assert.equal(result.message.content[0].is_error, false);
+  assert.ok(!c.events.some((e) => e.subtype === 'hook_response'), 'no hook ran');
+  await c.done();
+});
+
+test('edit:, write: and skill: emit the Edit, Write and Skill shapes and touch the disk', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'a.txt'), 'one\n') });
+  c.say('edit: a.txt\nwrite: sub/b.txt hello there\nskill: review\nedit: missing.txt');
+  const call = async (name) => {
+    const e = await c.next((x) => x.type === 'assistant' && x.message.content.some((b) => b.type === 'tool_use' && b.name === name));
+    return e.message.content.find((b) => b.type === 'tool_use');
+  };
+  const edit = await call('Edit');
+  assert.match(edit.input.file_path, /\/a\.txt$/);
+  assert.deepEqual([edit.input.old_string, edit.input.new_string, edit.input.replace_all], ['one\n', 'one\nedited by the fake CLI\n', false]);
+  const edited = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(edited.tool_use_result.originalFile, 'one\n');
+  assert.equal(edited.tool_use_result.userModified, false);
+  const write = await call('Write');
+  assert.deepEqual([write.input.content, /\/sub\/b\.txt$/.test(write.input.file_path)], ['hello there', true]);
+  const written = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(written.tool_use_result.type, 'create');
+  assert.equal(readFileSync(write.input.file_path, 'utf8'), 'hello there');
+  assert.equal(readFileSync(edit.input.file_path, 'utf8'), 'one\nedited by the fake CLI\n');
+  const skill = await call('Skill');
+  assert.deepEqual(skill.input, { skill: 'review' });
+  const launched = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.deepEqual(launched.tool_use_result, { success: true, commandName: 'review' });
+  await call('Edit');
+  const failed = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(toolResultOf(failed).is_error, true);
+  await c.next((e) => e.type === 'result');
+  await c.done();
 });

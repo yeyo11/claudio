@@ -13,6 +13,7 @@ export const TAB_LABELS = {
   instructions: 'config:config.tabs.instructions',
   settings: 'config:config.tabs.settings',
   memory: 'home:settings.tabs.memory',
+  lessons: 'config:config.tabs.lessons',
   rules: 'config:config.tabs.rules',
   'output-styles': 'config:config.tabs.output-styles',
   mcp: 'config:config.tabs.mcp',
@@ -38,7 +39,7 @@ export type TabId = keyof typeof TAB_LABELS;
  */
 export const GROUPS: ReadonlyArray<{ id: 'claudio' | 'claude' | 'extensions' | 'system'; tabs: readonly TabId[] }> = [
   { id: 'claudio', tabs: ['appearance', 'notifications', 'account', 'providers', 'integrations', 'decisions'] },
-  { id: 'claude', tabs: ['instructions', 'settings', 'memory', 'rules', 'output-styles'] },
+  { id: 'claude', tabs: ['instructions', 'settings', 'memory', 'lessons', 'rules', 'output-styles'] },
   { id: 'extensions', tabs: ['mcp', 'plugins', 'skills', 'agents', 'commands', 'workflows', 'tools'] },
   { id: 'system', tabs: ['files', 'install', 'security', 'remote'] },
 ];

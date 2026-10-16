@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T21:00:00Z
-updated_at: 2026-10-15T21:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - plan
     - evals
@@ -14,9 +14,12 @@ tags:
 ---
 # Plan: instruction-compliance evals
 
-Status: **planned** (2026-10-15). Nothing is built. Phase 1 can be launched as written. Phase 2 is
-designed here too, but it starts only after the owner has checked Phase 1's
-[success criterion](#phase-1-success-criterion-the-gate-to-phase-2).
+Status: **Phases 1 and 2 built** (2026-10-16): core, API, web and the e2e specs (written, run once at
+the end) are in; the feature doc is [evals.md](../evals.md). Owner decision 2026-10-16: Phase 2 was
+built in the same orchestration, behind its own settings switch (`evalsPhase2`), and the four-week
+gate no longer applies. Still open from Phase 1: the CLI
+facts F2–F11 (`e0` was cut short by a usage limit), the raw-JSON view of an invalid file, and a web
+button to delete a run.
 
 **Summary.** You edit a team's agent file, a skill, a rule or `CLAUDE.md`, and you want to know
 whether agents now follow it. An *eval* answers that. It is a small JSON file in the project, with a
@@ -182,6 +185,11 @@ holds: every surface used below is already in the README table, "How it talks to
 | F10 | How far can `total_cost_usd` exceed `--max-budget-usd` in one sample? | The cap reservation margin | The margin stays at 25 % |
 | F11 | Does an `outputStyle` in project settings apply in `-p`? | Output-style targets (Phase 2) | They stay out |
 | F12 | Does `rotation.ts`'s replay of an `internal` chat (`rotation.ts:147-185`, `chats.ts:1438`) send its turn into a process that cannot resume? (code reading plus one fake-CLI run) | Decision 10 | The `e6` guard is needed either way; this fact only sets its test |
+
+Recording status (2026-10-16): F1 (ancestor `CLAUDE.md` and `CLAUDE.local.md` do load) and F12
+(the replay can reach an `internal` chat, so the `e6` guard is needed) are answered in
+[reports/instruction-evals-e0.md](../reports/instruction-evals-e0.md); the installed CLI is 2.1.301.
+F2–F11 wait for the account's usage limit to reset.
 
 The recording follows the scrubbing of [plans/multi-provider.md](multi-provider.md) phase 3. It goes
 to `docs/reports/instruction-evals-e0.md`, with fixtures under

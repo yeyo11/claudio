@@ -873,7 +873,65 @@ test("a chat's token cannot give a graph the spend pass or name the daily cap, a
   const cap = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { dailySpendCapUsd: null }) });
   assert.equal(cap.statusCode, 403);
   assert.match(cap.json().error, /daily spend cap/);
+  const phase2 = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { evalsPhase2: true }) });
+  assert.equal(phase2.statusCode, 403, "the evals' Phase 2 switch lets a judge spend, so it is the person's");
+  assert.equal((await app.inject({ url: '/api/settings/app', ...bearer(owner) })).json().evalsPhase2, false);
   // What else a chat may write to the settings is not this route's business, and the cap is readable
   assert.equal((await app.inject({ url: '/api/spend', ...fromChat(token) })).statusCode, 200);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...authed(owner, { dailySpendCapUsd: 5 }) })).statusCode, 200);
+});
+
+test("a chat's token reads lessons but cannot decide, change or mine them, or decide a lesson proposal", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  const forbidden: Array<[string, string, unknown]> = [
+    ['PATCH', '/api/lessons/L1', { pinned: true }],
+    ['POST', '/api/lessons/L1/confirm', undefined],
+    ['POST', '/api/lessons/L1/retire', {}],
+    ['POST', '/api/lessons/L1/restore', undefined],
+    ['DELETE', '/api/lessons/L1', undefined],
+    ['POST', '/api/lessons/L1/promote', undefined],
+    ['POST', '/api/lessons/L1/demote', {}],
+    ['POST', '/api/lessons/L1/instructions', {}],
+    ['POST', '/api/chats/chat-42/lessons/mine', undefined],
+    ['PUT', '/api/lessons/settings', { manualMining: false }],
+    // A lesson proposal, and an instructions proposal made from a lesson, are decided by a person only
+    ['POST', '/api/memory-proposals/P1/approve', { previewOf: 'abc' }],
+    ['POST', '/api/memory-proposals/P1/reject', {}],
+  ];
+  for (const [method, url, body] of forbidden) {
+    const request = body === undefined ? { method, url, ...fromChat(token) } : { method, url, ...fromChatWith(token, body) };
+    const answer = await app.inject(request as InjectOptions);
+    assert.equal(answer.statusCode, 403, `${method} ${url}`);
+  }
+  const settings = await app.inject({ method: 'PUT', url: '/api/lessons/settings', ...fromChatWith(token, { manualMining: false }) });
+  assert.match(settings.json().error, /cannot decide, change or mine lessons/);
+  // Reading stays open to the chat, and the person's own token still changes the settings
+  assert.equal((await app.inject({ url: '/api/lessons/settings', ...fromChat(token) })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/lessons/global', ...fromChat(token) })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/lessons/nope', ...fromChat(token) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/lessons/settings', ...authed(owner, { manualMining: false }) })).statusCode, 200);
+});
+
+test("a chat's token cannot change who receives lessons through the project's settings document", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-lessons-project-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...authed(owner, { path: dir, name: 'Lessons' }) });
+  assert.equal(imported.statusCode, 201);
+  const { id } = imported.json() as { id: string };
+  const url = `/api/projects/${id}/settings`;
+  const current = (await app.inject({ url, ...bearer(owner) })).json() as Record<string, unknown>;
+
+  const mine = { deliverToChats: false, deliverToWorkers: false, useGlobal: false };
+  assert.equal((await app.inject({ method: 'PUT', url, ...authed(owner, { ...current, lessons: mine }) })).statusCode, 200);
+  // The chat saves the document with every switch turned the other way: its copy of `lessons` is not kept
+  const grab = { deliverToChats: true, deliverToWorkers: true, useGlobal: true };
+  assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(token, { ...current, lessons: grab }) })).statusCode, 200);
+  assert.deepEqual(((await app.inject({ url, ...bearer(owner) })).json() as { lessons: unknown }).lessons, mine);
 });

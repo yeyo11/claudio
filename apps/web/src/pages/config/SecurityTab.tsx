@@ -14,6 +14,7 @@ import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
 import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 import { SecretsCard } from '../../components/setup/SecretsCard';
 import { AppSettingsCards } from './AppSettingsCards';
+import { GuardsCard } from './GuardsCard';
 import { OwnTokenForm, RevealedToken, useTokenActions } from './security/token';
 import { TerminalCard } from './security/TerminalCard';
 
@@ -54,6 +55,7 @@ export function SecurityTab() {
         </>
       )}
       <AppSettingsCards />
+      <GuardsCard readOnly={auth?.readOnly ?? false} />
       <TerminalCard />
       <AuditCard />
       <p className="small muted">{t('security.footnote')}</p>

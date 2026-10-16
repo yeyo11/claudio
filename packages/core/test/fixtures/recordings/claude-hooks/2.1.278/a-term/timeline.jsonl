@@ -1,0 +1,11 @@
+{"ms":1,"dir":"in","kind":"user"}
+{"ms":993,"dir":"out","kind":"system/init"}
+{"ms":2578,"dir":"out","kind":"assistant"}
+{"ms":2736,"dir":"out","kind":"assistant"}
+{"ms":2741,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":2751,"dir":"out","kind":"rate_limit_event"}
+{"ms":2777,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":2936,"dir":"out","kind":"user"}
+{"ms":3906,"dir":"out","kind":"assistant"}
+{"ms":3953,"dir":"out","kind":"assistant"}
+{"ms":3964,"dir":"out","kind":"result/success"}

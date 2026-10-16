@@ -1,0 +1,7 @@
+{"ms":1,"dir":"in","kind":"user"}
+{"ms":1134,"dir":"out","kind":"system/init"}
+{"ms":2666,"dir":"out","kind":"assistant"}
+{"ms":2680,"dir":"out","kind":"rate_limit_event"}
+{"ms":2800,"dir":"out","kind":"user"}
+{"ms":3910,"dir":"out","kind":"assistant"}
+{"ms":3930,"dir":"out","kind":"result/success"}

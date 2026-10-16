@@ -16,6 +16,7 @@ export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
   defaultPermissionMode: 'CLAUDIO_DEFAULT_PERMISSION_MODE',
   setupSeen: 'CLAUDIO_SETUP_SEEN',
   dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
+  evalsPhase2: 'CLAUDIO_EVALS_PHASE2',
 };
 
 // The server's own bounds; a value outside them is refused with a 400
@@ -58,6 +59,7 @@ export function changedSettings(saved: AppSettings, draft: Partial<AppSettingVal
   if (draft.dailySpendCapUsd !== undefined && saved.sources.dailySpendCapUsd !== 'env' && draft.dailySpendCapUsd !== saved.dailySpendCapUsd) {
     out.dailySpendCapUsd = draft.dailySpendCapUsd;
   }
+  if (draft.evalsPhase2 !== undefined && saved.sources.evalsPhase2 !== 'env' && draft.evalsPhase2 !== saved.evalsPhase2) out.evalsPhase2 = draft.evalsPhase2;
   return out;
 }
 
@@ -103,9 +105,45 @@ export function AppSettingsCards() {
           <HostsCard key={`hosts:${data.allowedHostLayers.file.join(',')}`} saved={data} />
           <RunsCard key={`runs:${data.maxConcurrentRuns}:${data.defaultPermissionMode}:${data.sources.maxConcurrentRuns}:${data.sources.defaultPermissionMode}`} saved={data} />
           <SpendCard key={`spend:${String(data.dailySpendCapUsd)}:${data.sources.dailySpendCapUsd}`} saved={data} />
+          <EvalsCard key={`evals:${String(data.evalsPhase2)}:${data.sources.evalsPhase2}`} saved={data} />
         </>
       )}
     </>
+  );
+}
+
+/** The switch of the instruction evals' second phase: pressure levels, judged expectations, the promotion gate and case drafting. */
+function EvalsCard({ saved }: { saved: AppSettings }) {
+  const { t } = useTranslation('config');
+  const [on, setOn] = useState(saved.evalsPhase2);
+  const fromEnv = saved.sources.evalsPhase2 === 'env';
+  const change = changedSettings(saved, { evalsPhase2: on });
+  const dirty = Object.keys(change).length > 0;
+  const save = useSaveAppSettings((next) => setOn(next.evalsPhase2), t('appSettings.evals.saved'));
+  return (
+    <Card title={t('appSettings.evals.title')} actions={<SourceTag settings={saved} keys={['evalsPhase2']} />}>
+      <p className="small muted">{t('appSettings.evals.intro')}</p>
+      <form
+        className="form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (dirty) save.mutate(change);
+        }}
+      >
+        <Switch checked={on} onChange={setOn} disabled={fromEnv}>
+          {t('appSettings.evals.switch')}
+        </Switch>
+        {fromEnv ? (
+          <EnvNote setting="evalsPhase2" />
+        ) : (
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
+              {save.isPending ? t('shared.saving') : t('shared.save')}
+            </button>
+          </div>
+        )}
+      </form>
+    </Card>
   );
 }
 

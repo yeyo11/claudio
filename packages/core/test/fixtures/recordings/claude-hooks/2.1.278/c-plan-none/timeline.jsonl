@@ -1,0 +1,16 @@
+{"ms":0,"dir":"in","kind":"user"}
+{"ms":1132,"dir":"out","kind":"system/init"}
+{"ms":3377,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":4821,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":6077,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":7259,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":8668,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":10122,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":11304,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":12349,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":13761,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":14805,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":14806,"dir":"out","kind":"assistant"}
+{"ms":15954,"dir":"out","kind":"assistant"}
+{"ms":15958,"dir":"out","kind":"rate_limit_event"}
+{"ms":15970,"dir":"out","kind":"result/success"}

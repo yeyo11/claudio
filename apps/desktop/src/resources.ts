@@ -7,6 +7,8 @@ export interface Resources {
   serverEntry: string;
   /** Bundled MCP server a chat's CLI starts (single-file ESM, next to serverEntry) */
   mcpEntry: string;
+  /** Bundled guard program, the hook the CLI runs before each tool call (single-file ESM, next to serverEntry) */
+  guardEntry: string;
   /** Built UI served by the API */
   webDist: string;
   /** Window icon */
@@ -22,6 +24,7 @@ export function resolveResources(): Resources {
     return {
       serverEntry: join(process.resourcesPath, 'server', 'server.mjs'),
       mcpEntry: join(process.resourcesPath, 'server', 'mcp.mjs'),
+      guardEntry: join(process.resourcesPath, 'server', 'guard.mjs'),
       webDist: join(process.resourcesPath, 'web'),
       icon: join(process.resourcesPath, 'icon.png'),
     };
@@ -30,6 +33,7 @@ export function resolveResources(): Resources {
   return {
     serverEntry: join(repoRoot, 'apps', 'api', 'dist', 'server.mjs'),
     mcpEntry: join(repoRoot, 'apps', 'api', 'dist', 'mcp.mjs'),
+    guardEntry: join(repoRoot, 'apps', 'api', 'dist', 'guard.mjs'),
     webDist: join(repoRoot, 'apps', 'web', 'dist'),
     icon: join(repoRoot, 'apps', 'desktop', 'build', 'icon.png'),
   };
@@ -40,6 +44,7 @@ export function missingResources(res: Resources): string[] {
   const missing: string[] = [];
   if (!existsSync(res.serverEntry)) missing.push(res.serverEntry);
   if (!existsSync(res.mcpEntry)) missing.push(res.mcpEntry);
+  if (!existsSync(res.guardEntry)) missing.push(res.guardEntry);
   if (!existsSync(join(res.webDist, 'index.html'))) missing.push(join(res.webDist, 'index.html'));
   return missing;
 }

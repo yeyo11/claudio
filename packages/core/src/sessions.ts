@@ -21,6 +21,7 @@ import { toChatTask } from './chat-branches.ts';
 import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
 import { EDIT_STEPS_FOLD, type EditStepsState } from './edit-steps.ts';
+import { CORRECTION_FOLD, type CorrectionState } from './lessons/signals.ts';
 import { JsonlCache, type JsonlFold } from './jsonl-cache.ts';
 import type { CoreConfig } from './paths.ts';
 import { toolCallsOf, type ToolCall } from './tool-calls.ts';
@@ -314,6 +315,7 @@ const TOOL_ENTRIES_FOLD: JsonlFold<TranscriptEntry[]> = {
 const TOOL_ENTRIES_FILES = 8;
 /** Transcripts whose edits are kept, patches included: only a chat under review needs them */
 const EDIT_STEPS_FILES = 8;
+const CORRECTION_FILES = 8;
 /** Agent transcripts kept whole, for the panels following one */
 const AGENT_FILES = 32;
 /** Project directories listed at once, and transcripts opened at once, when every session is read */
@@ -358,6 +360,7 @@ export class SessionStore {
   private readonly activities = new JsonlCache(ACTIVITY_FOLD);
   private readonly toolEntries = new JsonlCache(TOOL_ENTRIES_FOLD, TOOL_ENTRIES_FILES);
   private readonly editStepFolds = new JsonlCache(EDIT_STEPS_FOLD, EDIT_STEPS_FILES);
+  private readonly correctionFolds = new JsonlCache(CORRECTION_FOLD, CORRECTION_FILES);
   private readonly agentFiles = new JsonlCache(AGENT_FOLD, AGENT_FILES);
   private readonly workflowMemo = new WorkflowMemo();
   /**
@@ -508,6 +511,7 @@ export class SessionStore {
     this.activities.forget(drop);
     this.toolEntries.forget(drop);
     this.editStepFolds.forget(drop);
+    this.correctionFolds.forget(drop);
     this.agentFiles.forget(drop);
     this.workflowMemo.forget(drop);
   }
@@ -801,6 +805,7 @@ export class SessionStore {
     this.activities.forget(gone);
     this.toolEntries.forget(gone);
     this.editStepFolds.forget(gone);
+    this.correctionFolds.forget(gone);
     this.agentFiles.forget(gone);
     this.workflowMemo.forget(gone);
   }
@@ -874,6 +879,17 @@ export class SessionStore {
     const found = await this.findFile(sessionId);
     if (!found) return null;
     return this.editStepFolds.read(found.file);
+  }
+
+  /**
+   * What a transcript says about the person correcting the agent (the lessons' pre-filter): their
+   * messages, the edits and commands that undid something, the tool errors that repeated. Null
+   * when there is no such session. Read once, streaming; after that, only what it appended.
+   */
+  async corrections(sessionId: string): Promise<CorrectionState | null> {
+    const found = await this.findFile(sessionId);
+    if (!found) return null;
+    return this.correctionFolds.read(found.file);
   }
 
   /**

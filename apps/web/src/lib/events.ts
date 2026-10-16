@@ -128,6 +128,8 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'project.removed': true,
   'team.changed': true,
   'journal.changed': true,
+  'lesson.changed': true,
+  'lesson.job': true,
   'memory.proposal': true,
   'document.changed': true,
   'flow.run': true,
@@ -141,6 +143,9 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'login.updated': true,
   'spend.changed': true,
   'spend.alert': true,
+  'guards.changed': true,
+  'eval.run': true,
+  'eval.sample': true,
 };
 
 /**
@@ -229,6 +234,9 @@ function approvedTarget(event: MemoryProposalEvent): Target[] {
       return [[['config', 'instructions', event.projectId], NOW]];
     case 'journal':
       return [[keys.journal(event.projectId), NOW]];
+    // Approving makes a lesson active, which the Lessons card and the handed count show
+    case 'lesson':
+      return [[keys.lessonsOf(event.projectId), NOW], [keys.journal(event.projectId), NOW]];
     case 'rule':
       return [[keys.resources({ projectId: event.projectId }, 'rules'), NOW]];
   }
@@ -392,6 +400,14 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.team(event.projectId), NOW], [keys.resources({ projectId: event.projectId }, 'agents'), NOW]];
     case 'journal.changed':
       return [[keys.journal(event.projectId), NOW]];
+    // The Lessons card, its handed count (in the journal's page) and the proposals waiting on a lesson
+    case 'lesson.changed':
+      // A global lesson is in every project's list, so its change reaches them all
+      return event.projectId === null
+        ? [[['lessons'], NOW]]
+        : [[['lessons'], NOW], [keys.journal(event.projectId), NOW], [keys.memoryProposalsOf(event.projectId), NOW]];
+    case 'lesson.job':
+      return [[keys.lessonJobs(event.projectId), NOW]];
     case 'memory.proposal':
       return [[keys.memoryProposalsOf(event.projectId), NOW], ...(event.action === 'approved' ? approvedTarget(event) : [])];
     case 'document.changed':
@@ -445,6 +461,12 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'spend.alert':
       // The status bar, the Usage line and the wait lines read the day's spend: the next reading is theirs
       return [[keys.spend, NOW]];
+    case 'guards.changed':
+      return [];
+    // The Evals screens (a later task) key their queries under 'evals'
+    case 'eval.run':
+    case 'eval.sample':
+      return [[['evals'], NOW]];
   }
 }
 

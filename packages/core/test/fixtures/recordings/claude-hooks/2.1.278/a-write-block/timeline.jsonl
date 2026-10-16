@@ -1,0 +1,15 @@
+{"ms":2,"dir":"in","kind":"user"}
+{"ms":932,"dir":"out","kind":"system/init"}
+{"ms":2730,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":3454,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":3455,"dir":"out","kind":"assistant"}
+{"ms":3779,"dir":"out","kind":"assistant"}
+{"ms":3784,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Write"}
+{"ms":3798,"dir":"out","kind":"rate_limit_event"}
+{"ms":3815,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Write"}
+{"ms":3819,"dir":"out","kind":"user"}
+{"ms":5631,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":6083,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":6084,"dir":"out","kind":"assistant"}
+{"ms":6440,"dir":"out","kind":"assistant"}
+{"ms":6450,"dir":"out","kind":"result/success"}

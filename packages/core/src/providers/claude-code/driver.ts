@@ -5,6 +5,7 @@ import { modelOptions } from './models.ts';
 import { SessionStoreTranscripts, type TranscriptStore } from '../transcripts.ts';
 import type { SessionStore } from '../../sessions.ts';
 import type {
+  AttachedGuard,
   BranchTracker,
   CapabilityConfirmation,
   DriverEvent,
@@ -45,9 +46,10 @@ class ClaudeCodeSession implements DriverSession {
     private readonly io: SessionIO,
     sink: (event: DriverEvent) => void,
     branches: BranchTracker,
+    guard?: AttachedGuard,
   ) {
     this.control = new ControlChannel(io);
-    this.stream = new ClaudeStream(sink, branches, this.control);
+    this.stream = new ClaudeStream(sink, branches, this.control, guard);
   }
 
   send(turn: UserTurn): string {
@@ -152,8 +154,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
     return { bin: this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
   }
 
-  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker): DriverSession {
-    return new ClaudeCodeSession(io, sink, branches);
+  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession {
+    return new ClaudeCodeSession(io, sink, branches, guard);
   }
 
   createBranches(): BranchTracker {

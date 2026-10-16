@@ -1,0 +1,32 @@
+{
+  "bin": "claude 2.1.300",
+  "args": [
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--model",
+    "haiku",
+    "--max-budget-usd",
+    "0.2",
+    "--max-turns",
+    "4",
+    "--include-hook-events",
+    "--settings",
+    "/tmp/g0/m-ask-block2/settings.json",
+    "--permission-mode",
+    "manual",
+    "--permission-prompts",
+    "host",
+    "--permission-prompt-tool",
+    "stdio"
+  ],
+  "cwd": "repo",
+  "env": [
+    "CLAUDE_CONFIG_DIR",
+    "HOME"
+  ],
+  "note": ""
+}

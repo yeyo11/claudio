@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { GuardEventStore } from './guards/events.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_FLOW_MAX_PARALLEL,
@@ -69,6 +70,7 @@ import type { Db } from './db.ts';
 import { flatten } from './health.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { RECORDS_IN_ENGLISH, roleTitle, roleTitleIn } from './team.ts';
+import { GuardUnavailableError } from './guards/preflight.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { openWaitOf } from './rotation.ts';
 import { workItemPrompt } from './work-links.ts';
@@ -851,6 +853,9 @@ export function flowPrompt(
 /** Refining starts from an item that may say little: what it touches is found by reading, not guessed. */
 const EXPLORE = 'Before you write anything, read the documents and the code the item concerns, including the parts it does not name, so what you add fits what is there.';
 
+/** How the nudge to a run continued after a restart begins; it is Claudio's, not the person's */
+export const FLOW_RESTART_PREFIX = 'Claudio restarted while you were on this run.';
+
 /** What the run is told when the flow sends it back to its chat with work still owed. */
 export function flowContinuation(items: readonly string[], count: number): string {
   return continuationPrompt(items, count, ['End with the structured result.']);
@@ -1516,7 +1521,7 @@ export class FlowService {
       prompt:
         nudge ??
         (continuing
-          ? 'Claudio restarted while you were on this run. Carry on from where you were, and end with the structured result.'
+          ? `${FLOW_RESTART_PREFIX} Carry on from where you were, and end with the structured result.`
           : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
               documentsPath,
               rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
@@ -1560,7 +1565,9 @@ export class FlowService {
         return;
       }
       // Failed before any chat was touched: a restart's chat is not what went wrong
-      if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
+      // The guard cannot run: nothing was spawned, so this is a failure to start whichever round it was
+      if (err instanceof GuardUnavailableError) this.end(row.id, 'failed', null, `guard-unavailable (${err.code}): ${message}`, 'not-started');
+      else if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
       else if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
       else this.end(row.id, 'failed', null, message, 'not-started');
     }
@@ -2172,6 +2179,15 @@ export class FlowService {
     return (this.sql.prepare('SELECT * FROM flow_runs WHERE id = ?').get(runId) as RunRow | undefined) ?? null;
   }
 
+  /** Tool calls the guard blocked in a run, from the audit trail; 0 where there are none */
+  private guardBlocks(runId: string): number {
+    try {
+      return new GuardEventStore(this.sql).countByFlowRun([runId]).get(runId) ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
   private runOf(row: RunRow): FlowRun {
     const item = this.deps.items.find(row.item_id);
     const ref: WorkItemRef | null = item ? { id: item.id, key: item.key, title: item.title, type: item.type, status: item.status } : null;
@@ -2181,6 +2197,7 @@ export class FlowService {
     const next = failed ? this.nextRun(row) : null;
     const waiting = this.waitingOf(row);
     const checks = checksOf(row.checks);
+    const guardBlocks = this.guardBlocks(row.id);
     return {
       id: row.id,
       projectId: row.project_id,
@@ -2205,6 +2222,7 @@ export class FlowService {
       retryOf: row.retry_of ?? null,
       queuedBy: row.queued_by === 'person' ? 'person' : null,
       ...(checks.length ? { checks } : {}),
+      ...(guardBlocks ? { guardBlocks } : {}),
       retriedBy: next ? refOf(next) : null,
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,

@@ -18,6 +18,7 @@ import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
+import { GuardEventStore } from '../src/guards/events.ts';
 
 // The flow starts paid agent runs on its own, so these tests are as much about what must not start
 // as about what must. It runs over a real store and a real event bus; only the chats are scripted:
@@ -2571,4 +2572,23 @@ test('context.compact: shadow records the answer and the run is not compacted; c
   await rejected(k);
   await k.flow.settled();
   assert.ok(k.launches.every((l) => !l.compactFirst));
+});
+
+test('a run reads how many tool calls the guard blocked in it, and no more than its own', () => {
+  const s = setup();
+  const insert = s.db.connection.prepare(
+    "INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at) VALUES (?, 'p1', ?, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'running', '2026-09-28T00:00:00Z')",
+  );
+  insert.run('r-blocked', 'i1');
+  insert.run('r-clean', 'i2');
+  const store = new GuardEventStore(s.db.connection);
+  const event = (flowRunId: string, toolUseId: string, outcome: 'blocked' | 'observed') =>
+    store.insert({ chatId: `c-${flowRunId}`, flowRunId, toolUseId, toolName: 'Bash', rule: 'push', matcher: 'push.verb', outcome, reason: 'r', excerpt: 'x' });
+  event('r-blocked', 't1', 'blocked');
+  event('r-blocked', 't2', 'blocked');
+  event('r-blocked', 't3', 'observed');
+  event('r-clean', 't1', 'observed');
+  assert.equal(s.flow.run('r-blocked')?.guardBlocks, 2);
+  assert.equal(s.flow.run('r-clean')?.guardBlocks, undefined);
+  assert.equal(s.flow.runs('p1').find((r) => r.id === 'r-blocked')?.guardBlocks, 2);
 });

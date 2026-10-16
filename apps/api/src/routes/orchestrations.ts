@@ -1,7 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { parseChangeScope, parseDiffContext, summarizeOrchestration, type Core, type DiffOptions } from '@claudio/core';
 import { fromChat, grantAfterOverride, spendGate } from './spend.ts';
+import { overrideWeakens, refuseWeakerOverride } from './guards.ts';
 import type {
+  AcceptReviewRequest,
   LaunchOrchestrationTemplateRequest,
   Orchestration,
   OrchestrationSpec,
@@ -34,6 +36,15 @@ export interface DiffQuery extends ScopeQuery {
   context?: string;
 }
 
+/** A query integer inside its bounds; anything else is a 400 rather than a silent default */
+const boundedInt = (raw: unknown, name: string, min: number, max: number): number => {
+  const n = typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(n) || n < min || n > max) {
+    throw Object.assign(new Error(`${name} must be an integer from ${String(min)}${max === Number.MAX_SAFE_INTEGER ? ' up' : ` to ${String(max)}`}`), { statusCode: 400 });
+  }
+  return n;
+};
+
 export const diffOptions = (query: DiffQuery): DiffOptions => ({ ...parseChangeScope(query), context: parseDiffContext(query.context) });
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -45,6 +56,7 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   // Through core rather than the orchestrator: a node that names a work item is checked and linked
   app.post<{ Body: OrchestrationSpec }>('/orchestrations', { preHandler: gate }, async (req, reply) => {
+    refuseWeakerOverride(core, req, req.body?.guards, 'guards');
     const launched = await core.launchOrchestration(req.body ?? ({} as OrchestrationSpec));
     grantAfterOverride(core, req, launched.id);
     return reply.status(201).send(launched);
@@ -72,9 +84,10 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // Saved graphs. Static segments win over `:id`, so these sit beside `plans` without colliding.
   app.get('/orchestrations/templates', () => core.orchestrator.templates.list());
 
-  app.post<{ Body: SaveOrchestrationTemplateRequest }>('/orchestrations/templates', (req, reply) =>
-    reply.status(201).send(core.orchestrator.saveTemplate(req.body ?? ({} as SaveOrchestrationTemplateRequest))),
-  );
+  app.post<{ Body: SaveOrchestrationTemplateRequest }>('/orchestrations/templates', (req, reply) => {
+    refuseWeakerOverride(core, req, req.body?.spec?.guards, 'spec.guards');
+    return reply.status(201).send(core.orchestrator.saveTemplate(req.body ?? ({} as SaveOrchestrationTemplateRequest)));
+  });
 
   app.get<{ Params: { templateId: string } }>('/orchestrations/templates/:templateId', (req) => {
     const template = core.orchestrator.templates.get(req.params.templateId);
@@ -82,9 +95,10 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     return template;
   });
 
-  app.patch<{ Params: { templateId: string }; Body: UpdateOrchestrationTemplateRequest }>('/orchestrations/templates/:templateId', (req) =>
-    core.orchestrator.templates.update(req.params.templateId, req.body ?? {}),
-  );
+  app.patch<{ Params: { templateId: string }; Body: UpdateOrchestrationTemplateRequest }>('/orchestrations/templates/:templateId', (req) => {
+    refuseWeakerOverride(core, req, req.body?.spec?.guards, 'spec.guards');
+    return core.orchestrator.templates.update(req.params.templateId, req.body ?? {});
+  });
 
   app.delete<{ Params: { templateId: string } }>('/orchestrations/templates/:templateId', (req) => {
     core.orchestrator.templates.remove(req.params.templateId);
@@ -92,6 +106,10 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   });
 
   app.post<{ Params: { templateId: string }; Body: LaunchOrchestrationTemplateRequest }>('/orchestrations/templates/:templateId/launch', { preHandler: gate }, (req, reply) => {
+    // What the template carries launches too: a chat cannot start an unguarded graph from a saved one
+    if (fromChat(req) && overrideWeakens(core, core.orchestrator.templates.get(req.params.templateId)?.spec.guards)) {
+      throw Object.assign(new Error("a chat's token cannot launch a template whose guards are weaker than the default: that is the person's setting"), { statusCode: 403 });
+    }
     const launched = core.orchestrator.launchTemplate(req.params.templateId, req.body ?? {});
     grantAfterOverride(core, req, launched.id);
     return reply.status(201).send(launched);
@@ -120,9 +138,10 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   // Workers die with the process, so a restart leaves the graph stopped. This picks it up from
   // where it was instead of starting the whole thing over.
-  app.post<{ Params: { id: string }; Body: ResumeOrchestrationRequest }>('/orchestrations/:id/resume', { preHandler: graphGate },(req) =>
-    core.orchestrator.resume(req.params.id, req.body ?? {}),
-  );
+  app.post<{ Params: { id: string }; Body: ResumeOrchestrationRequest }>('/orchestrations/:id/resume', { preHandler: graphGate }, (req) => {
+    refuseWeakerOverride(core, req, req.body?.guards, 'guards');
+    return core.orchestrator.resume(req.params.id, req.body ?? {});
+  });
 
   // What a person decides once a task has used its attempts: try it again, start it over, or give
   // its branch up. And the one thing a running worker takes from the board: a hint.
@@ -150,6 +169,7 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // The same graph with corrections, as a new orchestration that records where it came from. Through
   // core, as a launch is: its nodes still name their work items, and are checked the same way
   app.post<{ Params: { id: string }; Body: RelaunchOrchestrationRequest }>('/orchestrations/:id/relaunch', { preHandler: gate }, async (req, reply) => {
+    refuseWeakerOverride(core, req, req.body?.spec?.guards, 'spec.guards');
     const launched = await core.relaunchOrchestration(req.params.id, req.body ?? {});
     grantAfterOverride(core, req, launched.id);
     return reply.status(201).send(launched);
@@ -192,6 +212,30 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // Runs the graph's checks on the integration branch: by hand, or again after a change to it
   app.post<{ Params: { id: string }; Body: VerifyOrchestrationRequest }>('/orchestrations/:id/verify', { preHandler: graphGate },(req) =>
     core.orchestrator.verify(req.params.id, req.body ?? {}),
+  );
+
+  // The review gate: its summary, its rounds and one page of a round's findings
+  app.get<{ Params: { id: string }; Querystring: { round?: string; blocking?: string; limit?: string; offset?: string } }>('/orchestrations/:id/review', (req) => {
+    const { round, blocking, limit, offset } = req.query;
+    const detail = core.reviewDetail(req.params.id, {
+      ...(round !== undefined ? { round: boundedInt(round, 'round', 1, Number.MAX_SAFE_INTEGER) } : {}),
+      ...(blocking !== undefined ? { blocking: blocking === '1' || blocking === 'true' } : {}),
+      limit: limit === undefined ? 100 : boundedInt(limit, 'limit', 1, 500),
+      offset: offset === undefined ? 0 : boundedInt(offset, 'offset', 0, Number.MAX_SAFE_INTEGER),
+    });
+    if (!detail) throw Object.assign(new Error(`orchestration ${req.params.id} not found`), { statusCode: 404 });
+    if (!detail.state && detail.rounds.length === 0 && !core.orchestrator.get(req.params.id)?.verificationSpec?.review) {
+      throw Object.assign(new Error('this graph has no review gate'), { statusCode: 404 });
+    }
+    return detail;
+  });
+
+  // Only Claudio's own gate runs again, so a chat's token may ask for it; it widens nothing
+  app.post<{ Params: { id: string } }>('/orchestrations/:id/review/retry', (req) => core.retryReview(req.params.id));
+
+  // A person's decision, with a written reason; a chat's token is refused in security.ts
+  app.post<{ Params: { id: string }; Body: AcceptReviewRequest }>('/orchestrations/:id/review/accept', (req) =>
+    core.acceptReview(req.params.id, typeof req.body?.reason === 'string' ? req.body.reason : '', req.actor ?? 'local'),
   );
 
   // The one step that leaves the machine, so it only ever happens on request

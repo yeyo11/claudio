@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution, ProviderMove } from '@claudio/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, CONTEXT_CONTROL_SCHEMA_VERSION, type HousekeepingClaim, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, SPEND_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CONTEXT_CONTROL_SCHEMA_VERSION, type HousekeepingClaim, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEW_GATE_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, SPEND_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -765,7 +765,7 @@ test('the cost backfill prices only the jev rows that kept tokens and lost their
   // A database as the release before the backfill left it
   raw.exec(`PRAGMA user_version = ${String(JEV_COST_SCHEMA_VERSION - 1)}`);
   // What the migrations after it added is not there yet, or migrating again would add it twice
-  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments; DROP TABLE spend_ledger; DROP TABLE spend_alerts; DROP TABLE flow_spend_passes; ALTER TABLE flow_runs DROP COLUMN checks; ALTER TABLE memory_proposals DROP COLUMN target_paths; DROP TABLE chat_compactions; DROP TABLE chat_notes;');
+  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN eval_name; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments; DROP TABLE spend_ledger; DROP TABLE spend_alerts; DROP TABLE flow_spend_passes; ALTER TABLE flow_runs DROP COLUMN checks; ALTER TABLE memory_proposals DROP COLUMN target_paths; DROP TABLE chat_compactions; DROP TABLE chat_notes; DROP TABLE guard_events; DROP TABLE review_findings; DROP TABLE review_runs; DROP TABLE review_rounds; ALTER TABLE memory_proposals DROP COLUMN lesson_id; DROP TABLE lesson_jobs; DROP TABLE lesson_signals; DROP TABLE lesson_evidence; DROP TABLE lessons; DROP TABLE eval_judgements; DROP TABLE eval_checks; DROP TABLE eval_calls; DROP TABLE eval_samples; DROP TABLE eval_variants; DROP TABLE eval_runs;');
   const insert = raw.prepare(
     `INSERT INTO decisions (id, point, kind, subject_kind, provider, model, mode, status, state, questions, acted, visible, saved_run, latency_ms, input_tokens, cost_usd, at)
      VALUES (?, 'run.continuation', 'act', 'flow_run', ?, 'm', 'shadow', 'answered', '{}', '[]', 0, 0, 0, 1, ?, ?, '2026-09-30T10:00:00Z')`,
@@ -899,6 +899,25 @@ test('a database from the version before context control gains its tables and ke
   }
   assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM chats').get() as { n: number }).n, 1);
   assert.equal((sql.prepare('PRAGMA user_version').get() as { user_version: number }).user_version >= CONTEXT_CONTROL_SCHEMA_VERSION, true);
+  db.close();
+});
+
+test('a database from the version before the review gate gains its tables and keeps its orchestrations', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
+  migrate(raw, REVIEW_GATE_SCHEMA_VERSION - 1);
+  assert.equal(raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'review_rounds'").get(), undefined);
+  raw.prepare("INSERT INTO orchestrations (id, created_at, json) VALUES ('o1', ?, '{}')").run(at(1));
+  raw.close();
+
+  const db = new Db(config);
+  const sql = db.connection;
+  for (const name of ['review_rounds', 'review_runs', 'review_findings', 'review_rounds_live', 'review_rounds_orch', 'review_runs_round', 'review_findings_round']) {
+    assert.ok(sql.prepare('SELECT 1 FROM sqlite_master WHERE name = ?').get(name), name);
+  }
+  assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM orchestrations').get() as { n: number }).n, 1);
+  assert.equal((sql.prepare('PRAGMA user_version').get() as { user_version: number }).user_version >= REVIEW_GATE_SCHEMA_VERSION, true);
   db.close();
 });
 

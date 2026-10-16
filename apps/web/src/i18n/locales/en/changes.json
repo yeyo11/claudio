@@ -57,7 +57,9 @@
     "uncommitted": "Not committed yet",
     "seen": "seen",
     "live": "{{agent}} is editing it now",
-    "renamedFrom": "renamed from {{path}}"
+    "renamedFrom": "renamed from {{path}}",
+    "findings_one": "{{count}} review finding",
+    "findings_other": "{{count}} review findings"
   },
   "mode": {
     "label": "How to compare",

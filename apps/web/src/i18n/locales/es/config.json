@@ -31,7 +31,8 @@
       "security": "Seguridad",
       "install": "Instalar",
       "notifications": "Notificaciones",
-      "remote": "Acceso remoto"
+      "remote": "Acceso remoto",
+      "lessons": "Lecciones"
     },
     "groups": {
       "claudio": "Claudio",
@@ -133,6 +134,107 @@
       "removeConfirm": {
         "title": "¿Eliminar el token?",
         "body": "Se borra su hash. Volver a activar la autenticación por token necesita uno nuevo."
+      }
+    },
+    "guards": {
+      "title": "Guardas",
+      "intro": "Las guardas son comprobaciones deterministas que se ejecutan antes de cada comando o escritura de un agente. Bloquean las peligrosas con un motivo que el agente puede leer, y no decide nada más: no se consulta a ningún modelo.",
+      "loadFailed": "No se han podido cargar los ajustes de las guardas",
+      "retry": "Reintentar",
+      "saveFailed": "No se han podido guardar los ajustes de las guardas",
+      "forbidden": "Solo una persona puede cambiar las guardas.",
+      "readOnlyNote": "Claudio está en modo de solo lectura, así que aquí no se pueden cambiar las guardas.",
+      "rulesLabel": "Reglas",
+      "alwaysOn": "Siempre activa",
+      "status": {
+        "active": "activas",
+        "observe": "observando",
+        "unavailable": "no disponibles",
+        "activeLine": "Activas en las ejecuciones automáticas · {{count}} reglas activadas",
+        "chatsOnlyLine": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} reglas activadas",
+        "observeLine": "Modo observación: no se bloquea nada",
+        "notAvailable": "No disponibles: {{problem}}"
+      },
+      "problems": {
+        "entry-missing": "Falta el programa de la guarda en esta instalación. Reinstala Claudio.",
+        "entry-untrusted": "El programa de la guarda no es el que incluye Claudio. Reinstala Claudio.",
+        "self-test-failed": "El programa de la guarda ha fallado en su propia comprobación. Reinstala Claudio y avisa si sigue fallando.",
+        "cli-unsupported": "Actualiza Claude Code a la 2.1.300 o posterior.",
+        "hooks-disabled": "Claude Code tiene los hooks desactivados. Actívalos en sus ajustes.",
+        "managed-hooks-only": "Una política gestionada solo deja ejecutar a Claude Code sus propios hooks. Pide a quien la gestiona que permita los de Claudio.",
+        "hooks-conflict": "Un ajuste de Claude Code impide cargar los hooks de Claudio. Quítalo o desactiva las guardas.",
+        "bad-path": "La carpeta donde Claudio guarda sus datos tiene una ruta que la guarda no puede usar. Muévela a una ruta sencilla."
+      },
+      "automated": {
+        "label": "Workers de orquestación y flujo",
+        "hint": "Protege a cada worker, corrector, integrador y etapa del flujo. Los chats interactivos se protegen por proyecto."
+      },
+      "rules": {
+        "integrity": {
+          "name": "Integridad",
+          "description": "Protege la propia guarda: los datos de Claudio, los ajustes que podrían desactivar los hooks, los hooks y la configuración de git, y los procesos claude anidados."
+        },
+        "no-verify": {
+          "name": "Sin saltarse comprobaciones",
+          "description": "Bloquea --no-verify y la configuración de git que desactiva los hooks."
+        },
+        "push": {
+          "name": "Sin push",
+          "description": "Bloquea cualquier escritura en un remoto: git push y los comandos de gh o glab que crean o fusionan."
+        },
+        "destructive": {
+          "name": "Sin comandos destructivos",
+          "description": "Bloquea los push forzados, reset --hard y los borrados recursivos fuera del worktree."
+        },
+        "secrets": {
+          "name": "Sin secretos en archivos",
+          "description": "Bloquea escribir un token, una clave o una contraseña en un archivo."
+        },
+        "protect-configs": {
+          "name": "Proteger la configuración de lint y CI",
+          "description": "Bloquea editar archivos de configuración de lint, formato y CI que ya existen. Desactivada de forma predeterminada."
+        }
+      },
+      "observe": {
+        "label": "Solo observar",
+        "hint": "Registra lo que se bloquearía y lo deja pasar. Úsalo solo mientras un falso positivo bloquee trabajo real."
+      },
+      "configs": {
+        "label": "Archivos protegidos",
+        "hint": "Un glob por línea, relativo a la raíz del proyecto.",
+        "restore": "Restaurar valores predeterminados",
+        "problems": {
+          "tooMany": "Como máximo {{max}} globs.",
+          "tooLong": "{{glob}} tiene más de {{length}} caracteres.",
+          "absolute": "{{glob}} debe ser relativo a una raíz, no absoluto.",
+          "parent": "{{glob}} no puede contener '..'."
+        }
+      },
+      "try": {
+        "title": "Probar un comando",
+        "intro": "Pregunta a la guarda qué haría con una llamada. No se ejecuta nada.",
+        "toolLabel": "Herramienta",
+        "commandLabel": "Comando",
+        "commandPlaceholder": "git push origin main",
+        "pathLabel": "Ruta del archivo",
+        "pathPlaceholder": "src/config.ts",
+        "contentLabel": "Contenido",
+        "action": "Probar",
+        "pass": "Pasa",
+        "block": "Se bloquearía"
+      },
+      "recent": {
+        "title": "Bloqueos recientes",
+        "none": "Aún no hay bloqueos",
+        "chat": "Abrir el chat",
+        "outcome": {
+          "blocked": "Bloqueado",
+          "observed": "Se bloquearía",
+          "missing": "No actuó ninguna guarda",
+          "unarmed": "Sin armar",
+          "error": "La guarda ha fallado",
+          "allowed-once": "Permitido una vez"
+        }
       }
     },
     "audit": {
@@ -1202,6 +1304,47 @@
       "invalid": "Introduce un importe mayor que 0 y de hasta {{max}}.",
       "saved": "Tope de gasto diario guardado",
       "savedOff": "Tope de gasto diario desactivado"
+    },
+    "evals": {
+      "title": "Evaluaciones de instrucciones, fase 2",
+      "intro": "Niveles de presión, comprobaciones juzgadas, la puerta de promoción y la redacción de casos. Apagada, esas rutas y pantallas quedan ocultas.",
+      "switch": "Activar la fase 2 de las evaluaciones de instrucciones",
+      "saved": "Ajustes de las evaluaciones guardados"
+    }
+  },
+  "lessons": {
+    "saved": "Ajustes de lecciones guardados",
+    "saveFailed": "No se han podido guardar los ajustes de lecciones",
+    "globalTitle": "Lecciones globales",
+    "globalHint": "Lecciones que has promovido desde un proyecto. Se entregan en todos los proyectos que las permiten.",
+    "emptyTitle": "No hay lecciones globales",
+    "emptyBody": "Haz global una lección desde su menú en la pestaña Memoria de un proyecto.",
+    "settingsTitle": "Extracción y entrega",
+    "model": "Modelo del extractor",
+    "modelHint": "El chat de un solo turno que escribe los candidatos a lección.",
+    "effort": "Effort del extractor",
+    "maxCost": "Coste por ejecución (USD)",
+    "maxCostHint": "El tope de una ejecución de extracción.",
+    "projectDaily": "Límite diario por proyecto (USD)",
+    "globalDaily": "Límite diario, todos los proyectos (USD)",
+    "chatMinutes": "Minutos entre ejecuciones sobre un chat",
+    "chatMinutesHint": "Un chat no se vuelve a analizar antes de este tiempo.",
+    "jobsDaily": "Extracciones por proyecto y día",
+    "approveFloor": "Confianza al aprobar",
+    "approveFloorHint": "Una lección aprobada empieza como mínimo aquí.",
+    "deliverAt": "Entregar desde la confianza",
+    "deliverAtHint": "Por debajo, la lección no llega a las ejecuciones.",
+    "budget": "Presupuesto del traspaso (bytes)",
+    "budgetHint": "Cuánto del traspaso pueden ocupar las lecciones.",
+    "looseChats": "Entregar lecciones globales a chats fuera de un proyecto",
+    "repeatedErrors": "Fijarse también en los errores repetidos",
+    "manualMining": "Permitir «Buscar lecciones» en un chat",
+    "decay": "Una lección que no se vuelve a ver en {{grace}} días pierde {{step}} cada {{period}} días y se retira por debajo de {{below}}. Las fijadas nunca se desvanecen.",
+    "discard": "Descartar",
+    "save": "Guardar",
+    "problem": {
+      "range": "Un valor está fuera de rango.",
+      "order": "Las lecciones deben retirarse por debajo de la confianza desde la que se entregan."
     }
   }
 }

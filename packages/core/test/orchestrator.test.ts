@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@claudio/shared';
+import type { LimitWait, VerificationSpec, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { Orchestrator, PLAN_SCHEMA, PUSH_DENIED, PLANNER_GRAPH_GUIDANCE, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
+import { ReviewStore, ReviewStoreError } from '../src/review-store.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
 import { DELEGATION, FRONTEND, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
@@ -1738,4 +1739,272 @@ test('a graph whose tasks have all started goes on to its verification and its f
   assert.equal(orch.tasks[0]?.status, 'completed');
   assert.ok(orch.synthesisRunId, 'and so did the synthesis');
   db.close();
+});
+
+// ---------- the review gate (docs/plans/review-gate.md) ----------
+
+const BLOCKER = JSON.stringify({
+  findings: [{ title: 'The handler drops the input', severity: 'high', file: 'api.txt', line: 1, evidence: 'api.txt line one is the handler', failureScenario: 'an empty input is lost', confidence: 0.9 }],
+  coverage: { complete: true },
+});
+const WORSE = JSON.stringify({
+  findings: [
+    { title: 'The handler drops the input', severity: 'high', file: 'api.txt', line: 1, evidence: 'api.txt line one is the handler', failureScenario: 'an empty input is lost', confidence: 0.9 },
+    { title: 'Another path loses the cache', severity: 'high', file: 'fixed.txt', line: 1, evidence: 'fixed.txt stores the cache wrongly', failureScenario: 'a stale cache is served', confidence: 0.9 },
+  ],
+  coverage: { complete: true },
+});
+
+/** A one-task graph with the review gate on; `script` lines steer the fake reviewers through the objective */
+function reviewedGraph(script: string[], review: Record<string, unknown> = {}, extra: Record<string, unknown> = {}, commands: string[] = ['true']) {
+  const g = retryGraph();
+  const start = (more: Record<string, unknown> = {}) =>
+    g.orchestrator.create({
+      ...graphOf(g.repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt server' }]),
+      synthesize: false,
+      objective: ['Add the api', ...script].join('\n'),
+      verification: { commands, e2eSpecs: false, review: { maxFixRounds: 2, ...review } } as VerificationSpec,
+      ...extra,
+      ...more,
+    });
+  return { ...g, start };
+}
+
+const gateSettled = async (g: { orchestrator: Orchestrator }, id: string): Promise<Orchestration> => {
+  const orch = await until(
+    () => g.orchestrator.get(id),
+    (o) => !!o && o.status !== 'running' && !!o.verification && o.verification.status !== 'running' && o.verification.status !== 'pending',
+    'the verification to end',
+  );
+  if (!orch) throw new Error('the orchestration is gone');
+  return orch;
+};
+
+const rounds = (g: { db: Db }, id: string) => new ReviewStore(g.db.connection).rounds(id);
+
+test('the review runs after the checks pass, and a graph with no findings passes the gate', async () => {
+  const g = reviewedGraph([]);
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.status, 'passed', orch.verification?.report ?? '');
+  assert.equal(orch.verification?.review?.status, 'passed');
+  assert.equal(orch.verification?.gate, undefined);
+  assert.equal(orch.verification?.review?.head, orch.integration?.commit);
+  assert.equal(rounds(g, started.id).length, 1);
+  assert.equal(orch.status, 'completed');
+  // Passed, so the pull request is not held by the gate (it gets as far as the missing service)
+  await assert.rejects(g.orchestrator.pullRequest(started.id), /pull requests are not available/);
+  g.db.close();
+});
+
+test('a graph without a review behaves as before: no review state, no rounds', async () => {
+  const g = retryGraph();
+  const started = g.orchestrator.create({ ...graphOf(g.repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt server' }]), synthesize: false, verification: { commands: ['true'], e2eSpecs: false } as VerificationSpec });
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.status, 'passed');
+  assert.equal(orch.verification?.review, undefined);
+  assert.equal(rounds(g, started.id).length, 0);
+  g.db.close();
+});
+
+test('failing checks skip the review and the verification fails on the checks', async () => {
+  const g = reviewedGraph([], {}, {}, ['false']);
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.status, 'failed');
+  assert.equal(orch.verification?.gate, 'checks');
+  assert.equal(orch.verification?.review?.status, 'skipped');
+  assert.equal(rounds(g, started.id).length, 0);
+  g.db.close();
+});
+
+test('a confirmed blocking finding fails the verification on the review and holds the pull request, whatever failGraph says', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`], { fixer: false });
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.status, 'failed');
+  assert.equal(orch.verification?.gate, 'review');
+  assert.equal(orch.verification?.review?.status, 'blocked');
+  assert.equal(orch.verification?.review?.counts.blocking, 1);
+  assert.equal(orch.status, 'completed', 'failGraph is off, so the graph keeps its status');
+  await assert.rejects(g.orchestrator.pullRequest(started.id), /review gate has not passed/);
+  g.db.close();
+});
+
+test('failGraph words the graph failure by the gate that failed', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`], {}, { verification: { commands: ['true'], e2eSpecs: false, failGraph: true, review: { fixer: false } } });
+  const started = g.start();
+  await gateSettled(g, started.id);
+  const orch = await until(() => g.orchestrator.get(started.id), (o) => o?.status === 'failed', 'the graph to fail');
+  assert.match(orch?.error ?? '', /^The review on the merged branch did not pass: /);
+  g.db.close();
+});
+
+test('a blocked review goes to the fixer, every check runs again, and round two passes', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`, 'FAKE-REVIEW-CLEAN-IF fixed.txt', 'FAKE-REVIEW-FIX fixed.txt yes']);
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.status, 'passed', orch.verification?.report ?? '');
+  assert.equal(orch.verification?.review?.status, 'passed');
+  assert.equal(orch.verification?.review?.round, 2);
+  assert.equal(orch.verification?.fixes?.length, 1);
+  assert.equal(orch.verification?.fixes?.[0]?.command, 'review round 1');
+  // The check ran before the review and again after the fix
+  assert.equal(orch.verification?.commands[0]?.runs?.length, 2);
+  assert.deepEqual(rounds(g, started.id).map((r) => r.state), ['blocked', 'passed']);
+  assert.ok(existsSync(join(orch.integration?.worktree ?? '', 'fixed.txt')));
+  g.db.close();
+});
+
+test('maxFixRounds ends the gate blocked after that many fixes', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`], { maxFixRounds: 1 });
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'blocked');
+  assert.match(orch.verification?.review?.reason ?? '', /after 1 fix round/);
+  assert.equal(rounds(g, started.id).length, 2);
+  g.db.close();
+});
+
+test('a fixer that makes the review worse stops the loop at once', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`, `FAKE-REVIEW-IF fixed.txt ${WORSE}`, 'FAKE-REVIEW-FIX fixed.txt yes'], { maxFixRounds: 3 });
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'blocked');
+  assert.match(orch.verification?.review?.reason ?? '', /added blocking findings/);
+  assert.equal(rounds(g, started.id).length, 2, 'no third round');
+  g.db.close();
+});
+
+test('fixer: false blocks without a fix', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`], { fixer: false });
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'blocked');
+  assert.equal(orch.verification?.fixes?.length ?? 0, 0);
+  assert.equal(rounds(g, started.id).length, 1);
+  g.db.close();
+});
+
+test('stop() stops the reviewers and the round ends incomplete as stopped', async () => {
+  const g = reviewedGraph(['FAKE-REVIEW-SLOW 20000']);
+  const started = g.start();
+  await until(() => g.orchestrator.get(started.id)?.verification?.review, (r) => r?.phase === 'reviewing', 'the reviewers to start');
+  g.orchestrator.stop(started.id);
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'incomplete');
+  assert.equal(orch.verification?.review?.reason, 'stopped');
+  assert.equal(orch.verification?.gate, 'review');
+  assert.equal(rounds(g, started.id)[0]?.state, 'incomplete');
+  g.db.close();
+});
+
+test('a restart while the review runs leaves it incomplete and its rows interrupted', async () => {
+  const g = reviewedGraph(['FAKE-REVIEW-SLOW 20000']);
+  const started = g.start();
+  await until(() => g.orchestrator.get(started.id)?.verification?.review, (r) => r?.phase === 'reviewing', 'the reviewers to start');
+  assert.equal(g.orchestrator.get(started.id)?.verification?.review?.status, 'running');
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const again = new Orchestrator(config, new ChatManager(config, g.db), g.db);
+  const orch = again.get(started.id) as Orchestration;
+  assert.equal(orch.verification?.review?.status, 'incomplete');
+  assert.match(orch.verification?.review?.reason ?? '', /Interrupted by a wrapper restart/);
+  assert.equal(orch.verification?.status, 'failed');
+  assert.equal(orch.verification?.gate, 'review');
+  assert.equal(rounds(g, started.id)[0]?.state, 'incomplete');
+  assert.ok(rounds(g, started.id)[0]?.runs.every((r) => r.state === 'interrupted'));
+  g.orchestrator.stop(started.id);
+  again.close();
+  g.db.close();
+});
+
+test('the checks skip themselves on a head only when the review passed on it, and /verify runs both again', async () => {
+  const g = reviewedGraph([]);
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  const check = (o: Orchestration) => (g.orchestrator as unknown as { checkBranch(o: Orchestration): Promise<void> }).checkBranch(o);
+  const before = orch.verification;
+  await check(orch);
+  assert.equal(orch.verification, before, 'passed on this head: untouched');
+  assert.equal(rounds(g, started.id).length, 1);
+
+  // The same head with a review that did not pass runs again
+  const kept = before?.review;
+  if (!kept || !orch.verification) throw new Error('no review state');
+  orch.verification.review = { ...kept, status: 'incomplete' };
+  await check(orch);
+  assert.equal(rounds(g, started.id).length, 2);
+  assert.equal(rounds(g, started.id)[1]?.pass, 2, 'history is kept with a new pass');
+
+  g.orchestrator.verify(started.id);
+  await until(() => rounds(g, started.id).length, (n) => n === 3, 'the review to run again');
+  g.db.close();
+});
+
+test('retryReview refuses while it runs, when the checks failed and when the head moved; it runs a new round otherwise', async () => {
+  const g = reviewedGraph(['FAKE-REVIEW-INVALID']);
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'incomplete');
+  const refusal = (reason: string) => (e: unknown) => e instanceof ReviewStoreError && e.reason === reason;
+  const integration = orch.integration;
+  if (!integration) throw new Error('no integration');
+
+  // The head moved
+  const head = integration.commit;
+  integration.commit = 'moved';
+  assert.throws(() => g.orchestrator.retryReview(started.id), refusal('head-moved'));
+  integration.commit = head;
+
+  // The script is the orchestration's own text: mend it and retry
+  orch.objective = 'Add the api';
+  g.orchestrator.retryReview(started.id);
+  assert.throws(() => g.orchestrator.retryReview(started.id), refusal('review-running'));
+  const after = await until(() => g.orchestrator.get(started.id), (o) => o?.verification?.status === 'passed', 'the retry to pass');
+  assert.equal(after?.verification?.review?.status, 'passed');
+  assert.equal(rounds(g, started.id).length, 2);
+
+  const failing = reviewedGraph([], {}, {}, ['false']);
+  const second = failing.start();
+  await gateSettled(failing, second.id);
+  assert.throws(() => failing.orchestrator.retryReview(second.id), refusal('checks-not-passed'));
+  failing.db.close();
+  g.db.close();
+});
+
+test('a person accepts a blocked gate with a reason; the acceptance releases the pull request and is void on a new head', async () => {
+  const g = reviewedGraph([`FAKE-RESULT-REVIEW-CORRECTNESS ${BLOCKER}`], { fixer: false });
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  assert.throws(() => g.orchestrator.acceptReview(started.id, 'short', 'owner'), (e: unknown) => e instanceof ReviewStoreError && e.statusCode === 400);
+  g.orchestrator.acceptReview(started.id, 'Reviewed by hand, the handler is fine', 'owner');
+  assert.equal(orch.verification?.status, 'passed');
+  assert.equal(orch.verification?.review?.status, 'accepted');
+  assert.equal(orch.verification?.review?.accepted?.by, 'owner');
+  assert.equal(orch.verification?.review?.accepted?.head, orch.integration?.commit);
+  assert.match(orch.verification?.report ?? '', /^Passed: a person accepted the review \(1 blocking, 0 incomplete\): Reviewed by hand/);
+  assert.equal(rounds(g, started.id)[0]?.accepted?.reason, 'Reviewed by hand, the handler is fine');
+  await assert.rejects(g.orchestrator.pullRequest(started.id), /pull requests are not available/, 'no longer held');
+  // Nothing to accept twice
+  assert.throws(() => g.orchestrator.acceptReview(started.id, 'Reviewed by hand again', 'owner'), (e: unknown) => e instanceof ReviewStoreError && e.reason === 'review-not-acceptable');
+
+  // A new head voids it
+  if (!orch.integration) throw new Error('no integration');
+  orch.integration.commit = 'moved';
+  await assert.rejects(g.orchestrator.pullRequest(started.id), /review gate has not passed/);
+  g.db.close();
+});
+
+test('an incomplete gate is accepted only after a retry also ended incomplete', async () => {
+  const g = reviewedGraph(['FAKE-REVIEW-INVALID']);
+  const started = g.start();
+  const orch = await gateSettled(g, started.id);
+  const reason = 'The reviewers cannot parse this repository';
+  assert.throws(() => g.orchestrator.acceptReview(started.id, reason, 'owner'), (e: unknown) => e instanceof ReviewStoreError && e.reason === 'review-not-acceptable');
+  g.orchestrator.retryReview(started.id);
+  await until(() => rounds(g, started.id).length, (n) => n === 2, 'the retry to start');
+  await until(() => g.orchestrator.get(started.id)?.verification?.status, (s) => s === 'failed', 'the retry to end');
+  g.orchestrator.acceptReview(started.id, reason, 'owner');
+  assert.equal(g.orchestrator.get(started.id)?.verification?.review?.status, 'accepted');
+  g.db.close();
 });

@@ -114,8 +114,10 @@
       "reviewTriage": "Suggest who should take each review comment",
       "issueTriage": "Suggest which imported issues an agent can start on",
       "accountModelFallback": "Suggest the nearest model another account offers",
+      "reviewDepth": "Choose how deep the review of a branch goes",
       "notificationUrgency": "Pick the urgency of each notification",
-      "paletteIntent": "Interpret what you type in the palette"
+      "paletteIntent": "Interpret what you type in the palette",
+      "lessonMine": "Look for lessons in your corrections"
     },
     "areas": {
       "flow": "Project flow",
@@ -309,8 +311,10 @@
       "reviewTriage": "Suggested who takes each review comment",
       "issueTriage": "Suggested which issues an agent can start on",
       "accountModelFallback": "Suggested the nearest model another account offers",
+      "reviewDepth": "Chose the depth of a review",
       "notificationUrgency": "Set the urgency",
-      "paletteIntent": "Picked the command"
+      "paletteIntent": "Picked the command",
+      "lessonMine": "Looked for a lesson"
     }
   },
   "bulk": {

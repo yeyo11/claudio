@@ -12,7 +12,7 @@ tags:
 ---
 # Guards: deterministic PreToolUse hooks loaded through `--settings`
 
-Status: **planned** (2026-10-15). Nothing is built. This plan builds idea ★3 of
+Status: **built** (2026-10-16; the feature is described in [guards.md](../guards.md)). Planned 2026-10-15. This plan builds idea ★3 of
 [the ECC report](../reports/ecc.md#3-guard-hooks-through---settings), under the owner's decisions
 in [its decisions section](../reports/ecc.md#decisions-2026-10-15). Where the report's §3 and those
 decisions differ, the decisions win.

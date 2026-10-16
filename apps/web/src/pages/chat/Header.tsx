@@ -1,6 +1,6 @@
 import type { Chat } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Minimize2, Search, Square, Trash2, WifiOff } from 'lucide-react';
+import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, GraduationCap, Hand, Info, Minimize2, Search, Square, Trash2, WifiOff } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -14,7 +14,9 @@ import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import type { TranscriptFind } from '@claudio/chat-ui/components/TranscriptSearch';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
-import { api } from '../../api';
+import { api, useLessonSettings } from '../../api';
+import { useConfirm } from '@claudio/ui/components/Dialog';
+import { formatCost } from '@claudio/ui/lib/format';
 import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '@claudio/chat-ui/lib/chat-live';
 import { ProviderBadge } from '@claudio/chat-ui/components/ChatBadges';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
@@ -24,6 +26,7 @@ import { checklistProgress } from '../../lib/observe';
 import { compactState } from './context-model';
 import { useContextControls, useRefusalText } from './ContextPanel';
 import type { InspectorTab } from './Inspector';
+import { GuardTag } from './GuardTag';
 import { LimitBadge } from './LimitBadge';
 import type { LimitPhase } from './LimitBanner';
 import { copyText } from '@claudio/ui/lib/clipboard';
@@ -147,6 +150,15 @@ export const ChatHeader = memo(function ChatHeader({
   const controls = useContextControls();
   const refusalText = useRefusalText(chat);
   const compaction = compactState(chat);
+  const confirm = useConfirm();
+  const lessonSettings = useLessonSettings().data;
+  // A person's click, so it runs even while the decision point is off; the server refuses what it must
+  const mineLessons = async () => {
+    const cost = formatCost(lessonSettings?.miner.maxCostUsd ?? 0);
+    const ok = await confirm({ title: t('chats:lessons.mineTitle'), body: t('chats:lessons.mineBody', { cost }), confirmLabel: t('chats:lessons.mineConfirm') });
+    if (!ok) return;
+    api.mineChatLessons(chat.id).then(() => toast.info(t('chats:lessons.mining')), (error: unknown) => toast.error(t('chats:lessons.mineFailed'), error));
+  };
 
   const entries: MenuEntry[] = [
     ...(compact || (stoppable && live)
@@ -199,6 +211,7 @@ export const ChatHeader = memo(function ChatHeader({
           disabledReason: !compaction.available && compaction.refusal ? refusalText(compaction.refusal) : undefined,
           onSelect: controls.openCompact,
         },
+        ...(chat.project && lessonSettings?.manualMining ? [{ id: 'lessons', label: t('chats:lessons.mine'), icon: GraduationCap, onSelect: () => void mineLessons() }] : []),
         { id: 'sidechains', label: t('view.subagentMessages'), checked: actions.sidechains, onSelect: () => actions.setSidechains(!actions.sidechains) },
         {
           id: 'copy-id',
@@ -242,6 +255,7 @@ export const ChatHeader = memo(function ChatHeader({
       </div>
       {limitPhase === 'none' ? <StatePill chat={chat} connected={connected} /> : <LimitBadge phase={limitPhase} resetsAt={limitResetsAt} />}
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
+      <GuardTag guards={chat.guards} />
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
       <div className="chat-head-actions">
         {!compact && (

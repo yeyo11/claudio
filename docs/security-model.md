@@ -128,12 +128,67 @@ itself (changes, the diff stat of a failing check, the health probe, the merge s
 integrator, verification and fixer, planner, workflow, synthesis), to the supervisor, and to every flow
 stage. The push of a pull request branch is Claudio's own process, after the person approved.
 
+## The review gate
+
+The review gate ([orchestrations.md](orchestrations.md#the-review-gate)) reads code a worker wrote, so
+everything it reads is untrusted, and it fails closed.
+
+- **Confinement.** A reviewer and a verifier run with `--restricted --tools=Read,Grep,Glob`: no
+  Bash, no Write, no network, no settings of the user or the project, and the file tools confined to
+  the working directory (a `Read` or `Grep` outside it is refused; recorded in the plan's CLI
+  facts). They run in a checkout of the integration branch and have a budget and a turn limit. The
+  fixer is the only run that writes.
+- **The role file cannot widen it.** Claudio supplies the rules, the tools and the model of every
+  reviewer. A role file only says what to look for; its `tools`, `disallowedTools` and `model` are
+  ignored. Role files are read from the project checkout, never from the integration branch, so a
+  worker cannot weaken its own reviewer in the diff under review. The conventions reviewer is shown
+  the project rules as they were at the base commit, for the same reason.
+- **Text addressed to an agent.** A scan of the added lines flags text that tells a reviewer to
+  approve, ignore or skip. It becomes a high finding and goes to a verifier, and the reviewer's own
+  rules say the same.
+- **Committed secrets block.** A deterministic scan of the added lines, generated and locked files
+  included, blocks on a committed secret, and so do conflict markers. The diff is not redacted before
+  a reviewer reads it (redacting would hide the very finding); instead every stored finding has its
+  evidence masked and cut.
+- **Fail closed.** A reviewer that crashes, times out, overspends or answers outside the schema makes
+  the gate `incomplete`, and an incomplete gate cannot pass. The pull request stays held while the
+  gate is neither passed nor accepted.
+- **Only a person accepts.** `POST /orchestrations/:id/review/accept` and
+  `POST /projects/:id/review-roles/:role` answer `403` to a chat's token, also under `auth.mode:
+  none`, where the chat's label on the request is what refuses it. An acceptance needs a written
+  reason, is bound to the head it was given on, and a new commit voids it. Reading the gate and
+  asking for a retry stay open to a chat's token: a retry only runs Claudio's own gate again.
+
 ## A chat cannot approve its own memory
 
 What a memory proposal writes (`CLAUDE.md`, a memory file, the journal) is read as instructions by every
 later run of the project. `POST /memory-proposals/:proposalId/approve` and `/reject` therefore answer
 403 to a chat's token, with the same error shape as the other routes closed to it; proposing stays
 open, and the person's token decides.
+
+## Lessons and a chat's token
+
+A lesson is read as instructions by every later run of a project, so it is the person's from the
+mining to the delivery ([lessons.md](lessons.md)).
+
+- **Chat tokens.** Every route that approves, edits, pins, confirms, retires, restores, deletes,
+  promotes, demotes, proposes for `CLAUDE.md`, mines or configures lessons answers 403 to a chat's
+  token, as does approving a `lesson` proposal or an `instructions` proposal made from a lesson.
+  Reading lessons stays open. Only the miner can create a `lesson` proposal; the flow's own proposal
+  targets stay `instructions`, `memory` and `journal`.
+- **The miner's confinement.** It runs `--restricted --tools= --setting-sources=` with
+  `--no-session-persistence`, `dontAsk` and no `CLAUDIO_API_URL` or token: no tool, no settings file,
+  no way back into Claudio. A prompt injection that reaches it can only produce candidates, which a
+  person still has to approve.
+- **Untrusted text.** What the miner reads and returns is data. Its input and the delivered section are
+  inside `pasted()` blocks with `PASTED_NOTE`; the delivery lead sentence, outside the block, is what
+  authorises following approved lessons. The validator drops candidates holding a command line, a code
+  block, a URL, a secret or an instruction-like phrase, and counts each drop.
+- **Redaction** happens at three points: when a signal row is written, in the decision engine's state
+  for `lesson.mine`, and in the miner's input (`maskSecrets`, which also covers Claudio's own
+  secrets). Evidence keeps at most 1 KiB of the person's words and 500 B of context per row, and 10 rows
+  per lesson; deleting a lesson deletes its evidence.
+- **Nothing is imported.** Lessons can be downloaded as JSON; no route, file or flag reads them in.
 
 ## A chat's token cannot compact a chat
 
@@ -186,6 +241,27 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 - **The override.** `X-Claudio-Spend-Override: 1` lets a person's request through a `409 spend-cap`.
   On a chat token the header is ignored, so the request still answers `409`.
 
+## Guards
+
+Orchestration workers and the flow run with deterministic `PreToolUse` hooks that block skipping git
+hooks, any push, destructive commands and secrets written into files, even in `bypassPermissions`
+([guards.md](guards.md), [the plan](plans/guards.md)).
+
+- **The guard is the app's.** It ships with the server (`guard.mjs`) and is never resolved from a
+  project or a plugin cache. In the image it is root-owned and read-only; preflight refuses an entry
+  that is group- or world-writable. It fails closed, and the launch fails when it cannot be armed.
+- **A chat cannot weaken it.** A chat's token gets `403` on `PUT /settings/guards` and
+  `POST /guards/check`, can read only its own `/guard-events`, and cannot save an override weaker
+  than the global rules (project settings, orchestration launch, relaunch, resume, templates).
+- **No secret leaves through it.** Reasons name a pattern, not the value; the stored excerpt is
+  masked and cut to 240 characters.
+
+**Explicitly not guaranteed.** Guards are not a sandbox. They do not stop a compiled or opaque
+program, a Makefile, a script fetched from the network, a secret encoded or assembled at runtime, the
+person's shell aliases, or a repository whose own hooks lie. They guarantee that the documented
+forms in the bypass corpus are blocked, that every block is visible, and that the guard cannot be
+switched off from inside the run without the run being stopped.
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
@@ -193,5 +269,5 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 
 ## Related
 
-[[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]

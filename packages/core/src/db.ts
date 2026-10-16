@@ -59,6 +59,8 @@ import { pruneWebhookDeliveries } from './webhook-store.ts';
  */
 
 const KEEP_ROTATION_EVENTS = 2_000;
+/** Guard events kept: the newest rows */
+export const KEEP_GUARD_EVENTS = 20_000;
 
 /**
  * Applied in order; `user_version` records how many have run, so each one is written once. A
@@ -960,6 +962,321 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX chat_notes_chat ON chat_notes (chat_id, created_at);
    CREATE UNIQUE INDEX chat_notes_pending ON chat_notes (chat_id) WHERE state = 'pending';
    CREATE UNIQUE INDEX chat_notes_entry ON chat_notes (chat_id, entry_uuid) WHERE entry_uuid IS NOT NULL;`,
+  `CREATE TABLE guard_events (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     at TEXT NOT NULL,
+     chat_id TEXT NOT NULL,
+     project_id TEXT,
+     orchestration_id TEXT,
+     task_id TEXT,
+     flow_run_id TEXT,
+     tool_use_id TEXT,
+     tool_name TEXT NOT NULL,
+     rule TEXT NOT NULL,
+     matcher TEXT NOT NULL,
+     outcome TEXT NOT NULL,
+     reason TEXT NOT NULL,
+     excerpt TEXT NOT NULL
+   );
+   CREATE INDEX guard_events_chat ON guard_events (chat_id, seq);
+   CREATE INDEX guard_events_orch ON guard_events (orchestration_id, seq);
+   CREATE INDEX guard_events_flow ON guard_events (flow_run_id, seq);
+   CREATE INDEX guard_events_at ON guard_events (at);
+   CREATE UNIQUE INDEX guard_events_once ON guard_events (chat_id, tool_use_id, outcome) WHERE tool_use_id IS NOT NULL;`,
+  `-- The review gate (docs/plans/review-gate.md). A round is one review of one head; its runs and its
+  -- findings are rows because they accumulate across rounds and two processes share the data dir.
+  -- The partial unique index lets one process claim a running round, so two cannot review one graph at once.
+  CREATE TABLE review_rounds (
+    id               TEXT PRIMARY KEY,
+    orchestration_id TEXT NOT NULL REFERENCES orchestrations (id) ON DELETE CASCADE,
+    round            INTEGER NOT NULL,
+    pass             INTEGER NOT NULL,
+    base             TEXT NOT NULL,
+    head             TEXT NOT NULL,
+    depth            TEXT NOT NULL,
+    state            TEXT NOT NULL,
+    reason           TEXT,
+    files            INTEGER NOT NULL DEFAULT 0,
+    added            INTEGER NOT NULL DEFAULT 0,
+    deleted          INTEGER NOT NULL DEFAULT 0,
+    chunks           INTEGER NOT NULL DEFAULT 0,
+    skipped_files    TEXT NOT NULL DEFAULT '[]',
+    estimate_usd     REAL,
+    cost_usd         REAL NOT NULL DEFAULT 0,
+    claimed_by       TEXT,
+    accepted_by      TEXT,
+    accepted_reason  TEXT,
+    accepted_at      TEXT,
+    started_at       TEXT NOT NULL,
+    ended_at         TEXT,
+    UNIQUE (orchestration_id, round, pass)
+  );
+  CREATE UNIQUE INDEX review_rounds_live ON review_rounds (orchestration_id) WHERE state = 'running';
+  CREATE INDEX review_rounds_orch ON review_rounds (orchestration_id, started_at);
+  CREATE TABLE review_runs (
+    id           TEXT PRIMARY KEY,
+    round_id     TEXT NOT NULL REFERENCES review_rounds (id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL,
+    dimension    TEXT,
+    chunk        INTEGER,
+    chunks       INTEGER,
+    chat_id      TEXT,
+    model        TEXT,
+    effort       TEXT,
+    account      TEXT,
+    role_source  TEXT,
+    role_sha     TEXT,
+    state        TEXT NOT NULL,
+    failure      TEXT,
+    dropped      INTEGER NOT NULL DEFAULT 0,
+    cost_usd     REAL NOT NULL DEFAULT 0,
+    started_at   TEXT,
+    ended_at     TEXT
+  );
+  CREATE INDEX review_runs_round ON review_runs (round_id, kind);
+  CREATE TABLE review_findings (
+    id                TEXT PRIMARY KEY,
+    round_id          TEXT NOT NULL REFERENCES review_rounds (id) ON DELETE CASCADE,
+    fingerprint       TEXT NOT NULL,
+    source            TEXT NOT NULL,
+    rule              TEXT,
+    dimensions        TEXT NOT NULL,
+    reported_by       INTEGER NOT NULL DEFAULT 1,
+    severity          TEXT NOT NULL,
+    confidence        REAL NOT NULL,
+    title             TEXT NOT NULL,
+    path              TEXT,
+    line              INTEGER,
+    side              TEXT,
+    anchor            TEXT NOT NULL,
+    evidence          TEXT NOT NULL,
+    failure_scenario  TEXT NOT NULL,
+    suggestion        TEXT,
+    verdict           TEXT NOT NULL,
+    verdict_reason    TEXT,
+    verifier_run_id   TEXT,
+    blocking          INTEGER NOT NULL,
+    resolved_in_round INTEGER,
+    created_at        TEXT NOT NULL,
+    UNIQUE (round_id, fingerprint)
+  );
+  CREATE INDEX review_findings_round ON review_findings (round_id, blocking, severity);`,
+  // Lessons from corrections (docs/plans/lessons.md)
+  `CREATE TABLE lessons (
+    seq                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    id                       TEXT NOT NULL UNIQUE,
+    project_id               TEXT,
+    status                   TEXT NOT NULL,
+    trigger                  TEXT NOT NULL,
+    action                   TEXT NOT NULL,
+    confidence               REAL NOT NULL,
+    seen_count               INTEGER NOT NULL DEFAULT 1,
+    pinned                   INTEGER NOT NULL DEFAULT 0,
+    mechanical               INTEGER NOT NULL DEFAULT 0,
+    conflicts_instructions   INTEGER NOT NULL DEFAULT 0,
+    contradicts_id           TEXT,
+    overrides_id             TEXT,
+    promoted_from            TEXT,
+    retired_reason           TEXT,
+    proposal_id              TEXT,
+    instructions_proposal_id TEXT,
+    proposed_by_kind         TEXT NOT NULL,
+    proposed_by_role         TEXT,
+    decided_by_kind          TEXT,
+    decided_by_role          TEXT,
+    decided_at               TEXT,
+    edited_at                TEXT,
+    last_seen_at             TEXT NOT NULL,
+    last_confirmed_at        TEXT NOT NULL,
+    created_at               TEXT NOT NULL,
+    updated_at               TEXT NOT NULL
+  );
+  CREATE INDEX lessons_project ON lessons (project_id, status, seq);
+  CREATE TABLE lesson_evidence (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT NOT NULL UNIQUE,
+    lesson_id   TEXT NOT NULL REFERENCES lessons (id) ON DELETE CASCADE,
+    signal      TEXT NOT NULL,
+    quote       TEXT NOT NULL,
+    context     TEXT NOT NULL,
+    chat_id     TEXT,
+    entry_uuid  TEXT,
+    job_id      TEXT,
+    at          TEXT NOT NULL
+  );
+  CREATE INDEX lesson_evidence_lesson ON lesson_evidence (lesson_id, seq);
+  -- What the transcript cannot tell: a person's deny (vs. a timeout), a rewind, a rejected proposal.
+  CREATE TABLE lesson_signals (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT NOT NULL UNIQUE,
+    project_id  TEXT NOT NULL,
+    chat_id     TEXT,
+    kind        TEXT NOT NULL,
+    entry_uuid  TEXT,
+    detail      TEXT NOT NULL,
+    job_id      TEXT,
+    at          TEXT NOT NULL
+  );
+  CREATE INDEX lesson_signals_chat ON lesson_signals (chat_id, job_id);
+  CREATE TABLE lesson_jobs (
+    seq            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id             TEXT NOT NULL UNIQUE,
+    project_id     TEXT NOT NULL,
+    chat_id        TEXT,
+    trigger        TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    outcome        TEXT,
+    from_uuid      TEXT,
+    until_uuid     TEXT,
+    signals        INTEGER NOT NULL DEFAULT 0,
+    candidates     INTEGER NOT NULL DEFAULT 0,
+    proposed       INTEGER NOT NULL DEFAULT 0,
+    merged         INTEGER NOT NULL DEFAULT 0,
+    dropped        TEXT NOT NULL DEFAULT '{}',
+    decision_id    TEXT,
+    reserved_usd   REAL NOT NULL DEFAULT 0,
+    cost_usd       REAL,
+    attempts       INTEGER NOT NULL DEFAULT 0,
+    claimed_by     TEXT,
+    claimed_until  TEXT,
+    next_at        TEXT,
+    error          TEXT,
+    created_at     TEXT NOT NULL,
+    started_at     TEXT,
+    ended_at       TEXT
+  );
+  CREATE INDEX lesson_jobs_project ON lesson_jobs (project_id, created_at);
+  -- One open job per chat: a second trigger while one waits is the same work
+  CREATE UNIQUE INDEX lesson_jobs_open ON lesson_jobs (chat_id) WHERE status IN ('queued', 'deferred', 'running') AND chat_id IS NOT NULL;
+  ALTER TABLE memory_proposals ADD COLUMN lesson_id TEXT REFERENCES lessons (id) ON DELETE SET NULL;
+`,
+  // docs/plans/instruction-evals.md: eval runs, their samples, calls and checks
+  `CREATE TABLE eval_runs (
+     id TEXT PRIMARY KEY,
+     project_id TEXT NOT NULL,
+     eval_name TEXT NOT NULL,
+     definition_sha TEXT NOT NULL,
+     definition TEXT NOT NULL,
+     variants TEXT NOT NULL,
+     samples_per_case INTEGER NOT NULL,
+     account TEXT,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','waiting','ended')),
+     outcome TEXT CHECK (outcome IN ('completed','capped','cancelled','interrupted','failed')),
+     reason TEXT,
+     resets_at TEXT,
+     max_cost_usd REAL NOT NULL,
+     cost_usd REAL NOT NULL DEFAULT 0,
+     started_by TEXT NOT NULL,
+     owner_pid INTEGER, owner_started_at TEXT,
+     created_at TEXT NOT NULL, started_at TEXT, ended_at TEXT
+   );
+   CREATE INDEX eval_runs_history ON eval_runs (project_id, eval_name, created_at);
+   CREATE UNIQUE INDEX eval_runs_live ON eval_runs (project_id) WHERE state IN ('queued','running','waiting');
+   CREATE TABLE eval_variants (
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     variant TEXT NOT NULL CHECK (variant IN ('pinned','current','proposed')),
+     target_path TEXT NOT NULL,
+     present INTEGER NOT NULL,
+     content_sha TEXT,
+     content TEXT,
+     PRIMARY KEY (run_id, variant)
+   );
+   CREATE TABLE eval_samples (
+     id TEXT PRIMARY KEY,
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     case_id TEXT NOT NULL, variant TEXT NOT NULL, attempt INTEGER NOT NULL, try INTEGER NOT NULL DEFAULT 1,
+     seq INTEGER NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','ended')),
+     outcome TEXT CHECK (outcome IN ('passed','failed','limit','interrupted','cancelled','skipped','infra')),
+     reason TEXT,
+     chat_id TEXT, account TEXT, model TEXT, cli_version TEXT, pin TEXT NOT NULL,
+     cost_usd REAL, duration_ms INTEGER, turns INTEGER, calls_truncated INTEGER NOT NULL DEFAULT 0,
+     result_text TEXT,
+     owner_pid INTEGER, started_at TEXT, ended_at TEXT,
+     UNIQUE (run_id, case_id, variant, attempt, try)
+   );
+   CREATE INDEX eval_samples_run ON eval_samples (run_id, seq);
+   CREATE TABLE eval_calls (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     seq INTEGER NOT NULL, message INTEGER NOT NULL, tool_use_id TEXT, name TEXT NOT NULL,
+     scope TEXT NOT NULL CHECK (scope IN ('main','sub')),
+     outcome TEXT NOT NULL CHECK (outcome IN ('ok','error','denied','open')),
+     input TEXT NOT NULL,
+     result TEXT,
+     at TEXT,
+     PRIMARY KEY (sample_id, seq)
+   );
+   CREATE TABLE eval_checks (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL, kind TEXT NOT NULL, passed INTEGER NOT NULL,
+     detail TEXT NOT NULL,
+     evidence_seq INTEGER,
+     output TEXT,
+     PRIMARY KEY (sample_id, idx)
+   );`,
+  // Instruction evals v2. SQLite cannot widen a CHECK, so eval_samples (and the two tables that
+  // reference it) are rebuilt to admit the 'unjudged' outcome and the pressure column; children go
+  // first so no cascade deletes their rows.
+  `CREATE TABLE eval_samples_v2 (
+     id TEXT PRIMARY KEY,
+     run_id TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+     case_id TEXT NOT NULL, variant TEXT NOT NULL, pressure TEXT NOT NULL DEFAULT 'neutral', attempt INTEGER NOT NULL, try INTEGER NOT NULL DEFAULT 1,
+     seq INTEGER NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('queued','running','ended')),
+     outcome TEXT CHECK (outcome IN ('passed','failed','limit','interrupted','cancelled','skipped','infra','unjudged')),
+     reason TEXT,
+     chat_id TEXT, account TEXT, model TEXT, cli_version TEXT, pin TEXT NOT NULL,
+     cost_usd REAL, duration_ms INTEGER, turns INTEGER, calls_truncated INTEGER NOT NULL DEFAULT 0,
+     result_text TEXT,
+     owner_pid INTEGER, started_at TEXT, ended_at TEXT,
+     UNIQUE (run_id, case_id, variant, pressure, attempt, try)
+   );
+   CREATE TABLE eval_calls_v2 (
+     sample_id TEXT NOT NULL REFERENCES eval_samples_v2(id) ON DELETE CASCADE,
+     seq INTEGER NOT NULL, message INTEGER NOT NULL, tool_use_id TEXT, name TEXT NOT NULL,
+     scope TEXT NOT NULL CHECK (scope IN ('main','sub')),
+     outcome TEXT NOT NULL CHECK (outcome IN ('ok','error','denied','open')),
+     input TEXT NOT NULL,
+     result TEXT,
+     at TEXT,
+     PRIMARY KEY (sample_id, seq)
+   );
+   CREATE TABLE eval_checks_v2 (
+     sample_id TEXT NOT NULL REFERENCES eval_samples_v2(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL, kind TEXT NOT NULL, passed INTEGER NOT NULL,
+     detail TEXT NOT NULL,
+     evidence_seq INTEGER,
+     output TEXT,
+     PRIMARY KEY (sample_id, idx)
+   );
+   INSERT INTO eval_samples_v2 (id, run_id, case_id, variant, attempt, try, seq, state, outcome, reason, chat_id, account, model, cli_version, pin,
+     cost_usd, duration_ms, turns, calls_truncated, result_text, owner_pid, started_at, ended_at)
+     SELECT id, run_id, case_id, variant, attempt, try, seq, state, outcome, reason, chat_id, account, model, cli_version, pin,
+     cost_usd, duration_ms, turns, calls_truncated, result_text, owner_pid, started_at, ended_at FROM eval_samples;
+   INSERT INTO eval_calls_v2 SELECT sample_id, seq, message, tool_use_id, name, scope, outcome, input, result, at FROM eval_calls;
+   INSERT INTO eval_checks_v2 SELECT sample_id, idx, kind, passed, detail, evidence_seq, output FROM eval_checks;
+   DROP TABLE eval_calls;
+   DROP TABLE eval_checks;
+   DROP TABLE eval_samples;
+   ALTER TABLE eval_samples_v2 RENAME TO eval_samples;
+   ALTER TABLE eval_calls_v2 RENAME TO eval_calls;
+   ALTER TABLE eval_checks_v2 RENAME TO eval_checks;
+   CREATE INDEX eval_samples_run ON eval_samples (run_id, seq);
+   CREATE TABLE eval_judgements (
+     sample_id TEXT NOT NULL REFERENCES eval_samples(id) ON DELETE CASCADE,
+     idx INTEGER NOT NULL,
+     pass INTEGER,
+     reason TEXT NOT NULL,
+     evidence TEXT NOT NULL DEFAULT '[]',
+     cost_usd REAL,
+     model TEXT,
+     status TEXT NOT NULL CHECK (status IN ('judged','unjudged')),
+     PRIMARY KEY (sample_id, idx)
+   );
+   ALTER TABLE eval_runs ADD COLUMN gate TEXT;
+   ALTER TABLE eval_runs ADD COLUMN gate_detail TEXT;`,
+  // Phase 2: the eval an assistant `evals` run drafts cases for
+  `ALTER TABLE assistant_runs ADD COLUMN eval_name TEXT;`,
 ];
 
 /**
@@ -983,6 +1300,17 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
 
 /** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
 export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
+
+/** The version that added the guards' event table, for the test that upgrades a database from the one before */
+export const GUARD_EVENTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE guard_events')) + 1;
+
+/** Drops all but the newest `keep` guard events; returns how many went. */
+export function pruneGuardEvents(db: DatabaseSync, keep = KEEP_GUARD_EVENTS): number {
+  const result = db
+    .prepare('DELETE FROM guard_events WHERE seq <= COALESCE((SELECT seq FROM guard_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)')
+    .run(keep);
+  return Number(result.changes);
+}
 
 /** The version that added the chats' provider column, for the test that upgrades a database from the one before */
 export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE INDEX chats_provider')) + 1;
@@ -1019,6 +1347,14 @@ export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 's
 
 /** The migration that added the compactions and session notes: a test starts a database from just before it */
 export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE chat_compactions')) + 1;
+
+/** The migration that added the review gate's rounds, runs and findings: a test starts a database from just before it */
+export const REVIEW_GATE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_rounds')) + 1;
+/** The migration that added the lessons tables: a test starts a database from just before it */
+export const LESSONS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE lessons')) + 1;
+/** The migration that added the instruction evals' tables: a test starts a database from just before it */
+export const EVALS_V2_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_judgements')) + 1;
+export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -1377,6 +1713,7 @@ export class Db {
     migrate(this.db);
     this.pruneAudit();
     pruneWebhookDeliveries(this.db);
+    pruneGuardEvents(this.db);
     this.pruneProviderMoves();
     // A server that stays up for weeks prunes the history daily too; unref'd so it never keeps a process alive
     this.movesPruneTimer = setInterval(() => this.pruneProviderMoves(), 24 * 60 * 60 * 1000);

@@ -8,7 +8,9 @@ import {
   checksShown,
   cleanTask,
   dependantsOf,
+  draftOfReview,
   draftOfVerification,
+  EMPTY_REVIEW,
   EMPTY_VERIFICATION,
   isErrorLine,
   limitsOf,
@@ -17,6 +19,8 @@ import {
   parseCommands,
   pullRequestHeld,
   rerunBlockedByPullRequest,
+  reviewHolds,
+  reviewOf,
   specOfOrchestration,
   specOfTask,
   verificationOf,
@@ -255,4 +259,66 @@ test('the lines of a log that say why it failed are the host error markers and a
   assert.equal(isErrorLine('Command exited with exit code 2'), true);
   assert.equal(isErrorLine('exit code 0'), false);
   assert.equal(isErrorLine('  ✓ src/orchestration/stages.test.ts (18 tests)'), false);
+});
+
+// ---------- the review gate ----------
+
+test('a review draft left alone writes only that it is on, and round-trips through the spec', () => {
+  assert.equal(reviewOf(EMPTY_REVIEW), undefined);
+  assert.deepEqual(reviewOf({ ...EMPTY_REVIEW, enabled: true }), {});
+  const draft = {
+    ...EMPTY_REVIEW,
+    enabled: true,
+    tests: false,
+    conventions: false,
+    security: 'always' as const,
+    depth: 'light' as const,
+    fixer: false,
+    maxFixRounds: 0,
+    maxCostUsd: 12,
+    maxRunCostUsd: 2.5,
+    reviewerModel: ' haiku ',
+    verifierModel: 'opus',
+    exclude: 'docs/generated/**\n\n  dist/**  \n',
+  };
+  const spec = reviewOf(draft);
+  assert.deepEqual(spec, {
+    dimensions: { tests: false, security: 'always', conventions: false },
+    depth: 'light',
+    fixer: false,
+    maxFixRounds: 0,
+    maxCostUsd: 12,
+    maxRunCostUsd: 2.5,
+    models: { reviewer: 'haiku', verifier: 'opus' },
+    exclude: ['docs/generated/**', 'dist/**'],
+  });
+  assert.deepEqual(draftOfReview(spec), { ...draft, reviewerModel: 'haiku', exclude: 'docs/generated/**\ndist/**' });
+  assert.equal(draftOfReview(undefined), EMPTY_REVIEW);
+});
+
+test('with the review on the commands may be empty; with neither there is no verification', () => {
+  const on = { ...EMPTY_VERIFICATION, enabled: true, review: { ...EMPTY_REVIEW, enabled: true } };
+  assert.deepEqual(verificationOf(on)?.commands, []);
+  assert.deepEqual(verificationOf(on)?.review, {});
+  assert.equal(verificationOf({ ...on, review: EMPTY_REVIEW }), undefined);
+  assert.equal(verificationOf({ ...on, enabled: false }), undefined);
+  const back = draftOfVerification(verificationOf({ ...on, commands: 'pnpm test', review: { ...on.review, depth: 'light' } }));
+  assert.equal(back.review.enabled, true);
+  assert.equal(back.review.depth, 'light');
+  assert.equal(draftOfVerification({ commands: ['pnpm test'], fixer: true, maxAttempts: 2 }).review.enabled, false);
+});
+
+test('a pull request is held by a review that has not passed, whatever failGraph says', () => {
+  const spec = { commands: [], fixer: false, maxAttempts: 1 };
+  const gate = (status: 'pending' | 'running' | 'passed' | 'blocked' | 'incomplete' | 'accepted' | 'skipped') => ({
+    ...VERIFIED,
+    review: { status, phase: null, round: 1, maxFixRounds: 2, head: null, startedAt: null, endedAt: null, costUsd: 0, reason: null, counts: { blocking: 0, advisory: 0, refuted: 0, outside: 0 }, runs: { total: 0, done: 0, running: 0, failed: 0 }, depth: 'full' as const },
+  });
+  for (const status of ['pending', 'running', 'blocked', 'incomplete'] as const) {
+    assert.equal(pullRequestHeld({ verificationSpec: spec, verification: gate(status) }), true, status);
+  }
+  for (const status of ['passed', 'accepted', 'skipped'] as const) {
+    assert.equal(pullRequestHeld({ verificationSpec: spec, verification: gate(status) }), false, status);
+  }
+  assert.equal(reviewHolds(undefined), false);
 });

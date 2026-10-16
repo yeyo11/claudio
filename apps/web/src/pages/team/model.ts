@@ -1,5 +1,6 @@
-import type { Effort, FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@claudio/shared';
+import type { Effort, FlowRun, FlowRunCause, FlowStage, FlowStep, GuardOverride, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@claudio/shared';
 import { DEFAULT_FLOW_MAX_PARALLEL, flowStepOf, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES, type TeamCommandProblem } from '@claudio/shared';
+import { sameGuardOverride } from '../../lib/guards';
 import { daysAgo } from '@claudio/ui/lib/format';
 
 /**
@@ -128,6 +129,7 @@ export function sameFlow(a: ProjectFlowSettings, b: ProjectFlowSettings): boolea
     (a.maxParallel ?? null) === (b.maxParallel ?? null) &&
     (a.maxCostUsd ?? null) === (b.maxCostUsd ?? null) &&
     (a.plateau ?? 'observe') === (b.plateau ?? 'observe') &&
+    FLOW_GUARD_STAGES.every((stage) => sameGuardOverride(a.guards?.[stage], b.guards?.[stage])) &&
     FLOW_COLUMNS.every((status) => (a.columns[status] ?? '') === (b.columns[status] ?? ''))
   );
 }
@@ -158,6 +160,20 @@ export function setMaxCost(flow: ProjectFlowSettings, value: number | undefined)
 
 /** The flow as it is saved: the limits as typed rounded, capped, or dropped back to their default. */
 export const settledFlow = (flow: ProjectFlowSettings): ProjectFlowSettings => setMaxCost(setMaxParallel(flow, flow.maxParallel), flow.maxCostUsd);
+
+/** The stages of a flow run that can carry their own guard override, in the order a card goes through them. */
+export const FLOW_GUARD_STAGES: readonly FlowStage[] = ['refine', 'work', 'verify'];
+
+/** A stage's guard override; one that says nothing drops its key, so the document has no empty entries. */
+export function setStageGuards(flow: ProjectFlowSettings, stage: FlowStage, override: GuardOverride | undefined): ProjectFlowSettings {
+  const guards = { ...flow.guards };
+  if (override) guards[stage] = override;
+  else delete guards[stage];
+  const next = { ...flow };
+  if (Object.keys(guards).length > 0) next.guards = guards;
+  else delete next.guards;
+  return next;
+}
 
 /** A column given to nobody drops its key, so the document the API gets has no empty roles. */
 export function setColumnRole(flow: ProjectFlowSettings, status: WorkItemStatus, role: string): ProjectFlowSettings {
@@ -269,20 +285,45 @@ export function sameList(a: readonly string[] | undefined, b: readonly string[] 
 
 /**
  * The Team tab's own address: `?view=team&section=flow`, `&section=activity` for the team's whole
- * activity, `&member=<agent>` for one member.
+ * activity, `&member=<agent>` for one member, `&section=evals` for the instruction evals, deepened by
+ * `&eval=<name>` (one eval) and `&run=<id>` (one run).
  */
-export type TeamSection = 'members' | 'flow' | 'activity';
+export type TeamSection = 'members' | 'flow' | 'activity' | 'evals';
 
 export function teamSection(value: string | null): TeamSection {
-  return value === 'flow' || value === 'activity' ? value : 'members';
+  return value === 'flow' || value === 'activity' || value === 'evals' ? value : 'members';
 }
 
-export function teamSearch(params: URLSearchParams, next: { section?: TeamSection; member?: string | null }): string {
+export function teamSearch(
+  params: URLSearchParams,
+  next: { section?: TeamSection; member?: string | null; eval?: string | null; run?: string | null; for?: string | null },
+): string {
   const query = new URLSearchParams(params);
   query.set('view', 'team');
   if (next.section) {
     if (next.section === 'members') query.delete('section');
     else query.set('section', next.section);
+    // The evals' own depth belongs to that section
+    if (next.section !== 'evals') {
+      query.delete('eval');
+      query.delete('run');
+      query.delete('for');
+    }
+  }
+  // The agent a member's page asked the evals about; the list is filtered to it
+  if (next.for !== undefined) {
+    if (next.for) query.set('for', next.for);
+    else query.delete('for');
+  }
+  if (next.eval !== undefined) {
+    if (next.eval) query.set('eval', next.eval);
+    else query.delete('eval');
+    // A run belongs to the eval it was opened under
+    if (next.run === undefined) query.delete('run');
+  }
+  if (next.run !== undefined) {
+    if (next.run) query.set('run', next.run);
+    else query.delete('run');
   }
   if (next.member !== undefined) {
     if (next.member) query.set('member', next.member);

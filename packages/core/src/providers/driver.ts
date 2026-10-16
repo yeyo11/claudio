@@ -12,6 +12,7 @@ import type {
   ProviderCapability,
   RateLimitInfo,
   RunEvent,
+  RunGuardEvent,
   ToolPolicy,
   TranscriptEntry,
 } from '@claudio/shared';
@@ -62,7 +63,7 @@ export interface ProviderDriver {
   /** How one process of a session starts: binary, argv and environment */
   launch(spec: SessionLaunch): LaunchPlan;
   /** Speaks the protocol to one process; events come out already neutral */
-  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker): DriverSession;
+  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession;
   /** Per chat, across its processes: background tasks, subagents, workflows */
   createBranches(): BranchTracker;
   /** OS processes holding a session, for "it is still running elsewhere" and restore's leftovers */
@@ -71,6 +72,15 @@ export interface ProviderDriver {
 
   /** What a session's first event confirms for the installed version */
   confirm(init: SessionInit): CapabilityConfirmation;
+}
+
+/**
+ * The guard a process was launched with, as the stream needs it: markers only count when the launch
+ * carried one, and its `armed` marker must name these rules (docs/plans/guards.md, "Arming and liveness").
+ */
+export interface AttachedGuard {
+  /** SHA-256 of the rules file the process's hook was given */
+  rulesSha256: string;
 }
 
 /** What a handshake that spends nothing learns about the installed provider. */
@@ -121,6 +131,8 @@ export interface SessionLaunch {
   internal?: boolean;
   agent?: string;
   agentsFile?: string;
+  /** The settings file that registers the guard's hooks; the driver passes it and asks for the hook events */
+  guard?: { settingsPath: string };
   /** Claudio's policy for this run; the driver applies the settings part, the judge the host part */
   policy: ToolPolicy | null;
   /** The Claude account this process runs on; absent leaves the environment as the CLI's own login */
@@ -332,6 +344,12 @@ export type DriverEvent =
       run: RunDraft;
     }
   | { kind: 'stderr'; text: string }
+  /** The guard's `SessionStart` marker arrived: its hooks run, and the first message may be written */
+  | { kind: 'guard-armed' }
+  /** The guard blocked, observed or let through once a tool call, or failed and so blocked it; a pass produces nothing */
+  | { kind: 'guard'; guard: RunGuardEvent; run: RunDraft }
+  /** A tool call was answered without the guard having spoken for it: the call already ran */
+  | { kind: 'guard-missing'; guard: RunGuardEvent; run: RunDraft }
   /** Claudio's own words about something the agent did that the person may want to see, with no change of status */
   | { kind: 'notice'; text: string }
   /** A stdout line that is not the protocol */

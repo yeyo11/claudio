@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - team
     - flow
@@ -630,6 +630,16 @@ does not fit, so the story a run reads has no hole. The size comes from two limi
 - every run reads it on top of the role's own prompt, and a few thousand tokens of the newest entries
   is what a member needs to know what was decided.
 
+**The Lessons section.** Ahead of the entries, `handoff()` puts a `## Lessons` section when the
+project has approved lessons ([lessons.md](lessons.md)). It is not made of journal entries: approving
+a lesson writes none, so nothing is handed twice. The section has a budget of its own, 2 KiB
+(`delivery.handoffBytes` in `lessons.json`, at most 4 KiB), and it counts inside the 16 KiB cap, so the
+entries get what is left. Lessons come in order: pinned first, then by confidence, how often seen,
+recency and key; whole lessons only, and one that does not fit is skipped. The lead sentence sits
+outside the `pasted()` block and authorises following the lessons; the lessons are inside it. Global
+lessons are included unless the project sets `useGlobal` to false, and the Memory module off means no
+section. The Handed card of the Memory tab shows the lesson count and bytes next to the entries.
+
 ## Memory proposals
 
 `packages/core/src/memory-proposals.ts` (`MemoryProposalService`), decision 33. There is **no private
@@ -915,6 +925,14 @@ Since orchestration 6 the phone screens follow their references more closely:
 - **The journal says "Tú"** beside the person's monogram, as `MobileMemoriaDiario` does, and drops
   "written by you", which would say it twice.
 
+## Guards
+
+Flow runs are [guarded](guards.md) by default. The flow settings have a Guards card with one row per
+stage (refine, work, verify), saved into `flow.guards`; a chat token cannot save a stage override
+weaker than the global rules. A run whose guard cannot run ends `failed` with cause `not-started` and
+an error starting `guard-unavailable (<problem>)`. Run rows show an "N blocked" chip when the guards
+blocked a call, linking to the chat at the first notice.
+
 ## Known gaps
 
 Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed; each is
@@ -937,6 +955,11 @@ described above where it now lives. The last detail, the model's name, was close
   and an id off that scheme is left unnamed rather than guessed. No list of Claudio's own and no
   call to Anthropic: only what the CLI reported.
 
+## Evals
+
+The Team screen's fourth section checks whether agents follow an edited agent file, skill, rule or
+`CLAUDE.md`, by running cases on a pinned commit in throwaway worktrees. See [evals.md](evals.md).
+
 ## Related
 
-[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[guards.md]] · [[evals.md]] · [[projects.md]] · [[lessons.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

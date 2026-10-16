@@ -8,7 +8,7 @@ import type { WorkItemContext } from './work-items.ts';
 export class WorkItemError extends Error {
   constructor(
     message: string,
-    readonly statusCode: 400 | 404 | 409,
+    readonly statusCode: 400 | 404 | 409 | 429,
   ) {
     super(message);
   }

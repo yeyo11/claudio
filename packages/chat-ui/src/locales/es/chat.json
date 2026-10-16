@@ -27,7 +27,8 @@
       "integration": "integración",
       "verification": "verificación",
       "synthesis": "síntesis",
-      "workflow": "workflow"
+      "workflow": "workflow",
+      "review": "revisión"
     },
     "partOf": {
       "label": "Parte de la orquestación",
@@ -427,7 +428,9 @@
       "output": "Salida del comando",
       "interrupt": "Interrumpido",
       "compaction-failed": "No se ha podido compactar",
-      "account": "Cuenta cambiada a"
+      "account": "Cuenta cambiada a",
+      "guard": "Guardia: bloqueado",
+      "guardMissing": "La guardia no se ha ejecutado en esta llamada"
     }
   },
   "agent": {

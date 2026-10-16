@@ -10,3 +10,7 @@ it wrote around a compaction. Their stdout counterparts are `../replay/compact-*
 [c0-NOTES.md](c0-NOTES.md) says how each was recorded and what it showed (context control, plan
 `docs/plans/context-control.md`, facts F1-F20). In those files a compaction summary keeps only the
 CLI's fixed lead sentence, followed by `<summary: N chars>`.
+
+`claude-hooks` holds what Claude Code 2.1.300 and 2.1.278 did with `PreToolUse` and `SessionStart` command hooks loaded through
+`--settings`: stream events, hook stdin, outcomes, precedence and latency, one folder per scenario and version.
+[claude-hooks/g0-NOTES.md](claude-hooks/g0-NOTES.md) opens with the facts that change `docs/plans/guards.md` (facts F1-F21).

@@ -30,6 +30,8 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `CLAUDIO_FAKE_CLI_VERSION` | `2.1.1-fake` | The version it reports, for a recording that should not say "fake" in its footer |
 | `CLAUDIO_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
 | `CLAUDIO_FAKE_CLI_TRANSCRIPT` | none | `1` writes a transcript (see below); so does `"@transcript": true` in the scripts file, for a spec, which cannot set the server's environment |
+| `CLAUDIO_FAKE_CLI_NO_HOOKS` | none | `1` never runs the `PreToolUse` hook of `--settings`: a guard that is not there, which Claudio's liveness check must notice |
+| `CLAUDIO_FAKE_CLI_NO_ARM` | none | `1` never runs the `SessionStart` hook: a guard that cannot arm |
 
 ## Subcommands
 
@@ -87,6 +89,15 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 - `read: <path>` — one `Read` call (`input: { file_path }`, the path resolved against the working
   directory), held open for `CLAUDIO_FAKE_CLI_READ_MS` (default 400) and answered with the file's
   first 4000 characters, or `(file not found)`. It is what makes a page say "Reading <path>".
+- `edit: <path>` — one `Edit` call (`input: { file_path, old_string, new_string, replace_all }`, the path
+  absolute): the file is rewritten for real, a line `edited by the fake CLI` appended, and the call is
+  answered with the CLI's `tool_use_result` (`filePath`, `oldString`, `newString`, `originalFile`,
+  `structuredPatch`, `userModified`, `replaceAll`). A missing file fails the call. Held for `CLAUDIO_FAKE_CLI_READ_MS`.
+- `write: <path> <text>` — one `Write` call (`input: { file_path, content }`): the file is written for
+  real (parents created), `tool_use_result` is `{ type: "create" | "update", filePath, content,
+  structuredPatch, originalFile }`.
+- `skill: <name>` — one `Skill` call (`input: { skill }`), answered `Launching skill: <name>` with
+  `tool_use_result: { success: true, commandName }`.
 - `agent: <description> | <sidechain script>` — one subagent: an `Agent` call (`input: { description,
   subagent_type: "Explore", prompt: "Look around" }`), a `system` `task_started` (`task_type:
   "local_agent"`, `task_id` the agent id, `tool_use_id` the call's, `is_backgrounded: false`), then its
@@ -164,6 +175,24 @@ is answered with no script: the structured output marks the first thread `agent`
 structured output marks the issues `ready`, `needs-refining` and `not-for-agents` in the order asked, then
 round again, so a spec turns the point on and sees all three marks in the import dialog.
 
+**Hooks (`--settings`)** are run as the CLI does (recorded in `packages/core/test/fixtures/recordings/claude-hooks`):
+the first command of `hooks.SessionStart` runs at the process's start, before `init` and before any message,
+and the first command of `hooks.PreToolUse` runs for each `run:` step of the main agent, after the call is
+announced, with the hook input on stdin (`sh -c`). With `--include-hook-events` each one streams a
+`system`/`hook_started` and a `hook_response` (`hook_name`, `hook_event`, `stdout`, `stderr`, `exit_code`,
+`outcome`). Only exit 2 blocks: the command never runs and its `tool_result` is an error reading
+`PreToolUse:Bash hook error: [<hook command>]: <stderr>` (g0's F5); any other code lets it run. This is how
+the real bundled `guard.mjs` runs in `e2e/specs/guard-hooks.spec.mjs`. Subagent steps and the other tools are
+not hooked.
+
+**A `lesson.mine` question** (a line `mine: Do these signals show…`) is answered `{"mine": true}` with no
+script, so a chat a spec corrected goes on to the miner.
+
+**The lesson miner's prompt** (it starts `You review part of a chat between a person and a coding agent…`) is
+answered with the scripts file's `"@lesson-miner"` entry, a `json: {"lessons":[…]}` line a spec writes
+with the quote it typed; without the entry the answer is `{"lessons":[]}`. Whatever the miner returns still
+goes through the validator, so a scripted lesson must pass it.
+
 **A message that arrives during a turn** is logged at once, and answered at the turn's next step
 (300 ms after a command ends) with one assistant text `Heard: <first line>` per message, before
 the next `run:` command starts. What is still waiting when the turn ends starts a turn of its own.
@@ -201,6 +230,7 @@ With `CLAUDIO_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid`
 | `turn` | `text`, `commands` |
 | `command` | `toolUseId`, `command`, `commandPid` — logged before the `tool_use` is emitted |
 | `command-ended` | `toolUseId`, `command`, `code`, `signal`, `interrupted` |
+| `command-blocked` | `toolUseId`, `command` — a `run:` step the `PreToolUse` hook refused with exit 2; it never ran |
 | `control` | `subtype` |
 | `absorbed` | `texts` — messages read inside the running turn, at its next step |
 | `asked` | `requestId`, `command` — an `ask:` step's permission request |

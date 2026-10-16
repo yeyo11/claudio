@@ -1717,6 +1717,69 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .m-screen .rt-fold { min-height: var(--touch); padding-right: 6px; }
 .m-screen .rt-fold .btn { height: var(--touch); }
 /* ---------- end of Review threads ---------- */
+/* ---------- Review gate: the finding card (a variant of .rt) and the review section of the verification card (plans/review-gate.md, v8a) ---------- */
+/* A finding is Claudio's record, not a conversation: .rt.finding has no reply field and no monogram. Severity is a word with its colour
+   (.rt-sev: critical and high bad, medium warn, low neutral). Nothing in a finding is live. The section (.rg) takes .energy only while
+   reviewers run; every other state stands still, and a running row borrows .rail-live and .spin-ring from §11. */
+.rt.finding .rt-head { gap: 6px 8px; }
+.rt-sev { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--r-xs); border: 1px solid var(--line); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.rt-sev.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.rt-sev.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.rt-dim { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--r-xs); background: var(--bg-3); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+.rt-verdict { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); white-space: nowrap; }
+.rt-verdict.warn { color: var(--warn); }
+.rt-finding-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.rt-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
+.rt-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rt-fact > .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); }
+.rt-fact > p { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
+.rt-evidence { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); font-family: var(--mono); font-size: 12px; line-height: 20px; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rt-verifier { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.rt.finding.refuted .rt-title, .rt.finding.refuted .rt-fact > p { color: var(--fg-2); }
+.m-screen .rt.finding .rt-title { font-size: 15px; }
+/* The review section of the verification card */
+.rg { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg-1); font-size: 13px; color: var(--fg-2); }
+.rg.energy { border-color: transparent; }
+.rg-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: 44px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.rg-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--fg); }
+.rg-head .facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-verb { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fg); }
+.rg-reason { display: flex; align-items: flex-start; gap: 10px; margin: 12px 14px 0; padding: 10px 12px; border-radius: var(--r); background: var(--bg-2); line-height: 1.5; }
+.rg-reason.warn { background: var(--warn-soft); }
+.rg-reason.bad { background: var(--bad-soft); }
+.rg-reason q { color: var(--fg); quotes: '“' '”'; }
+.rg-reason .ico { flex-shrink: 0; margin-top: 2px; }
+.rg-segs { padding: 12px 14px 0; display: flex; flex-direction: column; gap: 6px; }
+.rg-segs .mono { font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-runs { display: flex; flex-direction: column; margin-top: 12px; border-top: 1px solid var(--line); }
+.rg-run { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto 56px 28px; align-items: center; gap: 4px 12px; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); color: var(--fg); }
+.rg-run.rail-live { padding-left: 18px; }
+.rg-run > :first-child { display: grid; place-items: center; }
+.rg-run.rail-live::before { top: 8px; bottom: 8px; }
+.rg-run .dim { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-weight: 500; }
+.rg-run .dim .mono, .rg-run .model, .rg-run .cost { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; font-weight: 400; }
+.rg-run .state { font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); }
+.rg-run .state.ok { color: var(--ok); } .rg-run .state.bad { color: var(--bad); } .rg-run .state.warn { color: var(--warn); } .rg-run .state.live { color: var(--live); }
+.rg-run .cost { text-align: right; }
+.rg-group { display: flex; flex-direction: column; }
+.rg-group-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--line); background: var(--bg-1); color: var(--fg-2); font-size: 12px; text-align: left; width: 100%; cursor: pointer; }
+.rg-group-head .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-group-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.rg .rt { margin: 0; }
+.rg-skipped { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 6px 0; font-size: 12.5px; }
+.rg-skipped .mono { font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+.rg-skipped .why { color: var(--fg-3); }
+.rg-quiet { display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: var(--fg-2); }
+.rg-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+.rg-foot .hint { flex: 1 1 200px; min-width: 0; font-size: 12px; color: var(--fg-3); line-height: 1.45; }
+.m-screen .rg-head { padding: 10px 14px; }
+.m-screen .rg-run { grid-template-columns: 18px minmax(0, 1fr) auto; min-height: var(--touch); padding-top: 6px; padding-bottom: 6px; }
+.m-screen .rg-run .model { display: none; }
+.m-screen .rg-run .meta { grid-column: 2 / -1; display: flex; gap: 10px; }
+.m-screen .rg-group-head { min-height: var(--touch); }
+.m-screen .rg-foot { flex-direction: column; align-items: stretch; }
+.m-screen .rg-foot .btn { justify-content: center; }
+/* ---------- end of Review gate ---------- */
 /* ---------- Checks of a change request: the item page's list, its log tail and its states (plans/code-hosts.md, phase 2, P0 k-p1) ---------- */
 /* One row per check: status mark, name with its stage, the status as a word, the duration in mono, and a "⋯" that is its own button
    beside the row's main button, never inside it. Only a running row is live (the ring and the rail); every other state stands still. */
@@ -2447,3 +2510,81 @@ a.cont-from:hover { color: var(--fg); }
 .chat-launch-facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-launch-open { flex: none; }
 /* ---------- end of Tool rows and live branches ---------- */
+/* ---------- Guards: the Settings card ---------- */
+.guard-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; }
+.guard-status.is-ok { color: var(--ok); } .guard-status.is-warn { color: var(--warn); } .guard-status.is-bad { color: var(--bad); }
+.guard-rules { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.guard-rule { padding: 10px 12px; } .guard-rule + .guard-rule { border-top: 1px solid var(--line); }
+.guard-rule-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.guard-rule-locked { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--fg-2); }
+.guard-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 24px; }
+.guard-event { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 0; min-width: 0; font-variant-numeric: tabular-nums; }
+.guard-event + .guard-event { border-top: 1px solid var(--line); }
+/* ---------- end of Guards: the Settings card ---------- */
+
+/* ---------- Guards: the row, the rules sheet, the header tag and the "N blocked" chip (plans/guards.md) ---------- */
+.guard-row { display: flex; flex-direction: column; gap: 6px; }
+.guard-row-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
+.guard-rules { display: flex; flex-direction: column; gap: 4px; }
+.guard-rule { display: flex; align-items: flex-start; gap: 12px; min-height: var(--touch); padding: 8px 0; border-bottom: 1px solid var(--line); }
+.guard-rule:last-child { border-bottom: 0; }
+.guard-rule-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.guard-rule-id, .guard-always { font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
+.guard-rule.is-locked > svg { color: var(--fg-2); }
+.guard-tag { cursor: pointer; }
+.chip.guard { border-color: transparent; background: var(--warn-soft); color: var(--fg); font-variant-numeric: tabular-nums; text-decoration: none; }
+.chip.guard > svg { color: var(--warn); }
+.chip.guard:hover { border-color: var(--warn); }
+
+/* ---------- Lessons (docs/plans/lessons.md): a record, so nothing here is live ---------- */
+.lessons { margin: 0; padding: 0; list-style: none; }
+.lesson-row { display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.lesson-row:last-child { border-bottom: 0; }
+.lesson-row.is-retired .lesson-text { color: var(--fg-3); }
+.lesson-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.lesson-key { flex: none; font-size: 12px; color: var(--fg-3); }
+.lesson-text { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.lesson-when { color: var(--fg-2); }
+.lesson-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.lesson-conf { color: var(--fg-2); }
+.lesson-evidence-toggle .is-open { transform: rotate(180deg); }
+.lesson-evidence { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lesson-evidence-item { display: flex; flex-direction: column; gap: 4px; }
+.lesson-quote { margin: 0; padding-left: 12px; border-left: 2px solid var(--line-2); color: var(--fg); line-height: 1.45; overflow-wrap: anywhere; }
+.lesson-quote.is-empty { color: var(--fg-3); font-style: italic; }
+.lesson-evidence-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0; padding-left: 14px; }
+.lesson-context { overflow-wrap: anywhere; }
+.lesson-more { margin: 0; }
+.lesson-edit { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.lesson-proposal { display: flex; flex-direction: column; gap: 8px; }
+.lesson-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.lessons-count { flex: none; }
+.lessons-handed { display: inline-flex; align-items: center; gap: 8px; }
+.lessons-phone-head { gap: 12px; }
+.lessons-none a { white-space: nowrap; }
+.lessons-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+.lessons-mining { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
+.lesson-jobs { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.lesson-job { display: flex; align-items: baseline; gap: 10px; }
+.lesson-job-warn { color: var(--warn); }
+.lesson-job-bad { color: var(--bad); }
+.lessons-settings { display: flex; flex-direction: column; gap: 14px; }
+.lessons-switches { display: flex; flex-direction: column; gap: 10px; }
+.lessons-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.project-lessons-cell { display: flex; align-items: center; min-height: var(--touch); padding: 0 16px; }
+/* The CLAUDE.md diff: a Dialog on a desktop, a full-height Sheet on a phone */
+.instr-diff { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.instr-diff-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.instr-diff-section { display: flex; flex-direction: column; gap: 4px; }
+.instr-diff-view { max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.instr-diff-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.instr-diff-foot.is-sheet .btn { flex: 1 1 0; justify-content: center; min-height: var(--touch); }
+.instr-diff-sheet { height: 100%; max-height: 100%; }
+.instr-diff-sheet .instr-diff-view { max-height: none; }
+@media (max-width: 900px) {
+  .lesson-row { padding: 14px; }
+  .lesson-facts .btn, .lesson-facts .icon-btn { min-height: var(--touch); }
+  .lessons-foot { padding: 12px 14px 16px; }
+  .lesson-edit input, .lesson-edit textarea, .instr-diff-section input { font-size: 16px; }
+}
+/* ---------- end of Lessons ---------- */

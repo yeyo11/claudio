@@ -8,7 +8,7 @@ import type { ClaudioEventInput } from './events.ts';
 import { git, headCommit, isGitRepo } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
-import { budget, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
+import { budget, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
 export interface HealthBase {
@@ -189,7 +189,7 @@ export class HealthService {
       const moved = this.progressAt(chat, trace.executionStartedAt, nowMs);
       busy.push(noProgress(written && written > moved ? written : moved, nowMs));
     }
-    facts.extra = busy.filter((s): s is HealthSignal => s !== null);
+    facts.extra = [...busy.filter((s): s is HealthSignal => s !== null), ...guardSignals(trace, nowMs)];
     // What a worker did to its tests, and how much of its allowance is left, stay true while it waits
     const weakened = weakenedTests(trace);
     facts.standing = [
@@ -222,7 +222,7 @@ export class HealthService {
 // ---------- telling the feed ----------
 
 /** The signals that say a worker is stuck or off track; the rest of a chat's health is the chat's own news. */
-const STUCK: ReadonlySet<HealthSignalKind> = new Set(['hung-command', 'repeat-stall', 'no-progress', 'loop', 'weakened-test', 'silence', 'budget']);
+const STUCK: ReadonlySet<HealthSignalKind> = new Set(['hung-command', 'repeat-stall', 'no-progress', 'loop', 'weakened-test', 'silence', 'budget', 'guard-blocked', 'guard-missing']);
 
 /** What the monitor needs to know about a chat that only the orchestrator does. */
 export interface TaskContext {

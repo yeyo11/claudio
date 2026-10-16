@@ -6,6 +6,7 @@ import type {
   OrchestrationPhaseTiming,
   OrchestrationTaskState,
   OrchestrationTimings,
+  ReviewRound,
   TaskWait,
   VerificationFix,
   VerificationTimings,
@@ -28,6 +29,9 @@ const ROLE_OF: Record<Exclude<OrchestrationPhaseName, 'tasks'>, string> = {
   synthesis: '__synthesis__',
 };
 
+/** The role the review gate's chats carry on their graph link: reviewers, verifiers and the review fixer */
+export const REVIEW_CHAT_ROLE = '__review__';
+
 /** A span of time; `end` null while it goes on. */
 interface Span {
   start: string;
@@ -48,7 +52,12 @@ const latest = (a: string | null, b: string | null): string | null => (a === nul
  * its chats already recorded, so a graph stored before a field existed answers without that figure
  * and names it in `missing`. What is still running counts up to `at`.
  */
-export function orchestrationTimings(orch: Orchestration, chats: readonly TimingsChat[], at: Date = new Date()): OrchestrationTimings {
+export function orchestrationTimings(
+  orch: Orchestration,
+  chats: readonly TimingsChat[],
+  at: Date = new Date(),
+  reviewRounds: readonly ReviewRound[] = [],
+): OrchestrationTimings {
   const atIso = at.toISOString();
   const running = orch.status === 'running';
   // `endedAt` is also set while a graph finishes, to guard against re-entry: only a graph that is over has an end
@@ -199,6 +208,28 @@ export function orchestrationTimings(orch: Orchestration, chats: readonly Timing
       commands,
       fixes,
     };
+    const gate = v.review;
+    if (gate && gate.startedAt) {
+      const span = (runs: ReviewRound['runs']): number => {
+        const starts = runs.map((r) => r.startedAt).filter((x): x is string => !!x);
+        if (!starts.length) return 0;
+        const ends = runs.map((r) => r.endedAt ?? atIso);
+        return gap(starts.sort()[0] as string, ends.sort().at(-1) as string);
+      };
+      verification.review = {
+        startedAt: gate.startedAt,
+        endedAt: gate.endedAt,
+        rounds: reviewRounds
+          .map((r) => ({
+            round: r.round,
+            reviewMs: span(r.runs.filter((x) => x.kind === 'reviewer')),
+            verifyMs: span(r.runs.filter((x) => x.kind === 'verifier')),
+            // The fixer's attempt is the one the verification recorded for this round
+            fixMs: fixes.filter((f) => f.command === `review round ${String(r.round)}`).reduce((sum, f) => sum + gap(f.startedAt, until(f.endedAt)), 0),
+            costUsd: r.costUsd,
+          })),
+      };
+    }
   }
 
   const tasksPhase = phases.find((p) => p.phase === 'tasks');

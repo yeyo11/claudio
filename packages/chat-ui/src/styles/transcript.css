@@ -1166,6 +1166,15 @@
   color: var(--bad);
 }
 
+.notice-rule {
+  flex: none;
+  color: var(--text-muted);
+}
+
+/* A call the guard stopped is warn, as an interrupt is; `missing` keeps the bad colour of `.is-bad` */
+.notice.is-guard:not(.is-bad),
+.notice.is-guard:not(.is-bad) .notice-icon,
+.notice.is-guard:not(.is-bad) .notice-label,
 .notice.is-interrupt,
 .notice.is-interrupt .notice-icon,
 .notice.is-interrupt .notice-label {

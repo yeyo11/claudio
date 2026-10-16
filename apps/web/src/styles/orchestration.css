@@ -2106,3 +2106,69 @@
   flex-shrink: 0;
   color: var(--fg-2);
 }
+
+/* The review gate on the verification card (docs/plans/review-gate.md). The energy border turns only while reviewers run. */
+.rg { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--radius-lg); background: var(--bg-1); font-size: 13px; color: var(--fg-2); }
+.rg.live-energy { border-color: transparent; }
+.rg-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: 44px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.rg-head .grow { flex: 1 1 auto; }
+.rg-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--fg); }
+.rg-head .facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-verb { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fg); }
+.rg-reason { display: flex; align-items: flex-start; gap: 10px; margin: 12px 14px 0; padding: 10px 12px; border-radius: var(--radius); background: var(--bg-2); line-height: 1.5; }
+.rg-reason.warn { background: var(--warn-soft); }
+.rg-reason.bad { background: var(--bad-soft); }
+.rg-reason q { color: var(--fg); quotes: '“' '”'; }
+.rg-reason .ico { flex-shrink: 0; margin-top: 2px; }
+.rg-segs { padding: 12px 14px 0; display: flex; flex-direction: column; gap: 6px; }
+.rg-segs .mono { font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-runs { display: flex; flex-direction: column; margin-top: 12px; border-top: 1px solid var(--line); }
+.rg-run { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto 56px 28px; align-items: center; gap: 4px 12px; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); color: var(--fg); }
+.rg-run.live-rail { padding-left: 18px; }
+.rg-run > :first-child { display: grid; place-items: center; }
+.rg-run.live-rail::before { top: 8px; bottom: 8px; }
+.rg-run .meta { display: contents; }
+.rg-run .dim { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-weight: 500; }
+.rg-run .dim .mono, .rg-run .model, .rg-run .cost { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; font-weight: 400; }
+.rg-run .state { font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); }
+.rg-run .state.ok { color: var(--ok); } .rg-run .state.bad { color: var(--bad); } .rg-run .state.warn { color: var(--warn); } .rg-run .state.live { color: var(--live); }
+.rg-run .cost { text-align: right; }
+.rg-group { display: flex; flex-direction: column; }
+.rg-group-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--line); background: var(--bg-1); color: var(--fg-2); font-size: 12px; text-align: left; width: 100%; cursor: pointer; }
+.rg-group-head .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-group-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.rg .rt { margin: 0; }
+.rg-skipped { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 6px 0; font-size: 12.5px; }
+.rg-skipped .mono { font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+.rg-skipped .why { color: var(--fg-3); }
+.rg-quiet { display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: var(--fg-2); }
+.rg-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+.rg-foot .hint { flex: 1 1 200px; min-width: 0; font-size: 12px; color: var(--fg-3); line-height: 1.45; }
+
+@media (max-width: 900px) {
+  .rg-head { padding: 10px 14px; }
+  .rg-run { grid-template-columns: 18px minmax(0, 1fr) auto; min-height: var(--touch); padding-top: 6px; padding-bottom: 6px; }
+  .rg-run .model { display: none; }
+  .rg-run .meta { grid-column: 2 / -1; display: flex; gap: 10px; }
+  .rg-group-head { min-height: var(--touch); }
+  .rg-foot { flex-direction: column; align-items: stretch; }
+  .rg-foot .btn { justify-content: center; }
+}
+
+.rg-actions-note {
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-3);
+  line-height: 1.45;
+}
+
+.rg-accept {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rg-accept textarea {
+  font-size: 16px;
+}

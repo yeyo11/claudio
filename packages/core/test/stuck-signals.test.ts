@@ -280,3 +280,45 @@ test('the feed hears of a chat that looks stuck once, of a change in how it look
     core.shutdown();
   }
 });
+
+test('a chat the guard keeps blocking turns bad and wakes the supervisor; one block only warns', async () => {
+  const { core, started } = setup();
+  const woken: string[][] = [];
+  const events: Extract<ClaudioEvent, { type: 'health.changed' }>[] = [];
+  const monitor = new HealthMonitor(
+    {
+      runtime: core.runtime,
+      health: core.health,
+      emit: (event) => {
+        if (event.type === 'health.changed') events.push({ ...event, id: events.length + 1, at: new Date().toISOString() });
+      },
+      taskOf: () => null,
+      onBad: (_chat, _task, signals) => woken.push(signals.map((s) => s.kind)),
+    },
+    0,
+  );
+  try {
+    const chat = started('SLEEP 60');
+    await sleeping(core, chat.id);
+    const live = (core.runtime as unknown as { chats: Map<string, { push(e: object): void }> }).chats.get(chat.id);
+    assert.ok(live);
+    const block = (i: number) =>
+      live.push({
+        kind: 'guard',
+        guard: { outcome: 'blocked', toolUseId: `t${String(i)}`, toolName: 'Bash', rule: 'push', matcher: 'push', reason: 'no pushing', excerpt: 'push' },
+      });
+    block(1);
+    monitor.check();
+    assert.equal(events.at(-1)?.level, 'warn');
+    assert.deepEqual(events.at(-1)?.signals, ['guard-blocked']);
+    assert.deepEqual(woken, []);
+
+    for (let i = 2; i <= 5; i++) block(i);
+    monitor.check();
+    assert.equal(events.at(-1)?.level, 'bad');
+    assert.deepEqual(woken, [['guard-blocked']]);
+  } finally {
+    monitor.stop();
+    core.shutdown();
+  }
+});

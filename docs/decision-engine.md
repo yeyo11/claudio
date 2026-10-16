@@ -85,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-nine points. **Suggest** points never change what happens by themselves.
+Thirty points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
@@ -99,12 +99,14 @@ Twenty-nine points. **Suggest** points never change what happens by themselves.
 | | `team.assign` | suggest | P | Propose the member for a card |
 | Board | `board.triage` | suggest | P | Prefill type, priority and a duplicate warning while typing a task |
 | Memory | `memory.triage` | suggest | P | Score memory proposals so the best come first |
+| | `lesson.mine` | suggest | P | Whether a stretch of chat holds a lesson worth asking a miner for ([lessons.md](lessons.md)) |
 | | `journal.relevance` | act | P | Reorder the journal entries an agent reads; code still applies the byte budget |
 | Assistant | `assistant.rerank` | suggest | P | Order the project assistant's proposals |
 | | `assistant.sources` | act | P | Which files the assistant reads first |
 | Orchestrations | `orchestration.retry` | act | P | Retry a failed task in the same chat, or not |
 | | `orchestration.model` | suggest | P | A model per task in the draft plan |
 | | `orchestration.fixer` | act | P | Stop asking the fixer when more attempts will not help |
+| | `review.depth` | act | P | How deep the review gate goes on a branch: `light` or `full` (never skip) |
 | | `run.continuation` | act | P | Whether a run that ended on a report owes more work (the phrase part of `openItems`; the structural part stays code) |
 | Health | `supervisor.intervene` | act | G | Whether a stuck worker needs a hint |
 | | `health.semantic-loop` | suggest | G | Loops that are not exact repeats |
@@ -143,6 +145,24 @@ at project scope, `off` by default like every point, with a 0.85 threshold.
 - **Its resolver** (shadow accuracy) records whether the fix's pushed head turned the rollup
   `passing`; a person's word on the "decided" mark or the History row still outranks it.
 
+### `review.depth`
+
+Added with the review gate ([plans/review-gate.md](plans/review-gate.md), [orchestrations.md](orchestrations.md#the-review-gate)).
+An act point at project scope, `off` by default like every point.
+
+- **When it is asked.** Only when the graph's `verification.review` has no `depth`. `off` means
+  `full`; `shadow` records the answer and runs `full`; `active` acts above the threshold.
+- **What it is told.** The number of files, lines added and deleted, the first changed paths,
+  whether the security trigger matched, the dimensions that would run and the estimated cost in USD
+  of a full round. It sees no code.
+- **The question** is a choice: `light` (correctness, plus security when triggered, with chunks twice
+  as large) or `full` (every dimension). There is no `skip`: a model deciding to skip the gate would
+  be a fail-open path, and a diff with nothing to review already passes deterministically.
+- **Resolver.** A `light` answer is judged wrong when a later full review confirmed a blocking
+  finding from `tests` or `conventions`, or from `security` when the trigger did not match; a `full`
+  answer is judged right in that case. A light review gives no evidence about a full one, so with
+  no full round the answer stays unjudged.
+
 ### `review.triage`
 
 Added with code hosts phase 3 ([code-hosts.md](code-hosts.md#reviews)). A suggest point at project scope, `off` by default: it
@@ -161,6 +181,27 @@ acts on nothing and only preselects threads in the **Address with an agent** dia
   with an agent** dialog reads the latest and preselects the threads marked `agent`, and marks the
   others. The person can change every selection.
 - **What it never does.** It never replies, resolves or starts a run; a person picks the threads.
+
+### `lesson.mine`
+
+Added with lessons from corrections ([lessons.md](lessons.md)). A suggest point at project scope, `off`
+by default and not `visible` (it shows no "decided" mark); it is listed in the Memory
+area of the Decisions tab. It is the gate in front of the miner, not the miner.
+
+- **What it is told.** At most 20 signals of the chat, newest first, each quote cut to 500 B and
+  masked: the kind of signal and the person's words. Signals are rows of `lesson_signals` and a pure
+  fold of the transcript; both are recorded only while the point is `shadow` or `active`.
+- **The question** is one `noul`: "Do these signals show a person correcting, stopping or overruling
+  the agent in a way that should change how agents work in this project from now on, beyond this one
+  task?"
+- **What an answer does.** Off asks nothing and stores nothing. In `shadow` the gate is asked and
+  recorded and the miner never runs. In `active` a yes starts the miner, a separate confined
+  one-shot run that writes at most five candidates ([prompts.md](prompts.md#lesson-miner-minerprompt)).
+  A candidate becomes a proposal; nothing is delivered before a person approves it.
+- **What it never does.** The decision engine answers only typed questions, so it never writes a
+  lesson. A person's "Look for lessons" click skips the gate and works while the point is `off`.
+- **Cost.** One question per job, under the provider's own cap; the miner has its own 0.05 USD cap
+  per run, 0.25 USD a day per project and 1 USD a day in total.
 
 ### `issue.triage`
 
@@ -358,8 +399,10 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 - [[plans/decision-engine.md]]: the plan, its task graph and its Outcome.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions.
 - [[code-hosts.md]]: the checks and the fix that `checks.fix` starts, and the review threads that `review.triage` sorts.
+- [[lessons.md]]: the miner that `lesson.mine` gates, and what a lesson is.
 - [[trackers.md]]: the issues that `issue.triage` marks before they are imported.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
+- [[plans/review-gate.md]] · [[orchestrations.md]]: the review gate that `review.depth` sizes.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.
 - [[plans/agent-observability.md]]: the health signals and the supervisor.

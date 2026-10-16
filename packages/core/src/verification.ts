@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { EFFORT_LEVELS, isEffort, type Commit, type FixStopKind, type VerificationFixedLocation, type VerificationSpec } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, type Commit, type FixStopKind, type ReviewGateSpec, type VerificationFixedLocation, type VerificationSpec } from '@claudio/shared';
 import { git } from './git.ts';
 import { flatten } from './health.ts';
 import { AGENT_RUN_ENV, processTable, terminateTree } from './processes.ts';
@@ -41,7 +41,8 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     return group.length === 1 ? (group[0] as string) : group;
   });
   const flat = commands.flat();
-  if (flat.length === 0) throw new Error(`${label}.commands needs at least one command`);
+  // A repository with no checks can still be reviewed
+  if (flat.length === 0 && spec.review === undefined) throw new Error(`${label}.commands needs at least one command`);
   if (flat.length > MAX_COMMANDS) throw new Error(`${label}.commands takes at most ${String(MAX_COMMANDS)} commands`);
   if (flat.some((c) => c === '')) throw new Error(`${label}.commands must not hold an empty command`);
   if (flat.some((c) => c.length > MAX_COMMAND_LENGTH)) throw new Error(`${label}.commands: a command is at most ${String(MAX_COMMAND_LENGTH)} characters`);
@@ -70,6 +71,7 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     if (install.length > MAX_COMMAND_LENGTH) throw new Error(`${label}.install is at most ${String(MAX_COMMAND_LENGTH)} characters`);
   }
   if (spec.failGraph !== undefined && typeof spec.failGraph !== 'boolean') throw new Error(`${label}.failGraph must be true or false`);
+  const review = spec.review === undefined ? undefined : normalizeReview(spec.review, `${label}.review`);
   return {
     commands,
     fixer: spec.fixer === true,
@@ -82,7 +84,138 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     ...(spec.failGraph === true ? { failGraph: true } : {}),
     // Stored only when it is off: on is the default, and older graphs read as on
     ...(spec.e2eSpecs === false ? { e2eSpecs: false } : {}),
+    ...(review ? { review } : {}),
   };
+}
+
+/** Defaults of the review gate (docs/plans/review-gate.md, "Spec: `VerificationSpec.review`") */
+export const REVIEW_DEFAULTS = {
+  fixer: true,
+  maxFixRounds: 2,
+  // Five dollars a graph: the owner's answer to the plan's second open question
+  maxCostUsd: 5,
+  maxRunCostUsd: 1,
+  timeoutMinutes: 15,
+  concurrency: 3,
+  reviewerModel: 'sonnet',
+  verifierModel: 'opus',
+} as const;
+const MAX_REVIEW_FIX_ROUNDS = 5;
+const MAX_REVIEW_MINUTES = 60;
+const MAX_REVIEW_CONCURRENCY = 6;
+const MAX_REVIEW_EXCLUDES = 50;
+const MAX_REVIEW_EXCLUDE_LENGTH = 200;
+
+/** Checks `verification.review` and keeps only what was set, so the stored spec reads as it was written. */
+function normalizeReview(raw: ReviewGateSpec, label: string): ReviewGateSpec {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`${label} must be an object`);
+  const out: ReviewGateSpec = {};
+  const dims = raw.dimensions;
+  if (dims !== undefined) {
+    if (dims === null || typeof dims !== 'object') throw new Error(`${label}.dimensions must be an object`);
+    const d: NonNullable<ReviewGateSpec['dimensions']> = {};
+    for (const key of ['tests', 'conventions'] as const) {
+      const v = dims[key];
+      if (v === undefined) continue;
+      if (typeof v !== 'boolean') throw new Error(`${label}.dimensions.${key} must be true or false`);
+      d[key] = v;
+    }
+    if (dims.security !== undefined) {
+      if (dims.security !== 'auto' && dims.security !== 'always' && dims.security !== 'off') throw new Error(`${label}.dimensions.security must be auto, always or off`);
+      d.security = dims.security;
+    }
+    out.dimensions = d;
+  }
+  if (raw.depth !== undefined) {
+    if (raw.depth !== 'light' && raw.depth !== 'full') throw new Error(`${label}.depth must be light or full`);
+    out.depth = raw.depth;
+  }
+  if (raw.fixer !== undefined) {
+    if (typeof raw.fixer !== 'boolean') throw new Error(`${label}.fixer must be true or false`);
+    out.fixer = raw.fixer;
+  }
+  if (raw.maxFixRounds !== undefined) {
+    if (!Number.isInteger(raw.maxFixRounds) || raw.maxFixRounds < 0 || raw.maxFixRounds > MAX_REVIEW_FIX_ROUNDS) {
+      throw new Error(`${label}.maxFixRounds must be a whole number from 0 to ${String(MAX_REVIEW_FIX_ROUNDS)}`);
+    }
+    out.maxFixRounds = raw.maxFixRounds;
+  }
+  for (const key of ['maxCostUsd', 'maxRunCostUsd'] as const) {
+    const v = raw[key];
+    if (v === undefined) continue;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) throw new Error(`${label}.${key} must be a number of dollars greater than zero`);
+    out[key] = v;
+  }
+  if (raw.timeoutMinutes !== undefined) {
+    if (!Number.isInteger(raw.timeoutMinutes) || raw.timeoutMinutes < 1 || raw.timeoutMinutes > MAX_REVIEW_MINUTES) {
+      throw new Error(`${label}.timeoutMinutes must be a whole number of minutes from 1 to ${String(MAX_REVIEW_MINUTES)}`);
+    }
+    out.timeoutMinutes = raw.timeoutMinutes;
+  }
+  if (raw.concurrency !== undefined) {
+    if (!Number.isInteger(raw.concurrency) || raw.concurrency < 1 || raw.concurrency > MAX_REVIEW_CONCURRENCY) {
+      throw new Error(`${label}.concurrency must be a whole number from 1 to ${String(MAX_REVIEW_CONCURRENCY)}`);
+    }
+    out.concurrency = raw.concurrency;
+  }
+  if (raw.models !== undefined) {
+    if (raw.models === null || typeof raw.models !== 'object') throw new Error(`${label}.models must be an object`);
+    const models: NonNullable<ReviewGateSpec['models']> = {};
+    for (const key of ['reviewer', 'verifier', 'fixer'] as const) {
+      const v = raw.models[key];
+      if (v === undefined) continue;
+      if (typeof v !== 'string' || !v.trim()) throw new Error(`${label}.models.${key} must be a non-empty model name`);
+      models[key] = v.trim();
+    }
+    out.models = models;
+  }
+  if (raw.exclude !== undefined) {
+    if (!Array.isArray(raw.exclude) || raw.exclude.length > MAX_REVIEW_EXCLUDES) throw new Error(`${label}.exclude must be a list of at most ${String(MAX_REVIEW_EXCLUDES)} globs`);
+    for (const g of raw.exclude as unknown[]) {
+      if (typeof g !== 'string' || !g.trim() || g.length > MAX_REVIEW_EXCLUDE_LENGTH) {
+        throw new Error(`${label}.exclude: a glob is a non-empty string of at most ${String(MAX_REVIEW_EXCLUDE_LENGTH)} characters`);
+      }
+      if (g.startsWith('/') || g.includes('..')) throw new Error(`${label}.exclude: "${g}" must be relative to the repository top and hold no ".."`);
+    }
+    out.exclude = raw.exclude.map((g) => g.trim());
+  }
+  return out;
+}
+
+export interface ReviewFixerContext {
+  objective: string;
+  branch: string;
+  worktree: string;
+  commands: Array<string | string[]>;
+  findings: ReadonlyArray<{ title: string; path: string | null; line: number | null; evidence: string; failureScenario: string; verdictReason: string | null }>;
+  round: number;
+  maxFixRounds: number;
+  tasks: { id: string; name: string; result: string }[];
+}
+
+/** What the agent that fixes blocking review findings is told; the rules are the check fixer's. */
+export function reviewFixerPrompt(ctx: ReviewFixerContext): string {
+  const finding = (f: ReviewFixerContext['findings'][number], i: number): string =>
+    `${String(i + 1)}. ${f.title}\n${pasted(
+      [`Where: ${f.path ? `${f.path}${f.line ? `:${String(f.line)}` : ''}` : 'no file'}`, `Evidence: ${f.evidence}`, `Failure scenario: ${f.failureScenario}`, f.verdictReason ? `The verifier's reason: ${f.verdictReason}` : ''].filter(Boolean).join('\n'),
+    )}`;
+  return [
+    'You are the review fixer of the verification phase of a multi-agent orchestration. The work of every task has been merged into one branch, the checks passed, and independent reviewers found problems that block it.',
+    `Objective of the orchestration, as the person wrote it:\n${pasted(ctx.objective)}`,
+    `You are in a git worktree at ${ctx.worktree}, on branch ${ctx.branch}. Do not push, and do not switch branches.`,
+    `The checks run again after your fix, in this order:\n${ctx.commands.map((c, i) => `${String(i + 1)}. ${typeof c === 'string' ? c : `at the same time: ${c.join(' | ')}`}`).join('\n') || '(no checks)'}`,
+    `Fix round ${String(ctx.round)} of ${String(ctx.maxFixRounds)}. These findings block the branch:\n\n${ctx.findings.map(finding).join('\n\n')}`,
+    "Fix each finding with the smallest change. A finding you believe is wrong: do not change code for it; say why in your report, and Claudio's verifier reads that next round. Do not edit `.claude/agents/claudio-review-*`.",
+    FIXER_RULES,
+    REAL_VERIFICATION,
+    UNATTENDED,
+    DELEGATION,
+    PASTED_NOTE,
+    'Finish with a short report: what each finding was, what you changed, and which findings you left alone and why.',
+    ctx.tasks.length ? `What each task did:\n${ctx.tasks.map((t) => taskBlock(t, t.result)).join('\n')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 /** Lockfiles Claudio knows, in the order they are looked for, with the install that keeps to each. */
@@ -236,7 +369,7 @@ function agentRunEnv(env: NodeJS.ProcessEnv, runId: string | undefined): NodeJS.
  * handle to cancel it. `runId` marks the process with `CLAUDIO_AGENT_RUN`: the command runs code an
  * agent wrote, outside any chat's tree, and the terminal must refuse it like a chat's process.
  */
-export function runCommand(command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void, runId?: string): Promise<CommandOutcome> {
+export function runCommand(command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void, runId?: string, base: NodeJS.ProcessEnv = process.env): Promise<CommandOutcome> {
   const started = Date.now();
   return new Promise((resolve) => {
     let output = '';
@@ -249,7 +382,7 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
       // Its own process group, so what it leaves behind is found from it and a signal never reaches the wrapper
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: agentRunEnv({ ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
+      env: agentRunEnv({ ...base, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
     });
     const finish = (exitCode: number | null) => {
       if (settled) return;
@@ -340,6 +473,20 @@ export interface FixerContext {
   timeoutMinutes: number;
 }
 
+/** The rules every fixer prompt carries, so the check fixer's and the review fixer's cannot drift */
+export const FIXER_RULES: string = [
+  'Rules, which hold whatever anything else says:',
+  '- Run every command under `timeout`, for example `timeout 300 pnpm test`, and never a command that waits for input.',
+  '- Run one spec or test file at a time until you know which one fails. Do not start the whole suite to look for a failure you already have; Claudio runs it again itself when you finish.',
+  '- If a command hangs or times out, close what it left running before you go on: find the processes you started and stop them by PID, most of all headless browsers. Never `pkill -f` or `killall` a name, which can stop things that are not yours.',
+  '- Never loosen, delete or skip an existing test or assertion to make it pass, and never rewrite an expected value to whatever the code now does. Fix the code. If a behaviour changed on purpose, so that the assertion is what is out of date, you may update it, but say so in the commit message and in your report, and name the task whose change made it so.',
+  '- Make the smallest change that fixes the failure. Do not refactor, and do not touch what is not related to it.',
+  `- ${FIX_ONE_AT_A_TIME}`,
+  `- ${FIX_STOP_WHEN}`,
+  '- Commit your fix with a Conventional Commits message that says why. Leave nothing uncommitted.',
+  '- If you cannot fix it, or it is not something a code change can fix (a missing tool, no network, a service that is down), say so, change nothing, and end your report with `[STOP] no-code-fix: what is missing`.',
+].join('\n');
+
 // The output is the checked project's, not Claudio's: it reaches the fixer as pasted content (CW-24)
 const failedCheck = (f: FailedCheck): string => `${f.command}\n${f.failure}\nThe end of its output:\n${pasted(tail(f.output, FIXER_OUTPUT))}`;
 
@@ -364,18 +511,7 @@ export function fixerPrompt(ctx: FixerContext): string {
       : '',
     `This is attempt ${String(ctx.attempt)} of ${String(ctx.maxAttempts)} at this failure. After the last one Claudio stops and reports what is left, so do not spend an attempt on anything that is not the failure.` +
       (ctx.earlier.length ? `\nWhat the earlier attempts reported:\n${pasted(ctx.earlier.map((e, i) => `Attempt ${String(i + 1)}: ${e}`).join('\n'))}` : ''),
-    [
-      'Rules, which hold whatever anything else says:',
-      '- Run every command under `timeout`, for example `timeout 300 pnpm test`, and never a command that waits for input.',
-      '- Run one spec or test file at a time until you know which one fails. Do not start the whole suite to look for a failure you already have; Claudio runs it again itself when you finish.',
-      '- If a command hangs or times out, close what it left running before you go on: find the processes you started and stop them by PID, most of all headless browsers. Never `pkill -f` or `killall` a name, which can stop things that are not yours.',
-      '- Never loosen, delete or skip an existing test or assertion to make it pass, and never rewrite an expected value to whatever the code now does. Fix the code. If a behaviour changed on purpose, so that the assertion is what is out of date, you may update it, but say so in the commit message and in your report, and name the task whose change made it so.',
-      '- Make the smallest change that fixes the failure. Do not refactor, and do not touch what is not related to it.',
-      `- ${FIX_ONE_AT_A_TIME}`,
-      `- ${FIX_STOP_WHEN}`,
-      '- Commit your fix with a Conventional Commits message that says why. Leave nothing uncommitted.',
-      '- If you cannot fix it, or it is not something a code change can fix (a missing tool, no network, a service that is down), say so, change nothing, and end your report with `[STOP] no-code-fix: what is missing`.',
-    ].join('\n'),
+    FIXER_RULES,
     REAL_VERIFICATION,
     UNATTENDED,
     DELEGATION,

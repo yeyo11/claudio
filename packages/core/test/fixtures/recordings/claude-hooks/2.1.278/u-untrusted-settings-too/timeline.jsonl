@@ -1,0 +1,17 @@
+{"ms":1,"dir":"in","kind":"user"}
+{"ms":764,"dir":"out","kind":"system/init"}
+{"ms":3630,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":4015,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":4016,"dir":"out","kind":"assistant"}
+{"ms":4167,"dir":"out","kind":"assistant"}
+{"ms":4171,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":4171,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":4181,"dir":"out","kind":"rate_limit_event"}
+{"ms":4208,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":4208,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":4212,"dir":"out","kind":"user"}
+{"ms":5620,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":5970,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":5971,"dir":"out","kind":"assistant"}
+{"ms":6306,"dir":"out","kind":"assistant"}
+{"ms":6319,"dir":"out","kind":"result/success"}

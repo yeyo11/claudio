@@ -14,6 +14,13 @@ test("the .deb does not depend on a tunnel package: Tailscale is the person's to
   assert.ok(!packages.includes('openssh-client'), `deb.depends: ${packages.join(', ')}`);
 });
 
+test('the guard program ships beside the server, and the shell checks it is there', () => {
+  assert.match(builder, /^\s+- server\.mjs\n\s+- mcp\.mjs\n\s+- guard\.mjs\n/m);
+  const resources = readFileSync(new URL('../src/resources.ts', import.meta.url), 'utf8');
+  assert.match(resources, /guardEntry: join\(process\.resourcesPath, 'server', 'guard\.mjs'\)/);
+  assert.match(resources, /existsSync\(res\.guardEntry\)\) missing\.push\(res\.guardEntry\)/);
+});
+
 test('node-pty ships beside the terminal host, as its own extraResources entry', () => {
   // electron-builder drops node_modules/ from a filtered copy, so a filter line under ../api/dist shipped
   // nothing and the terminal host could not load node-pty in the packaged app

@@ -265,7 +265,11 @@
       "documents_other": "{{n}} documentos",
       "journal_one": "diario con {{n}} entrada",
       "journal_other": "diario con {{n}} entradas"
-    }
+    },
+    "guardsTitle": "Guardas",
+    "guardsLabel": "Guardas en los chats de este proyecto",
+    "guardsHint": "Los chats interactivos de este proyecto se ejecutan con estas reglas: {{rules}}. Las orquestaciones y el flujo siguen los Ajustes.",
+    "guardsLink": "Ajustes de las guardas"
   },
   "decisions": {
     "title": "Decisiones",
@@ -347,5 +351,13 @@
     "scopeHintProject": "El nombre corto del proyecto de YouTrack, como PROJ: las incidencias de ese proyecto.",
     "statusPlaceholder": "State, como lo llama tu proyecto",
     "mapHintNamed": "Cada columna pone en el campo State de la incidencia el nombre que escribas aquí, tal como lo llama tu proyecto, y Claudio lo vuelve a leer para comprobarlo. Un State que el proyecto no tiene se indica en la tarea, y no cambia nada más."
+  },
+  "lessons": {
+    "title": "Lecciones",
+    "deliverToChats": "Entregar lecciones a los chats",
+    "deliverToWorkers": "Entregar lecciones a los workers de las orquestaciones",
+    "useGlobal": "Incluir las lecciones globales",
+    "hint": "Las ejecuciones del flujo siempre reciben las lecciones del proyecto. Se guarda al momento.",
+    "saveFailed": "No se han podido guardar los ajustes de lecciones"
   }
 }

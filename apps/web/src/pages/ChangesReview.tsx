@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { api, keys, useOrchestration, useWorkItemByKey } from '../api';
 import { Counts, FileMap, MapLegend, StatusLetter, useRowWords, type MapFile } from '../components/changes/FileMap';
 import { FileReview } from '../components/changes/FileReview';
+import { findingCounts, useReviewFindings } from '../components/changes/ReviewFindings';
 import { Fingerprint } from '../components/changes/Fingerprint';
 import {
   filesOf,
@@ -134,6 +135,7 @@ export function IntegrationChangesReview() {
   const orch = useOrchestration(id);
   const status = orch.data?.integration?.status;
   const live = status === 'merging' || status === 'resolving';
+  const gated = Boolean(orch.data?.verification?.review);
   const source = useMemo<ReviewSource>(
     () => ({
       kind: 'integration',
@@ -146,9 +148,10 @@ export function IntegrationChangesReview() {
       back: { to: `/orchestration/${encodeURIComponent(id)}`, label: t('back.orchestration') },
       subject: orch.data?.name ?? null,
       changeRequestId: openChangeRequestId(orch.data?.pullRequest),
+      ...(gated ? { reviewGate: { orchestrationId: id } } : {}),
       activity: null,
     }),
-    [id, live, orch.data?.name, orch.data?.pullRequest, t],
+    [id, live, gated, orch.data?.name, orch.data?.pullRequest, t],
   );
   if (orch.error) return <ErrorBox error={orch.error} />;
   return <ReviewScreen source={source} />;
@@ -311,9 +314,11 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const gateQ = useReviewFindings(source.reviewGate?.orchestrationId);
+  const gateFindings = useMemo(() => findingCounts(gateQ.data), [gateQ.data]);
   const mapFiles: MapFile[] = ordered
     .filter((f) => !filter.trim() || f.path.toLowerCase().includes(filter.trim().toLowerCase()))
-    .map((f) => ({ file: f, uncommitted: uncommitted.has(f.path), seen: isSeen(seen, f), live: f.path === livePath }));
+    .map((f) => ({ file: f, uncommitted: uncommitted.has(f.path), seen: isSeen(seen, f), live: f.path === livePath, findings: gateFindings.get(f.path) }));
 
   const onSeen = (file: ChangedFile) => (on: boolean, hash: string | null, andNext: boolean) => {
     updateSeen((held) => markSeen(held, file, hash, on));

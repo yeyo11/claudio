@@ -63,6 +63,9 @@ export function buildArgs(spec: SessionLaunch): string[] {
   } else {
     args.push('--permission-prompts', 'none');
   }
+  // The guard's hooks come from a settings file of ours and nothing else: never `--bare` or
+  // `--safe-mode`, which would leave the hooks, and with them the guard, out (docs/plans/guards.md, D1)
+  if (spec.guard) args.push('--settings', spec.guard.settingsPath, '--include-hook-events');
   if (spec.jsonSchema) args.push('--json-schema', JSON.stringify(spec.jsonSchema));
   if (spec.systemPromptSnapshot === 'off') args.push('--system-prompt-snapshot', 'off');
   if (spec.internal) args.push('--no-session-persistence');

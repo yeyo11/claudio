@@ -5,7 +5,9 @@ import type {
   ProjectChange,
   ProjectDocumentsSettings,
   ProjectFlowSettings,
+  ProjectGuardSettings,
   ProjectModule,
+  ProjectLessonsSettings,
   ProjectProvidersSettings,
   ProjectSettings,
   ProjectTeamMember,
@@ -20,6 +22,7 @@ import type {
 import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, isTeamToolName, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
+import { parseGuardOverride } from './guards/settings.ts';
 import { parseOnLimit } from './providers/settings.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -281,7 +284,24 @@ function parseFlow(value: unknown): ProjectFlowSettings {
     if (plateau !== 'observe' && plateau !== 'stop' && plateau !== 'off') throw new Error('flow.plateau must be observe, stop or off');
     flow.plateau = plateau;
   }
+  // Per-stage guard overrides; an empty stage says nothing, so it is not kept
+  if (value.guards !== undefined && value.guards !== null) {
+    if (!isObject(value.guards)) throw new Error('flow.guards must be an object');
+    const guards: NonNullable<ProjectFlowSettings['guards']> = {};
+    for (const [stage, override] of Object.entries(value.guards)) {
+      if (stage !== 'refine' && stage !== 'work' && stage !== 'verify') throw new Error(`flow.guards.${stage} is not a flow stage; known are refine, work, verify`);
+      const parsed = parseGuardOverride(override, `flow.guards.${stage}`);
+      if (Object.keys(parsed).length > 0) guards[stage] = parsed;
+    }
+    if (Object.keys(guards).length > 0) flow.guards = guards;
+  }
   return flow;
+}
+
+function parseGuards(value: unknown): ProjectGuardSettings {
+  if (!isObject(value)) throw new Error('guards must be an object');
+  if (typeof value.chats !== 'boolean') throw new Error('guards.chats must be true or false');
+  return { chats: value.chats };
 }
 
 function parseDocuments(value: unknown): ProjectDocumentsSettings {
@@ -364,7 +384,21 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
     const providers = parseProviders(input.providers);
     if (Object.keys(providers).length > 0) settings.providers = providers;
   }
+  if (input.guards !== undefined && input.guards !== null) settings.guards = parseGuards(input.guards);
+  if (input.lessons !== undefined && input.lessons !== null) settings.lessons = parseLessons(input.lessons);
   return settings;
+}
+
+/** The three delivery switches: a missing one is on, and one that is not true or false is refused */
+function parseLessons(value: unknown): ProjectLessonsSettings {
+  if (!isObject(value)) throw new Error('lessons must be an object');
+  const flag = (field: 'deliverToChats' | 'deliverToWorkers' | 'useGlobal'): boolean => {
+    const v = value[field];
+    if (v === undefined) return true;
+    if (typeof v !== 'boolean') throw new Error(`lessons.${field} must be true or false`);
+    return v;
+  };
+  return { deliverToChats: flag('deliverToChats'), deliverToWorkers: flag('deliverToWorkers'), useGlobal: flag('useGlobal') };
 }
 
 /**
@@ -400,6 +434,10 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (decisions && Object.keys(decisions).length > 0) settings.decisions = decisions;
   const providers = attempt(() => (raw.providers == null ? null : parseProviders(raw.providers)), null);
   if (providers && Object.keys(providers).length > 0) settings.providers = providers;
+  const guards = attempt(() => (raw.guards == null ? null : parseGuards(raw.guards)), null);
+  if (guards) settings.guards = guards;
+  const lessons = attempt(() => (raw.lessons == null ? null : parseLessons(raw.lessons)), null);
+  if (lessons) settings.lessons = lessons;
   return settings;
 }
 

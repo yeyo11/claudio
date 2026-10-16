@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -9,10 +9,13 @@ import {
   rulePathsProblem,
   type ApproveMemoryProposalRequest,
   type FlowMemoryProposal,
+  type Lesson,
   type MemoryProposal,
   type MemoryProposalAction,
+  type MemoryProposalPreview,
   type MemoryProposalStatus,
   type MemoryProposalTarget,
+  type PreviewMemoryProposalRequest,
   type RejectMemoryProposalRequest,
   type WorkItemActor,
   type WorkItemRef,
@@ -53,6 +56,31 @@ export interface ProposalProject {
   memoryKey: string;
 }
 
+/**
+ * What approving a `lesson` proposal does to the lessons store, which `LessonService` implements and
+ * attaches (`attachLessons`): the service needs this one to create proposals, so neither takes the
+ * other at construction.
+ */
+export interface LessonApprovals {
+  /** The lesson as the card shows it, with its evidence; null when it is gone */
+  view(lessonId: string): Lesson | null;
+  /** Checks the person's choices before anything is claimed: 400, 404 or 409. Answers their edit, as it will be stored */
+  checkApproval(lessonId: string, input: ApproveMemoryProposalRequest): { edit: { trigger: string; action: string } | null };
+  /** Applies them in one transaction; answers the id of the lesson that holds the result */
+  approveProposed(lessonId: string, input: ApproveMemoryProposalRequest, edit: { trigger: string; action: string } | null, by: WorkItemActor): string;
+  /** A rejected proposal rejects the lesson behind it too, unless the lesson is one that already existed */
+  rejectProposed(lessonId: string, by: WorkItemActor): void;
+  /** The lesson an approved `instructions` proposal now holds: retired, reason `instructions`. False when it is no longer active */
+  retireForInstructions(lessonId: string, by: WorkItemActor): boolean;
+  /** Takes that retirement back, when `CLAUDE.md` could not be written */
+  reinstate(lessonId: string): void;
+}
+
+/** The one line a lesson is shown and approved as: "When …: …" */
+export function lessonLine(trigger: string, action: string): string {
+  return `${trigger}: ${action}`;
+}
+
 export interface MemoryProposalServiceDeps {
   db: Db;
   journal: JournalService;
@@ -78,6 +106,8 @@ export interface ProposalOrigin {
   source?: WorkItemSource | null;
   flowRunId?: string | null;
   itemId?: string | null;
+  /** The lesson an `instructions` proposal is made from, retired when the proposal is approved */
+  lessonId?: string | null;
 }
 
 interface ProposalRow {
@@ -106,14 +136,49 @@ interface ProposalRow {
   decided_at: string | null;
   reject_reason: string | null;
   journal_entry_id: string | null;
+  lesson_id: string | null;
   created_at: string;
 }
 
 export class MemoryProposalService {
   private readonly sql: DatabaseSync;
+  private lessons: LessonApprovals | null = null;
 
   constructor(private readonly deps: MemoryProposalServiceDeps) {
     this.sql = deps.db.connection;
+  }
+
+  /** Called once by whoever builds the `LessonService`; without it a `lesson` proposal cannot be decided */
+  attachLessons(lessons: LessonApprovals): void {
+    this.lessons = lessons;
+  }
+
+  private lessonsOrThrow(): LessonApprovals {
+    if (!this.lessons) throw new WorkItemError('lessons are not available', 409);
+    return this.lessons;
+  }
+
+  /**
+   * A `lesson` proposal, written by the lesson miner and nobody else: `propose` refuses the kind, because
+   * a lesson rests on a person's correction. The lesson row exists already; this is the person's
+   * decision about it, which is why it is not a proposal of the usual kind.
+   */
+  proposeLesson(projectId: string, lessonId: string, text: string, reason: string, source: WorkItemSource | null): MemoryProposal {
+    const id = randomUUID();
+    this.sql
+      .prepare(
+        `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, target_paths, text, reason, status,
+           proposed_by_kind, proposed_by_role, source_kind, source_chat_id, lesson_id, created_at)
+         VALUES (?, ?, 'lesson', NULL, NULL, NULL, ?, ?, 'pending', 'system', NULL, ?, ?, ?, ?)`,
+      )
+      .run(id, projectId, text, reason.slice(0, PROPOSAL_REASON_MAX), source?.kind ?? null, source?.chatId ?? null, lessonId, new Date().toISOString());
+    // Lesson proposals raise no notification: they wait in the Memory tab with the others
+    return this.mustFind(id);
+  }
+
+  /** Points a proposal at the lesson that holds its result (a merge moves it) */
+  retarget(proposalId: string, lessonId: string): void {
+    this.sql.prepare('UPDATE memory_proposals SET lesson_id = ? WHERE id = ?').run(lessonId, proposalId);
   }
 
   /** Newest first; every status unless one is asked for. */
@@ -200,6 +265,8 @@ export class MemoryProposalService {
    */
   propose(projectId: string, proposal: FlowMemoryProposal, origin: ProposalOrigin): MemoryProposal {
     const target = targetOf(proposal.target);
+    // A flow run never proposes a lesson (A4): only the miner does, through `proposeLesson`
+    if (target.kind === 'lesson') throw new WorkItemError("a lesson cannot be proposed here: lessons come from a person's corrections", 400);
     const text = proposalText(proposal.text);
     const reason = typeof proposal.reason === 'string' ? proposal.reason.trim().slice(0, PROPOSAL_REASON_MAX) : '';
     const source = origin.source ?? null;
@@ -259,8 +326,8 @@ export class MemoryProposalService {
       .prepare(
         `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, target_paths, text, reason, status,
            proposed_by_kind, proposed_by_role, source_kind, source_chat_id, source_orchestration_id, source_task_id,
-           flow_run_id, item_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           flow_run_id, item_id, lesson_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -279,18 +346,56 @@ export class MemoryProposalService {
         source?.taskId ?? null,
         origin.flowRunId ?? null,
         origin.itemId ?? null,
+        origin.lessonId ?? null,
         new Date().toISOString(),
       );
+  }
+
+  /** What approving an `instructions` proposal would do to `CLAUDE.md`, as a diff: the person reads it before Approve is enabled */
+  async preview(proposalId: string, input: PreviewMemoryProposalRequest = {}): Promise<MemoryProposalPreview> {
+    const proposal = this.pending(proposalId);
+    if (proposal.target.kind !== 'instructions') throw new WorkItemError('only an instructions proposal has a preview', 400);
+    const edited = (input as Partial<PreviewMemoryProposalRequest> | undefined)?.text;
+    const text = edited === undefined || edited === null ? proposal.text : proposalText(edited);
+    const project = this.deps.project(proposal.projectId);
+    if (!project) throw new WorkItemError('its project is not imported: import the directory again to write its memory', 409);
+    const path = join(project.path, 'CLAUDE.md');
+    const exists = existsSync(path);
+    const current = exists ? await readFile(path, 'utf8') : '';
+    const section = input?.section === undefined ? proposal.target.section : sectionOf(input.section, 'section');
+    const after = withText(current, text, section);
+    return { path: 'CLAUDE.md', exists, sha256: sha256(current), diff: lineDiff(current, after, 3), bytesAfter: Buffer.byteLength(after) };
+  }
+
+  /** The proposal waiting to move a lesson into `CLAUDE.md`, if any */
+  pendingInstructionsFor(lessonId: string): MemoryProposal | null {
+    const row = this.sql
+      .prepare("SELECT * FROM memory_proposals WHERE lesson_id = ? AND target_kind = 'instructions' AND status = 'pending' ORDER BY seq DESC LIMIT 1")
+      .get(lessonId) as ProposalRow | undefined;
+    return row ? this.proposalOf(row) : null;
   }
 
   /** Writes the target, with `text` instead of the proposed text when the person edited it. */
   async approve(proposalId: string, input: ApproveMemoryProposalRequest = {}, decidedBy: WorkItemActor = PERSON): Promise<MemoryProposal> {
     const before = this.pending(proposalId);
+    if (before.target.kind === 'lesson') return this.approveLesson(before, input ?? {}, decidedBy);
     const edited = (input as Partial<ApproveMemoryProposalRequest> | undefined)?.text;
     const text = edited === undefined || edited === null ? before.text : proposalText(edited);
     const project = this.deps.project(before.projectId);
     if (!project) throw new WorkItemError('its project is not imported: import the directory again to write its memory', 409);
+    const previewOf = (input as Partial<ApproveMemoryProposalRequest> | undefined)?.previewOf;
+    if (previewOf !== undefined && previewOf !== null && typeof previewOf !== 'string') throw new WorkItemError('previewOf must be the sha256 of the preview', 400);
+    // A lesson goes into CLAUDE.md only after the person saw the diff; a flow run's proposal may skip it, for older clients
+    if (before.target.kind === 'instructions' && !previewOf && this.row(proposalId)?.lesson_id) {
+      throw new WorkItemError('previewOf is required to approve a lesson into CLAUDE.md: preview it first', 400);
+    }
+    // The person may move it to another heading while reading the diff; the target keeps what was written
+    const section = before.target.kind === 'instructions' && input?.section !== undefined ? sectionOf(input.section, 'section') : before.target.section;
     this.claim(proposalId, 'approved', decidedBy, { approvedText: text === before.text ? null : text });
+    if (section !== before.target.section) this.sql.prepare('UPDATE memory_proposals SET target_section = ? WHERE id = ?').run(section, proposalId);
+    // An `instructions` proposal made from a lesson retires it with the claim: CLAUDE.md holds it now
+    const fromLesson = before.target.kind === 'instructions' ? this.row(proposalId)?.lesson_id : null;
+    const retired = fromLesson ? (this.lessons?.retireForInstructions(fromLesson, decidedBy) ?? false) : false;
     try {
       if (before.target.kind === 'journal') {
         const entry = this.deps.journal.add(before.projectId, {
@@ -312,13 +417,36 @@ export class MemoryProposalService {
       } else {
         const path = join(project.path, 'CLAUDE.md');
         const current = existsSync(path) ? await readFile(path, 'utf8') : '';
-        await writeAtomic(path, withText(current, text, before.target.section));
+        if (previewOf && previewOf !== sha256(current)) throw new WorkItemError('CLAUDE.md changed since you saw the diff', 409);
+        await writeAtomic(path, withText(current, text, section));
       }
     } catch (err) {
+      // Both rows go back: the proposal waits again and the lesson is handed again
+      if (retired && fromLesson) this.lessons?.reinstate(fromLesson);
       this.release(proposalId);
       throw err;
     }
     const approved = this.mustFind(proposalId);
+    this.announce(approved, 'approved');
+    return approved;
+  }
+
+  /** A `lesson` proposal writes no file: approving it makes the lesson active, or folds it into another */
+  private approveLesson(before: MemoryProposal, input: ApproveMemoryProposalRequest, decidedBy: WorkItemActor): MemoryProposal {
+    const lessons = this.lessonsOrThrow();
+    const lessonId = this.row(before.id)?.lesson_id;
+    if (!lessonId) throw new WorkItemError('the lesson behind this proposal is gone', 409);
+    const { edit } = lessons.checkApproval(lessonId, input);
+    const text = edit ? lessonLine(edit.trigger, edit.action) : before.text;
+    this.claim(before.id, 'approved', decidedBy, { approvedText: text === before.text ? null : text });
+    try {
+      const held = lessons.approveProposed(lessonId, input, edit, decidedBy);
+      if (held !== lessonId) this.retarget(before.id, held);
+    } catch (err) {
+      this.release(before.id);
+      throw err;
+    }
+    const approved = this.mustFind(before.id);
     this.announce(approved, 'approved');
     return approved;
   }
@@ -346,11 +474,29 @@ export class MemoryProposalService {
   }
 
   reject(proposalId: string, input: RejectMemoryProposalRequest = {}, decidedBy: WorkItemActor = PERSON): MemoryProposal {
-    this.pending(proposalId);
+    const waiting = this.pending(proposalId);
     const raw = (input as Partial<RejectMemoryProposalRequest> | undefined)?.reason;
     if (raw !== undefined && raw !== null && typeof raw !== 'string') throw new WorkItemError('reason must be text', 400);
     const reason = raw?.trim().slice(0, PROPOSAL_REASON_MAX) || null;
-    this.claim(proposalId, 'rejected', decidedBy, { rejectReason: reason });
+    const lessonId = waiting.target.kind === 'lesson' ? this.row(proposalId)?.lesson_id : null;
+    if (lessonId) {
+      // The proposal and its lesson are decided together or not at all
+      this.sql.exec('BEGIN IMMEDIATE');
+      try {
+        this.claim(proposalId, 'rejected', decidedBy, { rejectReason: reason });
+        this.lessonsOrThrow().rejectProposed(lessonId, decidedBy);
+        this.sql.exec('COMMIT');
+      } catch (err) {
+        try {
+          this.sql.exec('ROLLBACK');
+        } catch {
+          // SQLite ended the transaction itself; the error that got here is the one to report
+        }
+        throw err;
+      }
+    } else {
+      this.claim(proposalId, 'rejected', decidedBy, { rejectReason: reason });
+    }
     const rejected = this.mustFind(proposalId);
     this.announce(rejected, 'rejected');
     return rejected;
@@ -415,6 +561,8 @@ export class MemoryProposalService {
       decidedAt: r.decided_at,
       rejectReason: r.reject_reason,
       journalEntryId: r.journal_entry_id,
+      lesson: kind === 'lesson' && r.lesson_id ? (this.lessons?.view(r.lesson_id) ?? null) : null,
+      lessonId: kind === 'instructions' ? r.lesson_id : null,
       createdAt: r.created_at,
     };
   }
@@ -441,6 +589,14 @@ export class MemoryProposalService {
 
 // ---------- checks ----------
 
+/** A heading name as `CLAUDE.md` keeps it: no `#`, one line; null for none */
+function sectionOf(value: unknown, field: string): string | null {
+  if (value !== undefined && value !== null && typeof value !== 'string') throw new WorkItemError(`${field} must be text`, 400);
+  const section = typeof value === 'string' ? value.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim() : '';
+  if (section.length > SECTION_MAX) throw new WorkItemError(`${field} is longer than ${String(SECTION_MAX)} characters`, 400);
+  return section || null;
+}
+
 function targetOf(value: unknown): MemoryProposalTarget {
   if (typeof value !== 'object' || value === null) throw new WorkItemError('a proposal needs its target', 400);
   const v = value as { kind?: unknown; file?: unknown; section?: unknown };
@@ -462,9 +618,7 @@ function targetOf(value: unknown): MemoryProposalTarget {
     return { kind, file: ruleFile(v.file), section: null, paths: [...new Set((paths as string[]).map((g) => g.trim()))] };
   }
   if (kind === 'instructions') {
-    const section = typeof v.section === 'string' ? v.section.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim() : '';
-    if (section.length > SECTION_MAX) throw new WorkItemError(`target.section is longer than ${String(SECTION_MAX)} characters`, 400);
-    return { kind, file: null, section: section || null };
+    return { kind, file: null, section: sectionOf(v.section, 'target.section') };
   }
   return { kind, file: null, section: null };
 }
@@ -541,4 +695,51 @@ export function withText(current: string, text: string, section: string | null):
   if (tail.length) out.push('', ...tail);
   const joined = out.join('\n');
   return joined.endsWith('\n') ? joined : `${joined}\n`;
+}
+
+export function sha256(text: string): string {
+  return createHash('sha256').update(text).digest('hex');
+}
+
+/** A last line without its newline differs from the same line with one, as it does for git */
+const NO_EOL = '\u0000';
+
+function diffLines(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  else lines[lines.length - 1] += NO_EOL;
+  return lines;
+}
+
+/**
+ * A unified diff of `before` and `after` as one hunk: the lines between their common prefix and
+ * suffix, with `context` lines around. Exact for what `withText` does, which only inserts one block;
+ * for any other pair it is still a correct patch, only not a minimal one. Empty when they are equal.
+ */
+export function lineDiff(before: string, after: string, context = 3): string {
+  if (before === after) return '';
+  const a = diffLines(before);
+  const b = diffLines(after);
+  const max = Math.min(a.length, b.length);
+  let prefix = 0;
+  while (prefix < max && a[prefix] === b[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < max - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+  const start = Math.max(0, prefix - context);
+  const tail = Math.min(context, suffix);
+  const oldEnd = a.length - suffix + tail;
+  const newEnd = b.length - suffix + tail;
+  const oldCount = oldEnd - start;
+  const newCount = newEnd - start;
+  const out = ['--- a/CLAUDE.md', '+++ b/CLAUDE.md', `@@ -${String(oldCount === 0 ? start : start + 1)},${String(oldCount)} +${String(newCount === 0 ? start : start + 1)},${String(newCount)} @@`];
+  const emit = (mark: string, line: string) => {
+    out.push(`${mark}${line.endsWith(NO_EOL) ? line.slice(0, -NO_EOL.length) : line}`);
+    if (line.endsWith(NO_EOL)) out.push('\\ No newline at end of file');
+  };
+  for (let i = start; i < prefix; i++) emit(' ', a[i] ?? '');
+  for (let i = prefix; i < a.length - suffix; i++) emit('-', a[i] ?? '');
+  for (let i = prefix; i < b.length - suffix; i++) emit('+', b[i] ?? '');
+  for (let i = a.length - suffix; i < oldEnd; i++) emit(' ', a[i] ?? '');
+  return `${out.join('\n')}\n`;
 }

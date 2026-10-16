@@ -27,12 +27,13 @@ const WEBHOOK_RECEIVER = /^\/api\/webhooks\/(?:github|gitlab)\/[^/]+$/;
 
 /**
  * `EventSource` and the browser's own GETs (an `<img src>`, a link) cannot carry an
- * `Authorization` header, so these five accept the credential as `?token=`. They are the only
+ * `Authorization` header, so these six accept the credential as `?token=`. They are the only
  * ones: a token in a query string ends up in access logs, and a route that can be called with
  * `fetch` has no excuse. `GET /api/events` is the one the plan names; the chat stream is the same
  * kind of `EventSource`, an attachment is what the chat renders inline, and a transcript export is
  * a download link the browser follows itself — fetching a whole transcript into a blob to save it
- * would hold it twice in memory for no gain. A project export is the same download, only longer.
+ * would hold it twice in memory for no gain. A project export is the same download, only longer,
+ * and so is an eval run's.
  */
 const QUERY_TOKEN = [
   /^\/api\/events$/,
@@ -40,6 +41,7 @@ const QUERY_TOKEN = [
   /^\/api\/uploads\/[^/]+\/content$/,
   /^\/api\/chats\/[^/]+\/export$/,
   /^\/api\/projects\/[^/]+\/export$/,
+  /^\/api\/eval-runs\/[^/]+\/export$/,
 ];
 
 /**
@@ -219,6 +221,9 @@ const CHAT_FORBIDDEN = new Set([
   `GET ${API_PREFIX}/trackers/youtrack/credentials`,
   `PUT ${API_PREFIX}/trackers/youtrack/credentials`,
   `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
+  // Only a person weakens or probes a guard: an agent that could switch its own off, or ask what it blocks, would have none
+  `PUT ${API_PREFIX}/settings/guards`,
+  `POST ${API_PREFIX}/guards/check`,
 ]);
 
 /**
@@ -293,6 +298,25 @@ const CHAT_FORBIDDEN_MEMORY = new Set([
 ]);
 
 /**
+ * A lesson rests on the person's corrections and is handed to every later run of the project, so a
+ * chat that could approve, edit, promote or mine one would write its own standing orders. Reading
+ * lessons stays open. Deciding a `lesson` proposal, or an `instructions` proposal made from a lesson,
+ * is covered by `CHAT_FORBIDDEN_MEMORY`: a chat's token decides no memory proposal.
+ */
+const CHAT_FORBIDDEN_LESSONS = new Set([
+  `PATCH ${API_PREFIX}/lessons/:lessonId`,
+  `POST ${API_PREFIX}/lessons/:lessonId/confirm`,
+  `POST ${API_PREFIX}/lessons/:lessonId/retire`,
+  `POST ${API_PREFIX}/lessons/:lessonId/restore`,
+  `DELETE ${API_PREFIX}/lessons/:lessonId`,
+  `POST ${API_PREFIX}/lessons/:lessonId/promote`,
+  `POST ${API_PREFIX}/lessons/:lessonId/demote`,
+  `POST ${API_PREFIX}/lessons/:lessonId/instructions`,
+  `POST ${API_PREFIX}/chats/:id/lessons/mine`,
+  `PUT ${API_PREFIX}/lessons/settings`,
+]);
+
+/**
  * Importing, linking and syncing issues writes the person's work items and their tracker, and an
  * issue's text is untrusted: an injection in one must not be able to import more issues, link or
  * unlink them, change which tracker a project uses or write to the tracker through a chat's token.
@@ -304,6 +328,23 @@ const CHAT_FORBIDDEN_TRACKERS = new Set([
   `POST ${API_PREFIX}/work-items/:itemId/issues`,
   `DELETE ${API_PREFIX}/work-items/:itemId/issues/:key`,
   `POST ${API_PREFIX}/work-items/:itemId/issues/:key/sync`,
+]);
+
+/**
+ * An instruction eval spends the person's account and runs commands a file asks for, and a consent
+ * is the person's alone: an injection in a chat must not write an eval file, consent to one, start
+ * or resume a run, or delete a run's results. Reading, estimating and cancelling stay open.
+ */
+const CHAT_FORBIDDEN_EVALS = new Set([
+  `PUT ${API_PREFIX}/projects/:id/evals/:name`,
+  `DELETE ${API_PREFIX}/projects/:id/evals/:name`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/consent`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/runs`,
+  `POST ${API_PREFIX}/eval-runs/:runId/resume`,
+  `POST ${API_PREFIX}/eval-runs/:runId/rejudge`,
+  `POST ${API_PREFIX}/eval-runs/:runId/accept-judge`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/draft-cases`,
+  `DELETE ${API_PREFIX}/eval-runs/:runId`,
 ]);
 
 /**
@@ -365,6 +406,17 @@ const CHAT_FORBIDDEN_REVIEWS = new Set([
   `POST ${API_PREFIX}/change-requests/:id/reviewers`,
   `POST ${API_PREFIX}/change-requests/:id/address`,
 ]);
+
+/**
+ * The review gate fails closed, so what opens it is the person's: a chat must not accept its own
+ * graph's gate (the acceptance is bound to the head) or plant the role file a reviewer reads. Under
+ * `mode: none` a chat's token only labels the request, and the label is what refuses it.
+ */
+const CHAT_FORBIDDEN_REVIEW_GATE = new Set([
+  `POST ${API_PREFIX}/orchestrations/:id/review/accept`,
+  `POST ${API_PREFIX}/projects/:id/review-roles/:role`,
+]);
+const CHAT_REVIEW_GATE_REFUSAL = "a chat's token cannot accept a review gate or write a reviewer's role: that is the person's";
 
 /**
  * Consent is the owner's (D12): these widen what the decision engine sends off the machine, so a
@@ -671,6 +723,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         void reply.status(403).send({ error: "a chat's token cannot post, approve, resolve or hand out a change request's review" });
         return reply;
       }
+      if (chat !== null && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
+        return reply;
+      }
       if (chat !== null && CHAT_FORBIDDEN_WEBHOOKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot register, test or remove a repository's webhook: that is the person's click" });
         return reply;
@@ -699,6 +755,14 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         void reply.status(403).send({ error: "a chat's token cannot approve or reject a memory proposal: what is written into memory is the person's decision" });
         return reply;
       }
+      if (chat !== null && CHAT_FORBIDDEN_LESSONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot decide, change or mine lessons: that is the person's" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_EVALS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot write, consent to, start, resume, re-judge, draft cases for or delete an eval: that spends money and runs commands on the person's behalf" });
+        return reply;
+      }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot import, link, unlink or sync issues, or change a project's tracker" });
         return reply;
@@ -712,6 +776,11 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       if (chatId !== null) req.actor = chatActor(chatId);
     }
     req.actor ??= 'local';
+
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+      void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
+      return reply;
+    }
 
     if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_TERMINAL.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
       const id = (req.params as { id?: unknown } | undefined)?.id;

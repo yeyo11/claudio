@@ -68,7 +68,7 @@ One module in `packages/core/src/providers/<id>/`, made of:
 | `install` | The vendor's install page; a command that verifies an install |
 | `auth` | How to tell whether it is signed in (`claude auth status --json`) and where to sign in |
 | `transport` | `stream-json` |
-| `capabilities` | A **declared** set: `interactivePermissions`, `structuredOutput`, `resume`, `fork`, `interrupt`, `setModel`, `subagents`, `mcp`, `worktreeFlag`, `budgetLimit`, `effort`, `costReport`, `rateLimitWindows`, `multiAccount`, `transcriptFiles`, `workflowTool` |
+| `capabilities` | A **declared** set: `interactivePermissions`, `structuredOutput`, `resume`, `fork`, `interrupt`, `setModel`, `subagents`, `mcp`, `worktreeFlag`, `settingsFlag`, `hookEvents`, `budgetLimit`, `effort`, `costReport`, `rateLimitWindows`, `multiAccount`, `transcriptFiles`, `workflowTool` |
 
 Capabilities are declared, then confirmed for the installed version, and never inferred from which
 methods a driver happens to implement. Every fact in the manifest cites, in a comment, where it comes

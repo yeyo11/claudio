@@ -210,6 +210,41 @@ function readResult(filePath) {
   }
 }
 
+/**
+ * An `Edit` or `Write` the fake performs for real, so a spec can read the change from disk. The input
+ * and result fields follow the CLI's tool shapes (`file_path`, `old_string`, `new_string`; `file_path`,
+ * `content`), paths absolute.
+ */
+function fileEditCall(kind, text) {
+  if (kind === 'edit') {
+    const filePath = resolve(process.cwd(), text);
+    let before = null;
+    try { before = readFileSync(filePath, 'utf8'); } catch { /* a missing file fails the call */ }
+    if (before === null) return { input: { file_path: filePath, old_string: '', new_string: '' }, content: `File does not exist: ${filePath}`, isError: true, detail: `File does not exist: ${filePath}` };
+    const after = `${before}${before === '' || before.endsWith('\n') ? '' : '\n'}edited by the fake CLI\n`;
+    writeFileSync(filePath, after);
+    return {
+      input: { file_path: filePath, old_string: before, new_string: after, replace_all: false },
+      content: `The file ${filePath} has been updated successfully.`,
+      isError: false,
+      detail: { filePath, oldString: before, newString: after, originalFile: before, structuredPatch: [], userModified: false, replaceAll: false },
+    };
+  }
+  const [target = '', ...rest] = text.split(/\s+/);
+  const filePath = resolve(process.cwd(), target);
+  const content = rest.join(' ');
+  const existed = existsSync(filePath);
+  const originalFile = existed ? readFileSync(filePath, 'utf8') : null;
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, content);
+  return {
+    input: { file_path: filePath, content },
+    content: `File ${existed ? 'updated' : 'created'} successfully at: ${filePath}`,
+    isError: false,
+    detail: { type: existed ? 'update' : 'create', filePath, content, structuredPatch: [], originalFile },
+  };
+}
+
 /** A finished `Bash` as the CLI answers it: the text, and `{ stdout, stderr, interrupted }` beside it, or the error as a string. */
 function commandResult(stdout, stderr, code, signal) {
   const ok = code === 0;
@@ -238,6 +273,46 @@ function init() {
     plugins: [],
   });
 }
+// ---------- the hooks of --settings (g0's contract): SessionStart arms, PreToolUse can block ----------
+
+const settingsFile = flag('--settings');
+let hookCommands = {};
+try {
+  hookCommands = settingsFile ? (JSON.parse(readFileSync(settingsFile, 'utf8')).hooks ?? {}) : {};
+} catch {
+  // an unreadable settings file means no hooks, as for the CLI
+}
+const hookEvents = argv.includes('--include-hook-events');
+/**
+ * Runs the first command of a hook event the way the CLI does: `sh -c` with the hook input on stdin.
+ * With `--include-hook-events` it streams `hook_started` and `hook_response`, in the shape g0 recorded.
+ * Only exit 2 blocks; any other code lets the call run.
+ */
+function runHook(event, name, input) {
+  const command = hookCommands[event]?.[0]?.hooks?.[0]?.command;
+  if (!command) return null;
+  const hookId = randomUUID();
+  if (hookEvents) emit({ type: 'system', subtype: 'hook_started', hook_id: hookId, hook_name: name, hook_event: event, uuid: randomUUID() });
+  const ran = spawnSync('/bin/sh', ['-c', command], { input: JSON.stringify({ session_id: sessionId, cwd: process.cwd(), hook_event_name: event, ...input }), encoding: 'utf8' });
+  const code = ran.status ?? 1;
+  if (hookEvents) {
+    emit({ type: 'system', subtype: 'hook_response', hook_id: hookId, hook_name: name, hook_event: event, output: `${ran.stdout}${ran.stderr}`, stdout: ran.stdout, stderr: ran.stderr, exit_code: code, outcome: code === 0 ? 'success' : 'error', uuid: randomUUID() });
+  }
+  return { code, command, stderr: ran.stderr };
+}
+// SessionStart runs when the process starts, before `init` and before any message (g0, F9)
+if (settingsFile && env.CLAUDIO_FAKE_CLI_NO_ARM !== '1') runHook('SessionStart', `SessionStart:${flag('--resume') ? 'resume' : 'startup'}`, { source: flag('--resume') ? 'resume' : 'startup' });
+/**
+ * The PreToolUse hook of a Bash call, run after the call is announced as the CLI does. Returns the text the
+ * model gets for an exit 2 (F5), or null when the call may run. `CLAUDIO_FAKE_CLI_NO_HOOKS=1` never runs it:
+ * a guard that is not there, which the wrapper's liveness check must notice.
+ */
+function bashBlock(id, command) {
+  if (env.CLAUDIO_FAKE_CLI_NO_HOOKS === '1') return null;
+  const verdict = runHook('PreToolUse', 'PreToolUse:Bash', { tool_name: 'Bash', tool_input: { command, description: `Run ${command}` }, tool_use_id: id });
+  return verdict?.code === 2 ? `PreToolUse:Bash hook error: [${verdict.command}]: ${verdict.stderr}` : null;
+}
+
 init();
 log('started', { argv, cwd: process.cwd() });
 
@@ -296,6 +371,9 @@ function textOf(message) {
 const firstLine = (text) => text.trim().split('\n')[0] ?? '';
 const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
 
+const MINER_FIRST_SENTENCE = 'You review part of a chat between a person and a coding agent working in one project.';
+const EMPTY_MINER_ANSWER = 'json: {"lessons":[]}';
+
 /**
  * Turns written elsewhere, so the prompt a page shows reads like a person's and not like a script:
  * `CLAUDIO_FAKE_CLI_SCRIPTS` names a JSON object of `{ "<text>": "<script>" }`, and a message that
@@ -311,13 +389,19 @@ function scriptFor(text) {
   // ready, needs-refining, not-for-agents in the order asked, so a spec sees all three without a script
   const issues = [...text.matchAll(/^(\S+): Can an agent start on issue/gm)].map((m) => m[1]);
   if (issues.length > 0) return `json: ${JSON.stringify(Object.fromEntries(issues.map((id, i) => [id, ['ready', 'needs-refining', 'not-for-agents'][i % 3]])))}`;
-  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return text;
+  // `lesson.mine` asks one yes/no question ("mine: Do these signals show…"): always yes, so a spec's
+  // chat that was corrected goes on to the miner
+  if (/^mine: Do these signals show/m.test(text)) return 'json: {"mine":true}';
+  const isMiner = text.includes(MINER_FIRST_SENTENCE);
+  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return isMiner ? EMPTY_MINER_ANSWER : text;
   let scripts;
   try {
     scripts = JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8'));
   } catch {
-    return text;
+    return isMiner ? EMPTY_MINER_ANSWER : text;
   }
+  // The lesson miner's prompt is Claudio's own text, so the scripts file names it by `"@lesson-miner"`
+  if (isMiner) return typeof scripts['@lesson-miner'] === 'string' ? scripts['@lesson-miner'] : EMPTY_MINER_ANSWER;
   const key = Object.keys(scripts).find((k) => k && text.includes(k));
   return key === undefined ? text : String(scripts[key]);
 }
@@ -331,7 +415,7 @@ function startTurn(message, uuid = null) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|read|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|read|edit|write|skill|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
@@ -448,6 +532,21 @@ function nextStep() {
     }, READ_MS);
     return;
   }
+  if (step.kind === 'edit' || step.kind === 'write' || step.kind === 'skill') {
+    const id = newToolId();
+    const call = step.kind === 'skill'
+      ? { name: 'Skill', input: { skill: step.text }, content: `Launching skill: ${step.text}`, isError: false, detail: { success: true, commandName: step.text } }
+      : { name: step.kind === 'edit' ? 'Edit' : 'Write', ...fileEditCall(step.kind, step.text) };
+    assistant([{ type: 'tool_use', id, name: call.name, input: call.input }]);
+    own.current = { id, child: null, command: null };
+    setTimeout(() => {
+      if (turn !== own) return;
+      own.current = null;
+      toolResult(id, call.content, call.isError, call.detail);
+      setTimeout(() => turn === own && nextStep(), SETTLE_MS);
+    }, READ_MS);
+    return;
+  }
   if (step.kind === 'ask') {
     // A Bash call the CLI asks permission for, as `--permission-prompt-tool stdio` makes it: the call,
     // then a `can_use_tool` control request; the turn waits for the answer. Allowed, the call answers
@@ -472,12 +571,24 @@ function nextStep() {
   if (step.kind === 'background') return startBackground(own, step.text);
   const command = step.text;
   const id = newToolId();
+  // With hooks the call is announced first and the hook answers after it, as the CLI streams them
+  const hooked = settingsFile !== undefined && hookCommands.PreToolUse !== undefined;
+  if (hooked) {
+    assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
+    const blocked = bashBlock(id, command);
+    if (blocked !== null) {
+      log('command-blocked', { toolUseId: id, command });
+      toolResult(id, blocked, true, `Error: ${blocked}`);
+      afterTool(own);
+      return;
+    }
+  }
   // A direct child of this process, the way the CLI's shell calls are: the wrapper finds it under our
   // pid, by its start time against the call's (it allows two seconds either way). It is started and
   // logged before the call is announced, so whoever reads the call can already find its pid in the log
   const child = spawn('sh', ['-c', command], { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
   log('command', { toolUseId: id, command, commandPid: child.pid });
-  assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
+  if (!hooked) assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
   const started = Date.now();
   let stdout = '';
   let stderr = '';

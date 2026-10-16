@@ -58,6 +58,8 @@ export interface RotationDeps {
   emit: (event: ClaudioEventInput) => void;
   /** The run, task or item a chat works for; null for a person's chat */
   work?: (chatId: string) => ChatWork | null;
+  /** Whether a chat is a sample of an instruction eval: its limit is the runner's to handle, never replayed or moved */
+  evalSample?: (chatId: string) => boolean;
   /** A run held to a schema is waited on only when whoever started it waits for the chat (a flow run) */
   awaiting?: (chatId: string) => boolean;
   /** A wait is over: the turn was replayed, it could not be, or a person stopped waiting */
@@ -154,6 +156,8 @@ export class ProviderRotation {
     const auth = this.deps.runtime.signInFailed(run.id);
     // A sign-in failure is no limit: it has its notice below, and the account's own state says it needs signing in
     if (!auth) this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limit?.resetsAt ?? null });
+    // A sample is run again from scratch on whichever account has room: replaying it would mix two accounts' behaviour
+    if (this.deps.evalSample?.(run.id)) return;
     const work = this.deps.work?.(run.id) ?? null;
     const automated = this.isAutomated(run, work);
     // A person's chat moves to another account only when they asked for it; otherwise it has its banner

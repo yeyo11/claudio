@@ -283,7 +283,10 @@
       "off": "Off"
     },
     "seeRuns": "See runs",
-    "limitsFoot": "With a cost limit, the run that reaches it stops, fails and says so on its item. The items sent back are in Activity, under the Sent back filter."
+    "limitsFoot": "With a cost limit, the run that reaches it stops, fails and says so on its item. The items sent back are in Activity, under the Sent back filter.",
+    "guardsTitle": "Guards",
+    "guardsStage": "Guards in {{stage}}",
+    "guardsHint": "A stage that sets nothing follows Settings."
   },
   "activity": {
     "title": "Team activity",

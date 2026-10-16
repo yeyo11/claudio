@@ -18,7 +18,8 @@
 //
 // The strip of what is running beside a chat (plans/tool-rows-and-live-branches.md §3.4): a chat whose
 // background command outlives its turn, and the strip's braille spinner, which holds its still glyph.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const fakeCli = true;
@@ -77,6 +78,8 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
   let projectId = null;
   let chatId = null;
   let terminalId = null;
+  let evalProjectId = null;
+  let evalRunId = null;
   const flowChats = [];
   const assistantRuns = [];
   try {
@@ -249,6 +252,55 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     }
     await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
 
+    // ---- an eval run: the one live surface of its page (plans/instruction-evals.md) ----
+    // A run on a throwaway repository, held open by a `hold:` line; it is the page's one energy border
+    // at full, and nothing repeats at subtle and off
+    const evalDir = join(dirs.workspaceDir, 'e2e-motion-evals');
+    const evalHold = join(evalDir, 'release');
+    mkdirSync(evalDir, { recursive: true });
+    const inRepo = (...args) => execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: evalDir, stdio: 'pipe' }).toString().trim();
+    inRepo('init', '-q', '-b', 'main');
+    writeFileSync(join(evalDir, 'a.txt'), 'alpha\n');
+    inRepo('add', '.');
+    inRepo('commit', '-q', '-m', 'initial commit');
+    const evalProject = await api.post('/projects/import', { path: evalDir, name: 'e2e-motion-evals', template: 'software' });
+    check(evalProject.status === 201, `a project for the eval run (${evalProject.status})`);
+    evalProjectId = evalProject.body.id;
+    await api.post(`/projects/${evalProjectId}/team/from-template`, {});
+    writeFileSync(fakeCli.scripts, JSON.stringify({ 'MOTION-EVAL': `read: a.txt\nhold: ${evalHold}\nsay: Done.` }));
+    const evalDef = {
+      version: 1,
+      title: 'Motion',
+      target: { kind: 'agent', scope: 'project', name: 'developer' },
+      pin: inRepo('rev-parse', 'HEAD'),
+      samples: 1,
+      limits: { maxCostUsd: 5 },
+      cases: [{ id: 'reads', prompt: 'MOTION-EVAL', expect: [{ kind: 'called', call: { tool: 'Read' } }] }],
+    };
+    await api.put(`/projects/${evalProjectId}/evals/motion`, { definition: evalDef, ifMatch: null });
+    const consented = (await api.get(`/projects/${evalProjectId}/evals/motion`)).body;
+    await api.post(`/projects/${evalProjectId}/evals/motion/consent`, { sha: consented.sha });
+    const estimated = await api.post(`/projects/${evalProjectId}/evals/motion/estimate`, { variants: ['current'], confirmMaxCostUsd: 0 });
+    const evalRun = await api.post(`/projects/${evalProjectId}/evals/motion/runs`, { variants: ['current'], confirmMaxCostUsd: estimated.body?.ceilingUsd });
+    check(evalRun.status === 201 || evalRun.status === 200, `an eval run was started (${evalRun.status})`);
+    evalRunId = evalRun.body?.id ?? null;
+    for (const level of ['full', 'subtle', 'off']) {
+      await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
+      await open(`/?project=${evalProjectId}&view=team&section=evals&run=${evalRunId}`, '.evals-run-card');
+      const running = await page.eval(loops('main'));
+      if (level === 'full') {
+        check(running.some((c) => c.includes('evals-run-card')), `the running eval run has its energy border at full (${running.join(', ')})`);
+        check((await page.eval(`return document.querySelectorAll('.live-energy').length`)) === 1, 'one energy border on the page');
+      } else {
+        check(running.length === 0, `an eval run: nothing repeats at ${level} (${running.join(', ')})`);
+      }
+    }
+    writeFileSync(evalHold, '');
+    await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
+    await open(`/?project=${evalProjectId}&view=team&section=evals&run=${evalRunId}`, '.evals-run-card');
+    await page.waitFor(`return !document.querySelector('.evals-run-card.live-energy')`, { label: 'the eval run to end', timeout: 90_000 });
+    check((await page.eval(loops('main'))).length === 0, 'an ended eval run does not move');
+
     // ---- the terminal: its cursor blinks at full and sits still at subtle and off ----
     // The terminal is the person's own shell, not a live agent: it never earns a loop of its own
     await page.viewport(1440, 900);
@@ -305,6 +357,12 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
         await page.sleep(250);
       }
     }
+    if (evalRunId) {
+      await api.post(`/eval-runs/${evalRunId}/cancel`, {}).catch(() => {});
+      await api.del(`/eval-runs/${evalRunId}`).catch(() => {});
+    }
+    if (evalProjectId) await api.del(`/projects/${evalProjectId}`).catch(() => {});
+    rmSync(join(dirs.workspaceDir, 'e2e-motion-evals'), { recursive: true, force: true });
     if (terminalId) await api.del(`/terminals/${terminalId}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
     await page.eval(`localStorage.removeItem('claudio-terminal-renderer'); localStorage.removeItem('claudio-terminal-bar');`).catch(() => {});

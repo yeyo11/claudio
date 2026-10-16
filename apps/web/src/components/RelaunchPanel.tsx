@@ -1,4 +1,4 @@
-import type { Effort, Orchestration, OrchestrationTaskSpec } from '@claudio/shared';
+import type { Effort, GuardOverride, Orchestration, OrchestrationTaskSpec } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Rocket } from 'lucide-react';
 import { useState } from 'react';
@@ -9,6 +9,7 @@ import { cleanTask, specOfTask } from '../lib/orchestration-v2';
 import { NumberInput } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { GraphShape } from './GraphExtras';
+import { GuardRow } from './GuardControls';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from './TaskEditor';
 import { Card, ErrorBox, Field } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
@@ -28,6 +29,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
   const [effort, setEffort] = useState<Effort | ''>(orch.effort ?? '');
   const [concurrency, setConcurrency] = useState(orch.concurrency);
   const [maxAttempts, setMaxAttempts] = useState(orch.maxAttempts);
+  const [guards, setGuards] = useState<GuardOverride | undefined>(undefined);
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>(() => orch.tasks.map(specOfTask));
   const [problem, setProblem] = useState<string | null>(null);
   const graph = (orch.engine ?? 'graph') === 'graph';
@@ -43,6 +45,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
           ...(effort ? { effort } : {}),
           concurrency,
           ...(graph ? { maxAttempts } : {}),
+          ...(guards ? { guards } : {}),
         },
         tasks: tasks.map(cleanTask),
       }),
@@ -82,6 +85,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
         <Field label={t('config:orchestration.objective')}>
           <textarea rows={3} value={objective} onChange={(e) => setObjective(e.target.value)} />
         </Field>
+        <GuardRow value={guards} onChange={setGuards} workflow={!graph} />
 
         <div className="card-head">
           <h3>{t('config:orchestration.tasks', { count: tasks.length })}</h3>

@@ -1,6 +1,7 @@
 import { ArrowLeft, Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, TriangleAlert, Zap } from 'lucide-react';
 import type {
   Effort,
+  GuardOverride,
   OrchestrationSummary as OrchestrationRecord,
   OrchestrationEngine,
   OrchestrationSpec,
@@ -29,6 +30,7 @@ import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../components/TaskEditor';
 import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Segmented, Tag } from '@claudio/ui/components/ui';
 import { EffortField } from '../components/EffortPicker';
+import { GuardRow } from '../components/GuardControls';
 import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo } from '@claudio/ui/lib/format';
@@ -84,6 +86,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>(seed?.permissionMode ?? '');
   const [limits, setLimits] = useState<TaskLimits | undefined>(seed?.limits);
   const [verification, setVerification] = useState<VerificationDraft>(draftOfVerification(seed?.verification));
+  const [guards, setGuards] = useState<GuardOverride | undefined>(seed?.guards);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>(() => seed?.tasks.map((t) => ({ ...t, dependsOn: t.dependsOn ?? [] })) ?? []);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -189,6 +192,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
     permissionPrompts: askPermissions ? ('host' as const) : ('none' as const),
     ...(limits ? { limits } : {}),
     ...(verificationOf(verification) ? { verification: verificationOf(verification) } : {}),
+    ...(guards ? { guards } : {}),
     tasks: tasks.map(cleanTask),
   });
 
@@ -373,6 +377,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
                     {t('config:orchestration.worktree')}
                   </Switch>
                 )}
+                <GuardRow value={guards} onChange={setGuards} workflow={engine === 'workflow'} />
                 <Switch checked={askPermissions} onChange={setAskPermissions}>
                   {t('config:orchestration.askPermissions')}
                 </Switch>

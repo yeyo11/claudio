@@ -27,7 +27,8 @@
       "integration": "integration",
       "verification": "verification",
       "synthesis": "synthesis",
-      "workflow": "workflow"
+      "workflow": "workflow",
+      "review": "review"
     },
     "partOf": {
       "label": "Part of orchestration",
@@ -427,7 +428,9 @@
       "output": "Command output",
       "interrupt": "Interrupted",
       "compaction-failed": "Compaction failed",
-      "account": "Switched to"
+      "account": "Switched to",
+      "guard": "Guard blocked",
+      "guardMissing": "Guard did not run for this call"
     }
   },
   "agent": {

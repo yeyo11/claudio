@@ -27,6 +27,11 @@ import type {
   Attachment,
   AuditFilter,
   AuditPage,
+  GuardCheckRequest,
+  GuardCheckResult,
+  GuardEventPage,
+  GuardSettingsView,
+  UpdateGuardSettingsRequest,
   AuthConfig,
   AuthMode,
   AuthStatus,
@@ -129,6 +134,16 @@ import type {
   InstructionsDoc,
   JournalEntry,
   JournalPage,
+  Lesson,
+  LessonInstructionsRequest,
+  LessonJob,
+  LessonList,
+  LessonSettings,
+  LessonStatus,
+  DemoteLessonRequest,
+  UpdateLessonRequest,
+  PreviewMemoryProposalRequest,
+  MemoryProposalPreview,
   LaunchOrchestrationTemplateRequest,
   LinkWorkItemIssueRequest,
   McpScope,
@@ -187,6 +202,10 @@ import type {
   RegisterPushSubscriptionRequest,
   RejectMemoryProposalRequest,
   RelaunchOrchestrationRequest,
+  ReviewGateDetail,
+  ReviewRoleInfo,
+  AcceptReviewRequest,
+  VerifyOrchestrationRequest,
   RemovePushSubscriptionRequest,
   ResourceKind,
   ResumeChatRequest,
@@ -214,6 +233,19 @@ import type {
   SupervisorProposal,
   SystemInfo,
   TaskHintRequest,
+  EvalComparison,
+  EvalEstimate,
+  EvalFileDetail,
+  EvalFileListItem,
+  EvalGate,
+  EvalHead,
+  EvalRun,
+  EvalRunPage,
+  EvalRunRequest,
+  EvalRunSummary,
+  EvalSampleDetail,
+  EvalVariant,
+  PutEvalFileRequest,
   Team,
   TeamFromTemplateRequest,
   TeamMember,
@@ -297,6 +329,8 @@ export class ApiRequestError extends Error {
   readonly postId?: string;
   /** Today's spend, on a refusal at the daily cap (`code: 'spend-cap'`) */
   readonly spend?: SpendState;
+  /** The fields a refused write names, `path: reason` each (an eval file that does not parse) */
+  problems?: string[];
 
   constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
@@ -400,7 +434,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
       }
       throw new ApiRequestError(i18n.t('components:spendCap.declined'), res.status, undefined, 'spend-cap', undefined, spend);
     }
-    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    const problems = (err as { problems?: unknown }).problems;
+    const refusal = new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
+    throw refusal;
   }
   return json as T;
 }
@@ -680,6 +717,23 @@ export const api = {
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
   chatExecutions: (id: string) => request<ChatDetail>(`/chats/${enc(id)}?limit=1`).then((detail) => detail.chat.executions),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
+  verifyOrchestration: (id: string, req: VerifyOrchestrationRequest = {}) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/verify`, { method: 'POST', body: req }),
+  orchestrationReview: (id: string, q: { round?: number; blocking?: boolean; limit?: number; offset?: number } = {}, o?: ReadOptions) => {
+    const params = new URLSearchParams();
+    if (q.round !== undefined) params.set('round', String(q.round));
+    if (q.blocking) params.set('blocking', '1');
+    if (q.limit !== undefined) params.set('limit', String(q.limit));
+    if (q.offset !== undefined) params.set('offset', String(q.offset));
+    const qs = params.toString();
+    return request<ReviewGateDetail>(`/orchestrations/${enc(id)}/review${qs ? `?${qs}` : ''}`, o);
+  },
+  retryOrchestrationReview: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/review/retry`, { method: 'POST' }),
+  acceptOrchestrationReview: (id: string, req: AcceptReviewRequest) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/review/accept`, { method: 'POST', body: req }),
+  reviewRoles: (projectId: string, o?: ReadOptions) => request<ReviewRoleInfo[]>(`/projects/${enc(projectId)}/review-roles`, o),
+  createReviewRole: (projectId: string, role: ReviewRoleInfo['role']) =>
+    request<ReviewRoleInfo>(`/projects/${enc(projectId)}/review-roles/${enc(role)}`, { method: 'POST' }),
   integrateOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/integrate`, { method: 'POST' }),
   orchestrationWorkflow: (id: string) => request<{ path: string; script: string }>(`/orchestrations/${enc(id)}/workflow`),
   saveOrchestrationWorkflow: (id: string, req: SaveOrchestrationWorkflowRequest) =>
@@ -796,6 +850,8 @@ export const api = {
   /** Lets a flow card's queued run start past today's cap */
   grantItemSpendPass: (itemId: string) => request<FlowSpendPass>(`/work-items/${enc(itemId)}/spend-pass`, { method: 'POST' }),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  guardSettings: (o: ReadOptions = {}) => request<GuardSettingsView>('/settings/guards', o),
+  updateGuardSettings: (body: UpdateGuardSettingsRequest) => request<GuardSettingsView>('/settings/guards', { method: 'PUT', body }),
   /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
   dashboardLayout: (project: string, o: ReadOptions = {}) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, o),
   saveDashboardLayout: (project: string, body: SaveDashboardLayoutRequest) =>
@@ -805,6 +861,9 @@ export const api = {
   updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
   startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
   stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
+  guardEvents: (page: { limit?: number; before?: number } = {}, o: ReadOptions = {}) =>
+    request<GuardEventPage>(`/guard-events${qs({ limit: num(page.limit), before: num(page.before) })}`, o),
+  checkGuard: (body: GuardCheckRequest) => request<GuardCheckResult>('/guards/check', { method: 'POST', body }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
@@ -954,6 +1013,49 @@ export const api = {
     request<Milestone>(`/milestones/${enc(milestoneId)}`, { method: 'PATCH', body: req }),
   deleteMilestone: (milestoneId: string) => request<{ ok: true }>(`/milestones/${enc(milestoneId)}`, { method: 'DELETE' }),
   // ---- team, flow, journal, memory proposals and documents (docs/plans/project-ecosystem.md, orchestration 3)
+  // ---- instruction evals (docs/plans/instruction-evals.md); `eval.run` and `eval.sample` refresh them
+  evalFiles: (projectId: string, o?: ReadOptions) => request<EvalFileListItem[]>(`/projects/${enc(projectId)}/evals`, o),
+  evalFile: (projectId: string, name: string, o?: ReadOptions) => request<EvalFileDetail>(`/projects/${enc(projectId)}/evals/${enc(name)}`, o),
+  putEvalFile: (projectId: string, name: string, req: PutEvalFileRequest) =>
+    request<EvalFileDetail>(`/projects/${enc(projectId)}/evals/${enc(name)}`, { method: 'PUT', body: req }),
+  deleteEvalFile: (projectId: string, name: string) => request<{ ok: true }>(`/projects/${enc(projectId)}/evals/${enc(name)}`, { method: 'DELETE' }),
+  evalHead: (projectId: string, o?: ReadOptions) => request<EvalHead>(`/projects/${enc(projectId)}/eval-head`, o),
+  estimateEval: (projectId: string, name: string, req: EvalRunRequest, o?: ReadOptions) =>
+    request<EvalEstimate>(`/projects/${enc(projectId)}/evals/${enc(name)}/estimate`, { ...o, method: 'POST', body: req }),
+  consentEval: (projectId: string, name: string, sha: string) =>
+    request<{ ok: true }>(`/projects/${enc(projectId)}/evals/${enc(name)}/consent`, { method: 'POST', body: { sha } }),
+  startEval: (projectId: string, name: string, req: EvalRunRequest) =>
+    request<EvalRunSummary>(`/projects/${enc(projectId)}/evals/${enc(name)}/runs`, { method: 'POST', body: req }),
+  evalRuns: (projectId: string, q: { eval?: string; before?: string; limit?: number } = {}, o?: ReadOptions) => {
+    const query = new URLSearchParams();
+    if (q.eval) query.set('eval', q.eval);
+    if (q.before) query.set('before', q.before);
+    if (q.limit) query.set('limit', String(q.limit));
+    const text = query.toString();
+    return request<EvalRunPage>(`/projects/${enc(projectId)}/eval-runs${text ? `?${text}` : ''}`, o);
+  },
+  evalRun: (runId: string, o?: ReadOptions) => request<EvalRun>(`/eval-runs/${enc(runId)}`, o),
+  evalSample: (runId: string, sampleId: string, o?: ReadOptions) => request<EvalSampleDetail>(`/eval-runs/${enc(runId)}/samples/${enc(sampleId)}`, o),
+  evalCompare: (runId: string, base: EvalVariant, other: EvalVariant, o?: ReadOptions) =>
+    request<EvalComparison>(`/eval-runs/${enc(runId)}/compare?base=${base}&other=${other}`, o),
+  cancelEvalRun: (runId: string) => request<EvalRunSummary>(`/eval-runs/${enc(runId)}/cancel`, { method: 'POST' }),
+  resumeEvalRun: (runId: string, confirmMaxCostUsd: number) =>
+    request<EvalRunSummary>(`/eval-runs/${enc(runId)}/resume`, { method: 'POST', body: { confirmMaxCostUsd } }),
+  /** The promotion gate of a run; null while the run has none (404) */
+  evalGate: async (runId: string, o?: ReadOptions): Promise<EvalGate | null> => {
+    try {
+      return await request<EvalGate>(`/eval-runs/${enc(runId)}/gate`, o);
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 404) return null;
+      throw error;
+    }
+  },
+  rejudgeEvalRun: (runId: string) => request<{ rejudged: number; unjudged: number }>(`/eval-runs/${enc(runId)}/rejudge`, { method: 'POST' }),
+  acceptEvalJudge: (runId: string, caseId: string, idx: number) =>
+    request<EvalGate>(`/eval-runs/${enc(runId)}/accept-judge`, { method: 'POST', body: { caseId, idx } }),
+  draftEvalCases: (projectId: string, name: string) =>
+    request<AssistantRun>(`/projects/${enc(projectId)}/evals/${enc(name)}/draft-cases`, { method: 'POST', body: {} }),
+  deleteEvalRun: (runId: string) => request<{ ok: true }>(`/eval-runs/${enc(runId)}`, { method: 'DELETE' }),
   team: (projectId: string, o?: ReadOptions) => request<Team>(`/projects/${enc(projectId)}/team`, o),
   teamFromTemplate: (projectId: string, req: TeamFromTemplateRequest = {}) =>
     request<Team>(`/projects/${enc(projectId)}/team/from-template`, { method: 'POST', body: req }),
@@ -988,6 +1090,28 @@ export const api = {
     request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/approve`, { method: 'POST', body: req }),
   rejectMemoryProposal: (proposalId: string, req: RejectMemoryProposalRequest = {}) =>
     request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/reject`, { method: 'POST', body: req }),
+  previewMemoryProposal: (proposalId: string, req: PreviewMemoryProposalRequest = {}) =>
+    request<MemoryProposalPreview>(`/memory-proposals/${enc(proposalId)}/preview`, { method: 'POST', body: req }),
+  // ---- lessons (docs/plans/lessons.md)
+  lessons: (projectId: string, status?: LessonStatus | 'all', o?: ReadOptions) =>
+    request<LessonList>(`/projects/${enc(projectId)}/lessons${qs({ status })}`, o),
+  globalLessons: (status?: LessonStatus | 'all', o?: ReadOptions) => request<LessonList>(`/lessons/global${qs({ status })}`, o),
+  /** A real link: the route answers with Content-Disposition: attachment */
+  lessonsExportUrl: (projectId: string) => withToken(`${BASE}/projects/${enc(projectId)}/lessons/export`),
+  lessonJobs: (projectId: string, limit?: number, o?: ReadOptions) =>
+    request<LessonJob[]>(`/projects/${enc(projectId)}/lessons/jobs${qs({ limit: num(limit) })}`, o),
+  lessonSettings: (o?: ReadOptions) => request<LessonSettings>('/lessons/settings', o),
+  putLessonSettings: (req: Partial<LessonSettings>) => request<LessonSettings>('/lessons/settings', { method: 'PUT', body: req }),
+  updateLesson: (lessonId: string, req: UpdateLessonRequest) => request<Lesson>(`/lessons/${enc(lessonId)}`, { method: 'PATCH', body: req }),
+  confirmLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/confirm`, { method: 'POST' }),
+  retireLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/retire`, { method: 'POST', body: {} }),
+  restoreLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/restore`, { method: 'POST' }),
+  deleteLesson: (lessonId: string) => request<{ ok: true }>(`/lessons/${enc(lessonId)}`, { method: 'DELETE' }),
+  promoteLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/promote`, { method: 'POST' }),
+  demoteLesson: (lessonId: string, req: DemoteLessonRequest = {}) => request<Lesson>(`/lessons/${enc(lessonId)}/demote`, { method: 'POST', body: req }),
+  lessonToInstructions: (lessonId: string, req: LessonInstructionsRequest = {}) =>
+    request<MemoryProposal>(`/lessons/${enc(lessonId)}/instructions`, { method: 'POST', body: req }),
+  mineChatLessons: (chatId: string) => request<LessonJob>(`/chats/${enc(chatId)}/lessons/mine`, { method: 'POST' }),
   projectDocs: (projectId: string, o?: ReadOptions) => request<ProjectDocsOverview>(`/projects/${enc(projectId)}/docs`, o),
   addProjectDoc: (projectId: string, body: AddProjectDocRequest) => request<ProjectDoc>(`/projects/${enc(projectId)}/docs`, { method: 'POST', body, timeoutMs: 300_000 }),
   refreshProjectDocs: (projectId: string) => request<ProjectDocsOverview>(`/projects/${enc(projectId)}/docs/refresh`, { method: 'POST', timeoutMs: 300_000 }),
@@ -1192,6 +1316,7 @@ export const keys = {
   changeRequest: (id: string) => ['change-request', id] as const,
   changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
   // The review's reads sit under the request too: `change-request.review` refreshes them all
+  orchestrationReview: (id: string) => ['orchestration', id, 'review'] as const,
   changeRequestThreads: (id: string) => ['change-request', id, 'threads'] as const,
   reviewDrafts: (id: string) => ['change-request', id, 'review-drafts'] as const,
   reviewPosts: (id: string) => ['change-request', id, 'review-posts'] as const,
@@ -1243,6 +1368,8 @@ export const keys = {
   connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
   securityAuth: ['security', 'auth'] as const,
+  guardSettings: ['security', 'guards'] as const,
+  guardEvents: ['security', 'guard-events'] as const,
   terminalStatus: ['terminal', 'status'] as const,
   terminalOne: (id: string) => ['terminal', 'one', id] as const,
   terminalList: (scope: string) => ['terminal', 'list', scope] as const,
@@ -1297,6 +1424,17 @@ export const keys = {
   milestone: (milestoneId: string) => ['milestones', 'one', milestoneId] as const,
   // ---- team, flow, journal, memory proposals and documents. One prefix per project for each, so an
   // event of that project reaches every page and filter of it
+  // Under 'evals', the prefix `eval.run` and `eval.sample` refresh
+  evals: (projectId: string) => ['evals', projectId] as const,
+  evalFile: (projectId: string, name: string) => ['evals', projectId, 'file', name] as const,
+  evalHead: (projectId: string) => ['evals', projectId, 'head'] as const,
+  evalRuns: (projectId: string, name: string | null) => ['evals', projectId, 'runs', name ?? ''] as const,
+  evalRun: (runId: string) => ['evals', 'run', runId] as const,
+  evalGate: (runId: string) => ['evals', 'run', runId, 'gate'] as const,
+  evalSample: (runId: string, sampleId: string) => ['evals', 'run', runId, 'sample', sampleId] as const,
+  evalCompare: (runId: string, base: string, other: string) => ['evals', 'run', runId, 'compare', base, other] as const,
+  // Not under 'evals': a sample finishing must not re-price a dialog the person is reading
+  evalEstimate: (projectId: string, name: string, request: string) => ['eval-estimate', projectId, name, request] as const,
   team: (projectId: string) => ['team', projectId] as const,
   flow: (projectId: string) => ['flow', projectId] as const,
   // Under `flow`, so every event that refreshes the flow refreshes the cards waiting for it
@@ -1323,6 +1461,11 @@ export const keys = {
   /** Not under `memory`: that prefix is the CLI's memory files, which a proposal only reaches once approved */
   memoryProposalsOf: (projectId: string) => ['memory-proposals', projectId] as const,
   memoryProposals: (projectId: string, status?: MemoryProposalStatus) => ['memory-proposals', projectId, status ?? 'all'] as const,
+  /** Every list of a project's lessons (any status) and its jobs; `projectId` null is the global list */
+  lessonsOf: (projectId: string | null) => ['lessons', projectId ?? 'global'] as const,
+  lessons: (projectId: string | null, status: LessonStatus | 'all') => ['lessons', projectId ?? 'global', status] as const,
+  lessonJobs: (projectId: string) => ['lesson-jobs', projectId] as const,
+  lessonSettings: ['lesson-settings'] as const,
   /** A project's tree and every file read of it */
   documentsOf: (projectId: string) => ['documents', projectId] as const,
   projectDocs: (projectId: string) => ['project-docs', projectId] as const,
@@ -1597,6 +1740,66 @@ export const useTeam = (projectId: string | null) =>
     refetchInterval: useFallbackInterval(),
   });
 
+// ---------- instruction evals ----------
+
+export const useEvalFiles = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.evals(projectId ?? ''),
+    queryFn: ({ signal }) => api.evalFiles(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useEvalFile = (projectId: string, name: string | null) =>
+  useQuery({
+    queryKey: keys.evalFile(projectId, name ?? ''),
+    queryFn: ({ signal }) => api.evalFile(projectId, name ?? '', { signal }),
+    enabled: name !== null,
+  });
+
+export const useEvalHead = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.evalHead(projectId ?? ''),
+    queryFn: ({ signal }) => api.evalHead(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+  });
+
+export const useEvalRun = (runId: string | null) =>
+  useQuery({
+    queryKey: keys.evalRun(runId ?? ''),
+    queryFn: ({ signal }) => api.evalRun(runId ?? '', { signal }),
+    enabled: runId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** An eval's runs (or the project's, with no name), newest first, a page at a time. */
+export const useEvalHistory = (projectId: string, name: string | null) =>
+  useInfiniteQuery({
+    queryKey: keys.evalRuns(projectId, name),
+    queryFn: ({ signal, pageParam }) => api.evalRuns(projectId, { ...(name ? { eval: name } : {}), limit: 20, ...(pageParam ? { before: pageParam } : {}) }, { signal }),
+    initialPageParam: '',
+    getNextPageParam: (last: EvalRunPage) => last.next ?? undefined,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useEvalGate = (runId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: keys.evalGate(runId),
+    queryFn: ({ signal }) => api.evalGate(runId, { signal }),
+    enabled,
+    retry: false,
+  });
+
+/** Whether the Phase 2 switch (pressure levels, judged expectations, the gate, drafting) is on. */
+export const useEvalsPhase2 = (): boolean => useQuery({ queryKey: keys.appSettings, queryFn: () => api.appSettings() }).data?.evalsPhase2 === true;
+
+export const useEvalSample = (runId: string, sampleId: string | null) =>
+  useQuery({
+    queryKey: keys.evalSample(runId, sampleId ?? ''),
+    queryFn: ({ signal }) => api.evalSample(runId, sampleId ?? '', { signal }),
+    enabled: sampleId !== null,
+  });
+
 export const useFlow = (projectId: string | null) =>
   useQuery({
     queryKey: keys.flow(projectId ?? ''),
@@ -1646,6 +1849,26 @@ export const useMemoryProposals = (projectId: string | null, status?: MemoryProp
     enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
   });
+
+/** A project's lessons, or the global ones with a null project; `handed` is what a run is given now. */
+export const useLessons = (projectId: string | null, status: LessonStatus | 'all', global = false) =>
+  useQuery({
+    queryKey: keys.lessons(global ? null : projectId, status),
+    queryFn: ({ signal }) => (global ? api.globalLessons(status, { signal }) : api.lessons(projectId ?? '', status, { signal })),
+    enabled: global || projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useLessonJobs = (projectId: string | null, limit = 3) =>
+  useQuery({
+    queryKey: [...keys.lessonJobs(projectId ?? ''), limit] as const,
+    queryFn: ({ signal }) => api.lessonJobs(projectId ?? '', limit, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useLessonSettings = () =>
+  useQuery({ queryKey: keys.lessonSettings, queryFn: ({ signal }) => api.lessonSettings({ signal }) });
 
 /** The stored layout of a project's Home, or of All projects' with `all`; null `layout` means the default. */
 export const useDashboardLayout = (project: string) =>

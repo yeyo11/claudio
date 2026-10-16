@@ -7,6 +7,7 @@ import {
   ASSISTANT_RUN_KINDS,
   DEFAULT_ASSISTANT_MODEL,
   EFFORT_LEVELS,
+  EVAL_NAME_PATTERN,
   assistantResourcePath,
   isEffort,
   recommendedEffort,
@@ -28,6 +29,8 @@ import {
   type ChatActivity,
   type ConfigScopeKind,
   type Effort,
+  type EvalCase,
+  type EvalFile,
   type Localized,
   type PermissionMode,
   type ProjectSettings,
@@ -60,6 +63,7 @@ import {
   RESUME_PROMPT,
   type AssistantAnswer,
   type AssistantBrief,
+  type AssistantEvalBrief,
   type AssistantGit,
   type AssistantLanguage,
 } from './assistant-answer.ts';
@@ -99,7 +103,7 @@ import { rulesFor } from './tool-policy.ts';
 export class AssistantError extends Error {
   constructor(
     message: string,
-    readonly statusCode: 400 | 404 | 409,
+    readonly statusCode: 400 | 403 | 404 | 409,
   ) {
     super(message);
   }
@@ -171,6 +175,13 @@ export interface AssistantDeps {
   addMember(project: AssistantProject, member: ProjectTeamMember, content: string | null): Promise<void>;
   resourceExists(project: AssistantProject, scope: ConfigScopeKind, kind: AssistantResourceKind, name: string): Promise<boolean>;
   saveResource(project: AssistantProject, scope: ConfigScopeKind, kind: AssistantResourceKind, name: string, content: string): Promise<void>;
+  /** The eval file a drafting run is for, and where its target lives; null when there is none. Absent: no evals in this build */
+  evalFile?(project: AssistantProject, name: string): Promise<{ file: EvalFile; targetPath: string | null } | null>;
+  /**
+   * Appends the case to the eval file through the strict write, `ifMatch` being the SHA the person
+   * saw. Throws an error with a `code` of `changed-on-disk` (409) or `invalid` (400) when it cannot.
+   */
+  appendEvalCase?(project: AssistantProject, name: string, evalCase: EvalCase, ifMatch: string): Promise<void>;
   emit(event: ClaudioEventInput): void;
   /** The decision engine, for `assistant.sources` and `assistant.rerank`; without it both are today's behaviour */
   decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
@@ -296,6 +307,8 @@ interface RunRow {
   focus: string | null;
   language: string | null;
   resource_kind: string | null;
+  /** Null except on an `evals` run, and on a row written before the column */
+  eval_name: string | null;
   chat_id: string | null;
   empty: number;
   template: string | null;
@@ -346,6 +359,7 @@ interface Outcome {
   acceptedAgent?: string;
   saved?: { scope: ConfigScopeKind; name: string; path: string };
   createdId?: string;
+  acceptedCaseId?: string;
 }
 
 const PERSON: WorkItemActor = { kind: 'person', role: null };
@@ -410,6 +424,7 @@ export class AssistantService {
     if (request.kind === 'work-items' && !modules.includes('board')) {
       throw new AssistantError("the Board module is off in this project: switch it on in the project's settings to have tasks suggested", 409);
     }
+    const evalBrief = request.kind === 'evals' ? await this.evalBrief(project, request.evalName) : null;
     const proposes = ASSISTANT_PROPOSAL_KINDS_OF_RUN[request.kind].filter(
       (k) => (k !== 'team-member' || modules.includes('team')) && (k !== 'work-item' || modules.includes('board')),
     );
@@ -419,7 +434,7 @@ export class AssistantService {
     const offered = templateOffered(project.settings);
     // With nothing to read and nothing described there is nothing to ask a model: the template's team
     // is offered as it is, and a description is asked for before anything else is proposed
-    const chatless = empty && !request.description && !request.focus;
+    const chatless = empty && !request.description && !request.focus && request.kind !== 'evals';
     const id = randomUUID();
     const now = new Date().toISOString();
     let superseded: string | null = null;
@@ -441,8 +456,8 @@ export class AssistantService {
       }
       this.sql
         .prepare(
-          `INSERT INTO assistant_runs (id, project_id, kind, status, model, effort, description, focus, language, resource_kind, empty, template, proposes, base_sources, reads, supersedes, started_at)
-           VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+          `INSERT INTO assistant_runs (id, project_id, kind, status, model, effort, description, focus, language, resource_kind, eval_name, empty, template, proposes, base_sources, reads, supersedes, started_at)
+           VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -454,6 +469,7 @@ export class AssistantService {
           request.focus,
           language,
           request.resourceKind,
+          request.evalName,
           empty ? 1 : 0,
           JSON.stringify(proposes),
           JSON.stringify(base),
@@ -475,8 +491,8 @@ export class AssistantService {
       this.announce(id, 'ended');
       return this.run(id);
     }
-    const brief = this.brief(project, known, request, proposes, empty, offered, language);
-    this.remember(id, project, known);
+    const brief = this.brief(project, known, request, proposes, empty, offered, language, evalBrief);
+    this.remember(id, project, known, evalBrief);
     await this.track(this.launch(this.mustRow(id), project, brief, known, null));
     return this.run(id);
   }
@@ -488,6 +504,7 @@ export class AssistantService {
     description: string | null;
     focus: string | null;
     resourceKind: AssistantResourceKind | null;
+    evalName: string | null;
     supersede: boolean;
   } {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new AssistantError('the request must be a JSON object', 400);
@@ -528,8 +545,15 @@ export class AssistantService {
     }
     if (kind === 'resources' && description && !resourceKind) throw new AssistantError('a resource built from a description needs its resourceKind', 400);
     if (resourceKind && !description) throw new AssistantError('resourceKind needs the description of the resource to build', 400);
+    let evalName: string | null = null;
+    if (body.evalName !== undefined && body.evalName !== null) {
+      if (kind !== 'evals') throw new AssistantError('evalName goes with an evals run only', 400);
+      if (typeof body.evalName !== 'string' || !EVAL_NAME_PATTERN.test(body.evalName)) throw new AssistantError('evalName must be an eval file name: lowercase letters, digits and dashes', 400);
+      evalName = body.evalName;
+    }
+    if (kind === 'evals' && !evalName) throw new AssistantError('an evals run needs the evalName of the eval to draft cases for', 400);
     if (body.supersede !== undefined && typeof body.supersede !== 'boolean') throw new AssistantError('supersede must be a boolean', 400);
-    return { kind, model, effort, description, focus, resourceKind, supersede: body.supersede === true };
+    return { kind, model, effort, description, focus, resourceKind, evalName, supersede: body.supersede === true };
   }
 
   private kindOf(value: unknown): AssistantRunKind {
@@ -541,11 +565,12 @@ export class AssistantService {
   private brief(
     project: AssistantProject,
     known: AssistantKnown,
-    request: { kind: AssistantRunKind; description: string | null; focus: string | null; resourceKind: AssistantResourceKind | null },
+    request: { kind: AssistantRunKind; description: string | null; focus: string | null; resourceKind: AssistantResourceKind | null; evalName?: string | null },
     proposes: AssistantProposalKind[],
     empty: boolean,
     offered: { template: ProjectTemplateId; team: ProjectTemplateTeam; optionalTeam: ProjectTemplateTeam },
     language: AssistantLanguage,
+    evalFile: AssistantEvalBrief | null = null,
   ): AssistantBrief {
     const items = this.deps.items.list({ projectId: project.id });
     const listed = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, WORK_ITEMS_LISTED);
@@ -568,6 +593,25 @@ export class AssistantService {
       chats: known.chats.slice(0, CHATS_LISTED),
       git: known.git,
       language,
+      evalName: request.evalName ?? null,
+      evalFile,
+    };
+  }
+
+  /** What an evals run is told of its eval; a run for a file that is missing or does not parse is refused before it is paid for. */
+  private async evalBrief(project: AssistantProject, name: string | null): Promise<AssistantEvalBrief> {
+    if (!name) throw new AssistantError('an evals run needs the evalName of the eval to draft cases for', 400);
+    if (!this.deps.evalFile) throw new AssistantError('instruction evals are not available', 409);
+    const found = await this.deps.evalFile(project, name);
+    if (!found) throw new AssistantError(`there is no eval named ${name} in this project`, 404);
+    const definition = found.file.definition;
+    if (!definition) throw new AssistantError(`the eval ${name} does not parse, so cases cannot be added to it: fix it first`, 409);
+    return {
+      title: definition.title,
+      target: definition.target,
+      targetPath: found.targetPath,
+      caseIds: definition.cases.map((c) => c.id),
+      caseTitles: definition.cases.map((c) => c.title ?? c.id),
     };
   }
 
@@ -804,6 +848,7 @@ export class AssistantService {
       description: row.description,
       templateTeam: project ? templateOffered(project).team : [],
       optionalTeam: project ? templateOffered(project).optionalTeam : [],
+      evalFile: this.evalBriefs.get(row.id) ?? null,
     };
     const answer = parseAnswer(result.structuredOutput, brief);
     if (!answer) {
@@ -881,7 +926,7 @@ export class AssistantService {
       const proposals = rows.map((r) => this.proposalOf(r)).map((p) => ({
         id: p.id,
         kind: p.kind,
-        title: p.kind === 'team-member' ? roleTitle(p.member.role) : p.kind === 'resource' ? p.resource.name : p.workItem.title,
+        title: p.kind === 'team-member' ? roleTitle(p.member.role) : p.kind === 'resource' ? p.resource.name : p.kind === 'eval-case' ? (p.case.title ?? p.case.id) : p.workItem.title,
         summary: p.reason.slice(0, SUMMARY_MAX),
       }));
       const outcome = await engine.ask(
@@ -953,11 +998,17 @@ export class AssistantService {
       };
       this.insertProposal(row.id, row.project_id, 'work-item', position++, w.reason, stored, now);
     }
+    position = 0;
+    for (const e of answer.evalCases) {
+      this.insertProposal(row.id, row.project_id, 'eval-case', position++, e.reason, e.case, now);
+    }
   }
 
   /** What resources each running run was told of, so its answer does not propose them again */
   private readonly knownResources = new Map<string, Record<AssistantResourceKind, string[]>>();
   private readonly settingsOfRun = new Map<string, ProjectSettings>();
+  /** What each running evals run was told of its eval, so its answer does not reuse a case id */
+  private readonly evalBriefs = new Map<string, AssistantEvalBrief>();
 
   private projectSettingsOf(row: RunRow): ProjectSettings | null {
     return this.settingsOfRun.get(row.id) ?? null;
@@ -985,17 +1036,19 @@ export class AssistantService {
         const project = await this.deps.project(row.project_id);
         const known = await this.deps.known(project);
         const proposes = parseJson<AssistantProposalKind[]>(row.proposes, []);
+        const evalBrief = row.kind === 'evals' ? await this.evalBrief(project, row.eval_name) : null;
         const brief = this.brief(
           project,
           known,
-          { kind: row.kind as AssistantRunKind, description: row.description, focus: row.focus, resourceKind: row.resource_kind as AssistantResourceKind | null },
+          { kind: row.kind as AssistantRunKind, description: row.description, focus: row.focus, resourceKind: row.resource_kind as AssistantResourceKind | null, evalName: row.eval_name },
           proposes,
           row.empty === 1,
           templateOffered(project.settings),
           // A run that never got a chat is asked again from its start, titled as it was the first time
           assistantLanguage(row.language),
+          evalBrief,
         );
-        this.remember(row.id, project, known);
+        this.remember(row.id, project, known, evalBrief);
         await this.track(this.launch(this.mustRow(row.id), project, brief, known, row.chat_id));
       } catch (err) {
         this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, `The assistant could not go on after a restart: ${err instanceof Error ? err.message : String(err)}`));
@@ -1016,6 +1069,8 @@ export class AssistantService {
     if (row.status !== 'pending') throw new AssistantError(`the proposal is ${row.status}, not pending`, 409);
     const project = await this.deps.project(row.project_id);
     const proposal = this.proposalOf(row);
+    // An eval file is repository content that runs commands once consented to: only the person writes one
+    if (proposal.kind === 'eval-case' && actor.kind !== 'person') throw new AssistantError('only the person can accept a drafted eval case', 403);
     // Checked before claiming, so a refusal leaves nothing to hand back
     this.requireModule(project, proposal.kind);
     if (!this.claim(row.id, 'pending', 'accepted', actor)) throw new AssistantError('the proposal was decided meanwhile', 409);
@@ -1100,6 +1155,7 @@ export class AssistantService {
       await this.deps.saveResource(project, scope, r.kind, name, content);
       return { saved: { scope, name, path: assistantResourcePath(r.kind, name, scope) } };
     }
+    if (proposal.kind === 'eval-case') return this.performEvalCase(project, proposal, edits);
     const w = { ...proposal.workItem, ...edits.workItem };
     const epicId = w.type === 'epic' ? null : w.epicId && this.deps.items.find(w.epicId)?.type === 'epic' ? w.epicId : null;
     const run = this.row(proposal.runId);
@@ -1152,6 +1208,26 @@ export class AssistantService {
     return true;
   }
 
+  /**
+   * Appends the case, as the person left it, to the eval file through the strict write. The SHA is
+   * the one they saw: a file changed since is a conflict, never overwritten. The draft is a
+   * proposal only until here; the agent that drafted it could not write anything.
+   */
+  private async performEvalCase(project: AssistantProject, proposal: Extract<AssistantProposal, { kind: 'eval-case' }>, edits: Edits): Promise<Outcome> {
+    if (!this.deps.appendEvalCase) throw new AssistantError('instruction evals are not available', 409);
+    if (!edits.evalCase) throw new AssistantError('evalCase.ifMatch is required: the SHA of the eval file the person saw', 400);
+    const drafted = edits.evalCase.case ?? proposal.case;
+    try {
+      await this.deps.appendEvalCase(project, proposal.evalName, drafted, edits.evalCase.ifMatch);
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code === 'changed-on-disk' || code === 'not-found') throw new AssistantError(err instanceof Error ? err.message : 'the eval changed on disk since it was read', 409);
+      if (code === 'invalid' || code === 'too-large' || code === 'unsupported-version') throw new AssistantError(err instanceof Error ? err.message : 'the case is not valid', 400);
+      throw err;
+    }
+    return { acceptedCaseId: drafted.id };
+  }
+
   private ended(runId: string): void {
     const pending = this.readEvents.get(runId);
     if (pending?.timer) clearTimeout(pending.timer);
@@ -1161,12 +1237,14 @@ export class AssistantService {
     this.dirs.delete(runId);
     this.knownResources.delete(runId);
     this.settingsOfRun.delete(runId);
+    this.evalBriefs.delete(runId);
     const status = this.row(runId)?.status;
     this.announce(runId, status === 'failed' ? 'failed' : 'ended');
   }
 
   /** What a run is told of its project, kept while it runs so its answer is read against it. */
-  private remember(runId: string, project: AssistantProject, known: AssistantKnown): void {
+  private remember(runId: string, project: AssistantProject, known: AssistantKnown, evalFile: AssistantEvalBrief | null = null): void {
+    if (evalFile) this.evalBriefs.set(runId, evalFile);
     this.dirs.set(runId, project.path);
     this.knownResources.set(runId, known.resources);
     this.settingsOfRun.set(runId, project.settings);
@@ -1246,6 +1324,7 @@ export class AssistantService {
       effort: isEffort(row.effort) ? row.effort : null,
       description: row.description,
       ...(row.kind === 'work-items' ? { focus: row.focus } : {}),
+      ...(row.kind === 'evals' ? { evalName: row.eval_name } : {}),
       ...(row.language ? { language: assistantLanguage(row.language) } : {}),
       resourceKind: (row.resource_kind as AssistantResourceKind | null) ?? null,
       chatId: row.chat_id,
@@ -1300,6 +1379,11 @@ export class AssistantService {
     if (row.kind === 'resource') {
       return { ...base, kind: 'resource', resource: parseJson<ProposedResource>(row.payload, emptyResource()), saved: outcome.saved ?? null };
     }
+    if (row.kind === 'eval-case') {
+      const drafted = parseJson<EvalCase>(row.payload, { id: '', prompt: '', expect: [] });
+      const run = this.row(row.run_id);
+      return { ...base, kind: 'eval-case', evalName: run?.eval_name ?? '', case: drafted, acceptedCaseId: outcome.acceptedCaseId ?? null };
+    }
     const stored = parseJson<StoredWorkItem>(row.payload, { type: 'task', title: '', description: '', priority: 'medium', labels: [], acceptanceCriteria: [], epicId: null, similarToId: null });
     const epic = this.ref(stored.epicId);
     return {
@@ -1323,7 +1407,7 @@ export class AssistantService {
   private announce(runId: string, action: AssistantRunAction): void {
     const row = this.row(runId);
     if (!row) return;
-    const what = row.kind === 'project' ? 'Project assistant' : row.kind === 'work-items' ? 'Suggest tasks' : 'Suggest resources';
+    const what = row.kind === 'project' ? 'Project assistant' : row.kind === 'work-items' ? 'Suggest tasks' : row.kind === 'evals' ? 'Draft eval cases' : 'Suggest resources';
     const title =
       action === 'started' ? `${what} started` : action === 'read' ? `${what} is reading` : action === 'failed' ? `${what} failed` : `${what} ${row.status}`;
     try {
@@ -1344,7 +1428,7 @@ export class AssistantService {
   }
 
   private announceProposal(proposal: AssistantProposal, action: AssistantProposalAction): void {
-    const label = proposal.kind === 'team-member' ? roleTitle(proposal.member.role) : proposal.kind === 'resource' ? proposal.resource.name : proposal.workItem.title;
+    const label = proposal.kind === 'team-member' ? roleTitle(proposal.member.role) : proposal.kind === 'resource' ? proposal.resource.name : proposal.kind === 'eval-case' ? (proposal.case.title ?? proposal.case.id) : proposal.workItem.title;
     const saved = proposal.kind === 'resource' ? proposal.saved : null;
     try {
       this.deps.emit({
@@ -1398,7 +1482,7 @@ function systemPrompt(journal: string, instructions: string | null): string {
 
 function emptyCounts(): Record<AssistantProposalKind, AssistantProposalCount> {
   const zero = (): AssistantProposalCount => ({ total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 });
-  return { 'team-member': zero(), resource: zero(), 'work-item': zero() };
+  return { 'team-member': zero(), resource: zero(), 'work-item': zero(), 'eval-case': zero() };
 }
 
 function emptyMember(): ProposedTeamMember {
@@ -1433,6 +1517,7 @@ interface Edits {
   member: Partial<Omit<ProposedTeamMember, 'fromTemplate'>>;
   resource: { name?: string; content?: string; scope?: ConfigScopeKind };
   workItem: Partial<Omit<StoredWorkItem, 'similarToId'>>;
+  evalCase?: { case?: EvalCase; ifMatch: string };
 }
 
 /**
@@ -1475,6 +1560,14 @@ function parseEdits(input: unknown): Edits {
     set('description', text(member.description, 'member.description', MEMBER_DESCRIPTION_MAX));
     set('instructions', text(member.instructions, 'member.instructions', CONTENT_MAX));
     set('writes', texts(member.writes, 'member.writes', MEMBER_WRITES_MAX, MEMBER_TEXT_MAX));
+  }
+  const evalCase = obj(body.evalCase, 'evalCase');
+  if (evalCase) {
+    const ifMatch = text(evalCase.ifMatch, 'evalCase.ifMatch', 128);
+    if (!ifMatch) throw new AssistantError('evalCase.ifMatch is required', 400);
+    const edited = obj(evalCase.case, 'evalCase.case');
+    // Its fields are checked by the eval file's own parser when it is written
+    edits.evalCase = { ifMatch, ...(edited ? { case: edited as unknown as EvalCase } : {}) };
   }
   const resource = obj(body.resource, 'resource');
   if (resource) {

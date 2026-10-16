@@ -205,13 +205,17 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Context breakdown | the `get_context_usage` control request (`detail: summary` unless asked) |
 | Compaction | `/compact` sent as a user turn over stream-json; the `system/status` (`compacting`) and `system/compact_boundary` events; the boundary and `isCompactSummary` lines of the transcript |
 | Orchestration planner | `--json-schema` structured output |
+| Review gate | `--json-schema` findings under `--restricted --tools=Read,Grep,Glob`, `--max-budget-usd`, `--max-turns`, `--agents` and `--agent` for the role |
 | Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
+| Lessons from corrections | one confined one-shot chat per mined stretch: `--json-schema`, `--max-budget-usd`, `--restricted --tools= --setting-sources=`, `--no-session-persistence`, and no API token in it ([docs/lessons.md](docs/lessons.md)) |
 | Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
 | Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums the `total_cost_usd` of each `result` message in the stream (the CLI's own figure; Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
+| Instruction evals | one housekeeping chat per sample (`claude -p --input-format stream-json --output-format stream-json`, no API token, no journal) in a detached `git worktree` outside the repository, with `--max-budget-usd` as the per-sample cap. The tool calls are read from the stream and the files from the worktree, and nothing is judged by a model, except a judged expectation behind `evalsPhase2`: a schema-bound judge chat with no tools ([docs/plans/instruction-evals.md](docs/plans/instruction-evals.md)) |
 | Path-scoped rules | `.claude/rules/*.md` files with a `paths:` list in their front matter, which the CLI loads as project memory; Claudio writes them when a person approves a `rule` proposal ([docs/team-and-flow.md](docs/team-and-flow.md)) |
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
+| Guards on tool calls | `--settings <file>` with only Claudio's own hooks (a content-addressed file under `<data>/guards/`) and `--include-hook-events`, read for the guard's marker lines only ([docs/guards.md](docs/guards.md)) |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
 
@@ -454,6 +458,7 @@ transpiler.
 | `CLAUDIO_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
 | `CLAUDIO_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `CLAUDIO_MCP_ENTRY` | the `mcp.mjs` beside the API bundle, when it exists | The bundle of Claudio's own MCP server a confined chat's CLI starts; from source it runs `packages/mcp` with tsx. See [docs/claudio-mcp-server.md](docs/claudio-mcp-server.md) |
+| `CLAUDIO_GUARD_ENTRY` | the `guard.mjs` beside the API bundle | The bundle of Claudio's guard, the program the CLI runs on each tool call. It must not be group- or world-writable or sit under a project; from source it runs `packages/core/src/guards/main.ts`. See [docs/guards.md](docs/guards.md) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 Claudio sets two variables for every chat it starts, so an agent that calls the REST API reaches the
@@ -467,6 +472,13 @@ Claudio starts with authentication **off**, so a local install keeps working unt
 starts bound to `127.0.0.1` and answering only to loopback host names, so "off" is not the same as
 "open". Turn the guard on before the port is reachable by anyone you do not trust, and put a
 TLS-terminating proxy in front.
+
+**Guards.** Agent runs are covered by deterministic hooks that hold even in `bypassPermissions`: no
+`--no-verify`, no push, no force push, `reset --hard` or recursive delete outside the worktree, and no
+secret written into a file. They are on for orchestration workers and the flow, and per project for
+chats; Settings → Security → Guards switches them. They are defence in depth against mistakes, **not
+a sandbox**: an agent that can run arbitrary code can get round them, so real isolation is still the
+container, the user account and the worktree ([docs/guards.md](docs/guards.md)).
 
 **Modes.** Set from Settings → Security, or seeded from the environment on a fresh install
 (`CLAUDIO_AUTH_MODE`, `CLAUDIO_AUTH_TOKEN`, `CLAUDIO_OIDC_*`; once an `auth.json` exists in the data
@@ -504,9 +516,9 @@ directory it wins over the environment).
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
 - **`?token=`.** A browser cannot put a header on an `EventSource`, an `<img>` or a download link,
-  so five GETs also accept the credential in the query string: `/api/events`,
-  `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export` and
-  `/api/projects/:id/export`. Nothing else does. A proxy's access log will record that token, so keep
+  so six GETs also accept the credential in the query string: `/api/events`,
+  `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export`,
+  `/api/projects/:id/export` and `/api/eval-runs/:runId/export`. Nothing else does. A proxy's access log will record that token, so keep
   query strings out of it for those routes.
 - **OIDC is validation only.** Claudio checks a JWT and never talks to a token endpoint or signs
   anyone in; the browser UI signs in with a token, so in `oidc` mode clients bring a JWT their
@@ -644,8 +656,8 @@ or an answer; every write, and reading a sign-in, is refused to a chat's token. 
 Authentication is off by default (`mode: none`), which is what a local install on loopback wants.
 With `token` every route needs `Authorization: Bearer …`; with `oidc` it needs a JWT the issuer's
 JWKS validates (`aud` and `exp` are checked). `GET /api/health` stays open, `/docs` does not, and
-only the five GETs a browser makes without headers — `/events`, `/chats/:id/stream`,
-`/uploads/:id/content`, `/chats/:id/export` and `/projects/:id/export` — also accept the credential
+only the six GETs a browser makes without headers — `/events`, `/chats/:id/stream`,
+`/uploads/:id/content`, `/chats/:id/export`, `/projects/:id/export` and `/eval-runs/:runId/export` — also accept the credential
 as `?token=`. Only the SHA-256 of a token is stored; the token itself exists once, in the answer
 that created it. Lost it? `CLAUDIO_AUTH_TOKEN` with `CLAUDIO_AUTH_TOKEN_RESET=1` replaces it on the
 next start, audited with actor `env` (see [Securing it](#securing-it)).
@@ -656,6 +668,10 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
+| GET | `/settings/guards` | Guard settings (`mode`, `automated`, `rules`, `protectConfigs`, `extraRoots`), whether the guard can run here and why not, and the rule list. A chat's token may read it |
+| PUT | `/settings/guards` | Only the keys that change; `rules` merges over the stored ones. `integrity` cannot be switched. Applies to the next process spawned. `400` for an unknown key, a non-boolean, a bad mode, more than 200 globs, an absolute glob or one with `..`, or an `extraRoots` entry that is not an existing absolute directory (not `/`, the home folder or the data dir). `403` for a chat's token |
+| GET | `/guard-events?chatId=&orchestrationId=&flowRunId=&projectId=&rule=&outcome=&before=&limit=` | What the guards did, newest first, with `next` as the `before` cursor of the following page. `limit` is 1–200 (default 50). A chat's token reads only its own `chatId`, else `403` |
+| POST | `/guards/check` | `{ tool, input, rules?, roots? }` → `{ verdict, rule?, matcher?, reason? }` through the decision engine, nothing run or recorded. `403` for a chat's token |
 | GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). `limit` and `from` must be non-negative integers, or the answer is a `400` saying so. Bodies are never recorded |
 
 ### Remote access
@@ -693,6 +709,8 @@ the reset; it never sends the work to another vendor.
 | POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused. Without a template or modules every module is off; a directory that was a project before gets its settings back. Emits `project.created` |
 | POST | `/projects` | `{ name, gitUrl?, template?, modules? }` — create an empty project in the workspace or clone a repository into it, and import it. Emits `project.created` |
 | PATCH | `/projects/:id` | `{ name?, key?, modules? }` — rename a project, change its work item key prefix or the modules that are on. Switching a module off hides it and keeps its data |
+| GET | `/projects/:id/review-roles` | The review gate's reviewers for the project: file, `source` (`builtin` or `project`), `sha`, size and `problem`; `404` for an unknown project |
+| POST | `/projects/:id/review-roles/:role` | Write Claudio's default role file where none exists → `ReviewRoleInfo` (`201`); `409` `role-exists`, `404`. `403` to a chat token |
 | GET | `/projects/:id/settings` | The project's settings document (modules, template, key prefix, board). Created on first read with every module off |
 | PUT | `/projects/:id/settings` | Replace the settings document whole, validated. Emits `project.updated` |
 | GET | `/projects/:id/export?format=markdown\|json` | Download every chat of the project, streamed. `markdown` (default): a header with the dates, models and the cost the CLI reported, then each chat, oldest first, as `/chats/:id/export` renders it. `json`: a `ProjectExport` |
@@ -937,9 +955,42 @@ Where GitHub and GitLab deliver for a hook Claudio registered (tag `Webhooks`). 
 | DELETE | `/projects/:id/docs/:docId` | Drop the entry (the document on claude.ai is never touched) → `204`. Not open to a chat's token |
 | POST | `/projects/:id/docs/:docId/ask` | Open a chat in the project about the document → `201` with the chat. Not open to a chat's token |
 
+### Evals
+
+Instruction-compliance evals (Team module): a committed file in the project's
+`.claude/claudio-evals/<name>.json` holds prompts and deterministic expectations about the tool calls,
+the final text and the resulting files, and a run measures an agent file, skill, rule or `CLAUDE.md`
+in up to three variants (`pinned` at a commit, `current` on disk, `proposed` as sent). Only a
+person's click starts a run, and the start must repeat the cost ceiling the estimate showed
+(`confirmMaxCostUsd`). A chat's token may read and cancel but is refused (403) on writing, consent,
+starting, resuming, re-judging, drafting cases and deleting; Phase 2 answers 409 `evals-phase2-off` until `evalsPhase2` is on in the app settings; read-only mode refuses every write (405). Errors carry `code`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/evals` | The eval files, each with its parse problems and the newest run of that eval. 404 project; 409 `team-off` |
+| GET | `/projects/:id/evals/:name` | One file: definition, problems, SHA and whether this content has the person's consent. 400 name; 404 |
+| PUT | `/projects/:id/evals/:name` | `{ definition, ifMatch }` — write the file after a strict parse; `ifMatch` is the SHA that was read (`null` for a new file). 400 with the field paths; 409 `changed-on-disk`; 413 over 256 KiB |
+| DELETE | `/projects/:id/evals/:name` | Remove the file and its consent; the run history stays. 404; 409 `eval-running` |
+| POST | `/projects/:id/evals/:name/estimate` | `EvalRunRequest` → `EvalEstimate` (samples, ceiling, typical cost, commands to consent to, warnings). Starts nothing. 422 `pin-missing`, `target-missing`, `not-git`, `no-commit`, `lanes-root-contaminated`, `user-scope-proposal` |
+| POST | `/projects/:id/evals/:name/consent` | `{ sha }` — record consent for that content. 409 `changed-on-disk` when the SHA is not the file's now |
+| POST | `/projects/:id/evals/:name/runs` | `EvalRunRequest` — start a run (201). 409 `eval-running`, `cost-not-confirmed`; 412 `consent-needed`; 422 as in estimate |
+| GET | `/projects/:id/eval-head` | The checkout's repository state `{ git, sha, subject, uncommitted }`, for "Pin to HEAD" and the "Not committed" mark. 404 |
+| GET | `/projects/:id/eval-runs` | History, newest first: `?eval=&before=&limit=` (≤ 50) → `{ runs, next }`. 404 |
+| GET | `/eval-runs/:runId` | A run with its variants, samples and checks (calls left out). 404 |
+| GET | `/eval-runs/:runId/samples/:sampleId` | A sample with its calls, checks and final text. 404 |
+| GET | `/eval-runs/:runId/compare?base=&other=` | `EvalComparison` of two variants of the run (`current` and `proposed` by default). 400 when a variant is not in the run; 404 |
+| POST | `/eval-runs/:runId/cancel` | Cancel a live run; idempotent. 404 |
+| POST | `/eval-runs/:runId/resume` | `{ confirmMaxCostUsd }` — re-queue the unscored samples of an `interrupted` or `capped` run under a new ceiling (spent plus what is left). 409 `not-resumable`, `cost-not-confirmed`, `eval-running`; 412 `consent-needed` |
+| GET | `/eval-runs/:runId/gate` | Phase 2: the promotion gate of a run with `current` and `proposed` (`EvalGate`: `promotable`, `regressed` or `incomplete`). 404; 409 `evals-phase2-off` |
+| POST | `/eval-runs/:runId/rejudge` | Phase 2: judge again the `unjudged` samples from their stored calls, without re-running them → `{ rejudged, unjudged }`. 409 `eval-running`, `evals-phase2-off` |
+| POST | `/eval-runs/:runId/accept-judge` | Phase 2: `{ caseId, idx }` — accept a judge that disagreed with its calibration examples → the recomputed `EvalGate`. 400; 404; 409 `evals-phase2-off` |
+| POST | `/projects/:id/evals/:name/draft-cases` | Phase 2: start an assistant run (`kind: evals`) that proposes up to five cases; `{ model?, effort? }` → `AssistantRun`. 404; 409 `evals-phase2-off`, `spend-cap` |
+| DELETE | `/eval-runs/:runId` | Remove an ended run's rows. 404; 409 while it is live |
+| GET | `/eval-runs/:runId/export?format=json\|markdown` | Download the run (`content-disposition: attachment`); accepts `?token=`. 400 format; 404 |
+
 ### Decisions
 
-The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.
+The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes. `lesson.mine` gates the lesson miner ([docs/lessons.md](docs/lessons.md)); it ships `off` like every other point.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -1127,7 +1178,8 @@ does not turn the graph itself `failed`, because the graph's status is about its
 `failGraph: true` says the opposite, and the graph then ends `failed` with the checks as its error
 and no pull request offered. Every worker's prompt also gets the split of checks: run the type check
 and the unit tests, leave the browser suite to the verification, run long commands under `timeout`.
-`POST /orchestrations/:id/verify` runs the checks by hand.
+`POST /orchestrations/:id/verify` runs the checks by hand; with `verification.review` it also runs
+the review gate once the checks pass, and `GET /orchestrations/:id/review` reads it.
 
 **Revising a graph.** Any task of a finished graph on the graph engine can be **re-run**: it starts
 over with everything that depends on it, each in a new chat and a worktree rebuilt from what it now
@@ -1180,7 +1232,10 @@ every 3 s and only while a client listens.
 | GET | `/orchestrations/:id/integration/changes/diff?path=` | The unified diff of one file of the integration branch, with the same `?context=` and scopes |
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
-| POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, where an entry that is a list runs its commands in parallel, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. Returns at once |
+| POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, where an entry that is a list runs its commands in parallel, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. With `verification.review` the review gate runs after the checks pass; its bounds are validated (`400`). Returns at once |
+| GET | `/orchestrations/:id/review` | The review gate: `{ state, rounds, findings, totalFindings }`. `?round=` (default the latest), `?blocking=1`, `?limit=` (1–500, default 100), `?offset=`; `400` out of bounds, `404` for an unknown graph or one without a review. Open to a chat token |
+| POST | `/orchestrations/:id/review/retry` | Run the review again on a head whose checks passed → the orchestration, at once; `409` with `code` `review-running`, `checks-not-passed`, `head-moved` or `review-not-acceptable` (no review). Open to a chat token |
+| POST | `/orchestrations/:id/review/accept` | `{ reason }` — a person accepts a blocked gate, or an incomplete one after a retry also ended incomplete; bound to the head, voided by a new commit. `400` bad reason, `409` `review-not-acceptable`. `403` to a chat token |
 | POST | `/orchestrations/:id/pull-request` | Check the project's readiness, push the integration branch and open a pull or merge request with the host CLI → `{ branch, url, detail, pullRequest }`; `409` with the reason when the project cannot open one or the branch has nothing to propose |
 | GET | `/orchestrations/:id/workflow` | The graph as a workflow script → `{ path, script }` |
 | POST | `/orchestrations/:id/workflow/save` | `{ name?, overwrite? }` — copy that script into the project's `.claude/workflows/` |
@@ -1320,6 +1375,23 @@ project's Memory module on.
 | GET | `/projects/:id/memory/proposals?status=` | The team's memory proposals, newest first, by status |
 | POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text` (and, for a `rule` target, another `file`), and write it to its target: `CLAUDE.md`, a memory file, the journal, or a path-scoped rule in `.claude/rules/<file>` (new, appended when its paths are the same, 409 when they differ); a chat's token gets 403 |
 | POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written; a chat's token gets 403 |
+| GET | `/projects/:id/lessons?status=` | A project's lessons (`active` by default, or `proposed`, `retired`, `rejected`, `superseded`, `all`) and what a run is handed now (`handed`) |
+| GET | `/projects/:id/lessons/export` | Every lesson of the project, any status, as a JSON download; nothing reads lessons back in |
+| GET | `/projects/:id/lessons/jobs?limit=` | The project's lesson mining jobs, newest first (20 by default, 100 at most) |
+| GET | `/lessons/global?status=` | Global lessons, with what a chat outside any project is handed |
+| GET | `/lessons/settings` | The global lesson settings (`lessons.json`) |
+| PUT | `/lessons/settings` | Change them, with a partial body; 400 names a field out of range; a chat's token gets 403 |
+| GET | `/lessons/:lessonId` | One lesson, with its evidence |
+| PATCH | `/lessons/:lessonId` | Edit its `trigger` and `action`, or pin it — body `{ trigger?, action?, pinned? }`; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/confirm` | Say it still holds; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/retire` | Stop handing it to runs; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/restore` | Hand a retired lesson again; a chat's token gets 403 |
+| DELETE | `/lessons/:lessonId` | Delete a lesson that is not waiting for a decision; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/promote` | Make an active project lesson global; answers the global one; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/demote` | Move a global lesson back to its project — body `{ projectId? }`; a chat's token gets 403 |
+| POST | `/lessons/:lessonId/instructions` | Propose the lesson for `CLAUDE.md` as an `instructions` proposal — body `{ section? }`; a chat's token gets 403 |
+| POST | `/memory-proposals/:proposalId/preview` | The diff an `instructions` proposal would make to `CLAUDE.md`, with its sha256 to send back as `previewOf` on approve — body `{ text? }` |
+| POST | `/chats/:id/lessons/mine` | Look for lessons in a chat now, 202 with the job; one run per chat per 10 minutes; a chat's token gets 403 |
 
 ### Plugins
 

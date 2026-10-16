@@ -163,6 +163,9 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ]),
     ),
   ),
+  point({ id: 'lesson.mine', kind: 'suggest', scope: 'project', primitives: ['noul'], visible: false, fields: ['signals'] }, () => [
+    noul('mine', 'Do these signals show a person correcting, stopping or overruling the agent in a way that should change how agents work in this project from now on, beyond this one task?'),
+  ]),
   point({ id: 'board.triage', kind: 'suggest', scope: 'project', primitives: ['choice', 'noul'], fields: ['title', 'description', 'openItems', 'epics'] }, () => [
     choice('type', 'What kind of work item is this draft?', [
       ['task', 'A task: routine work with a clear end'],
@@ -235,6 +238,13 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ['branch-fixable', 'Branch-fixable: the branch caused the failures and the Developer can fix them by changing code'],
       ['not-branch', 'Not the branch: infrastructure, a flaky test or a change unrelated to this branch'],
       ['needs-person', 'Needs a person: a decision, access or a secret only a person can give is missing'],
+    ]),
+  ]),
+  // Light or full: there is no `skip`, because a model choosing to skip the gate would be a path that fails open. The resolver arrives with the gate runner
+  point({ id: 'review.depth', kind: 'act', scope: 'project', primitives: ['choice'], maxStateBytes: 4 * 1024, fields: ['files', 'added', 'deleted', 'paths', 'securityHit', 'dimensions', 'estimateUsd'] }, () => [
+    choice('depth', 'How deep should the review of this branch go?', [
+      ['light', 'Light: the change is small or mechanical, so correctness (and security when it applies) is enough'],
+      ['full', 'Full: the change is large, risky or touches behaviour, so every dimension should review it'],
     ]),
   ]),
   // Review comments are other people's text: they are data for the question and nothing else. The caller hands the unresolved threads; at most 40 are asked, each body already cut to 1 KiB
