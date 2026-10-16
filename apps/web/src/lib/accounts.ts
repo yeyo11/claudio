@@ -15,6 +15,13 @@ export const usagePct = (limit: AccountLimit | null | undefined): number | null 
 /** An account that hit its limit: nothing can start on it until the window resets. */
 export const accountExhausted = (account: Account): boolean => account.limits?.state === 'exhausted';
 
+/** An account that cannot be used until the person signs in again: its session expired or its stored sign-in is incomplete. */
+export const signInProblem = (account: Pick<Account, 'signInState'>): 'expired' | 'incomplete' | null =>
+  account.signInState === 'expired' || account.signInState === 'incomplete' ? account.signInState : null;
+
+/** Only a `login` account has a sign-in to redo; a token or key is replaced by removing and adding it. */
+export const canSignInAgain = (account: Pick<Account, 'kind'>): boolean => account.kind === 'login';
+
 /** Can new work start on it: enabled, signed in, not at its limit. */
 export const accountUsable = (account: Account): boolean => account.enabled && account.signedIn && !accountExhausted(account);
 

@@ -91,6 +91,12 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return session;
   });
 
+  app.post<{ Params: { id: string } }>('/accounts/:id/login', async (req, reply): Promise<AccountLoginSession> => {
+    const session = await logins.restart(req.params.id);
+    void reply.status(201);
+    return session;
+  });
+
   app.post<{ Body: unknown }>('/accounts/token', async (req, reply): Promise<Account> => {
     const b = body(req.body);
     if (b.kind !== 'token' && b.kind !== 'api-key') throw new Error('kind must be token or api-key');

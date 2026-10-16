@@ -839,6 +839,7 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | --- | --- | --- |
 | GET | `/accounts` | The CLI's own login (`default`) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading |
 | POST | `/accounts` | Add a `login` account and start `claude auth login` in its dir; `201` with the sign-in (`url` for the person to open). `{ alias?, email? }` |
+| POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir; `201` with the sign-in, followed like `POST /accounts`'s. The account is kept whatever the outcome; `400` for a token or api-key account |
 | POST | `/accounts/token` | Add a `token` or `api-key` account: `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
 | GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `cancelled`); `404` for an unknown one |
 | POST | `/accounts/logins/:id/code` | Hand the CLI the code the page showed, when its browser could not open: `{ code }`; `409` when the sign-in is over |

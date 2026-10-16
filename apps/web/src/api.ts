@@ -1026,6 +1026,7 @@ export const api = {
   testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
   accounts: (o: ReadOptions = {}) => request<Account[]>('/accounts', o),
   /** A `login` account: answers the sign-in session the CLI runs in the account's own dir */
+  signInAccountAgain: (id: string) => request<AccountLoginSession>(`/accounts/${encodeURIComponent(id)}/login`, { method: 'POST' }),
   addLoginAccount: (body: AddLoginAccountRequest) => request<AccountLoginSession>('/accounts', { method: 'POST', body }),
   addTokenAccount: (body: AddTokenAccountRequest) => request<Account>('/accounts/token', { method: 'POST', body }),
   updateAccount: (id: string, body: UpdateAccountRequest) => request<Account>(`/accounts/${enc(id)}`, { method: 'PATCH', body }),
