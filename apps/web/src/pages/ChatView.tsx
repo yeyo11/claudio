@@ -61,7 +61,7 @@ const SmoothEntry = memo(function SmoothEntry({ stream, text, continued }: { str
   const onRevealing = useCallback((revealing: boolean) => stream.setRevealing(revealing), [stream]);
   const shown = useSmoothText(text, level !== 'off', ending, onRevealing);
   const onHeight = useCallback((height: number) => void (stream.lastBlockHeight = height), [stream]);
-  return shown ? <StreamingEntry block="text" text={shown} continued={continued} fade={level === 'full'} onHeight={onHeight} /> : null;
+  return shown ? <StreamingEntry block="text" text={shown} continued={continued} onHeight={onHeight} /> : null;
 });
 
 const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: ChatStreamStore; chat: Chat; continued: boolean }) {

@@ -123,6 +123,11 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `--json-schema` result over: a `StructuredOutput` tool call whose input arrives as
   `stream_event` / `input_json_delta` events. The first half goes out at once, the rest before the
   next step (so a `hold:` right after it keeps the file half-written).
+- `type: <text>` — an assistant text block streamed as the CLI writes one with
+  `--include-partial-messages`: a `content_block_start` of type `text`, then `text_delta` events,
+  then the `assistant` event with the whole text. `\n` in the line is a line break, so a code block
+  fits on one line. The first half goes out at once, the rest before the next step (so a `hold:`
+  right after it keeps the answer half-written on the page).
 - `FAKE-LIMIT` (a line of its own) — the account's usage limit: a `rate_limit_event` with status
   `rejected` and `resetsAt` an hour ahead, then a failed `result` with `api_error_status: 429`. It
   fails every time it is sent.

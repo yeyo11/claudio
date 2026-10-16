@@ -411,17 +411,12 @@
   background: var(--bg-hover);
 }
 
-/* The newest words of the block being written arrive faded and settle in two steps (CSS Custom Highlight API, so no DOM is touched) */
-::highlight(stream-fresh-1) {
-  color: color-mix(in srgb, currentColor 35%, transparent);
-}
-
-::highlight(stream-fresh-2) {
-  color: color-mix(in srgb, currentColor 65%, transparent);
-}
-
-/* While Claude is writing, the caret follows the last block, unless the fade already shows where text arrives */
-.streaming-text:not(.has-fade) > :last-child::after {
+/*
+ * While Claude is writing, the caret after the last block is what says so. It is the only part of
+ * the streaming message that may be muted or move: the text itself is painted at full colour from
+ * its first character (R16; a fade of the newest words could not keep 4.5:1).
+ */
+.streaming-text > :last-child::after {
   content: '';
   display: inline-block;
   width: 7px;
@@ -433,7 +428,7 @@
   animation: caret-blink var(--caret-cycle) steps(2, start) infinite;
 }
 
-.streaming-text:not(.has-fade) > .code-block:last-child::after {
+.streaming-text > .code-block:last-child::after {
   display: none;
 }
 

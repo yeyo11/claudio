@@ -941,7 +941,15 @@ exactly as received at `off`.
 
 ### CHAT-9 — Fade new words in
 
-Status: built 2026-10-15 (no PR yet). Deviations: the hook `useStreamFade` lives in `smooth-text.ts` next to `freshRanges`; `SmoothEntry` passes `fade` (motion `full`) to `StreamingEntry`, which sets `has-fade` on `.streaming-text` and scopes the caret rules with `:not(.has-fade)`. Two steps (0–120 ms, 120–240 ms), as in the sketch. Not checked in a browser.
+Status: **removed 2026-10-17 (R16 (a), [requests.md](../requests.md))**. The fade put the whole
+streaming answer, code blocks included, at 35 % of its colour: every time markdown closed a `**`, a
+backtick or a fence, the rendered text got shorter, step 2 cleared the checkpoints, and the next
+paint marked everything from offset 0 as fresh. Even fixed, it breaks the owner's rule (text keeps
+4.5:1 during the turn; only the live indicator may be muted): at 90 % of its colour the faintest
+text (`--text-faint`, comments) is already below 4.5:1 in the light theme. The caret is now the
+streaming block's live mark at every motion level; `packages/chat-ui/test/streaming-legible.test.ts`
+and `e2e/specs/composer.spec.mjs` guard it. What follows is the design as it was built on
+2026-10-15 (no PR yet). Deviations: the hook `useStreamFade` lives in `smooth-text.ts` next to `freshRanges`; `SmoothEntry` passes `fade` (motion `full`) to `StreamingEntry`, which sets `has-fade` on `.streaming-text` and scopes the caret rules with `:not(.has-fade)`. Two steps (0–120 ms, 120–240 ms), as in the sketch. Not checked in a browser.
 
 **Design.** Fade the freshest characters of the streaming block without touching React's DOM, with
 the CSS Custom Highlight API (Chromium, which the web app and the Electron desktop app use;
