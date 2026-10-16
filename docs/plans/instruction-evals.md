@@ -183,6 +183,11 @@ holds: every surface used below is already in the README table, "How it talks to
 | F11 | Does an `outputStyle` in project settings apply in `-p`? | Output-style targets (Phase 2) | They stay out |
 | F12 | Does `rotation.ts`'s replay of an `internal` chat (`rotation.ts:147-185`, `chats.ts:1438`) send its turn into a process that cannot resume? (code reading plus one fake-CLI run) | Decision 10 | The `e6` guard is needed either way; this fact only sets its test |
 
+Recording status (2026-10-16): F1 (ancestor `CLAUDE.md` and `CLAUDE.local.md` do load) and F12
+(the replay can reach an `internal` chat, so the `e6` guard is needed) are answered in
+[reports/instruction-evals-e0.md](../reports/instruction-evals-e0.md); the installed CLI is 2.1.301.
+F2–F11 wait for the account's usage limit to reset.
+
 The recording follows the scrubbing of [plans/multi-provider.md](multi-provider.md) phase 3. It goes
 to `docs/reports/instruction-evals-e0.md`, with fixtures under
 `packages/core/test/fixtures/recordings/evals/`. A fact that contradicts this plan becomes a
