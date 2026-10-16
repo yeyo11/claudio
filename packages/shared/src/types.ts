@@ -218,7 +218,28 @@ export type ContentBlock =
   | { type: 'image'; mediaType: string; name?: string; uploadId?: string }
   | { type: 'document'; mediaType: string; name?: string; uploadId?: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
-  | { type: 'tool_result'; toolUseId: string; content: string; isError: boolean };
+  | { type: 'tool_result'; toolUseId: string; content: string; isError: boolean; detail?: ToolResultDetail };
+
+/**
+ * What the CLI recorded beside a tool result (`tool_use_result` on its stream, `toolUseResult` in
+ * its transcript), kept only where it says something the result's text does not: the text stays
+ * the record, this tells the page how to read it.
+ */
+export type ToolResultDetail =
+  /** `Read`: the text is the file with `N\t` line prefixes */
+  | { kind: 'file'; path: string; startLine: number; numLines: number; totalLines: number }
+  /** `Edit`, `MultiEdit`, `Write`, `NotebookEdit`: the patch as unified text (`''` when the CLI kept none); `created` for a new file */
+  | { kind: 'patch'; path: string; patch: string; created: boolean }
+  /** `Bash`: the text is stdout; `backgroundTaskId` when the command was sent to the background */
+  | { kind: 'command'; stderr: string; interrupted: boolean; backgroundTaskId: string | null }
+  /** `Grep`, `Glob` */
+  | { kind: 'matches'; mode: 'files' | 'content' | 'count'; total: number }
+  /** `WebFetch` */
+  | { kind: 'fetch'; status: number | null; bytes: number | null }
+  /** `Agent`, `Task`: the CLI's id of the agent, which names its transcript and its `ChatSubagent` */
+  | { kind: 'agent'; agentId: string; background: boolean; model: string | null }
+  /** Anything else that was an object, when its JSON is under 8 000 characters */
+  | { kind: 'data'; value: unknown };
 
 /**
  * A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other

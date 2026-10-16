@@ -1910,6 +1910,9 @@
           },
           "isError": {
             "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/ToolResultDetail"
           }
         },
         "required": [
@@ -1920,6 +1923,182 @@
         ]
       }
     ]
+  },
+  "ToolResultDetail": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "file"
+          },
+          "path": {
+            "type": "string"
+          },
+          "startLine": {
+            "type": "number"
+          },
+          "numLines": {
+            "type": "number"
+          },
+          "totalLines": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "startLine",
+          "numLines",
+          "totalLines"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "patch"
+          },
+          "path": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "string"
+          },
+          "created": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "patch",
+          "created"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "command"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "interrupted": {
+            "type": "boolean"
+          },
+          "backgroundTaskId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "stderr",
+          "interrupted",
+          "backgroundTaskId"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "matches"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "files",
+              "content",
+              "count"
+            ]
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "mode",
+          "total"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "fetch"
+          },
+          "status": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "status",
+          "bytes"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "agent"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "background": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "agentId",
+          "background",
+          "model"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "data"
+          },
+          "value": {}
+        },
+        "required": [
+          "kind",
+          "value"
+        ]
+      }
+    ],
+    "description": "What the CLI recorded beside a tool result (`tool_use_result` on its stream, `toolUseResult` in its transcript), kept only where it says something the result's text does not: the text stays the record, this tells the page how to read it."
   },
   "TranscriptCompaction": {
     "type": "object",
