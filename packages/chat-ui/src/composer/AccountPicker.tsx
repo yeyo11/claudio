@@ -135,6 +135,8 @@ function AccountItem({ row, model, waiting, tabbable, busy, onChoose }: { row: A
               <Tag tone="ok">{t('composerMenu.account.inUse')}</Tag>
             ) : state === 'disabled' ? (
               <Tag>{t('composerMenu.account.disabled')}</Tag>
+            ) : state === 'sign-in-expired' ? (
+              <Tag tone="bad">{t('composerMenu.account.signInExpired')}</Tag>
             ) : state === 'signed-out' ? (
               <Tag tone="warn">{t('composerMenu.account.signedOut')}</Tag>
             ) : state === 'exhausted' ? (

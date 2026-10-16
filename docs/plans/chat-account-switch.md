@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:50:00Z
-updated_at: 2026-10-16T12:50:00Z
+updated_at: 2026-10-16T16:00:00Z
 tags:
     - plan
     - accounts
@@ -114,8 +114,9 @@ and [chat-composer.md](../chat-composer.md). Known gaps:
 
 - The "Switched to X" transcript line comes from the live stream, so a page reload drops it; making
   it permanent needs the server to write the notice into the chat's transcript.
-- "Sign-in expired" rests on `Account.signInState` once [rotation-auth-fixes.md](rotation-auth-fixes.md)
-  adds it; until then only `signedIn` is read.
+- "Sign-in expired" reads `Account.signInState` since the merge with
+  [rotation-auth-fixes.md](rotation-auth-fixes.md): an `expired` or `incomplete` account is disabled
+  in the menu with that reason, and `POST /chats/:id/account` refuses it with 409 `sign-in-expired`.
 - The spec was written but not run by this task; it runs with the e2e suite on the merged branch.
 
 ## Related

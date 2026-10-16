@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T15:30:00Z
-updated_at: 2026-10-15T15:30:00Z
+updated_at: 2026-10-16T16:00:00Z
 tags:
     - chat
     - composer
@@ -65,8 +65,9 @@ The root element is `[role=textbox][aria-multiline=true]` with the box's `aria-l
 - **Account** (above the servers, shown with two or more accounts). One row per account: its name,
   plan, a usage bar of its binding window (neutral, warn from 60 %, bad from 75 % or exhausted) and
   its state in words, the chat's own marked "In use". A disabled, signed-out or exhausted account,
-  or one that does not offer the chat's model, is shown disabled with the reason and stays
-  focusable. Choosing a row on an idle chat moves it at once; on a working chat the row says "When
+  one whose sign-in is unusable (`Account.signInState` `expired` or `incomplete`: "Sign-in expired",
+  status bad), or one that does not offer the chat's model, is shown disabled with the reason and
+  stays focusable. Choosing a row on an idle chat moves it at once; on a working chat the row says "When
   this turn ends" and an "Undo" button cancels it until then. The list is a `menu` of
   `menuitemradio` rows (`AccountPicker.tsx`, rules in `lib/account-choice.ts`), 44 px high on a
   phone. The switch itself is described in [accounts.md](accounts.md) and

@@ -4,7 +4,7 @@ import type { Account, AccountLimit, ModelOption } from '@claudio/shared';
 const DEFAULT_ID = 'default';
 
 /** Why an account cannot be chosen for the chat, or `ok` when it can. `current` is the one in use. */
-export type AccountRowState = 'current' | 'ok' | 'disabled' | 'signed-out' | 'exhausted' | 'model-unavailable';
+export type AccountRowState = 'current' | 'ok' | 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable';
 
 export interface AccountRow {
   account: Account;
@@ -36,6 +36,8 @@ export function accountRow(account: Account, chat: { account?: string | null; mo
   const row = { account, pct: usagePct(limit), resetsAt: limit?.resetsAt ?? null };
   if (account.id === (chat.account ?? DEFAULT_ID)) return { ...row, state: 'current' };
   if (!account.enabled) return { ...row, state: 'disabled' };
+  // An unusable sign-in also clears signedIn; it goes first so the row says what fixes it
+  if (account.signInState === 'expired' || account.signInState === 'incomplete') return { ...row, state: 'sign-in-expired' };
   if (!account.signedIn) return { ...row, state: 'signed-out' };
   if (limit?.state === 'exhausted') return { ...row, state: 'exhausted' };
   if (chat.model && models && models.length > 0 && !offersModel(models, chat.model)) return { ...row, state: 'model-unavailable' };

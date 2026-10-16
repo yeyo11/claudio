@@ -29,6 +29,17 @@ test("the chat's own account is in use, and a chat with none ran on the default 
   assert.equal(accountRow(account({ id: 'default' }), { account: null, model: null }, undefined).state, 'current');
 });
 
+test('an account whose sign-in expired or is incomplete cannot be chosen, and says so before signed out', () => {
+  for (const signInState of ['expired', 'incomplete'] as const) {
+    const row = accountRow(account({ signInState, signedIn: false, limits: limits({ state: 'exhausted' }) }), chat, undefined);
+    assert.equal(row.state, 'sign-in-expired');
+    assert.equal(canChoose(row), false);
+  }
+  assert.equal(accountRow(account({ enabled: false, signInState: 'expired', signedIn: false }), chat, undefined).state, 'disabled');
+  // `unknown` is what the CLI's own dir with no file to read reports: still usable
+  assert.equal(accountRow(account({ signInState: 'unknown' }), chat, undefined).state, 'ok');
+});
+
 test('the reason an account cannot be chosen goes in this order: off, signed out, exhausted', () => {
   assert.equal(accountRow(account({ enabled: false, signedIn: false }), chat, undefined).state, 'disabled');
   assert.equal(accountRow(account({ signedIn: false, limits: limits({ state: 'exhausted' }) }), chat, undefined).state, 'signed-out');
