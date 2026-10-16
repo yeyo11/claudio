@@ -74,19 +74,20 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(active.status === 200, `${POINT} is active (${active.status} ${JSON.stringify(active.body)})`);
 
     // ---- 2. a chat asks to run npm install and is denied with a reason ----
-    const created = await api.post('/chats', { prompt: `${KEY} install the dependencies`, cwd: dirs.workspaceDir + '/e2e-lessons' });
+    // Prompts reach a person only when the chat asks for it; the API's default answers them with a deny
+    const created = await api.post('/chats', { prompt: `${KEY} install the dependencies`, cwd: dirs.workspaceDir + '/e2e-lessons', permissionPrompts: 'host' });
     check(created.status === 200 || created.status === 201, `the chat started (${created.status} ${JSON.stringify(created.body)})`);
     const chatId = created.body.id;
     chatIds.push(chatId);
     const request = await until(async () => (await api.get(`/chats/${chatId}/permissions`)).body[0], 'the chat asks for permission');
     const denied = await api.post(`/chats/${chatId}/permissions/${request.id}`, { behavior: 'deny', message: 'use pnpm' });
     check(denied.status === 200, `the command was denied (${denied.status})`);
-    await until(async () => (await api.get(`/chats/${chatId}`)).body.status === 'idle', 'the denied turn ended');
+    await until(async () => (await api.get(`/chats/${chatId}`)).body?.chat?.state === 'idle', 'the denied turn ended');
 
     // ---- 3. the person writes the correction, then the chat ends ----
     const said = await api.post(`/chats/${chatId}/messages`, { text: QUOTE });
     check(said.status === 200 || said.status === 202, `the correction was sent (${said.status})`);
-    await until(async () => (await api.get(`/chats/${chatId}`)).body.status === 'idle', 'the correction was heard');
+    await until(async () => (await api.get(`/chats/${chatId}`)).body?.chat?.state === 'idle', 'the correction was heard');
     await api.post(`/chats/${chatId}/stop`);
 
     // ---- 4. one lesson proposal waits in the Memory tab, with the Spanish quote ----
@@ -115,8 +116,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     const handed = (await api.get(`/projects/${projectId}/journal`)).body.handed;
     check(handed.lessons === 1, `the journal reports one lesson handed (${JSON.stringify(handed)})`);
 
-    // The Lessons segment lists it
-    await page.click('[role=radiogroup] [role=radio]', 'Lessons', 800);
+    // The Lessons card lists it: a desktop shows the card beside the others, only a phone has a Lessons segment
     await page.waitFor(`return !!document.querySelector('.lesson-row')`, { label: 'the lesson row' });
     const row = await page.text('.lesson-row');
     check(row.includes(lesson.key) && row.includes('pnpm'), `the row shows the lesson (${row.slice(0, 160)})`);
@@ -151,7 +151,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // ---- 8. light theme and motion off, on the desktop ----
     await page.viewport(1440, 1000);
     await page.goto(`/?project=${projectId}&view=memory`, 1500);
-    await page.click('[role=radiogroup] [role=radio]', 'Lessons', 800).catch(() => {});
+    await page.waitFor(`return !!document.querySelector('.memory-grid .lesson-row')`, { label: 'the lesson row on the desktop again' });
     await page.eval(`document.documentElement.setAttribute('data-theme', 'light'); return true`);
     await sleep(300);
     await page.shot('lessons-light');
@@ -162,10 +162,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.eval(`document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.removeAttribute('data-motion'); return true`);
 
     // ---- 6. "Propose for CLAUDE.md": the diff dialog, then CLAUDE.md and Retired ----
-    await page.click(`.lesson-row [aria-label^="More actions for"]`, undefined, 600);
-    await page.click('[role=menuitem]', 'Propose for CLAUDE.md', 1200);
+    // The desktop's menu opens from the keyboard, like orchestration-v2's: a synthetic click does not open it
+    await page.focus(`.memory-grid .lesson-row [aria-label^="More actions for"]`);
+    await page.press('Enter');
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the lesson menu' });
+    await page.click('[role=menu] [role=menuitem]', 'Propose for CLAUDE.md', 1200);
     await until(async () => (await api.get(`/projects/${projectId}/memory/proposals?status=pending`)).body.find((p) => p.target.kind === 'instructions'), 'the instructions proposal exists');
-    await page.click('.memory-proposal .memory-approve', 'Approve', 1000).catch(() => {});
+    // The lesson's own menu opens the diff at once; the Approve of the proposal list would open a second one
     await page.waitFor(`return !!document.querySelector('.instr-diff .instr-diff-view')`, { label: 'the diff dialog shows the diff' });
     check((await page.text('.instr-diff')).includes('Lessons'), 'the diff names the Lessons section');
     await page.shot('lessons-diff-dark');
