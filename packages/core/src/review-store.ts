@@ -18,8 +18,8 @@ import type {
 export class ReviewStoreError extends Error {
   constructor(
     message: string,
-    readonly statusCode: 404 | 409,
-    readonly reason: 'review-running' | 'review-not-found' | 'review-not-acceptable',
+    readonly statusCode: 400 | 404 | 409,
+    readonly reason: 'review-running' | 'review-not-found' | 'review-not-acceptable' | 'checks-not-passed' | 'head-moved' | 'bad-reason',
   ) {
     super(message);
     this.name = 'ReviewStoreError';
