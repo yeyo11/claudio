@@ -33,6 +33,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'flow.criteria-precheck',
   'flow.criteria-merge',
   'flow.restart',
+  'context.compact',
   'run.continuation',
   'orchestration.model',
   'orchestration.fixer',

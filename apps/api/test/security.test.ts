@@ -788,6 +788,43 @@ test("a chat's token reads the context routes but cannot compact, ask for a note
   }
 });
 
+test("a chat's token cannot compact a chat by sending it /compact as a message, a resume or a fork either", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  for (const [url, body] of [
+    ['/api/chats/nope/messages', { text: '/compact' }],
+    ['/api/chats/nope/messages', { text: '  /compact keep the parser' }],
+    ['/api/chats/nope/resume', { prompt: '/compact' }],
+    ['/api/chats/nope/fork', { prompt: '/compact the tests' }],
+  ] as const) {
+    const res = await app.inject({ method: 'POST', url, ...fromChatWith(token, body) });
+    assert.equal(res.statusCode, 403, `${url} ${JSON.stringify(body)}`);
+    assert.match(res.json().error, /cannot compact a chat or ask it for a note/);
+    // The person typing it is the typed entry point, and is not refused by the guard
+    assert.equal((await app.inject({ method: 'POST', url, ...authed(owner, body) })).statusCode, 404, url);
+  }
+  // Anything else a chat sends is still a message: the chat does not exist, so 404 and not 403
+  for (const text of ['/compactness is not a command', 'please /compact later', '/context']) {
+    assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/messages', ...fromChatWith(token, { text }) })).statusCode, 404, text);
+  }
+});
+
+test("an open wrapper lets a chat's token compact, labelled as the chat", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const token = core.security.chatTokens.mint('chat-42');
+  for (const [url, body] of [
+    ['/api/chats/nope/compact', {}],
+    ['/api/chats/nope/messages', { text: '/compact' }],
+  ] as const) {
+    assert.equal((await app.inject({ method: 'POST', url, ...fromChatWith(token, body) })).statusCode, 404, url);
+  }
+  const entries = (await app.inject('/api/audit')).json().entries as Array<{ actor: string }>;
+  assert.deepEqual(entries.map((entry) => entry.actor), ['chat:chat-42', 'chat:chat-42']);
+});
+
 test('read-only refuses compacting and notes, and the desktop credential cannot write them', async (t) => {
   const desktop = 'a-per-launch-secret-of-32-random-bytes';
   const { app } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: desktop });

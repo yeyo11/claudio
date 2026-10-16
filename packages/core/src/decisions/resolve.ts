@@ -184,6 +184,26 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     return verdict(next.outcome !== 'passed', next.outcome === 'passed' ? 'A bounce was enough: the next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
   },
 
+  // The run's own chat, read between its start and end: the CLI compacted it by itself, or the run
+  // died on a full context, and `compact-first` was right; a pass with none, and `continue` was
+  'context.compact': (row, sql) => {
+    const answer = choiceOf(row, 'compact');
+    const run = runById(sql, row.subjectId);
+    if (!answer || !run) return null;
+    if (run.state !== 'ended' || !run.outcome || run.outcome === 'cancelled' || !run.chat_id) return null;
+    const started = sql.prepare('SELECT started_at, summary FROM flow_runs WHERE id = ?').get(run.id) as { started_at: string | null; summary: string | null } | undefined;
+    const auto = sql
+      .prepare("SELECT COUNT(*) AS n FROM chat_compactions WHERE chat_id = ? AND origin = 'cli' AND requested_at >= ? AND requested_at <= ?")
+      .get(run.chat_id, started?.started_at ?? row.at, run.ended_at ?? '9999') as { n: number };
+    const contextError = run.outcome === 'failed' && /context window|prompt is too long|context length/i.test(`${run.cause ?? ''} ${started?.summary ?? ''}`);
+    let needed: boolean;
+    if (auto.n > 0 || contextError) needed = true;
+    else if (run.outcome === 'passed') needed = false;
+    else return null;
+    const wanted = answer === 'compact-first';
+    return verdict(wanted === needed, needed ? 'The CLI compacted the chat during the run, or the run ran out of context' : 'The run passed with no compaction', { automatic: auto.n, outcome: run.outcome });
+  },
+
   'flow.restart': (row, sql) => {
     const requeue = row.answers?.requeue;
     const run = runById(sql, row.subjectId);

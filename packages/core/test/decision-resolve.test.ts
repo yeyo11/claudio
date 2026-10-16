@@ -112,6 +112,22 @@ test('flow.restart: do-not-requeue is right when the requeued run failed again',
   assert.equal(s.get(stop.id)?.agreed, true);
 });
 
+test('context.compact: compact-first is right when the CLI compacted during the run, continue when it passed with none', () => {
+  const s = setup();
+  s.run('r1', { stage: 'work', outcome: 'passed', chat: 'c1' });
+  s.run('r2', { stage: 'work', outcome: 'passed', chat: 'c2' });
+  s.run('r3', { stage: 'work', outcome: 'rejected', chat: 'c3' });
+  s.db.connection
+    .prepare("INSERT INTO chat_compactions (id, chat_id, origin, state, requested_at, lease_until) VALUES ('k1', 'c1', 'cli', 'done', '2026-09-01T10:30:00.000Z', ?)")
+    .run(T1);
+  const first = s.row('context.compact', { subjectId: 'r1', answers: { compact: choiceOf('compact-first') } });
+  const keep = s.row('context.compact', { subjectId: 'r2', answers: { compact: choiceOf('continue') } });
+  const wrong = s.row('context.compact', { subjectId: 'r2', answers: { compact: choiceOf('compact-first') } });
+  const unknown = s.row('context.compact', { subjectId: 'r3', answers: { compact: choiceOf('continue') } });
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(first.id)?.agreed, s.get(keep.id)?.agreed, s.get(wrong.id)?.agreed, s.get(unknown.id)?.agreed], [true, true, false, null]);
+});
+
 test('memory.triage: a high score is right when the proposal was approved, a duplicate when it was rejected', () => {
   const s = setup();
   const insert = (id: string, status: string): void => {

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, chatActor, type Core, type RuntimeHosts } from '@claudio/core';
+import { DESKTOP_ACTOR, TYPED_COMPACT, chatActor, type Core, type RuntimeHosts } from '@claudio/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -386,6 +386,18 @@ const CHAT_FORBIDDEN_CONTEXT = new Set([
   `DELETE ${API_PREFIX}/chats/:id/notes/:noteId`,
 ]);
 
+const CHAT_CANNOT_COMPACT = "a chat's token cannot compact a chat or ask it for a note: that is the person's click";
+
+/**
+ * The same paid turn reached through a text the CLI reads as its own `/compact`: the field of each
+ * route that becomes a user turn. Read once the body is parsed, so in `preHandler`.
+ */
+const CHAT_FORBIDDEN_COMPACT_TEXT = new Map([
+  [`POST ${API_PREFIX}/chats/:id/messages`, 'text'],
+  [`POST ${API_PREFIX}/chats/:id/resume`, 'prompt'],
+  [`POST ${API_PREFIX}/chats/:id/fork`, 'prompt'],
+]);
+
 /**
  * The terminal is the person's own shell: a chat's token cannot open, read or type into one, and
  * reads are included because the list says which shells are open and where. Under `mode: none` a
@@ -557,6 +569,8 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   };
   const runtimeHosts = core.appSettings.runtimeHosts;
   const backoff = new FailureBackoff();
+  // Requests a chat's token authenticated under a guarded mode: `preHandler` reads their bodies
+  const chatCredentials = new WeakSet<FastifyRequest>();
 
   app.addHook('onRequest', async (req, reply) => {
     // A CORS preflight carries no credential by definition, and answering it reveals nothing
@@ -628,9 +642,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_CONTEXT.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot compact a chat or ask it for a note: that is the person's click" });
+        void reply.status(403).send({ error: CHAT_CANNOT_COMPACT });
         return reply;
       }
+      if (chat !== null) chatCredentials.add(req);
       if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change what the decision engine sends" });
         return reply;
@@ -718,6 +733,17 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         });
         return reply;
       }
+    }
+    return;
+  });
+
+  app.addHook('preHandler', async (req, reply) => {
+    if (!chatCredentials.has(req)) return;
+    const field = CHAT_FORBIDDEN_COMPACT_TEXT.get(`${req.method} ${req.routeOptions.url ?? ''}`);
+    const text = field ? (req.body as Record<string, unknown> | null | undefined)?.[field] : undefined;
+    if (typeof text === 'string' && TYPED_COMPACT.test(text.trim())) {
+      void reply.status(403).send({ error: CHAT_CANNOT_COMPACT });
+      return reply;
     }
     return;
   });

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { Chat, ChatCompaction, RunEvent } from '@claudio/shared';
+import type { Chat, ChatCompaction, RunEvent, TranscriptEntry } from '@claudio/shared';
 import type { ClaudioEventInput } from '../src/events.ts';
 import { ChatManager } from '../src/chats.ts';
-import { ChatNotes, ContextControl, ContextRefusal, compactText, SESSION_NOTE_INSTRUCTIONS } from '../src/index.ts';
+import { ChatNotes, ContextControl, ContextRefusal, compactText, recognizeSecrets, SESSION_NOTE_INSTRUCTIONS } from '../src/index.ts';
 import { COMPACTION_LEASE_MS, Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
 import type { ContextSignal, RunResult } from '../src/live-chat.ts';
@@ -457,4 +458,66 @@ test('what is sent for a compaction is /compact, the focus as written, then the 
   assert.equal(compactText('the plan', false), '/compact Keep in particular: the plan');
   assert.equal(compactText('the plan', true), `/compact Keep in particular: the plan ${SESSION_NOTE_INSTRUCTIONS}`);
   assert.ok(!compactText(null, true).includes('\n'));
+});
+
+// ---------- safety (x9) ----------
+
+test('a flow compaction runs under the run\'s own policy and budget, and never under its schema', async () => {
+  const spawns = join(mkdtempSync(join(tmpdir(), 'claudio-spawns-')), 'spawns.log');
+  process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  const { config, core } = setup();
+  try {
+    const chat = core.runtime.start({ prompt: 'hello', keepAlive: false });
+    await until(() => core.runtime.get(chat.id)?.executions.every((e) => e.endedAt !== null) && core.runtime.get(chat.id), 'the first execution');
+    history(config, core, chat.id);
+    const row = await core.context.compactAndWait(chat.id, {
+      flowRunId: 'run-9',
+      options: {
+        model: 'claude-sonnet-5',
+        permissionMode: 'acceptEdits',
+        allowedTools: ['Read', 'Edit'],
+        disallowedTools: ['Bash(git push:*)'],
+        maxBudgetUsd: 0.25,
+        permissionPrompts: 'none',
+        toolPreset: null,
+        jsonSchema: { type: 'object' },
+      } as never,
+    });
+    assert.equal(row?.state, 'done');
+    // The compaction is a resume of the same chat: the last chat process started
+    const argv = readFileSync(spawns, 'utf8').trim().split('\n').filter((line) => line.includes(`--resume ${chat.id}`)).at(-1) ?? '';
+    assert.ok(argv, 'a resume of the chat');
+    assert.match(argv, /--permission-mode acceptEdits/);
+    assert.match(argv, /--disallowedTools=Bash\(git push:\*\)/, 'a push stays denied');
+    assert.match(argv, /--max-budget-usd 0\.25/, 'capped by the run\'s budget');
+    assert.match(argv, /--permission-prompts none/);
+    assert.doesNotMatch(argv, /--json-schema/, 'a compaction is not held to the run\'s schema');
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    core.shutdown();
+  }
+});
+
+test('a note leaves the server with Claudio\'s own secrets and anything shaped like a secret masked, so the journal prefill starts from that', () => {
+  const db = new Db(tempConfig());
+  const forget = recognizeSecrets({ values: () => ['vault-value-only-claudio-holds'], isSecret: () => false });
+  try {
+    const notes = new ChatNotes({ db, check: async () => undefined, turn: async () => undefined, compactionEntries: async () => [] });
+    const now = new Date().toISOString();
+    assert.ok(db.claimHousekeeping('c9', { kind: 'compaction', leaseUntil: new Date(Date.now() + COMPACTION_LEASE_MS).toISOString(), row: { id: 'k9', origin: 'person', focus: null, structuredNote: true, flowRunId: null, requestedBy: null, requestedAt: now } }, now));
+    const row = db.compactionById('k9');
+    assert.ok(row);
+    const text = ['## Goal', 'Ship it with vault-value-only-claudio-holds', '## Done (with evidence)', 'API_KEY=hunter2hunter2', '## Failed', '-', '## Not tried yet', '-', '## Files in flight', '-', '## Next step', 'export GH=ghp_abcdefghijklmnopqrstuvwxyz1234'].join('\n');
+    const entry = { uuid: 's9', role: 'user', timestamp: now, model: null, isSidechain: false, parentToolUseId: null, blocks: [{ type: 'text', text }], compaction: { part: 'summary' } } as unknown as TranscriptEntry;
+    notes.fromCompaction(row, entry);
+    const [served] = notes.list('c9');
+    assert.ok(served?.text);
+    assert.doesNotMatch(served.text, /vault-value-only-claudio-holds|hunter2|ghp_/);
+    assert.match(served.text, /\[redacted\]/);
+    assert.doesNotMatch(JSON.stringify(served.sections), /vault-value-only-claudio-holds|hunter2|ghp_/);
+    assert.equal(served.sections?.goal, 'Ship it with [redacted]');
+  } finally {
+    forget();
+    db.close();
+  }
 });

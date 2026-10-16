@@ -80,7 +80,7 @@ export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations
 
 /** `run.continuation` sits under Orchestrations although it also serves the flow (the plan's call). */
 export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
-  { id: 'flow', points: ['flow.refine-needed', 'flow.bounce', 'flow.scope-drift', 'flow.criteria-precheck', 'flow.criteria-merge', 'flow.restart'] },
+  { id: 'flow', points: ['flow.refine-needed', 'flow.bounce', 'flow.scope-drift', 'flow.criteria-precheck', 'flow.criteria-merge', 'flow.restart', 'context.compact'] },
   { id: 'board', points: ['board.triage', 'team.assign'] },
   { id: 'memory', points: ['memory.triage', 'journal.relevance'] },
   { id: 'assistant', points: ['assistant.rerank', 'assistant.sources'] },

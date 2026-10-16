@@ -85,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-eight points. **Suggest** points never change what happens by themselves.
+Twenty-nine points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
@@ -94,6 +94,7 @@ Twenty-eight points. **Suggest** points never change what happens by themselves.
 | | `flow.criteria-precheck` | act | P | Send a card back before QA when a criterion is clearly unmet; it never passes a card |
 | | `flow.criteria-merge` | suggest | P | Flag proposed criteria that duplicate existing ones |
 | | `flow.restart` | act | P | Requeue a run cut by a restart, or not |
+| | `context.compact` | act | P | Compact the Developer's own conversation before it takes a card back after a bounce, when it is already full (ships `off`; [plans/context-control.md](plans/context-control.md)) |
 | | `flow.scope-drift` | suggest | P | Flag a commit that drifts from the card |
 | | `team.assign` | suggest | P | Propose the member for a card |
 | Board | `board.triage` | suggest | P | Prefill type, priority and a duplicate warning while typing a task |

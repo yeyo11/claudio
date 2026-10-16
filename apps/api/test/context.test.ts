@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, ContextRefusal, loadConfig } from '@claudio/core';
 import type { ChatCompaction, ChatContextUsage, ChatSessionNote, CompactRefusal } from '@claudio/shared';
@@ -14,6 +14,10 @@ import { buildApp } from '../src/app.ts';
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 const CHAT = 'chat-ctx-1';
 const SUMMARY = ['This session is being continued from a previous conversation.', '', '## Goal', 'Fix the parser.'].join('\n');
+
+// `app.close()` does not shut a Core down (teardown.test.ts): every one built here is, after the last test
+const cores: Core[] = [];
+after(() => cores.forEach((core) => core.shutdown()));
 
 async function wrapper(): Promise<{ app: FastifyInstance; core: Core }> {
   const root = mkdtempSync(join(tmpdir(), 'claudio-context-'));
@@ -38,6 +42,7 @@ async function wrapper(): Promise<{ app: FastifyInstance; core: Core }> {
     ].join('\n'),
   );
   const core = new Core(config);
+  cores.push(core);
   return { app: await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') }), core };
 }
 

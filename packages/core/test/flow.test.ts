@@ -11,7 +11,7 @@ import { DecisionEngine, type DecisionProvider, type DecisionRequest, type Provi
 import { decisionPoint } from '../src/decisions/points.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { EventBus } from '../src/events.ts';
-import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
+import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
 import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
@@ -38,7 +38,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; contextOf?: FlowDeps['contextOf'] } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -88,6 +88,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
     ...(opts.pullRequests ? { pullRequests: opts.pullRequests } : {}),
+    ...(opts.contextOf ? { contextOf: opts.contextOf } : {}),
     ...(opts.decisions ? { decisions: opts.decisions, workDone: () => ({ commits: ['add the cart route'], paths: ['src/cart.ts'] }) } : {}),
   });
   bus.observe((e) => flow.observe(e));
@@ -2240,4 +2241,57 @@ test('a restart leaves a run that waits for a limit to reset where it is: the ro
   assert.equal(kept?.chatId, chat);
   assert.equal(kept?.restarts, 0);
   assert.equal(kept?.waiting?.provider, 'claude-code');
+});
+
+// ---------- context.compact (docs/plans/context-control.md) ----------
+
+const compactFirst = replying(() => 'compact-first');
+const fullChat = () => Promise.resolve({ share: 0.8, usedTokens: 160_000, window: 200_000, compactable: true });
+
+test('context.compact: absent or off, a bounce asks nothing and compacts nothing', async () => {
+  const d = await deciding('context.compact', 'off', compactFirst);
+  const s = setup({ db: d.db, decisions: d.engine, contextOf: fullChat });
+  await rejected(s);
+  await s.flow.settled();
+  assert.equal(d.calls.length, 0);
+  assert.ok(s.launches.every((l) => !l.compactFirst));
+  const bare = setup({ contextOf: fullChat });
+  await rejected(bare);
+  assert.ok(bare.launches.every((l) => !l.compactFirst));
+});
+
+test('context.compact: active and compact-first marks the resumed work run, and only a full chat is asked', async () => {
+  const d = await deciding('context.compact', 'active', compactFirst);
+  const s = setup({ db: d.db, decisions: d.engine, contextOf: fullChat });
+  await rejected(s);
+  await s.flow.settled();
+  const again = s.launches.filter((l) => l.run.stage === 'work' && l.resumeChatId);
+  assert.deepEqual(again.map((l) => l.compactFirst), [true]);
+  assert.equal(d.calls[0]?.state.share, 0.8);
+  assert.deepEqual(Object.keys(d.calls[0]?.state ?? {}).sort(), ['bounces', 'rejectionChars', 'share', 'stage', 'usedTokens', 'window']);
+
+  const roomy = await deciding('context.compact', 'active', compactFirst);
+  const r = setup({ db: roomy.db, decisions: roomy.engine, contextOf: () => Promise.resolve({ share: 0.3, usedTokens: 60_000, window: 200_000, compactable: true }) });
+  await rejected(r);
+  await r.flow.settled();
+  assert.equal(roomy.calls.length, 0);
+  const unable = await deciding('context.compact', 'active', compactFirst);
+  const u = setup({ db: unable.db, decisions: unable.engine, contextOf: () => Promise.resolve({ share: 0.9, usedTokens: 1, window: 2, compactable: false }) });
+  await rejected(u);
+  await u.flow.settled();
+  assert.equal(unable.calls.length, 0);
+});
+
+test('context.compact: shadow records the answer and the run is not compacted; continue does not compact', async () => {
+  const d = await deciding('context.compact', 'shadow', compactFirst);
+  const s = setup({ db: d.db, decisions: d.engine, contextOf: fullChat });
+  await rejected(s);
+  await s.flow.settled();
+  assert.ok(s.launches.every((l) => !l.compactFirst));
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+  const keep = await deciding('context.compact', 'active', replying(() => 'continue'));
+  const k = setup({ db: keep.db, decisions: keep.engine, contextOf: fullChat });
+  await rejected(k);
+  await k.flow.settled();
+  assert.ok(k.launches.every((l) => !l.compactFirst));
 });
