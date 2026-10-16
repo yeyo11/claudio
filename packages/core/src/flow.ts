@@ -22,6 +22,7 @@ import {
   type DecisionPointId,
   type DocumentKind,
   type Effort,
+  type FlowCheckVerdict,
   type FlowCriterionResult,
   type FlowMemoryProposal,
   type FlowRun,
@@ -332,13 +333,6 @@ interface ParsedResult {
   acceptanceCriteria: string[];
   /** Working only: what the Developer decided about each failing check it was given */
   checks: FlowCheckVerdict[];
-}
-
-/** The Developer's call on one failing check of a fix: this branch caused it, did not, or it is unclear. */
-export interface FlowCheckVerdict {
-  name: string;
-  cause: 'branch' | 'not-branch' | 'uncertain';
-  fixed: boolean;
 }
 
 const CHECK_CAUSES: readonly FlowCheckVerdict['cause'][] = ['branch', 'not-branch', 'uncertain'];

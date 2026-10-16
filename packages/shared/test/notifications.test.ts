@@ -263,7 +263,8 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
       maxConcurrentRuns: 8,
       defaultPermissionMode: 'acceptEdits',
       setupSeen: false,
-      sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', setupSeen: 'default' },
+      dailySpendCapUsd: null,
+      sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default' },
       allowedHostLayers: { env: [], file: [], runtime: [] },
     },
   };

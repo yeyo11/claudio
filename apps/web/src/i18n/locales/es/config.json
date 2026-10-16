@@ -1013,12 +1013,14 @@
     "kind": {
       "agents": "Agente",
       "skills": "Skill",
-      "commands": "Comando"
+      "commands": "Comando",
+      "rules": "Regla"
     },
     "kindLower": {
       "agents": "agente",
       "skills": "skill",
-      "commands": "comando"
+      "commands": "comando",
+      "rules": "regla"
     },
     "scope": {
       "project": "Proyecto",
@@ -1060,7 +1062,8 @@
     "whatPlaceholder": {
       "agents": "Un agente que revise cada migración nueva antes del commit",
       "skills": "Una skill que conozca los tokens y las reglas del sistema de diseño",
-      "commands": "Un comando que pase las comprobaciones y resuma qué ha fallado"
+      "commands": "Un comando que pase las comprobaciones y resuma qué ha fallado",
+      "rules": "Una regla para la carpeta de migraciones: cómo se nombra una migración y qué no debe tocar nunca"
     },
     "create": "Crear",
     "again": "Reintentar",

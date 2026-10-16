@@ -50,7 +50,8 @@
       "max-tokens": "demasiado largo",
       "server-error": "error del servidor",
       "network": "red",
-      "invalid-answer": "respuesta no válida"
+      "invalid-answer": "respuesta no válida",
+      "spend-cap": "tope de gasto diario alcanzado"
     },
     "save": "Guardar",
     "saving": "Guardando…",

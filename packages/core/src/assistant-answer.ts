@@ -124,6 +124,7 @@ const FRONTMATTER: Record<AssistantResourceKind, string> = {
   agents: '`name` (the file name) and `description` (when to use it), optionally `tools` and `model`',
   skills: '`name` (the directory name) and `description` (when it applies)',
   commands: '`description`, optionally `argument-hint`',
+  rules: '`paths` (a YAML list of globs relative to the project; the CLI loads the rule only when it works on matching files) and optionally `description`',
 };
 
 /**
@@ -246,7 +247,7 @@ export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName
   if (brief.kind === 'project') return es ? `Asistente de ${name}` : `Assistant for ${name}`;
   if (brief.kind === 'work-items') return es ? `Sugerir tareas · ${name}` : `Suggest tasks · ${name}`;
   if (brief.description && brief.resourceKind) {
-    const what = es ? { agents: 'agente', skills: 'skill', commands: 'comando' }[brief.resourceKind] : singular(brief.resourceKind);
+    const what = es ? { agents: 'agente', skills: 'skill', commands: 'comando', rules: 'regla' }[brief.resourceKind] : singular(brief.resourceKind);
     return es ? `Crear ${what} con IA · ${name}` : `Create ${what} with AI · ${name}`;
   }
   return es ? `Sugerir recursos · ${name}` : `Suggest resources · ${name}`;
@@ -370,7 +371,7 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
 export const RESUME_PROMPT = 'Claudio restarted while you were working on this. Carry on from where you were, still read-only, and end with the structured result.';
 
 function singular(kind: AssistantResourceKind): string {
-  return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : 'command';
+  return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : kind === 'rules' ? 'rule' : 'command';
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
