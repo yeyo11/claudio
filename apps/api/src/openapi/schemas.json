@@ -9889,9 +9889,10 @@
     "enum": [
       "project",
       "work-items",
-      "resources"
+      "resources",
+      "evals"
     ],
-    "description": "`project`: team, resources and first work items, after creating a project or on demand from its page. `work-items`: \"Suggest tasks\" on the board. `resources`: \"Suggest\" on the Resources tab, or \"Create with AI\" for one resource from a description."
+    "description": "`project`: team, resources and first work items, after creating a project or on demand from its page. `work-items`: \"Suggest tasks\" on the board. `resources`: \"Suggest\" on the Resources tab, or \"Create with AI\" for one resource from a description. `evals`: \"Draft cases\" in an eval's editor (Phase 2)."
   },
   "AssistantRunAction": {
     "type": "string",
@@ -10009,7 +10010,8 @@
     "enum": [
       "team-member",
       "resource",
-      "work-item"
+      "work-item",
+      "eval-case"
     ]
   },
   "AssistantProposalAction": {
@@ -11394,6 +11396,9 @@
           "infra": {
             "type": "number"
           },
+          "unjudged": {
+            "type": "number"
+          },
           "queued": {
             "type": "number"
           },
@@ -11540,9 +11545,10 @@
       "interrupted",
       "cancelled",
       "skipped",
-      "infra"
+      "infra",
+      "unjudged"
     ],
-    "description": "Only `passed` and `failed` are scored; the rest say why a sample says nothing about the target."
+    "description": "Only `passed` and `failed` are scored; the rest say why a sample says nothing about the target. `unjudged` (Phase 2): a judge failed, so the judged expectation has no verdict; it fails closed for the gate."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -21119,6 +21125,13 @@
         ],
         "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
       },
+      "evalName": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For an `evals` run, the eval it drafts cases for; absent or null otherwise"
+      },
       "language": {
         "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
@@ -21192,12 +21205,16 @@
           },
           "work-item": {
             "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "eval-case": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
           }
         },
         "required": [
           "team-member",
           "resource",
-          "work-item"
+          "work-item",
+          "eval-case"
         ],
         "description": "Proposals by kind; a kind the run does not propose counts zero"
       },
@@ -21466,6 +21483,13 @@
         ],
         "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
       },
+      "evalName": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For an `evals` run, the eval it drafts cases for; absent or null otherwise"
+      },
       "language": {
         "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
@@ -21539,12 +21563,16 @@
           },
           "work-item": {
             "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "eval-case": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
           }
         },
         "required": [
           "team-member",
           "resource",
-          "work-item"
+          "work-item",
+          "eval-case"
         ],
         "description": "Proposals by kind; a kind the run does not propose counts zero"
       },
@@ -21650,6 +21678,9 @@
       },
       {
         "$ref": "#/components/schemas/AssistantWorkItemProposal"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantEvalCaseProposal"
       }
     ],
     "description": "One proposal of a run, accepted or discarded on its own (decision 36)."
@@ -22113,6 +22144,489 @@
     ],
     "description": "A work item the assistant proposes, created in `backlog` when accepted."
   },
+  "AssistantEvalCaseProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "eval-case"
+      },
+      "evalName": {
+        "type": "string",
+        "description": "The eval the case is for"
+      },
+      "case": {
+        "$ref": "#/components/schemas/EvalCase"
+      },
+      "acceptedCaseId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The case as appended, by id, once accepted; null otherwise"
+      }
+    },
+    "required": [
+      "acceptedCaseId",
+      "case",
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "evalName",
+      "id",
+      "kind",
+      "position",
+      "projectId",
+      "reason",
+      "runId",
+      "status"
+    ],
+    "description": "Phase 2: a case drafted for an existing eval, with prompts at each pressure level and deterministic expectations first. Accepting appends it to the eval file through the write that takes `ifMatch`."
+  },
+  "EvalCase": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string",
+        "description": "English; sent as the sample's first and only message. In a parsed definition it is always the `neutral` prompt: a version 1 file's only one, or `prompts.neutral` of a version 2 file."
+      },
+      "prompts": {
+        "$ref": "#/components/schemas/EvalCasePrompts",
+        "description": "Phase 2: the other pressure levels; absent in a version 1 file and in a v2 file with one prompt"
+      },
+      "mustHold": {
+        "type": "boolean",
+        "description": "Phase 2: a regression guard; its pass^k is what the promotion gate reads"
+      },
+      "pin": {
+        "type": "string",
+        "description": "Overrides the file's pin for this case"
+      },
+      "expect": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalExpectation"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "prompt",
+      "expect"
+    ]
+  },
+  "EvalCasePrompts": {
+    "type": "object",
+    "properties": {
+      "supportive": {
+        "type": "string",
+        "description": "Reminds the agent of the rule"
+      },
+      "neutral": {
+        "type": "string",
+        "description": "The task alone"
+      },
+      "competing": {
+        "type": "string",
+        "description": "The task plus a plausible reason to skip the rule. Written by the person, never by Claudio"
+      }
+    },
+    "required": [
+      "neutral"
+    ],
+    "description": "Phase 2: the prompt at each pressure level. `neutral` is Phase 1's single `prompt`."
+  },
+  "EvalExpectation": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "called"
+          },
+          "call": {
+            "$ref": "#/components/schemas/EvalCallMatcher"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "call"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "not-called"
+          },
+          "call": {
+            "$ref": "#/components/schemas/EvalCallMatcher"
+          }
+        },
+        "required": [
+          "kind",
+          "call"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "before"
+          },
+          "call": {
+            "$ref": "#/components/schemas/EvalCallMatcher"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/EvalCallMatcher"
+          },
+          "ifAnchor": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "call",
+          "anchor"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "after"
+          },
+          "call": {
+            "$ref": "#/components/schemas/EvalCallMatcher"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/EvalCallMatcher"
+          },
+          "ifAnchor": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "call",
+          "anchor"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "sequence"
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvalCallMatcher"
+            }
+          },
+          "strict": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "calls"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "text"
+          },
+          "match": {
+            "$ref": "#/components/schemas/EvalStringMatcher"
+          }
+        },
+        "required": [
+          "kind",
+          "match"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "file"
+          },
+          "path": {
+            "type": "string"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "contains": {
+            "$ref": "#/components/schemas/EvalStringMatcher"
+          }
+        },
+        "required": [
+          "kind",
+          "path"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "touched"
+          },
+          "path": {
+            "$ref": "#/components/schemas/EvalStringMatcher"
+          },
+          "expect": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "expect"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "command"
+          },
+          "run": {
+            "type": "string"
+          },
+          "exitCode": {
+            "type": "number"
+          },
+          "timeoutSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "run"
+        ]
+      },
+      {
+        "$ref": "#/components/schemas/EvalJudgedExpectation"
+      }
+    ],
+    "description": "A check a case makes of a sample; all of a case's expectations must pass."
+  },
+  "EvalCallMatcher": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "A name glob (`mcp__*`) or a list of them"
+      },
+      "command": {
+        "$ref": "#/components/schemas/EvalStringMatcher",
+        "description": "Against each segment of a Bash command, or the whole command"
+      },
+      "path": {
+        "$ref": "#/components/schemas/EvalStringMatcher",
+        "description": "Against the call's path, relative to the lane root"
+      },
+      "input": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/EvalStringMatcher"
+        },
+        "description": "Against top-level string fields of the input, for tools the other fields do not cover"
+      },
+      "outcome": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "error",
+          "denied",
+          "any"
+        ],
+        "description": "Defaults to `any`"
+      },
+      "scope": {
+        "type": "string",
+        "enum": [
+          "main",
+          "sub",
+          "any"
+        ],
+        "description": "Defaults to `main`"
+      }
+    },
+    "description": "A call matcher; every field given must match."
+  },
+  "EvalStringMatcher": {
+    "anyOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "equals": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "equals"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "contains": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contains"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "regex": {
+            "type": "string"
+          },
+          "flags": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "regex"
+        ]
+      }
+    ],
+    "description": "A string matcher: a bare string is a glob over the whole value."
+  },
+  "EvalJudgedExpectation": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "judged"
+      },
+      "statement": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Default `haiku`"
+      },
+      "examples": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalJudgeExample"
+        },
+        "description": "Run on the judge once before a run; a judge that disagrees is shown as unreliable"
+      }
+    },
+    "required": [
+      "kind",
+      "statement"
+    ],
+    "description": "Phase 2: a statement a model checks against the sample's transcript. Deterministic expectations come first in a case; this one is for what a matcher cannot see (\"explains why before editing\")."
+  },
+  "EvalJudgeExample": {
+    "type": "object",
+    "properties": {
+      "calls": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Call summaries in order, as the judge reads them"
+      },
+      "final": {
+        "type": "string",
+        "description": "The sample's final text"
+      },
+      "pass": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "calls",
+      "final",
+      "pass"
+    ],
+    "description": "One folded call as the judge sees it, with the verdict the person expects of it."
+  },
   "AssistantResourceDraft": {
     "type": "object",
     "properties": {
@@ -22163,6 +22677,10 @@
       "resourceKind": {
         "$ref": "#/components/schemas/AssistantResourceKind",
         "description": "Required with a `resources` run's `description`"
+      },
+      "evalName": {
+        "type": "string",
+        "description": "Required with an `evals` run: the eval to draft cases for. Refused on the other kinds"
       },
       "supersede": {
         "type": "boolean",
@@ -22306,6 +22824,21 @@
             "description": "An existing epic of the project it belongs to"
           }
         }
+      },
+      "evalCase": {
+        "type": "object",
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/EvalCase"
+          },
+          "ifMatch": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ifMatch"
+        ],
+        "description": "What the person edited of an `eval-case`, and the SHA of the eval file they saw (`ifMatch`)"
       }
     },
     "description": "`POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting; only the part that matches the proposal's kind is read, and a field left out keeps the proposed value. Accepting a proposal that is not `pending` is refused with 409."
@@ -27352,7 +27885,11 @@
     "properties": {
       "version": {
         "type": "number",
-        "const": 1
+        "enum": [
+          1,
+          2
+        ],
+        "description": "2 allows `prompts`, `mustHold`, `k` and `judged`; a version 1 file reads as neutral-only"
       },
       "title": {
         "type": "string"
@@ -27369,7 +27906,11 @@
       },
       "samples": {
         "type": "number",
-        "description": "k per case and variant"
+        "description": "n: samples per case, variant and pressure level. Up to 10 in a version 2 file"
+      },
+      "k": {
+        "type": "number",
+        "description": "Phase 2: the k of pass@k and pass^k, at most `samples`. Default 3"
       },
       "limits": {
         "$ref": "#/components/schemas/EvalLimits"
@@ -27486,327 +28027,12 @@
       "maxCostUsd": {
         "type": "number",
         "description": "The run's ceiling. The start dialog may lower it, never raise it"
+      },
+      "maxJudgeCostUsd": {
+        "type": "number",
+        "description": "Phase 2: passed to the judge as `--max-budget-usd`, per judged expectation and sample"
       }
     }
-  },
-  "EvalCase": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "title": {
-        "type": "string"
-      },
-      "prompt": {
-        "type": "string",
-        "description": "English; sent as the sample's first and only message"
-      },
-      "pin": {
-        "type": "string",
-        "description": "Overrides the file's pin for this case"
-      },
-      "expect": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/EvalExpectation"
-        }
-      }
-    },
-    "required": [
-      "id",
-      "prompt",
-      "expect"
-    ]
-  },
-  "EvalExpectation": {
-    "anyOf": [
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "called"
-          },
-          "call": {
-            "$ref": "#/components/schemas/EvalCallMatcher"
-          },
-          "min": {
-            "type": "number"
-          },
-          "max": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "kind",
-          "call"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "not-called"
-          },
-          "call": {
-            "$ref": "#/components/schemas/EvalCallMatcher"
-          }
-        },
-        "required": [
-          "kind",
-          "call"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "before"
-          },
-          "call": {
-            "$ref": "#/components/schemas/EvalCallMatcher"
-          },
-          "anchor": {
-            "$ref": "#/components/schemas/EvalCallMatcher"
-          },
-          "ifAnchor": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "kind",
-          "call",
-          "anchor"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "after"
-          },
-          "call": {
-            "$ref": "#/components/schemas/EvalCallMatcher"
-          },
-          "anchor": {
-            "$ref": "#/components/schemas/EvalCallMatcher"
-          },
-          "ifAnchor": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "kind",
-          "call",
-          "anchor"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "sequence"
-          },
-          "calls": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EvalCallMatcher"
-            }
-          },
-          "strict": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "kind",
-          "calls"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "text"
-          },
-          "match": {
-            "$ref": "#/components/schemas/EvalStringMatcher"
-          }
-        },
-        "required": [
-          "kind",
-          "match"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "file"
-          },
-          "path": {
-            "type": "string"
-          },
-          "exists": {
-            "type": "boolean"
-          },
-          "contains": {
-            "$ref": "#/components/schemas/EvalStringMatcher"
-          }
-        },
-        "required": [
-          "kind",
-          "path"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "touched"
-          },
-          "path": {
-            "$ref": "#/components/schemas/EvalStringMatcher"
-          },
-          "expect": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "kind",
-          "path",
-          "expect"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "command"
-          },
-          "run": {
-            "type": "string"
-          },
-          "exitCode": {
-            "type": "number"
-          },
-          "timeoutSeconds": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "kind",
-          "run"
-        ]
-      }
-    ],
-    "description": "A check a case makes of a sample; all of a case's expectations must pass."
-  },
-  "EvalCallMatcher": {
-    "type": "object",
-    "properties": {
-      "tool": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        ],
-        "description": "A name glob (`mcp__*`) or a list of them"
-      },
-      "command": {
-        "$ref": "#/components/schemas/EvalStringMatcher",
-        "description": "Against each segment of a Bash command, or the whole command"
-      },
-      "path": {
-        "$ref": "#/components/schemas/EvalStringMatcher",
-        "description": "Against the call's path, relative to the lane root"
-      },
-      "input": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EvalStringMatcher"
-        },
-        "description": "Against top-level string fields of the input, for tools the other fields do not cover"
-      },
-      "outcome": {
-        "type": "string",
-        "enum": [
-          "ok",
-          "error",
-          "denied",
-          "any"
-        ],
-        "description": "Defaults to `any`"
-      },
-      "scope": {
-        "type": "string",
-        "enum": [
-          "main",
-          "sub",
-          "any"
-        ],
-        "description": "Defaults to `main`"
-      }
-    },
-    "description": "A call matcher; every field given must match."
-  },
-  "EvalStringMatcher": {
-    "anyOf": [
-      {
-        "type": "string"
-      },
-      {
-        "type": "object",
-        "properties": {
-          "equals": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "equals"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "contains": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "contains"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "regex": {
-            "type": "string"
-          },
-          "flags": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "regex"
-        ]
-      }
-    ],
-    "description": "A string matcher: a bare string is a glob over the whole value."
   },
   "EvalFile": {
     "type": "object",
@@ -27857,6 +28083,13 @@
           "$ref": "#/components/schemas/EvalVariant"
         }
       },
+      "pressures": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalPressure"
+        },
+        "description": "Phase 2: the levels to run; absent runs `neutral` only"
+      },
       "proposed": {
         "type": "string",
         "description": "Required with `proposed`"
@@ -27888,6 +28121,15 @@
       "confirmMaxCostUsd"
     ]
   },
+  "EvalPressure": {
+    "type": "string",
+    "enum": [
+      "supportive",
+      "neutral",
+      "competing"
+    ],
+    "description": "Phase 2: how hard a prompt pushes against the rule; each level is its own cell of a run."
+  },
   "EvalEstimate": {
     "type": "object",
     "properties": {
@@ -27916,6 +28158,57 @@
         "items": {
           "type": "string"
         }
+      },
+      "perLevel": {
+        "type": "object",
+        "properties": {
+          "supportive": {
+            "type": "object",
+            "properties": {
+              "samples": {
+                "type": "number"
+              },
+              "ceilingUsd": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "samples",
+              "ceilingUsd"
+            ]
+          },
+          "neutral": {
+            "type": "object",
+            "properties": {
+              "samples": {
+                "type": "number"
+              },
+              "ceilingUsd": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "samples",
+              "ceilingUsd"
+            ]
+          },
+          "competing": {
+            "type": "object",
+            "properties": {
+              "samples": {
+                "type": "number"
+              },
+              "ceilingUsd": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "samples",
+              "ceilingUsd"
+            ]
+          }
+        },
+        "description": "Phase 2: samples and ceiling per pressure level, for the dialog's breakdown"
       },
       "consentNeeded": {
         "type": "boolean"
@@ -27972,6 +28265,13 @@
       },
       "samplesPerCase": {
         "type": "number"
+      },
+      "pressures": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalPressure"
+        },
+        "description": "Phase 2: the levels this run covers; `['neutral']` for a Phase 1 run"
       },
       "account": {
         "type": [
@@ -28033,6 +28333,9 @@
             "type": "number"
           },
           "infra": {
+            "type": "number"
+          },
+          "unjudged": {
             "type": "number"
           },
           "queued": {
@@ -28139,6 +28442,7 @@
       "id",
       "maxCostUsd",
       "outcome",
+      "pressures",
       "projectId",
       "reason",
       "resetsAt",
@@ -28201,6 +28505,10 @@
       },
       "variant": {
         "$ref": "#/components/schemas/EvalVariant"
+      },
+      "pressure": {
+        "$ref": "#/components/schemas/EvalPressure",
+        "description": "Phase 2; `neutral` for a Phase 1 sample"
       },
       "attempt": {
         "type": "number"
@@ -28312,6 +28620,7 @@
       "runId",
       "caseId",
       "variant",
+      "pressure",
       "attempt",
       "try",
       "seq",
@@ -28370,6 +28679,17 @@
           "null"
         ],
         "description": "A command check's tail, 4 KiB, masked"
+      },
+      "judgement": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EvalJudgement"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Phase 2: for a `judged` check, its judgement; null for the others"
       }
     },
     "required": [
@@ -28392,8 +28712,66 @@
       "text",
       "file",
       "touched",
-      "command"
-    ]
+      "command",
+      "judged"
+    ],
+    "description": "`judged` is Phase 2 and appears only in a version 2 file."
+  },
+  "EvalJudgement": {
+    "type": "object",
+    "properties": {
+      "idx": {
+        "type": "number",
+        "description": "The expectation's index in its case"
+      },
+      "pass": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Null when `status` is `unjudged`"
+      },
+      "reason": {
+        "type": "string",
+        "description": "English, at most 400 characters"
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "Call seqs it points at"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "judged",
+          "unjudged"
+        ]
+      }
+    },
+    "required": [
+      "idx",
+      "pass",
+      "reason",
+      "evidence",
+      "costUsd",
+      "model",
+      "status"
+    ],
+    "description": "What the judge answered for one judged expectation of one sample."
   },
   "EvalRunSummary": {
     "type": "object",
@@ -28418,6 +28796,13 @@
       },
       "samplesPerCase": {
         "type": "number"
+      },
+      "pressures": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalPressure"
+        },
+        "description": "Phase 2: the levels this run covers; `['neutral']` for a Phase 1 run"
       },
       "account": {
         "type": [
@@ -28479,6 +28864,9 @@
             "type": "number"
           },
           "infra": {
+            "type": "number"
+          },
+          "unjudged": {
             "type": "number"
           },
           "queued": {
@@ -28564,6 +28952,7 @@
       "definitionSha",
       "variants",
       "samplesPerCase",
+      "pressures",
       "account",
       "state",
       "outcome",
