@@ -364,6 +364,20 @@ export function workflowRunDir(transcript: string, runId: string): string {
   return join(transcript.slice(0, -'.jsonl'.length), 'subagents', 'workflows', runId);
 }
 
+/**
+ * The bytes a workflow run's directory holds: its journal and every agent's transcript. An agent at
+ * work writes to its transcript long before the journal hears of it, so this is what says the run
+ * is getting anywhere.
+ */
+export async function workflowRunBytes(transcript: string, runId: string): Promise<number> {
+  const dir = workflowRunDir(transcript, runId);
+  let bytes = 0;
+  for (const name of await readdir(dir).catch(() => [] as string[])) {
+    bytes += (await stat(join(dir, name)).catch(() => null))?.size ?? 0;
+  }
+  return bytes;
+}
+
 /** The journal of a workflow run, in the order it was written; a line still being written is left out. */
 export async function readWorkflowJournal(transcript: string, runId: string): Promise<WorkflowJournalLine[]> {
   const out: WorkflowJournalLine[] = [];

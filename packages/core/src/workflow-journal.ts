@@ -2,7 +2,7 @@
 // The script's own result only exists once the workflow ends, and the stream's progress was seen to
 // miss an agent the API refused (R15): the journal records every start and every end as it happens.
 
-import { readAgentEnd, readWorkflowJournal, type WorkflowAgentEnd, type WorkflowJournalLine } from './workflows.ts';
+import { readAgentEnd, readWorkflowJournal, workflowRunBytes, type WorkflowAgentEnd, type WorkflowJournalLine } from './workflows.ts';
 
 /** The label and phase the generated script gives its synthesis agent; every other agent is labelled with its task's id. */
 export const SYNTHESIS_LABEL = 'synthesis';
@@ -29,6 +29,8 @@ export interface JournalRead {
   lines: number;
   /** One entry per label, in the order each first started */
   tasks: JournalTask[];
+  /** What the run's directory holds, transcripts included: the watchdog's measure of progress */
+  bytes: number;
 }
 
 /**
@@ -65,7 +67,7 @@ export async function readJournalTasks(transcript: string, runId: string, from =
   for (const task of tasks) {
     if (task.state === 'failed' && task.agentId) task.end = await readAgentEnd(transcript, runId, task.agentId);
   }
-  return { lines: lines.length, tasks };
+  return { lines: lines.length, tasks, bytes: await workflowRunBytes(transcript, runId) };
 }
 
 /** What a failed agent's task shows as its error: what the agent last said, or that it said nothing. */
