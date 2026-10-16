@@ -19,7 +19,7 @@ A UI change that breaks one of these is not done. The rules are in `docs/design-
 - [ ] **Status colours** mean one thing each (ok, warn, bad, idle) and always come with a word or an icon (reuse `StatusBadge` and `Tag`). Usage bars: neutral below 60 %, warn from 60 %, bad from 75 %.
 - [ ] **Phone.** Touch targets >= 44 px, inputs at 16 px, "..." menus as a `Sheet`, no always-visible checkboxes, the four-tab bar and the gradient FAB.
 - [ ] **Copy.** Every string goes through i18n with `en`/`es` parity; `es` follows `apps/web/src/i18n/GLOSSARY.md` (Spanish from Spain, infinitive buttons, sentence case, no `text-transform: capitalize` on sentences).
-- [ ] **Restyle, don't duplicate.** Reuse the classes the app already has; a new variant goes into `docs/design-system.md` and `agentry-ds.css` in the same change. Keep the classes the e2e specs select.
+- [ ] **Restyle, don't duplicate.** Reuse the classes the app already has; a new variant goes into `docs/design-system.md` and `claudio-ds.css` in the same change. Keep the classes the e2e specs select.
 - [ ] **Diffs** are drawn with `DiffView` from the API's unified text; no diff library, no link to an editor.
 - [ ] **Illustrations**: `Empty` with an illustration from `components/illustrations`, at most one per screen, colours from `styles/illustrations.css`, ids from `useId()`, `aria-hidden`.
 - [ ] **Accessibility.** Icon-only buttons carry an `aria-label`; everything is keyboard-reachable with a visible focus ring; `e2e/specs/a11y-*.spec.mjs` passes in both themes and at phone width.

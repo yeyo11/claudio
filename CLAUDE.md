@@ -60,7 +60,7 @@ orchestration launched on the other one does not show up in yours.
 
 Every UI change in `apps/web` (and the Electron shell's colours) follows the Night Shift design
 system in [docs/design-system.md](docs/design-system.md). The reference is in
-`docs/design-system/`: `agentry-ds.css`, and `reference/` with a static prototype and dark and
+`docs/design-system/`: `claudio-ds.css`, and `reference/` with a static prototype and dark and
 light screenshots of every screen. Before changing a screen, open its reference, and compare the
 result against it before you finish.
 
@@ -125,7 +125,7 @@ A change that breaks one of these rules is not done:
     Claude wrote before it.
 - **Restyle, don't duplicate.** Style the classes the app already has (the doc maps each design
   component to them) and the controls in `packages/ui/src/components/controls`. A new variant goes
-  into `docs/design-system.md` and `agentry-ds.css` in the same PR. Keep the classes the e2e specs
+  into `docs/design-system.md` and `claudio-ds.css` in the same PR. Keep the classes the e2e specs
   select.
 - **Copy.** Every string goes through i18n with `en`/`es` parity. The `es` copy follows
   `apps/web/src/i18n/GLOSSARY.md`: Spanish from Spain, infinitive buttons, sentence case, and no
