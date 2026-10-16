@@ -170,7 +170,7 @@ const sources: ReaderSources = {
     get: (id) => ({ ...item, id, detail: true }) as unknown as WorkItemDetail,
     milestones: (projectId) => (projectId === shared.id ? [milestone] : []),
   },
-  uploadsOfChat: (id) => chatUploads.get(id) ?? [],
+  uploadsOfChat: async (id) => (chatUploads.get(id) ?? []).map((uploadId) => ({ uploadId, attachedAt: '2026-10-16T10:00:00.000Z' })),
   uploads: {
     get: (id) => {
       const found = uploads.get(id);

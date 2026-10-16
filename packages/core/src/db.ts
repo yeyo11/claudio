@@ -1322,6 +1322,19 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      used_at TEXT NOT NULL,
      PRIMARY KEY (group_id, secret_hash)
    );`,
+  // Which uploads belong to a chat, as a row per message that attached them, so a shared chat's
+  // uploads are known whether or not the chat was loaded since the start. A chat older than these
+  // rows is scanned once from its transcript, and `chat_upload_scans` says it was
+  `CREATE TABLE chat_uploads (
+     chat_id TEXT NOT NULL,
+     upload_id TEXT NOT NULL,
+     attached_at TEXT NOT NULL,
+     PRIMARY KEY (chat_id, upload_id)
+   );
+   CREATE TABLE chat_upload_scans (
+     chat_id TEXT PRIMARY KEY,
+     scanned_at TEXT NOT NULL
+   );`,
 ];
 
 /**
@@ -1988,6 +2001,40 @@ export class Db {
       this.db.prepare('DELETE FROM chat_entries WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM chat_compactions WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM chat_notes WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM chat_uploads WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM chat_upload_scans WHERE chat_id = ?').run(id);
+    });
+  }
+
+  // ---------- uploads a chat's messages attached ----------
+
+  /** Keeps the first time each upload was attached to the chat: a later message naming it again changes nothing */
+  addChatUploads(chatId: string, uploadIds: readonly string[], at: string): void {
+    if (uploadIds.length === 0) return;
+    this.tx(() => this.insertChatUploads(chatId, uploadIds, at));
+  }
+
+  private insertChatUploads(chatId: string, uploadIds: readonly string[], at: string): void {
+    const insert = this.db.prepare('INSERT OR IGNORE INTO chat_uploads (chat_id, upload_id, attached_at) VALUES (?, ?, ?)');
+    for (const id of uploadIds) insert.run(chatId, id, at);
+  }
+
+  /** The chat's uploads, oldest attachment first */
+  chatUploads(chatId: string): Array<{ uploadId: string; attachedAt: string }> {
+    return (
+      this.db.prepare('SELECT upload_id, attached_at FROM chat_uploads WHERE chat_id = ? ORDER BY attached_at, upload_id').all(chatId) as Array<{ upload_id: string; attached_at: string }>
+    ).map((row) => ({ uploadId: row.upload_id, attachedAt: row.attached_at }));
+  }
+
+  chatUploadsScanned(chatId: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM chat_upload_scans WHERE chat_id = ?').get(chatId);
+  }
+
+  /** The uploads a chat's transcript names, found once, and the mark that it was looked through */
+  markChatUploadsScanned(chatId: string, uploadIds: readonly string[], at: string): void {
+    this.tx(() => {
+      this.insertChatUploads(chatId, uploadIds, at);
+      this.db.prepare('INSERT OR IGNORE INTO chat_upload_scans (chat_id, scanned_at) VALUES (?, ?)').run(chatId, at);
     });
   }
 

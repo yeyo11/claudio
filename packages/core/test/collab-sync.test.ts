@@ -76,6 +76,11 @@ const subagent = { agentId: 'a1', workflowRunId: null };
 const uploadFile = join(root, 'notes.txt');
 writeFileSync(uploadFile, 'an upload of the chat');
 const upload: Attachment = { id: randomUUID(), name: 'notes.txt', mediaType: 'text/plain', kind: 'file', sizeBytes: 21, path: uploadFile, createdAt: '2026-10-16T09:10:00.000Z' };
+// A later message attaches a second file: the copy gets it with the chat, not on an artifacts notice
+const laterFile = join(root, 'later.txt');
+writeFileSync(laterFile, 'attached later');
+const laterUpload: Attachment = { id: randomUUID(), name: 'later.txt', mediaType: 'text/plain', kind: 'file', sizeBytes: 14, path: laterFile, createdAt: '2026-10-16T09:20:00.000Z' };
+const chatUploads = [{ uploadId: upload.id, attachedAt: upload.createdAt }];
 
 const journal: JournalEntry[] = [
   { id: 'j1', projectId: project.id, kind: 'note', text: 'Decided to use iroh', createdAt: '2026-10-16T08:00:00.000Z' } as unknown as JournalEntry,
@@ -106,11 +111,12 @@ const anaSources: ReaderSources = {
     get: (id) => ({ ...item, id }) as unknown as WorkItemDetail,
     milestones: (projectId) => (projectId === project.id ? [milestone] : []),
   },
-  uploadsOfChat: (id) => (id === chatId ? [upload.id] : []),
+  uploadsOfChat: async (id) => (id === chatId ? [...chatUploads] : []),
   uploads: {
     get: (id) => {
-      if (id !== upload.id) throw new Error('upload not found');
-      return upload;
+      const found = [upload, laterUpload].find((u) => u.id === id);
+      if (!found) throw new Error('upload not found');
+      return found;
     },
   },
   orchestrations: (projectId) => (projectId === project.id ? [{ id: 'o1', name: 'Build', finalResult: 'Done', updatedAt: '2026-10-16T09:50:00.000Z' }] : []),
@@ -278,6 +284,11 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   anaEvent('sessions.changed');
   await until("the subagent's appended line", () => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).total === 2);
   assert.equal(ben.service.sharedTranscript(anaId, shareId, chatId).total, 3, "the chat's own transcript is not touched by its subagent's");
+  chatUploads.push({ uploadId: laterUpload.id, attachedAt: new Date().toISOString() });
+  appendFileSync(transcript, '{"n":4}\n');
+  anaEvent('sessions.changed');
+  await until('the upload the chat attached later', () => ben.service.sharedArtifacts(anaId, shareId).some((a) => a.kind === 'upload' && a.id === laterUpload.id));
+  assert.equal(readFileSync(await ben.service.blob(anaId, shareId, sha('attached later')), 'utf8'), 'attached later');
   journal.push({ id: 'j2', projectId: project.id, kind: 'note', text: 'And a relay', createdAt: '2026-10-16T11:00:00.000Z' } as unknown as JournalEntry);
   anaEvent('journal.changed');
   await until('the new journal entry', () => ben.service.sharedJournal(anaId, shareId).some((e) => e.id === 'j2'));

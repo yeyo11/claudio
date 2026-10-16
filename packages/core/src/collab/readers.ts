@@ -151,8 +151,8 @@ export interface ReaderSources {
   journal: { page(projectId: string, query?: { limit?: unknown; before?: unknown }): JournalPage };
   documents: { tree(projectId: string): Promise<ProjectDocuments> };
   workItems: { list(filter?: WorkItemFilter): WorkItem[]; get(itemId: string): WorkItemDetail; milestones(projectId: string): Milestone[] };
-  /** Upload ids attached to a chat's messages */
-  uploadsOfChat(chatId: string): readonly string[];
+  /** The uploads a chat's messages attached, and when each was first attached (`chat-uploads.ts`) */
+  uploadsOfChat(chatId: string): Promise<ReadonlyArray<{ uploadId: string; attachedAt: string }>>;
   uploads: { get(id: string): Attachment };
   orchestrations(projectId: string): readonly OrchestrationResult[];
   planDrafts(projectId: string): readonly PlanDraftSummary[];
@@ -444,11 +444,11 @@ function workItemReader(sources: ReaderSources): WorkItemReader {
 
 function uploadReader(sources: ReaderSources): UploadReader {
   const hashes = new HashCache();
-  const uploads = async (chatIds: readonly string[]): Promise<Array<{ attachment: Attachment; chatId: string; sha256: string }>> => {
-    const out: Array<{ attachment: Attachment; chatId: string; sha256: string }> = [];
+  const uploads = async (chatIds: readonly string[]): Promise<Array<{ attachment: Attachment; chatId: string; sha256: string; attachedAt: string }>> => {
+    const out: Array<{ attachment: Attachment; chatId: string; sha256: string; attachedAt: string }> = [];
     const seen = new Set<string>();
     for (const chatId of chatIds) {
-      for (const id of sources.uploadsOfChat(chatId)) {
+      for (const { uploadId: id, attachedAt } of await sources.uploadsOfChat(chatId)) {
         if (seen.has(id)) continue;
         seen.add(id);
         let attachment;
@@ -458,7 +458,7 @@ function uploadReader(sources: ReaderSources): UploadReader {
           continue;
         }
         const facts = await hashes.of(attachment.path, Number.MAX_SAFE_INTEGER);
-        if (facts) out.push({ attachment, chatId, sha256: facts.sha256 });
+        if (facts) out.push({ attachment, chatId, sha256: facts.sha256, attachedAt });
       }
     }
     return out;
@@ -466,9 +466,10 @@ function uploadReader(sources: ReaderSources): UploadReader {
   return {
     list: async (place, chatIds) => {
       const out: ReadEntry<SharedArtifact>[] = [];
-      for (const { attachment, chatId, sha256: hash } of await uploads(chatIds)) {
+      for (const { attachment, chatId, sha256: hash, attachedAt } of await uploads(chatIds)) {
         const data: SharedArtifact = { kind: 'upload', id: attachment.id, name: attachment.name, mediaType: attachment.mediaType, sizeBytes: attachment.sizeBytes, sha256: hash, chatId, createdAt: attachment.createdAt };
-        out.push({ id: `upload:${attachment.id}`, version: hash.slice(0, 32), cursor: `${attachment.createdAt}|upload:${attachment.id}`, load: () => data });
+        // By when it joined the chat, not when the file was saved: an upload found in an older chat after a restart is still past a copy's cursor
+        out.push({ id: `upload:${attachment.id}`, version: hash.slice(0, 32), cursor: `${attachedAt}|upload:${attachment.id}`, load: () => data });
       }
       for (const o of sources.orchestrations(place.projectId)) {
         const data: SharedArtifact = { kind: 'orchestration', id: o.id, name: o.name, finalResult: o.finalResult, updatedAt: o.updatedAt };

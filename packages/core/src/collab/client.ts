@@ -770,6 +770,9 @@ export class SyncClient {
         await this.pullTranscript(owner, state, chatId, agent.file, to);
       }
     }
+    // A chat's uploads come with it: what a changed chat attached is listed under artifacts, which
+    // the owner only announces for orchestrations and runs
+    if (transcripts.length && state.share.kinds.includes('artifacts')) await this.pullKind(owner, state, 'artifacts', to);
     state.lastSyncedAt = new Date().toISOString();
     state.error = null;
     this.deps.synced(owner, shareKey, kind);
