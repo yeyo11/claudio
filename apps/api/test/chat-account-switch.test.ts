@@ -116,6 +116,24 @@ test('an account that cannot be chosen is 409 with its code', async () => {
   await app.inject({ method: 'PATCH', url: `/api/accounts/${other}`, ...json({ enabled: true }) });
 });
 
+test('an account whose sign-in expired is 409 sign-in-expired, and is chosen again once it signs in', async () => {
+  const id = await idleChat();
+  const current = (await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account ?? 'default';
+  const other = current === alpha ? beta : alpha;
+  await core.accounts.markAuthFailed(other);
+  try {
+    const listed = (await app.inject('/api/accounts')).json<Account[]>().find((a) => a.id === other);
+    assert.deepEqual([listed?.signInState, listed?.signedIn], ['expired', false]);
+    const expired = await switchTo(id, other);
+    assert.equal(expired.statusCode, 409, expired.body);
+    assert.equal(expired.json().code, 'sign-in-expired');
+    assert.equal((await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account ?? 'default', current);
+  } finally {
+    await core.accounts.clearAuthFailed(other);
+  }
+  assert.equal((await switchTo(id, other)).statusCode, 200);
+});
+
 test("a chat's own token gets 403 and the chat stays where it was", async () => {
   const id = await idleChat();
   const before = (await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account;

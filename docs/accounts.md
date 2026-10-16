@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-16T14:00:00Z
+updated_at: 2026-10-16T16:00:00Z
 tags:
     - accounts
     - rotation
@@ -100,7 +100,9 @@ Accounts page and the status bar card show "Sign-in expired" with a "Sign in aga
   An idle chat moves at once (a live process is ended between turns); a working chat queues the
   choice (`chat.pendingAccount`) and takes it when the turn ends, never interrupting it. Naming the
   chat's own account cancels a pending switch. A disabled, signed-out or exhausted account, one that
-  does not offer the chat's model, or the chat's own account is refused with a 409 and a `code`.
+  does not offer the chat's model, or the chat's own account is refused with a 409 and a `code`; an
+  account whose sign-in is `expired` or `incomplete` is refused as `sign-in-expired`, and the menu
+  shows it disabled as "Sign-in expired".
   The choice is not a pin: the rotation can still move the chat at a limit. It is recorded as a
   rotation event with `reason: 'person'`. Only the person may do it; a chat's own token gets 403.
 

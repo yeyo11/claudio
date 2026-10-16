@@ -4909,8 +4909,8 @@ export interface SwitchChatAccountRequest {
   accountId: string;
 }
 
-/** Why an account cannot be chosen for a chat. */
-export type AccountSwitchRefusalCode = 'disabled' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account';
+/** Why an account cannot be chosen for a chat. `sign-in-expired`: its `signInState` is `expired` or `incomplete`. */
+export type AccountSwitchRefusalCode = 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account';
 
 /** `pending`: the chat is working, so the switch waits for its turn to end. */
 export interface SwitchChatAccountResponse {

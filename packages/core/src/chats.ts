@@ -1623,6 +1623,10 @@ export class ChatManager extends EventEmitter {
     }
     if (accountId === chat.pendingAccount) return { chat: chat.summary(), pending: true };
     if (!account.enabled) throw new AccountSwitchRefusal('disabled', `account ${accountId} is disabled`);
+    // Checked before signedIn, which an unusable sign-in also clears: the person is told it needs a new sign-in
+    if (account.signInState === 'expired' || account.signInState === 'incomplete') {
+      throw new AccountSwitchRefusal('sign-in-expired', `account ${accountId} needs a new sign-in (${account.signInState})`);
+    }
     if (!account.signedIn) throw new AccountSwitchRefusal('signed-out', `account ${accountId} is signed out`);
     const resets = account.limits?.state === 'exhausted' && account.limits.resetsAt ? Date.parse(account.limits.resetsAt) : null;
     const out = resets !== null && resets > Date.now();

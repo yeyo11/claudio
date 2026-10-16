@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AccountStore, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
+import { AccountStore, CREDENTIALS_FILE, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
 import { AccountSwitchRefusal, ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
@@ -253,6 +253,33 @@ test('an account that is signed out is refused', async () => {
     const chat = await idleChat(r, { keepAlive: false });
     const login = await r.store.add({ kind: 'login', alias: 'sso' });
     await assert.rejects(r.chats.switchAccount(chat.id, login.id, 'person'), refusal('signed-out'));
+  } finally {
+    r.close();
+  }
+});
+
+test('an account whose sign-in expired, or whose credentials have no refresh token, is refused as sign-in-expired', async () => {
+  const r = await rig();
+  try {
+    const chat = await idleChat(r, { keepAlive: false });
+    await r.store.markAuthFailed(r.ids.a);
+    assert.equal(r.store.get(r.ids.a).signInState, 'expired');
+    await assert.rejects(r.chats.switchAccount(chat.id, r.ids.a, 'person'), refusal('sign-in-expired'));
+
+    const login = await r.store.add({ kind: 'login', alias: 'copied' });
+    mkdirSync(r.store.ref(login.id).dir, { recursive: true });
+    // A broken copy: an access token and no refresh token. Only the key's presence is ever read
+    writeFileSync(join(r.store.ref(login.id).dir, CREDENTIALS_FILE), JSON.stringify({ claudeAiOauth: { accessToken: 'access' } }));
+    assert.equal(r.store.get(login.id).signInState, 'incomplete');
+    await assert.rejects(r.chats.switchAccount(chat.id, login.id, 'person'), refusal('sign-in-expired'));
+
+    assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID);
+    assert.equal(r.db.rotationEvents().length, 0);
+
+    // Once a run on it succeeds again the account can be chosen
+    await r.store.clearAuthFailed(r.ids.a);
+    assert.equal((await r.chats.switchAccount(chat.id, r.ids.a, 'person')).pending, false);
+    assert.equal(r.chats.accountOf(chat.id), r.ids.a);
   } finally {
     r.close();
   }
