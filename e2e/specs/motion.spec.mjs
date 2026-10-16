@@ -196,6 +196,29 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     const assistant = await page.eval(loops());
     check(assistant.length === 0, `the phone's assistant: nothing repeats at subtle (${assistant.join(', ')})`);
 
+    // ---- a chat compacting: live while the CLI summarises, and still at subtle and off ----
+    // The fake holds `/compact` for half a minute with FAKE-COMPACT-SLOW in its focus; the cleanup stops the chat
+    await page.viewport(1440, 900);
+    const compacting = await api.post('/chats', { prompt: 'a short chat to compact', cwd: dir });
+    check(compacting.status === 201, `a chat to compact (${compacting.status})`);
+    flowChats.push(compacting.body.id);
+    for (let i = 0; i < 40; i++) {
+      if ((await api.get(`/chats/${compacting.body.id}`)).body?.chat?.state === 'idle') break;
+      await page.sleep(250);
+    }
+    const asked = await api.post(`/chats/${compacting.body.id}/compact`, { focus: 'FAKE-COMPACT-SLOW', structuredNote: false });
+    check(asked.status === 202, `the compaction was accepted (${asked.status} ${JSON.stringify(asked.body)})`);
+    for (const level of ['full', 'subtle', 'off']) {
+      await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
+      await open(`/chats/${compacting.body.id}`, '.chat-head');
+      await page.waitFor(`return /Compacting/.test(document.querySelector('main')?.innerText ?? '')`, { label: `the page says the chat is compacting at ${level}` });
+      if (level !== 'full') {
+        const running = await page.eval(loops('main'));
+        check(running.length === 0, `a chat compacting: nothing repeats at ${level} (${running.join(', ')})`);
+      }
+    }
+    await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
+
     // ---- the terminal: its cursor blinks at full and sits still at subtle and off ----
     // The terminal is the person's own shell, not a live agent: it never earns a loop of its own
     await page.viewport(1440, 900);
