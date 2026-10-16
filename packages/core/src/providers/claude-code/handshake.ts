@@ -37,3 +37,27 @@ export function confirmClaudeInit(init: SessionInit): CapabilityConfirmation {
   check('structuredOutput', init.structuredOutput, false);
   return { version: init.version, confirmed, missing };
 }
+
+/** The flags the guards load their hooks with, and the capability each one proves */
+const HELP_FLAGS: Array<[ProviderCapability, RegExp]> = [
+  ['settingsFlag', /^\s+--settings\s/m],
+  ['hookEvents', /^\s+--include-hook-events\b/m],
+];
+
+/**
+ * What `claude --help` says about the flags the guards need. A help that lists neither flag is one we
+ * could not read (or a CLI too old for the driver), so only a help that lists some of the options
+ * contradicts a declared capability.
+ */
+export function confirmClaudeHelp(help: string, version: string | null = null): CapabilityConfirmation {
+  const declared = claudeCodeManifest.capabilities;
+  const confirmed: ProviderCapability[] = [];
+  const missing: ProviderCapability[] = [];
+  const readable = /^\s+--(?:print|model|output-format)\b/m.test(help);
+  for (const [capability, pattern] of HELP_FLAGS) {
+    if (!declared.includes(capability)) continue;
+    if (pattern.test(help)) confirmed.push(capability);
+    else if (readable) missing.push(capability);
+  }
+  return { version, confirmed, missing };
+}

@@ -407,7 +407,7 @@ export interface RunWorkflowRequest {
  * `append`, with where it starts in `at`), reuse the seq of the last stored event, are never buffered or replayed, and are
  * superseded by the next `message` event.
  */
-export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial' | 'delivery';
+export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial' | 'delivery' | 'guard';
 
 export interface RunEvent {
   seq: number;
@@ -434,6 +434,8 @@ export interface RunEvent {
   data?: Record<string, unknown>;
   /** For `delivery` events: what became of one message the person sent */
   delivery?: MessageDelivery;
+  /** For `guard` events: what the guard said about one tool call, so a live viewer can show a block without polling */
+  guard?: RunGuardEvent;
 }
 
 /**
@@ -773,7 +775,9 @@ export type HealthSignalKind =
   | 'no-progress'
   | 'loop'
   | 'weakened-test'
-  | 'budget';
+  | 'budget'
+  | 'guard-blocked'
+  | 'guard-missing';
 
 export interface HealthSignal {
   kind: HealthSignalKind;
@@ -1132,6 +1136,8 @@ export interface Chat {
   claudioAssistant?: ClaudioAssistantMarker | null;
   /** Whether Compact now is offered, and why not; only on a chat read alone, a list does not pay for it */
   compact?: ChatCompactAvailability;
+  /** The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md) */
+  guards?: ChatGuards | null;
 }
 
 /**
@@ -1616,6 +1622,11 @@ export interface ProjectFlowSettings {
    * does not look. Like `maxBounces`, it can only end a loop sooner.
    */
   plateau?: FlowPlateauMode;
+  /**
+   * Per-stage guard overrides for this project's flow runs; a stage absent here inherits the global
+   * settings. A chat token may not weaken what is stored (403).
+   */
+  guards?: Partial<Record<FlowStage, GuardOverride>>;
 }
 
 /** What the flow does about a plateau of verify rounds; see {@link ProjectFlowSettings.plateau}. */
@@ -1652,6 +1663,8 @@ export interface ProjectSettings {
   tracker?: ProjectTrackerSettings | null;
   /** Per-project overrides of the provider order and of what happens at a limit; a missing field inherits */
   providers?: ProjectProvidersSettings;
+  /** Guards for interactive chats started in this project; the flow's are in `flow.guards` */
+  guards?: ProjectGuardSettings;
 }
 
 /**
@@ -2701,6 +2714,8 @@ export interface FlowRun {
   endedAt: string | null;
   /** On a run that fixed failing checks, what the Developer decided about each; absent on other runs */
   checks?: FlowCheckVerdict[];
+  /** Tool calls the guard blocked in this run; filled on read from `guard_events` */
+  guardBlocks?: number;
 }
 
 /** Who queued a flow run by hand, when a card entering its column did not. */
@@ -3590,6 +3605,8 @@ export interface OrchestrationSpec {
   limits?: TaskLimits;
   /** Checks to run on the integration branch once the graph is merged; none when absent */
   verification?: VerificationSpec;
+  /** Guard override for this graph's runs; kept by templates, relaunch and resume. Absent inherits the global settings */
+  guards?: GuardOverride;
   tasks: OrchestrationTaskSpec[];
 }
 
@@ -3665,6 +3682,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
    * fails the same way is recognised and not repeated; internal, kept in the stored document.
    */
   lastErrorSignature?: string | null;
+  /** Tool calls the guard blocked in this task's runs; filled on read from `guard_events` */
+  guardBlocks?: number;
 }
 
 export interface Orchestration {
@@ -5519,6 +5538,8 @@ export type ProviderCapability =
   | 'subagents'
   | 'mcp'
   | 'worktreeFlag'
+  | 'settingsFlag'
+  | 'hookEvents'
   | 'budgetLimit'
   | 'effort'
   | 'costReport'
@@ -7765,4 +7786,171 @@ export interface DecisionPaletteResult {
   commandId: string | null;
   confidence: number | null;
   decisionId: string | null;
+}
+
+// ── Guards (docs/plans/guards.md) ────────────────────────────────────────────────────────────────
+
+/**
+ * A rule of the guard program. `integrity` protects the guard itself and is always on whenever
+ * guards are; it is deliberately not a key of any settings or override type, so it cannot be
+ * switched off through the API ({@link GuardSwitchableRuleId}).
+ */
+export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs';
+
+/** The rules a person can switch: every rule but `integrity`. */
+export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity'>;
+
+/** `enforce` blocks; `observe` records "would block" and passes, for rollback after a false positive. */
+export type GuardMode = 'enforce' | 'observe';
+
+/** The global guard settings (`guards.json`, `GET`/`PUT /settings/guards`). */
+export interface GuardSettings {
+  /** Default `enforce`; `observe` is a person's choice and is never picked automatically */
+  mode: GuardMode;
+  /** Guard workers, the integrator, fixers, synthesis and flow stages; default true (O1) */
+  automated: boolean;
+  /** Which switchable rules are on; `protect-configs` ships off, the others on (O2, O3) */
+  rules: Record<GuardSwitchableRuleId, boolean>;
+  /** Globs, relative to a root, of the existing config files `protect-configs` guards; at most 200, none absolute or with `..` */
+  protectConfigs: string[];
+  /** Absolute directories `destructive` treats as roots besides the run's worktree */
+  extraRoots: string[];
+}
+
+/** `PUT /settings/guards`: only the keys that change; `rules` merges over the stored ones. */
+export interface UpdateGuardSettingsRequest {
+  mode?: GuardMode;
+  automated?: boolean;
+  rules?: Partial<Record<GuardSwitchableRuleId, boolean>>;
+  protectConfigs?: string[];
+  extraRoots?: string[];
+}
+
+/** What a graph or a flow stage changes of the global settings; absent fields inherit. */
+export interface GuardOverride {
+  /** Absent inherits; `false` switches the guard off for the graph or stage (shown as "Guards off") */
+  enabled?: boolean;
+  /** Merged over the global rules; `integrity` cannot be named */
+  rules?: Partial<Record<GuardSwitchableRuleId, boolean>>;
+}
+
+/** `ProjectSettings.guards`. */
+export interface ProjectGuardSettings {
+  /** Guard every new chat process in the project with the global rules; absent reads as false (O1) */
+  chats: boolean;
+}
+
+/** One rule as the UI lists it; the words are the UI's own (i18n), not the server's. */
+export interface GuardRuleInfo {
+  id: GuardRuleId;
+  /** On in a fresh install */
+  defaultOn: boolean;
+  /** False for `integrity` only */
+  switchable: boolean;
+}
+
+/** Why the guard cannot run: the codes of the pre-launch checks (`guards/preflight.ts`). */
+export type GuardProblem =
+  | 'entry-missing'
+  | 'entry-untrusted'
+  | 'self-test-failed'
+  | 'cli-unsupported'
+  | 'hooks-disabled'
+  | 'managed-hooks-only'
+  | 'hooks-conflict'
+  | 'bad-path';
+
+/** Whether guards can run on this machine, so Settings can say why not instead of failing a launch. */
+export interface GuardStatus {
+  available: boolean;
+  /** Null when available */
+  problem: GuardProblem | null;
+  /** The CLI the check ran against; null when none was found */
+  cliVersion: string | null;
+}
+
+/** `GET`/`PUT /settings/guards`. */
+export interface GuardSettingsView {
+  settings: GuardSettings;
+  status: GuardStatus;
+  rules: GuardRuleInfo[];
+}
+
+/**
+ * What became of one guarded tool call. `blocked` and `observed` are the guard's verdicts;
+ * `missing` is a tool call with no guard marker, `unarmed` a run that started without the guard
+ * being live, `error` a guard that failed and so blocked, `allowed-once` a block a person let
+ * through once in an interactive chat.
+ */
+export type GuardOutcome = 'blocked' | 'observed' | 'missing' | 'unarmed' | 'error' | 'allowed-once';
+
+/** One row of `guard_events`. */
+export interface GuardEvent {
+  seq: number;
+  at: string;
+  chatId: string;
+  projectId: string | null;
+  orchestrationId: string | null;
+  taskId: string | null;
+  flowRunId: string | null;
+  /** The CLI's id of the tool call; null for an event that belongs to no call (`unarmed`) */
+  toolUseId: string | null;
+  toolName: string;
+  rule: GuardRuleId;
+  /** Stable id of the check that fired, such as `push.git-verb` */
+  matcher: string;
+  outcome: GuardOutcome;
+  /** English, from the guard, never holding a secret */
+  reason: string;
+  /** The command or path, masked, at most 240 characters */
+  excerpt: string;
+}
+
+/** `GET /guard-events`: newest first; `next` is the `before` cursor of the following page, null at the end. */
+export interface GuardEventPage {
+  events: GuardEvent[];
+  next: number | null;
+}
+
+/** `POST /guards/check`: asks the pure decision engine about one tool call; backs "Try a command". */
+export interface GuardCheckRequest {
+  tool: string;
+  input: Record<string, unknown>;
+  /** Rules to check with; the current settings when absent */
+  rules?: GuardSwitchableRuleId[];
+  /** Absolute directories treated as the run's roots */
+  roots?: string[];
+}
+
+export interface GuardCheckResult {
+  verdict: 'pass' | 'block';
+  /** Present on a block */
+  rule?: GuardRuleId;
+  matcher?: string;
+  /** English, to show and to hand the agent */
+  reason?: string;
+}
+
+/**
+ * The guards on a chat's live process (`Chat.guards`). `arming`: waiting for the guard's session
+ * marker before the first prompt; `armed`: live; `missing`: a tool call went by unguarded and the
+ * run was interrupted; `off`: the chat is not guarded.
+ */
+export interface ChatGuards {
+  /** The effective rules, `integrity` first */
+  rules: GuardRuleId[];
+  mode: GuardMode;
+  state: 'arming' | 'armed' | 'missing' | 'off';
+}
+
+/** The payload of a `guard` {@link RunEvent}. */
+export interface RunGuardEvent {
+  outcome: GuardOutcome;
+  toolUseId: string | null;
+  toolName: string;
+  rule: GuardRuleId;
+  matcher: string;
+  reason: string;
+  /** The command or path, masked, at most 240 characters */
+  excerpt: string;
 }

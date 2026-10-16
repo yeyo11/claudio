@@ -605,6 +605,17 @@
           }
         ],
         "description": "Set on a chat of the Claudio assistant: it keeps its confinement whenever it is continued, resumed or forked"
+      },
+      "guards": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatGuards"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md)"
       }
     },
     "required": [
@@ -1521,6 +1532,56 @@
     ],
     "description": "The languages Claudio speaks. A chat Claudio starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`claudioLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
   },
+  "ChatGuards": {
+    "type": "object",
+    "properties": {
+      "rules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GuardRuleId"
+        },
+        "description": "The effective rules, `integrity` first"
+      },
+      "mode": {
+        "$ref": "#/components/schemas/GuardMode"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "arming",
+          "armed",
+          "missing",
+          "off"
+        ]
+      }
+    },
+    "required": [
+      "rules",
+      "mode",
+      "state"
+    ],
+    "description": "The guards on a chat's live process (`Chat.guards`). `arming`: waiting for the guard's session marker before the first prompt; `armed`: live; `missing`: a tool call went by unguarded and the run was interrupted; `off`: the chat is not guarded."
+  },
+  "GuardRuleId": {
+    "type": "string",
+    "enum": [
+      "integrity",
+      "no-verify",
+      "push",
+      "destructive",
+      "secrets",
+      "protect-configs"
+    ],
+    "description": "A rule of the guard program. `integrity` protects the guard itself and is always on whenever guards are; it is deliberately not a key of any settings or override type, so it cannot be switched off through the API ( {@link  GuardSwitchableRuleId } )."
+  },
+  "GuardMode": {
+    "type": "string",
+    "enum": [
+      "enforce",
+      "observe"
+    ],
+    "description": "`enforce` blocks; `observe` records \"would block\" and passes, for rollback after a false positive."
+  },
   "AuthVerification": {
     "type": "object",
     "properties": {
@@ -1715,6 +1776,10 @@
       "delivery": {
         "$ref": "#/components/schemas/MessageDelivery",
         "description": "For `delivery` events: what became of one message the person sent"
+      },
+      "guard": {
+        "$ref": "#/components/schemas/RunGuardEvent",
+        "description": "For `guard` events: what the guard said about one tool call, so a live viewer can show a block without polling"
       }
     },
     "required": [
@@ -1735,7 +1800,8 @@
       "notice",
       "other",
       "partial",
-      "delivery"
+      "delivery",
+      "guard"
     ],
     "description": "`partial` events are ephemeral: they carry the block being streamed (the first one of a block, and the first a subscriber receives, all the text so far in `text`; the rest only what is new, in `append`, with where it starts in `at`), reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
   },
@@ -2336,6 +2402,58 @@
       "state"
     ],
     "description": "What became of one message sent to a chat, by its id (docs/chat-delivery.md). `delivered`: the agent took it, into the running turn or as a turn of its own. `undelivered`: its process went away first, or the one that should have read it could not start; `message` carries it, so the page can hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a replay)."
+  },
+  "RunGuardEvent": {
+    "type": "object",
+    "properties": {
+      "outcome": {
+        "$ref": "#/components/schemas/GuardOutcome"
+      },
+      "toolUseId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "toolName": {
+        "type": "string"
+      },
+      "rule": {
+        "$ref": "#/components/schemas/GuardRuleId"
+      },
+      "matcher": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "excerpt": {
+        "type": "string",
+        "description": "The command or path, masked, at most 240 characters"
+      }
+    },
+    "required": [
+      "outcome",
+      "toolUseId",
+      "toolName",
+      "rule",
+      "matcher",
+      "reason",
+      "excerpt"
+    ],
+    "description": "The payload of a `guard`  {@link  RunEvent } ."
+  },
+  "GuardOutcome": {
+    "type": "string",
+    "enum": [
+      "blocked",
+      "observed",
+      "missing",
+      "unarmed",
+      "error",
+      "allowed-once"
+    ],
+    "description": "What became of one guarded tool call. `blocked` and `observed` are the guard's verdicts; `missing` is a tool call with no guard marker, `unarmed` a run that started without the guard being live, `error` a guard that failed and so blocked, `allowed-once` a block a person let through once in an interactive chat."
   },
   "EffectiveEnvironment": {
     "type": "object",
@@ -3245,6 +3363,10 @@
           "null"
         ],
         "description": "The normalised signature of the error the task's last failed attempt ended with, so a retry that fails the same way is recognised and not repeated; internal, kept in the stored document."
+      },
+      "guardBlocks": {
+        "type": "number",
+        "description": "Tool calls the guard blocked in this task's runs; filled on read from `guard_events`"
       }
     },
     "required": [
@@ -3427,7 +3549,9 @@
       "no-progress",
       "loop",
       "weakened-test",
-      "budget"
+      "budget",
+      "guard-blocked",
+      "guard-missing"
     ],
     "description": "What a signal noticed. Only what Claudio can tell from what it already receives is here: a command that runs far longer than it should, a chat that has gone quiet while it should be working, and facts of the chat itself (how its last execution ended, that it waits for a person, that its context is nearly full, that a branch failed).\n\nThe second group comes from docs/plans/agent-observability.md and is about a worker that is busy without getting anywhere: the same tool call over and over (`repeat-stall`), no commit and no file touched for a long stretch (`no-progress`), the same few steps in a cycle (`loop`), a test edited so that it stops asserting what it asserted (`weakened-test`), and the ceiling of  {@link  TaskLimits }  coming close (`budget`)."
   },
@@ -4591,6 +4715,10 @@
         ],
         "description": "The normalised signature of the error the task's last failed attempt ended with, so a retry that fails the same way is recognised and not repeated; internal, kept in the stored document."
       },
+      "guardBlocks": {
+        "type": "number",
+        "description": "Tool calls the guard blocked in this task's runs; filled on read from `guard_events`"
+      },
       "id": {},
       "name": {},
       "dependsOn": {},
@@ -4800,6 +4928,10 @@
         "$ref": "#/components/schemas/VerificationSpec",
         "description": "Checks to run on the integration branch once the graph is merged; none when absent"
       },
+      "guards": {
+        "$ref": "#/components/schemas/GuardOverride",
+        "description": "Guard override for this graph's runs; kept by templates, relaunch and resume. Absent inherits the global settings"
+      },
       "tasks": {
         "type": "array",
         "items": {
@@ -4811,6 +4943,37 @@
       "name",
       "tasks"
     ]
+  },
+  "GuardOverride": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Absent inherits; `false` switches the guard off for the graph or stage (shown as \"Guards off\")"
+      },
+      "rules": {
+        "type": "object",
+        "properties": {
+          "no-verify": {
+            "type": "boolean"
+          },
+          "push": {
+            "type": "boolean"
+          },
+          "destructive": {
+            "type": "boolean"
+          },
+          "secrets": {
+            "type": "boolean"
+          },
+          "protect-configs": {
+            "type": "boolean"
+          }
+        },
+        "description": "Merged over the global rules; `integrity` cannot be named"
+      }
+    },
+    "description": "What a graph or a flow stage changes of the global settings; absent fields inherit."
   },
   "OrchestrationTaskSpec": {
     "type": "object",
@@ -8214,6 +8377,8 @@
       "subagents",
       "mcp",
       "worktreeFlag",
+      "settingsFlag",
+      "hookEvents",
       "budgetLimit",
       "effort",
       "costReport",
@@ -11586,6 +11751,17 @@
       "compact": {
         "$ref": "#/components/schemas/ChatCompactAvailability",
         "description": "Whether Compact now is offered, and why not; only on a chat read alone, a list does not pay for it"
+      },
+      "guards": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatGuards"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md)"
       }
     },
     "required": [
@@ -13086,6 +13262,17 @@
           }
         ],
         "description": "Set on a chat of the Claudio assistant: it keeps its confinement whenever it is continued, resumed or forked"
+      },
+      "guards": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatGuards"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md)"
       }
     },
     "required": [
@@ -14889,6 +15076,10 @@
             "$ref": "#/components/schemas/VerificationSpec",
             "description": "Checks to run on the integration branch once the graph is merged; none when absent"
           },
+          "guards": {
+            "$ref": "#/components/schemas/GuardOverride",
+            "description": "Guard override for this graph's runs; kept by templates, relaunch and resume. Absent inherits the global settings"
+          },
           "tasks": {
             "type": "array",
             "items": {
@@ -16270,6 +16461,10 @@
       "providers": {
         "$ref": "#/components/schemas/ProjectProvidersSettings",
         "description": "Per-project overrides of the provider order and of what happens at a limit; a missing field inherits"
+      },
+      "guards": {
+        "$ref": "#/components/schemas/ProjectGuardSettings",
+        "description": "Guards for interactive chats started in this project; the flow's are in `flow.guards`"
       }
     },
     "required": [
@@ -16430,6 +16625,21 @@
       "plateau": {
         "$ref": "#/components/schemas/FlowPlateauMode",
         "description": "What the flow does when two verify rounds in a row improve no criterion. `observe` (the default when absent) only records a `plateau` signal, \"would have stopped here\", so the rule can be judged on real runs before it ends anything; `stop` makes the card wait for a person; `off` does not look. Like `maxBounces`, it can only end a loop sooner."
+      },
+      "guards": {
+        "type": "object",
+        "properties": {
+          "refine": {
+            "$ref": "#/components/schemas/GuardOverride"
+          },
+          "work": {
+            "$ref": "#/components/schemas/GuardOverride"
+          },
+          "verify": {
+            "$ref": "#/components/schemas/GuardOverride"
+          }
+        },
+        "description": "Per-stage guard overrides for this project's flow runs; a stage absent here inherits the global settings. A chat token may not weaken what is stored (403)."
       }
     },
     "required": [
@@ -16932,6 +17142,19 @@
     "type": "string",
     "const": "wait",
     "description": "What work does at a usage limit: it waits for the reset (a switch of account is a later stage)."
+  },
+  "ProjectGuardSettings": {
+    "type": "object",
+    "properties": {
+      "chats": {
+        "type": "boolean",
+        "description": "Guard every new chat process in the project with the global rules; absent reads as false (O1)"
+      }
+    },
+    "required": [
+      "chats"
+    ],
+    "description": "`ProjectSettings.guards`."
   },
   "ProjectTemplate": {
     "type": "object",
@@ -19750,6 +19973,10 @@
           "$ref": "#/components/schemas/FlowCheckVerdict"
         },
         "description": "On a run that fixed failing checks, what the Developer decided about each; absent on other runs"
+      },
+      "guardBlocks": {
+        "type": "number",
+        "description": "Tool calls the guard blocked in this run; filled on read from `guard_events`"
       }
     },
     "required": [

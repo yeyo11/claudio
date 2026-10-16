@@ -165,3 +165,6 @@ function shrink(document: Record<string, unknown>): boolean {
 export function stateBytes(state: Record<string, unknown>): number {
   return byteLength(JSON.stringify(state));
 }
+
+/** Test-only access to the masker's patterns, so the guard's can be checked against them */
+export const __testing = { SECRET_PATTERNS };
