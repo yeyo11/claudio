@@ -19,7 +19,7 @@ change gets in.
 | | |
 | --- | --- |
 | Version | **0.1.0** on `main` (merged from `feat/claude-only` on 2026-10-16), the same across all nine packages; release-please restarts from the fresh changelog |
-| Released | Nothing yet: Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444). The repository `yeyo11/claudio` does not exist yet; see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
+| Released | **v0.1.0** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`). Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 1,620 tracked `.ts`/`.tsx` files at Agentry 0.37.0, before the fork; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
 | REST | 31 route files, documented as OpenAPI 3.1 and served at `/docs` |

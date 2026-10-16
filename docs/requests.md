@@ -28,7 +28,6 @@ that built it) or when the owner drops it.
 | R10 | **Rotation bug: a limit wait does not resume when another account gets room first.** On 2026-10-16 every account was out at 12:44 UTC; the waits took 13:10/14:00 UTC as their reset, the default account's window restarted around 12:50 UTC with 0 % used, and twelve tasks kept waiting. A wait must re-check every usable account when any account's reading changes (a new `rate_limit_event`, a reset passing) and resume on the first one with room | Found 2026-10-16 | Open; with R2–R5 |
 | R11 | **Orchestration bug: a stopped task has no way back.** After "Stop waiting" a task ends `stopped`; `retry` and `retry-clean` accept only `failed`, and `resume` refuses a graph that is `waiting` for a decision. The only way out on 2026-10-16 was to stop the whole graph and resume it (which interrupts its running tasks). A stopped task must be retryable, and "Stop waiting" on a task should offer "run it now on an account with room" | Found 2026-10-16 | Open; with R2–R5 and R10 |
 | R6 | **Full redesign of the app with Stitch** ("rediseño completo… parece la típica app generada por IA"). Four screens follow the new frame in Stitch (Accounts, Usage, Chats, Settings); Home, Chat, Orchestration and New chat do not yet. Nothing is in code | 2026-10-15 20:37, chat e5fe37cb | Design in progress in Stitch; not implemented |
-| R7 | **Collaborators: share a project between teammates' Claudio over iroh, P2P** (live synced copy, sharing chosen per project, optional team management). The plan is written but **uncommitted** in `~/Escritorio/claudio-collab` (branch `docs/collaborators-plan`) and waits for an adversarial review | 2026-10-16 08:33–08:57, chat 2cc1e276 | Plan written, review pending |
 | R8 | **WebMCP** in Claudio: researched (what it is and where it could fit); no decision to build | 2026-10-15 17:37, chat ba0064f0 | Researched; waiting for a decision |
 | R9 | **Update the desktop app on this machine once everything is in `main`** | 2026-10-16 09:25, chat 3ef3eec0 | After the ECC orchestration lands |
 
@@ -36,6 +35,7 @@ that built it) or when the owner drops it.
 
 | Request | Closed by |
 | --- | --- |
+| R7: collaborators, a project shared between teammates' Claudio over iroh, P2P | Built by orchestration `623d02f4` from [plans/collaborators.md](plans/collaborators.md) and merged into `main` on 2026-10-16 ([collaborators.md](collaborators.md)); a run between two real machines is still to be done |
 | Terminal only in the status bar, opening in the selected project's workspace, detachable and full screen | Merged into `main` on 2026-10-15/16 ([terminal.md](terminal.md)) |
 | Readable tool rows; background tasks and subagents visible in the chat | `claudio-live-branches`, merged as `c607354f4` ([chat-tool-rows-and-branches.md](chat-tool-rows-and-branches.md)) |
 | CHAT-19 reading typography | Dropped by the owner on 2026-10-16: kept at 14px / 1.65 |
