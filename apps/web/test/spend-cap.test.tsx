@@ -50,7 +50,8 @@ const settings = (cap: number | null, source: 'env' | 'file' | 'default' = 'defa
   defaultPermissionMode: 'manual',
   setupSeen: false,
   dailySpendCapUsd: cap,
-  sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: source },
+  evalsPhase2: false,
+  sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: source, evalsPhase2: 'default' },
   allowedHostLayers: { env: [], file: [], runtime: [] },
 });
 

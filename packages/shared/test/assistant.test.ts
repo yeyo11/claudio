@@ -22,7 +22,7 @@ test('a resource is saved where /config/resources keeps its kind, in either scop
   assert.equal(assistantResourcePath('agents', 'glossary-reviewer', 'user'), 'agents/glossary-reviewer.md');
 });
 
-test('every run kind proposes something, and a project run proposes every kind', () => {
+test('every run kind proposes something, and a project run proposes every kind but a drafted eval case', () => {
   for (const kind of ASSISTANT_RUN_KINDS) assert.ok(ASSISTANT_PROPOSAL_KINDS_OF_RUN[kind].length > 0, kind);
-  assert.deepEqual([...ASSISTANT_PROPOSAL_KINDS_OF_RUN.project], [...ASSISTANT_PROPOSAL_KINDS]);
+  assert.deepEqual([...ASSISTANT_PROPOSAL_KINDS_OF_RUN.project], ASSISTANT_PROPOSAL_KINDS.filter((k) => k !== 'eval-case'));
 });

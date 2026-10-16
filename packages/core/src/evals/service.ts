@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { EVAL_DIR, type EvalCall, type EvalComparison, type EvalEstimate, type EvalFile, type EvalFileDetail, type EvalFileListItem, type EvalHead, type EvalRun, type EvalRunRequest, type EvalRunSummary, type EvalSampleDetail, type EvalVariant } from '@claudio/shared';
+import { EVAL_DIR, type EvalCall, type EvalCase, type EvalComparison, type EvalEstimate, type EvalFile, type EvalFileDetail, type EvalFileListItem, type EvalGate, type EvalHead, type EvalRun, type EvalRunRequest, type EvalRunSummary, type EvalSampleDetail, type EvalVariant } from '@claudio/shared';
 import { gitRaw, headCommit, isGitRepo } from '../git.js';
 import { EvalFileError, type EvalConsents, type EvalDefinitionStore } from './definition.ts';
 import { exportRun, loadEvalRun, type EvalExportFormat } from './export.ts';
@@ -122,6 +122,20 @@ export class EvalService {
     return file;
   }
 
+  /**
+   * Appends a case through the strict write, for an accepted draft. `ifMatch` is the SHA the person
+   * saw. A version 1 file becomes version 2 only when the case carries a version 2 field.
+   */
+  async appendCase(projectId: string, name: string, evalCase: EvalCase, ifMatch: string): Promise<EvalFile> {
+    const file = await this.file(projectId, name);
+    if (file.sha !== ifMatch) throw new EvalFileError('changed-on-disk', 'the file changed on disk since it was read');
+    if (!file.definition) throw new EvalFileError('invalid', 'the eval file cannot take a case', file.problems);
+    if (file.definition.cases.some((c) => c.id === evalCase.id)) throw new EvalFileError('invalid', `the eval already has a case ${evalCase.id}`, [`cases: duplicates another case (${evalCase.id})`]);
+    const v2 = evalCase.prompts !== undefined || evalCase.mustHold !== undefined || evalCase.expect.some((e) => e.kind === 'judged');
+    const definition = { ...file.definition, version: v2 ? 2 : file.definition.version, cases: [...file.definition.cases, evalCase] };
+    return this.deps.definitions.write(this.path(projectId), name, definition, { ifMatch: file.sha });
+  }
+
   /** Reads the file as it is on disk now: the SHA the run records is the one of the bytes it ran. */
   async start(projectId: string, evalName: string, request: EvalRunRequest, startedBy: 'person' | 'desktop' = 'person'): Promise<EvalRunSummary> {
     const file = await this.file(projectId, evalName);
@@ -157,6 +171,21 @@ export class EvalService {
 
   export(runId: string, format: EvalExportFormat): { body: string; contentType: string; filename: string } | null {
     return exportRun(this.deps.store, runId, format);
+  }
+
+  /** The promotion gate of a run with `current` and `proposed`; null before it ended or when it does not apply. */
+  gate(runId: string): EvalGate | null {
+    return this.deps.runner.gate(runId);
+  }
+
+  /** Judges again the samples a judge could not decide, without running them again. */
+  rejudge(runId: string): Promise<{ rejudged: number; unjudged: number } | null> {
+    return this.deps.runner.rejudge(runId);
+  }
+
+  /** Accepts an unreliable judge as it is. */
+  acceptJudge(runId: string, caseId: string, idx: number): EvalGate | null {
+    return this.deps.runner.acceptJudge(runId, caseId, idx);
   }
 
   isSample(chatId: string): boolean {

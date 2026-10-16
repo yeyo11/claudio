@@ -317,6 +317,9 @@ const CHAT_FORBIDDEN_EVALS = new Set([
   `POST ${API_PREFIX}/projects/:id/evals/:name/consent`,
   `POST ${API_PREFIX}/projects/:id/evals/:name/runs`,
   `POST ${API_PREFIX}/eval-runs/:runId/resume`,
+  `POST ${API_PREFIX}/eval-runs/:runId/rejudge`,
+  `POST ${API_PREFIX}/eval-runs/:runId/accept-judge`,
+  `POST ${API_PREFIX}/projects/:id/evals/:name/draft-cases`,
   `DELETE ${API_PREFIX}/eval-runs/:runId`,
 ]);
 
@@ -714,7 +717,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_EVALS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot write, consent to, start, resume or delete an eval: that spends money and runs commands on the person's behalf" });
+        void reply.status(403).send({ error: "a chat's token cannot write, consent to, start, resume, re-judge, draft cases for or delete an eval: that spends money and runs commands on the person's behalf" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

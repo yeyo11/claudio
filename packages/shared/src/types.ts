@@ -2,7 +2,7 @@
 
 import type { DashboardLayout } from './dashboard-layout.ts';
 import type { Effort, EffortReason } from './effort.ts';
-import type { EVAL_KINDS, EVAL_VARIANTS, EXPECTATION_KINDS } from './evals.ts';
+import type { EVAL_KINDS, EVAL_PRESSURES, EVAL_VARIANTS, EXPECTATION_KINDS_V2 } from './evals.ts';
 import type { NotificationKind, NotificationLevel, NotificationPriority } from './notifications.ts';
 import type { ToolRisk } from './tool-risk.ts';
 
@@ -3055,9 +3055,9 @@ export interface TieDocumentRequest {
 /**
  * `project`: team, resources and first work items, after creating a project or on demand from its
  * page. `work-items`: "Suggest tasks" on the board. `resources`: "Suggest" on the Resources tab, or
- * "Create with AI" for one resource from a description.
+ * "Create with AI" for one resource from a description. `evals`: "Draft cases" in an eval's editor (Phase 2).
  */
-export type AssistantRunKind = 'project' | 'work-items' | 'resources';
+export type AssistantRunKind = 'project' | 'work-items' | 'resources' | 'evals';
 
 /**
  * `running` has its chat, or is about to; `completed` answered and its proposals are served;
@@ -3127,7 +3127,7 @@ export interface AssistantFinding {
 /** `pending` waits for the person; `superseded` was pending when the person asked to suggest again. */
 export type AssistantProposalStatus = 'pending' | 'accepted' | 'discarded' | 'superseded';
 
-export type AssistantProposalKind = 'team-member' | 'resource' | 'work-item';
+export type AssistantProposalKind = 'team-member' | 'resource' | 'work-item' | 'eval-case';
 
 /** How many proposals of a kind a run made, by status: "2 of 6 accepted", "3 to review". */
 export interface AssistantProposalCount {
@@ -3155,6 +3155,8 @@ export interface AssistantRun {
    * absent or null otherwise, and on a run stored before it was its own field
    */
   focus?: string | null;
+  /** For an `evals` run, the eval it drafts cases for; absent or null otherwise */
+  evalName?: string | null;
   /**
    * The person's language when it started, which its chat's title is written in, kept so a run
    * started again after a restart words it the same. Absent on a run stored before it was kept,
@@ -3243,6 +3245,8 @@ export interface StartAssistantRunRequest {
   focus?: string;
   /** Required with a `resources` run's `description` */
   resourceKind?: AssistantResourceKind;
+  /** Required with an `evals` run: the eval to draft cases for. Refused on the other kinds */
+  evalName?: string;
   /** Mark the pending proposals of the latest finished run of this kind `superseded`. Default false */
   supersede?: boolean;
 }
@@ -3346,8 +3350,25 @@ export interface AssistantWorkItemProposal extends AssistantProposalBase {
   created: WorkItemRef | null;
 }
 
+/**
+ * Phase 2: a case drafted for an existing eval, with prompts at each pressure level and deterministic
+ * expectations first. Accepting appends it to the eval file through the write that takes `ifMatch`.
+ */
+export interface AssistantEvalCaseProposal extends AssistantProposalBase {
+  kind: 'eval-case';
+  /** The eval the case is for */
+  evalName: string;
+  case: EvalCase;
+  /** The case as appended, by id, once accepted; null otherwise */
+  acceptedCaseId: string | null;
+}
+
 /** One proposal of a run, accepted or discarded on its own (decision 36). */
-export type AssistantProposal = AssistantTeamMemberProposal | AssistantResourceProposal | AssistantWorkItemProposal;
+export type AssistantProposal =
+  | AssistantTeamMemberProposal
+  | AssistantResourceProposal
+  | AssistantWorkItemProposal
+  | AssistantEvalCaseProposal;
 
 /**
  * `POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting;
@@ -3359,6 +3380,8 @@ export interface AcceptAssistantProposalRequest {
   /** The editor's save: the name, content and scope the person left */
   resource?: { name?: string; content?: string; scope?: ConfigScopeKind };
   workItem?: Partial<Omit<ProposedWorkItem, 'epic' | 'similarTo'>>;
+  /** What the person edited of an `eval-case`, and the SHA of the eval file they saw (`ifMatch`) */
+  evalCase?: { case?: EvalCase; ifMatch: string };
 }
 
 // ---------- What changed on disk ----------
@@ -4404,6 +4427,12 @@ export interface AppSettingValues {
    * in cents.
    */
   dailySpendCapUsd: number | null;
+  /**
+   * Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case
+   * drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals
+   * are not affected.
+   */
+  evalsPhase2: boolean;
 }
 
 /**
@@ -7311,7 +7340,11 @@ export type EvalTargetKind = (typeof EVAL_KINDS)[number];
 /** The target variants a run compares; `proposed` is text the person sends, never written outside a lane. */
 export type EvalVariant = (typeof EVAL_VARIANTS)[number];
 
-export type EvalExpectationKind = (typeof EXPECTATION_KINDS)[number];
+/** `judged` is Phase 2 and appears only in a version 2 file. */
+export type EvalExpectationKind = (typeof EXPECTATION_KINDS_V2)[number];
+
+/** Phase 2: how hard a prompt pushes against the rule; each level is its own cell of a run. */
+export type EvalPressure = (typeof EVAL_PRESSURES)[number];
 
 /**
  * The file under test. The path is derived from kind, scope and name by Claudio's own resolvers and
@@ -7343,6 +7376,8 @@ export interface EvalLimits {
   timeoutMinutes?: number;
   /** The run's ceiling. The start dialog may lower it, never raise it */
   maxCostUsd?: number;
+  /** Phase 2: passed to the judge as `--max-budget-usd`, per judged expectation and sample */
+  maxJudgeCostUsd?: number;
 }
 
 /** A string matcher: a bare string is a glob over the whole value. */
@@ -7380,13 +7415,54 @@ export type EvalExpectation =
   | { kind: 'file'; path: string; exists?: boolean; contains?: EvalStringMatcher }
   | { kind: 'touched'; path: EvalStringMatcher; expect: boolean }
   /** Runs in the lane; needs the person's consent for the file's content */
-  | { kind: 'command'; run: string; exitCode?: number; timeoutSeconds?: number };
+  | { kind: 'command'; run: string; exitCode?: number; timeoutSeconds?: number }
+  /** Phase 2, version 2 files only */
+  | EvalJudgedExpectation;
+
+/** One folded call as the judge sees it, with the verdict the person expects of it. */
+export interface EvalJudgeExample {
+  /** Call summaries in order, as the judge reads them */
+  calls: string[];
+  /** The sample's final text */
+  final: string;
+  pass: boolean;
+}
+
+/**
+ * Phase 2: a statement a model checks against the sample's transcript. Deterministic expectations
+ * come first in a case; this one is for what a matcher cannot see ("explains why before editing").
+ */
+export interface EvalJudgedExpectation {
+  kind: 'judged';
+  statement: string;
+  /** Default `haiku` */
+  model?: string;
+  /** Run on the judge once before a run; a judge that disagrees is shown as unreliable */
+  examples?: EvalJudgeExample[];
+}
+
+/** Phase 2: the prompt at each pressure level. `neutral` is Phase 1's single `prompt`. */
+export interface EvalCasePrompts {
+  /** Reminds the agent of the rule */
+  supportive?: string;
+  /** The task alone */
+  neutral: string;
+  /** The task plus a plausible reason to skip the rule. Written by the person, never by Claudio */
+  competing?: string;
+}
 
 export interface EvalCase {
   id: string;
   title?: string;
-  /** English; sent as the sample's first and only message */
+  /**
+   * English; sent as the sample's first and only message. In a parsed definition it is always the
+   * `neutral` prompt: a version 1 file's only one, or `prompts.neutral` of a version 2 file.
+   */
   prompt: string;
+  /** Phase 2: the other pressure levels; absent in a version 1 file and in a v2 file with one prompt */
+  prompts?: EvalCasePrompts;
+  /** Phase 2: a regression guard; its pass^k is what the promotion gate reads */
+  mustHold?: boolean;
   /** Overrides the file's pin for this case */
   pin?: string;
   expect: EvalExpectation[];
@@ -7394,14 +7470,17 @@ export interface EvalCase {
 
 /** The content of `<project>/.claude/claudio-evals/<name>.json`. */
 export interface EvalDefinition {
-  version: 1;
+  /** 2 allows `prompts`, `mustHold`, `k` and `judged`; a version 1 file reads as neutral-only */
+  version: 1 | 2;
   title: string;
   target: EvalTarget;
   runAs?: EvalRunAs;
   /** A full 40-hex SHA: a branch name moves */
   pin: string;
-  /** k per case and variant */
+  /** n: samples per case, variant and pressure level. Up to 10 in a version 2 file */
   samples?: number;
+  /** Phase 2: the k of pass@k and pass^k, at most `samples`. Default 3 */
+  k?: number;
   limits?: EvalLimits;
   /** Ignored when `runAs.stage` applies */
   policy?: ToolPolicy | null;
@@ -7423,6 +7502,8 @@ export interface EvalFile {
 
 export interface EvalRunRequest {
   variants: EvalVariant[];
+  /** Phase 2: the levels to run; absent runs `neutral` only */
+  pressures?: EvalPressure[];
   /** Required with `proposed` */
   proposed?: string;
   /** A subset of the case ids */
@@ -7452,6 +7533,8 @@ export interface EvalEstimate {
   /** Every setup and assertion command the person must consent to */
   commands: string[];
   prompts: string[];
+  /** Phase 2: samples and ceiling per pressure level, for the dialog's breakdown */
+  perLevel?: Partial<Record<EvalPressure, { samples: number; ceilingUsd: number }>>;
   consentNeeded: boolean;
   warnings: EvalWarning[];
 }
@@ -7459,8 +7542,11 @@ export interface EvalEstimate {
 export type EvalRunState = 'queued' | 'running' | 'waiting' | 'ended';
 export type EvalRunOutcome = 'completed' | 'capped' | 'cancelled' | 'interrupted' | 'failed';
 export type EvalSampleState = 'queued' | 'running' | 'ended';
-/** Only `passed` and `failed` are scored; the rest say why a sample says nothing about the target. */
-export type EvalSampleOutcome = 'passed' | 'failed' | 'limit' | 'interrupted' | 'cancelled' | 'skipped' | 'infra';
+/**
+ * Only `passed` and `failed` are scored; the rest say why a sample says nothing about the target.
+ * `unjudged` (Phase 2): a judge failed, so the judged expectation has no verdict; it fails closed for the gate.
+ */
+export type EvalSampleOutcome = 'passed' | 'failed' | 'limit' | 'interrupted' | 'cancelled' | 'skipped' | 'infra' | 'unjudged';
 
 export interface EvalVariantInfo {
   variant: EvalVariant;
@@ -7479,6 +7565,8 @@ export interface EvalRunSummary {
   definitionSha: string;
   variants: EvalVariant[];
   samplesPerCase: number;
+  /** Phase 2: the levels this run covers; `['neutral']` for a Phase 1 run */
+  pressures: EvalPressure[];
   account: string | null;
   state: EvalRunState;
   outcome: EvalRunOutcome | null;
@@ -7506,6 +7594,23 @@ export interface EvalCheck {
   evidenceSeq: number | null;
   /** A command check's tail, 4 KiB, masked */
   output: string | null;
+  /** Phase 2: for a `judged` check, its judgement; null for the others */
+  judgement?: EvalJudgement | null;
+}
+
+/** What the judge answered for one judged expectation of one sample. */
+export interface EvalJudgement {
+  /** The expectation's index in its case */
+  idx: number;
+  /** Null when `status` is `unjudged` */
+  pass: boolean | null;
+  /** English, at most 400 characters */
+  reason: string;
+  /** Call seqs it points at */
+  evidence: number[];
+  costUsd: number | null;
+  model: string | null;
+  status: 'judged' | 'unjudged';
 }
 
 export interface EvalCall {
@@ -7529,6 +7634,8 @@ export interface EvalSample {
   runId: string;
   caseId: string;
   variant: EvalVariant;
+  /** Phase 2; `neutral` for a Phase 1 sample */
+  pressure: EvalPressure;
   attempt: number;
   /** A sample hit by a usage limit is run again from scratch as a new try, never replayed */
   try: number;
@@ -7563,6 +7670,55 @@ export interface EvalRun extends EvalRunSummary {
 }
 
 export type EvalCaseVerdict = 'regressed' | 'improved' | 'same';
+
+/**
+ * Phase 2: one cell (case × variant × pressure) read as metrics. `n` counts scored samples,
+ * `c` the passing ones; a rate is never shown without `n`.
+ */
+export interface EvalCellMetrics {
+  caseId: string;
+  variant: EvalVariant;
+  pressure: EvalPressure;
+  n: number;
+  c: number;
+  /** Clamped to `n` */
+  k: number;
+  /** At least one of k passes; null when n < k */
+  passAtK: number | null;
+  /** All k pass; null when n < k */
+  passHatK: number | null;
+  /** Wilson 95 % interval around c / n */
+  interval: { low: number; high: number };
+  /** Samples left out because a judge failed */
+  unjudged: number;
+  mustHold: boolean;
+}
+
+export type EvalGateVerdictKind = 'promotable' | 'regressed' | 'incomplete';
+
+/**
+ * Phase 2: the verdict on a run with `current` and `proposed`. Nothing is written by it: "Save
+ * proposed" opens the editor's Save with the proposed text.
+ */
+export interface EvalGate {
+  runId: string;
+  verdict: EvalGateVerdictKind;
+  /** `mustHold` cases whose pass^k fell, with the levels; set for `regressed` */
+  regressed: { caseId: string; pressure: EvalPressure; from: number; to: number }[];
+  /** Why it is `incomplete`: unjudged or not-scored `mustHold` samples, a unreliable judge, n below the gate minimum */
+  incomplete: { caseId: string | null; pressure: EvalPressure | null; reason: 'unjudged' | 'not-scored' | 'small-n' | 'judge-unreliable' }[];
+  /** Mean pass rate across cells, with the interval the fall is compared against */
+  meanRate: {
+    current: number | null;
+    proposed: number | null;
+    interval: { low: number; high: number } | null;
+  };
+  /** Judged expectations whose judge disagreed with its calibration examples, not yet accepted */
+  unreliableJudges: { caseId: string; idx: number }[];
+  /** Pinned account or rotation, shown on the card; no effect on the verdict */
+  account: string | null;
+  cells: EvalCellMetrics[];
+}
 
 /** Two variants of one run, per case. States facts only: no verdict on whether to promote. */
 export interface EvalComparison {
