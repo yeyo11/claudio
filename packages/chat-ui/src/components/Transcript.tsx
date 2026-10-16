@@ -1,10 +1,11 @@
-import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
-import { Brain, CircleAlert, CircleX, CircleStop, Check, ChevronRight, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import type { ChatChildren, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
+import { Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useChatUi } from '../lib/context';
-import { upperFirst, useAgentName } from '../lib/agent';
+import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
+import { toolHint } from '../lib/tool-lens';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
@@ -13,12 +14,12 @@ import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import type { ProgressStatus } from '@claudio/ui/lib/progress';
 import { CompactionDivider, type CompactionActions } from './CompactionDivider';
+import { BranchCard } from './LiveBranches';
+import { branchesOfStep, type Branch } from '../lib/chat-branches';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { RiskTag, useToolRisk } from './RiskTag';
-import { CodeBlock } from '@claudio/ui/components/CodeBlock';
-import { ProgressBar } from '@claudio/ui/components/ProgressBar';
+import { ToolBody } from './ToolBody';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
@@ -29,8 +30,6 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { CopyButton } from '@claudio/ui/components/ui';
 import { VirtualList } from '@claudio/ui/components/VirtualList';
 import { copyText } from '@claudio/ui/lib/clipboard';
-
-const RESULT_PREVIEW_CHARS = 6000;
 
 const loadMarkdown = () => import('@claudio/ui/components/Markdown');
 const Markdown = lazy(loadMarkdown);
@@ -51,17 +50,6 @@ export const RichText = memo(function RichText({ text, className = '', streaming
     </div>
   );
 });
-
-function ResultBlock({ content, isError }: { content: string; isError: boolean }) {
-  const { t } = useTranslation('chat');
-  const long = content.length > RESULT_PREVIEW_CHARS;
-  return (
-    <CodeBlock
-      tone={isError ? 'error' : undefined}
-      code={long ? `${content.slice(0, RESULT_PREVIEW_CHARS)}\n${t('transcript.moreChars', { count: content.length - RESULT_PREVIEW_CHARS })}` : content || t('transcript.empty')}
-    />
-  );
-}
 
 function ThinkingFold({ text }: { text: string }) {
   const { t } = useTranslation('chat');
@@ -102,20 +90,7 @@ function Block({ block, role, streaming = false }: { block: ContentBlock; role: 
     case 'tool_use':
       return <CallRow call={{ kind: 'call', id: block.id, name: block.name, input: block.input, result: null }} settled />;
     case 'tool_result':
-      return (
-        <Collapsible
-          className={`fold fold-call ${block.isError ? 'is-error' : 'is-ok'}`}
-          title={
-            <>
-              <CircleAlert {...ICON_SM} className="fold-icon" />
-              <span className="tool-name">{block.isError ? t('transcript.toolError') : t('transcript.toolResult')}</span>
-              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || t('transcript.empty')}</span>
-            </>
-          }
-        >
-          <ResultBlock content={block.content} isError={block.isError} />
-        </Collapsible>
-      );
+      return <CallRow call={{ kind: 'call', id: block.toolUseId, name: null, input: null, result: { content: block.content, isError: block.isError, ...(block.detail ? { detail: block.detail } : {}) } }} settled />;
   }
 }
 
@@ -354,7 +329,8 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const outcome = call.result ? (call.result.isError ? 'error' : 'ok') : running ? 'running' : 'none';
   const Icon = call.name ? toolIcon(call.name) : CircleAlert;
   const agentId = subagents && isDelegation(call.name) ? subagents.find(call.input) : null;
-  const hint = call.name ? callHint(call.input) : truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110);
+  const { cwd } = useRiskContext();
+  const hint = call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') };
   // Scored from the input, so a call still waiting for its result already shows it
   const risk = useToolRisk(call.name, call.input);
   return (
@@ -365,7 +341,10 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
           <>
             {running ? <Spinner className="fold-icon" /> : <Icon {...ICON_SM} className="fold-icon" />}
             <span className="tool-name">{call.name !== null ? toolKindLabel(call.name) : (call.result?.isError ? t('transcript.toolError') : t('transcript.toolResult'))}</span>
-            <span className="tool-hint">{hint}</span>
+            <span className="tool-hint">
+              {hint.items !== undefined ? t('transcript.call.items', { count: hint.items }) : hint.text}
+              {hint.aside && <span className="tool-hint-aside"> {hint.aside}</span>}
+            </span>
             <RiskTag risk={risk} />
             {/* The rail's colour is not the only thing that says it failed */}
             {outcome === 'error' && <span className="call-outcome">{t('transcript.callFailed')}</span>}
@@ -373,10 +352,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
           </>
         }
       >
-        <div className="call-body">
-          {call.name !== null && <CodeBlock code={JSON.stringify(call.input, null, 2)} lang="json" />}
-          {call.result ? <ResultBlock content={call.result.content} isError={call.result.isError} /> : running && <p className="muted small">{t('transcript.callWaiting')}</p>}
-        </div>
+        <ToolBody call={call} running={running} />
       </Collapsible>
       {agentId && subagents && (
         <Tooltip content={t('transcript.openSubagent')}>
@@ -443,8 +419,8 @@ const StepView = memo(function StepView({
   current,
   subagents,
   fresh = false,
-  launches,
-  onOpenLaunch,
+  branches,
+  onOpenBranch,
   edits,
 }: {
   row: Extract<TranscriptRow, { kind: 'step' }>;
@@ -453,9 +429,9 @@ const StepView = memo(function StepView({
   fresh?: boolean;
   /** The chat's edits, so the files this step edited show as chips; none where the transcript is not a chat's page */
   edits?: TranscriptEdits;
-  /** The workflows its `Workflow` calls started, each shown as a card under the step */
-  launches?: ChatWorkflow[];
-  onOpenLaunch?: () => void;
+  /** The subagents, background commands and workflows its calls started, each a card under the step */
+  branches?: Branch[];
+  onOpenBranch?: (branch: Branch) => void;
 }) {
   const { t } = useTranslation('chat');
   const [chosen, setChosen] = useState<boolean | null>(null);
@@ -499,81 +475,19 @@ const StepView = memo(function StepView({
           </div>
         </Collapsible>
         {edits && <EditChips parts={row.parts} edits={edits} />}
-        {launches?.map((workflow) => <LaunchCard key={workflow.id} workflow={workflow} onOpen={onOpenLaunch} />)}
+        {branches?.map((branch) => <BranchCard key={branch.key} branch={branch} onOpen={onOpenBranch} />)}
       </div>
     </article>
   );
 });
 
-/** Workflows a chat started, and where to see them whole. */
-export interface WorkflowLaunches {
-  list: readonly ChatWorkflow[];
-  open: () => void;
+/** What a chat delegated, and where to see each branch whole. */
+export interface BranchLinks {
+  children: ChatChildren;
+  open: (branch: Branch) => void;
 }
 
-// A call is answered in seconds, the run it starts is stamped a moment after: some slack either side
-const LAUNCH_SLACK_MS = 30_000;
-
-/**
- * The workflows a step's `Workflow` calls started. The transcript does not carry the run's id, so a
- * run belongs to the step it started during: between the step's first entry and its last.
- */
-function launchesOf(row: Extract<TranscriptRow, { kind: 'step' }>, list: readonly ChatWorkflow[]): ChatWorkflow[] | undefined {
-  if (!row.startedAt || !row.parts.some((part) => part.kind === 'call' && part.name === WORKFLOW_TOOL)) return undefined;
-  const from = Date.parse(row.startedAt) - LAUNCH_SLACK_MS;
-  const to = Date.parse(row.endedAt ?? row.startedAt) + LAUNCH_SLACK_MS;
-  const found = list.filter((workflow) => {
-    const at = Date.parse(workflow.startedAt);
-    return at >= from && at <= to;
-  });
-  return found.length > 0 ? found : undefined;
-}
-
-const WORKFLOW_TOOL = 'Workflow';
-const LAUNCH_SEGMENT: Record<ChatWorkflowAgent['status'], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed' };
-
-/**
- * A workflow the chat started, as the card the conversation points at: its name, how far it has
- * got, one segment per agent, and a way to its full card in the inspector.
- */
-function LaunchCard({ workflow, onOpen }: { workflow: ChatWorkflow; onOpen?: () => void }) {
-  const { t } = useTranslation('chat');
-  const name = workflow.name ?? workflow.description;
-  const running = workflow.status === 'running';
-  const done = workflow.agents.filter((agent) => agent.status === 'completed').length;
-  // The phase it is in: the last one an agent has started in
-  const phase = workflow.agents.reduce((at, agent) => Math.max(at, agent.phase ? workflow.phases.indexOf(agent.phase) + 1 : 0), 0);
-  const facts = [
-    workflow.phases.length > 0 && phase > 0 ? t('launch.phase', { n: phase, total: workflow.phases.length }) : null,
-    workflow.agents.length > 0 ? t('launch.agents', { done, total: workflow.agents.length }) : null,
-  ].filter(Boolean);
-  return (
-    <div className={`chat-launch grad-border ${running ? 'is-running' : ''}`.trim()}>
-      <div className="chat-launch-head">
-        <span className="chat-launch-mark" aria-hidden>
-          {name.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase()}
-        </span>
-        <span className="chat-launch-what">
-          <span className="chat-launch-name ellipsis">{name}</span>
-          <span className="chat-launch-state">
-            {running && <Spinner />}
-            <span className={`chat-launch-status is-${workflow.status}`}>{t(`badges.outcome.${workflow.status}`)}</span>
-            {facts.length > 0 && <span className="chat-launch-facts">{facts.join(' · ')}</span>}
-          </span>
-        </span>
-        {onOpen && (
-          <button type="button" className="btn btn-small chat-launch-open" onClick={onOpen} aria-label={t('launch.openHint', { name })}>
-            {t('launch.open')}
-            <ChevronRight {...ICON_SM} />
-          </button>
-        )}
-      </div>
-      {workflow.agents.length > 0 && (
-        <ProgressBar variant="segments" size="sm" decorative cells={workflow.agents.map((agent) => LAUNCH_SEGMENT[agent.status])} />
-      )}
-    </div>
-  );
-}
+const sameBranches = (a: readonly Branch[], b: readonly Branch[]) => a.length === b.length && a.every((branch, i) => JSON.stringify(branch) === JSON.stringify(b[i]));
 
 /** The line at the end of a chat that is working: the agent's name, with the tool it is on after it in mono. */
 export function WorkingLine({ detail }: { detail?: string }) {
@@ -668,7 +582,7 @@ export function Transcript({
   focus,
   working = false,
   subagents,
-  workflows,
+  branches,
   messages,
   edits,
   compactions,
@@ -682,8 +596,8 @@ export function Transcript({
   /** The chat is working: its last step is the one being worked on */
   working?: boolean;
   subagents?: SubagentLink;
-  /** Workflows the chat started: each shows as a card under the step that started it */
-  workflows?: WorkflowLaunches;
+  /** What the chat delegated: each subagent, background command and workflow is a card under the step that started it */
+  branches?: BranchLinks;
   /** What a message's menu offers; stable across renders, or every message is drawn again */
   messages?: MessageActions;
   /** The chat's edits: each step that edited files shows a chip per file, into the review */
@@ -695,16 +609,24 @@ export function Transcript({
   const target = focus ? rowOf(own, focus.item) : undefined;
   const focused = useMemo(() => (target ? { item: target } : null), [target, focus]);
   const last = own.at(-1);
-  // Worked out once per change of rows or runs, so a step's props hold still between renders
-  const launches = useMemo(() => {
-    if (!workflows || workflows.list.length === 0) return null;
-    const byRow = new Map<string, ChatWorkflow[]>();
+  // Worked out once per change of rows or branches; a step whose cards read the same keeps the very
+  // array it had, so an activity line that moved in one card does not draw every step again
+  const held = useRef(new Map<string, Branch[]>());
+  const children = branches?.children;
+  const cards = useMemo(() => {
+    const byRow = new Map<string, Branch[]>();
+    if (!children || children.subagents.length + children.backgroundTasks.length + children.workflows.length === 0) return byRow;
     for (const row of own) {
-      const found = row.kind === 'step' ? launchesOf(row, workflows.list) : undefined;
-      if (found) byRow.set(row.key, found);
+      if (row.kind !== 'step' || row.isSidechain) continue;
+      const calls = row.parts.flatMap((part) => (part.kind === 'call' ? [part] : []));
+      const found = branchesOfStep(calls, row, children);
+      if (found.length === 0) continue;
+      const before = held.current.get(row.key);
+      byRow.set(row.key, before && sameBranches(before, found) ? before : found);
     }
+    held.current = byRow;
     return byRow;
-  }, [own, workflows]);
+  }, [own, children]);
   return (
     <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>
@@ -725,8 +647,8 @@ export function Transcript({
             current={working && row === last}
             subagents={subagents}
             fresh={justStreamed(row.entries[row.entries.length - 1] ?? row.entries[0]!)}
-            launches={launches?.get(row.key)}
-            onOpenLaunch={workflows?.open}
+            branches={cards.get(row.key)}
+            onOpenBranch={branches?.open}
             edits={edits}
           />
         )

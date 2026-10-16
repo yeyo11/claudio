@@ -1,6 +1,13 @@
-import type { ContentBlock, TranscriptCompaction, TranscriptEntry } from './types.ts';
+import { addedDiff, unifiedOf } from './patch.ts';
+import type { ContentBlock, ToolResultDetail, TranscriptCompaction, TranscriptEntry } from './types.ts';
 
 const MAX_TOOL_RESULT = 20_000;
+
+/** Past this a `data` detail is left out: the text already says it, and a page carries every one */
+const MAX_DETAIL_DATA = 8_000;
+
+/** What `data` never repeats: the file, the output or the answer the result's text already holds */
+const DATA_DROPPED = new Set(['originalFile', 'content', 'stdout', 'result', 'file']);
 
 function stringifyToolResult(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -14,6 +21,109 @@ function stringifyToolResult(content: unknown): string {
       .join('\n');
   }
   return content == null ? '' : JSON.stringify(content);
+}
+
+const count = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const lineCount = (v: unknown, fallback: number): number => {
+  const n = count(v);
+  return n === null ? fallback : Math.max(0, Math.trunc(n));
+};
+
+/**
+ * The patch of a writing call, held to the cap the result's text has: whole hunks while they fit,
+ * so what reaches the page always parses; a new file is cut at a line, its header counting what is kept.
+ */
+function patchText(r: Record<string, unknown>, created: boolean): string {
+  const hunks = Array.isArray(r.structuredPatch) ? r.structuredPatch : [];
+  if (hunks.length > 0) {
+    let out = '';
+    for (const hunk of hunks) {
+      const next = unifiedOf([hunk]);
+      if (out.length + next.length > MAX_TOOL_RESULT) break;
+      out += next;
+    }
+    return out;
+  }
+  if (!created || typeof r.content !== 'string') return '';
+  if (r.content.length <= MAX_TOOL_RESULT) return addedDiff(r.content);
+  const cut = r.content.lastIndexOf('\n', MAX_TOOL_RESULT);
+  return cut > 0 ? addedDiff(r.content.slice(0, cut + 1)) : '';
+}
+
+/**
+ * What the CLI recorded beside a tool result, read by its shape: the line does not name the tool.
+ * The keys are those the CLI writes (checked against its transcripts, 2.1.286 to 2.1.300). A string
+ * is a failed call's error and says nothing the text does not; an array is an MCP server's content,
+ * which is the text itself.
+ */
+export function toolResultDetail(raw: unknown): ToolResultDetail | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const file = r.file && typeof r.file === 'object' ? (r.file as Record<string, unknown>) : null;
+  if (file && typeof file.filePath === 'string') {
+    const numLines = lineCount(file.numLines, 0);
+    return {
+      kind: 'file',
+      path: file.filePath,
+      startLine: lineCount(file.startLine, 1),
+      numLines,
+      totalLines: lineCount(file.totalLines, numLines),
+    };
+  }
+  if (
+    typeof r.filePath === 'string' &&
+    (Array.isArray(r.structuredPatch) || typeof r.oldString === 'string' || r.type === 'create' || r.type === 'update')
+  ) {
+    const created = r.type === 'create';
+    return { kind: 'patch', path: r.filePath, patch: patchText(r, created), created };
+  }
+  if (typeof r.stdout === 'string') {
+    return {
+      kind: 'command',
+      stderr: typeof r.stderr === 'string' ? r.stderr : '',
+      interrupted: r.interrupted === true,
+      backgroundTaskId: typeof r.backgroundTaskId === 'string' && r.backgroundTaskId ? r.backgroundTaskId : null,
+    };
+  }
+  if (typeof r.agentId === 'string' && r.agentId) {
+    return {
+      kind: 'agent',
+      agentId: r.agentId,
+      background: r.isAsync === true || r.status === 'async_launched',
+      model: typeof r.resolvedModel === 'string' && r.resolvedModel ? r.resolvedModel : null,
+    };
+  }
+  if (typeof r.code === 'number' && 'bytes' in r) return { kind: 'fetch', status: count(r.code), bytes: count(r.bytes) };
+  // Grep names its mode (`files_with_matches`, `content`, `count`); Glob names none and lists files
+  if (Array.isArray(r.filenames) || typeof r.numFiles === 'number' || typeof r.numMatches === 'number' || (typeof r.mode === 'string' && 'content' in r)) {
+    const mode = r.mode === 'content' ? 'content' : r.mode === 'count' ? 'count' : 'files';
+    const total =
+      mode === 'content'
+        ? lineCount(r.numLines, 0)
+        : mode === 'count'
+          ? lineCount(r.numMatches, 0)
+          : lineCount(r.numFiles, Array.isArray(r.filenames) ? r.filenames.length : 0);
+    return { kind: 'matches', mode, total };
+  }
+  const value: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(r)) if (!DATA_DROPPED.has(key)) value[key] = v;
+  if (Object.keys(value).length === 0) return null;
+  return JSON.stringify(value).length < MAX_DETAIL_DATA ? { kind: 'data', value } : null;
+}
+
+/**
+ * The detail belongs to the line's one result: with several the line does not say whose it is,
+ * and a failed call's is its error, already the text.
+ */
+function withDetail(blocks: ContentBlock[], o: Record<string, unknown>): ContentBlock[] {
+  const raw = o.tool_use_result ?? o.toolUseResult;
+  if (raw === undefined) return blocks;
+  const results = blocks.filter((b) => b.type === 'tool_result');
+  const only = results[0];
+  if (results.length !== 1 || !only || only.isError) return blocks;
+  const detail = toolResultDetail(raw);
+  if (!detail) return blocks;
+  return blocks.map((b) => (b === only ? { ...only, detail } : b));
 }
 
 function toBlocks(content: unknown): ContentBlock[] {
@@ -75,7 +185,7 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (o.isMeta === true) return null;
   const message = o.message as Record<string, unknown> | undefined;
   if (!message) return null;
-  const blocks = toBlocks(message.content);
+  const blocks = withDetail(toBlocks(message.content), o);
   if (blocks.length === 0) return null;
   const summary = o.type === 'user' && isCompactSummary(o, message.content);
   return {
@@ -110,8 +220,6 @@ function isCompactSummary(o: Record<string, unknown>, content: unknown): boolean
   const text = typeof content === 'string' ? content : Array.isArray(content) ? (content.find((c) => c?.type === 'text')?.text ?? '') : '';
   return typeof text === 'string' && text.startsWith(SUMMARY_LEAD);
 }
-
-const count = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /**
  * The CLI's marker that the conversation was compacted here. The stream spells the metadata in

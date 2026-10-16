@@ -312,11 +312,27 @@
     "examples": "To get started",
     "close": "Close"
   },
-  "launch": {
-    "phase": "phase {{n}} of {{total}}",
-    "agents": "{{done}}/{{total}} agents",
-    "open": "Open",
-    "openHint": "Open {{name}} in the details"
+  "branches": {
+    "title": "Running now",
+    "agents_one": "{{count}} agent",
+    "agents_other": "{{count}} agents",
+    "tasks_one": "{{count}} background task",
+    "tasks_other": "{{count}} background tasks",
+    "workflows_one": "{{count}} workflow",
+    "workflows_other": "{{count}} workflows",
+    "show": "Show what is running",
+    "hide": "Hide",
+    "open": "Open {{what}}",
+    "openButton": "Open",
+    "state": {
+      "running": "working",
+      "completed": "done",
+      "failed": "failed",
+      "stopped": "stopped"
+    },
+    "nested": "from {{owner}}",
+    "workflowFacts": "{{done}}/{{total}} agents · phase {{n}}",
+    "workflowAgents": "{{done}}/{{total}} agents"
   },
   "messageMenu": {
     "label": "Message actions",
@@ -343,7 +359,6 @@
     "toolError": "Tool error",
     "toolResult": "Tool result",
     "empty": "(empty)",
-    "moreChars": "… [{{count}} more chars]",
     "user": "User",
     "compaction": {
       "label": "Compacted",
@@ -367,6 +382,29 @@
     "callFailed": "failed",
     "callRunning": "running",
     "callWaiting": "Waiting for the result…",
+    "call": {
+      "input": "Call",
+      "output": "Result",
+      "change": "Change",
+      "raw": "Raw",
+      "lens": "Readable",
+      "showAll_one": "Show all {{count}} line",
+      "showAll_other": "Show all {{count}} lines",
+      "errors": "Errors",
+      "interrupted": "interrupted",
+      "background": "in the background",
+      "launched": "Launched in the background",
+      "prompt": "Prompt",
+      "matches_one": "{{count}} match",
+      "matches_other": "{{count}} matches",
+      "items_one": "{{count}} item",
+      "items_other": "{{count}} items",
+      "status": {
+        "pending": "pending",
+        "inProgress": "in progress",
+        "completed": "done"
+      }
+    },
     "openSubagent": "Open the subagent's transcript",
     "notice": {
       "task": "Background task",

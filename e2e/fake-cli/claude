@@ -13,7 +13,7 @@
 // the moment a turn takes it, as the CLI does (docs/chat-delivery.md); its transcript line keeps that id.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -176,16 +176,47 @@ function record(line) {
 }
 
 const emit = (message) => process.stdout.write(`${JSON.stringify({ ...message, session_id: sessionId })}\n`);
-const assistant = (content) => {
-  const message = { type: 'assistant', uuid: randomUUID(), parent_tool_use_id: null, message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: contextTokens, output_tokens: 10 } } };
+/**
+ * A subagent's lines go out as the CLI streams a sidechain (`parent_tool_use_id` the launching call's id) and
+ * are written to the agent's own transcript instead of the session's; `branch` is that subagent, null for the main agent.
+ */
+const sidechain = (branch) => (branch ? { parent_tool_use_id: branch.toolUseId, isSidechain: true } : { parent_tool_use_id: null });
+const assistant = (content, branch = null) => {
+  const message = { type: 'assistant', uuid: randomUUID(), ...sidechain(branch), message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: contextTokens, output_tokens: 10 } } };
   emit(message);
-  record({ type: 'assistant', uuid: message.uuid, message: message.message });
+  (branch ? branch.record : record)({ type: 'assistant', uuid: message.uuid, message: message.message });
 };
-const toolResult = (toolUseId, content, isError) => {
-  const message = { type: 'user', uuid: randomUUID(), parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] } };
+/**
+ * A tool result, with what the CLI records beside it (`detail`): `tool_use_result` on the stream and
+ * `toolUseResult` in the transcript, in the shape the real tool gives (an object, or a string for a call that failed).
+ */
+const toolResult = (toolUseId, content, isError, detail = undefined, branch = null) => {
+  const message = { type: 'user', uuid: randomUUID(), ...sidechain(branch), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] }, ...(detail === undefined ? {} : { tool_use_result: detail }) };
   emit(message);
-  record({ type: 'user', uuid: message.uuid, message: message.message });
+  (branch ? branch.record : record)({ type: 'user', uuid: message.uuid, message: message.message, ...(detail === undefined ? {} : { toolUseResult: detail }) });
 };
+const newToolId = () => `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+
+/** A `Read` answered as the CLI answers it: the text, and `{ type: 'text', file }` beside it. */
+function readResult(filePath) {
+  try {
+    const whole = readFileSync(filePath, 'utf8');
+    const content = whole.slice(0, 4000);
+    const lines = (text) => (text === '' ? 0 : text.replace(/\n$/, '').split('\n').length);
+    return { content, detail: { type: 'text', file: { filePath, content, numLines: lines(content), startLine: 1, totalLines: lines(whole) } } };
+  } catch {
+    // A path that is not there reads as the CLI says so, and a failed call records a string
+    return { content: '(file not found)', detail: '(file not found)' };
+  }
+}
+
+/** A finished `Bash` as the CLI answers it: the text, and `{ stdout, stderr, interrupted }` beside it, or the error as a string. */
+function commandResult(stdout, stderr, code, signal) {
+  const ok = code === 0;
+  const content = ((stdout + stderr).trim() || (ok ? '(no output)' : `Exit code ${code ?? signal}`)).slice(0, 4000);
+  const detail = ok ? { stdout: stdout.replace(/\n$/, ''), stderr: stderr.replace(/\n$/, ''), interrupted: false, isImage: false, noOutputExpected: false } : `Error: ${content}`;
+  return { content, isError: !ok, detail };
+}
 
 /** The `init` a session opens with; a failed compaction opens another, as the recording shows */
 function init() {
@@ -300,13 +331,13 @@ function startTurn(message, uuid = null) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|read|json|stream|hold|ask):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|read|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
   // A turn that writes its own prose needs none of the fake's around it
   const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'json' || s.kind === 'stream');
-  turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '', structured: undefined };
+  turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '', structured: undefined, launches: [] };
   log('turn', { text, commands });
   // A line `FAKE-LIMIT` is the account's usage limit, as the CLI's stream-json reports it: a rejected
   // `rate_limit_event` whose window resets in an hour, then a result that failed with a 429. The same
@@ -346,6 +377,9 @@ function nextStep() {
   const own = turn;
   if (!own) return;
   const step = own.steps.shift();
+  // A background agent's sidechain follows the step after its launch, so a page sees it running meanwhile
+  const launches = own.launches.splice(0);
+  if (launches.length) setTimeout(() => launches.forEach((go) => go()), SETTLE_MS);
   // What a `stream:` held back goes out before anything but the `hold:` that holds it
   if (own.streamRest !== undefined && step?.kind !== 'hold') finishStream(own);
   if (step === undefined) {
@@ -387,20 +421,15 @@ function nextStep() {
     return;
   }
   if (step.kind === 'read') {
-    const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+    const id = newToolId();
     const filePath = resolve(process.cwd(), step.text);
     assistant([{ type: 'tool_use', id, name: 'Read', input: { file_path: filePath } }]);
     own.current = { id, child: null, command: null };
     setTimeout(() => {
       if (turn !== own) return;
       own.current = null;
-      let content = '(file not found)';
-      try {
-        content = readFileSync(filePath, 'utf8').slice(0, 4000);
-      } catch {
-        // A path that is not there reads as the CLI says so
-      }
-      toolResult(id, content, false);
+      const { content, detail } = readResult(filePath);
+      toolResult(id, content, false, detail);
       setTimeout(() => turn === own && nextStep(), SETTLE_MS);
     }, READ_MS);
     return;
@@ -410,7 +439,7 @@ function nextStep() {
     // then a `can_use_tool` control request; the turn waits for the answer. Allowed, the call answers
     // `Allowed: <command>` without running it; denied, it fails. Either way the turn goes on as after
     // a command, reading what was said to it meanwhile
-    const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+    const id = newToolId();
     const input = { command: step.text, description: `Run ${step.text}` };
     assistant([{ type: 'tool_use', id, name: 'Bash', input }]);
     const requestId = randomUUID();
@@ -425,8 +454,10 @@ function nextStep() {
     setTimeout(() => turn === own && nextStep(), SETTLE_MS);
     return;
   }
+  if (step.kind === 'agent') return startAgent(own, step.text);
+  if (step.kind === 'background') return startBackground(own, step.text);
   const command = step.text;
-  const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+  const id = newToolId();
   // A direct child of this process, the way the CLI's shell calls are: the wrapper finds it under our
   // pid, by its start time against the call's (it allows two seconds either way). It is started and
   // logged before the call is announced, so whoever reads the call can already find its pid in the log
@@ -434,9 +465,10 @@ function nextStep() {
   log('command', { toolUseId: id, command, commandPid: child.pid });
   assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
   const started = Date.now();
-  let output = '';
-  child.stdout.on('data', (d) => (output += d));
-  child.stderr.on('data', (d) => (output += d));
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (d) => (stdout += d));
+  child.stderr.on('data', (d) => (stderr += d));
   const beat =
     HEARTBEAT_MS > 0
       ? setInterval(() => {
@@ -451,14 +483,193 @@ function nextStep() {
     own.current = null;
     log('command-ended', { toolUseId: id, command, code, signal, interrupted: own.interrupted });
     if (own.interrupted) {
-      toolResult(id, 'The user interrupted this command.', true);
+      toolResult(id, 'The user interrupted this command.', true, 'Error: The user interrupted this command.');
       endTurn({ error: true });
       return;
     }
-    const ok = code === 0;
-    toolResult(id, (output.trim() || (ok ? '(no output)' : `Exit code ${code ?? signal}`)).slice(0, 4000), !ok);
+    const { content, isError, detail } = commandResult(stdout, stderr, code, signal);
+    toolResult(id, content, isError, detail);
     afterTool(own);
   });
+}
+
+// ---------- branches: subagents and background commands ----------
+
+/** Every subagent and background command still going, so nothing of ours outlives the process */
+const branches = new Set();
+const backgroundChildren = new Set();
+
+/**
+ * A subagent, as the CLI keeps it: its lines stream with `parent_tool_use_id` and go to its own
+ * transcript, `<session>/subagents/agent-<agentId>.jsonl`, beside a `.meta.json` that names it.
+ */
+function openBranch(toolUseId, agentId, description, background) {
+  const file = transcriptFile ? join(transcriptFile.slice(0, -'.jsonl'.length), 'subagents', `agent-${agentId}.jsonl`) : null;
+  const branch = { toolUseId, agentId, description, background, stopped: false, children: new Set(), last: null, record: () => {} };
+  if (file) {
+    try {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file.replace(/\.jsonl$/, '.meta.json'), JSON.stringify({ agentType: 'Explore', description, toolUseId, ...(background ? { requestShape: 'background' } : {}) }));
+    } catch {
+      // a transcript that cannot be written only costs the spec its evidence
+    }
+    branch.record = (line) => {
+      const full = { parentUuid: branch.last, isSidechain: true, parentToolUseID: toolUseId, agentId, ...line, timestamp: new Date().toISOString(), cwd: process.cwd(), sessionId, version: VERSION };
+      if (full.uuid) branch.last = full.uuid;
+      try {
+        appendFileSync(file, `${JSON.stringify(full)}\n`);
+      } catch {
+        // as above
+      }
+    };
+    branch.record({ type: 'user', uuid: randomUUID(), message: { role: 'user', content: 'Look around' } });
+  }
+  branches.add(branch);
+  return branch;
+}
+
+function stopBranch(branch) {
+  branch.stopped = true;
+  for (const child of branch.children) killTree(child.pid);
+  branches.delete(branch);
+}
+
+/**
+ * The CLI's word that a task ended: `task_notification` on the stream, and in the transcript the
+ * `<task-notification>` it queues for the model, which is what a reload reads the end from.
+ */
+function notify(taskId, toolUseId, status, summary) {
+  emit({ type: 'system', subtype: 'task_notification', uuid: randomUUID(), task_id: taskId, tool_use_id: toolUseId, status, summary });
+  record({ type: 'queue-operation', operation: 'enqueue', content: `<task-notification>\n<task-id>${taskId}</task-id>\n<tool-use-id>${toolUseId}</tool-use-id>\n<status>${status}</status>\n<summary>${summary}</summary>\n</task-notification>` });
+}
+
+/** Waits for `path` (against the working directory) to exist; no path goes on at once. */
+function waitFor(path, branch, then) {
+  if (!path) return then();
+  const full = resolve(process.cwd(), path);
+  const wait = setInterval(() => {
+    if (branch.stopped) return clearInterval(wait);
+    if (!existsSync(full)) return;
+    clearInterval(wait);
+    then();
+  }, 50);
+}
+
+/**
+ * A subagent's own steps, `read:` and `run:` as the main ones, each a call and its result on the
+ * sidechain. A `hold: <path>` keeps the call before it open until the path exists, so a page can
+ * read what the subagent is doing for as long as a spec needs. Ends with the subagent's report.
+ */
+function playSidechain(branch, steps, done) {
+  const next = () => {
+    if (branch.stopped) return;
+    const step = steps.shift();
+    if (step === undefined) {
+      assistant([{ type: 'text', text: `Looked around for: ${branch.description}.` }], branch);
+      return done();
+    }
+    const hold = steps[0]?.kind === 'hold' ? steps.shift().text : null;
+    const answer = (send) =>
+      waitFor(hold, branch, () => {
+        if (branch.stopped) return;
+        send();
+        setTimeout(next, SETTLE_MS);
+      });
+    const id = newToolId();
+    if (step.kind === 'read') {
+      const filePath = resolve(process.cwd(), step.text);
+      assistant([{ type: 'tool_use', id, name: 'Read', input: { file_path: filePath } }], branch);
+      setTimeout(() => answer(() => {
+        const { content, detail } = readResult(filePath);
+        toolResult(id, content, false, detail, branch);
+      }), READ_MS);
+    } else if (step.kind === 'run') {
+      const child = spawn('sh', ['-c', step.text], { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
+      branch.children.add(child);
+      assistant([{ type: 'tool_use', id, name: 'Bash', input: { command: step.text, description: `Run ${step.text}` } }], branch);
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (d) => (stdout += d));
+      child.stderr.on('data', (d) => (stderr += d));
+      child.on('exit', (code, signal) => {
+        branch.children.delete(child);
+        answer(() => {
+          const { content, isError, detail } = commandResult(stdout, stderr, code, signal);
+          toolResult(id, content, isError, detail, branch);
+        });
+      });
+    } else waitFor(step.text, branch, next);
+  };
+  next();
+}
+
+/**
+ * `agent: <description> | <sidechain script>`: one `Agent` call, its `task_started`, its sidechain,
+ * then its result and `task_notification`. A description that starts with `background:` answers at
+ * once (`async_launched`), and the sidechain and the notification follow the next step of the turn.
+ */
+function startAgent(own, text) {
+  const [head = '', ...rest] = text.split('|');
+  const background = /^\s*background:\s*/.test(head);
+  const description = head.replace(/^\s*background:\s*/, '').trim();
+  const steps = rest
+    .join('|')
+    .split(';')
+    .map((l) => /^\s*(read|run|hold):\s*(.+)$/.exec(l))
+    .filter((m) => m?.[2]?.trim())
+    .map((m) => ({ kind: m[1], text: m[2].trim() }));
+  const id = newToolId();
+  // The CLI's agent ids are hex; the id names the agent's transcript and its task
+  const agentId = `a${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+  const input = { description, subagent_type: 'Explore', prompt: 'Look around' };
+  log('agent', { toolUseId: id, agentId, description, background });
+  assistant([{ type: 'tool_use', id, name: 'Agent', input }]);
+  const branch = openBranch(id, agentId, description, background);
+  emit({ type: 'system', subtype: 'task_started', uuid: randomUUID(), task_id: agentId, tool_use_id: id, description, task_type: 'local_agent', is_backgrounded: background, prompt: input.prompt });
+  const launched = { agentId, description, prompt: input.prompt, resolvedModel: model };
+  const summary = `Looked around for: ${description}.`;
+  const finish = () => {
+    branches.delete(branch);
+    log('agent-ended', { toolUseId: id, agentId });
+    notify(agentId, id, 'completed', summary);
+  };
+  if (background) {
+    toolResult(id, `Async agent launched successfully.\nagentId: ${agentId}`, false, { ...launched, status: 'async_launched', isAsync: true });
+    own.launches.push(() => playSidechain(branch, steps, finish));
+    afterTool(own);
+    return;
+  }
+  own.current = { id, child: null, command: null, branch };
+  playSidechain(branch, steps, () => {
+    if (turn !== own) return;
+    own.current = null;
+    toolResult(id, `${summary}\nagentId: ${agentId}`, false, { ...launched, status: 'completed', content: [{ type: 'text', text: summary }] });
+    finish();
+    afterTool(own);
+  });
+}
+
+/**
+ * `background: <command>`: a `Bash` call with `run_in_background`, answered at once with its
+ * `backgroundTaskId`, a `task_started`, the command run for real, and a `task_notification` when it ends.
+ */
+function startBackground(own, command) {
+  const id = newToolId();
+  const taskId = `b${randomUUID().replaceAll('-', '').slice(0, 8)}`;
+  const description = `Run ${command}`;
+  const child = spawn('sh', ['-c', command], { cwd: process.cwd(), stdio: 'ignore' });
+  backgroundChildren.add(child);
+  log('background', { toolUseId: id, taskId, command, commandPid: child.pid });
+  assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description, run_in_background: true } }]);
+  toolResult(id, `Command running in background with ID: ${taskId}.`, false, { stdout: '', stderr: '', interrupted: false, isImage: false, noOutputExpected: false, backgroundTaskId: taskId });
+  emit({ type: 'system', subtype: 'task_started', uuid: randomUUID(), task_id: taskId, tool_use_id: id, description, task_type: 'local_bash', is_backgrounded: true });
+  child.on('exit', (code, signal) => {
+    backgroundChildren.delete(child);
+    log('background-ended', { toolUseId: id, taskId, code, signal });
+    const ok = code === 0;
+    notify(taskId, id, ok ? 'completed' : 'failed', `Background command "${description}" ${ok ? 'completed' : 'failed'} (exit code ${code ?? signal})`);
+  });
+  afterTool(own);
 }
 
 /** The worker takes a moment before its next step, and reads what was said to it meanwhile. */
@@ -656,6 +867,8 @@ function control(message) {
     } else if (turn) {
       // A question waiting for its answer is withdrawn, as the CLI does
       if (turn.current?.asking) emit({ type: 'control_cancel_request', request_id: turn.current.asking });
+      // A foreground subagent goes down with the turn that waits for it
+      if (turn.current?.branch) stopBranch(turn.current.branch);
       // A Read has no process to take down: the turn ends at once
       if (turn.current) toolResult(turn.current.id, 'The user interrupted this read.', true);
       turn.current = null;
@@ -708,6 +921,8 @@ function shutdown() {
   closing = true;
   // Nothing of ours outlives us: the command running now goes first
   if (turn?.current?.child) killTree(turn.current.child.pid, 'SIGKILL');
+  for (const branch of branches) for (const child of branch.children) killTree(child.pid, 'SIGKILL');
+  for (const child of backgroundChildren) killTree(child.pid, 'SIGKILL');
   log('exit');
   process.exit(0);
 }

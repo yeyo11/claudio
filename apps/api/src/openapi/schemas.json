@@ -1910,6 +1910,9 @@
           },
           "isError": {
             "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/ToolResultDetail"
           }
         },
         "required": [
@@ -1920,6 +1923,182 @@
         ]
       }
     ]
+  },
+  "ToolResultDetail": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "file"
+          },
+          "path": {
+            "type": "string"
+          },
+          "startLine": {
+            "type": "number"
+          },
+          "numLines": {
+            "type": "number"
+          },
+          "totalLines": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "startLine",
+          "numLines",
+          "totalLines"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "patch"
+          },
+          "path": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "string"
+          },
+          "created": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "patch",
+          "created"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "command"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "interrupted": {
+            "type": "boolean"
+          },
+          "backgroundTaskId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "stderr",
+          "interrupted",
+          "backgroundTaskId"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "matches"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "files",
+              "content",
+              "count"
+            ]
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "mode",
+          "total"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "fetch"
+          },
+          "status": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "status",
+          "bytes"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "agent"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "background": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "agentId",
+          "background",
+          "model"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "data"
+          },
+          "value": {}
+        },
+        "required": [
+          "kind",
+          "value"
+        ]
+      }
+    ],
+    "description": "What the CLI recorded beside a tool result (`tool_use_result` on its stream, `toolUseResult` in its transcript), kept only where it says something the result's text does not: the text stays the record, this tells the page how to read it."
   },
   "TranscriptCompaction": {
     "type": "object",
@@ -5789,6 +5968,9 @@
         "$ref": "#/components/schemas/SubagentEndedEvent"
       },
       {
+        "$ref": "#/components/schemas/SubagentActivityEvent"
+      },
+      {
         "$ref": "#/components/schemas/WorkflowProgressEvent"
       },
       {
@@ -6994,6 +7176,71 @@
       "toolUseId",
       "type"
     ]
+  },
+  "SubagentActivityEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "subagent.activity"
+      },
+      "toolUseId": {
+        "type": "string",
+        "description": "The call that launched it, which is how its sidechain names it"
+      },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "activity",
+      "agentId",
+      "at",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "toolUseId",
+      "type"
+    ],
+    "description": "A running subagent's activity moved. At most one per subagent per second, like `chat.activity`."
   },
   "WorkflowProgressEvent": {
     "type": "object",
@@ -11446,6 +11693,17 @@
         "items": {
           "$ref": "#/components/schemas/ChatBackgroundTask"
         }
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it is doing right now, from its latest calls; null while it has no open call or has ended"
       }
     },
     "required": [
@@ -11458,7 +11716,8 @@
       "endedAt",
       "lastActivityAt",
       "cwd",
-      "tasks"
+      "tasks",
+      "activity"
     ],
     "description": "A branch of a chat that works on its own: its messages live inside the chat's transcript."
   },
@@ -12170,9 +12429,21 @@
         "items": {
           "$ref": "#/components/schemas/ChatBackgroundTask"
         }
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it is doing right now, from its latest calls; null while it has no open call or has ended"
       }
     },
     "required": [
+      "activity",
       "chat",
       "cwd",
       "description",

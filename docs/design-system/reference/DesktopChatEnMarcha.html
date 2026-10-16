@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Claudio · Chat con subagentes en marcha (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../claudio-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px; position: relative">
+<div class="side">
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto"><svg class="logo-mark" width="26" height="26" viewBox="9.5 10 100 100" aria-hidden="true" style="flex-shrink: 0"><defs><linearGradient id="logo-g1" x1="0.35" y1="0" x2="0.6" y2="1"><stop class="logo-stop-a" offset="0"/><stop class="logo-stop-a" offset="0.5"/><stop class="logo-stop-b" offset="1"/></linearGradient></defs><path fill="url(#logo-g1)" d="M41.76 14.24Q46 10 52 10L71 10Q74 10 76.12 12.12L93.88 29.88Q96 32 93 32L57 32Q54 32 51.88 34.12L34.83 51.17Q32 54 32 58L32 62Q32 66 34.83 68.83L51.88 85.88Q54 88 57 88L93 88Q96 88 93.88 90.12L76.12 107.88Q74 110 71 110L52 110Q46 110 41.76 105.76L14.24 78.24Q10 74 10 68L10 52Q10 46 14.24 41.76Z"/><path class="logo-spark" d="M62 41Q68 54 81 60Q68 66 62 79Q56 66 43 60Q56 54 62 41Z"/><rect class="logo-spark" x="98" y="51.5" width="11" height="17" rx="3"/></svg><span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span></a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+<div class="col" style="gap: 1px">
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span></a>
+<a href="DesktopChats.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+<a href="DesktopTablero.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8.5 12l2.5 2.5 4.5-5"></path></svg><span class="grow">Tareas</span><span class="count">13</span></a>
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">1</span></a>
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span></a>
+</div>
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+<a href="DesktopProyectos.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+<a href="DesktopUso.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+</div>
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">2</span></div>
+<a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">Trabaja en AGN-28: tablero con columnas fijas</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="mono fg-3">4:12</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">ecosystem-foundation</span><span class="mono t-xs fg-3">2/9</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+</a>
+</div>
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col" style="position: relative">
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm project-selector" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>claude-wrapper<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">42281d</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0">
+<div class="col grow" style="gap: 0; min-width: 0">
+<div class="row" style="height: 56px; padding: 0 20px 0 12px; border-bottom: 1px solid var(--line); gap: 10px; flex-shrink: 0">
+<a href="DesktopChats.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver a chats"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis" style="font-weight: 600">Investiga cómo se pintan las llamadas a herramientas en el chat</span><span class="mono t-xs fg-3">claudio · 42281d · opus-5.5</span></span>
+<span class="badge b-live"><span class="spin-braille" style="width: auto"></span>trabajando · 1:12</span>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Buscar en el chat"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Más acciones"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 20px 32px 0">
+<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: 14px; line-height: 1.65">
+<div style="align-self: flex-end; max-width: 82%; background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 11px 15px">Investiga cómo se pintan las llamadas a herramientas en el chat y qué pasa con los subagentes, y lanza la investigación en paralelo.</div>
+<div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3); white-space: nowrap; min-width: 0"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg><span style="flex: none">3 herramientas · 52 s</span><span class="row" style="gap: 6px; min-width: 0; overflow: hidden"><span class="badge">kb_search_documents</span><span class="badge">Agent</span><span class="badge">Bash</span></span><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div class="chat-launch is-agent">
+<div class="chat-launch-head"><span class="chat-launch-mark"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg></span><span class="chat-launch-what"><span class="chat-launch-name ellipsis">Leer el plan de chat-experience</span><span class="chat-launch-state"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg><span class="chat-launch-status is-completed">terminado</span><span class="chat-launch-facts">Explore · 48 s</span></span></span><button type="button" class="btn btn-sm chat-launch-open">Abrir<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button></div>
+</div>
+<p style="margin: 0">El plan de chat-experience ya explica cómo se agrupan las llamadas en pasos. Lanzo dos agentes en paralelo y la suite en segundo plano mientras leo el inspector.</p>
+<div class="col rail-live" style="gap: 8px; padding-left: 10px"><div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3); white-space: nowrap; min-width: 0"><span class="spin-braille"></span><span style="flex: none">3 herramientas · 1 min 12 s</span><span class="row" style="gap: 6px; min-width: 0; overflow: hidden"><span class="badge">Agent ×2</span><span class="badge">Bash</span></span><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div><div class="col" style="gap: 2px"><div class="call-row is-running"><div class="call-head" role="button" aria-expanded="false"><span class="spin-braille"></span><span class="tool-name">Agent</span><span class="tool-hint">Investigar el stream del CLI</span><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true" style="margin-left: auto; flex: none"><path d="m9 6 6 6-6 6"></path></svg></div></div><div class="call-row is-running"><div class="call-head" role="button" aria-expanded="false"><span class="spin-braille"></span><span class="tool-name">Agent</span><span class="tool-hint">Revisar el inspector del chat</span><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true" style="margin-left: auto; flex: none"><path d="m9 6 6 6-6 6"></path></svg></div></div><div class="call-row is-ok"><div class="call-head" role="button" aria-expanded="false"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"></path></svg><span class="tool-name">Bash</span><span class="tool-hint">Ejecutar la suite</span><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true" style="margin-left: auto; flex: none"><path d="m9 6 6 6-6 6"></path></svg></div></div></div></div>
+<div class="chat-launch is-agent rail-live is-running">
+<div class="chat-launch-head"><span class="chat-launch-mark"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg></span><span class="chat-launch-what"><span class="chat-launch-name ellipsis">Investigar el stream del CLI</span><span class="chat-launch-state"><span class="spin-braille"></span><span class="chat-launch-status is-running">trabajando</span><span class="chat-launch-facts">Explore · <span class="verb c-live">leyendo</span> packages/core/src/chats.ts · 0:42</span></span></span><button type="button" class="btn btn-sm chat-launch-open">Abrir<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button></div>
+</div>
+<div class="chat-launch is-task rail-live is-running">
+<div class="chat-launch-head"><span class="chat-launch-mark"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"></path></svg></span><span class="chat-launch-what"><span class="chat-launch-name ellipsis">Ejecutar la suite</span><span class="chat-launch-state"><span class="spin-braille"></span><span class="chat-launch-status is-running">trabajando</span><span class="chat-launch-facts">pnpm test · 1:10</span></span></span><button type="button" class="btn btn-sm chat-launch-open">Abrir<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button></div>
+</div>
+<div class="row t-sm" style="gap: 8px; white-space: nowrap; min-width: 0"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 500; flex: none">Claude Code está delegando</span><span class="mono t-xs fg-3 ellipsis">Revisar el inspector del chat · 0:31</span></div>
+</div>
+</div>
+<div style="display: flex; justify-content: center; padding: 8px 32px 0; flex-shrink: 0"><div class="chat-branches"><button type="button" class="chat-branches-bar" aria-expanded="true"><span class="spin-braille"></span><span class="chat-branches-count">2 agentes · 1 tarea en segundo plano</span><span class="chat-branches-now">Explore · <span class="verb">leyendo</span> packages/core/src/chats.ts · 0:42</span><svg class="ico ico-sm fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><div class="chat-branches-list" aria-label="En marcha"><button type="button" class="chat-branch-row is-running" aria-label="Abrir Investigar el stream del CLI"><span class="state"><span class="spin-braille"></span></span><span class="badge chat-branch-kind">Explore</span><span class="chat-branch-desc">Investigar el stream del CLI</span><span class="chat-branch-act"><span class="verb">leyendo</span> packages/core/src/chats.ts</span><span class="chat-branch-time">0:42</span></button><button type="button" class="chat-branch-row is-running is-nested" aria-label="Abrir grep -rn parent_tool_use_id packages/core"><span class="state"><span class="spin-braille"></span></span><span class="badge chat-branch-kind">bash</span><span class="chat-branch-desc">grep -rn parent_tool_use_id packages/core</span><span class="chat-branch-act"></span><span class="chat-branch-time">0:05</span></button><button type="button" class="chat-branch-row is-running" aria-label="Abrir Revisar el inspector del chat"><span class="state"><span class="spin-braille"></span></span><span class="badge chat-branch-kind">general-purpose</span><span class="chat-branch-desc">Revisar el inspector del chat</span><span class="chat-branch-act"><span class="verb">buscando</span> BranchesCard</span><span class="chat-branch-time">0:31</span></button><button type="button" class="chat-branch-row is-running" aria-label="Abrir Ejecutar la suite"><span class="state"><span class="spin-braille"></span></span><span class="badge chat-branch-kind">bash</span><span class="chat-branch-desc">Ejecutar la suite</span><span class="chat-branch-act"></span><span class="chat-branch-time">1:10</span></button><button type="button" class="chat-branch-row is-completed" aria-label="Abrir Leer el plan de chat-experience"><span class="state"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg></span><span class="word">terminado</span><span class="badge chat-branch-kind">Explore</span><span class="chat-branch-desc">Leer el plan de chat-experience</span><span class="chat-branch-act"></span><span class="chat-branch-time">0:48</span></button></div></div></div>
+<div style="display: flex; justify-content: center; padding: 10px 32px 18px; flex-shrink: 0"><div class="col" style="width: 100%; max-width: 780px; gap: 8px">
+<div class="card energy" style="border-radius: var(--r-xl); padding: 10px; display: flex; align-items: flex-end; gap: 8px">
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Añadir al mensaje"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="grow" style="display: flex; min-height: 36px; align-items: center"><textarea rows="1" placeholder="Envía un mensaje de seguimiento…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 14px; padding: 0"></textarea></label>
+<button type="button" class="btn btn-danger btn-sm" style="height: 36px"><svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor" aria-hidden="true"><path d="M6 6h12v12H6z"></path></svg>Detener</button>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Enviar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+<div class="row" style="gap: 6px"><button type="button" class="chip">Opus 5.5</button><button type="button" class="chip">Sin pedir permisos</button><button type="button" class="chip">Sin preset</button><button type="button" class="chip">MCP de la CLI</button><span class="grow"></span><span class="t-xs fg-3 mono">↵ enviar · ⇧↵ salto</span></div>
+</div></div>
+</div>
+<aside aria-label="Detalles del chat" class="col" style="width: 344px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--bg-1); gap: 0">
+<div class="tabs" role="tablist" style="padding: 8px 16px 0; height: 56px; align-items: flex-end"><button type="button" role="tab" aria-selected="true" class="tab on">Resumen</button><button type="button" role="tab" aria-selected="false" class="tab">Actividad</button><button type="button" role="tab" aria-selected="false" class="tab">Cambios</button><button type="button" role="tab" aria-selected="false" class="tab">Entorno</button></div>
+<div class="col" style="padding: 18px; gap: 22px">
+<section class="row" style="gap: 14px"><span class="ring" style="--p: 14; --c: var(--fg-2); width: 60px; height: 60px; font-size: 12px">14%</span><span class="col" style="gap: 3px"><span class="t-label">Contexto</span><span class="t-sm">144.826 de 1 M tokens</span></span></section>
+<section class="col" style="gap: 0">
+<span class="t-label" style="padding-bottom: 8px">Chat</span>
+<div class="prop-row"><span class="k" style="width: 90px">Estado</span><span class="v"><span class="badge b-live"><span class="spin-braille" style="width: auto"></span>trabajando</span></span></div>
+<div class="prop-row"><span class="k" style="width: 90px">Modo</span><span class="v">Interactivo</span></div>
+<div class="prop-row"><span class="k" style="width: 90px">Permisos</span><span class="v"><span class="badge">bypassPermissions</span></span></div>
+<div class="prop-row"><span class="k" style="width: 90px">Coste</span><span class="v t-num">2,55 US$</span></div>
+<div class="prop-row"><span class="k" style="width: 90px">Mensajes</span><span class="v t-num">109</span></div>
+</section>
+</div>
+</aside>
+</div>
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+</div>
+
+</div>
+<script>t()</script>
+</body></html>

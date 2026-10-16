@@ -70,6 +70,8 @@ export interface ChatUiConfig {
   slots: {
     StartOptions: ComponentType<{ chat: Chat; value: StartChoices; onChange(next: StartChoices): void; forking: boolean }>;
     LiveOptions: ComponentType<{ chat: Chat }>;
+    /** A patch as the app's comparator draws it: the chat package must not import the app's diff (design system §5) */
+    Diff: ComponentType<{ path: string; patch: string }>;
   };
 }
 

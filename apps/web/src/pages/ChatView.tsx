@@ -14,7 +14,9 @@ import { AnimatePresence, motion } from '@claudio/ui/components/motion';
 import { useMotionLevel } from '@claudio/ui/lib/motion';
 import { useSmoothText } from '@claudio/chat-ui/lib/smooth-text';
 import { useToast } from '@claudio/ui/components/Toast';
-import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@claudio/chat-ui/components/Transcript';
+import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type BranchLinks, type SubagentLink, type TranscriptEdits } from '@claudio/chat-ui/components/Transcript';
+import { LiveBranches } from '@claudio/chat-ui/components/LiveBranches';
+import type { Branch } from '@claudio/chat-ui/lib/chat-branches';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@claudio/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
@@ -240,13 +242,19 @@ export function ChatView() {
     [subagentList, openDetail, id],
   );
 
-  // A workflow the chat started is a card in the conversation; its whole card is in the inspector
-  const workflowList = chat?.children.workflows;
+  // What the chat delegated is a card under its step and a row of the strip over the composer: a
+  // subagent and a command open their panel, a workflow its whole card in the inspector
+  const children = chat?.children;
   const showInspector = inspector.show;
-  const workflows = useMemo<WorkflowLaunches | undefined>(
-    () => (workflowList && workflowList.length > 0 ? { list: workflowList, open: () => showInspector('environment') } : undefined),
-    [workflowList, showInspector],
+  const openBranch = useCallback(
+    (branch: Branch) => {
+      if (branch.kind === 'agent') openDetail({ kind: 'subagent', chatId: id, agentId: branch.id });
+      else if (branch.kind === 'task') openDetail({ kind: 'task', chatId: id, taskId: branch.id });
+      else showInspector('environment');
+    },
+    [openDetail, id, showInspector],
   );
+  const branches = useMemo<BranchLinks | undefined>(() => (children ? { children, open: openBranch } : undefined), [children, openBranch]);
 
   // "Create a task from this message": in Backlog of the chat's project, then offered to open
   const toast = useToast();
@@ -426,7 +434,7 @@ export function ChatView() {
                 focus={focus}
                 working={stepCurrent}
                 subagents={subagents}
-                workflows={workflows}
+                branches={branches}
                 messages={messages}
                 edits={edits}
                 compactions={compactions}
@@ -456,6 +464,7 @@ export function ChatView() {
           </AnimatePresence>
         </div>
 
+        {children && <LiveBranches branches={children} onOpen={openBranch} />}
         {composer === 'fork' && (
           <div className="chat-fork" role="group" aria-label={t('chat:sessionView.continueCopy')}>
             <div className="chat-fork-head">

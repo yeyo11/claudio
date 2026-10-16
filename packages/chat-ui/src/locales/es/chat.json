@@ -312,11 +312,27 @@
     "examples": "Para empezar",
     "close": "Cerrar"
   },
-  "launch": {
-    "phase": "etapa {{n}} de {{total}}",
-    "agents": "{{done}}/{{total}} agentes",
-    "open": "Abrir",
-    "openHint": "Abrir {{name}} en los detalles"
+  "branches": {
+    "title": "En marcha",
+    "agents_one": "{{count}} agente",
+    "agents_other": "{{count}} agentes",
+    "tasks_one": "{{count}} tarea en segundo plano",
+    "tasks_other": "{{count}} tareas en segundo plano",
+    "workflows_one": "{{count}} workflow",
+    "workflows_other": "{{count}} workflows",
+    "show": "Ver lo que está en marcha",
+    "hide": "Ocultar",
+    "open": "Abrir {{what}}",
+    "openButton": "Abrir",
+    "state": {
+      "running": "trabajando",
+      "completed": "terminado",
+      "failed": "ha fallado",
+      "stopped": "detenido"
+    },
+    "nested": "de {{owner}}",
+    "workflowFacts": "{{done}}/{{total}} agentes · fase {{n}}",
+    "workflowAgents": "{{done}}/{{total}} agentes"
   },
   "messageMenu": {
     "label": "Acciones del mensaje",
@@ -343,7 +359,6 @@
     "toolError": "Error de la herramienta",
     "toolResult": "Resultado de la herramienta",
     "empty": "(vacío)",
-    "moreChars": "… [{{count}} caracteres más]",
     "user": "Usuario",
     "compaction": {
       "label": "Compactado",
@@ -367,6 +382,29 @@
     "callFailed": "falló",
     "callRunning": "en curso",
     "callWaiting": "Esperando el resultado…",
+    "call": {
+      "input": "Llamada",
+      "output": "Resultado",
+      "change": "Cambio",
+      "raw": "En bruto",
+      "lens": "Legible",
+      "showAll_one": "Mostrar la línea",
+      "showAll_other": "Mostrar las {{count}} líneas",
+      "errors": "Errores",
+      "interrupted": "interrumpido",
+      "background": "en segundo plano",
+      "launched": "Lanzado en segundo plano",
+      "prompt": "Instrucciones",
+      "matches_one": "{{count}} coincidencia",
+      "matches_other": "{{count}} coincidencias",
+      "items_one": "{{count}} elemento",
+      "items_other": "{{count}} elementos",
+      "status": {
+        "pending": "pendiente",
+        "inProgress": "en curso",
+        "completed": "hecho"
+      }
+    },
     "openSubagent": "Abrir la transcripción del subagente",
     "notice": {
       "task": "Tarea en segundo plano",

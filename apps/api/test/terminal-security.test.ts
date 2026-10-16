@@ -304,7 +304,11 @@ async function fromChatTree(t: TestContext, base: string, options: { detach: boo
   `;
   // The "chat" outlives the call, so the real check finds it in the process table
   const chat = `require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(middle)}, ...process.argv.slice(1)], { stdio: 'ignore' }); setTimeout(() => process.exit(0), 6000);`;
-  const root = spawn(process.execPath, ['-e', chat, base, result], { env: { ...process.env, CLAUDIO_CHAT_ID: 'chat-audit' }, stdio: 'ignore' });
+  // A runner that is itself an agent run's verification command marks every child with
+  // CLAUDIO_AGENT_RUN, which the peer check rightly refuses: the tree here is a chat's, nothing else
+  const ambient = { ...process.env };
+  delete ambient.CLAUDIO_AGENT_RUN;
+  const root = spawn(process.execPath, ['-e', chat, base, result], { env: { ...ambient, CLAUDIO_CHAT_ID: 'chat-audit' }, stdio: 'ignore' });
   t.after(() => root.kill('SIGKILL'));
   const end = Date.now() + 6000;
   while (Date.now() < end) {

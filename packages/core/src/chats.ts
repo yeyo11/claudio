@@ -9,6 +9,7 @@ import { createInterface } from 'node:readline';
 import {
   type AccountSwitchReason,
   type ClaudioAssistantMarker,
+  type ChatActivity,
   type Attachment,
   type ChatMcpServers,
   type ChatMessageReceipt,
@@ -462,9 +463,37 @@ export class ChatManager extends EventEmitter {
    */
   private noteActivity(chat: LiveChat): void {
     const key = activityKey(chat.alive ? chat.activity.current() : null);
-    if (key === chat.activityKey) return;
-    chat.activityKey = key;
-    this.publisher.activity(chat.summary());
+    if (key !== chat.activityKey) {
+      chat.activityKey = key;
+      this.publisher.activity(chat.summary());
+    }
+    this.noteBranchActivity(chat);
+  }
+
+  /**
+   * The same for each subagent the chat is running, by the call that launched it. A subagent whose
+   * ticker is gone (it reported back, or the turn or the process ended) is announced as doing
+   * nothing, once.
+   */
+  private noteBranchActivity(chat: LiveChat): void {
+    const moved: Array<{ toolUseId: string; activity: ChatActivity | null }> = [];
+    for (const [toolUseId, tracker] of chat.branchActivity) {
+      const activity = chat.alive ? tracker.current() : null;
+      const key = activityKey(activity);
+      if (key === (chat.branchActivityKeys.get(toolUseId) ?? '')) continue;
+      chat.branchActivityKeys.set(toolUseId, key);
+      moved.push({ toolUseId, activity });
+    }
+    for (const [toolUseId, key] of chat.branchActivityKeys) {
+      if (chat.branchActivity.has(toolUseId)) continue;
+      chat.branchActivityKeys.delete(toolUseId);
+      if (key) moved.push({ toolUseId, activity: null });
+    }
+    if (moved.length === 0) return;
+    const run = chat.summary();
+    for (const { toolUseId, activity } of moved) {
+      this.publisher.subagentActivity(run, { toolUseId, agentId: chat.branches.subagents.get(toolUseId)?.agentId ?? null, activity });
+    }
   }
 
   list(): ChatRuntime[] {
@@ -1339,6 +1368,7 @@ export class ChatManager extends EventEmitter {
     chat.beginExecution();
     // Whatever the last process was doing went with it
     chat.activity.clear();
+    chat.branchActivity.clear();
     chat.setStatus('starting');
 
     const env: NodeJS.ProcessEnv = { ...plan.env, CLAUDIO_CHAT_ID: chat.id };
@@ -1469,6 +1499,7 @@ export class ChatManager extends EventEmitter {
       if (!chat.carrying) chat.lose(message, chat.stopRequested ? STOPPED : (chat.error ?? ENDED));
     }
     chat.activity.clear();
+    chat.branchActivity.clear();
     chat.setStatus(status);
     this.noteActivity(chat);
     this.persist();

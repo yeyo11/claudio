@@ -11,3 +11,4 @@ export * from './assistant.ts';
 export * from './effort.ts';
 export * from './dashboard-layout.ts';
 export * from './tool-risk.ts';
+export * from './patch.ts';
