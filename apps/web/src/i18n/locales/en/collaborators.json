@@ -86,7 +86,12 @@
     "connecting": "Connecting to {{owner}}…",
     "waiting": "{{owner}} is offline. Your request has been left with {{member}} (<id>{{memberId}}</id>) and will be accepted when {{owner}} is back.",
     "cancel": "Cancel request",
-    "expires": "The invite expires {{when}}"
+    "expires": "The invite expires {{when}}",
+    "deniedWord": "Denied",
+    "denied": "{{owner}} denied your request to join {{group}}.",
+    "expiredWord": "Expired",
+    "expired": "The invite expired before {{owner}} answered.",
+    "dismiss": "Dismiss"
   },
   "actions": {
     "invite": "Invite",
@@ -186,7 +191,8 @@
     "linked": "Linked to {{project}}",
     "linkFailed": "Could not link the project",
     "unlinked": "Link removed",
-    "unlinkFailed": "Could not remove the link"
+    "unlinkFailed": "Could not remove the link",
+    "dismissFailed": "Could not dismiss the request"
   },
   "sharing": {
     "title": "Sharing",

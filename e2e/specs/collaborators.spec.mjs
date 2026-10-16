@@ -8,7 +8,9 @@
 // the motion levels. A project with no remote is read on Ben's side before it is cloned there, in
 // its own read-only view, and then linked by hand. Then Ana goes offline and Cleo joins through Ben
 // (a relayed join); Ana's bell tells her of it when she is back, she accepts it, and the
-// notification settles. Ana removes Cleo, and stops sharing the notes, which Ben's view then says.
+// notification settles. Ana removes Cleo; Cleo asks again through Ben while Ana is away, Ana denies
+// it when she is back, and Cleo's open page turns the waiting join into a denied one, live, until she
+// dismisses it. Ana stops sharing the notes, which Ben's view then says.
 // Members are named everywhere, each with the short endpoint id beside the name in mono.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,7 +19,7 @@ import { join } from 'node:path';
 export const fakeCli = true;
 export const peers = ['ben', 'cleo'];
 // Three wrappers, a join that waits out an unreachable owner, and every sync in between
-export const timeout = 300_000;
+export const timeout = 420_000;
 
 const REMOTE = 'https://github.com/acme/api.git';
 const PROMPT = 'e2e-collab: fix the build';
@@ -287,6 +289,33 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     await page.click('[role=dialog] button', 'Remove', 800);
     await page.waitFor(`return document.querySelectorAll('.collab-group [data-testid=collab-member]').length === 2`, { label: "Ana's page without Cleo" });
     await until(async () => JSON.stringify(await memberNames(ben.api)) === '["Ana","Ben"]', 'Ben to learn of the removal', 60_000);
+
+    // ---------- Cleo asks again while Ana is away, and Ana denies it ----------
+    await until(async () => (await groupOf(api))?.members.find((m) => m.endpointId === benId)?.presence?.online, 'Ana to see Ben online again', 60_000);
+    const third = await api.post(`/collaborators/groups/${groupId}/invites`);
+    check(third.status === 201, `a third invite (${third.status})`);
+    check((await api.put('/collaborators', { enabled: false })).status === 200, 'Ana goes offline again');
+    await until(async () => (await api.get('/collaborators')).body?.connection === 'off', 'Ana to go offline again');
+    const asked = await cleo.api.post('/collaborators/join', { invite: third.body.text });
+    check(asked.body?.state === 'pending' && asked.body.pending?.relayedBy?.endpointId === benId, `Ben holds Cleo's second request (${asked.status} ${JSON.stringify(asked.body)})`);
+    await cleo.page.goto('/collaborators', 1200);
+    await cleo.page.waitFor(`return (document.querySelector('[data-testid=collab-pending-join]')?.innerText ?? '').includes('Backend')`, { label: "Cleo's second request, waiting" });
+    check((await api.put('/collaborators', { enabled: true })).status === 200, 'Ana is back');
+    await ready(api, 'Ana');
+    await page.goto('/collaborators', 1200);
+    await page.waitFor(`return (document.querySelector('[data-testid=collab-join-request]')?.innerText ?? '').includes('Cleo')`, { label: "Cleo's second request on Ana's page", timeout: 90_000 });
+    await page.click('[data-testid=collab-join-request] button', 'Deny', 800);
+    await page.waitFor(`return !document.querySelector('[data-testid=collab-join-request]')`, { label: 'the request gone from Ana’s page' });
+    // Cleo's page is not reloaded: the next time her install asks, the event turns the card
+    const deniedCard = `document.querySelector('[data-testid=collab-ended-join][data-state=denied]')`;
+    await cleo.page.waitFor(`return (${deniedCard}?.innerText ?? '').includes('Ana denied your request to join Backend.')`, { label: "Cleo's page says Ana denied her", timeout: 120_000 });
+    check(!(await cleo.page.eval(`return !!document.querySelector('[data-testid=collab-pending-join]')`)), 'nothing on Cleo’s page still waits');
+    const word = await cleo.page.eval(`const w = ${deniedCard}?.querySelector('.collab-tone'); return w ? { cls: w.className, text: w.innerText, icon: !!w.querySelector('svg') } : null`);
+    check(word?.cls.includes('tone-bad') && word.text.includes('Denied') && word.icon, `the denial is a word and an icon in the bad tone (${JSON.stringify(word)})`);
+    check(JSON.stringify(await memberNames(api)) === '["Ana","Ben"]', 'Cleo is not in the group');
+    await cleo.page.click('[data-testid=collab-ended-join] button', 'Dismiss', 800);
+    await cleo.page.waitFor(`return !document.querySelector('[data-testid=collab-ended-join]')`, { label: 'the denied join dismissed' });
+    check(((await cleo.api.get('/collaborators/groups')).body?.pendingJoins ?? []).length === 0, 'nothing is left of the denied join');
 
     // ---------- Ana stops sharing the notes: Ben's view says so, and offers the way back ----------
     check((await api.put(`/projects/${notes.body.id}/sharing`, { groups: [] })).status === 200, 'the notes are no longer shared');

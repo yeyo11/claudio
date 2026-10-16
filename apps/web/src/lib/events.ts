@@ -151,6 +151,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'collaborators.synced': true,
   'collaborators.join-request': true,
   'collaborators.join-answered': true,
+  'collaborators.join-ended': true,
 };
 
 /**
@@ -478,6 +479,8 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'collaborators.synced':
     case 'collaborators.join-request':
     case 'collaborators.join-answered':
+    // A join of this install's that the owner denied or that expired: the page's pending card turns into its ended state
+    case 'collaborators.join-ended':
       return [[['collaborators'], NOW]];
   }
 }

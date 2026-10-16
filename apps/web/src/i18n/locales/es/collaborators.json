@@ -86,7 +86,12 @@
     "connecting": "Conectando con {{owner}}…",
     "waiting": "{{owner}} no está conectado. Tu solicitud se ha dejado con {{member}} (<id>{{memberId}}</id>) y se aceptará cuando {{owner}} vuelva.",
     "cancel": "Cancelar la solicitud",
-    "expires": "La invitación caduca el {{when}}"
+    "expires": "La invitación caduca el {{when}}",
+    "deniedWord": "Rechazada",
+    "denied": "{{owner}} ha rechazado tu solicitud para unirte a {{group}}.",
+    "expiredWord": "Caducada",
+    "expired": "La invitación caducó antes de que {{owner}} respondiera.",
+    "dismiss": "Descartar"
   },
   "actions": {
     "invite": "Invitar",
@@ -186,7 +191,8 @@
     "linked": "Vinculado con {{project}}",
     "linkFailed": "No se ha podido vincular el proyecto",
     "unlinked": "Vínculo eliminado",
-    "unlinkFailed": "No se ha podido eliminar el vínculo"
+    "unlinkFailed": "No se ha podido eliminar el vínculo",
+    "dismissFailed": "No se ha podido descartar la solicitud"
   },
   "sharing": {
     "title": "Compartir",

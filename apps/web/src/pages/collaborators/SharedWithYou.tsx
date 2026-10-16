@@ -1,5 +1,5 @@
 import type { PendingJoin, Project, SharedProject } from '@claudio/shared';
-import { ArrowRight, CircleCheck, CircleSlash, Link2, Moon, TriangleAlert, Unlink, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CircleCheck, CircleSlash, CircleX, Clock, Link2, Moon, TriangleAlert, Unlink, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -154,10 +154,12 @@ export function SharedWithYou({
 
 /**
  * A join this install sent that waits for the owner: "Connecting…" while it is being delivered, the
- * member holding it once a member took it, and a way to take it back.
+ * member holding it once a member took it, and a way to take it back. One that ended without joining
+ * says so, in its tone with a word and an icon, until it is dismissed.
  */
 export function PendingJoinRow({ pending, busy, onCancel }: { pending: PendingJoin; busy: boolean; onCancel: (pending: PendingJoin) => void }) {
   const { t } = useTranslation('collaborators');
+  if (pending.state !== 'waiting') return <EndedJoinRow pending={pending} busy={busy} onDismiss={onCancel} />;
   return (
     <li className="collab-pending" data-testid="collab-pending-join">
       <div className="collab-pending-text">
@@ -171,6 +173,33 @@ export function PendingJoinRow({ pending, busy, onCancel }: { pending: PendingJo
       </div>
       <button type="button" className="link-btn" disabled={busy} onClick={() => onCancel(pending)}>
         {t('pending.cancel')}
+      </button>
+    </li>
+  );
+}
+
+/**
+ * A join the owner denied (bad: refused) or whose invite ran out first (warn: it stopped unanswered).
+ * Nothing asks after it any more; dismissing it only takes it off the page.
+ */
+function EndedJoinRow({ pending, busy, onDismiss }: { pending: PendingJoin; busy: boolean; onDismiss: (pending: PendingJoin) => void }) {
+  const { t } = useTranslation('collaborators');
+  const denied = pending.state === 'denied';
+  return (
+    <li className="collab-pending" data-testid="collab-ended-join" data-state={pending.state}>
+      <div className="collab-pending-text">
+        <span className="collab-member-name">
+          <strong className="ellipsis">{pending.groupName}</strong>
+          <ToneText tone={denied ? 'bad' : 'warn'} icon={denied ? CircleX : Clock}>
+            {t(denied ? 'pending.deniedWord' : 'pending.expiredWord')}
+          </ToneText>
+        </span>
+        <span className="small" role="status" title={pending.endedAt ? formatDateTime(pending.endedAt) : undefined}>
+          {denied ? t('pending.denied', { owner: pending.owner.name, group: pending.groupName }) : t('pending.expired', { owner: pending.owner.name })}
+        </span>
+      </div>
+      <button type="button" className="link-btn" disabled={busy} onClick={() => onDismiss(pending)}>
+        {t('pending.dismiss')}
       </button>
     </li>
   );

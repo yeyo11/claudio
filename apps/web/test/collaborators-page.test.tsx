@@ -269,7 +269,7 @@ test("the owner's join requests show who relayed them, with Accept and Deny as d
 });
 
 test('a join waiting for the owner says who holds it, with a way to cancel', () => {
-  const pending: PendingJoin = { groupId: 'g2', groupName: 'Mobile', owner: { endpointId: LUIS, name: 'Luis' }, relayedBy: { endpointId: ANA, name: 'Ana' }, sentAt: ago(0), expiresAt: ago(-86_400_000) };
+  const pending: PendingJoin = { groupId: 'g2', groupName: 'Mobile', owner: { endpointId: LUIS, name: 'Luis' }, relayedBy: { endpointId: ANA, name: 'Ana' }, sentAt: ago(0), expiresAt: ago(-86_400_000), state: 'waiting', endedAt: null };
   const html = wrap(<PendingJoinRow pending={pending} busy={false} onCancel={() => {}} />);
   assert.ok(text(html).includes(`Luis is offline. Your request has been left with Ana ( ${shortId(ANA)} ) and will be accepted when Luis is back.`));
   assert.match(html, new RegExp(`<span class="mono" title="${ANA}">${shortId(ANA)}</span>`));
@@ -278,6 +278,53 @@ test('a join waiting for the owner says who holds it, with a way to cancel', () 
   assert.ok(text(sent).includes('Connecting to Luis…'));
   // Shown on the page too, so a reload keeps it
   assert.match(page(status(), { groups: [], pendingJoins: [pending] }), /data-testid="collab-pending-join"/);
+});
+
+const ended = (state: 'denied' | 'expired'): PendingJoin => ({
+  groupId: 'g3',
+  groupName: 'UDD',
+  owner: { endpointId: LUIS, name: 'Luis' },
+  relayedBy: { endpointId: ANA, name: 'Ana' },
+  sentAt: ago(3_600_000),
+  expiresAt: state === 'expired' ? ago(60_000) : ago(-86_400_000),
+  state,
+  endedAt: ago(0),
+});
+
+test('a join the owner denied says who denied it, in the bad tone with a word and an icon, and can be dismissed', () => {
+  const html = wrap(<PendingJoinRow pending={ended('denied')} busy={false} onCancel={() => {}} />);
+  const words = text(html);
+  assert.ok(words.includes('Luis denied your request to join UDD.'), words);
+  assert.match(html, /data-testid="collab-ended-join" data-state="denied"/);
+  assert.match(html, /<span class="collab-tone tone-bad"><svg[^>]*lucide-circle-x[^>]*>.*?<span>Denied<\/span>/);
+  assert.ok(words.includes('Dismiss'));
+  // Nothing left to wait for: no holder, no expiry, no cancel
+  assert.ok(!words.includes('Cancel request') && !words.includes('The invite expires') && !words.includes('is offline'));
+  // On the page beside the joins still waiting, so a reload keeps it until dismissed
+  const page2 = page(status(), { groups: [], pendingJoins: [ended('denied')] });
+  assert.match(page2, /data-testid="collab-ended-join"/);
+  assert.doesNotMatch(page2, /data-testid="collab-pending-join"/);
+});
+
+test('a join whose invite expired before the owner answered says so, in the warn tone, and can be dismissed', () => {
+  const html = wrap(<PendingJoinRow pending={ended('expired')} busy={false} onCancel={() => {}} />);
+  const words = text(html);
+  assert.ok(words.includes('The invite expired before Luis answered.'), words);
+  assert.match(html, /data-state="expired"/);
+  assert.match(html, /<span class="collab-tone tone-warn"><svg[^>]*lucide-clock[^>]*>.*?<span>Expired<\/span>/);
+  assert.ok(words.includes('Dismiss') && !words.includes('Cancel request'));
+});
+
+test('a join that ended reads the same in Spanish', async () => {
+  await i18n.changeLanguage('es');
+  try {
+    const words = text(wrap(<PendingJoinRow pending={ended('denied')} busy={false} onCancel={() => {}} />));
+    assert.ok(words.includes('Luis ha rechazado tu solicitud para unirte a UDD.'), words);
+    assert.ok(words.includes('Rechazada') && words.includes('Descartar'));
+    assert.ok(text(wrap(<PendingJoinRow pending={ended('expired')} busy={false} onCancel={() => {}} />)).includes('La invitación caducó antes de que Luis respondiera.'));
+  } finally {
+    await i18n.changeLanguage('en');
+  }
 });
 
 test('shared with you: by person and install, the key in mono, counts, the sync state in words, and where it opens', () => {

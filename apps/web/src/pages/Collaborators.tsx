@@ -178,7 +178,11 @@ export function CollaboratorsView({
     onDeny: (group: Group, request: JoinRequest) =>
       run(t('toast.denied', { name: request.name }), t('toast.denyFailed', { name: request.name }), () => collaboratorsApi.denyJoin(group.id, request.from)),
   };
-  const cancelJoin = (pending: PendingJoin) => run(t('toast.cancelled'), t('toast.cancelFailed'), () => collaboratorsApi.cancelJoin(pending.groupId));
+  // Dismissing a join that ended needs no toast: the row going is the answer
+  const cancelJoin = (pending: PendingJoin) =>
+    pending.state === 'waiting'
+      ? run(t('toast.cancelled'), t('toast.cancelFailed'), () => collaboratorsApi.cancelJoin(pending.groupId))
+      : act.mutate(() => collaboratorsApi.cancelJoin(pending.groupId), { onError: (err) => toast.error(t('toast.dismissFailed'), err) });
   const unlink = (project: SharedProject) =>
     run(t('toast.unlinked'), t('toast.unlinkFailed'), () => collaboratorsApi.unlink({ owner: project.owner, shareId: project.shareId }));
   const working = busy || act.isPending;
