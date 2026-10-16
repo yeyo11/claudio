@@ -188,7 +188,7 @@ list what only the owner can decide.
   - Usage bars are neutral below 60 %, warn from 60 % and bad from 75 % or when exhausted.
   - Nothing new moves: a wait does not move, and a risk tag is static.
   - On a phone, targets are ≥ 44 px and "⋯" menus open as a `Sheet`.
-  - New variants go into `docs/design-system.md` and `docs/design-system/agentry-ds.css` in the
+  - New variants go into `docs/design-system.md` and `docs/design-system/claudio-ds.css` in the
     same pull request.
 
 ---
@@ -2418,7 +2418,7 @@ All in `packages/shared/src/types.ts` unless named. Then regenerate the schemas.
 
 **Files:**
 
-- `docs/design-system.md`, `docs/design-system/agentry-ds.css`;
+- `docs/design-system.md`, `docs/design-system/claudio-ds.css`;
 - `apps/web/src/i18n/GLOSSARY.md`;
 - `docs/team-and-flow.md`, `docs/notifications.md`, `docs/decision-engine.md`,
   `docs/security-model.md`, `docs/assistant.md`, `docs/layered-settings.md`, `docs/deploy.md`,
@@ -2433,7 +2433,7 @@ All in `packages/shared/src/types.ts` unless named. Then regenerate the schemas.
 > code of `s1`–`s6` before writing, and write what it does, not what the plan hoped.
 >
 > (1) In `docs/design-system.md`, add each new variant, with what it means and which status colour
-> and word it carries, and add it to `docs/design-system/agentry-ds.css` in the same commit:
+> and word it carries, and add it to `docs/design-system/claudio-ds.css` in the same commit:
 > - the transcript and Step by step risk tag;
 > - the permission prompt's risk line;
 > - the status bar's `.spend`;
@@ -2468,7 +2468,7 @@ All in `packages/shared/src/types.ts` unless named. Then regenerate the schemas.
 **Acceptance criteria:**
 
 1. Every new UI variant from `s2`, `s3`, `s5` and `s6` has an entry in `docs/design-system.md` and
-   a rule in `agentry-ds.css`, and the web token test still passes.
+   a rule in `claudio-ds.css`, and the web token test still passes.
 2. The glossary has the nine rows, each with its Spanish form.
 3. Each listed doc names the new behaviour with the file it lives in, and every touched doc has an
    updated `updated_at`.
@@ -2537,7 +2537,7 @@ These are done by `s1` and `s7`, and listed here so nothing is missed:
 - `docs/security-model.md`: the chat-token denials (cap, pass, override).
 - `docs/assistant.md`: rules proposals.
 - `docs/layered-settings.md`, `docs/deploy.md`: `CLAUDIO_DAILY_SPEND_CAP_USD`.
-- `docs/design-system.md`, `docs/design-system/agentry-ds.css`, `apps/web/src/i18n/GLOSSARY.md`.
+- `docs/design-system.md`, `docs/design-system/claudio-ds.css`, `apps/web/src/i18n/GLOSSARY.md`.
 - `README.md`:
   - REST rows for `GET /spend` and `POST /orchestrations/:id/spend-pass`;
   - the `/settings/app` row;

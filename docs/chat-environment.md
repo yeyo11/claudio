@@ -58,8 +58,8 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
   - An inherited `CLAUDIO_API_TOKEN` is always removed, like the URL: it is another wrapper's.
   - MCP servers the CLI starts inherit it, which is how the assistant's server calls the API. Claudio's
     own server (`claudio`) is given it in its config file as `${CLAUDIO_API_TOKEN}`, expanded by the CLI
-    ([agentry-mcp-server.md](plans/agentry-mcp-server.md)). The global assistant chat uses it for its
-    read and write tools ([agentry-assistant.md](agentry-assistant.md)).
+    ([claudio-mcp-server.md](plans/claudio-mcp-server.md)). The global assistant chat uses it for its
+    read and write tools ([claudio-assistant.md](claudio-assistant.md)).
 
   The full specification is [chat-api-token.md](plans/chat-api-token.md); the decision is §2 of
   [flow-start-and-chat-token.md](plans/flow-start-and-chat-token.md).

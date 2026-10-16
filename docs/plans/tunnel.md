@@ -208,7 +208,7 @@ Every task runs on Opus, with no time or cost limit.
    README's REST API tables. After changing `packages/shared/src/types.ts`, run
    `pnpm --filter @claudio/api openapi:schemas` and commit the result.
 9. **Every change reaches the event feed.** A setting or the tunnel changing emits an
-   `AgentryEvent` that carries what a client needs to refetch.
+   `ClaudioEvent` that carries what a client needs to refetch.
 10. **Never touch the real `~/.claude` or `~/.ssh`.** Tests and experiments use scratch directories.
 11. **Don't touch files outside your scope** (see ownership). If you need something from another
     task's file, say so in your result instead of editing it.
@@ -243,7 +243,7 @@ comment:
 - **Tunnel:** `TunnelState` (`stopped`, `starting`, `verifying`, `active`, `stopping`, `failed`),
   `TunnelStatus` (state, URL when active, the reason when failed, whether `ssh` was found, when the
   current address started), `TunnelSettings` (start with Claudio) and its update request.
-- **Events:** `settings.changed` and `tunnel.changed`, added to the `AgentryEvent` union.
+- **Events:** `settings.changed` and `tunnel.changed`, added to the `ClaudioEvent` union.
 - **Done when**: typecheck passes across the workspace, the OpenAPI schemas are regenerated and
   committed, and nothing that exists changed shape.
 
@@ -334,7 +334,7 @@ it open the current one?
   Generating it in-house is fine.
 - Night Shift: open `docs/design-system.md` and the Settings reference screens before building. No
   new prototype is required, because the tab is built from components the settings pages already
-  use. A new variant, if one is needed, goes into `agentry-ds.css` and the doc.
+  use. A new variant, if one is needed, goes into `claudio-ds.css` and the doc.
 - An e2e spec for the tab against a fake tunnel, written but not run.
 
 ### Stage 4

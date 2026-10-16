@@ -203,7 +203,7 @@ is not polled every second.
   `apps/web/src/i18n/GLOSSARY.md`. On a phone, the panel stacks and the bar keeps full width.
   Rows are ≥ 44 px when they are tappable. It is covered by the page's axe spec.
 - If the panel needs a class the design system lacks, it goes into `docs/design-system.md` and
-  `agentry-ds.css` in the same PR.
+  `claudio-ds.css` in the same PR.
 
 ## 6. Contract and docs
 

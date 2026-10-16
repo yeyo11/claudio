@@ -13,7 +13,7 @@ tags:
 # Spec: Claudio's own MCP server, with read tools (CW-6)
 
 Status: **built** (see Outcome). Story CW-6 of the epic CW-12, "The Claudio assistant". It builds the
-"The MCP server" bullet of [agentry-assistant.md](agentry-assistant.md), and only its read tools.
+"The MCP server" bullet of [claudio-assistant.md](claudio-assistant.md), and only its read tools.
 The plan's decisions of 2026-09-28 are not reopened here:
 
 > Claudio ships **its own MCP server**, handed to the chat with `--mcp-config` and
@@ -22,7 +22,7 @@ The plan's decisions of 2026-09-28 are not reopened here:
 > Claudio through a tool Claudio configured.
 
 The stories after this one build on it: CW-18 (the entry and the chat,
-[agentry-assistant-entry.md](agentry-assistant-entry.md)), CW-17 (write tools,
+[claudio-assistant-entry.md](claudio-assistant-entry.md)), CW-17 (write tools,
 [assistant-write-tools.md](assistant-write-tools.md)) and CW-10 (the chat's own token,
 [chat-api-token.md](chat-api-token.md)). They all assume the server is called **`claudio`**, so its tools
 reach the CLI as `mcp__claudio__<tool>`. This spec fixes that name.
@@ -64,10 +64,10 @@ It adds **no screen and no route**.
 | The server: protocol loop, tool catalogue, HTTP client | a new package **`packages/mcp`** (`@claudio/mcp`), entry `src/main.ts`. It depends on `@claudio/shared` for types only, and never on `@claudio/core`, so its bundle stays small and it cannot reach the store directly |
 | The bundle | `apps/api/scripts/bundle.mjs`: a third esbuild entry that writes `apps/api/dist/mcp.mjs` next to `server.mjs` and `api.mjs` |
 | The desktop package | `apps/desktop/electron-builder.yml`: the `extraResources` filter for `../api/dist` also takes `mcp.mjs`. `apps/desktop/src/resources.ts` resolves its path, as it does for `serverEntry` |
-| Handing it to a chat | `packages/core`: a helper, for example `agentryMcp(chatId)` in a new `packages/core/src/agentry-mcp.ts` (name indicative). It returns the path of the `--mcp-config` file, the read-tool names for `--allowedTools`, and the confinement. The file is written through the same code as `ChatTools.writeConfig` (`packages/core/src/chat-tools.ts`): it goes in `<dataDir>/mcp/`, with mode 0700 on the directory and 0600 on the file. Extract a shared writer rather than copying it |
+| Handing it to a chat | `packages/core`: a helper, for example `claudioMcp(chatId)` in a new `packages/core/src/claudio-mcp.ts` (name indicative). It returns the path of the `--mcp-config` file, the read-tool names for `--allowedTools`, and the confinement. The file is written through the same code as `ChatTools.writeConfig` (`packages/core/src/chat-tools.ts`): it goes in `<dataDir>/mcp/`, with mode 0700 on the directory and 0600 on the file. Extract a shared writer rather than copying it |
 | The tool names, shared | an exported constant, for example `CLAUDIO_MCP_READ_TOOLS`, which lists the `mcp__claudio__…` names. CW-17 and CW-18 import it, and it keeps the catalogue and the allow list the same. Put it in `packages/shared` if the web needs it; otherwise put it in `packages/mcp` |
 | The fake CLI | `packages/core/test/fixtures/fake-claude.mjs`: a new keyword that makes an MCP call (see Tests) |
-| Docs | a new `docs/agentry-mcp-server.md` (feature doc: tools, env, how it starts, how to try it); `docs/chat-environment.md` (who reads the variables); this plan's status; a line in `docs/plans/agentry-assistant.md` |
+| Docs | a new `docs/claudio-mcp-server.md` (feature doc: tools, env, how it starts, how to try it); `docs/chat-environment.md` (who reads the variables); this plan's status; a line in `docs/plans/claudio-assistant.md` |
 
 **How the server is started (the `command` in the config file).** It has to work in each of the three
 ways Claudio runs:
@@ -95,8 +95,8 @@ the server reads `CLAUDIO_VERSION` for its `serverInfo.version`, so the helper m
 server's `env`. `get_orchestration` needs one route only: the orchestration view already carries the
 tasks, the verification and the final result.
 
-**Decision (m2): how the helper starts it and what the file holds.** `packages/core/src/agentry-mcp.ts`
-exports `agentryMcp({ dataDir, apiUrl, version })` (also `Core.agentryMcp()`), which returns what a
+**Decision (m2): how the helper starts it and what the file holds.** `packages/core/src/claudio-mcp.ts`
+exports `claudioMcp({ dataDir, apiUrl, version })` (also `Core.claudioMcp()`), which returns what a
 caller spreads into `runtime.start`: `mcp: { servers: ['claudio'], config }`, `allowedTools`,
 `confine: { tools: [], settingSources: [] }` and `permissionMode: 'dontAsk'`. Its command is
 `mcpCommand`: when `CLAUDIO_MCP_ENTRY` names an existing file, `process.execPath` on it; otherwise, from
@@ -124,7 +124,7 @@ writes a config the CLI cannot start.
 
 - **`CLAUDIO_API_URL` is required.** When it is unset, empty, or not an `http(s)` URL, the server
   does not start its protocol loop. It writes one line to stderr and exits with code 1. The line is
-  `agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the
+  `claudio-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the
   chat`. There is **no default URL and no port literal** anywhere in `packages/mcp`.
 - `CLAUDIO_API_TOKEN`: when it is set, every request sends `Authorization: Bearer <token>`. CW-10
   mints it. Until CW-10 ships, the variable is absent and the API in `mode: none` answers without it.
@@ -139,7 +139,7 @@ writes a config the CLI cannot start.
   `apiUrl` is null (the API is not listening), the helper throws. It never writes a config without
   the URL.
 - The developer checks with the real CLI whether it passes the environment through, and records the
-  answer in `docs/agentry-mcp-server.md`, either way.
+  answer in `docs/claudio-mcp-server.md`, either way.
 
 ### Protocol
 
@@ -217,7 +217,7 @@ built-in tools but **not** the MCP tools. In other words, the tools of `--mcp-co
 callable when they are named in `--allowedTools`. If `--tools` also filters MCP tools, the MCP names
 go into `--tools` as well. The card says "`--tools` limited to those tools", and either way the
 result must be the same: the chat can call the Claudio read tools and nothing else. The finding is
-recorded in `docs/agentry-mcp-server.md`.
+recorded in `docs/claudio-mcp-server.md`.
 
 ## Tests
 
@@ -279,13 +279,13 @@ The e2e suite is not required: no screen changes.
 
 The card's five criteria stay. The criteria added by this refinement make each of them checkable.
 The last card criterion, the owner's A/B/C, is **the owner's to record**. It does not block building
-the read tools, but it must be written in [agentry-assistant.md](agentry-assistant.md), "Confirming
+the read tools, but it must be written in [claudio-assistant.md](claudio-assistant.md), "Confirming
 writes", before the item is closed. The answer takes the form "Decided on <date>: option <X>".
 
 ## Outcome
 
 Built on 2026-10-01 in three tasks (m1 the server, m2 the helper, m3 the docs). The feature doc is
-[../agentry-mcp-server.md](../agentry-mcp-server.md). Each criterion, and how it was checked:
+[../claudio-mcp-server.md](../claudio-mcp-server.md). Each criterion, and how it was checked:
 
 | Criterion | How it was checked |
 |---|---|
@@ -293,11 +293,11 @@ Built on 2026-10-01 in three tasks (m1 the server, m2 the helper, m3 the docs). 
 | It is read-only by construction | `tools.test.ts`: the client refuses any method but GET before a request. Every tool maps to an existing GET, and no route was added or changed |
 | It speaks MCP over stdio, exits on a missing `CLAUDIO_API_URL`, and has no default URL | `packages/mcp/test/stdio.test.ts`: a child process against an API on port 0 (`initialize`, `tools/list`, a call, `-32700` on a bad line, exit on stdin close; exit 1 with the stderr line for unset, empty and `not-a-url`); a test greps `src` for URL and port literals |
 | The token and the chat id are forwarded when present | `tools.test.ts`: `Authorization` and `X-Claudio-Chat` are sent when set and absent otherwise |
-| The helper hands it to a chat with the confinement, a 0600 file and an error when it cannot start | `packages/core/test/agentry-mcp.test.ts`: only `claudio` in the file, `--strict-mcp-config`, empty `--tools=` and `--setting-sources=`, exact `--allowedTools`, `dontAsk`, no `--add-dir`, mode 0600, throws on a null `apiUrl` or no entry. 18 core tests green with `chat-tools.test.ts` |
-| A confined chat answers "how is AGN-12 going?" and cannot use anything else | `apps/api/test/agentry-mcp-chat.test.ts`, through the fake CLI's `FAKE-MCP-CALL`: the transcript holds `mcp__claudio__get_work_item` and a result with AGN-12's title and status, the chat ends `done`, and `Bash` is denied |
+| The helper hands it to a chat with the confinement, a 0600 file and an error when it cannot start | `packages/core/test/claudio-mcp.test.ts`: only `claudio` in the file, `--strict-mcp-config`, empty `--tools=` and `--setting-sources=`, exact `--allowedTools`, `dontAsk`, no `--add-dir`, mode 0600, throws on a null `apiUrl` or no entry. 18 core tests green with `chat-tools.test.ts` |
+| A confined chat answers "how is AGN-12 going?" and cannot use anything else | `apps/api/test/claudio-mcp-chat.test.ts`, through the fake CLI's `FAKE-MCP-CALL`: the transcript holds `mcp__claudio__get_work_item` and a result with AGN-12's title and status, the chat ends `done`, and `Bash` is denied |
 | It works from source, the API bundle and the desktop app | Source: the stdio and chat tests run it with tsx. Bundle and package: `apps/api/test/packaging.test.ts` builds `dist/mcp.mjs`, checks it imports only `node:` built-ins and that `electron-builder.yml` ships it beside `server.mjs` (14 API tests green with the chat test). The desktop app itself was not launched: it shares the rule of the bundle, `CLAUDIO_MCP_ENTRY` beside `server.mjs` |
 | The real CLI starts it | Checked by hand with CLI 2.1.286, as the Environment section asked: the CLI passes its whole environment, expands `${NAME}` in the file's `env`, and does not hide MCP tools with `--tools=` |
-| The owner records A, B or C in [agentry-assistant.md](agentry-assistant.md) | **Open.** It does not block these read tools, and CW-17 waits for it |
+| The owner records A, B or C in [claudio-assistant.md](claudio-assistant.md) | **Open.** It does not block these read tools, and CW-17 waits for it |
 
 Decisions taken, besides the ones written above: the file is the same for every chat, with the chat id and
 the token as `${…}` references, which refines "written into the file's `env`" so the token never reaches
@@ -319,4 +319,4 @@ version, so a release does not leave it behind. Left for others: the chat-level 
 
 ## Related
 
-[[plans/agentry-assistant.md]] · [[plans/agentry-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[assistant.md]] · [[desktop.md]]
+[[plans/claudio-assistant.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[assistant.md]] · [[desktop.md]]

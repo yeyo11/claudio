@@ -13,7 +13,7 @@ tags:
 # Spec: write tools for the Claudio assistant, each confirmed by the person (CW-17)
 
 Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome). Story CW-17 of epic CW-12, "The Claudio assistant". It builds on
-[agentry-assistant.md](agentry-assistant.md) and depends on two earlier stories:
+[claudio-assistant.md](claudio-assistant.md) and depends on two earlier stories:
 
 - **CW-6**: Claudio's own MCP server, with its read tools.
 - **CW-10**: the chat's own API token ([chat-api-token.md](chat-api-token.md)).
@@ -25,7 +25,7 @@ reopened here.
 
 The plan leaves one question open: how a write is confirmed. **Nothing in this spec is built until
 the owner answers.** The answer goes in the plan's "Confirming writes" section (see
-[agentry-assistant.md](agentry-assistant.md)) with its date.
+[claudio-assistant.md](claudio-assistant.md)) with its date.
 
 The options, as the plan lists them:
 
@@ -112,7 +112,7 @@ These settings, the read tools and the write tools apply as follows:
    the chat uses. A test asserts that the argv of an assistant chat names no write tool in an allow
    flag. Every write therefore reaches `ChatRunner` as a `can_use_tool` request, and the broker shows
    it as a host prompt in the chat.
-3. **Allow once, every time.** When the request is for an Claudio write tool (`mcp__claudio__*`
+3. **Allow once, every time.** When the request is for a Claudio write tool (`mcp__claudio__*`
    minus the read tools), `ChatRunner` drops the CLI's `permission_suggestions` before it hands the
    request to the broker. When the prompt is answered, it also ignores any `updatedPermissions` in
    the decision. So no "always allow" can turn later writes into silent ones.
@@ -156,7 +156,7 @@ The first two points come from CW-10.
 - **The item's history.** The work-item routes (`apps/api/src/routes/work-items.ts`) and the
   proposal accept route (`apps/api/src/routes/assistant.ts`) pass a `WorkItemContext` when the actor
   is `chat:<id>`:
-  - `actor: { kind: 'agent', role }`, where `role` is `'assistant'` when the chat is an Claudio
+  - `actor: { kind: 'agent', role }`, where `role` is `'assistant'` when the chat is a Claudio
     assistant chat and null for any other chat;
   - `cause: { kind: 'chat', chatId, orchestrationId: null, taskId: null, event: 'chat.api-write' }`;
   - for a comment, the same `source`.
@@ -231,8 +231,8 @@ The e2e suite is not required, but the existing `a11y` and `motion` specs must s
 ## Outcome
 
 Built on `feat/assistant-entry` after CW-18, with option A (every write through the CLI's permission
-prompt, shown as a host prompt). Feature doc: [agentry-assistant.md](../agentry-assistant.md);
-tools: [agentry-mcp-server.md](../agentry-mcp-server.md#write-tools).
+prompt, shown as a host prompt). Feature doc: [claudio-assistant.md](../claudio-assistant.md);
+tools: [claudio-mcp-server.md](../claudio-mcp-server.md#write-tools).
 
 - Nine tools in `packages/mcp/src/write-tools.ts`; `move_work_item` refuses `done`.
 - The chat's permission mode is the CLI's default (`manual` in Claudio) with host prompts; no write
@@ -247,4 +247,4 @@ tools: [agentry-mcp-server.md](../agentry-mcp-server.md#write-tools).
 
 ## Related
 
-[[agentry-assistant.md]] · [[plans/agentry-assistant.md]] · [[plans/chat-api-token.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[team-and-flow.md]]
+[[claudio-assistant.md]] · [[plans/claudio-assistant.md]] · [[plans/chat-api-token.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[team-and-flow.md]]

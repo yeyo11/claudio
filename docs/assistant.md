@@ -390,7 +390,7 @@ had left for the owner:
 
 The project assistant stays as it is: one project, read-only, proposals one by one. The **Claudio
 assistant** is a separate, global chat that reads Claudio through its MCP server and writes only
-after the person allows each call; see [agentry-assistant.md](agentry-assistant.md). Its proposal
+after the person allows each call; see [claudio-assistant.md](claudio-assistant.md). Its proposal
 tools (`accept_assistant_proposal`, `discard_assistant_proposal`) call the routes above with the
 chat's token: the proposal is then decided, and its item made, by an agent of role `assistant` with
 the cause `chat.api-write`. Folding the two into one is a follow-up.
@@ -407,4 +407,4 @@ chat has run on an alias, it shows the alias.
 
 ## Related
 
-[[agentry-assistant.md]] · [[team-and-flow.md]] · [[prompts.md]] · [[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[claudio-assistant.md]] · [[team-and-flow.md]] · [[prompts.md]] · [[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

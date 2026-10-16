@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: the Claudio assistant, a chat that knows Claudio
 
-Status: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; not yet merged to `main`). Decided with the owner on 2026-09-28, open questions answered on 2026-10-02. Built: the MCP server with its read tools (CW-6, #171), the per-chat API token (CW-10), the global entry and confined chat (CW-18) and the confirmed write tools (CW-17). Feature doc: [agentry-assistant.md](../agentry-assistant.md). See [Delivery](#delivery-the-umbrella-cw-30).
+Status: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; not yet merged to `main`). Decided with the owner on 2026-09-28, open questions answered on 2026-10-02. Built: the MCP server with its read tools (CW-6, #171), the per-chat API token (CW-10), the global entry and confined chat (CW-18) and the confirmed write tools (CW-17). Feature doc: [claudio-assistant.md](../claudio-assistant.md). See [Delivery](#delivery-the-umbrella-cw-30).
 
 ## What the owner asked for
 
@@ -38,8 +38,8 @@ and can act on them.
 ## Shape (to refine in the plan of its orchestration)
 
 - **The MCP server** (`packages/core` or a small `packages/mcp`), stdio, started by the CLI. Its read
-  tools are specified in [agentry-mcp-server.md](agentry-mcp-server.md) (CW-6), which built
-  `packages/mcp` (feature doc: [../agentry-mcp-server.md](../agentry-mcp-server.md)) and fixed the
+  tools are specified in [claudio-mcp-server.md](claudio-mcp-server.md) (CW-6), which built
+  `packages/mcp` (feature doc: [../claudio-mcp-server.md](../claudio-mcp-server.md)) and fixed the
   server name `claudio`:
   - read tools: projects, work items (board, one item with its history, links and runs),
     orchestrations (list, one with tasks, verification and final report), flow runs and team,
@@ -70,7 +70,7 @@ Decided on 2026-10-02: option A (the owner said to follow the recommendations). 
 ## Open questions
 
 - ~~Where the entry lives~~: a sidebar item under Inicio and the first row of the Más sheet on a phone, plus the palette action (2026-10-07).
-- ~~The model by default~~: `sonnet` (2026-10-02, see [agentry-assistant-entry.md](agentry-assistant-entry.md)).
+- ~~The model by default~~: `sonnet` (2026-10-02, see [claudio-assistant-entry.md](claudio-assistant-entry.md)).
 - ~~Whether the project assistant's page becomes a mode~~: it stays as it is in CW-18; folding the
   two is a follow-up (2026-10-02).
 - ~~Which write tools ship first~~: the nine of [assistant-write-tools.md](assistant-write-tools.md).
@@ -83,9 +83,9 @@ are built and the whole journey below works on `main`.
 
 | Story | Spec | State (2026-10-07) |
 |---|---|---|
-| CW-6, MCP server and read tools | [agentry-mcp-server.md](agentry-mcp-server.md) | built (#171), feature doc [../agentry-mcp-server.md](../agentry-mcp-server.md) |
+| CW-6, MCP server and read tools | [claudio-mcp-server.md](claudio-mcp-server.md) | built (#171), feature doc [../claudio-mcp-server.md](../claudio-mcp-server.md) |
 | CW-10, per-chat API token | [chat-api-token.md](chat-api-token.md) | built |
-| CW-18, global entry, confined chat, greeting, `POST /assistant/chats` | [agentry-assistant-entry.md](agentry-assistant-entry.md) | built on `feat/assistant-entry`: `/assistant`, sidebar, Más sheet and palette entries, the confined chat, the greeting from i18n; the design reference is drawn in `docs/design-system` |
+| CW-18, global entry, confined chat, greeting, `POST /assistant/chats` | [claudio-assistant-entry.md](claudio-assistant-entry.md) | built on `feat/assistant-entry`: `/assistant`, sidebar, Más sheet and palette entries, the confined chat, the greeting from i18n; the design reference is drawn in `docs/design-system` |
 | CW-17, write tools confirmed by the CLI's permission prompt (option A) | [assistant-write-tools.md](assistant-write-tools.md) | built on `feat/assistant-entry`: nine write tools, each a host permission prompt, an agent actor of role `assistant` with the cause `chat.api-write` |
 
 **Order.** CW-18 first, then CW-17. CW-18 builds the assistant chat's argv in one function, with the
@@ -115,8 +115,8 @@ Built on `feat/assistant-entry` (CW-18, then CW-17), not merged to `main` yet. T
 as specified except for what stays open: the permission prompt still shows the raw tool name and the
 entry's copy still says it only reads; no end-to-end run through the real CLI was made; the entry was
 not compared with the reference in a browser. The e2e runs once on the merged branch. See
-[agentry-assistant.md](../agentry-assistant.md#known-gaps).
+[claudio-assistant.md](../claudio-assistant.md#known-gaps).
 
 ## Related
 
-[[agentry-assistant.md]] · [[assistant.md]] · [[plans/agentry-mcp-server.md]] · [[plans/assistant-write-tools.md]] · [[plans/agentry-assistant-entry.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]
+[[claudio-assistant.md]] · [[assistant.md]] · [[plans/claudio-mcp-server.md]] · [[plans/assistant-write-tools.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]

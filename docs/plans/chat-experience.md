@@ -27,7 +27,7 @@ numbers drift: search for the quoted code when a number no longer matches.
 1. [Ground rules for whoever implements this](#ground-rules-for-whoever-implements-this)
 2. [How this was found](#how-this-was-found)
 3. [Part A — what ChatGPT does (reference)](#part-a--what-chatgpt-does-reference)
-4. [Part B — how Claudio's chat works today](#part-b--how-agentrys-chat-works-today)
+4. [Part B — how Claudio's chat works today](#part-b--how-claudios-chat-works-today)
 5. [Part C — the work items](#part-c--the-work-items)
 6. [Order, pull requests and checks](#order-pull-requests-and-checks)
 7. [Decisions taken and rejected](#decisions-taken-and-rejected)

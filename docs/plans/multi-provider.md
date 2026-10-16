@@ -291,7 +291,7 @@ Scope limits of phase 1:
     binary override.
   - Files: `docs/design-system/reference/DesktopProveedores.html`, `MobileProveedores.html`,
     `DesktopPrimerArranque.html`, `MobilePrimerArranque.html`, their screenshots, and the reference
-    index. A new variant, if any, goes into `docs/design-system.md` and `agentry-ds.css`.
+    index. A new variant, if any, goes into `docs/design-system.md` and `claudio-ds.css`.
 - `p2`: the status bar with one dot per enabled provider, and the Home setup rows that today say
   "Claude Code CLI not detected", both states. Files: the Home references (`Main.html`, `MobileInicio.html`) and `StatusBar.html`,
   updated.
@@ -304,7 +304,7 @@ Scope limits of phase 1:
     (the seven of section 2), `ProviderReasonCode`, `ProviderStatus` (id, label, state, reason,
     version, compatible range, binary path, config home, account, capabilities, checkedAt),
     `ProvidersSettings` (enabled, order, default, binary override per provider), and the
-    `providers.changed` event (`AgentryEventBase`, like `system.release`).
+    `providers.changed` event (`ClaudioEventBase`, like `system.release`).
   - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated).
   - Checks: shared tests, `pnpm --filter @claudio/api openapi:schemas` with no drift.
 - `c2` (the user's PATH), dependsOn none.
@@ -1181,7 +1181,7 @@ export interface SessionLaunch {
   handshake that fails ends the execution `failed` with the reason (`auth-required`, `protocol`,
   `version`), never `completed`.
 - **Process ownership without argv.** Claude's `liveSessions` reads the session from argv; Codex and
-  ACP processes carry no session id in argv. `processes.ts` gains `agentryChildren()`: on Linux it
+  ACP processes carry no session id in argv. `processes.ts` gains `claudioChildren()`: on Linux it
   reads `CLAUDIO_CHAT_ID` from `/proc/<pid>/environ` of the same user's processes (ChatManager
   already sets it on every spawn). It returns `[]` elsewhere. `sessionHolders` and `liveSessions` of
   both new drivers use it, plus the pids they spawned in this process. Leftovers from a dead wrapper
@@ -1613,7 +1613,7 @@ the first six rows contains "Claude".
 - `p2`: New chat with the provider picker: `DesktopNuevoChat.html`, `MobileNuevoChat.html` (a
   `Sheet` on phone). Show the model list following the provider, the mode list following it, a
   disabled model picker with its reason (Copilot), and the "no provider can run chats" state.
-- A new variant (`ProviderBadge`) goes into `docs/design-system.md` and `agentry-ds.css`.
+- A new variant (`ProviderBadge`) goes into `docs/design-system.md` and `claudio-ds.css`.
 - Check: the prototype tools pass (`lint.py`, `check.mjs`), and **the owner validates** before W
   starts.
 
@@ -1630,7 +1630,7 @@ the first six rows contains "Claude".
     judge for a `host` part; `ClaudeCodeDriver` declares `sessionIds: 'imposed'`,
     `permissionModes()` (all of today's list), `transcripts` (the `SessionStore` adapter) and no
     `host`.
-  - `processes.ts` `agentryChildren()`.
+  - `processes.ts` `claudioChildren()`.
   - Files: `providers/driver.ts`, `providers/manifest.ts`, `providers/registry.ts`
     (`translationFor`, `transport` → driver class map, empty for now), `chats.ts`, `live-chat.ts`,
     `chat-records.ts`, `processes.ts`, `tool-policy.ts`, `providers/claude-code/driver.ts`.
@@ -2482,7 +2482,7 @@ phone. Reference files under `docs/design-system/reference/`, with their screens
   - the retirement notice on Home (`Main.html`, `MobileInicio.html`) and Settings;
   - `DesktopAjustesDecisiones.html` with the Providers area and its three points.
 - New variants (the limit bar inside a provider row, the chain chip, the handoff card) go into
-  `docs/design-system.md` and `agentry-ds.css`.
+  `docs/design-system.md` and `claudio-ds.css`.
 - Check: the prototype tools pass (`lint.py`, `check.mjs`), and **the owner validates** before W
   starts. The copy names tool kinds, modes and causes in the person's words, never wire identifiers
   (phase 3's W correction).
@@ -2856,4 +2856,4 @@ release with neither kind of rotation.
 
 ## Related
 
-[[decisions/decision-engine.md]] · [[decision-engine.md]] · [[plans/decision-engine.md]] · [[providers.md]] · [[plans/code-hosts.md]] · [[plans/web-packages.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[desktop.md]] · [[deploy.md]] · [[design-system.md]] · [[plans/agentry-assistant.md]] · [[status.md]]
+[[decisions/decision-engine.md]] · [[decision-engine.md]] · [[plans/decision-engine.md]] · [[providers.md]] · [[plans/code-hosts.md]] · [[plans/web-packages.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[desktop.md]] · [[deploy.md]] · [[design-system.md]] · [[plans/claudio-assistant.md]] · [[status.md]]

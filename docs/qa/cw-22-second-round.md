@@ -54,7 +54,7 @@ picks up every `*.spec.mjs` in `e2e/specs/`, so the new spec runs with the rest.
     to stop.
   - The phone strip link is `var(--touch)`, and `.is-phone .item-pr` has `min-height: var(--touch)`.
 - `docs/design-system.md` gains rows for the strip's PR states, the checkout line and the item's PR
-  row. `agentry-ds.css` gains `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci`,
+  row. `claudio-ds.css` gains `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci`,
   `.wi-checkout` and `.pr-row`.
 - The first round's minor notes are fixed:
   - `WorkItemWaitReason` now describes `merge`.

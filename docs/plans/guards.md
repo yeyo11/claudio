@@ -656,9 +656,9 @@ has no dependency on `node:sqlite` or on the rest of core.
   `bad-path`) when a path contains a newline or a NUL.
 - `--experimental-strip-types` is added only when the entry ends in `.ts` (a source checkout without
   a bundle) and the Node version needs it (`< 23.6`).
-- `execPath` is `process.execPath` of the API process, as for the MCP server (`agentry-mcp.ts:78`).
+- `execPath` is `process.execPath` of the API process, as for the MCP server (`claudio-mcp.ts:78`).
 - `ELECTRON_RUN_AS_NODE=1` is added only under Electron, because `standalone.ts:8` deletes it from
-  the server's environment (the same reason as `agentry-mcp.ts:89`).
+  the server's environment (the same reason as `claudio-mcp.ts:89`).
 
 **Input.** stdin is read up to `limits.maxInputBytes` (default 16 MiB). One byte more blocks, with
 reason `input-too-large` and rule `integrity`. The bytes are decoded as UTF-8 with replacement:
@@ -1076,7 +1076,7 @@ state.
     `a11y-*.spec.mjs` stays green in both themes and at phone width.
 11. **Design system:** the variants `notice.is-guard` and `chip.guard`, and the locked-rule row,
     are added to `docs/design-system.md` (§2, a new "Guards" subsection) and to
-    `docs/design-system/agentry-ds.css` in the same PR (CLAUDE.md, "Restyle, don't duplicate").
+    `docs/design-system/claudio-ds.css` in the same PR (CLAUDE.md, "Restyle, don't duplicate").
 
 ### Decision points
 
@@ -1625,7 +1625,7 @@ a real one)
   - the CLI pin, if F21 moved it.
 - **`docs/desktop.md`:** `guard.mjs` in `<resources>/server/`.
 - **`docs/chat-environment.md`:** a chat that opted in has guards, and how they appear.
-- **`docs/design-system.md`** and **`docs/design-system/agentry-ds.css`:** the variants above.
+- **`docs/design-system.md`** and **`docs/design-system/claudio-ds.css`:** the variants above.
 - **`apps/web/src/i18n/GLOSSARY.md`:** "guard → guarda".
 - **`e2e/fake-cli/README.md`:** the hook emulation.
 - **`packages/core/test/fixtures/recordings/README.md`:** the `claude-hooks` folder.
@@ -1948,7 +1948,7 @@ e2e once, at the end. Every task's prompt includes:
   - `observe/Health.tsx` (strings only, if needed);
   - the i18n files and tests.
 - **description:** Build [Web](#web) §2–§4 and §6–§10. Add the variants to
-  `docs/design-system.md` and `docs/design-system/agentry-ds.css` in the same commit. That is the
+  `docs/design-system.md` and `docs/design-system/claudio-ds.css` in the same commit. That is the
   only docs edit this task makes.
 - **acceptance:**
   1. Each switch persists through the API.

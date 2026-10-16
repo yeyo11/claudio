@@ -337,9 +337,9 @@ app. It does not watch for changes: rerun it after editing the UI or the API. Fo
 progress fraction, the event-stream reader, the title-bar options, the updater state machine and
 when it can update), and the root `pnpm test` includes them. The Updates card's desktop branch is
 covered in the browser by `e2e/specs/updates-desktop.spec.mjs`, which stands a fake
-`agentryDesktop.updates` in for the preload.
+`claudioDesktop.updates` in for the preload.
 
-The web UI knows it is in the app through `window.agentryDesktop`, which the preload exposes with
+The web UI knows it is in the app through `window.claudioDesktop`, which the preload exposes with
 `platform`, `version`, `setTitleBarTheme({ color, symbolColor })`, `onNavigate(listener)` and
 `updates` (`state()`, `onState(listener)`, `download()`, `install({ whenIdle?, force? })`, accepted
 only from the local server's page like the title-bar colours). When it

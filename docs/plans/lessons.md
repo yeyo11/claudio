@@ -860,13 +860,13 @@ not raise a push notification. They count in the Memory tab's idle number like t
 | Interactive chats in a project (`origin: 'claudio'`, and external chats when Claudio spawns them) | same, if `deliverToChats` | Appended to `--append-system-prompt` in `launchSpec` (`chats.ts:1072-1085`) on every spawn, never stored in the chat's options | Lessons should reach the person's own work; a chat started before an approval keeps what it started with (snapshot `on`, F2) |
 | Chats outside any project | global only, if `delivery.looseChats` | Same | O1 keeps mining per project; a promoted lesson is meant for everywhere |
 | Orchestration workers, integrator (`orchestrator.ts:1567`), fixer, planner (`orchestrator.ts:2179`) | same, if `deliverToWorkers` | Same `launchSpec` path | Unattended work is where a known rule saves a bounce |
-| Claudio assistant (`agentryAssistant`) | none | Excluded: confined | It answers about Claudio, not the project's code |
+| Claudio assistant (`claudioAssistant`) | none | Excluded: confined | It answers about Claudio, not the project's code |
 | Decision chats, the miner, titles and summaries (`internal`) | none | Excluded | Housekeeping |
 | Projects with the Memory module off | none | — | Lessons are part of the Memory module |
 
 `launchSpec` adds the section when all of these hold:
 
-- `!opts.internal`, `!opts.confine` and `!opts.agentryAssistant`;
+- `!opts.internal`, `!opts.confine` and `!opts.claudioAssistant`;
 - `opts.lessons !== 'handoff'`; the flow sets `'handoff'`, since its `appendSystemPrompt` already holds
   them;
 - the chat's project allows it.
@@ -1114,7 +1114,7 @@ labels chat requests (`security.ts:586-590`); that limit is documented, not chan
 
 Every screen follows Night Shift (`docs/design-system.md`). The references are `DesktopMemoria` and
 `MobileMemoria*` in `docs/design-system/reference/`. A new variant goes into `docs/design-system.md`
-and `agentry-ds.css` in the same task.
+and `claudio-ds.css` in the same task.
 
 **Memory tab, desktop** (`ProjectMemory.tsx:122-147`). The left column holds Proposals, then Journal.
 The right column holds CLI memory, then **Lessons** (new card `memory/Lessons.tsx`), then Handed.
@@ -1431,7 +1431,7 @@ All of these land in the same pull request as the code:
 - `docs/decision-engine.md`: the table row and a `### lesson.mine` section.
 - `docs/security-model.md`: chat-token limits for lessons; the miner's confinement; redaction points.
 - `docs/prompts.md`: the miner prompt and the delivery lead sentence, as shared texts.
-- `docs/design-system.md` and `docs/design-system/agentry-ds.css`: `.lesson-row`, the evidence quote,
+- `docs/design-system.md` and `docs/design-system/claudio-ds.css`: `.lesson-row`, the evidence quote,
   the diff dialog, the fourth phone segment.
 - `README.md`:
   - REST rows for every new route (`README.md:1277` table) and the decisions table row;
@@ -1674,7 +1674,7 @@ files. It commits on its branch with Conventional Commits and does not push. **I
   - the project settings Memory section, and the chat page menu;
   - `apps/web/src/api` (client and keys);
   - i18n `en`/`es` (`home.json`, `config.json`, `decisions.json`);
-  - `docs/design-system.md`, `docs/design-system/agentry-ds.css`;
+  - `docs/design-system.md`, `docs/design-system/claudio-ds.css`;
   - the web tests listed in [Tests](#tests).
 - **Prompt:** Build [Web](#web) to Night Shift:
   - Open `DesktopMemoria` and `MobileMemoria*` first, use tokens only, both themes, and controls from

@@ -1237,7 +1237,7 @@ style). Severity, dimension, verdict and status words are translated chrome.
    - Status is always a word plus colour. Contrast follows the tokens.
    - Every control is reachable by keyboard, and icon-only buttons carry `aria-label`.
 6. **Design system.** The finding card is a variant of `.rt`. Before v8 builds it, v8a adds it to
-   `docs/design-system.md` ("Review threads in the diff") and to `agentry-ds.css` §18 (classes
+   `docs/design-system.md` ("Review threads in the diff") and to `claudio-ds.css` §18 (classes
    `.rt.finding`, `.rt-sev`), with a reference screen for desktop and phone in both themes from
    `reference/tools/reviews.py` (Open question 1).
 
@@ -1554,7 +1554,7 @@ These ship in the pull request that builds this plan:
 - `docs/prompts.md`: rows for the reviewer, verifier and review fixer prompts in its table
   (`:121-140`).
 - `docs/decision-engine.md`: `review.depth` (27 points).
-- `docs/design-system.md` and `docs/design-system/agentry-ds.css`: the finding card variant (v8a).
+- `docs/design-system.md` and `docs/design-system/claudio-ds.css`: the finding card variant (v8a).
 - `docs/security-model.md`: the reviewer's confinement and the chat-token refusals.
 - `docs/orchestration-timings.md`: the review sub-span.
 - `docs/status.md`: the feature listed.
@@ -1780,7 +1780,7 @@ writes its own README rows, which it does anyway.
 - **Files:**
   - `docs/design-system.md` ("Review threads in the diff", plus a "Review gate on the verification
     card" subsection);
-  - `docs/design-system/agentry-ds.css` §18;
+  - `docs/design-system/claudio-ds.css` §18;
   - `docs/design-system/reference/tools/reviews.py` (new screens);
   - generated reference PNGs in both themes, desktop and phone.
 - **Prompt.**

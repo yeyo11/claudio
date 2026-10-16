@@ -70,7 +70,7 @@ as was done for CW-21, then look at the board and item screens in both themes on
     deliberate poll", merged, closed, the checkout line and storage.
   - `team-and-flow.md` covers the PR the approval opens, the remembered approval, `conflict-unresolved` and
     that runs stay denied `git push`.
-  - `design-system.md` and `agentry-ds.css` gain the PR strip, CI badge, checkout and PR row variants.
+  - `design-system.md` and `claudio-ds.css` gain the PR strip, CI badge, checkout and PR row variants.
 
 ## Minor notes (not blocking)
 

@@ -114,7 +114,7 @@ settings PUT replaces a document whole and should not start paid work as a side 
   live yet). Reference screens: `docs/design-system/reference/DesktopFlujo.html` and
   `MobileFlujo.html`; the dialog follows the confirm dialogs already on the Team screens
   (`AddMember.tsx`). If a new class is needed it goes into `docs/design-system.md` and
-  `agentry-ds.css` in the same PR.
+  `claudio-ds.css` in the same PR.
 
 ## Item history (`apps/web/src/pages/tasks/item/Activity.tsx`)
 

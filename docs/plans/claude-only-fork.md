@@ -251,7 +251,9 @@ extra files), the workflows, and a fresh `CHANGELOG.md` (the release-please mani
 `0.1.0`).
 
 Stored values that change meaning (the chat origin, storage keys) need no migration: Claudio starts
-with an empty data directory.
+with an empty data directory. Revised on 2026-10-16: builds from before the rename had been used by
+then, so what they stored or handed out is migrated or still read; see
+[rename-compatibility.md](../rename-compatibility.md).
 
 ## Orchestrations
 
@@ -365,4 +367,4 @@ image built once, then the owner creates `yeyo11/claudio` and the branch is push
 
 ## Related
 
-[[plans/multi-provider.md]] · [[accounts.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[plans/limit-resume.md]] · [[providers.md]] · [[desktop.md]] · [[deploy.md]] · [[status.md]]
+[[plans/multi-provider.md]] · [[rename-compatibility.md]] · [[accounts.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[plans/limit-resume.md]] · [[providers.md]] · [[desktop.md]] · [[deploy.md]] · [[status.md]]

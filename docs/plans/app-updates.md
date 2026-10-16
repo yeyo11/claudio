@@ -129,7 +129,7 @@ as it is, and the two are separate cards in Settings.
   (from source). The image's `docker/Dockerfile` sets `docker`. The desktop main process sets
   `appimage` when `process.env.APPIMAGE` is set, and otherwise `deb` when `resources/package-type`
   says so. The UI uses it to decide which action to offer.
-- **Types** in `packages/shared/src/types.ts`: `AgentryReleaseInfo { current, latest, publishedAt,
+- **Types** in `packages/shared/src/types.ts`: `ClaudioReleaseInfo { current, latest, publishedAt,
   url, checkedAt, updateAvailable, distribution, error? }`, and a `version` field on
   `StreamHelloEvent`.
 - **An event** on the bus, `system.release`, published only when a check finds a version newer
@@ -163,7 +163,7 @@ as it is, and the two are separate cards in Settings.
   unsupported(reason) | error(message)`. It is `unsupported` in `desktop:dev`, when the AppImage's
   file is not writable, and when neither `APPIMAGE` nor `package-type` identifies the package. The
   state machine is tested against an injected fake of the updater's events.
-- **Preload.** `window.agentryDesktop.updates`: `state()`, `onState(listener)`, `download()`,
+- **Preload.** `window.claudioDesktop.updates`: `state()`, `onState(listener)`, `download()`,
   `install({ whenIdle })`. Like `setTitleBarTheme`, the main process accepts these only from the
   local server's page.
 - **Restarting without losing work.** Before `quitAndInstall`, look at what the tray already knows
@@ -205,7 +205,7 @@ as it is, and the two are separate cards in Settings.
   `apps/web/src/pages/config/CliCard.tsx`. It shows the version in use, the newest release with its
   date and a link to its notes, when it was last checked, and **Check for updates**.
 - **The action depends on `distribution` and on where the page runs:**
-  - In the desktop window, with `window.agentryDesktop.updates` available: **Download** with its
+  - In the desktop window, with `window.claudioDesktop.updates` available: **Download** with its
     progress, then **Restart to update**. When something is live, the restart asks first: *N chats
     are working and will be stopped — restart now, or update when you quit?*
   - When the desktop updater is `unsupported`: the reason, and a link to the release.
@@ -283,7 +283,7 @@ found while building it.
   `apps/desktop/src/updater.ts` is the planned state machine, with four `unsupported` reasons
   (`development`, `read-only`, `unknown-package`, and `no-elevation` for a `.deb` with no graphical
   password prompt on `PATH`) that carry the message the UI shows.
-  `window.agentryDesktop.updates` (`state`, `onState`, `download`, `install`) is accepted only from
+  `window.claudioDesktop.updates` (`state`, `onState`, `download`, `install`) is accepted only from
   the local server's page. Help → **Check for updates…** walks through dialogs, and the tray gets
   **Restart to update to X**. A restart stops the tray's monitor and the server child, installs
   silently and relaunches after the old process exits, so the new one gets the single-instance lock;
@@ -401,7 +401,7 @@ Found while building or reviewing this work, and fixed in the same pull request:
 - **More e2e, added while fixing the above:** `reload.spec.mjs` blocks the Usage chunk through a
   new `page.blockUrls()` (CDP `Network.setBlockedURLs`, bypassing the service worker) and expects
   the stale page, the banner and the shell still working, which covers `lazyPage`'s fallback in a
-  real browser. `updates-desktop.spec.mjs` puts a fake `agentryDesktop.updates` in front of the real
+  real browser. `updates-desktop.spec.mjs` puts a fake `claudioDesktop.updates` in front of the real
   card and walks Download with its progress bar, Restart, the live-work question with *Update when I
   quit* and *Restart now* (checking what the card asked the shell for), and the unsupported message
   with its release link. `updates.spec.mjs` checks every Docker command, and reads the stored

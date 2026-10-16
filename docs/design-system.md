@@ -15,7 +15,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 
 | What | Where |
 |---|---|
-| Reference stylesheet (tokens and every component class, as designed) | [`design-system/agentry-ds.css`](design-system/agentry-ds.css) |
+| Reference stylesheet (tokens and every component class, as designed) | [`design-system/claudio-ds.css`](design-system/claudio-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
 | The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
@@ -156,7 +156,7 @@ icon.
 
 The fixes of the ecosystem's prototypes (the audit in
 [plans/project-ecosystem-audit.md](plans/project-ecosystem-audit.md)) took the last raw values out of
-sections 15 to 17 of `agentry-ds.css`. The app gains these when orchestration 2 builds the screens.
+sections 15 to 17 of `claudio-ds.css`. The app gains these when orchestration 2 builds the screens.
 
 | Token | Value | Use |
 |---|---|---|
@@ -181,11 +181,11 @@ app agree; keep it, and don't bring the old value back in a board-only override.
 
 ### Reference stylesheet names vs app names
 
-`agentry-ds.css` was written for the design canvas, so a few of its names differ from the app's.
+`claudio-ds.css` was written for the design canvas, so a few of its names differ from the app's.
 Translate them as follows. Where the stylesheet gives a value, it is right; where it gives a name,
 use the app's.
 
-| In `agentry-ds.css` | In the app |
+| In `claudio-ds.css` | In the app |
 |---|---|
 | `--r-xs`, `--r-sm`, `--r`, `--r-lg`, `--r-xl` | `--radius-xs` … `--radius-xl` |
 | `--dur` | `--dur-base` |
@@ -279,7 +279,7 @@ The phone is the top bar, the page and a tab bar.
 ### Projects, board and work items
 
 The project ecosystem ([plans/project-ecosystem.md](plans/project-ecosystem.md)) is drawn in
-section 15 of `agentry-ds.css` and on the `Desktop*`/`Mobile*` screens whose names start with
+section 15 of `claudio-ds.css` and on the `Desktop*`/`Mobile*` screens whose names start with
 `NuevoProyecto`, `Proyecto`, `Tablero`, `Tarea`, `TareasLista`, `TareasTodos`, `NuevaTarea`,
 `Hitos` and `ChatTarea` (the phone also draws the wizard's steps one by one, `TableroSeleccion`,
 `TableroFiltros`, `TareaActividad` and `TareaCambios`). `DSTablero` is the spec page of the board: the
@@ -307,7 +307,7 @@ already belong to the orchestration board.
 | `.wi-crit` (`.full`) | new `.workitem-criteria` | a 28 × 4 bar and "2/5"; complete is the one ok on a card |
 | `.wi-strip` (`.live`, `.wait`, `.fail`, neutral), `.actor-orch`, `.detail`, `.verb` | new `WorkItemStrip` (`.workitem-strip`) | **what happens to the card now, at its foot, led by who does it.** One strip per card, never two. Live: the actor (a role's squircle, the person's round monogram or the orchestration glyph), the braille spinner, the stage verb, the running clock and, on its own line, the detail in mono; the card takes `.rail-live`. Waiting for the person: an idle "te espera" and why, with "Aprobar y pasar a Hecho" when QA passed it. Failed: the actor, an ✕ and "Falló al refinar · ninguna cuenta tenía cupo". Neutral: queued ("En cola: la refinará cuando quede sitio") or QA's last words when it sent the card back; a card sent back that also waits for a place keeps QA's words, and its queued run shows in Team activity. When the strip's actor is the assignee, the foot does not repeat it |
 | `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci` | `WorkItemStrip` states `pr-*` (`.workitem-strip.is-warn`, `.workitem-strip-num`, `.workitem-strip-link`, `.pr-not-ready`, `CiBadge`) | **the card's pull request** (docs/plans/work-item-pull-requests.md). "Preparando la PR" neutral and still: Claudio prepares it, no agent works on it, so no spinner and no `--live`. "Conflicto con main · 2 archivos" in warn. "Aprobada · su PR se abrirá cuando pase la verificación" neutral. "PR #123 · esperando fusión" in idle, the number in mono and tabular, then the CI badge with its word (CI superada ok, CI pendiente neutral with no loop, CI fallida bad) and an icon link to GitHub (`target="_blank" rel="noreferrer"`, 44 px on a phone) that never opens the card. "PR #123 cerrada sin fusionar" in idle and "No se ha podido abrir la PR · motivo" in bad, both with the approval again. In a ready project the approval reads "Aprobar y abrir PR"; otherwise it stays "Aprobar y pasar a Hecho", and a warn line above it says why, "Sin PR: gh no ha iniciado sesión", with gh's own line as its title. A Done card still draws no strip |
-| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or an Claudio action (Ajustes → Integraciones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
+| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or a Claudio action (Ajustes → Integraciones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
 | `.wi-checkout` | new `.workitem-checkout-note` | the project's checkout behind `origin/<default>`: one quiet warn line under the board's toolbar, "La copia de trabajo va 3 commits por detrás de origin/main: tiene cambios sin commit", naming why Claudio did not bring it forward. Never a command to copy |
 | `.wi-proj` | new `.workitem-project` | on Tasks with All projects selected, each card names its project at the head of its context row, and no column shows a limit (each project has its own) |
 | `.wi-key` (`.boxed`) | new `.workitem-key` | `AGN-12` in mono, tabular |
@@ -338,7 +338,7 @@ three-way segmented control under the title. A new task on a phone is the gradie
 ### Team, flow, memory and documents
 
 The Team, Memory and Documents modules of the ecosystem are drawn in section 16 of
-`agentry-ds.css` and on the `Desktop*`/`Mobile*` screens named `Equipo`, `EquipoVacio`,
+`claudio-ds.css` and on the `Desktop*`/`Mobile*` screens named `Equipo`, `EquipoVacio`,
 `Miembro`, `Flujo`, `EquipoActividad`, `ChatFlujo` (a failed run's chat), `Memoria`, `Documentos`,
 `DocumentoEditar`, `Documento` (phone only) and `TableroEquipo` (the board while a team works it). The phone draws Memory's three tabs as
 `Memoria`, `MemoriaDiario` and `MemoriaCLI`. Orchestration 3 builds them; the right-hand column
@@ -389,7 +389,7 @@ border and the other two as dashed places.
 
 The project assistant, "Suggest tasks" and the resources with AI (decisions 35 to 38 of
 [plans/project-ecosystem.md](plans/project-ecosystem.md)) are drawn in section 17 of
-`agentry-ds.css` and on the screens `Asistente`, `AsistentePropuestas`, `SugerirTareas`,
+`claudio-ds.css` and on the screens `Asistente`, `AsistentePropuestas`, `SugerirTareas`,
 `Recursos`, `RecursoPropuesta` and `RecursoCrearIA`, desktop and phone, plus `AsistenteVacio` (a
 project with nothing to read: no run, no cost, the template's roles offered one by one) and
 `SugerirTareasEnCurso` (a suggestion while it runs). The phone draws the Team and Resources
@@ -536,7 +536,7 @@ answer is drawn in the reference; the change note for development is
 
 Drawn for the [decision engine](plans/decision-engine.md) (task `p2` of D0) and waiting for the
 owner's validation. Nothing here is live, so nothing takes `--live`, a gradient, the energy border
-or motion. The rules are under "Decisions" in [agentry-ds.css](design-system/agentry-ds.css).
+or motion. The rules are under "Decisions" in [claudio-ds.css](design-system/claudio-ds.css).
 
 - **The mark (`.decided`).** A button whose face (`.decided-face`) is a 20 px mono label:
   "decidido · 0,93", or "sugerido" when the confidence is `null` (the CLI). It carries no status
@@ -648,7 +648,7 @@ Code). A name with no mark keeps its monogram.
 Drawn for [multiple agent providers](plans/multi-provider.md) (task `p1` of P0) and waiting for the
 owner's validation before P2 builds it. Nothing here is live: no energy border, no loop, and the
 only gradients are the ones a screen already had. The rules are under "Providers" in
-[agentry-ds.css](design-system/agentry-ds.css).
+[claudio-ds.css](design-system/claudio-ds.css).
 
 - **A row (`.prov-row`).** Handle (`.prov-grip`, desktop only), the provider's `.monogram` (a hue that
   is never red, green or cyan; brand logos are third-party art, so none is drawn), its identity
@@ -860,7 +860,7 @@ with its override open, signed out, not installed, unknown and checking), `Mobil
 Drawn for [code hosts](plans/code-hosts.md) (task `w-p1` of phase 6 P0) and waiting for the owner's
 validation. It is a card on the Settings → Integrations page, under the trackers', one row per project
 that has a host. The rows are the providers' (`.prov-row.compact`, `.prov-cell`); three small rules are
-new, in `agentry-ds.css`: `.hook-origin` (the strip under the card's head), `.hook-facts` (mono
+new, in `claudio-ds.css`: `.hook-origin` (the strip under the card's head), `.hook-facts` (mono
 `label · value` lines under a reason) and `.hook-events` (the list of events in the register dialog).
 
 - **The strip (`.hook-origin`)** says where the hosts deliver: the public address in mono with an
@@ -924,7 +924,7 @@ before phase 2 builds it. Nothing here is live: no energy border, no loop, no gr
 - **The readiness word.** `b-ok` "Listo" when the CLI is signed in on that host; `b-warn` "Sin sesión"
   for `cli-signed-out` and `b-warn` "No disponible" for `unsupported-host`. A word always, never a
   colour alone. The plain reason sits under the row (`.host-line-why`) with **one** action, a link
-  or an Claudio action and never a command to copy: "Ir a Integraciones" for an unsupported host,
+  or a Claudio action and never a command to copy: "Ir a Integraciones" for an unsupported host,
   "Ver cómo iniciar sesión" (the sign-in docs) for a signed-out CLI. A ready line has no action.
 - **Phone.** `.host-line.stacked`: the reason and the action stack under the row, the action is a
   44 px button, and the card is a section called "Repositorio" between General and Modules.
@@ -1103,7 +1103,7 @@ squash required; head moved, merging, merged). Generated by `reference/tools/mer
 Drawn for [code hosts](plans/code-hosts.md) (task `r-p1` of phase 3 P0) by `reference/tools/reviews.py`
 and waiting for the owner's validation before P2 builds it. The review block of the item page and
 the Address with an agent dialog are drawn by `r-p2` and `r-p3` and join this section. Classes
-`.rt-*` and `.dv-note-pill`, `.dv-add`, `.dv-review` in §18 of `agentry-ds.css`; nothing is added to
+`.rt-*` and `.dv-note-pill`, `.dv-add`, `.dv-review` in §18 of `claudio-ds.css`; nothing is added to
 the comparator's own rows: **a thread is a card under its line**, never a new kind of diff.
 
 - **An open thread (`.rt`)** sits under the new-side line it is about, indented to the code. Head:
@@ -1225,7 +1225,7 @@ spinner and `.btn-ghost` are the existing ones.
 ### Address with an agent: the thread list, the triage marks and the "Atendido en" follow-up
 
 Drawn for [code hosts](plans/code-hosts.md), phase 3 (task `r-p3` of P0), by `reference/tools/reviews.py`:
-`DSRevision`. New classes `.addr-*` (under "Address with an agent" in `agentry-ds.css`); the dialog is
+`DSRevision`. New classes `.addr-*` (under "Address with an agent" in `claudio-ds.css`); the dialog is
 `.dialog` (a `.sheet` on a phone), the marks are the existing `.badge` and `.decided-face`, and the follow-up
 is `.fix-panel.wait` with the phase 2 fix path (`fix_state`, the same push rule).
 
@@ -1301,7 +1301,7 @@ Drawn for [code hosts](plans/code-hosts.md), phase 5 (task `t-p3` of P0), by `re
 `DesktopImportarIssues`, `MobileImportarIssues`, `MobileImportarIssuesLista`, `DesktopTareaIssues`,
 `MobileTareaIssues`, the states sheets `DesktopTareaIssuesEstados` and `MobileTareaIssuesEstados`, and
 `DesktopTableroIssues` / `MobileTableroIssues`. Drawn with GitHub Issues and GitLab Issues; YouTrack uses the same
-screens with its own keys (`PROJ-12`) and its State as the issue's state. New classes `.iss-*` (under "Tracker issues" in `agentry-ds.css`); the list is
+screens with its own keys (`PROJ-12`) and its State as the issue's state. New classes `.iss-*` (under "Tracker issues" in `claudio-ds.css`); the list is
 the thread list of "Address with an agent" and the item panel is `.fix-panel`.
 
 - **Import** is a `.dialog` opened from "Importar issues" on the board (a `.sheet` on a phone, whose board header
@@ -1341,9 +1341,9 @@ stages the graph runs in and names its longest chain; nothing on it is live or c
 
 ### The Claudio assistant: the entry, the greeting and the host prompt of a write
 
-Drawn for the umbrella CW-30 ([plans/agentry-assistant.md](plans/agentry-assistant.md): CW-18, the entry and its
+Drawn for the umbrella CW-30 ([plans/claudio-assistant.md](plans/claudio-assistant.md): CW-18, the entry and its
 confined chat, then CW-17, the write tools), by `reference/tools/assistant_entry.py`, in `DesktopAsistenteClaudio`,
-`DesktopAsistenteAgentryChat`, `MobileAsistenteClaudio`, `MobileAsistenteAgentryChat` and `MobileAsistenteAgentryMas`. The
+`DesktopAsistenteClaudioChat`, `MobileAsistenteClaudio`, `MobileAsistenteClaudioChat` and `MobileAsistenteClaudioMas`. The
 decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
 - **Where it lives.** A sidebar item "Asistente" with the sparkle, in the first group under Inicio (route
@@ -1362,7 +1362,7 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
   words). On a phone three starters show, one column, 44 px at least.
 - **The context** is a chip in the composer's row, "Con <project> como contexto" with an × to clear it (a 44 px target on a phone,
   where the label ends in an ellipsis to leave room for the × and the model chip). With no project the chip is absent.
-- **The chat** of an assistant (`DesktopAsistenteAgentryChat`) starts with the greeting as its first message, dimmed
+- **The chat** of an assistant (`DesktopAsistenteClaudioChat`) starts with the greeting as its first message, dimmed
   (`.as-greeting`), then the person's first prompt, which is the chat's title, never the greeting. Tool lines say what was read in
   the person's words ("Tablero de AGN", "AGN-12"), never an identifier of the wire. While a write waits for permission nothing
   moves: the badge says "necesita tu permiso" in `--warn`, the braille spinner and the energy border are off, and the one
@@ -1463,7 +1463,7 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
 Drawn for [the in-app setup](plans/in-app-setup.md) (step 4, "Design") by `reference/tools/setup.py`, before the web
 builds it (step 5). It reads the API of [setup.md](setup.md): `GET /setup`, the sign-in sessions (`LoginSession`,
 `LoginState`, `LoginErrorCode`), the methods per tool (`SetupToolMethods`) and `SecretStorageStatus`. The styles are under
-"Setup" in [agentry-ds.css](design-system/agentry-ds.css).
+"Setup" in [claudio-ds.css](design-system/claudio-ds.css).
 
 **Screens.**
 
@@ -1596,7 +1596,7 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   No gradient, no `.grad-border`, no energy border and no `--live`: those mean an agent is working, and a shell
   is not. The one gradient of the page is the primary action, "Nueva terminal".
 - **Palette.** `--term-bg` (the `--bg-1` surface), `--term-fg`, `--term-cursor`, `--term-selection` and
-  `--term-ansi-0` … `--term-ansi-15`, in both themes, in `tokens.css` and `agentry-ds.css`. The 16 colours are
+  `--term-ansi-0` … `--term-ansi-15`, in both themes, in `tokens.css` and `claudio-ds.css`. The 16 colours are
   muted to sit with `--sx-*`; each reads at ≥ 4.5:1 on `--term-bg` except black and bright black, which
   programs paint behind text (`packages/ui/test/term-tokens.test.ts` checks it in both themes). They are
   **content** colours: no status, badge, chip or other chrome uses them, and none equals `--ok`, `--warn`,
@@ -1731,7 +1731,7 @@ Rules:
 Changes are reviewed inside Claudio. Nothing links to an editor or hands out a command to copy:
 the comparator draws the unified diff the API already serves. The reference is `DSComparador`, the
 `DiffView` component and the screens of the reference's **Changes** section; the classes are §18
-of `agentry-ds.css`.
+of `claudio-ds.css`.
 
 **Four rules**
 
@@ -1833,7 +1833,7 @@ the file being edited is its only moving part.
    is visible, and the `a11y-*.spec.mjs` specs stay green.
 7. An empty, error or install state uses `Empty` with the matching illustration (§4), and uses at
    most one illustration per screen.
-8. A new variant or illustration is added to this document and to `agentry-ds.css` in the same PR.
+8. A new variant or illustration is added to this document and to `claudio-ds.css` in the same PR.
 9. A diff is drawn with `DiffView` and follows the four rules of §5: nothing links to an editor.
 
 ## Landed
@@ -1886,7 +1886,7 @@ the file being edited is its only moving part.
     limit (usage, context, a probability) in a single fill whose tone is ok, warn or bad by
     threshold, not a count split by status.
 - A chat that is a task of an orchestration opens with a context row, `.chat-part-of` (`.part-of`
-  in `agentry-ds.css`): "Part of orchestration *name* · stage N of M", with the graph's
+  in `claudio-ds.css`): "Part of orchestration *name* · stage N of M", with the graph's
   `ProgressBar variant="segments"` at its end. The row is neutral: it is context, not the live
   surface, so it takes no gradient and no energy; the segments carry the only live colour. The
   name is the link and its box covers the row, so the whole line is the touch target. A chat that
@@ -1898,7 +1898,7 @@ the file being edited is its only moving part.
   `alert-warn` with the server's reason, the command to run or the admin page to open, and "Check
   again", with no illustration.
 - The orchestration page ends with **"Where the time went"** (`.orch-timings`, `.timings` in
-  `agentry-ds.css`), a card with a `Collapsible` whose trigger is the Geist Mono 11 label and at
+  `claudio-ds.css`), a card with a `Collapsible` whose trigger is the Geist Mono 11 label and at
   least 44 px tall. It is closed while the graph runs and open once it has ended. It is history, not
   a live surface: no gradient, no energy border, no motion. Its phase bar is the one segmented bar,
   `ProgressBar variant="segments"` with `cells`, cut by each phase's share (at least one cell each)
@@ -1910,7 +1910,7 @@ the file being edited is its only moving part.
   and a failed run of a check (`.orch-timings-run.is-failed`) carries a bad "failed". On a phone the
   figures, the critical path links and the checks stack at full width, and the bar keeps it.
 - Settings → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
-  `.qr` in `agentry-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
+  `.qr` in `claudio-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
   (`components/QrCode.tsx`). The block takes `.grad-border` while the tunnel is open, because it is
   what the screen is about; the start button is the gradient action only while there is no address.
   The QR code is dark on light in both themes (`--qr-ink`, `--qr-paper`), since not every camera
@@ -2002,7 +2002,7 @@ the file being edited is its only moving part.
   are pure and unit-tested against the reference's sample diffs. `components/changes/` holds
   `DiffView`, `BlockRail`, `Fingerprint`, `FileMap`, `FileReview`, `Intent` and the review's rules
   (`review-model.ts`); Step by step is `components/changes/steps/`, its rules in `steps-model.ts`.
-- `styles/diff.css` is the comparator (§18 of `agentry-ds.css`, after the project ecosystem's §15 to §17; its step list is `.edit-steps`/`.edit-step` there, because the wizard's stepper is `.steps`/`.step`); the review screen's own styles
+- `styles/diff.css` is the comparator (§18 of `claudio-ds.css`, after the project ecosystem's §15 to §17; its step list is `.edit-steps`/`.edit-step` there, because the wizard's stepper is `.steps`/`.step`); the review screen's own styles
   sit beside its components (`changes.css`, `steps/steps.css`) and every rule is scoped under
   `.changes-review`, because the compact summary reuses some of the class names (`.changes-file`)
   and the review's stylesheet stays loaded once the page has been visited.
@@ -2094,7 +2094,7 @@ Where §2 planned an app name and the app settled on another:
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
 Variants the app drew where the reference had no class, mirrored in §19 of
-[agentry-ds.css](design-system/agentry-ds.css) under the app's names:
+[claudio-ds.css](design-system/claudio-ds.css) under the app's names:
 
 - `.phone-head.is-modal`: a modal flow's header (new task, the wizard, editing a document), its
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.

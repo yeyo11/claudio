@@ -14,10 +14,10 @@ Claudio ships a small MCP server, named **`claudio`**, so a chat can look things
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
 `CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 16 read tools (CW-6) and nine
-write tools (CW-17, [below](#write-tools)). The spec is [plans/agentry-mcp-server.md](plans/agentry-mcp-server.md) (CW-6, epic
-[plans/agentry-assistant.md](plans/agentry-assistant.md)).
+write tools (CW-17, [below](#write-tools)). The spec is [plans/claudio-mcp-server.md](plans/claudio-mcp-server.md) (CW-6, epic
+[plans/claudio-assistant.md](plans/claudio-assistant.md)).
 
-It adds no screen and no route. The Claudio assistant's chat ([agentry-assistant.md](agentry-assistant.md))
+It adds no screen and no route. The Claudio assistant's chat ([claudio-assistant.md](claudio-assistant.md))
 is what hands it to a chat, through the helper below.
 
 ## The one rule
@@ -103,13 +103,13 @@ stays strict and now accepts lists and nested objects (labels, criteria).
 | `accept_assistant_proposal`, `discard_assistant_proposal` | `POST /assistant/proposals/:id/accept` and `/discard` |
 
 None deletes, stops, skips or restores, and none can widen a chat. The write names are in `names.ts`
-(`isAgentryMcpWriteTool`) and are never in `--allowedTools`: the CLI asks the person before each call,
-and Claudio shows no "always allow" for them ([agentry-assistant.md](agentry-assistant.md#writes-confirmed-one-by-one-option-a)).
+(`isClaudioMcpWriteTool`) and are never in `--allowedTools`: the CLI asks the person before each call,
+and Claudio shows no "always allow" for them ([claudio-assistant.md](claudio-assistant.md#writes-confirmed-one-by-one-option-a)).
 
 ## Environment
 
 The server needs `CLAUDIO_API_URL`. When it is unset, empty or not an `http(s)` URL it writes
-`agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat`
+`claudio-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat`
 to stderr and exits with 1, before it reads anything. There is no default URL and no port in the
 package; a test checks it.
 
@@ -127,8 +127,8 @@ from the chat's environment, so the secret never reaches the file. The file is w
 
 ## How it starts, in the three runtimes
 
-The helper `agentryMcp({ dataDir, apiUrl, version })` (`packages/core/src/agentry-mcp.ts`, also
-`Core.agentryMcp()`) builds the `command` of the file. **The choice is one environment variable,
+The helper `claudioMcp({ dataDir, apiUrl, version })` (`packages/core/src/claudio-mcp.ts`, also
+`Core.claudioMcp()`) builds the `command` of the file. **The choice is one environment variable,
 `CLAUDIO_MCP_ENTRY`**, the absolute path of a bundled `mcp.mjs`:
 
 | Runtime | What runs |
@@ -164,7 +164,7 @@ The helper returns what a caller spreads into `runtime.start`:
 ## How to try it
 
 - Tests: `pnpm --filter @claudio/mcp test` (the server, in process and over stdio),
-  `packages/core/test/agentry-mcp.test.ts` (the helper) and `apps/api/test/agentry-mcp-chat.test.ts` (a
+  `packages/core/test/claudio-mcp.test.ts` (the helper) and `apps/api/test/claudio-mcp-chat.test.ts` (a
   confined chat that asks about AGN-12, through the fake CLI's `FAKE-MCP-CALL <server> <tool> <json>`
   keyword).
 - By hand, against a running wrapper:
@@ -180,4 +180,4 @@ The helper returns what a caller spreads into `runtime.start`:
 Stop, skip, rerun and delete tools, moving a card to Done, and listing `claudio` in the person's MCP
 settings: it is internal and given only to chats Claudio confines.
 
-Related: [[plans/agentry-mcp-server.md]], [[plans/agentry-assistant.md]], [[agentry-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]]
+Related: [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]]

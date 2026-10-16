@@ -783,7 +783,7 @@ the person allowed the call) is recorded as who made the change. `chatWriteConte
 comment, and the assistant's proposal accept and discard, record the history entry with the actor
 `agent`, the role `assistant` for an assistant chat (none for any other chat) and the cause
 `chat.api-write`; a comment also carries its source. A request without a chat token is the person's,
-as before. See [agentry-assistant.md](agentry-assistant.md).
+as before. See [claudio-assistant.md](claudio-assistant.md).
 
 ## Routes
 
@@ -824,4 +824,4 @@ without descriptions, with Done and the lists paged (20).
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[agentry-assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[trackers.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[claudio-assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[trackers.md]] · [[design-system.md]] · [[status.md]]

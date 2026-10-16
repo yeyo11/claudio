@@ -12,7 +12,7 @@ tags:
 
 Status: **built on 2026-10-08** (CW-33, landed in #221): compact JSON and chosen fields shipped, TOON not adopted. See
 [Outcome](#outcome). It belongs to the Claudio MCP server
-([[plans/agentry-mcp-server.md]], built), whose rule is "one `text` content
+([[plans/claudio-mcp-server.md]], built), whose rule is "one `text` content
 holding compact JSON", and to anything else Claudio writes into a prompt: the orchestration
 planner's context, a worker's dependency results, the assistant's sources.
 
@@ -116,4 +116,4 @@ Decision per tool: **no tool answers TOON**; every one stays compact JSON.
 
 ## Related
 
-[[api-wire.md]] · [[plans/agentry-mcp-server.md]] · [[plans/agentry-assistant.md]] · [[prompts.md]]
+[[api-wire.md]] · [[plans/claudio-mcp-server.md]] · [[plans/claudio-assistant.md]] · [[prompts.md]]

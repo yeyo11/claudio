@@ -11,7 +11,7 @@ it left are in [Applied in development](#applied-in-development) at the end of t
 
 ## Two bugs in the drafts
 
-1. **A merge marker in the stylesheet.** `agentry-ds.css` carried a stray `=======` on the line
+1. **A merge marker in the stylesheet.** `claudio-ds.css` carried a stray `=======` on the line
    before `@media (pointer: coarse)` (after the end of §17). It made the rule invalid, so the 44 px
    minimum of every phone control that comes from the stylesheet was silently lost. Removed.
 2. **Epics were counted.** The data set counted the two epics as open items and inside the column
@@ -41,7 +41,7 @@ Smaller slips fixed on the way:
   the person's chat; it is "Desarrollador implementa AGN-28" there, and AGN-28 moved to En curso 4
   min ago, not 18, to match its 4:12 clock.
 
-## The stylesheet (`agentry-ds.css`)
+## The stylesheet (`claudio-ds.css`)
 
 | Change | Classes | App name |
 |---|---|---|

@@ -750,7 +750,7 @@ Every string through i18n with `en`/`es` parity; the `es` copy follows
 #### Design-system additions
 
 New variants, added to `docs/design-system.md` (§2, a subsection "Context control: the breakdown,
-the compact confirmation and the divider") and to `docs/design-system/agentry-ds.css` in the same PR:
+the compact confirmation and the divider") and to `docs/design-system/claudio-ds.css` in the same PR:
 `.compaction-divider`, `.ctx-breakdown` (the panel's layout), `.bar-mark` (a threshold tick on a
 usage bar). Styles go in `apps/web/src/styles/chat.css` (panel, notes) and the chat-ui transcript
 stylesheet (divider), with their reduced-motion variants beside them. `apps/web/test/fixtures/class-names.json`
@@ -784,7 +784,7 @@ and `module-graph.json` gain the new classes and modules.
 | E22 | Flow bounce with `context.compact` active | Compacts before `onStart`; failure → run continues uncompacted; a restart mid-compaction leaves the run `running` with no chat, which the flow's restart path requeues or fails (`restartDecided`, `flow.ts:1954`); a requeued run asks the point again, and the gate sees the post-compaction share if the compaction landed | `launchFlowRun` |
 | E23 | Orchestration worker chat | Running: read-only → refused. Ended: resumable → allowed; a later fixer resume continues the compacted session | `availability` |
 | E24 | Project assistant run chat | Refused `run` while the run is `running` (`assistant_runs.status`) | `assistantOwns` |
-| E25 | Claudio assistant chat (`agentryAssistant`) | Allowed; a resume re-applies its confinement (`types.ts` `AgentryAssistantMarker`) | `ChatService.resume` |
+| E25 | Claudio assistant chat (`claudioAssistant`) | Allowed; a resume re-applies its confinement (`types.ts` `ClaudioAssistantMarker`) | `ChatService.resume` |
 | E26 | Housekeeping chat (origin `internal`) | Refused `housekeeping` | `availability` |
 | E27 | Terminal chat held by a terminal | Read-only → refused. Not held → resumable → compaction adopts it, as a resume does (documented) | `ChatService.resume` |
 | E28 | Confined chat (no setting sources) | Same as any chat; F9 records whether `/compact` is listed there | x0 |
@@ -903,7 +903,7 @@ ids, summary text replaced by placeholders of similar length).
 | `docs/decision-engine.md` (points table, `:117`) | A row for `context.compact` |
 | `docs/team-and-flow.md` | A bounce may compact the Developer's chat first when the point is active |
 | `docs/security-model.md` | The new chat-token refusals |
-| `docs/design-system.md` + `docs/design-system/agentry-ds.css` | The three variants |
+| `docs/design-system.md` + `docs/design-system/claudio-ds.css` | The three variants |
 | `apps/web/src/i18n/GLOSSARY.md` | Three rows |
 | `e2e/fake-cli/README.md` | `get_context_usage` and `/compact` |
 | `packages/core/test/fixtures/recordings/README.md` | `c0` |
@@ -1081,7 +1081,7 @@ x0 ─▶ x1 ─┬─▶ x2 ─┐
   `ContextPanel.tsx`, `CompactDialog.tsx`, `SessionNotes.tsx`, `apps/web/src/api.ts`,
   `apps/web/src/lib/chat-ui.tsx`, `apps/web/src/lib/shell-live.ts`,
   `apps/web/src/i18n/locales/{en,es}/*.json`, `apps/web/src/i18n/GLOSSARY.md`,
-  `apps/web/src/styles/chat.css`, `docs/design-system.md`, `docs/design-system/agentry-ds.css`,
+  `apps/web/src/styles/chat.css`, `docs/design-system.md`, `docs/design-system/claudio-ds.css`,
   `apps/web/test/fixtures/class-names.json`, `apps/web/test/fixtures/module-graph.json`, new tests
   `context-panel.test.tsx`, `compact-dialog.test.tsx`, `session-notes.test.tsx`.
 - **Prompt.** Build the "Web" section: the places table, the panel, the confirmation, notes and the
@@ -1089,13 +1089,13 @@ x0 ─▶ x1 ─┬─▶ x2 ─┐
   compare in dark and light. Controls only from `packages/ui/src/components/controls`; Dialog on
   desktop, Sheet on a phone; 44 px targets on touch; status colour always with a word or icon; the
   compact buttons are never the gradient. Reuse `ComposerMenu`'s MCP mutation and cache key for the
-  panel's switches. Add the three design-system variants to the doc and to `agentry-ds.css`. Run the
+  panel's switches. Add the three design-system variants to the doc and to `claudio-ds.css`. Run the
   night-shift checklist (§7) before finishing.
 - **Acceptance criteria.**
   - [ ] Every row of the States table is covered by a component test or listed for x10's e2e.
   - [ ] `i18n`, `hardcoded-strings`, `design-tokens`, `class-inventory` and `module-graph` tests pass.
   - [ ] At most two gradient surfaces on the chat page; one energy border.
-  - [ ] Design-system doc and `agentry-ds.css` describe `.compaction-divider`, `.ctx-breakdown`,
+  - [ ] Design-system doc and `claudio-ds.css` describe `.compaction-divider`, `.ctx-breakdown`,
     `.bar-mark`.
 
 ### x8 — The flow decision point `context.compact`

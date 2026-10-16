@@ -22,7 +22,7 @@ Carries out the three steps of [[decisions/english-technical-language.md]] now t
 ## State today (checked on main)
 
 - The prompts are already written in English, but none of them *tells* Claude to answer in English. A Spanish work item (a person's text, quoted into the prompt by `workItemPrompt`) or a Spanish chat pulls the model into Spanish summaries, criteria notes and memory proposals.
-- Titles already follow the person's language: `flowTitle` (`packages/core/src/flow.ts`) uses `roleTitleIn(role, language)`; `assistantTitle` (`packages/core/src/assistant-answer.ts`) switches on `brief.language`. Both come from `Accept-Language` (`agentryLanguage`, `assistantLanguage`). They must not change.
+- Titles already follow the person's language: `flowTitle` (`packages/core/src/flow.ts`) uses `roleTitleIn(role, language)`; `assistantTitle` (`packages/core/src/assistant-answer.ts`) switches on `brief.language`. Both come from `Accept-Language` (`claudioLanguage`, `assistantLanguage`). They must not change.
 - `packages/core/src/project-templates.ts` holds only role data (`role`, `model`, `responsibility`), already English. It needs no instruction of its own: its roles reach Claude through `agentFileContent` and `assistantPrompt`.
 - The assistant's prompt lives in `assistant-answer.ts` (`assistantPrompt`), not in `assistant.ts`, which launches it.
 - No Spanish string exists in `packages/core`, `packages/shared` or `apps/api`.

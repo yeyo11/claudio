@@ -106,4 +106,4 @@ summary) and `apps/web/test/activity-feed.test.ts` (the patch and its delays).
 ## Related
 
 [[work-items.md]] · [[desktop.md]] · [[tunnel.md]] · [[plans/agent-wire-format.md]] ·
-[[plans/agentry-mcp-server.md]] · [[plans/mobile.md]]
+[[plans/claudio-mcp-server.md]] · [[plans/mobile.md]]

@@ -409,7 +409,7 @@ sentinel test.
 
 One taxonomy for every phase (`HostReason` in shared types). The person reads Claudio's sentence
 (`en` below, translated in the web's `es` catalogue), the host's first line as a detail under it,
-and one action. A remedy is a link or an Claudio action, never a command to copy.
+and one action. A remedy is a link or a Claudio action, never a command to copy.
 
 | Code | When | Text (en) | Action |
 |---|---|---|---|
@@ -1081,7 +1081,7 @@ unchanged.
   `ProjectCodeHost` (`readiness`, `remote`: `{ hostname, path, protocol } | null`, never the URL
   with its user); `HostReason` (the taxonomy of [reason codes](#reason-codes-and-remedy-text));
   `HostsChangedEvent` (`type: 'hosts.changed'`, `hosts: CodeHostStatus[]`), added to
-  `AgentryEvent`; `OrchestrationPullRequest` (`phase`, `host`, `ref`, `number`, `url`, `branch`,
+  `ClaudioEvent`; `OrchestrationPullRequest` (`phase`, `host`, `ref`, `number`, `url`, `branch`,
   `base`, `ci`, `error`, `openedAt`, `closedAt`, `checkedAt`); and `OrchestrationPullRequestEvent`
   (`type: 'orchestration.pull-request'`, `orchestrationId`, `pullRequest`).
 - Changed: `PullRequestNotReadyReason` takes the neutral values; `PullRequestReadiness` gains
@@ -1144,7 +1144,7 @@ counterpart.
     `MobileOrquestacionMR.html` (the orchestration's "Open merge request" button, its push dialog,
     and the opened MR with its CI state).
   - Files: those screens, `tasks.py` and `board.py` (variants only).
-- A new component variant, if any, goes into `docs/design-system.md` and `agentry-ds.css`.
+- A new component variant, if any, goes into `docs/design-system.md` and `claudio-ds.css`.
 - Check: `python3 lint.py` and `node check.mjs` on every new or changed screen, both clean; then
   **the owner validates** before P2 starts.
 

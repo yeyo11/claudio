@@ -576,7 +576,7 @@ Every point ships `off`.
 | `palette.intent` | suggest | G | `apps/web/src/components/CommandPalette.tsx` · `CommandPalette`, with `palette-model.ts` `score` | Subsequence match over titles, groups, keywords and hints | whether the person runs the proposed command | proposed command = command run | the query, the command ids and titles (no page content) |
 | `notification.urgency` | act | G | `packages/core/src/push.ts` · `PushService.onEvent`, with `packages/shared/src/notifications.ts` `notificationsFor` | Priority is fixed per kind (health `bad` is `high`) and filtered by the subscription's `level` | whether the notification was opened (a new `opened_at` on the decision row, set when the app opens from it) | a raised urgency followed by an open within the TTL counts as right | the notification's kind, title and body |
 
-The global **Claudio assistant** ([plans/agentry-assistant.md](agentry-assistant.md)) has no code on
+The global **Claudio assistant** ([plans/claudio-assistant.md](claudio-assistant.md)) has no code on
 `main`, so it has no point yet. When it is built, choosing which of its tools to call first is a
 candidate, and it is added to this table then. The project assistant of
 [assistant.md](../assistant.md) is covered by `assistant.rerank` and `assistant.sources`.
@@ -681,7 +681,7 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
 - `p2`: the project override, the "decided" mark and popover on each surface, and the Usage line.
   - Files: prototypes of `DesktopProyectoAjustes`, `DesktopTablero`, `DesktopMemoria` and
     `DesktopUso` (and their Mobile versions), updated or added under
-    `docs/design-system/reference/`; a new variant in `docs/design-system.md` and `agentry-ds.css`.
+    `docs/design-system/reference/`; a new variant in `docs/design-system.md` and `claudio-ds.css`.
   - Check: the owner validates it.
 
 **D1 · `decision-engine-core`**:
@@ -1082,7 +1082,7 @@ merged branch. The feature is documented in [decision-engine.md](../decision-eng
 - [[plans/project-ecosystem.md]]: the flow, board, team, memory, journal and assistant most points
   serve.
 - [[plans/agent-observability.md]]: the health signals and the supervisor.
-- [[plans/agentry-assistant.md]]: the global assistant, a future point.
+- [[plans/claudio-assistant.md]]: the global assistant, a future point.
 - [[prompts.md]]: the prompt rules the `cli` provider follows (CW-24).
 - [[plans/orchestration-speed.md]]: the owner's quota answer behind the open question.
 - [[plans/work-item-pull-requests.md]]: the pull request steps left out, and `flow_runs.criteria`.

@@ -1,7 +1,7 @@
 # The Claudio assistant's entry (CW-30, CW-18 and CW-17): the global "Asistente" item, its /assistant screen with
 # the greeting, the starters and the composer, and one assistant chat holding a write behind the host prompt.
-# Writes DesktopAsistenteClaudio, DesktopAsistenteAgentryChat, MobileAsistenteClaudio, MobileAsistenteAgentryChat and
-# MobileAsistenteAgentryMas (the Más page with the new item, lifted from MobileMas.html).
+# Writes DesktopAsistenteClaudio, DesktopAsistenteClaudioChat, MobileAsistenteClaudio, MobileAsistenteClaudioChat and
+# MobileAsistenteClaudioMas (the Más page with the new item, lifted from MobileMas.html).
 # Runs on its own; imports common.py.
 from common import *
 
@@ -136,7 +136,7 @@ def desktop_chat():
 </div>
 </div>'''
   crumb = '<a href="DesktopAsistenteClaudio.html" class="fg-2">Asistente</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">c41e9b</span>'
-  write('DesktopAsistenteAgentryChat.html', desktop('Chat del asistente de Claudio', 'assistant', crumb, main, assistant=True, agents=2))
+  write('DesktopAsistenteClaudioChat.html', desktop('Chat del asistente de Claudio', 'assistant', crumb, main, assistant=True, agents=2))
 
 
 def mobile_entry():
@@ -170,7 +170,7 @@ def mobile_chat():
 <button type="button" class="btn btn-icon" aria-label="Enviar" disabled style="width: var(--touch); height: var(--touch); border-radius: 50%">{ico("send", "ico ico-lg", "stroke-width: 2.2")}</button>
 </div>
 </div>'''
-  write('MobileAsistenteAgentryChat.html', mobile('Chat del asistente de Claudio', inner))
+  write('MobileAsistenteClaudioChat.html', mobile('Chat del asistente de Claudio', inner))
 
 
 def mobile_mas():
@@ -180,7 +180,7 @@ def mobile_mas():
          f'<span class="mono t-xs fg-3">pregunta o pide</span>{ico("right", "ico fg-3")}</a>\n\n')
   marker = '<nav aria-label="Secciones" class="card" style="overflow: hidden">\n\n'
   assert marker in s
-  write('MobileAsistenteAgentryMas.html', s.replace(marker, marker + row, 1))
+  write('MobileAsistenteClaudioMas.html', s.replace(marker, marker + row, 1))
 
 
 if __name__ == '__main__':

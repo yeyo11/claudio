@@ -10,8 +10,7 @@ tags:
 # Claude accounts
 
 Claudio can run on several Claude accounts and move work from one to another at a usage limit. It
-does so with `packages/accounts` (`@claudio/accounts`, renamed `@claudio/accounts` in the rename
-stage), which reaches Claude Code only through what the CLI ships for programs: a `CLAUDE_CONFIG_DIR`
+does so with `packages/accounts` (`@claudio/accounts`), which reaches Claude Code only through what the CLI ships for programs: a `CLAUDE_CONFIG_DIR`
 per account, `claude auth login`, `claude auth status --json`, the `rate_limit_event` of the
 stream and the CLI's own `cachedUsageUtilization`. There is no claude-swap, no call to Anthropic's
 HTTP endpoints and no OAuth flow of Claudio's own. The reasons are decisions 7 to 9 of
@@ -76,7 +75,7 @@ Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 - **API:** `/accounts` and its sub-routes, in the README's Accounts table. A chat's token reads
   them and cannot change them.
 - **Terminal:** the `claudio-accounts` binary of the package, on the same data dir.
-- **MCP:** `list_accounts` ([agentry-mcp-server.md](agentry-mcp-server.md)) answers each account's
+- **MCP:** `list_accounts` ([claudio-mcp-server.md](claudio-mcp-server.md)) answers each account's
   kind, alias or email, plan, `enabled`, `signedIn` and its limit, compact.
 - **Web:** the Accounts page, the status bar's account card, New chat's account picker and Home's
   limit widgets.
@@ -90,4 +89,4 @@ line, and the chat is replayed on another account.
 
 ## Related
 
-[[plans/claude-only-fork.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[agentry-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
+[[plans/claude-only-fork.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]

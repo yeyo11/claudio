@@ -223,7 +223,7 @@ References: `DSIlustraciones`, `DSEstados`, `Illustration`, and the files in
   - The root `<svg>` carries `aria-hidden="true"` and `focusable="false"`, and no `<title>`.
   - Drop the standalone files' `<style>` blocks and their `var(--x, #hex)` fallbacks: in the app,
     colour comes only from `illustrations.css`. Keep the drawings' geometry exactly.
-- **Styles.** `styles/illustrations.css` ports §14 of `docs/design-system/agentry-ds.css` (the
+- **Styles.** `styles/illustrations.css` ports §14 of `docs/design-system/claudio-ds.css` (the
   `.il` block, the fill and stroke classes, the gradient stops, the `a-*` animations and their
   keyframes) onto the app's tokens.
   - Scope every rule under `.il` (`.il .c1`, `.il .ln-grad` …): the short class names must not leak

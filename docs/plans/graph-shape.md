@@ -147,7 +147,7 @@ Spain Spanish, sentence case. For example `"shape": "{{count}} etapas en serie"`
 `docs/design-system/reference/DesktopOrquestaciones.html` and
 `MobileOrquestaciones.html`, with their dark and light screenshots. The relaunch panel is on
 `DesktopOrquestacion.html` / `MobileOrquestacion.html`. The hint adds no new component; if it needs
-a variant of the callout, the variant goes into `docs/design-system.md` and `agentry-ds.css` in the
+a variant of the callout, the variant goes into `docs/design-system.md` and `claudio-ds.css` in the
 same PR.
 
 ## Tests

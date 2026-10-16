@@ -43,7 +43,7 @@ have not been compared either.
 - `/chats/new`: the existing narrow ✕ `Link` to `/chats` gets a 44 px target.
 - The project-pill styles move from `.tasks-phone-head` to every `.phone-head`, all in tokens. No
   i18n key is added (every label reuses an existing en/es key). The new `.sheet-action-*` classes
-  are documented in `design-system.md` and `agentry-ds.css`.
+  are documented in `design-system.md` and `claudio-ds.css`.
 - Docs: `status.md` drops the open entry, `project-ecosystem.md` says it is done and links the
   spec, and the spec is marked built.
 - Tests: `shell-design.test.tsx` and `shell-live.test.ts` are updated. `shell.spec.mjs` checks the

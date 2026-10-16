@@ -388,4 +388,4 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Related
 
-[[decision-engine.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/agentry-assistant.md]] · [[design-system.md]]
+[[decision-engine.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]

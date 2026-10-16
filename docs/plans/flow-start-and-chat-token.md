@@ -63,7 +63,7 @@ instead.
 - honoured in token mode and ignored (not needed) when the API is open.
 
 Rejected: B, loopback without a token (any local process would get full access), and C, waiting for
-the Claudio assistant's MCP server ([agentry-assistant.md](agentry-assistant.md)), which will itself
+the Claudio assistant's MCP server ([claudio-assistant.md](claudio-assistant.md)), which will itself
 need this credential to call the API.
 
 **Shape.** Core/API: a chat-token store in the security layer, minted in the chat runtime when it
@@ -73,4 +73,4 @@ from elsewhere and after the chat ends.
 
 ## Related
 
-[[team-and-flow.md]] · [[chat-environment.md]] · [[plans/agentry-assistant.md]] · [[plans/project-ecosystem.md]]
+[[team-and-flow.md]] · [[chat-environment.md]] · [[plans/claudio-assistant.md]] · [[plans/project-ecosystem.md]]

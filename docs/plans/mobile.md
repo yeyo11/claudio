@@ -47,7 +47,7 @@ worker, which is also the only way to receive Web Push.
   Anthropic's or ours in anyone else's console. A self-hosted Claudio behind a NAT can still send:
   the connection is outbound.
 - **One source of truth for what is worth a notification.** `notificationsFor(event)` in
-  `apps/web/src/lib/notifications-model.ts` is already a pure function from an `AgentryEvent` to a
+  `apps/web/src/lib/notifications-model.ts` is already a pure function from an `ClaudioEvent` to a
   list of drafts. It moves to `packages/shared`, and the server calls the same function on the same
   event bus it already publishes to. The browser and the push sender can never disagree about what
   "waiting for you" means, because they run the same code.
@@ -146,7 +146,7 @@ plus tests, and it must be a reviewable diff.
 
 - New `packages/shared/src/notifications.ts` exporting `NotificationKind`, `NotificationPriority`,
   `NotificationTone`, `NotificationDraft`, `KINDS`, `notificationsFor`, `waitingDrafts` and
-  `settlesWaiting` — everything that is a pure function of an `AgentryEvent` and nothing else.
+  `settlesWaiting` — everything that is a pure function of an `ClaudioEvent` and nothing else.
 - What stays in the web: `AppNotification`, `NotificationPrefs`, storage, dedupe, read state,
   `isRedundant` — the browser's own bookkeeping. `notifications-model.ts` re-exports the moved
   names so no import in the web has to change; the web's own tests keep passing untouched.

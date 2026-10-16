@@ -23,7 +23,7 @@ Every chat gets `CLAUDIO_API_URL` and `CLAUDIO_CHAT_ID` ([chat-environment.md](.
 When the API is guarded (the desktop app is set up for the tunnel, so it runs in `token` mode), the
 chat has no credential and every call answers `401`. On 2026-09-28 a chat had to open `wrapper.db`
 read-only to diagnose the board. The Claudio assistant's MCP server
-([agentry-assistant.md](agentry-assistant.md)) will need the same credential.
+([claudio-assistant.md](claudio-assistant.md)) will need the same credential.
 
 `chat-environment.md` currently says "No credential is passed". This change replaces that decision
 with a narrower one: the chat never gets the owner's token. It gets its own token, scoped to one
@@ -190,4 +190,4 @@ The e2e suite is not required: no screen changes.
 
 ## Related
 
-[[plans/flow-start-and-chat-token.md]] · [[chat-environment.md]] · [[plans/agentry-assistant.md]] · [[tunnel.md]] · [[deploy.md]]
+[[plans/flow-start-and-chat-token.md]] · [[chat-environment.md]] · [[plans/claudio-assistant.md]] · [[tunnel.md]] · [[deploy.md]]

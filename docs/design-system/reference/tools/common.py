@@ -130,7 +130,7 @@ def label(t):
   return f'<span class="wi-label">{t}</span>'
 
 
-# Claudio's mark (the app's BrandMark, .logo-mark in agentry-ds.css): no tile, colours from classes.
+# Claudio's mark (the app's BrandMark, .logo-mark in claudio-ds.css): no tile, colours from classes.
 # A page that draws it twice repeats the same gradient id, which is harmless since the defs are identical.
 BRAND = ('<svg class="logo-mark" width="26" height="26" viewBox="9.5 10 100 100" aria-hidden="true" style="flex-shrink: 0">'
          '<defs><linearGradient id="logo-g1" x1="0.35" y1="0" x2="0.6" y2="1"><stop class="logo-stop-a" offset="0"/>'
@@ -144,7 +144,7 @@ BRAND = ('<svg class="logo-mark" width="26" height="26" viewBox="9.5 10 100 100"
 
 def page(title, body, mobile=False, css=''):
   return f'''<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Claudio · {title}</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{{margin:0;background:var(--bg)}}{css}</style><script>function t(){{var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){{e.setAttribute("data-theme",m)}})}}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<html lang="es"><head><meta charset="utf-8"><title>Claudio · {title}</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../claudio-ds.css"><style>body{{margin:0;background:var(--bg)}}{css}</style><script>function t(){{var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){{e.setAttribute("data-theme",m)}})}}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 {body}
 <script>t()</script>
 </body></html>

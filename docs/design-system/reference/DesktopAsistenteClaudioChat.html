@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Claudio · Asistente de Claudio (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<html lang="es"><head><meta charset="utf-8"><title>Claudio · Chat del asistente de Claudio (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../claudio-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 <div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px; position: relative">
 <div class="side">
 <nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
@@ -44,7 +44,7 @@
 <nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
 <button type="button" class="btn btn-ghost btn-sm project-selector" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>claude-wrapper<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
 <span class="fg-3">/</span>
-<span style="font-weight: 500">Asistente</span>
+<a href="DesktopAsistenteClaudio.html" class="fg-2">Asistente</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">c41e9b</span>
 </nav>
 <div class="grow"></div>
 <a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>2 agentes trabajando</a>
@@ -54,21 +54,44 @@
 <button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
 </div>
 </header>
-<div class="col" style="flex: 1 1 auto; min-height: 0">
-<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 72px 32px 0">
-<div class="col" style="width: 100%; max-width: 740px; gap: 28px">
-<div class="as-hello"><span class="ai-mark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span><h1 class="t-h1" style="font-size: 34px; line-height: 1.15">Hola, soy el asistente de Claudio</h1><p class="as-hello-sub">Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso. Antes de escribir nada, te pido permiso.</p><p class="as-figures" aria-label="Ahora mismo"><span><b class="live">2</b> chats en marcha</span><span><b class="live">1</b> orquestación</span><span>hoy <b>3,41 US$</b></span></p></div>
-<section class="col" style="gap: 10px" aria-label="Para empezar"><span class="t-label">Para empezar</span>
-<div class="as-starters"><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8.5 12l2.5 2.5 4.5-5"></path></svg><span class="as-starter-body"><span class="as-starter-title">Estado del tablero</span><span class="as-starter-ask">«¿Cómo va AGN-12?»</span></span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="as-starter-body"><span class="as-starter-title">Orquestaciones</span><span class="as-starter-ask">«¿Por qué ha fallado la última orquestación?»</span></span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h4v4H5zM15 14h4v4h-4zM9 8h4a2 2 0 0 1 2 2v4"></path></svg><span class="as-starter-body"><span class="as-starter-title">Flujos y equipo</span><span class="as-starter-ask">«¿Qué tarjetas está esperando el equipo?»</span></span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="as-starter-body"><span class="as-starter-title">Uso y límites</span><span class="as-starter-ask">«¿Cuánto he gastado hoy?»</span></span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"></path></svg><span class="as-starter-body"><span class="as-starter-title">Crear una tarea</span><span class="as-starter-ask">«Crea una tarea en AGN para revisar los límites de las columnas»</span></span><span class="badge b-warn">pide permiso</span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-4.3L4 8M4 4v4h4M4 13a8 8 0 0 0 14.7 4.3L20 16M20 20v-4h-4"></path></svg><span class="as-starter-body"><span class="as-starter-title">Reintentar un fallo</span><span class="as-starter-ask">«Reintenta la tarea que falló en ecosystem-foundation»</span></span><span class="badge b-warn">pide permiso</span></button></div></section>
+<div class="col grow" style="gap: 0; min-width: 0; min-height: 0">
+<div class="row" style="height: 56px; padding: 0 20px 0 12px; border-bottom: 1px solid var(--line); gap: 10px; flex-shrink: 0">
+<a href="DesktopChats.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver a chats"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="ai-mark sm" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span>
+<span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis" style="font-weight: 600">Crea una tarea en AGN para revisar los límites de las columnas, prioridad media</span><span class="mono t-xs fg-3">asistente · claude-wrapper · c41e9b · sonnet</span></span>
+<span class="badge b-warn"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"></path></svg>necesita tu permiso</span>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Buscar en el chat"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Más acciones"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 24px 32px 0">
+<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: 14px; line-height: 1.65">
+<div class="as-greeting"><span class="ai-mark sm" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span><span>Hola, soy el asistente de Claudio. Pregúntame por tus proyectos, tareas, orquestaciones o el uso.</span></div>
+<div style="align-self: flex-end; max-width: 82%; background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 11px 15px">Crea una tarea en AGN para revisar los límites de las columnas, prioridad media</div>
+<div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3)"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg><span>2 consultas · 3 s</span><span class="badge">Tablero de AGN</span><span class="badge">AGN-12</span></div>
+<p style="margin: 0">No hay ninguna tarea abierta sobre los límites de las columnas. Voy a crear una en el Backlog de AGN. <b>Necesito tu permiso para escribir.</b></p>
 </div>
 </div>
+<div style="display: flex; justify-content: center; padding: 12px 32px 0; flex-shrink: 0"><div style="width: 100%; max-width: 740px"><div class="permission" role="group" aria-label="Permiso para escribir" aria-live="polite">
+<div class="permission-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><strong>Crear tarea en AGN</strong><span class="fg-2 t-sm">quiere ejecutarse</span></div>
+<pre class="permission-input" role="group" aria-label="Lo que quiere ejecutar" tabindex="0"><span class="k">proyecto</span>   AGN
+<span class="k">tipo</span>       tarea
+<span class="k">título</span>     Revisar los límites de las columnas
+<span class="k">prioridad</span>  media
+<span class="k">columna</span>    Backlog</pre>
+<p class="permission-note">Se crea en el Backlog de AGN, enlazada a este chat. Si deniegas, no se escribe nada.</p>
+<div class="permission-actions">
+<button type="button" class="btn btn-primary btn-sm"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Permitir</button>
+<button type="button" class="btn btn-danger btn-sm"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>Denegar</button>
+<label class="field permission-reason"><input type="text" placeholder="¿Por qué no? (se envía al modelo al denegar)" aria-label="Motivo para denegar"></label>
+</div>
+</div></div></div>
 <div style="display: flex; justify-content: center; padding: 12px 32px 20px; flex-shrink: 0">
 <div class="col" style="width: 100%; max-width: 740px; gap: 8px">
 <div class="card" style="border-radius: var(--r-xl); padding: 10px; display: flex; align-items: flex-end; gap: 8px">
-<label class="grow" style="display: flex; min-height: 36px; align-items: center; padding-left: 8px"><textarea rows="1" placeholder="Pregunta por proyectos, tareas, orquestaciones o uso…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 14px; padding: 0"></textarea></label>
-<button type="button" class="btn btn-primary btn-icon" aria-label="Enviar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+<label class="grow" style="display: flex; min-height: 36px; align-items: center; padding-left: 8px"><textarea rows="1" placeholder="Responde o escribe otra cosa…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 14px; padding: 0"></textarea></label>
+<button type="button" class="btn btn-icon" aria-label="Enviar" disabled><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
 </div>
-<div class="row" style="gap: 6px"><span class="chip as-context"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="ellipsis">Con claude-wrapper como contexto</span><button type="button" class="x" aria-label="Quitar el contexto"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></span><button type="button" class="chip">Sonnet</button><span class="grow"></span><span class="row t-xs fg-3 mono" style="gap: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"></path></svg>Pide permiso antes de escribir</span></div>
+<div class="row" style="gap: 6px"><button type="button" class="chip">Sonnet</button><span class="grow"></span><span class="t-xs fg-3 mono">↵ enviar · ⇧↵ salto</span></div>
 </div>
 </div>
 </div>

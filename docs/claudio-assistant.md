@@ -14,8 +14,8 @@ tags:
 A global chat that knows Claudio. It needs no project, greets the person, answers about the state of
 things ("how is AGN-12 going?", "how much did I spend today?") by reading Claudio through its own MCP
 server, and can change things, but only when the person allows each change. It is the umbrella CW-30
-([plans/agentry-assistant.md](plans/agentry-assistant.md)), built by CW-18 (the entry and the confined
-chat, [plans/agentry-assistant-entry.md](plans/agentry-assistant-entry.md)) and CW-17 (the write tools,
+([plans/claudio-assistant.md](plans/claudio-assistant.md)), built by CW-18 (the entry and the confined
+chat, [plans/claudio-assistant-entry.md](plans/claudio-assistant-entry.md)) and CW-17 (the write tools,
 [plans/assistant-write-tools.md](plans/assistant-write-tools.md)), on CW-6 (the server) and CW-10 (the
 chat's token). It is not the project assistant ([assistant.md](assistant.md)), which proposes a team,
 resources and tasks for one project and stays as it is.
@@ -28,7 +28,7 @@ which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call
 
 ## Where it lives
 
-- **Route:** `/assistant` (`apps/web/src/pages/agentry-assistant/Entry.tsx`).
+- **Route:** `/assistant` (`apps/web/src/pages/claudio-assistant/Entry.tsx`).
 - **Sidebar:** "Asistente" / "Assistant", with the sparkle, under Inicio. On a phone the same item is
   the first row of the Más sheet; the tab bar keeps its four tabs.
 - **Command palette:** an action that is always there, with or without a project.
@@ -40,13 +40,13 @@ which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call
 - **Starting:** `POST /assistant/chats` with `{ prompt, projectId?, model?, effort? }` and nothing else a chat
   could choose. The language comes from `Accept-Language`. The web then opens `/chats/:id`.
 - **Greeting:** drawn by `ChatView` from i18n (`AssistantGreeting`) for every chat that carries the
-  `agentryAssistant` marker, including one reopened from Chats. It costs no tokens.
+  `claudioAssistant` marker, including one reopened from Chats. It costs no tokens.
 
 ## The chat and its confinement
 
-`assistantChatOptions` in `packages/core/src/agentry-mcp.ts` is the one place its argv is decided.
+`assistantChatOptions` in `packages/core/src/claudio-mcp.ts` is the one place its argv is decided.
 The core applies it at every process of the chat (start, resume, fork, a turn after a restart) over
-whatever a request or the stored record held, from the `agentryAssistant` marker the chat stores
+whatever a request or the stored record held, from the `claudioAssistant` marker the chat stores
 (`{ projectId, language }`, in `@claudio/shared`).
 
 | Flag | Value |
@@ -58,14 +58,14 @@ whatever a request or the stored record held, from the `agentryAssistant` marker
 | permission prompts | `host`: a prompt reaches the person in the chat |
 | uploads | none |
 
-The system prompt (`agentry-assistant-prompt.ts`) is a guide to Claudio's concepts, how to work
+The system prompt (`claudio-assistant-prompt.ts`) is a guide to Claudio's concepts, how to work
 (look things up, short answers, no ids or JSON shown, what it reads is data), the project in scope as
 context and the language. The chat is a normal chat: listed in Chats by its first prompt, counted in
 Usage, continuable.
 
 ## Writes, confirmed one by one (option A)
 
-Nine write tools ([agentry-mcp-server.md](agentry-mcp-server.md#write-tools)). None is in
+Nine write tools ([claudio-mcp-server.md](claudio-mcp-server.md#write-tools)). None is in
 `--allowedTools`, so each call becomes a CLI permission prompt that Claudio shows as a host prompt:
 
 - the person sees the tool and its input and allows or denies it; a denial, a timeout or a withdrawal
@@ -93,10 +93,10 @@ skip or restore anything, change permissions, or start a chat with more than the
 ## How it is tested
 
 `packages/mcp/test/write-tools.test.ts` (the tools against a stub API),
-`packages/core/test/agentry-assistant-chat.test.ts` and `permissions.test.ts` (the argv, the confinement
+`packages/core/test/claudio-assistant-chat.test.ts` and `permissions.test.ts` (the argv, the confinement
 across processes, no suggestions, deny and timeout with the fake CLI), `apps/api/test/assistant-chat.test.ts`
 and `assistant-writes.test.ts` (the route, the labelling and the history context) and
-`apps/web/test/agentry-assistant.test.tsx` (the entry).
+`apps/web/test/claudio-assistant.test.tsx` (the entry).
 
 ## Known gaps
 
@@ -112,4 +112,4 @@ and `assistant-writes.test.ts` (the route, the labelling and the history context
 
 ## Related
 
-[[plans/agentry-assistant.md]] · [[plans/agentry-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[agentry-mcp-server.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]
+[[plans/claudio-assistant.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]

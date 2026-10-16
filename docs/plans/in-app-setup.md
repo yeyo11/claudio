@@ -153,7 +153,7 @@ and use the vault.
 - **Design system.** New reference screens (desktop and phone): the assistant at each step, a key
   panel, a device-code panel waiting, succeeded and failed. Generated like the others under
   `docs/design-system/reference/tools/`, documented in `design-system.md`, any new variant in
-  `agentry-ds.css`. Tokens only, both themes, every string in `en` and `es`. The code is the one live
+  `claudio-ds.css`. Tokens only, both themes, every string in `en` and `es`. The code is the one live
   thing on the screen while waiting.
 
 ### Docker

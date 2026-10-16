@@ -289,7 +289,7 @@ References: `DiffView`, `DSComparador`.
   box, click to jump. **`Fingerprint`**: one segment per file, as wide as its churn, split into
   added and removed, the current file ringed and the seen ones dimmed; each segment is a link with
   an `aria-label`.
-- **`styles/diff.css`** ports §15 of `docs/design-system/agentry-ds.css` to the app names of design
+- **`styles/diff.css`** ports §15 of `docs/design-system/claudio-ds.css` to the app names of design
   system §5, and **`tokens.css`** gains the `--diff-*` and `--sx-*` tokens for both themes.
 - **Syntax roles** (`components/highlight.ts`): export a variant of `highlight` that returns runs
   of `[text, Role | null]` for the TanStack languages (the roles of `highlight/paint.ts`) and
@@ -488,7 +488,7 @@ Runs alone, so it may run `pnpm e2e`.
 ### Before launching
 
 - **Commit the docs to `main` first**: this plan, `docs/design-system.md` (§5 is new),
-  `docs/design-system/agentry-ds.css` (the diff tokens and §15) and `docs/design-system/reference/`
+  `docs/design-system/claudio-ds.css` (the diff tokens and §15) and `docs/design-system/reference/`
   (the new prototypes and screenshots), and the CLAUDE.md addition. Workers start in worktrees of
   that commit and can only read what it contains.
 - **Known baseline.** On 2026-09-27, on `main` at `cadea39` (0.22.0) plus this docs commit, on the

@@ -283,7 +283,7 @@ Work items table. Regenerate the OpenAPI schemas with
 There is no reference screen for a PR yet. The card follows `DesktopTableroEquipo` and
 `MobileTablero` (the strip), and the item follows `DesktopTarea` and `MobileTarea` (the waiting
 panel `.item-wait` and the properties). The new variant (the PR row and its CI badge) goes into
-`docs/design-system.md` and `agentry-ds.css` in the same PR.
+`docs/design-system.md` and `claudio-ds.css` in the same PR.
 
 **The strip** (`workItemStrip()` in `apps/web/src/lib/work-items.ts`) gains the PR states. Each is
 worded in en/es with the number in mono and tabular figures:

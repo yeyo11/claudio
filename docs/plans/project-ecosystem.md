@@ -190,7 +190,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
    README's REST API tables. After changing `packages/shared/src/types.ts`, run
    `pnpm --filter @claudio/api openapi:schemas` and commit the result.
 9. **Every change reaches the event feed.** A work item or a project's modules changing emits an
-   `AgentryEvent` that names what changed and carries the ids to refetch it.
+   `ClaudioEvent` that names what changed and carries the ids to refetch it.
 10. **Never touch the real `~/.claude`.** Tests and experiments set `CLAUDE_CONFIG_DIR` and the data
     directory to scratch directories.
 11. **Don't touch files outside your scope** (see ownership). If you need something from another
@@ -207,7 +207,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
     `DSEstados`, `DSMovil`) before drawing anything. A new screen is built from the components that
     exist. The shell (sidebar, top bar, status bar, tab bar) is the one the other screens use.
 15. **Tokens only**: every colour, radius, shadow, font, duration and easing comes from the
-    variables of `agentry-ds.css`. No hex, `rgb()`, pixel radius or millisecond value in a page.
+    variables of `claudio-ds.css`. No hex, `rgb()`, pixel radius or millisecond value in a page.
 16. **Both themes, both sizes.** Desktop at 1440 x 1024 and phone at 390 x 844, dark and light
     (`#light`). Contrast is at least 4.5:1 for text and 3:1 for large numbers in both.
 17. **The gradient is used sparingly**: at most two gradient surfaces per screen, on the one primary
@@ -229,7 +229,7 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
 23. **Screenshots**: every screen is captured with headless Chrome (`CHROME_BIN`) into
     `docs/design-system/reference/screenshots/<Screen>-dark.webp` and `-light.webp`, and you look at
     them before finishing. A screen you have not looked at is not done.
-24. **A new component variant** goes into `agentry-ds.css` and into §2 of `docs/design-system.md`,
+24. **A new component variant** goes into `claudio-ds.css` and into §2 of `docs/design-system.md`,
     with the app class it will map to.
 
 ## File ownership
@@ -237,11 +237,11 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
 | Task | Owns |
 |---|---|
 | `types` | `packages/shared/src/types.ts` (the new sections), the generated OpenAPI schemas |
-| `proto-foundation` | `docs/design-system/agentry-ds.css`, `docs/design-system/illustrations/**`, the project, board and work item screens under `docs/design-system/reference/`, and their screenshots |
+| `proto-foundation` | `docs/design-system/claudio-ds.css`, `docs/design-system/illustrations/**`, the project, board and work item screens under `docs/design-system/reference/`, and their screenshots |
 | `project-modules` | `packages/core/src/projects.ts`, new `packages/core/src/project-settings.ts` and `project-templates.ts`, `apps/api/src/routes/projects.ts`, the `Projects` entries of `openapi/routes.ts`, their tests |
 | `work-items` | new `packages/core/src/work-items.ts` (and siblings), the new migration in `packages/core/src/db.ts`, their tests |
-| `proto-team` | the team, flow, memory and documents screens under `docs/design-system/reference/`, their screenshots, and the section of `agentry-ds.css` that `proto-foundation` reserved for it |
-| `proto-ai` | the assistant, suggestion and resources screens under `docs/design-system/reference/`, their screenshots, and its reserved section of `agentry-ds.css` |
+| `proto-team` | the team, flow, memory and documents screens under `docs/design-system/reference/`, their screenshots, and the section of `claudio-ds.css` that `proto-foundation` reserved for it |
+| `proto-ai` | the assistant, suggestion and resources screens under `docs/design-system/reference/`, their screenshots, and its reserved section of `claudio-ds.css` |
 | `work-items-api` | new `apps/api/src/routes/work-items.ts`, its registration, its entries in `openapi/routes.ts`, the new events in core's event sources, the README rows, its tests |
 | `proto-index` | `docs/design-system/reference/index.html`, `manifest.json`, §2 of `docs/design-system.md`, cross-screen fixes of the new prototypes |
 | `work-links` | the links between work items, chats and orchestrations in core and in the API, their tests |
@@ -269,14 +269,14 @@ comment:
   limit, its count and its items in rank order. An item has a `rank` inside its column so the order
   a person gives by dragging survives.
 - **Events**: `workitem.created`, `workitem.updated`, `workitem.moved`, `workitem.removed`,
-  `milestone.changed`, `project.updated`, added to the `AgentryEvent` union.
+  `milestone.changed`, `project.updated`, added to the `ClaudioEvent` union.
 - No field for dates other than `createdAt`, `updatedAt` and `closedAt` as facts.
 - **Done when**: typecheck passes across the workspace, the OpenAPI schemas are regenerated and
   committed, and nothing that exists changed shape in a way that breaks a caller.
 
 ### `proto-foundation` (design system additions and the project, board and work item screens)
 
-Add to `agentry-ds.css`, in a new numbered section, and to §2 of the design system doc: the module
+Add to `claudio-ds.css`, in a new numbered section, and to §2 of the design system doc: the module
 switch card, the template card, the project tab strip, the board column (header with mono label,
 count and limit), the work item card, the key chip (mono), the type icon, the priority mark, the
 milestone bar, the acceptance checklist row, the history entry, the comment (person and agent), the
@@ -455,7 +455,7 @@ Decisions taken for the findings that needed one:
 | `fix-settings` | `packages/shared/src/types.ts`, `packages/shared/src/work-items.ts`, the generated schemas, `packages/core/src/project-settings.ts`, `project-templates.ts`, `projects.ts`, the project parts of `packages/core/src/index.ts`, `apps/api/src/routes/projects.ts`, `apps/web/src/lib/events.ts`, their tests |
 | `fix-store` | `packages/core/src/work-items.ts` and the files it is split into, `work-item-rank.ts`, the work item parts of `db.ts`, their tests |
 | `fix-links` | `packages/core/src/work-links.ts`, `packages/shared/src/orchestration.ts`, the link parts of `packages/core/src/index.ts`, `orchestrator.ts`, `chat-service.ts`, `apps/api/src/routes/work-items.ts` and `orchestrations.ts`, their tests |
-| `proto-fix-system` | `docs/design-system/agentry-ds.css`, `Sidebar.html`, `MobileMas.html`, `TabBar.html`, the generators if they are recovered |
+| `proto-fix-system` | `docs/design-system/claudio-ds.css`, `Sidebar.html`, `MobileMas.html`, `TabBar.html`, the generators if they are recovered |
 | `proto-fix-desktop` | the new `Desktop*` screens and their screenshots |
 | `proto-fix-phone` | the new `Mobile*` screens and their screenshots |
 | `proto-fix-review` | `index.html`, `manifest.json`, `docs/design-system.md`, cross-screen fixes |
@@ -1222,7 +1222,7 @@ captured dark and light: the project wizard, settings and page; the board (also 
 by roles), the list, a work item, a new task, milestones and a chat working on an item; the team
 (also empty), a member, the flow, memory and documents; the assistant (reading, then its
 proposals), suggested tasks, and resources with Suggest and Create with AI. Sections 15, 16 and 17
-of `agentry-ds.css` hold their components, §2 of [design-system.md](../design-system.md) maps each
+of `claudio-ds.css` hold their components, §2 of [design-system.md](../design-system.md) maps each
 to the app class it should become, and two illustrations joined the set: `board.svg` and `team.svg`.
 Went past the plan: section 15 also draws the switch, checkbox, radio and dialog the app already
 has, so prototypes stop mocking them with native inputs; the phone gets two extra screens
@@ -1296,7 +1296,7 @@ nothing meaningful cut, nothing under the FAB or a toolbar, and the glossary's c
 missing states (4 desktop, 14 phone), so the ecosystem has 66 screens: 27 desktop and 39 phone.
 
 **`proto-fix-review`** — moved the rules the two screen tasks had left in their pages into
-`agentry-ds.css`, aligned where the two sizes told different stories, and brought the index, the
+`claudio-ds.css`, aligned where the two sizes told different stories, and brought the index, the
 manifest and [design-system.md](../design-system.md) up to date (15 illustrations, the new tokens,
 the checklist exception). `lint.py` finds nothing in 69 files and `check.mjs` nothing on the 66
 screens, in both themes.
@@ -1721,7 +1721,7 @@ the changes review (#115). The merge keeps both sides; where they met, it settle
   #115 removed the inspector's `SummaryView` and every editor link. The item's changes routes take
   the scope and the context the chat's and the task's do.
 - **The light `--live` stays `#0b6680`**: `main` still had `#0e7490`, which reads 4.2:1 on its tint.
-- **`agentry-ds.css`**: the comparator is §18, after §15 to §17, and its step list is
+- **`claudio-ds.css`**: the comparator is §18, after §15 to §17, and its step list is
   `.edit-steps`/`.edit-step`, because the wizard's stepper already is `.steps`/`.step`.
 
 ### Orchestration 5: `ecosystem-review-fixes`
@@ -1801,7 +1801,7 @@ from their commits and the code.
 
 **`review-5`** re-ran every reproduction on the merged branch and fixed what the six left:
 
-- A fork of an Claudio-run chat is handed back, and assistant runs no longer record their prompt.
+- A fork of a Claudio-run chat is handed back, and assistant runs no longer record their prompt.
 - The item's link says its flow run failed.
 - `POST /chats` answers 400 to a body of the wrong shape.
 - A team change writes only the team and the flow.
@@ -1834,7 +1834,7 @@ below are written from their commits and the code.
 **`gaps-shared`** — the contract, keeping every existing shape: an item's runs and the paged
 activity (`FlowRunQuery`, `FlowRunPage`, `FlowRunStatus`), a member's `commands` with
 `isTeamCommandPattern`, `MAX_FLOW_PARALLEL` in shared, the assistant run's `focus`, `language` and
-`draft`, `AgentryLanguage`, `WorkItem.hasDescription`, the paged lists and `doneLimit`/`more`, and
+`draft`, `ClaudioLanguage`, `WorkItem.hasDescription`, the paged lists and `doneLimit`/`more`, and
 the web's client, query keys and events for all of it.
 
 **`gaps-flow`** — gaps 1, 2, 3, 4, 6, 7, 13 (flow runs), 15, 17, 18 and 19:

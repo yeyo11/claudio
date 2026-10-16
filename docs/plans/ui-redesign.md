@@ -250,7 +250,7 @@ command palette.
   connection status. Badges for working/waiting counts on the tabs. The top bar keeps crumb, project,
   search and notifications. The bottom bar hides on `/chats/:id` and `/orchestration/:id`, which have
   their own back button and sticky footer.
-- **Desktop shell hook** (for the `desktop` task): when `window.agentryDesktop` exists, stamp
+- **Desktop shell hook** (for the `desktop` task): when `window.claudioDesktop` exists, stamp
   `is-desktop` and `desktop-<platform>` on `<html>`; the top bar becomes the window's drag region
   (`app-region: drag`, interactive children `no-drag`) and leaves room for the window controls
   using `env(titlebar-area-x/width)` when available.
@@ -390,7 +390,7 @@ additive:
   (traffic lights on macOS), colours following the theme: expose `setTitleBarTheme` through the
   preload (keep the preload surface minimal and typed) and call it from the web when the theme
   changes (`shell` stamped `is-desktop`; add the small web call yourself in `lib/theme.tsx`, guarded
-  by `window.agentryDesktop`).
+  by `window.claudioDesktop`).
 - **Tray:** an icon whose tooltip says what is live ("2 working · 1 waiting"), with a menu: Open
   Claudio, New chat, the live items (open them), Quit. Data from the local server the app started
   (`/api/overview` and the event feed), never from Claude directly.
@@ -473,7 +473,7 @@ everything live comes from the stream-json events the CLI writes with `--include
 
 **Delivered.** `ChatActivity` with exactly the planned shape, on `Chat` (so both `ChatSummary` and
 `ChatDetail.chat` carry it) and on `OrchestrationTaskState`, plus a `chat.activity` event in the
-`AgentryEvent` union carrying `taskId` and the activity or `null`. Core derives it in
+`ClaudioEvent` union carrying `taskId` and the activity or `null`. Core derives it in
 `packages/core/src/chat-activity.ts`: a pure `activityTarget(tool, input, cwd)` (paths relative to the
 cwd, a command's description, a pattern, a subagent's description, a URL's host, one line of at most
 80 characters) and a `ChatActivityTracker` fed event by event — a pending permission prompt wins over

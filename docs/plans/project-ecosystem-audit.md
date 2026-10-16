@@ -684,7 +684,7 @@ and light) and set each screen beside its reference in `docs/design-system/refer
 
 - A phone document's byline is one link to its task (`e2a05e04`).
 - The phone board's "show more" keeps its chevron on the text's row (`35627fbf`).
-- The app-only variants of the design pass are recorded in `agentry-ds.css` section 19 and in
+- The app-only variants of the design pass are recorded in `claudio-ds.css` section 19 and in
   `design-system.md` (`5a462f78`).
 - Dead CSS dropped: the bounces header and the old show-more slot (`9c06fba2`).
 - The shell decides its bare phone header through `useOwnPhoneHeader` (`1beab7cd`).

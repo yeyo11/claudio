@@ -135,7 +135,7 @@ plus the token change, which can land before the rename:
 1. **Tokens.** Change `packages/ui/src/styles/tokens.css`: the dark `:root` block and the two light
    blocks, which must stay identical. Also the swatches of Settings → Appearance, and the
    `--accent-rose` → `--accent-2nd` rename in its 15 uses. Update the tables of
-   `docs/design-system.md` §1 and `docs/design-system/agentry-ds.css` in the same PR.
+   `docs/design-system.md` §1 and `docs/design-system/claudio-ds.css` in the same PR.
 2. **The logo in the app.** Replace the node-graph mark in `packages/ui/src/components/icons.tsx`
    (`brand-mark`) with the Claudio symbol, built as a component, with gradient ids from `useId()`.
    Add it to the `.brand` lockup in `App.tsx` and `TopBar.tsx`.
@@ -178,7 +178,7 @@ plus the token change, which can land before the rename:
   the gradient's second stop as a **solid** fill. Kept as it was, that would be a solid violet,
   which decision 2 reserves for `--idle`. They are `--accent` now, in the app
   (`packages/ui/src/controls.css`, `apps/web/src/styles/lists.css`, `projects.css`) and in the
-  reference (`agentry-ds.css`, `.switch.on`, `.checkbox.on`, `.radio.on`, `.prov-radio.on`). Every
+  reference (`claudio-ds.css`, `.switch.on`, `.checkbox.on`, `.radio.on`, `.prov-radio.on`). Every
   remaining `--accent-2nd` is inside a gradient: the energy border, the rings, the slider's range,
   the illustrations' and insights' gradient stops.
 - **The logo is `.logo-mark`, not `.brand-mark`.** `.brand-mark` is the light tile behind a
@@ -196,7 +196,7 @@ plus the token change, which can land before the rename:
 - **Icons.** The kit gains a full-bleed tile for the apple-touch icon and a maskable one with its
   mark inside the safe circle (`source/build.py`). `apps/desktop/build/README.md` now points at the
   kit as the source of the icons.
-- **The reference.** `agentry-ds.css`, the 253 prototypes and the 15 illustrations were rewritten
+- **The reference.** `claudio-ds.css`, the 253 prototypes and the 15 illustrations were rewritten
   with one old → new map (every old value belonged to one token), the 115 inlined Agentry marks
   became Claudio's, and the generator's `BRAND` (`reference/tools/common.py`) draws the same mark,
   so regenerating a screen keeps it. The 508 screenshots were re-captured at the size each one

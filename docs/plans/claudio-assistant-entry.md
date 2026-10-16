@@ -13,7 +13,7 @@ tags:
 # Spec: a global entry for the Claudio assistant (CW-18)
 
 This spec covers story CW-18 of the epic CW-12, "The Claudio assistant". Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome).
-It builds the "The chat" bullet of [agentry-assistant.md](agentry-assistant.md), which records the
+It builds the "The chat" bullet of [claudio-assistant.md](claudio-assistant.md), which records the
 owner's decisions of 2026-09-28. Those decisions are not reopened here: Claudio ships its own MCP server, passed with
 `--mcp-config` and `--strict-mcp-config`, and the assistant can write.
 
@@ -38,7 +38,7 @@ to Anthropic, and the greeting is not produced by a model call (see [The greetin
 
 | Dependency | Why | Status |
 |---|---|---|
-| **CW-6**, the Claudio MCP server and its read tools (`packages/core` or `packages/mcp`), assumed to be named `claudio` so its tools reach the CLI as `mcp__claudio__<name>`, as [assistant-write-tools.md](assistant-write-tools.md) assumes too | the chat is confined to its tools. Without it the chat has nothing to do | built (#171): server `claudio`, helper `agentryMcp()` in `packages/core/src/agentry-mcp.ts` |
+| **CW-6**, the Claudio MCP server and its read tools (`packages/core` or `packages/mcp`), assumed to be named `claudio` so its tools reach the CLI as `mcp__claudio__<name>`, as [assistant-write-tools.md](assistant-write-tools.md) assumes too | the chat is confined to its tools. Without it the chat has nothing to do | built (#171): server `claudio`, helper `claudioMcp()` in `packages/core/src/claudio-mcp.ts` |
 | **CW-17**, the write tools and how each write is confirmed ([assistant-write-tools.md](assistant-write-tools.md)) | it sets the chat's permission mode and prompts. CW-18 does not wait for it: it ships with the read tools | option A decided (2026-10-02), not built; it lands after CW-18 (umbrella CW-30) |
 | CW-10, a per-chat API token ([chat-api-token.md](chat-api-token.md)) | the MCP server calls `CLAUDIO_API_URL`. In `token` mode (the desktop app with the tunnel) it gets `401` without `CLAUDIO_API_TOKEN` | built |
 | The design reference for the entry, desktop and phone | a new primary surface counts against the gradient budget | to draw (criterion 1) |
@@ -87,7 +87,7 @@ Once started, it behaves like **a normal chat**:
 - it keeps a live process between turns (`keepAlive`), unlike a one-turn project assistant run.
 
 **It remembers what it is.** The stored chat record (the `chats` row's JSON) carries an assistant
-marker, for example `agentryAssistant: { projectId: string | null, language: 'en' | 'es' }`. The
+marker, for example `claudioAssistant: { projectId: string | null, language: 'en' | 'es' }`. The
 shared chat type exposes it so the web can tell. This is a change to `packages/shared/src/types.ts`.
 
 **Continuing does not widen it.** Resume (`POST /chats/:id/resume`), a new turn, a fork
@@ -153,7 +153,7 @@ The designer draws this before anything is built (criterion 1). The constraints,
   chat.
 - **Deliverables.** `DesktopAsistenteClaudio.html` and `MobileAsistenteClaudio.html` (names
   indicative) in `docs/design-system/reference/`, with dark and light screenshots, and an entry in
-  `reference/index.html`. Any new class goes in `agentry-ds.css` and `design-system.md` with its
+  `reference/index.html`. Any new class goes in `claudio-ds.css` and `design-system.md` with its
   mapping.
 
 ### The palette
@@ -174,21 +174,21 @@ The designer draws this before anything is built (criterion 1). The constraints,
   - It returns `404` for an unknown `projectId` and `400` for an empty prompt. No other start option
     is accepted.
 - **Shared type**: the chat's assistant marker, and the request type.
-- **Web API client**: `api.startAgentryAssistant` (name indicative) in `apps/web/src/api`.
+- **Web API client**: `api.startClaudioAssistant` (name indicative) in `apps/web/src/api`.
 
 ## Files it touches
 
 | Piece | Where |
 |---|---|
 | Starting and re-applying the confinement, the marker, the appended prompt | `packages/core/src/index.ts` (next to `launchAssistantRun`), `packages/core/src/chats.ts` (`ChatConfinement`, resume/fork paths), the chat store in `packages/core/src/db.ts` (JSON field, no new table) |
-| The Claudio guide for the system prompt | a new `packages/core/src/agentry-assistant-prompt.ts` (name indicative) |
+| The Claudio guide for the system prompt | a new `packages/core/src/claudio-assistant-prompt.ts` (name indicative) |
 | The route | a new file or `apps/api/src/routes/assistant.ts`; `apps/api/src/openapi/routes.ts` (summary + tag); the README's [Assistant](../../README.md#assistant) table |
 | Types | `packages/shared/src/types.ts`, then `pnpm --filter @claudio/api openapi:schemas` |
 | The entry | `apps/web/src/App.tsx` (sidebar groups / `startEntries` / `TabBar` `more`) or `components/shell/TopBar.tsx`, as the design reference says |
 | The palette | `apps/web/src/components/CommandPalette.tsx` |
-| The entry screen and the greeting | a new `apps/web/src/pages/agentry-assistant/` (name indicative), and the chat view's first message for a marked chat (`pages/ChatView` or its components) |
+| The entry screen and the greeting | a new `apps/web/src/pages/claudio-assistant/` (name indicative), and the chat view's first message for a marked chat (`pages/ChatView` or its components) |
 | Copy | `apps/web/src/i18n` `en` + `es`, following `GLOSSARY.md` |
-| Docs | `docs/assistant.md` (a section, or a new `docs/agentry-assistant.md`), `docs/design-system.md`, this plan's status |
+| Docs | `docs/assistant.md` (a section, or a new `docs/claudio-assistant.md`), `docs/design-system.md`, this plan's status |
 
 ## Questions for the owner
 
@@ -203,7 +203,7 @@ The designer draws this before anything is built (criterion 1). The constraints,
 
 The original questions, for the record:
 
-Record the answers in [agentry-assistant.md](agentry-assistant.md) before building (criterion 4):
+Record the answers in [claudio-assistant.md](claudio-assistant.md) before building (criterion 4):
 
 1. **The default model.** `sonnet`, like the project assistant (`DEFAULT_ASSISTANT_MODEL`), or the
    person's default model? *Suggested: `sonnet`.* It reads and acts through tools and does not build,
@@ -224,13 +224,13 @@ Record the answers in [agentry-assistant.md](agentry-assistant.md) before buildi
 ## Outcome
 
 Built on `feat/assistant-entry` as the umbrella CW-30's first story; feature doc
-[agentry-assistant.md](../agentry-assistant.md).
+[claudio-assistant.md](../claudio-assistant.md).
 
 - **Where it lives (criterion 1):** candidate 1: a sidebar item "Asistente" / "Assistant" with the
   sparkle under Inicio, the first row of the Más sheet on a phone (the tab bar keeps four tabs) and an
   always-present palette action. The screen is `/assistant`.
-- **Core and API:** `POST /assistant/chats` (`StartAgentryAssistantChatRequest`: prompt, project,
-  model), `Chat.agentryAssistant` as the marker, and `assistantChatOptions`, applied at every process
+- **Core and API:** `POST /assistant/chats` (`StartClaudioAssistantChatRequest`: prompt, project,
+  model), `Chat.claudioAssistant` as the marker, and `assistantChatOptions`, applied at every process
   of the chat. Read tools under `dontAsk` at first; CW-17 then changed it.
 - **Web:** the entry, four read-only starters that only fill the composer, the context chip, the model
   picker defaulting to `sonnet`, and the greeting drawn from i18n with no model turn.
@@ -240,4 +240,4 @@ Built on `feat/assistant-entry` as the umbrella CW-30's first story; feature doc
 
 ## Related
 
-[[agentry-assistant.md]] · [[plans/agentry-assistant.md]] · [[plans/assistant-write-tools.md]] · [[assistant.md]] · [[chat-environment.md]] · [[plans/chat-api-token.md]] · [[design-system.md]] · [[phone-layout.md]]
+[[claudio-assistant.md]] · [[plans/claudio-assistant.md]] · [[plans/assistant-write-tools.md]] · [[assistant.md]] · [[chat-environment.md]] · [[plans/chat-api-token.md]] · [[design-system.md]] · [[phone-layout.md]]

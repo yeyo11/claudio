@@ -559,7 +559,7 @@ New types:
 - `EvalEstimate` (`{ samples, ceilingUsd, typicalUsd: number | null, commands: string[], prompts, consentNeeded, warnings: EvalWarning[] }`);
 - `EvalWarning` (`dirty-checkout`, `large-checkout`, `target-absent`, `models-differ`, `user-scope`, `pin-behind-head`);
 - `EvalRun`, `EvalRunSummary`, `EvalSample`, `EvalCall`, `EvalCheck`, `EvalComparison`;
-- `EvalRunEvent` and `EvalSampleEvent`, added to `AgentryEvent` (`types.ts:6818`).
+- `EvalRunEvent` and `EvalSampleEvent`, added to `ClaudioEvent` (`types.ts:6818`).
 The OpenAPI schemas are regenerated (`pnpm --filter @claudio/api openapi:schemas`) and the types
 are added to `ROOT_TYPES` (`apps/api/scripts/generate-schemas.ts:13`).
 
@@ -607,7 +607,7 @@ Both are emitted with `core.events.emit` (`packages/core/src/events.ts:42`). The
 ### Web (`apps/web/src/pages/team/evals/`)
 
 Before any screen is built, the design reference gets the screens below (`docs/design-system/`,
-`agentry-ds.css`), and each screen is compared against them. Follow the Night Shift rules in
+`claudio-ds.css`), and each screen is compared against them. Follow the Night Shift rules in
 `CLAUDE.md` and the `night-shift-ui-check` list.
 
 **Routing.**
@@ -809,7 +809,7 @@ once it exists).
     patterns, `EVAL_KINDS`), `apps/api/scripts/generate-schemas.ts`, `apps/api/src/openapi/schemas.json`.
   - Prompt: "Add the Phase 1 eval types exactly as the plan's 'Shared types' and 'The eval file'
     sections list them, with doc comments that say why. Add `EvalRunEvent` and `EvalSampleEvent`
-    to `AgentryEvent`. Regenerate the schemas."
+    to `ClaudioEvent`. Regenerate the schemas."
   - Acceptance:
     - typecheck passes in every package;
     - `openapi:schemas` leaves no diff after regeneration;
@@ -1184,5 +1184,5 @@ the answer wins, and the task that builds the affected part follows it.
 
 [[reports/ecc.md]] · [[plans/claude-only-fork.md]] · [[team-and-flow.md]] · [[decision-engine.md]] ·
 [[accounts.md]] · [[security-model.md]] · [[prompts.md]] · [[orchestrations.md]] ·
-[[plans/worker-checks.md]] · [[assistant.md]] · [[design-system.md]] · [[agentry-mcp-server.md]] ·
+[[plans/worker-checks.md]] · [[assistant.md]] · [[design-system.md]] · [[claudio-mcp-server.md]] ·
 [[plans/multi-provider.md]]
