@@ -103,7 +103,7 @@ import { rulesFor } from './tool-policy.ts';
 export class AssistantError extends Error {
   constructor(
     message: string,
-    readonly statusCode: 400 | 404 | 409,
+    readonly statusCode: 400 | 403 | 404 | 409,
   ) {
     super(message);
   }
@@ -1069,6 +1069,8 @@ export class AssistantService {
     if (row.status !== 'pending') throw new AssistantError(`the proposal is ${row.status}, not pending`, 409);
     const project = await this.deps.project(row.project_id);
     const proposal = this.proposalOf(row);
+    // An eval file is repository content that runs commands once consented to: only the person writes one
+    if (proposal.kind === 'eval-case' && actor.kind !== 'person') throw new AssistantError('only the person can accept a drafted eval case', 403);
     // Checked before claiming, so a refusal leaves nothing to hand back
     this.requireModule(project, proposal.kind);
     if (!this.claim(row.id, 'pending', 'accepted', actor)) throw new AssistantError('the proposal was decided meanwhile', 409);

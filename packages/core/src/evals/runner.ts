@@ -142,7 +142,7 @@ export interface EvalRunnerDeps {
    * A judge capped at `maxCostUsd` per judgement (Phase 2). Without it a judged expectation gets no
    * verdict: its sample ends `unjudged`.
    */
-  judgeFor?: (maxCostUsd: number) => JudgeLike;
+  judgeFor?: (maxCostUsd: number) => JudgeLike | null;
   env?: NodeJS.ProcessEnv;
   now?: () => number;
   /** How long a refused sample waits before it tries again (3 s) */
