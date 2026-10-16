@@ -20,24 +20,12 @@ import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatHour, formatNumber, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { useLimitWindowName } from '../../lib/limit-words';
 import { healthReason, signalReason } from '../../lib/server-strings';
+import { compactState } from './context-model';
+import { CompactButton, useContextControls } from './ContextPanel';
+import { Section } from './Section';
 import { useLimitState } from './LimitBanner';
 
-/**
- * One part of the inspector: a heading and what it says, with a rule above instead of a card
- * around it. The heading names the section for a screen reader too.
- */
-export function Section({ title, actions, children, className = '' }: { title: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
-  const id = useId();
-  return (
-    <section className={`insp-section ${className}`.trim()} aria-labelledby={id}>
-      <header className="insp-head">
-        <h2 id={id}>{title}</h2>
-        {actions}
-      </header>
-      {children}
-    </section>
-  );
-}
+export { Section } from './Section';
 
 /** Dollars, or the words for a cost nobody reported: it is never estimated, so it is never zero either. */
 function useMoney(): (usd: number | null) => string {
@@ -48,10 +36,12 @@ function useMoney(): (usd: number | null) => string {
 // ---------- context, tokens and cost ----------
 
 export function UsageCard({ chat }: { chat: Chat }) {
-  const { t } = useTranslation(['chat', 'work', 'common']);
+  const { t } = useTranslation(['chat', 'work', 'common', 'chats']);
   const agent = useAgentName();
   const money = useMoney();
   const { context, cost } = chat;
+  const controls = useContextControls();
+  const compacted = context?.compactedSince;
   // A placeholder message carries no model and no tokens: nothing to show for it
   const rows = cost.tokens.filter((entry) => entry.total > 0);
   return (
@@ -68,6 +58,22 @@ export function UsageCard({ chat }: { chat: Chat }) {
             </div>
           ) : (
             <div className="small muted">{t('badges.context.none')}</div>
+          )}
+          {/* A line the compaction leaves: when, and from what to what */}
+          {compacted && (
+            <div className="small muted insp-context-note mono">
+              {compacted.postTokens !== null
+                ? t('chats:context.lastCompacted', { when: timeAgo(compacted.at), pre: formatTokens(compacted.preTokens), post: formatTokens(compacted.postTokens) })
+                : t('chats:context.lastCompactedNoPost', { when: timeAgo(compacted.at), pre: formatTokens(compacted.preTokens) })}
+            </div>
+          )}
+          {context && (
+            <div className="insp-context-actions">
+              <button type="button" className="btn btn-small" onClick={controls.openPanel}>
+                {t('chats:context.actions.breakdown')}
+              </button>
+              <CompactButton chat={chat} onClick={controls.openCompact} />
+            </div>
           )}
         </div>
       </Section>
@@ -296,6 +302,8 @@ const NOTE_ICON: Record<HealthLevel, typeof Info> = { ok: CircleCheck, warn: Tri
  */
 export function HealthCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');
+  const controls = useContextControls();
+  const compact = compactState(chat);
   const { health } = chat;
   const facts = health.signals.filter((s) => !isStepIn(s));
   const notes: Array<{ kind: string; level: HealthLevel; reason: string }> =
@@ -316,6 +324,8 @@ export function HealthCard({ chat }: { chat: Chat }) {
                   <span className="sr-only">{t('side.health.levelSaid', { level: t(`side.health.level.${note.level}`) })} </span>
                   {note.reason}
                 </span>
+                {/* The context signal is the one a compaction answers */}
+                {note.kind === 'context' && compact.available && <CompactButton chat={chat} onClick={controls.openCompact} />}
               </li>
             );
           })}

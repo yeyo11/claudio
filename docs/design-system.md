@@ -233,6 +233,7 @@ them as mockups.
 
 **Usage thresholds.** A bar or ring for context, limits or quota is neutral below 60 %, turns warn
 from 60 % and turns bad from 75 % or when exhausted.
+The context bar of the breakdown carries the CLI's auto-compaction point as a tick (`.bar-mark`, see "Context control"); the bar itself still follows these thresholds.
 
 ### The shell
 
@@ -760,6 +761,58 @@ border of its own, the composer's card is the field. It grows with the text up t
   dims its name and icon to `--text-faint` (`.composer-server.is-off`). One sentence in `.small.muted`
   under the list says the switch also applies to new chats in the folder.
 - Nothing in the menu moves: it is configuration, not something running.
+
+### Context control: the breakdown, the compact confirmation and the divider
+
+Three variants and one line of rule; the plan is [plans/context-control.md](plans/context-control.md).
+None of them moves, and none is a status.
+
+- **The inspector's context section** keeps its ring and its figures and gains one quiet line under
+  them ("Compactado hace 3 min · 142k → 18k", mono 11, `--text-muted`) and two `.btn.btn-small`:
+  **Desglose** and **Compactar ahora**. Compact now is neutral and **never the gradient**: it is a paid
+  turn and not what the screen is about. A button that cannot be used keeps `aria-disabled` (so its
+  reason, on a `Tooltip` and in `aria-description`, can be read) and dims; while a compaction runs it
+  reads "Compactando…" with the braille spinner. The confirmation's and the panel's own button is
+  `.btn.btn-strong`: the neutral button with a stronger border and weight, never `.btn-primary`.
+- **`.ctx-breakdown`** is the panel's layout: a `Dialog` (720 px) on a desktop, a `Sheet` on a phone,
+  one column of sections separated by 18 px.
+  - *Head*: the model in mono, "N de M tokens" in mono and tabular, then the share as a usage bar
+    (`.meter-track` + `.meter-fill`: neutral below 60 %, warn from 60 %, bad from 75 % or over the
+    window, where the bar is full and the words "N tokens por encima" say how far). The fill does not
+    animate on a refetch.
+  - *Categories*: a captioned table, name (translated by `key`, else the CLI's name in mono), tokens
+    and share (`<1 %` for what is there but small). Free space and the compaction reserve come last
+    and muted; `deferred` rows sit in their own group "Fuera de la ventana", outside every sum.
+  - *MCP*: warnings first, each a `.tag` `warn` with the triangle and a word ("Muchas herramientas
+    MCP (93)"); then one row per server, most tokens first, with the same `Switch` and cache key as
+    the composer's `+` menu (`.ctx-server`, at least 44 px). Twelve rows show; the rest fold.
+  - *Memory files, agents, skills, commands, messages*: small `.kv` lists; a path is cut in the
+    middle in mono, whole in its title and the copy button's label.
+  - *Foot*: "Contado con estimación" and **Contar con exactitud** (disabled while the chat works, with
+    the reason), and the one **Compactar ahora**.
+- **`.bar-mark`** is a threshold tick on a usage bar: a 2 px line in `--text`, `aria-hidden`, positioned
+  by `left` inside a `position: relative` wrapper (`.ctx-bar`), with the same fact in words beside it
+  ("Claude Code compacta solo al 92 %"; "La compactación automática está desactivada" when the CLI says
+  so). **The breakdown's bar carries it whenever the CLI reports its auto-compaction point**, so the person
+  sees where the CLI will compact even though the bar itself follows the 60 % / 75 % thresholds.
+- **The compact confirmation** (`.compact-form`): a paragraph that says the turn is paid and about how
+  big the context is, **Qué conservar (opcional)** (a native `textarea`, 16 px on touch, a mono counter
+  "0 / 500", the placeholder an example), **Guardar el resumen como nota de sesión** (a `Switch`,
+  on), then **Cancelar** and **Compactar** (`.btn-strong`). A refusal stays in the dialog as an
+  `ErrorBox`; success closes it and a toast says "Compactando…".
+- **`.compaction-divider`** is the transcript's line for a compaction: a hairline across the column
+  with its sentence centred in Geist Mono 11, `--text-muted` ("Compactado · a mano · 142k → 18k tokens
+  · 14:02"; "automático" for the CLI's own; "142k →" alone when the CLI gave no figure after). It is
+  `role="separator"` with the whole line as its `aria-label`, takes no status colour and never moves;
+  narrow, the sentence wraps to a second line. Under it a `Collapsible` "Ver el resumen con el que
+  sigue la conversación" holds the summary as Markdown and **Guardar como nota** (`.btn.btn-small`,
+  hidden once it is a note). It is never a message: no avatar, no message menu. A failed compaction is
+  the existing notice row in `bad` with its icon and the words "No se ha podido compactar".
+- **Session notes** (`.insp-notes`, in the inspector's Summary tab) are `Collapsible` rows: the date
+  and where the note came from in mono, its first line, then the Markdown, **Copiar**, **Añadir al
+  diario** (only with a project) and **Eliminar** in a `⋯`. A pending note shows the ring spinner and
+  "Escribiendo la nota…"; a failed one the `bad` tag. Empty is one `.small.muted` sentence and no
+  illustration: the section sits beside content.
 
 ### The chat at a limit
 

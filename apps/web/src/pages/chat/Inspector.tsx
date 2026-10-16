@@ -16,6 +16,7 @@ import { checklistStepState } from '@claudio/chat-ui/lib/chat-live';
 import { NARROW, WIDE, useMediaQuery } from '@claudio/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
 import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, Section, UsageCard } from './Side';
+import { SessionNotes } from './SessionNotes';
 import { ToolsCard } from './ToolsCard';
 import { useChatItemLinks, WorkItemCard } from './WorkItemLinks';
 
@@ -169,6 +170,7 @@ function InspectorBody({
           <>
             {stepIn && <HealthCard chat={chat} />}
             <UsageCard chat={chat} />
+            <SessionNotes chat={chat} itemId={item?.item.id ?? null} />
             {item && <WorkItemCard link={item} />}
             <FactsCard chat={chat} />
           </>

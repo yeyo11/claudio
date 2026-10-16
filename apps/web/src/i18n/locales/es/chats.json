@@ -192,5 +192,143 @@
       "resumes": "se reanuda a las {{at}}",
       "resetUnknown": "reinicio desconocido"
     }
+  },
+  "context": {
+    "failed": "No se ha podido compactar",
+    "actions": {
+      "breakdown": "Desglose",
+      "compactNow": "Compactar ahora",
+      "compacting": "Compactando…",
+      "compactMenu": "Compactar la conversación",
+      "exact": "Contar con exactitud",
+      "retry": "Reintentar"
+    },
+    "lastCompacted": "Compactado {{when}} · {{pre}} → {{post}}",
+    "lastCompactedNoPost": "Compactado {{when}} · {{pre}} →",
+    "refusal": {
+      "busy": "El chat está trabajando. Interrúmpelo primero o espera a que acabe el turno.",
+      "waiting": "El chat espera un permiso. Respóndelo primero.",
+      "open": "Ya se está escribiendo una compactación o una nota.",
+      "read-only": "Este chat lo tiene otro y no se puede cambiar desde aquí.",
+      "housekeeping": "Este es un chat interno de Claudio y no se compacta.",
+      "at-limit": "El chat está en su límite de uso. Compáctalo cuando se restablezca.",
+      "run": "Un flujo o una ejecución del asistente está usando este chat ahora.",
+      "unsupported": "Esta versión de {{agent}} no tiene /compact.",
+      "no-history": "El chat aún no ha respondido: no hay nada que compactar."
+    },
+    "category": {
+      "system-prompt": "System prompt",
+      "system-tools": "Herramientas del sistema",
+      "system-tools-deferred": "Herramientas del sistema (diferidas)",
+      "mcp-tools": "Herramientas MCP",
+      "mcp-tools-deferred": "Herramientas MCP (diferidas)",
+      "custom-agents": "Agentes propios",
+      "memory-files": "Archivos de memoria",
+      "skills": "Skills",
+      "messages": "Mensajes",
+      "free-space": "Espacio libre",
+      "autocompact-buffer": "Reserva de compactación"
+    },
+    "panel": {
+      "title": "Desglose del contexto",
+      "neverAnswered": "Aún sin contexto: el chat no ha respondido.",
+      "tokensOf": "{{used}} de {{window}} tokens",
+      "tokensOnly": "{{used}} tokens",
+      "unknownWindow": "No se conoce la ventana, así que no hay porcentaje que dibujar.",
+      "over": "{{n}} tokens por encima de la ventana",
+      "autoAt": "{{agent}} compacta solo al {{percent}} %",
+      "autoOn": "{{agent}} compacta solo cuando se llena la ventana",
+      "autoOff": "La compactación automática está desactivada",
+      "unreported": {
+        "no-process": "El desglose lo da {{agent}} mientras la conversación está abierta. Esta es la última cuenta de la transcripción.",
+        "unsupported": "Esta versión de {{agent}} no informa del desglose. Esta es la última cuenta de la transcripción.",
+        "refused": "{{agent}} no ha dado el desglose. Esta es la última cuenta de la transcripción.",
+        "timeout": "{{agent}} no ha respondido a tiempo. Esta es la última cuenta de la transcripción."
+      },
+      "categories": "Categorías",
+      "categoriesCaption": "Qué llena la ventana de contexto, por categoría",
+      "colName": "Categoría",
+      "colTokens": "Tokens",
+      "colShare": "Porcentaje",
+      "lessThanOne": "<1 %",
+      "outside": "Fuera de la ventana",
+      "outsideHint": "No se cuentan: estos esquemas se cargan solo cuando hacen falta.",
+      "mcp": "Servidores MCP",
+      "mcpNone": "Este chat no tiene ningún servidor MCP cargado.",
+      "mcpTools": "{{loaded}} de {{total}} herramientas · {{tokens}} tokens",
+      "mcpMore_one": "{{count}} servidor más",
+      "mcpMore_other": "{{count}} servidores más",
+      "warn": {
+        "many-tools": "Muchas herramientas MCP ({{count}})",
+        "large-share": "MCP ocupa el {{percent}} % del contexto"
+      },
+      "memory": "Archivos de memoria",
+      "copyPath": "Copiar {{path}}",
+      "other": "Agentes, skills y mensajes",
+      "agents": "Agentes",
+      "agentsValue_one": "{{count}} agente · {{tokens}} tokens",
+      "agentsValue_other": "{{count}} agentes · {{tokens}} tokens",
+      "skills": "Skills",
+      "commands": "Comandos con barra",
+      "counted": "{{included}} de {{total}} · {{tokens}} tokens",
+      "messages": {
+        "toolCalls": "Llamadas a herramientas",
+        "toolResults": "Resultados de herramientas",
+        "attachments": "Adjuntos",
+        "assistant": "Mensajes del asistente",
+        "user": "Tus mensajes",
+        "other": "Otros"
+      },
+      "estimated": "Contado con estimación",
+      "exact": "Contado con exactitud",
+      "exactBusy": "El recuento exacto espera a que el chat esté inactivo."
+    },
+    "compactDialog": {
+      "title": "Compactar la conversación",
+      "body": "{{agent}} resume la conversación y sigue desde el resumen. Los mensajes siguen visibles aquí, pero el agente ya no los ve enteros. Es un turno que se paga como cualquier otro, del tamaño del contexto ahora ({{size}}).",
+      "bodyNoSize": "{{agent}} resume la conversación y sigue desde el resumen. Los mensajes siguen visibles aquí, pero el agente ya no los ve enteros. Es un turno que se paga como cualquier otro.",
+      "size": "unos {{n}} tokens",
+      "focus": "Qué conservar (opcional)",
+      "focusPlaceholder": "el plan y el test que falla",
+      "count": "{{n}} / {{max}}",
+      "note": "Guardar el resumen como nota de sesión",
+      "cancel": "Cancelar",
+      "confirm": "Compactar",
+      "working": "Compactando…",
+      "started": "Compactando…"
+    },
+    "notes": {
+      "title": "Notas de sesión",
+      "empty": "Aún no hay notas. Una compactación con la nota activada deja una aquí.",
+      "source": {
+        "compaction": "de una compactación",
+        "agent": "pedida",
+        "summary": "guardada de un resumen"
+      },
+      "pending": "Escribiendo la nota…",
+      "failedTag": "Fallida",
+      "failed": "No se ha podido escribir la nota.",
+      "fallbackTitle": "Nota de sesión",
+      "write": "Escribir una nota",
+      "writing": "Escribiendo…",
+      "copy": "Copiar la nota",
+      "addToJournal": "Añadir al diario",
+      "delete": "Eliminar",
+      "moreActions": "Acciones de la nota",
+      "removed": "Nota eliminada",
+      "removeFailed": "No se ha podido eliminar la nota",
+      "saved": "Guardada como nota de sesión",
+      "saveFailed": "No se ha podido guardar el resumen como nota",
+      "journal": {
+        "title": "Añadir la nota al diario",
+        "hint": "Todas las ejecuciones de este proyecto leen el diario. Lee el texto antes de añadirlo: lo que parecía un secreto se ha ocultado.",
+        "label": "Entrada del diario",
+        "counter": "{{n}} / {{max}} caracteres",
+        "over": "pasa del límite, recórtala",
+        "cancel": "Cancelar",
+        "save": "Añadir al diario",
+        "saved": "Añadida al diario"
+      }
+    }
   }
 }
