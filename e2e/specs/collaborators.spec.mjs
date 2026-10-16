@@ -5,8 +5,11 @@
 // Ana turns Collaborators on, creates a group and invites Ben, who joins from his own page. Ana
 // shares a project both have cloned (the same remote, so the same share key); a chat the fake CLI
 // keeps working on Ana's machine shows live in Ben's Shared tab, read only, and stops moving under
-// the motion levels. A project with no remote is linked by hand on Ben's side. Then Ana goes offline
-// and Cleo joins through Ben (a relayed join); Ana accepts when she is back, and removes Cleo.
+// the motion levels. A project with no remote is read on Ben's side before it is cloned there, in
+// its own read-only view, and then linked by hand. Then Ana goes offline and Cleo joins through Ben
+// (a relayed join); Ana's bell tells her of it when she is back, she accepts it, and the
+// notification settles. Ana removes Cleo, and stops sharing the notes, which Ben's view then says.
+// Members are named everywhere, each with the short endpoint id beside the name in mono.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -54,6 +57,13 @@ const loops = (root) => `
     }
   }
   return found;`;
+
+/** The short form of an endpoint id the page shows beside a name (apps/web/src/pages/collaborators/model.ts) */
+const shortId = (id) => (id.length > 14 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id);
+
+/** The notification a join request made on this origin's page, from the store the bell reads */
+const NOTIFICATIONS = 'claudio-notifications:v1';
+const joinNotice = `return (JSON.parse(localStorage.getItem('${NOTIFICATIONS}') ?? '{}').items ?? []).find((n) => n.kind === 'collaborators') ?? null`;
 
 const text = (selector) => `return [...document.querySelectorAll(${JSON.stringify(selector)})].map((e) => e.innerText).join('\\n')`;
 
@@ -114,6 +124,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     await ben.page.click('[data-testid=collab-join-submit]', undefined, 800);
     await ben.page.waitFor(`return document.querySelectorAll('.collab-group [data-testid=collab-member]').length === 2`, { label: "Ben's group lists Ana and Ben", timeout: 60_000 });
     check(JSON.stringify(await memberNames(api)) === '["Ana","Ben"]', `Ana's roster has Ben (${await memberNames(api)})`);
+    // Each member by name, the short endpoint id beside it in mono, the whole id on hover
+    const anaId = (await api.get('/collaborators')).body.endpointId;
+    const anaMember = await ben.page.eval(`
+      const row = [...document.querySelectorAll('.collab-group [data-testid=collab-member]')].find((r) => r.querySelector('strong')?.innerText.trim() === 'Ana');
+      const id = row?.querySelector('.mono');
+      return id ? { text: id.innerText, title: id.title } : null`);
+    check(anaMember?.title === anaId && anaMember.text.includes(shortId(anaId)), `Ben's page names Ana, with her short id beside it (${JSON.stringify(anaMember)})`);
 
     // ---------- Ana shares the project from its Settings ----------
     await page.goto(`/?project=${anaProject.body.id}&view=settings`, 1200);
@@ -170,12 +187,39 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     const notesRow = `[...document.querySelectorAll('[data-testid=collab-shared-project]')].find((r) => r.innerText.includes('e2e-collab-notes'))`;
     await ben.page.goto('/collaborators', 1200);
     await ben.page.waitFor(`return (${notesRow})?.innerText.includes('Not cloned here')`, { label: 'the notes, not cloned on Ben’s machine', timeout: 60_000 });
+    const notesShare = (await ben.api.get('/collaborators/shared')).body?.find((p) => p.name === 'e2e-collab-notes');
+    check(notesShare?.owner === anaId, `the notes are Ana's (${JSON.stringify(notesShare && { owner: notesShare.owner, shareId: notesShare.shareId })})`);
+    const notesPath = `/collaborators/shared/${encodeURIComponent(notesShare.owner)}/${encodeURIComponent(notesShare.shareId)}`;
+
+    // Not cloned, and still read: its own read-only view, the Shared tab's sub-tabs under a header
+    // whose one action is to link it
+    await ben.page.eval(`(${notesRow}).querySelector('[data-testid=collab-open-read-only]').click(); return true`);
+    await ben.page.waitFor(`return location.pathname === ${JSON.stringify(notesPath)} && !!document.querySelector('.shared-project [role=tablist]')`, { label: "the notes' read-only view", timeout: 30_000 });
+    const readOnly = await ben.page.eval(text('.shared-project'));
+    check(readOnly.includes('e2e-collab-notes') && readOnly.includes('Shared by Ana · read only') && readOnly.includes('Not cloned here'), `the view says whose it is and that it is not cloned (${readOnly.slice(0, 200)})`);
+    const tabs = await ben.page.eval(`return [...document.querySelectorAll('.shared-project [role=tab]')].map((t) => t.innerText.replace(/[0-9]+/g, '').trim())`);
+    check(JSON.stringify(tabs) === '["Chats","Memory","Journal","Documents","Artifacts","Board"]', `every kind it carries is a sub-tab (${JSON.stringify(tabs)})`);
+    check(await ben.page.eval(`return !!document.querySelector('.shared-project [data-testid=collab-link]')`), 'Link to a local project is the view’s action');
+    check(!(await ben.page.eval(`return !!document.querySelector('.composer, [data-composer-input]')`)), 'nothing to write with on a read-only view');
+    check((await ben.page.eval(`return document.querySelectorAll('.live-energy').length`)) === 0, 'a teammate’s project never carries the energy border');
+    for (const [section, label] of [['journal', 'Journal'], ['artifacts', 'Artifacts']]) {
+      await ben.page.goto(`${notesPath}?section=${section}`, 1000);
+      await ben.page.waitFor(`return (document.querySelector('.shared-project [role=tab][aria-selected=true]')?.innerText ?? '').includes('${label}') && !document.querySelector('.shared-project .skeleton')`, {
+        label: `the ${section} sub-tab of the read-only view`,
+      });
+    }
+    await ben.page.goto('/collaborators', 1200);
+    await ben.page.waitFor(`return !!(${notesRow})`, { label: 'the notes row again' });
     await ben.page.eval(`[...${notesRow}.querySelectorAll('button')].find((b) => b.innerText.includes('Link to a local project')).click(); return true`);
     await ben.page.select('[role=dialog] [aria-label="Local project"]', 'scratch');
     await ben.page.click('[role=dialog] .btn', 'Link', 800);
     await ben.page.waitFor(`return !!(${notesRow})?.querySelector('a[aria-label="Open in scratch"]')`, { label: 'the notes, linked to scratch' });
     await ben.page.goto(`/?project=${scratch.body.id}&view=shared`, 1200);
     await ben.page.waitFor(`return (document.querySelector('.shared-view')?.innerText ?? '').includes('Ana')`, { label: "Ana's notes in scratch's Shared tab" });
+    // Linked, the read-only view leads to the project it is read in
+    await ben.page.goto(notesPath, 1200);
+    await ben.page.waitFor(`return (document.querySelector('.shared-project [data-testid=collab-open-local]')?.innerText ?? '').includes('Open in scratch')`, { label: 'the read-only view, now opening scratch' });
+    check(!(await ben.page.eval(`return !!document.querySelector('.shared-project [data-testid=collab-link]')`)), 'a linked project offers no second link');
 
     // ---------- a relayed join: Ana's invite names Ben, then Ana goes offline ----------
     const benId = (await ben.api.get('/collaborators')).body.endpointId;
@@ -200,14 +244,33 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     });
     const held = (await cleo.api.get('/collaborators/groups')).body?.pendingJoins?.find((p) => p.groupId === groupId);
     check(held?.relayedBy?.endpointId === benId, `Ben holds Cleo's request (${JSON.stringify(held?.relayedBy)})`);
+    const holder = await cleo.page.eval(`const id = document.querySelector('.collab-join-waiting .mono'); return id ? { text: id.innerText, title: id.title } : null`);
+    check(holder?.title === benId && holder.text.includes(shortId(benId)), `Ben's short id follows his name (${JSON.stringify(holder)})`);
     await cleo.page.key('Escape');
     await cleo.page.waitFor(`return (document.querySelector('[data-testid=collab-pending-join]')?.innerText ?? '').includes('Backend')`, { label: "Cleo's pending join" });
+    const cleoId = (await cleo.api.get('/collaborators')).body.endpointId;
 
-    // Ana comes back: Ben hands her the request, and she accepts it
+    // Ana comes back: Ben hands her the request, her bell tells her of it, and she accepts it
+    await page.goto('/collaborators', 1200);
+    await page.eval(`localStorage.removeItem('${NOTIFICATIONS}'); return true`);
     await page.goto('/collaborators', 1200);
     await page.click('[data-testid=collab-turn-on]', undefined, 800);
     await page.waitFor(`return (document.querySelector('[data-testid=collab-join-request]')?.innerText ?? '').includes('relayed by Ben')`, { label: "Cleo's request, relayed by Ben", timeout: 90_000 });
+    const request = await page.eval(`const id = document.querySelector('[data-testid=collab-join-request] .mono'); return id ? { text: id.innerText, title: id.title } : null`);
+    check(request?.title === cleoId && request.text.includes(shortId(cleoId)), `the request names Cleo, her short id beside it (${JSON.stringify(request)})`);
+    await page.waitFor(joinNotice, { label: 'the join request in the notifications', timeout: 30_000 });
+    const notice = await page.eval(joinNotice);
+    check(notice.title === 'Cleo asks to join Backend' && notice.body.includes('Relayed by Ben') && notice.href === '/collaborators', `the notification says who asks, for what, and through whom (${JSON.stringify(notice)})`);
+    check(notice.priority === 'high' && !notice.resolved, `it is a question still open (${JSON.stringify(notice)})`);
+    await page.waitFor(`return !!document.querySelector('.bell-badge') && document.querySelector('.bell').classList.contains('bell-urgent')`, { label: 'the bell, urgent, with the request unread' });
+    await page.click('.bell');
+    await page.waitFor(`return [...document.querySelectorAll('.notif-item')].some((i) => i.innerText.includes('Cleo asks to join Backend'))`, { label: 'the request in the panel' });
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.notif-panel')`, { label: 'the panel closed' });
     await page.click('[data-testid=collab-join-request] button', 'Accept', 800);
+    // Answered, it is nothing left to do: settled and read, and the bell is quiet again
+    await page.waitFor(`const n = (() => { ${joinNotice} })(); return !!n && n.resolved && n.read`, { label: 'the notification settled by the answer', timeout: 30_000 });
+    check(!(await page.eval(`return document.querySelector('.bell')?.classList.contains('bell-urgent') ?? false`)), 'the bell is no longer urgent');
     await until(async () => JSON.stringify(await memberNames(cleo.api)) === '["Ana","Ben","Cleo"]', 'Cleo to hold the roster with herself in it', 60_000);
     await cleo.page.goto('/collaborators', 1200);
     await cleo.page.waitFor(`return document.querySelectorAll('.collab-group [data-testid=collab-member]').length === 3 && !document.querySelector('[data-testid=collab-pending-join]')`, { label: "Cleo's page: in the group, nothing pending" });
@@ -224,6 +287,16 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     await page.click('[role=dialog] button', 'Remove', 800);
     await page.waitFor(`return document.querySelectorAll('.collab-group [data-testid=collab-member]').length === 2`, { label: "Ana's page without Cleo" });
     await until(async () => JSON.stringify(await memberNames(ben.api)) === '["Ana","Ben"]', 'Ben to learn of the removal', 60_000);
+
+    // ---------- Ana stops sharing the notes: Ben's view says so, and offers the way back ----------
+    check((await api.put(`/projects/${notes.body.id}/sharing`, { groups: [] })).status === 200, 'the notes are no longer shared');
+    await until(async () => (await ben.api.get(`/collaborators/shared/${encodeURIComponent(notesShare.owner)}/${encodeURIComponent(notesShare.shareId)}`)).status === 404, 'Ben to learn the notes are no longer shared', 60_000);
+    await ben.page.goto(notesPath, 1200);
+    await ben.page.waitFor(`return (document.querySelector('.shared-project')?.innerText ?? '').includes('This project is no longer shared with you')`, { label: 'the revoked share, said on its view' });
+    check(await ben.page.eval(`return [...document.querySelectorAll('.shared-project a')].some((a) => a.innerText.includes('Back to Collaborators') && a.getAttribute('href') === '/collaborators')`), 'the way back to Collaborators');
+    check(!(await ben.page.eval(`return !!document.querySelector('.shared-project [role=tablist]')`)), 'nothing of the revoked copy is drawn');
+    await ben.page.goto('/collaborators', 1200);
+    await ben.page.waitFor(`return !!document.querySelector('.collab-shared') && !(${notesRow})`, { label: 'the notes gone from Shared with you' });
   } finally {
     if (chatId) {
       writeFileSync(join(anaDir, RELEASE), '');

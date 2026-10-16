@@ -24,7 +24,8 @@
 // Collaborators (docs/plans/collaborators.md, C4): a spec that exports `peers = ['ben', …]` gets one
 // more wrapper per name, each with a sandbox, a port and a fake `claude` of its own, started before
 // it and stopped after it; its context gains `peers.<name>` (`api`, `dirs`, `fakeCli`, `baseUrl`,
-// and `page`, the same browser tab with `goto` aimed at that wrapper). Every wrapper of a run binds
+// `page`, the same browser tab with `goto` aimed at that wrapper, and `restart()`, which starts its
+// server again on the same port and directories). Every wrapper of a run binds
 // its iroh endpoint on the minimal preset to a fixed loopback port (CLAUDIO_COLLAB_PRESET,
 // CLAUDIO_COLLAB_BIND): no relay and no discovery, so installs reach each other by their loopback
 // tickets and the suite needs no network, and an invite stays good across a turn off and on.
@@ -340,7 +341,7 @@ let peerRuns = 0;
 const PEER_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 
 function stopPeers() {
-  for (const peer of peers.values()) killGroup(peer.child.pid, { graceMs: 3000 });
+  for (const peer of peers.values()) if (peer.child) killGroup(peer.child.pid, { graceMs: 3000 });
   peers.clear();
 }
 
@@ -357,30 +358,33 @@ async function startPeer(name, page) {
   const port = await freePort('tcp');
   const url = `http://127.0.0.1:${port}`;
   const peerFake = { bin: fakeCli.bin, log: join(home, 'fake-cli.jsonl'), scripts: join(home, 'fake-cli-scripts.json') };
-  const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], {
-    cwd: root,
-    env: {
-      ...fakeEnv,
-      PORT: String(port),
-      CLAUDIO_WORKSPACE_DIR: peerDirs.workspaceDir,
-      CLAUDIO_DATA_DIR: peerDirs.dataDir,
-      CLAUDE_CONFIG_DIR: peerDirs.configDir,
-      CLAUDIO_FAKE_CLI_LOG: peerFake.log,
-      CLAUDIO_FAKE_CLI_SCRIPTS: peerFake.scripts,
-      FAKE_TAILSCALE_STATE: join(home, 'tailscale-node.json'),
-      ...(await collabEnv()),
-    },
-    stdio: ['ignore', 'ignore', 'pipe'],
-    detached: true,
-  });
+  // Kept for a restart: the same port, directories and iroh bind, so the peer comes back as itself
+  const peerEnv = {
+    ...fakeEnv,
+    PORT: String(port),
+    CLAUDIO_WORKSPACE_DIR: peerDirs.workspaceDir,
+    CLAUDIO_DATA_DIR: peerDirs.dataDir,
+    CLAUDE_CONFIG_DIR: peerDirs.configDir,
+    CLAUDIO_FAKE_CLI_LOG: peerFake.log,
+    CLAUDIO_FAKE_CLI_SCRIPTS: peerFake.scripts,
+    FAKE_TAILSCALE_STATE: join(home, 'tailscale-node.json'),
+    ...(await collabEnv()),
+  };
+  const entry = { child: null };
+  peers.set(name, entry);
   let stderr = '';
-  child.stderr.on('data', (chunk) => {
-    process.stderr.write(`[${name}] ${chunk}`);
-    stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS);
-  });
-  child.on('error', () => {});
-  peers.set(name, { child });
-  await waitForServer(child, url, () => stderr);
+  const boot = async () => {
+    const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: peerEnv, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+    stderr = '';
+    child.stderr.on('data', (chunk) => {
+      process.stderr.write(`[${name}] ${chunk}`);
+      stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS);
+    });
+    child.on('error', () => {});
+    entry.child = child;
+    await waitForServer(child, url, () => stderr);
+  };
+  await boot();
   const peerPage = Object.assign(Object.create(page), {
     baseUrl: url,
     // The same tab, sent to the peer's own origin: a person looking at a teammate's screen
@@ -389,7 +393,16 @@ async function startPeer(name, page) {
       await page.sleep(wait);
     },
   });
-  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage };
+  /**
+   * Stops the peer's server and starts it again on what it left on disk: a teammate's machine that
+   * restarted. A spec changes those files in between (a vault lost, say) to see what the app makes of it.
+   */
+  const restart = async () => {
+    // SIGTERM first, as the main server: the API closes its database, and the port is free on return
+    killGroup(entry.child.pid, { graceMs: 3000 });
+    await boot();
+  };
+  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage, restart };
 }
 
 async function startPeers(names, page) {
