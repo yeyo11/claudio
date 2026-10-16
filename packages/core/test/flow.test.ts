@@ -38,7 +38,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; spendOpen?: boolean } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -59,8 +59,11 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
   /** `resume`: only continuing a chat fails; `started`: the chat to continue is told of, then it fails */
   const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
   let chats = 0;
+  /** The daily spend cap: closed, no new run starts */
+  const spend = { open: opts.spendOpen ?? true };
   const flow = new FlowService({
     db,
+    spendOpen: () => spend.open,
     items,
     project: (id) => (id === 'p1' ? { path: opts.path ?? '/nowhere/p1', settings: state.settings } : null),
     handoff: () => '# Project journal',
@@ -120,7 +123,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     state.settings = { ...state.settings, modules };
     bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['modules'], modules });
   };
-  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, costs, failNext, answer, answerToEnd, chatOf, setModules };
+  return { db, file: join(config.dataDir, 'wrapper.db'), spend, bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, costs, failNext, answer, answerToEnd, chatOf, setModules };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -2240,4 +2243,48 @@ test('a restart leaves a run that waits for a limit to reset where it is: the ro
   assert.equal(kept?.chatId, chat);
   assert.equal(kept?.restarts, 0);
   assert.equal(kept?.waiting?.provider, 'claude-code');
+});
+
+test('over the daily spend cap a new run stays queued in its place, and starts oldest first once the gate opens', async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } }, spendOpen: false });
+  const a = await item(s, 'in_progress', 'A');
+  const b = await item(s, 'in_progress', 'B');
+  assert.equal(running(s).length, 0);
+  assert.deepEqual(queued(s).map((r) => r.itemId), [a.id, b.id]);
+  assert.equal(s.launches.length, 0);
+  assert.equal(s.flow.queuedCount(), 2);
+
+  // Still closed: another pass changes nothing
+  s.flow.dispatch();
+  await s.flow.settled();
+  assert.equal(running(s).length, 0);
+
+  s.spend.open = true;
+  s.flow.dispatch();
+  await s.flow.settled();
+  assert.deepEqual(running(s).map((r) => r.itemId), [a.id], 'the oldest first');
+  assert.deepEqual(queued(s).map((r) => r.itemId), [b.id]);
+  assert.equal(s.flow.queuedCount(), 1);
+});
+
+test('a run a restart cut off goes on over the cap: it is in flight, not a new start', async () => {
+  const first = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } } });
+  const a = await item(first, 'in_progress', 'A');
+  const b = await item(first, 'in_progress', 'B');
+  const chat = first.chatOf(a.id);
+
+  const second = setup({ db: first.db, settings: first.state.settings, recover: false, spendOpen: false });
+  second.flow.recover();
+  await second.flow.settled();
+  assert.deepEqual(second.launches.map((l) => [l.run.itemId, l.resumeChatId]), [[a.id, chat]]);
+  assert.deepEqual(queued(second).map((r) => r.itemId), [b.id]);
+
+  // Its result ends the run, which frees the place; B is new work and the cap holds it
+  await second.answer(a.id, ok());
+  assert.equal(running(second).some((r) => r.itemId === b.id), false);
+  assert.equal(queued(second).some((r) => r.itemId === b.id), true);
+  second.spend.open = true;
+  second.flow.dispatch();
+  await second.flow.settled();
+  assert.equal(running(second).some((r) => r.itemId === b.id), true);
 });

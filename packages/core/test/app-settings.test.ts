@@ -284,3 +284,19 @@ test('the daily spend cap is off by default, kept to cents, bounded, and owned b
   assert.throws(() => config({ CLAUDIO_DAILY_SPEND_CAP_USD: 'lots' }), /CLAUDIO_DAILY_SPEND_CAP_USD/);
   assert.equal(config({ CLAUDIO_DAILY_SPEND_CAP_USD: '  ' }).dailySpendCapUsd, null);
 });
+
+test('a write that names the daily spend cap tells the gate, and one that does not stays quiet', async () => {
+  const store = new AppSettingsStore(config());
+  let told = 0;
+  store.onSpendCapChange = () => told++;
+  assert.equal(store.dailySpendCapUsd, null);
+  await store.update({ maxConcurrentRuns: 3 });
+  assert.equal(told, 0);
+  await store.update({ dailySpendCapUsd: 5 });
+  assert.equal(told, 1);
+  assert.equal(store.dailySpendCapUsd, 5, 'the gate reads the new value when it is told');
+  await store.update({ dailySpendCapUsd: null });
+  assert.equal(told, 2);
+  await assert.rejects(store.update({ dailySpendCapUsd: -1 }));
+  assert.equal(told, 2, 'a refused write changes nothing');
+});

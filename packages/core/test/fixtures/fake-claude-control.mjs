@@ -61,8 +61,15 @@ let pending = null;
 
 // The real CLI reports the window of every model that answered, variant suffix included
 const modelUsage = { 'claude-opus-5[1m]': { inputTokens: 1, outputTokens: 1, costUSD: 0.01, contextWindow: 1_000_000 } };
-const result = (text, extra = {}) =>
-  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, modelUsage, result: text, ...extra });
+// `FAKE_CLAUDE_COSTS=0.10,0.25,none` scripts the cumulative total of this process's results in order
+// ('none' reports no cost); past the list, and without it, every result reports 0.01
+const costs = process.env.FAKE_CLAUDE_COSTS?.split(',');
+let resultsSent = 0;
+const result = (text, extra = {}) => {
+  const scripted = costs?.[resultsSent++];
+  const cost = scripted === undefined ? 0.01 : scripted === 'none' ? undefined : Number(scripted);
+  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, ...(cost === undefined ? {} : { total_cost_usd: cost }), modelUsage, result: text, ...extra });
+};
 const respond = (requestId, response) => out({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
 
 createInterface({ input: process.stdin }).on('line', (line) => {

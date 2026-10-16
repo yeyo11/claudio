@@ -251,6 +251,13 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     execution.turns += event.turns;
     // The agent's total is over its process, so per execution it only ever grows
     if (event.costUsd !== undefined) execution.costUsd = Math.max(execution.costUsd ?? 0, event.costUsd);
+    // The spend of this result is the increase over the process's last report, not the execution's
+    // max(): a process restarted inside one execution begins its total again from zero
+    if (event.costUsd !== undefined && Number.isFinite(event.costUsd)) {
+      const delta = event.costUsd - chat.lastReportedCostUsd;
+      chat.lastReportedCostUsd = Math.max(chat.lastReportedCostUsd, event.costUsd);
+      if (delta > 0) host.recordSpend(chat, execution, delta);
+    } else if (event.costUsd === undefined) host.recordSpend(chat, execution, null);
     host.learnModelCosts(execution, event.modelUsage);
   }
   host.learnWindows(event.modelUsage);

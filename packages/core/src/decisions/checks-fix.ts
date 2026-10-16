@@ -27,6 +27,8 @@ export interface ChecksFixDeps {
   pullRequests: { fixChecks(itemId: string, origin: 'decision'): Promise<FixChecksResult>; fixAttemptsFor(itemId: string, headSha: string | null): number };
   item(itemId: string): WorkItem | null;
   project(projectId: string): FlowProject | null;
+  /** The daily spend cap lets a new run start; without it every run may */
+  spendOpen?: () => boolean;
 }
 
 /** The end of a text that fits `bytes`, cut on a line when it can */
@@ -90,8 +92,10 @@ export class ChecksFix {
     }
   }
 
-  /** Attempts for this head below the project's limit, a place in the flow's parallel runs, and a budget not yet reached */
+  /** The daily cap not reached, attempts for this head below the project's limit, a place in the flow's parallel runs, and a budget not yet reached */
   private hasRoom(notice: ChecksFailingNotice, item: WorkItem): boolean {
+    // Over the daily cap no fix starts by itself; the point was asked once for this head, so a person starts it
+    if (this.deps.spendOpen?.() === false) return false;
     const flow = this.deps.project(item.projectId)?.settings.flow;
     if (!flow) return false;
     const limit = Math.min(flow.checksFixAttempts ?? DEFAULT_CHECKS_FIX_ATTEMPTS, MAX_CHECKS_FIX_ATTEMPTS);

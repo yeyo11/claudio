@@ -708,3 +708,39 @@ test("the CLI's list of sessions is read once for everyone asking at the same ti
     core.shutdown();
   }
 });
+
+// ---------- daily spend ledger ----------
+
+test('each result writes the increase of its process total to the spend ledger, and a new process starts again from zero', async () => {
+  const { core } = setup();
+  const rows = (id: string) =>
+    (core.db.connection.prepare('SELECT usd, reported, purpose FROM spend_ledger WHERE chat_id = ? ORDER BY seq').all(id) as Array<{ usd: number; reported: number; purpose: string }>).map((r) => ({
+      usd: Math.round(r.usd * 100) / 100,
+      reported: r.reported,
+      purpose: r.purpose,
+    }));
+  process.env.FAKE_CLAUDE_COSTS = '0.10,0.25,none';
+  try {
+    const started = core.runtime.start({ prompt: 'one', purpose: 'flow' });
+    await core.runtime.waitForResult(started.id);
+    for (const prompt of ['two', 'three']) {
+      const next = core.runtime.nextResult(started.id);
+      core.runtime.send(started.id, prompt);
+      await next;
+    }
+    assert.deepEqual(rows(started.id), [
+      { usd: 0.1, reported: 1, purpose: 'flow' },
+      { usd: 0.15, reported: 1, purpose: 'flow' },
+      { usd: 0, reported: 0, purpose: 'flow' },
+    ]);
+    // The process ends and the next one counts its total from zero: 0.10 again is a new 0.10, not a negative increase
+    core.runtime.stop(started.id);
+    await core.runtime.exited(started.id);
+    await core.chats.resume(started.id, { prompt: 'again' });
+    await until(() => rows(started.id).length === 4, 'the resumed process result');
+    assert.deepEqual(rows(started.id)[3], { usd: 0.1, reported: 1, purpose: 'person' }, 'a person resuming the chat is the person');
+  } finally {
+    delete process.env.FAKE_CLAUDE_COSTS;
+    core.shutdown();
+  }
+});

@@ -450,6 +450,12 @@ export class Orchestrator {
   waitOf: ((chatId: string) => LimitWait | null) | null = null;
   /** Ends the wait a chat is in, for a task that is stopped; set by Core */
   releaseWait: ((chatId: string) => void) | null = null;
+  /**
+   * Whether the daily spend cap lets this graph start new work: true below the cap and for a graph
+   * that holds today's pass. Only the start of a pending task and of a workflow ask; what is in
+   * flight (retries, integration, verification and its fixer, synthesis) never does. Set by Core.
+   */
+  spendOpen: ((orchestrationId: string) => boolean) | null = null;
 
   constructor(
     private readonly config: CoreConfig,
@@ -765,6 +771,49 @@ export class Orchestrator {
     return orch;
   }
 
+  /**
+   * The daily cap opened (raised, off, a new day) or a graph got its pass: starts what waited for
+   * it, in every running graph.
+   */
+  spendChanged(): void {
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running') continue;
+      if (orch.engine === 'workflow') {
+        if (!orch.workflow?.runId) this.launchWorkflow(orch, null);
+      } else this.schedule(orch);
+    }
+  }
+
+  /** Lets a graph start new work past today's cap; kept in its document, for the local day it names. */
+  grantSpendPass(id: string, day: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    orch.spendPass = day;
+    this.persist();
+    return orch;
+  }
+
+  /** The day a graph was let past the cap; null when it was not. */
+  spendPassOf(id: string): string | null {
+    return this.items.get(id)?.spendPass ?? null;
+  }
+
+  /** Tasks ready to start that only the cap holds back: what the graph's wait line counts. */
+  waitingForSpend(): number {
+    if (!this.spendOpen) return 0;
+    let n = 0;
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running' || this.spendOpen(orch.id)) continue;
+      if (orch.engine === 'workflow') {
+        if (!orch.workflow?.runId) n += orch.tasks.filter((t) => t.status === 'pending').length;
+        continue;
+      }
+      const byId = new Map(orch.tasks.map((t) => [t.id, t]));
+      n += orch.tasks.filter((t) => t.status === 'pending' && !t.runId && (t.dependsOn ?? []).every((d) => byId.get(d)?.status === 'completed')).length;
+    }
+    return n;
+  }
+
   stop(id: string): Orchestration {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
@@ -1025,6 +1074,8 @@ export class Orchestrator {
       if (running >= orch.concurrency) break;
       if (t.status !== 'pending' && t.status !== 'interrupted') continue;
       if (!(t.dependsOn ?? []).every((d) => byId.get(d)?.status === 'completed')) continue;
+      // A task that never ran waits for the cap, and so does every one after it; one that has a chat goes on in it
+      if (t.status === 'pending' && !t.runId && this.spendOpen?.(orch.id) === false) break;
       if (this.launch(orch, t)) running++;
       else break;
     }
@@ -1117,6 +1168,7 @@ export class Orchestrator {
           disallowedTools: [...PUSH_DENIED],
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:${task.id}`.slice(0, 60),
+          purpose: 'orchestration',
           keepAlive: false,
           // The CLI ends the turn itself when this is spent
           ...(limits?.maxCostUsd !== undefined ? { maxBudgetUsd: limits.maxCostUsd } : {}),
@@ -1168,7 +1220,7 @@ export class Orchestrator {
         this.relaunching.delete(key);
         if (task.status !== 'running') return; // stopped meanwhile
         try {
-          this.runs.resume(chatId, { prompt, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
+          this.runs.resume(chatId, { prompt, purpose: 'orchestration', ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
           // The chat has answered before: only a result after this call is this attempt's
           void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
           task.error = null;
@@ -1598,6 +1650,7 @@ ${quoted}
         disallowedTools: [...PUSH_DENIED],
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:integration`.slice(0, 60),
+        purpose: 'integrator',
         keepAlive: false,
       },
       { orchestrationId: orch.id, orchestrationTaskId: '__integration__' },
@@ -1662,6 +1715,7 @@ ${quoted}
           ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
           permissionMode: orch.permissionMode,
           name: `${orch.name}:synthesis`.slice(0, 60),
+          purpose: 'synthesis',
           disallowedTools: [...PUSH_DENIED],
           keepAlive: false,
         },
@@ -2060,6 +2114,7 @@ ${quoted}
           disallowedTools: [...PUSH_DENIED],
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:verification`.slice(0, 60),
+          purpose: 'fixer',
           keepAlive: false,
           // The CLI ends the turn itself when this is spent
           ...(budgetUsd !== null ? { maxBudgetUsd: budgetUsd } : {}),
@@ -2113,6 +2168,7 @@ ${quoted}
         disallowedTools: [...PUSH_DENIED],
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:checks-fix`.slice(0, 60),
+        purpose: 'fixer',
         keepAlive: false,
         ...(spec?.maxCostUsd !== undefined ? { maxBudgetUsd: spec.maxCostUsd } : {}),
       },
@@ -2208,6 +2264,7 @@ ${quoted}
       allowedTools: rulesFor('claude-code', PLANNER_POLICY).allowedTools,
       disallowedTools: [...PUSH_DENIED],
       name: PLANNER_RUN_NAME,
+      purpose: 'planner',
       keepAlive: false,
       internal: true,
       jsonSchema: PLAN_SCHEMA,
@@ -2588,6 +2645,12 @@ ${quoted}
    * the cache that replays the agents that had already finished.
    */
   private launchWorkflow(orch: Orchestration, resumeFrom: string | null): void {
+    // The first start of a workflow waits for the daily cap like a graph's first task; the tasks stay
+    // pending and `spendChanged` launches it. A resume goes back to a session that already ran.
+    if (!resumeFrom && !orch.workflow?.runId && this.spendOpen?.(orch.id) === false) {
+      this.persist();
+      return;
+    }
     const scriptPath = this.scriptPath(orch);
     try {
       // A resume replays the script that ran: regenerating it could miss the cache
@@ -2628,6 +2691,7 @@ ${quoted}
             disallowedTools: [...PUSH_DENIED],
             ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
             name: `${orch.name}:workflow`.slice(0, 60),
+            purpose: 'orchestration',
             keepAlive: false,
           },
           { orchestrationId: orch.id, orchestrationTaskId: '__workflow__' },

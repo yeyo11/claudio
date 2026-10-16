@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { ClaudioEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
-import { previewCron, Scheduler, type ScheduleLauncher } from '../src/schedules.ts';
+import { previewCron, Scheduler, spendHeldReason, type ScheduleLauncher } from '../src/schedules.ts';
 import { tempConfig } from './helpers.ts';
 
 const at = (iso: string) => Date.parse(iso);
@@ -545,4 +545,33 @@ test('a client that reconnects with the last id it saw gets the schedule events 
     ['schedule.fired', 'schedule.changed:rescheduled', 'schedule.changed:disabled'],
   );
   scheduler.close();
+});
+
+test('a slot over the daily spend cap is skipped with its reason, never run late, and a person\'s run now still goes', async () => {
+  const { scheduler, state, events } = rig();
+  let held: string | null = spendHeldReason(20.5, 20);
+  scheduler.spendHold = () => held;
+  const created = await scheduler.create(daily);
+
+  state.now = at('2026-09-20T09:00:10Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 0, 'nothing was started');
+  const [run] = scheduler.history(created.id);
+  assert.equal(run?.status, 'skipped');
+  assert.equal(run?.slot, '2026-09-20T09:00:00.000Z');
+  assert.equal(run?.error, "Today's spend cap was reached (20.50 of 20.00 USD), so this slot was skipped, not run late.");
+  assert.equal(fires(events).at(-1)?.status, 'skipped');
+  assert.match(fires(events).at(-1)?.title ?? '', /daily spend cap/);
+
+  // The slot is spent: opening the gate later does not run it, and the next slot is a new one
+  held = null;
+  await scheduler.tick();
+  assert.equal(state.chats.length, 0);
+  state.now = at('2026-09-21T09:00:10Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 1);
+
+  held = 'closed again';
+  await scheduler.runNow(created.id);
+  assert.equal(state.chats.length, 2, 'run now is a person\'s decision');
 });

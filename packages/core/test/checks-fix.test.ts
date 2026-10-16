@@ -48,6 +48,7 @@ function setup(flow: Record<string, unknown> = FLOW) {
   const rig = decisionRig(db, config);
   const calls: string[] = [];
   const state = { attempts: 0 };
+  const spend = { open: true };
   const list: ChangeRequestChecks = { headSha: 'aaa', rollup: 'failing', checks: [check('1', 'unit'), check('2', 'lint')], truncated: false, checkedAt: '2026-10-01T00:00:00.000Z' };
   const handler = new ChecksFix({
     decisions: rig.engine,
@@ -63,12 +64,13 @@ function setup(flow: Record<string, unknown> = FLOW) {
     },
     item: (id) => (id === 'i1' ? ({ id: 'i1', projectId: 'p1', worktree: null } as WorkItem) : null),
     project: () => ({ path: '/p', settings: { flow } }) as unknown as FlowProject,
+    spendOpen: () => spend.open,
   });
   const run = async (notice = NOTICE) => {
     handler.onChecksFailing(notice);
     await handler.idle();
   };
-  return { db, rig, calls, state, handler, run };
+  return { db, rig, calls, state, spend, handler, run };
 }
 
 const fixable = (confidence: number | null = 0.95, value = 'branch-fixable') => () => ({ fix: choiceOf(value, confidence) });
@@ -226,4 +228,29 @@ test('checks.fix resolves against the head the rollup reads after the failing on
   resolvers.sweep();
   assert.equal(db.decision(fixableRow.id)?.agreed, true);
   assert.equal(db.decision(flakeRow.id)?.agreed, false);
+});
+
+test('checks.fix starts nothing over the daily spend cap, asks nobody, and a new head is asked once it opens', async () => {
+  const s = setup();
+  s.rig.provider.script = fixable();
+  await s.rig.configure('checks.fix', 'active');
+  s.spend.open = false;
+  await s.run();
+  assert.equal(s.calls.length, 0);
+  assert.equal(s.rig.provider.calls.length, 0, 'the question itself costs, so it is not asked');
+  s.spend.open = true;
+  await s.run({ ...NOTICE, headSha: 'bbb' });
+  assert.deepEqual(s.calls, ['i1']);
+});
+
+test('checks.fix does not start a fix when the cap is reached while the decision was being made', async () => {
+  const s = setup();
+  s.rig.provider.script = () => {
+    s.spend.open = false;
+    return { fix: choiceOf('branch-fixable', 0.95) };
+  };
+  await s.rig.configure('checks.fix', 'active');
+  await s.run();
+  assert.equal(s.rig.provider.calls.length, 1);
+  assert.equal(s.calls.length, 0);
 });
