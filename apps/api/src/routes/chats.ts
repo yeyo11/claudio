@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import { chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } from '@claudio/core';
+import { AccountSwitchRefusal, chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } from '@claudio/core';
 import type {
   CancelCommandRequest,
   ChatInterruptRequest,
@@ -21,6 +21,8 @@ import type {
   ResumeChatRequest,
   RunEvent,
   RunWorkflowRequest,
+  SwitchChatAccountRequest,
+  SwitchChatAccountResponse,
   UsageBucket,
 } from '@claudio/shared';
 import { openStream } from '../sse.ts';
@@ -152,6 +154,19 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', { preHandler: spendGate(core) }, async (req, reply) =>
     reply.status(201).send(await chats.fork(req.params.id, req.body ?? ({} as ForkChatRequest))),
   );
+
+  // A person moves a chat to another account: at once when idle, after the turn when working
+  app.post<{ Params: { id: string }; Body: SwitchChatAccountRequest }>('/chats/:id/account', async (req): Promise<SwitchChatAccountResponse> => {
+    const accountId = (req.body as Partial<SwitchChatAccountRequest> | undefined)?.accountId;
+    if (typeof accountId !== 'string' || accountId.trim() === '') throw Object.assign(new Error('accountId is required'), { statusCode: 400 });
+    try {
+      return await chats.switchAccount(req.params.id, accountId, req.actor ?? 'person');
+    } catch (err) {
+      if (!(err instanceof AccountSwitchRefusal)) throw err;
+      const missing = err.code === 'chat-not-found' || err.code === 'account-not-found';
+      throw Object.assign(new Error(err.message), missing ? { statusCode: 404 } : { statusCode: 409, reason: err.code });
+    }
+  });
 
   // A person chooses to wait for the reset
   app.post<{ Params: { id: string } }>('/chats/:id/wait', (req, reply) => {
