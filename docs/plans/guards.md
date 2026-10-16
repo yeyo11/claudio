@@ -2096,6 +2096,9 @@ the e2e spec.
   different rules; they need one definition.
 - A checkout under umask 002 leaves the guard program group-writable and preflight refuses it: guards
   report `entry-untrusted` there until the files are made 0644 or the bundle is used.
+  The e2e harness does not depend on it: `e2e/run.mjs` bundles `main.ts` into its sandbox at mode
+  0444 and points `CLAUDIO_GUARD_ENTRY` at it, and `guard-hooks.spec.mjs` makes that file
+  untrustworthy for scenario 6 (`dirs.guardEntry`).
 - The Helm chart README has no line about the read-only `guard.mjs`.
 
 ## Related

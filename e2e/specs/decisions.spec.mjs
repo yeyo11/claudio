@@ -300,7 +300,15 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
         endpoint: SUBSCRIPTION.endpoint,
       })
       .catch(() => {});
-    if (chatId) await api.del(`/chats/${chatId}`).catch(() => {});
+    // A live chat refuses DELETE (409): stopped first, or its idle process outlives the spec and
+    // counts against the run limit of every spec after it in the shard
+    if (chatId) {
+      await api.post(`/chats/${chatId}/stop`).catch(() => {});
+      for (let i = 0; i < 40; i++) {
+        if ((await api.del(`/chats/${chatId}`).catch(() => ({ status: 0 }))).status === 200) break;
+        await page.sleep(250);
+      }
+    }
     await api.del("/decisions").catch(() => {});
     await reset(api, before.points?.[POINT]?.mode ?? "off").catch(() => {});
   }

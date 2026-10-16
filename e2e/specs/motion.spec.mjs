@@ -206,7 +206,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     // Compaction is refused to a chat with no history, which the fake leaves only when it writes a transcript
     writeFileSync(fakeCli.scripts, JSON.stringify({ ...readingScripts, '@transcript': true }));
     const compacting = await api.post('/chats', { prompt: 'a short chat to compact', cwd: dir });
-    check(compacting.status === 201, `a chat to compact (${compacting.status})`);
+    check(compacting.status === 201, `a chat to compact (${compacting.status} ${JSON.stringify(compacting.body)})`);
     flowChats.push(compacting.body.id);
     for (let i = 0; i < 40; i++) {
       if ((await api.get(`/chats/${compacting.body.id}`)).body?.chat?.state === 'idle') break;
@@ -229,7 +229,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     // The fake's `background:` line leaves a command running after the turn; the cleanup stops the chat, and it with it
     writeFileSync(fakeCli.scripts, JSON.stringify({ 'MOTION-BRANCHES': 'background: sleep 120\nsay: The watcher runs.' }));
     const watching = await api.post('/chats', { prompt: 'MOTION-BRANCHES: start the watcher', cwd: dir });
-    check(watching.status === 201, `a chat with a background command (${watching.status})`);
+    check(watching.status === 201, `a chat with a background command (${watching.status} ${JSON.stringify(watching.body)})`);
     flowChats.push(watching.body.id);
     // Four reads of the glyph a beat apart (not a multiple of the ten-frame turn): a spinner that turns
     // shows more than one, and a still one shows the still glyph (SPINNER_STILL) every time

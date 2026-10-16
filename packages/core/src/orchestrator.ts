@@ -477,6 +477,9 @@ export class Orchestrator {
   /** Tasks whose worker was told it is nearly out of time, by the clock it was told on, so a retry is warned again */
   private readonly warned = new Set<string>();
   private limitsTimer: NodeJS.Timeout | null = null;
+  /** Retries and workflow watchers still to fire: `close` cancels them, since each one reads and writes the database */
+  private readonly timers = new Set<NodeJS.Timeout>();
+  private closed = false;
   /** Graphs whose checks are running: what a stop has to reach, and what other decisions wait for */
   private readonly verifying = new Map<string, VerificationControl>();
   private reviews: ReviewStore | null = null;
@@ -527,10 +530,27 @@ export class Orchestrator {
     this.limitsTimer.unref();
   }
 
-  /** Stops the clock that enforces time limits; a process about to exit has no use for it. */
+  /**
+   * Stops every clock of its own: the one that enforces time limits, the retries of launches that
+   * were refused and the workflow watchers. The database closes right after, and a retry that fired
+   * then would read it (the spend gate) and launch a chat into a wrapper that is shutting down.
+   */
   close(): void {
+    this.closed = true;
     if (this.limitsTimer) clearInterval(this.limitsTimer);
     this.limitsTimer = null;
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.clear();
+  }
+
+  /** `schedule` later, unless the orchestrator closes first */
+  private scheduleLater(orch: Orchestration, ms: number): void {
+    const timer = setTimeout(() => {
+      this.timers.delete(timer);
+      this.schedule(orch);
+    }, ms);
+    timer.unref();
+    this.timers.add(timer);
   }
 
   private load(): void {
@@ -1134,7 +1154,7 @@ export class Orchestrator {
   }
 
   private schedule(orch: Orchestration): void {
-    if (orch.status !== 'running') return;
+    if (this.closed || orch.status !== 'running') return;
     const byId = new Map(orch.tasks.map((t) => [t.id, t]));
 
     // A restart cut a task off: it goes on while it has attempts left, as a failure would. A stopped
@@ -1371,14 +1391,14 @@ export class Orchestrator {
     const message = err instanceof Error ? err.message : String(err);
     // A place that frees up by itself: the count of chats, the memory the machine gets back, or a guard self-test
     if (message.includes('Concurrent run limit') || message.startsWith(RESOURCE_REFUSAL_PREFIX) || err instanceof GuardSelfTestPending) {
-      setTimeout(() => this.schedule(orch), 3000).unref();
+      this.scheduleLater(orch, 3000);
       return false;
     }
     task.status = 'failed';
     // The code leads, so the failure reads as the guard's and not as the task's
     task.error = err instanceof GuardUnavailableError ? `guard-unavailable (${err.code}): could not ${doing}: ${message}` : `could not ${doing}: ${message}`;
     task.endedAt = now();
-    setTimeout(() => this.schedule(orch), 0).unref();
+    this.scheduleLater(orch, 0);
     return false;
   }
 
@@ -3476,18 +3496,23 @@ ${quoted}
       t.runId = runId;
       t.sessionId = run?.id ?? null;
     }
+    const stop = () => {
+      clearInterval(watcher);
+      this.timers.delete(watcher);
+    };
     const watcher = setInterval(() => {
-      if (orch.status !== 'running') return clearInterval(watcher);
+      if (orch.status !== 'running') return stop();
       this.syncWorkflow(orch);
       const workflow = this.currentWorkflow(orch);
       const now = this.runs.get(runId);
       const ended = workflow !== null && workflow.status !== 'running';
       const gone = !now || (now.pid === null && ['completed', 'failed', 'stopped'].includes(now.status));
       if (!ended && !gone) return;
-      clearInterval(watcher);
+      stop();
       void this.finishWorkflow(orch, runId);
     }, 1000);
     watcher.unref();
+    this.timers.add(watcher);
     this.persist();
   }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { guardEventNotice, readGuardResult } from '../src/lib/chat-notice';
+import { guardEventNotice, holdsGuardBlock, readGuardResult } from '../src/lib/chat-notice';
 
 // What the CLI records for an exit-2 hook (g0 F5): its own prefix, the hook command, then our stderr
 const RECORDED =
@@ -30,4 +30,12 @@ test('the guard labels exist in both languages', () => {
     const notice = (JSON.parse(readFileSync(new URL(`../src/locales/${lang}/chat.json`, import.meta.url), 'utf8')) as { transcript: { notice: Record<string, string> } }).transcript.notice;
     assert.ok(notice.guard && notice.guardMissing, lang);
   }
+});
+
+test('a step whose call the guard blocked is held open, and one with an ordinary failure is not', () => {
+  const call = (content: string, isError: boolean) => ({ kind: 'call', result: { content, isError } });
+  assert.equal(holdsGuardBlock([{ kind: 'thinking' }, call('ok', false), call(RECORDED, true)]), true);
+  assert.equal(holdsGuardBlock([call('Error: ENOENT: no such file or directory', true), { kind: 'call', result: null }]), false);
+  // The text alone is not a block: the CLI marks the result as an error
+  assert.equal(holdsGuardBlock([call(RECORDED, false)]), false);
 });

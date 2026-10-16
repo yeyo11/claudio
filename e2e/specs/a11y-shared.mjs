@@ -239,6 +239,9 @@ export function a11ySpec(checks) {
       mkdirSync(join(tasksRoot, SESSION, 'tasks'), { recursive: true });
       writeFileSync(join(tasksRoot, SESSION, 'tasks', 'bg-sub-1.output'), 'watching the build\nrebuilt in 12ms\n');
 
+      // The a11y specs share this folder, and the eval file is written as a new file (`ifMatch: null`):
+      // what an earlier spec left in it would be a file that changed on disk
+      rmSync(workspace, { recursive: true, force: true });
       mkdirSync(workspace, { recursive: true });
       // Every module on, so the project page has its Board and Memory tabs to scan
       const imported = await api.post('/projects/import', { path: workspace, name: 'e2e-a11y', template: 'software' });
@@ -362,6 +365,7 @@ export function a11ySpec(checks) {
       if (emptyProjectId) await api.del(`/projects/${emptyProjectId}`).catch(() => {});
       rmSync(projectDir, { recursive: true, force: true });
       rmSync(tasksRoot, { recursive: true, force: true });
+      rmSync(workspace, { recursive: true, force: true });
     }
   };
 }
