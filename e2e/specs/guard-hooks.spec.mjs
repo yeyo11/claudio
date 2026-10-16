@@ -5,18 +5,15 @@
 // a chat token refused on PUT /settings/guards, the guard made unavailable, and the phone.
 //
 // guard.spec.mjs is the unsaved-changes guard; this file is about the guards of agents.
-import { chmodSync, existsSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { chmodSync, statSync } from 'node:fs';
 
 export const fakeCli = true;
 export const timeout = 300_000;
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-/** The bundle the server runs the guard from (`pnpm build`); scenario 6 makes it untrustworthy for a while */
-const GUARD_BUNDLE = join(root, 'apps/api/dist/guard.mjs');
 
 export default async ({ page, api, check, dirs }) => {
+  /** The bundle run.mjs arms the server's guards with; scenario 6 makes it untrustworthy for a while */
+  const GUARD_BUNDLE = dirs.guardEntry;
   const settled = (state) => state !== 'running' && state !== 'starting';
   const untilChat = async (id, label) => {
     for (let i = 0; i < 120; i++) {
@@ -46,6 +43,8 @@ export default async ({ page, api, check, dirs }) => {
     const base = await api.put('/settings/guards', { mode: 'enforce', automated: true, rules: { 'no-verify': true, push: true, destructive: true, secrets: true, 'protect-configs': false } });
     check(base.status === 200, `the guard settings were set (${base.status})`);
     await page.viewport(1440, 900);
+    // localStorage belongs to the app's origin: a spec that runs first starts on about:blank, which has none
+    await page.goto('/', 800);
     await theme('dark');
 
     // ===== a project that opted in to guards in its chats =====
@@ -74,6 +73,9 @@ export default async ({ page, api, check, dirs }) => {
     const passChat = await startChat('run: ls', project.path);
     await untilChat(passChat, 'scenario 2');
     await page.goto(`/chats/${passChat}`, 1500);
+    // A finished step folds its calls away unless the guard blocked one, so the step being folded is itself what a pass looks like
+    await page.waitFor(`return document.querySelector('.transcript .msg-step .collapsible-trigger')?.dataset.state === 'closed'`, { label: 'the ls step, folded', timeout: 30_000 });
+    await page.click('.transcript .msg-step .collapsible-trigger');
     await page.waitFor(`return !!document.querySelector('.transcript .call-row')`, { label: 'the ls call row', timeout: 30_000 });
     check(!(await page.eval(`return !!document.querySelector('.transcript .notice.is-guard')`)), 'a passing command draws no guard strip');
 
@@ -96,8 +98,11 @@ export default async ({ page, api, check, dirs }) => {
     }
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
     await page.waitFor(`return [...document.querySelectorAll('.chip.guard')].some((c) => c.textContent.includes('1 blocked'))`, { label: 'the "1 blocked" chip on the task card', timeout: 30_000 });
+    // The chat drops `?guard=1` as soon as it has read it, so the link is checked on the chip and the landing by its path
+    const chipHref = await page.eval(`return [...document.querySelectorAll('a.chip.guard')].find((c) => c.textContent.includes('1 blocked'))?.getAttribute('href') ?? ''`);
+    check(/^\/chats\/[^/?]+\?guard=1$/.test(chipHref), `the chip links to its chat at the first guard notice (${chipHref})`);
     await page.click('a.chip.guard', '1 blocked', 1500);
-    await page.waitFor(`return location.pathname.startsWith('/chats/') && location.search.includes('guard=1')`, { label: 'the chat opened from the chip' });
+    await page.waitFor(`return location.pathname === ${JSON.stringify(chipHref.split('?')[0])}`, { label: 'the chat opened from the chip' });
     await page.waitFor(`return !!document.querySelector('.transcript .notice.is-guard')`, { label: 'the notice at the end of the chip', timeout: 30_000 });
     check(true, 'the chip opens the chat at the guard notice');
 
@@ -133,7 +138,7 @@ export default async ({ page, api, check, dirs }) => {
     // ===== 6. the guard made unavailable: a launched task fails, Settings shows bad =====
     // run.mjs cannot restart the server with another CLAUDIO_GUARD_ENTRY for one spec, so the bundle the
     // server uses is made writable by everyone for a while, which preflight refuses as well as a missing file
-    if (existsSync(GUARD_BUNDLE)) {
+    {
       bundleMode = statSync(GUARD_BUNDLE).mode & 0o777;
       chmodSync(GUARD_BUNDLE, 0o666);
       await page.goto('/settings?tab=security', 1500);
@@ -144,7 +149,7 @@ export default async ({ page, api, check, dirs }) => {
       check(/guard/i.test(failed), `a launch with guards unavailable says so (${failed.slice(0, 200)})`);
       chmodSync(GUARD_BUNDLE, bundleMode);
       bundleMode = null;
-    } else check(true, `no ${GUARD_BUNDLE}: the server runs from source, scenario 6 needs the built bundle`);
+    }
 
     // ===== 7. the phone: the card and the rules Sheet, 44 px targets, both themes =====
     await page.viewport(390, 844);
@@ -153,7 +158,8 @@ export default async ({ page, api, check, dirs }) => {
       await page.goto('/settings?tab=security', 1500);
       await page.waitFor(`return !!document.querySelector('#guards [data-rule]')`, { label: `[${name}] the card` });
       const card = await page.eval(`
-        const small = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && Math.min(r.width, r.height) < 44 && r.height < 44; };
+        // A switch is tapped through its label, which flips it as well: the label is the target measured, as in the rules Sheet below
+        const small = (el) => { const r = (el.getAttribute('role') === 'switch' ? el.closest('label') ?? el : el).getBoundingClientRect(); return r.width > 0 && Math.min(r.width, r.height) < 44 && r.height < 44; };
         const targets = [...document.querySelectorAll('#guards button, #guards [role=switch], #guards a')].filter((el) => el.getBoundingClientRect().width > 0);
         return {
           small: targets.filter(small).map((el) => el.textContent.trim().slice(0, 20) || el.getAttribute('aria-label') || el.tagName),
@@ -162,7 +168,11 @@ export default async ({ page, api, check, dirs }) => {
         };`);
       check(card.small.length === 0 && card.fields === 0 && !card.overflow, `[${name}] the card has 44 px targets, 16 px fields and no sideways scroll (${JSON.stringify(card)})`);
     }
-    await page.goto('/orchestration', 1500);
+    // The launch form opens on `?new`; the Guards row is among the Advanced options of a graph written by hand, which a phone starts folded
+    await page.goto('/orchestration?new=1', 1500);
+    await page.click('[role=radio]', 'Manual', 400);
+    await page.waitFor(`return !!document.querySelector('.orch-advanced > .collapsible-trigger')`, { label: 'the Advanced fold of the launch form', timeout: 10_000 }).catch(() => {});
+    if (await page.eval(`return document.querySelector('.orch-advanced > .collapsible-trigger')?.dataset.state === 'closed'`)) await page.click('.orch-advanced > .collapsible-trigger', undefined, 600);
     const hasRow = await page
       .waitFor(`return [...document.querySelectorAll('.guard-row .btn')].some((b) => b.textContent.trim() === 'Rules')`, { label: 'the Rules button of the launch form', timeout: 10_000 })
       .then(() => true, () => false);

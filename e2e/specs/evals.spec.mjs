@@ -65,7 +65,8 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     // ---- the empty list offers the first eval ----
     await page.viewport(1440, 900);
     await page.goto(base(), 1200);
-    await page.waitFor(`return !!document.querySelector('.evals-page, .evals-none, .empty')`, { label: 'the evals section' });
+    // `.evals-page` is drawn around the skeleton too: wait for what the list resolved to
+    await page.waitFor(`return !!document.querySelector('.evals-page .state-empty, .evals-list, .evals-none, .evals-page [role=alert]')`, { label: 'the evals section' });
     check((await page.text('main')).includes('No evals yet'), 'an empty list says so');
 
     // ---- create one in the editor: title, file name and the first case ----
@@ -94,15 +95,20 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     // ---- start: consent, the estimate, then the run ----
     await page.click('button', 'Run eval');
     await page.waitFor(`return !!document.querySelector('.evals-start')`, { label: 'the start dialog' });
-    await page.waitFor(`return !!document.querySelector('.evals-estimate, .evals-consent, .alert-bad')`, { label: 'the estimate' });
-    const estimate = await page.eval(`return document.querySelector('.evals-start').innerText`);
-    check(/attempt/.test(estimate), `the dialog states the attempts and the ceiling (${estimate.slice(0, 80)})`);
     check(await page.eval(`return !![...document.querySelectorAll('.evals-start .evals-start-check')].length`), 'variants and cases are ticked in the dialog');
     // Propose a text: the current and the proposed variants run side by side
     await page.eval(`const box = [...document.querySelectorAll('.evals-start .evals-start-check')].find((c) => c.textContent.includes('Proposed text')); const input = box?.querySelector('input,[role=checkbox]'); if (input) input.click(); return true`);
     const proposed = await page.eval(`return !!document.querySelector('.evals-start textarea')`);
     if (proposed) await page.fill('.evals-start textarea', '# Developer\n\nRead the code before you answer.\n');
-    await page.eval(`const box = [...document.querySelectorAll('.evals-start .evals-start-check')].find((c) => c.textContent.includes('Pinned')); const input = box?.querySelector('input,[role=checkbox]'); if (input && (input.checked || input.getAttribute('aria-checked') === 'true')) input.click(); return true`);
+    // The team was set up after the pinned commit, so the agent is absent at the pin and the plan
+    // refuses that variant (target-missing): leave it out before reading the estimate
+    const pinned = await page.eval(`const box = [...document.querySelectorAll('.evals-start .evals-start-check')].find((c) => c.textContent.includes('Committed at the pin')); const input = box?.querySelector('input,[role=checkbox]'); if (!input) return false; if (input.checked || input.getAttribute('aria-checked') === 'true') input.click(); return true`);
+    check(pinned, 'the dialog offers the variant committed at the pin');
+    // The estimate follows the form after a pause: the run button is enabled only on a fresh one (or
+    // the consent asks first, which needs a fresh one too)
+    await page.waitFor(`const b = document.querySelector('.evals-start-foot .btn-primary'); return !!document.querySelector('.evals-start .evals-estimate-line') && (!!document.querySelector('.evals-consent') || (b && !b.disabled))`, { label: 'the estimate' });
+    const estimate = await page.eval(`return [...document.querySelectorAll('.evals-start .evals-estimate, .evals-start [role=alert]')].map((e) => e.innerText).join(' | ')`);
+    check(/attempt/.test(estimate) && /up to/.test(estimate), `the dialog states the attempts and the ceiling (${estimate.slice(0, 300)})`);
     const consent = await page.eval(`return !!document.querySelector('.evals-consent')`);
     if (consent) await page.eval(`const box = document.querySelector('.evals-consent .evals-start-check, .evals-start-check input[type=checkbox]'); (box?.querySelector('input,[role=checkbox]') ?? box)?.click(); return true`);
     await page.waitFor(`const b = [...document.querySelectorAll('.evals-start-foot .btn-primary')][0]; return b && !b.disabled`, { label: 'the primary button is enabled' });
@@ -128,10 +134,11 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     // ---- one sample: its calls and the checks with their evidence ----
     await page.click('.evals-attempt');
     await page.waitFor(`return !!document.querySelector('.evals-sample')`, { label: 'the sample' });
-    const sample = await page.eval(`return document.querySelector('.evals-sample').innerText`);
+    // textContent: the section labels are drawn in capitals, which innerText would hand back
+    const sample = await page.eval(`return document.querySelector('.evals-sample').textContent`);
     check(/Calls/.test(sample) && /Checks/.test(sample) && /Final answer/.test(sample), 'the sample shows calls, checks and the final answer');
-    check(await page.eval(`return !!document.querySelector('.evals-call')`), 'the calls are listed');
-    check(await page.eval(`return !!document.querySelector('.evals-check')`), 'the checks are listed');
+    check(await page.eval(`return !!document.querySelector('.evals-sample .evals-call-row')`), 'the calls are listed');
+    check(await page.eval(`return !!document.querySelector('.evals-sample .evals-check')`), 'the checks are listed');
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('.evals-sample')`, { label: 'the sample to close' });
 

@@ -13,7 +13,7 @@ import { RawBody, ToolBody } from '@claudio/chat-ui/components/ToolBody';
 import { EntryView } from '@claudio/chat-ui/components/Transcript';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
-import i18n from '../src/i18n';
+import { setLanguage } from '../src/i18n';
 
 // An opened tool call reads as what happened, not as its JSON (docs/plans/tool-rows-and-live-branches.md
 // §3.2): labelled zones per tool, the raw JSON only behind "Raw", and a failed row still says so.
@@ -27,7 +27,8 @@ const config = {
 } as unknown as ChatUiConfig;
 
 function render(node: ReactNode, lang: 'en' | 'es' = 'en'): string {
-  void i18n.changeLanguage(lang);
+  // setLanguage, not i18n.changeLanguage: Intl follows the stored language, which otherwise stays the machine's
+  setLanguage(lang);
   return renderToStaticMarkup(
     <MemoryRouter>
       <ChatUiProvider value={config}>
@@ -58,7 +59,7 @@ test('a Bash body shows its command as shell code, its stdout as a terminal and 
   assert.match(html, /<pre class="call-term">v22.21.1<\/pre>/);
   assert.match(html, /<pre class="call-stderr">no matches found<\/pre>/);
   assert.match(html, /interrupted/);
-  assert.match(html, /timeout 2 min/);
+  assert.match(html, /timeout 2m</);
   assert.doesNotMatch(html, JSON_OPEN);
   assert.match(html, /class="btn btn-ghost btn-small call-raw"[^>]*>Raw</);
 });

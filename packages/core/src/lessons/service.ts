@@ -15,6 +15,7 @@ import { PERSON, WorkItemError } from '../work-item-validation.ts';
 import { alsoInProjects, matchCandidate } from './match.ts';
 import { renderSection, type LessonSection } from './render.ts';
 import { DEFAULT_LESSON_SETTINGS } from './settings.ts';
+import type { LessonProposer } from './queue.ts';
 import type { EvidenceInput, LessonStore } from './store.ts';
 import { checkLessonText, type Candidate } from './validate.ts';
 
@@ -63,6 +64,9 @@ export interface MiningContext {
   /** The evidence of each signal the miner was shown, by the id it saw */
   evidence: ReadonlyMap<string, EvidenceInput>;
 }
+
+/** What one candidate became */
+type Decided = { kind: 'proposed' | 'merged' | 'appended' | 'none' } | { kind: 'dropped'; reason: string };
 
 export interface MiningResult {
   /** New proposals written, including the ones that bring a retired lesson back */
@@ -170,80 +174,91 @@ export class LessonService implements LessonApprovals {
    */
   createFromCandidates(candidates: readonly Candidate[], ctx: MiningContext): MiningResult {
     const result: MiningResult = { proposed: 0, merged: 0, appended: 0, dropped: {} };
-    const drop = (reason: string): void => void (result.dropped[reason] = (result.dropped[reason] ?? 0) + 1);
-    const { store, proposals } = this.deps;
-    const source: WorkItemSource | null = ctx.chatId ? { kind: 'chat', chatId: ctx.chatId, orchestrationId: null, taskId: null } : null;
     for (const candidate of candidates) {
       const evidence = candidate.signals.flatMap((id) => {
         const found = ctx.evidence.get(id);
         return found ? [found] : [];
       });
-      if (evidence.length === 0) {
-        drop('no-signal');
-        continue;
-      }
-      // Listed again each time: an earlier candidate of this run may have changed what is there
-      const known = [...store.list({ projectId: ctx.projectId }), ...store.list({ projectId: null })];
-      const match = matchCandidate(candidate, known);
-      const found = match.lesson;
-      const why = `From corrections in chat «${ctx.chatTitle ?? ctx.chatId ?? 'unknown'}»: ${[...new Set(evidence.map((e) => e.signal))].join(', ')}`;
-      switch (match.kind) {
-        case 'merge':
-          if (!found) break;
-          store.seen(found.id, evidence);
-          this.emit('merged', found);
-          result.merged += 1;
-          break;
-        case 'append':
-          if (!found) break;
-          store.appendEvidence(found.id, evidence);
-          result.appended += 1;
-          break;
-        case 'duplicate-rejected':
-          drop('duplicate-rejected');
-          break;
-        case 'revive': {
-          // A lesson that went to its global copy has nothing to bring back
-          if (!found || found.status === 'superseded') break;
-          store.appendEvidence(found.id, evidence);
-          const waiting = found.proposalId ? proposals.find(found.proposalId) : null;
-          if (waiting?.status === 'pending') {
-            result.appended += 1;
-            break;
-          }
-          const proposal = proposals.proposeLesson(ctx.projectId, found.id, lessonLine(found.trigger, found.action), `${why}. Brings back ${found.key}.`, source);
-          store.setProposal(found.id, proposal.id);
-          this.emit('proposed', found);
-          result.proposed += 1;
-          break;
-        }
-        default: {
-          const lesson = store.insert({
-            projectId: ctx.projectId,
-            trigger: candidate.trigger,
-            action: candidate.action,
-            confidence: candidate.confidence,
-            mechanical: candidate.mechanical,
-            conflictsWithInstructions: candidate.instructions === 'contradicts',
-            contradicts: match.kind === 'contradicts' && found ? found.id : null,
-            proposedBy: { kind: 'system', role: null },
-            evidence,
-          });
-          const note = match.kind === 'similar' && found ? ` Similar to ${found.key}.` : match.kind === 'contradicts' && found ? ` Contradicts ${found.key}.` : '';
-          try {
-            const proposal = proposals.proposeLesson(ctx.projectId, lesson.id, lessonLine(lesson.trigger, lesson.action), `${why}.${note}`, source);
-            store.setProposal(lesson.id, proposal.id);
-          } catch (err) {
-            // A lesson nobody can decide would wait for ever
-            store.discard(lesson.id);
-            throw err;
-          }
-          this.emit('proposed', lesson);
-          result.proposed += 1;
-        }
-      }
+      const outcome = this.decide(candidate, evidence, ctx);
+      if (outcome.kind === 'dropped') result.dropped[outcome.reason] = (result.dropped[outcome.reason] ?? 0) + 1;
+      else if (outcome.kind !== 'none') result[outcome.kind] += 1;
     }
     return result;
+  }
+
+  /**
+   * The mining queue's side: each candidate it checked goes through `decide`, so what the miner finds
+   * becomes a `lesson` memory proposal the person approves, never a lesson nobody is asked about.
+   */
+  proposer(): LessonProposer {
+    return {
+      propose: ({ projectId, candidate, evidence }) => {
+        const chatId = evidence.find((e) => e.chatId)?.chatId ?? null;
+        const chatTitle = chatId ? (this.deps.chatTitle?.(chatId) ?? null) : null;
+        const outcome = this.decide(candidate, evidence, { projectId, chatId, chatTitle });
+        return outcome.kind === 'proposed' ? 'proposed' : outcome.kind === 'dropped' ? { dropped: outcome.reason } : 'merged';
+      },
+    };
+  }
+
+  /** One checked candidate and its evidence against the lessons the project has now */
+  private decide(candidate: Candidate, evidence: readonly EvidenceInput[], ctx: Omit<MiningContext, 'evidence'>): Decided {
+    const { store, proposals } = this.deps;
+    if (evidence.length === 0) return { kind: 'dropped', reason: 'no-signal' };
+    const source: WorkItemSource | null = ctx.chatId ? { kind: 'chat', chatId: ctx.chatId, orchestrationId: null, taskId: null } : null;
+    // Listed again each time: an earlier candidate of this run may have changed what is there
+    const known = [...store.list({ projectId: ctx.projectId }), ...store.list({ projectId: null })];
+    const match = matchCandidate(candidate, known);
+    const found = match.lesson;
+    const why = `From corrections in chat «${ctx.chatTitle ?? ctx.chatId ?? 'unknown'}»: ${[...new Set(evidence.map((e) => e.signal))].join(', ')}`;
+    switch (match.kind) {
+      case 'merge':
+        if (!found) return { kind: 'none' };
+        store.seen(found.id, [...evidence]);
+        this.emit('merged', found);
+        return { kind: 'merged' };
+      case 'append':
+        if (!found) return { kind: 'none' };
+        store.appendEvidence(found.id, [...evidence]);
+        return { kind: 'appended' };
+      case 'duplicate-rejected':
+        return { kind: 'dropped', reason: 'duplicate-rejected' };
+      case 'revive': {
+        // A lesson that went to its global copy has nothing to bring back
+        if (!found || found.status === 'superseded') return { kind: 'none' };
+        store.appendEvidence(found.id, [...evidence]);
+        const waiting = found.proposalId ? proposals.find(found.proposalId) : null;
+        if (waiting?.status === 'pending') return { kind: 'appended' };
+        const proposal = proposals.proposeLesson(ctx.projectId, found.id, lessonLine(found.trigger, found.action), `${why}. Brings back ${found.key}.`, source);
+        store.setProposal(found.id, proposal.id);
+        this.emit('proposed', found);
+        return { kind: 'proposed' };
+      }
+      default: {
+        const lesson = store.insert({
+          projectId: ctx.projectId,
+          trigger: candidate.trigger,
+          action: candidate.action,
+          confidence: candidate.confidence,
+          mechanical: candidate.mechanical,
+          conflictsWithInstructions: candidate.instructions === 'contradicts',
+          contradicts: match.kind === 'contradicts' && found ? found.id : null,
+          proposedBy: { kind: 'system', role: null },
+          evidence: [...evidence],
+        });
+        const note = match.kind === 'similar' && found ? ` Similar to ${found.key}.` : match.kind === 'contradicts' && found ? ` Contradicts ${found.key}.` : '';
+        try {
+          const proposal = proposals.proposeLesson(ctx.projectId, lesson.id, lessonLine(lesson.trigger, lesson.action), `${why}.${note}`, source);
+          store.setProposal(lesson.id, proposal.id);
+        } catch (err) {
+          // A lesson nobody can decide would wait for ever
+          store.discard(lesson.id);
+          throw err;
+        }
+        this.emit('proposed', lesson);
+        return { kind: 'proposed' };
+      }
+    }
   }
 
   // ---------- approval (called by MemoryProposalService) ----------

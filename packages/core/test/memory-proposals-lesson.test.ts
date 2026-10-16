@@ -523,3 +523,23 @@ test('export lists every status of the project and none of another', async () =>
     s.db.close();
   }
 });
+
+test('what the mining queue finds waits as a lesson proposal the person approves, and a repeat only confirms it', () => {
+  const s = setup();
+  try {
+    const proposer = s.lessons.proposer();
+    const request = { projectId: 'p1', jobId: 'j1', candidate: candidate(), match: { kind: 'new' as const, lesson: null, sim: 0 }, evidence: [evidence()] };
+    assert.equal(proposer.propose(request), 'proposed');
+    const pending = s.proposals.list('p1').filter((p) => p.status === 'pending');
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0]?.target.kind, 'lesson');
+    assert.match(pending[0]?.reason ?? '', /Fix the cart/);
+    assert.equal(s.store.list({ projectId: 'p1' })[0]?.proposalId, pending[0]?.id);
+
+    assert.equal(proposer.propose({ ...request, evidence: [evidence(2)] }), 'merged');
+    assert.equal(s.proposals.list('p1').filter((p) => p.status === 'pending').length, 1);
+    assert.deepEqual(proposer.propose({ ...request, evidence: [] }), { dropped: 'no-signal' });
+  } finally {
+    s.db.close();
+  }
+});

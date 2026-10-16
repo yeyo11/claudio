@@ -105,7 +105,7 @@ export default async ({ page, api, check, dirs }) => {
       if (task?.status === 'done' || task?.status === 'completed' || task?.status === 'failed') break;
       await sleep(400);
     }
-    check(task && task.status !== 'failed', `the task did not fail on the expired account (${task?.status})`);
+    check(task && task.status !== 'failed', `the task did not fail on the expired account (${task?.status}: ${JSON.stringify(task).slice(0, 1500)})`);
   } finally {
     for (const id of chats) {
       await api.post(`/chats/${id}/stop`).catch(() => {});

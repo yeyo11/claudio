@@ -1,7 +1,7 @@
 // The Memory tab of a project (decisions 32 and 33 of docs/plans/project-ecosystem.md): proposals
 // approved as they are, edited then approved, or discarded, one by one, each written where it says
 // only once approved; the project journal with an entry added by hand; the CLI's own memory opening
-// in the editor; the tab's idle count; and the phone's three tabs with 44 px targets.
+// in the editor; the tab's idle count; and the phone's four tabs with 44 px targets.
 import { seedEcosystem, seedProject } from './memory-seed.mjs';
 
 export const timeout = 180_000;
@@ -38,8 +38,11 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.text('.memory-proposal')).includes('CLAUDE.md'), 'the oldest proposal says where it will be written');
     check(await page.eval(`return !!document.querySelector('.memory-proposal .role-avatar[aria-label="Architect"]')`), 'who proposed it is its role');
 
-    // Approve as it is: written to CLAUDE.md, under its section
+    // Approve as it is: CLAUDE.md is only written after its diff was seen (plans/lessons.md O3), so
+    // Approve opens the diff first and the dialog's Approve, enabled once the diff is drawn, writes it
     await page.click('.memory-proposal .memory-approve', 'Approve', 800);
+    await page.waitFor(`return document.querySelector('.instr-diff-view')?.textContent.includes('MIGRATIONS') && document.querySelector('.instr-diff-foot .memory-approve')?.disabled === false`, { label: 'the diff of CLAUDE.md is shown before writing it' });
+    await page.click('.instr-diff-foot .memory-approve', undefined, 800);
     await until(async () => (await proposal('MIGRATIONS'))?.status === 'approved', 'the first proposal was approved');
     const claudeMd = (await api.get(`/config/instructions?project=${projectId}&variant=shared`)).body;
     check(claudeMd.content.includes('MIGRATIONS'), 'the approved text is in CLAUDE.md');
@@ -82,10 +85,10 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.memory-editor-back', undefined, 800);
     await page.waitFor(`return !!document.querySelector('.memory-grid')`, { label: 'back to the tab' });
 
-    // ---- a phone: three tabs of one screen ----
+    // ---- a phone: four tabs of one screen (Lessons joined them, plans/lessons.md) ----
     await page.viewport(390, 844);
     await page.goto(`/?project=${projectId}&view=memory`, 1500);
-    await page.waitFor(`return document.querySelectorAll('.memory-phone [role=radio]').length === 3`, { label: 'three tabs' });
+    await page.waitFor(`return document.querySelectorAll('.memory-phone [role=radio]').length === 4`, { label: 'four tabs' });
     const small = await page.eval(
       `return [...document.querySelectorAll('.memory-phone [role=radio], .memory-phone .btn')].filter((el) => el.offsetParent && el.getBoundingClientRect().height < 44).map((el) => el.textContent.trim())`,
     );

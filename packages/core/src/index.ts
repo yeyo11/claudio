@@ -74,7 +74,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -190,7 +190,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
-import { LessonMiningQueue, storeProposer } from './lessons/queue.ts';
+import { LessonMiningQueue } from './lessons/queue.ts';
 import { runMiner } from './lessons/miner.ts';
 import { DEFAULT_LESSON_SETTINGS, LessonSettingsStore } from './lessons/settings.ts';
 import { SignalRecorder } from './lessons/signals.ts';
@@ -999,7 +999,8 @@ export class Core {
       db: this.db,
       settings: currentLessonSettings,
       store: lessonStore,
-      proposer: storeProposer(lessonStore),
+      // The service is made below, and the queue proposes only once it runs a job, after start-up
+      proposer: { propose: (request) => this.lessons.proposer().propose(request) },
       decisions: this.decisions,
       chat: async (chatId) => {
         const chat = await this.chats.get(chatId);
@@ -1318,6 +1319,9 @@ export class Core {
       this.providers.confirm(provider, confirmation);
     });
     this.runtime.on('chat-structured', (chatId: string, raw: string) => this.assistant.chatStructured(chatId, raw));
+    // Every verdict the guard gives a chat is a row of the audit trail (docs/plans/guards.md, D10):
+    // Settings' Recent blocks and the "N blocked" chips of tasks and flow runs read nothing else
+    this.runtime.on('chat-guard', (chatId: string, guard: RunGuardEvent) => this.recordGuard(chatId, guard));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
@@ -1592,6 +1596,32 @@ export class Core {
       lessons: this.lessons.list(projectId, status),
       handed: { lessons: section.lessons.length, bytes: section.bytes, budget: this.lessons.delivery().handoffBytes, overBudget: section.overBudget },
     };
+  }
+
+  /** One guard verdict on a chat, stored with what the chat works for; a replayed stream stores nothing twice. */
+  private recordGuard(chatId: string, guard: RunGuardEvent): void {
+    try {
+      const chat = this.runtime.get(chatId);
+      const task = this.orchestrator.taskContext(chatId);
+      const run = this.flow.workOf(chatId);
+      this.guardEvents.insert({
+        chatId,
+        projectId: chat ? this.projectOf(resolve(chat.workingDir || chat.cwd)).project?.id ?? null : null,
+        orchestrationId: task?.orchestrationId ?? null,
+        taskId: task?.taskId ?? null,
+        flowRunId: run?.subjectId ?? null,
+        toolUseId: guard.toolUseId,
+        toolName: guard.toolName,
+        rule: guard.rule,
+        matcher: guard.matcher,
+        outcome: guard.outcome,
+        reason: guard.reason,
+        excerpt: guard.excerpt,
+      });
+    } catch (err) {
+      // Heard from the chat's stream: a closed database (shutting down) must not become the chat's error
+      console.warn(`guard: the verdict on ${chatId} was not recorded: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
