@@ -656,6 +656,10 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
+| GET | `/settings/guards` | Guard settings (`mode`, `automated`, `rules`, `protectConfigs`, `extraRoots`), whether the guard can run here and why not, and the rule list. A chat's token may read it |
+| PUT | `/settings/guards` | Only the keys that change; `rules` merges over the stored ones. `integrity` cannot be switched. Applies to the next process spawned. `400` for an unknown key, a non-boolean, a bad mode, more than 200 globs, an absolute glob or one with `..`, or an `extraRoots` entry that is not an existing absolute directory (not `/`, the home folder or the data dir). `403` for a chat's token |
+| GET | `/guard-events?chatId=&orchestrationId=&flowRunId=&projectId=&rule=&outcome=&before=&limit=` | What the guards did, newest first, with `next` as the `before` cursor of the following page. `limit` is 1–200 (default 50). A chat's token reads only its own `chatId`, else `403` |
+| POST | `/guards/check` | `{ tool, input, rules?, roots? }` → `{ verdict, rule?, matcher?, reason? }` through the decision engine, nothing run or recorded. `403` for a chat's token |
 | GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). `limit` and `from` must be non-negative integers, or the answer is a `400` saying so. Bodies are never recorded |
 
 ### Remote access

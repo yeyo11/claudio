@@ -219,6 +219,9 @@ const CHAT_FORBIDDEN = new Set([
   `GET ${API_PREFIX}/trackers/youtrack/credentials`,
   `PUT ${API_PREFIX}/trackers/youtrack/credentials`,
   `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
+  // Only a person weakens or probes a guard: an agent that could switch its own off, or ask what it blocks, would have none
+  `PUT ${API_PREFIX}/settings/guards`,
+  `POST ${API_PREFIX}/guards/check`,
 ]);
 
 /**
