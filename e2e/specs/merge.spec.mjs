@@ -94,6 +94,15 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const glBare = join(dirs.workspaceDir, 'e2e-merge-gl-origin.git');
   const projects = [];
   const chats = [];
+  // A live chat refuses DELETE (409): stopped first, or its idle process outlives the spec and counts
+  // against the run limit of every spec after it in the shard
+  const endChat = async (id) => {
+    await api.post(`/chats/${id}/stop`).catch(() => {});
+    for (let i = 0; i < 40; i++) {
+      if ((await api.del(`/chats/${id}`).catch(() => ({ status: 0 }))).status === 200) return;
+      await page.sleep(250);
+    }
+  };
   let orchestrationId = null;
 
   // What the fake host answers. The repository's settings are read once a minute, so the ones that
@@ -353,7 +362,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await press('.mg .mb-note', 'Update from main');
       const toast = await page.waitFor(`const t = [...document.querySelectorAll('.toast')].find((e) => /Nothing was updated/.test(e.innerText)); return t ? t.innerText : null`, { timeout: 30_000, label: 'the toast of the refused update' });
       check(/working in this branch/.test(toast) && !/conflict/i.test(toast), `Update from base refused while busy says busy, not conflicts (${toast})`);
-      if (started.body?.chat?.id) await api.del(`/chats/${started.body.chat.id}`).catch(() => {});
+      if (started.body?.chat?.id) await endChat(started.body.chat.id);
     }
 
     // Not required checks that failed: it can merge, with a warning
@@ -731,7 +740,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     for (const file of ['gh.json', 'glab.json', 'gh.merged', 'glab.merged', 'gh.armed', 'glab.armed', 'gh.checks', 'glab.rebased', 'gh.created', 'gh.next', 'gh.merge-body']) rmSync(join(stateDir, file), { force: true });
     await api.post('/hosts/refresh').catch(() => {});
     if (orchestrationId) await api.del(`/orchestrations/${orchestrationId}`).catch(() => {});
-    for (const id of chats) await api.del(`/chats/${id}`).catch(() => {});
+    for (const id of chats) await endChat(id);
     for (const id of projects) await api.del(`/projects/${id}`).catch(() => {});
     for (const dir of [ghBare, glBare]) rmSync(dir, { recursive: true, force: true });
   }
