@@ -28,7 +28,7 @@ const writing = (over: Partial<AssistantRunDetail> = {}): AssistantRunDetail => 
   template: 'software',
   sources: [],
   findings: [],
-  counts: { 'team-member': zero, resource: zero, 'work-item': zero },
+  counts: { 'team-member': zero, resource: zero, 'work-item': zero, 'eval-case': zero },
   costUsd: 0.01,
   durationMs: null,
   error: null,

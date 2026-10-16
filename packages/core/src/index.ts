@@ -152,6 +152,7 @@ import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { agentsDefinitionFile } from './agents-file.ts';
 import { EvalConsents, EvalDefinitionStore } from './evals/definition.ts';
+import { EvalJudge } from './evals/judge.ts';
 import { EvalRunner } from './evals/runner.ts';
 import { EvalService } from './evals/service.ts';
 import { EvalStore } from './evals/store.ts';
@@ -1217,6 +1218,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
       projectPath: evalProjectPath,
       maxConcurrentRuns: () => this.runtime.defaults.maxConcurrentRuns,
+      judgeFor: (maxCostUsd) => new EvalJudge({ runtime: this.runtime, maxCostUsd }),
       memberRun: (projectId, agent, stage) => {
         const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
         const member = settings?.team?.members.find((m) => m.agent === agent);

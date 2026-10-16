@@ -9,6 +9,10 @@ import {
   type EvalCheck,
   type EvalDefinition,
   type EvalEstimate,
+  type EvalGate,
+  type EvalJudgedExpectation,
+  type EvalJudgement,
+  type EvalPressure,
   type EvalRunOutcome,
   type EvalRunRequest,
   type EvalRunSummary,
@@ -44,6 +48,9 @@ import {
   runDirName,
   startLaneSweep,
 } from './lanes.js';
+import { computeGate, gateApplies } from './gate.js';
+import type { JudgeCalibration, JudgeCall } from './judge.js';
+import { foldCalls } from './judge.js';
 import { evaluateExpectations } from './matchers.js';
 import { sampleEndCheck, sampleOutcomeOf } from './score.js';
 import type { EvalStore } from './store.js';
@@ -105,6 +112,12 @@ export class EvalStartError extends Error {
   }
 }
 
+/** The part of the judge the runner drives; `EvalJudge` is one, the tests hand it a script. */
+export interface JudgeLike {
+  judge(expectation: Pick<EvalJudgedExpectation, 'statement' | 'model'>, input: { calls: JudgeCall[]; final: string | null }, idx: number, signal?: AbortSignal): Promise<EvalJudgement>;
+  calibrate(expectation: Pick<EvalJudgedExpectation, 'statement' | 'model' | 'examples'>, signal?: AbortSignal): Promise<JudgeCalibration>;
+}
+
 export interface EvalRunnerDeps {
   store: EvalStore;
   runtime: EvalRuntime;
@@ -124,6 +137,11 @@ export interface EvalRunnerDeps {
    * the earliest reset when it is known. Without it no run ever waits for a limit.
    */
   availability?: (model: string | null, account: string | null) => { waitUntil: number | null } | null;
+  /**
+   * A judge capped at `maxCostUsd` per judgement (Phase 2). Without it a judged expectation gets no
+   * verdict: its sample ends `unjudged`.
+   */
+  judgeFor?: (maxCostUsd: number) => JudgeLike;
   env?: NodeJS.ProcessEnv;
   now?: () => number;
   /** How long a refused sample waits before it tries again (3 s) */
@@ -172,13 +190,21 @@ export function worstCaseUsd(samples: number, capPerSample: number): number {
   return cents(samples * capPerSample * EVAL_LIMITS.costMargin);
 }
 
+/** What a sample may add on top of its own cap: one judge call per judged expectation of its case. */
+export function judgeExtraUsd(def: EvalDefinition, cases: readonly EvalDefinition['cases'][number][]): number {
+  const most = Math.max(0, ...cases.map((c) => c.expect.filter((e) => e.kind === 'judged').length));
+  return most * (def.limits?.maxJudgeCostUsd ?? EVAL_LIMITS.maxJudgeCostUsd.default);
+}
+
 /**
  * The ceiling a start shows and must repeat: the worst case of the samples it will queue, held to
  * the eval's own `maxCostUsd` (the dialog may lower that, never raise it).
  */
-export function ceilingUsd(def: EvalDefinition, request: Pick<EvalRunRequest, 'maxCostUsd'>, cases: number, variants: number, samplesPerCase: number): number {
+export function ceilingUsd(
+  def: EvalDefinition, request: Pick<EvalRunRequest, 'maxCostUsd'>, cases: number, variants: number, samplesPerCase: number, extraPerSample = 0,
+): number {
   const cap = def.limits?.maxCostUsdPerSample ?? EVAL_LIMITS.maxCostUsdPerSample.default;
-  const worst = worstCaseUsd(cases * variants * samplesPerCase, cap);
+  const worst = worstCaseUsd(cases * variants * samplesPerCase, cap + extraPerSample);
   const limit = request.maxCostUsd ?? def.limits?.maxCostUsd;
   return limit === undefined ? worst : cents(Math.min(worst, limit));
 }
@@ -213,6 +239,8 @@ interface Active {
   account: string | null;
   maxCostUsd: number;
   cap: number;
+  /** What one sample reserves: its cap and its judges' */
+  reservePerSample: number;
   concurrency: number;
   timeoutMs: number;
   plans: Map<EvalVariant, VariantPlan>;
@@ -230,6 +258,9 @@ interface Active {
   /** Why the abort fired: a person's cancel or the run's own end */
   stopAs: 'cancelled' | 'skipped';
   pinned: Map<string, string | null>;
+  judge: JudgeLike | null;
+  /** Calibration runs once, before the first sample */
+  calibrated: boolean;
 }
 
 function toolCallOf(call: SeenCall): EvalCall {
@@ -244,6 +275,26 @@ function toolCallOf(call: SeenCall): EvalCall {
     result: call.outcome === 'open' ? null : cutToBytes(maskSecrets(call.result), EVAL_LIMITS.callResultBytes),
     at: call.at ?? null,
   };
+}
+
+/** A scored sample passes when every check does; a judge that could not decide leaves it unjudged unless something else already failed it. */
+export function outcomeOf(checks: EvalCheck[]): 'passed' | 'failed' | 'unjudged' {
+  const failed = checks.some((c) => !c.passed && c.judgement?.status !== 'unjudged');
+  if (failed) return 'failed';
+  return checks.some((c) => c.judgement?.status === 'unjudged') ? 'unjudged' : sampleOutcomeOf(checks);
+}
+
+const maskCall = (c: JudgeCall): JudgeCall => ({ ...c, summary: maskSecrets(c.summary) });
+
+/** A stored call as the judge folds it; its input was stored as masked JSON text. */
+function storedCall(call: EvalCall): Pick<SeenCall, 'seq' | 'name' | 'scope' | 'outcome' | 'input'> {
+  let input: unknown = call.input;
+  try {
+    input = JSON.parse(call.input);
+  } catch {
+    /* cut at the byte limit: the text is what there is */
+  }
+  return { seq: call.seq, name: call.name, scope: call.scope, outcome: call.outcome, input: input as SeenCall['input'] };
 }
 
 /** Paths `git status` lists: modified, added, deleted, untracked (every file, not folders), renames by their new name. */
@@ -319,7 +370,11 @@ export class EvalRunner {
     const plans = await this.plansFor(def, repo, variants, request.proposed);
 
     const samplesPerCase = request.samples ?? def.samples ?? EVAL_LIMITS.samples.default;
-    const ceiling = ceilingUsd(def, request, cases.length, variants.length, samplesPerCase);
+    // A level a case has no prompt for is not run for it; `neutral` is every case's prompt
+    const levels = new Map(cases.map((c) => [c.id, (request.pressures ?? ['neutral']).filter((p) => p === 'neutral' || c.prompts?.[p] !== undefined)] as const));
+    const cells = [...levels.values()].reduce((sum, l) => sum + l.length, 0);
+    const extra = judgeExtraUsd(def, cases);
+    const ceiling = ceilingUsd(def, request, cells, variants.length, samplesPerCase, extra);
     const limit = def.limits?.maxCostUsd;
     if (request.maxCostUsd !== undefined && limit !== undefined && request.maxCostUsd > limit) {
       throw new EvalStartError('ceiling-raised', `the run's ceiling cannot be raised above the eval's ${limit} USD`);
@@ -336,11 +391,13 @@ export class EvalRunner {
     }
 
     const runId = randomUUID();
-    const queue: Array<{ id: string; caseId: string; variant: EvalVariant; attempt: number; seq: number; pin: string }> = [];
+    const queue: Array<{ id: string; caseId: string; variant: EvalVariant; pressure: EvalPressure; attempt: number; seq: number; pin: string }> = [];
     let seq = 0;
     for (const c of cases) {
-      for (let attempt = 1; attempt <= samplesPerCase; attempt++) {
-        for (const variant of variants) queue.push({ id: randomUUID(), caseId: c.id, variant, attempt, seq: ++seq, pin: c.pin ?? def.pin });
+      for (const pressure of levels.get(c.id) ?? []) {
+        for (let attempt = 1; attempt <= samplesPerCase; attempt++) {
+          for (const variant of variants) queue.push({ id: randomUUID(), caseId: c.id, variant, pressure, attempt, seq: ++seq, pin: c.pin ?? def.pin });
+        }
       }
     }
     try {
@@ -357,14 +414,14 @@ export class EvalRunner {
       if (err instanceof Error && 'code' in err && err.code === 'eval-running') throw new EvalStartError('eval-running', err.message);
       throw err;
     }
-    this.activate({ id: runId, projectId, repo, evalName, def, sha: input.sha, account: request.account ?? null, maxCostUsd: ceiling, plans });
+    this.activate({ id: runId, projectId, repo, evalName, def, sha: input.sha, account: request.account ?? null, maxCostUsd: ceiling, plans }, extra);
     const summary = deps.store.summary(runId);
     if (!summary) throw new Error('the run was not stored');
     return summary;
   }
 
   /** Registers a run in memory and starts pumping it: shared by a new run and a resumed one. */
-  private activate(a: Pick<Active, 'id' | 'projectId' | 'repo' | 'evalName' | 'def' | 'sha' | 'account' | 'maxCostUsd' | 'plans'>): void {
+  private activate(a: Pick<Active, 'id' | 'projectId' | 'repo' | 'evalName' | 'def' | 'sha' | 'account' | 'maxCostUsd' | 'plans'>, extra: number): void {
     const { deps } = this;
     const { def } = a;
     const run: Active = {
@@ -374,6 +431,9 @@ export class EvalRunner {
       timeoutMs: deps.timeoutMs ?? (def.limits?.timeoutMinutes ?? EVAL_LIMITS.timeoutMinutes.default) * 60_000,
       rel: this.relativeTarget(def, a.repo), abort: new AbortController(), free: [], lanes: 0, inflight: new Map(), infraStreak: 0,
       timer: null, pumping: false, again: false, ending: null, stopAs: 'skipped', pinned: new Map(),
+      reservePerSample: (def.limits?.maxCostUsdPerSample ?? EVAL_LIMITS.maxCostUsdPerSample.default) + extra,
+      judge: extra > 0 ? (deps.judgeFor?.(def.limits?.maxJudgeCostUsd ?? EVAL_LIMITS.maxJudgeCostUsd.default) ?? null) : null,
+      calibrated: false,
     };
     this.active.set(a.id, run);
     this.emitRun(a.id);
@@ -426,15 +486,24 @@ export class EvalRunner {
     if (def.target.scope === 'user') warnings.push('user-scope');
     if ([...pins].some((pin) => !head.startsWith(pin))) warnings.push('pin-behind-head');
 
+    const levels = cases.map((c) => (request.pressures ?? ['neutral']).filter((p) => p === 'neutral' || c.prompts?.[p] !== undefined));
+    const cells = levels.reduce((n, l) => n + l.length, 0);
+    const extra = judgeExtraUsd(def, cases);
+    const perLevel: Partial<Record<EvalPressure, { samples: number; ceilingUsd: number }>> = {};
+    for (const level of new Set(levels.flat())) {
+      const n = levels.filter((l) => l.includes(level)).length;
+      perLevel[level] = { samples: n * variants.length * samplesPerCase, ceilingUsd: ceilingUsd(def, request, n, variants.length, samplesPerCase, extra) };
+    }
     const commands = [...(def.setup ? [def.setup] : []), ...cases.flatMap((c) => c.expect.flatMap((e) => (e.kind === 'command' ? [e.run] : [])))];
     const written = deps.definitions?.wroteSha(join(repo, EVAL_DIR, `${evalName}.json`), input.sha) ?? true;
     const consentNeeded = (commands.length > 0 || !written) && !(await deps.consents.has(repo, evalName, input.sha));
     return {
-      samples: cases.length * variants.length * samplesPerCase,
-      ceilingUsd: ceilingUsd(def, request, cases.length, variants.length, samplesPerCase),
+      samples: cells * variants.length * samplesPerCase,
+      ceilingUsd: ceilingUsd(def, request, cells, variants.length, samplesPerCase, extra),
       typicalUsd: this.typicalUsd(projectId, evalName),
       commands: [...new Set(commands)],
       prompts: cases.map((c) => c.prompt),
+      perLevel,
       consentNeeded,
       warnings,
     };
@@ -492,7 +561,8 @@ export class EvalRunner {
     const pending = deps.store.samples(runId).filter((s) => s.state === 'ended' && (s.outcome === 'skipped' || s.outcome === 'interrupted')).length;
     const cap = def.limits?.maxCostUsdPerSample ?? EVAL_LIMITS.maxCostUsdPerSample.default;
     const limit = def.limits?.maxCostUsd;
-    const worst = cents(summary.costUsd + worstCaseUsd(pending, cap));
+    const extra = judgeExtraUsd(def, def.cases);
+    const worst = cents(summary.costUsd + worstCaseUsd(pending, cap + extra));
     const ceiling = limit === undefined ? worst : cents(Math.min(worst, limit));
     if (cents(confirmMaxCostUsd) !== ceiling) {
       throw new EvalStartError('cost-not-confirmed', `the resume must confirm the ceiling of ${ceiling} USD that was shown`, String(ceiling));
@@ -509,7 +579,7 @@ export class EvalRunner {
       if (err instanceof Error && 'code' in err && err.code === 'eval-running') throw new EvalStartError('eval-running', err.message);
       throw err;
     }
-    this.activate({ id: runId, projectId: summary.projectId, repo, evalName: summary.evalName, def, sha: summary.definitionSha, account: summary.account, maxCostUsd: ceiling, plans });
+    this.activate({ id: runId, projectId: summary.projectId, repo, evalName: summary.evalName, def, sha: summary.definitionSha, account: summary.account, maxCostUsd: ceiling, plans }, extra);
     const reopened = deps.store.summary(runId);
     if (!reopened) throw new Error('the run was not stored');
     return reopened;
@@ -578,6 +648,10 @@ export class EvalRunner {
     }
     run.pumping = true;
     try {
+      if (!run.calibrated) {
+        run.calibrated = true;
+        await this.calibrate(run);
+      }
       do {
         run.again = false;
         await this.fill(run);
@@ -608,7 +682,7 @@ export class EvalRunner {
       const summary = store.summary(run.id);
       if (!summary) return;
       const reserved = [...run.inflight.values()].reduce((sum, f) => sum + f.reserve, 0);
-      if (!fitsCeiling(run.maxCostUsd, summary.costUsd, reserved, run.cap)) {
+      if (!fitsCeiling(run.maxCostUsd, summary.costUsd, reserved, run.reservePerSample)) {
         // In-flight samples are reserved at their cap: what they really cost may make room
         if (run.inflight.size === 0) await this.finish(run, 'capped', 'cap');
         return;
@@ -620,7 +694,7 @@ export class EvalRunner {
         this.emitRun(run.id);
       }
       if (!store.claimSample(next, this.pid, run.concurrency, new Date(this.now()).toISOString())) return;
-      const entry: InFlight = { reserve: run.cap * EVAL_LIMITS.costMargin, chatId: null, done: Promise.resolve() };
+      const entry: InFlight = { reserve: run.reservePerSample * EVAL_LIMITS.costMargin, chatId: null, done: Promise.resolve() };
       run.inflight.set(next, entry);
       entry.done = this.runSample(run, next, entry)
         .catch((err: unknown) => console.warn(`[evals] sample ${next} failed: ${err instanceof Error ? err.message : String(err)}`))
@@ -688,7 +762,7 @@ export class EvalRunner {
         }
       }
 
-      const start = await this.startChat(run, sampleId, c.prompt, lane, sample.variant, plan, sample.pin, c.id);
+      const start = await this.startChat(run, sampleId, (sample.pressure === 'neutral' ? undefined : c.prompts?.[sample.pressure]) ?? c.prompt, lane, sample.variant, plan, sample.pin, c.id);
       if ('refused' in start) {
         // Not a verdict on the target: back in the queue, to try again when a slot is free
         store.requeueSample(sampleId);
@@ -861,22 +935,137 @@ export class EvalRunner {
       runCommand: (command, cwd, ms) => this.command(run, command, cwd, ms),
     });
     checks.push(...rest.map((k) => ({ ...k, detail: maskSecrets(k.detail), output: k.output === null ? null : cutToBytes(maskSecrets(k.output), EVAL_LIMITS.checkOutputBytes) })));
+    // A judged expectation is decided by the judge, not by the matcher that could only fail it
+    const final = end.resultText === null ? null : cutToBytes(maskSecrets(end.resultText), EVAL_LIMITS.resultTextBytes);
+    const judged = await this.judgeChecks(run, run.judge, expect, checks, foldCalls(calls).map(maskCall), final);
     if (run.abort.signal.aborted) {
       this.endSample(run, sampleId, { ...base, outcome: run.stopAs, reason: run.stopAs });
       return;
     }
     const stored = calls.slice(0, EVAL_LIMITS.callsPerSample).map(toolCallOf);
     this.deps.store.addCalls(sampleId, stored);
-    this.deps.store.addChecks(sampleId, checks);
+    this.deps.store.addChecks(sampleId, judged.checks);
+    if (judged.judgements.length) this.deps.store.putJudgements(sampleId, judged.judgements);
     this.endSample(run, sampleId, {
       ...base,
-      outcome: sampleOutcomeOf(checks),
+      outcome: outcomeOf(judged.checks),
       reason: end.timedOut ? 'timeout' : end.budgetExceeded ? 'budget' : null,
       turns: outcome?.turns ?? null,
       durationMs: outcome?.durationMs ?? base.durationMs,
       callsTruncated: calls.length > stored.length,
       resultText: end.resultText === null ? null : cutToBytes(maskSecrets(end.resultText), EVAL_LIMITS.resultTextBytes),
     });
+  }
+
+  /**
+   * Replaces each judged check with its judge's verdict. `only` limits it to those expectations
+   * (a re-judge leaves the verdicts it already has). A judge that fails, or is absent, leaves the
+   * check failed with its `unjudged` judgement, which {@link outcomeOf} reads as "no verdict".
+   */
+  private async judgeChecks(
+    run: Pick<Active, 'id' | 'abort'>, judge: JudgeLike | null, expect: EvalDefinition['cases'][number]['expect'], checks: EvalCheck[],
+    calls: JudgeCall[], final: string | null, only?: ReadonlySet<number>,
+  ): Promise<{ checks: EvalCheck[]; judgements: EvalJudgement[] }> {
+    const judgements: EvalJudgement[] = [];
+    const out: EvalCheck[] = [];
+    for (const check of checks) {
+      const e = expect[check.idx];
+      if (check.kind !== 'judged' || e?.kind !== 'judged' || (only && !only.has(check.idx))) {
+        out.push(check);
+        continue;
+      }
+      const j: EvalJudgement = judge
+        ? await judge.judge(e, { calls, final }, check.idx, run.abort.signal)
+        : { idx: check.idx, pass: null, reason: 'No judge is available.', evidence: [], costUsd: null, model: e.model ?? null, status: 'unjudged' };
+      const verdict = { ...j, reason: maskSecrets(j.reason) };
+      if (verdict.costUsd) this.deps.store.addRunCost(run.id, verdict.costUsd);
+      judgements.push(verdict);
+      out.push({
+        ...check, passed: verdict.pass === true, evidenceSeq: verdict.evidence[0] ?? null, judgement: verdict,
+        detail: verdict.status === 'judged' ? verdict.reason : `not judged: ${verdict.reason}`,
+      });
+    }
+    return { checks: out, judgements };
+  }
+
+  // ---------- judge: calibration, re-judging, gate ----------
+
+  /** Runs the judge on each calibration example once, before the first sample; a disagreeing judge is recorded as unreliable. */
+  private async calibrate(run: Active): Promise<void> {
+    if (!run.judge) return;
+    const used = new Set(this.deps.store.samples(run.id).map((s) => s.caseId));
+    const unreliable: Array<{ caseId: string; idx: number }> = [];
+    for (const c of run.def.cases) {
+      if (!used.has(c.id)) continue;
+      for (const [idx, e] of c.expect.entries()) {
+        if (e.kind !== 'judged' || !e.examples?.length || run.abort.signal.aborted) continue;
+        const result = await run.judge.calibrate(e, run.abort.signal);
+        if (result.costUsd) this.deps.store.addRunCost(run.id, result.costUsd);
+        if (!result.reliable) unreliable.push({ caseId: c.id, idx });
+      }
+    }
+    if (unreliable.length) this.refreshGate(run.id, unreliable);
+  }
+
+  /** Computes the gate from what the store holds now and keeps it; null (and nothing stored) for a run without both sides. */
+  private refreshGate(runId: string, unreliable?: Array<{ caseId: string; idx: number }>): EvalGate | null {
+    const { store } = this.deps;
+    const def = store.definition(runId);
+    const summary = store.summary(runId);
+    if (!def || !summary) return null;
+    const variants = store.variants(runId).map((v) => v.variant);
+    if (!gateApplies(variants)) return null;
+    const gate = computeGate({
+      runId, definition: def, variants, samples: store.samples(runId), account: summary.account,
+      unreliableJudges: unreliable ?? store.gate(runId)?.unreliableJudges ?? [],
+    });
+    store.setGate(runId, gate);
+    return gate;
+  }
+
+  /** The stored gate; null until the run ended (or began calibrating), and for a run without `current` and `proposed`. */
+  gate(runId: string): EvalGate | null {
+    return this.deps.store.gate(runId);
+  }
+
+  /** The person accepts an unreliable judge as it is: the gate stops waiting for it. */
+  acceptJudge(runId: string, caseId: string, idx: number): EvalGate | null {
+    const kept = (this.deps.store.gate(runId)?.unreliableJudges ?? []).filter((u) => !(u.caseId === caseId && u.idx === idx));
+    return this.refreshGate(runId, kept);
+  }
+
+  private readonly rejudging = new Set<string>();
+
+  /**
+   * Judges again what a judge could not decide, from the calls the samples stored: no sample runs
+   * again. Null when the run does not exist or is already being re-judged.
+   */
+  async rejudge(runId: string): Promise<{ rejudged: number; unjudged: number } | null> {
+    const { store } = this.deps;
+    const def = store.definition(runId);
+    if (!def || !store.summary(runId) || this.rejudging.has(runId)) return null;
+    const judge = this.deps.judgeFor?.(def.limits?.maxJudgeCostUsd ?? EVAL_LIMITS.maxJudgeCostUsd.default) ?? null;
+    this.rejudging.add(runId);
+    const abort = new AbortController();
+    let rejudged = 0;
+    try {
+      for (const id of store.unjudgedSamples(runId)) {
+        const sample = store.sample(id);
+        const c = def.cases.find((x) => x.id === sample?.caseId);
+        if (!sample || !c) continue;
+        const only = new Set(sample.checks.filter((k) => k.kind === 'judged' && k.judgement?.status !== 'judged').map((k) => k.idx));
+        const calls = foldCalls(store.calls(id).map(storedCall)).map(maskCall);
+        const judged = await this.judgeChecks({ id: runId, abort }, judge, c.expect, sample.checks, calls, sample.resultText, only);
+        if (judged.judgements.length === 0) continue;
+        store.putJudgements(id, judged.judgements);
+        if (store.rescoreSample(id, outcomeOf(judged.checks), judged.checks) && judged.judgements.every((j) => j.status === 'judged')) rejudged++;
+      }
+    } finally {
+      this.rejudging.delete(runId);
+    }
+    this.refreshGate(runId);
+    this.emitRun(runId);
+    return { rejudged, unjudged: store.unjudgedSamples(runId).length };
   }
 
   /** The overlay is the lane's starting point: a path still holding what the overlay wrote was not touched by the agent. */
@@ -941,6 +1130,11 @@ export class EvalRunner {
       await Promise.all([...run.inflight.values()].map((f) => f.done));
       await removeRunLanes(run.repo, this.root, run.id).catch((err: unknown) => console.warn(`[evals] lanes of ${run.id} not removed: ${err instanceof Error ? err.message : String(err)}`));
       this.deps.store.endRun(run.id, { outcome, reason, endedAt: new Date(this.now()).toISOString() });
+      try {
+        this.refreshGate(run.id);
+      } catch (err) {
+        console.warn(`[evals] gate of ${run.id} not computed: ${err instanceof Error ? err.message : String(err)}`);
+      }
       this.active.delete(run.id);
       this.emitRun(run.id);
     })();

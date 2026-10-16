@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import type { ClaudioEventInput } from '../src/events.ts';
-import type { EvalDefinition, EvalRunRequest, EvalRunSummary, RunEvent, TranscriptEntry } from '@claudio/shared';
+import type { EvalDefinition, EvalJudgement, EvalRunRequest, EvalRunSummary, RunEvent, TranscriptEntry } from '@claudio/shared';
 import type { NewChat, RunResult } from '../src/chats.ts';
 import { migrate } from '../src/db.ts';
 import { EvalConsents, sha256 } from '../src/evals/definition.ts';
@@ -545,5 +545,150 @@ describe('instruction eval runner', () => {
     await waitFor(() => runner.isSample('chat-0'));
     await runner.cancel(run.id);
     assert.equal(runner.isSample('chat-0'), false);
+  });
+
+  describe('phase 2: pressure, judge and gate', () => {
+    type Expect = EvalDefinition['cases'][number]['expect'][number];
+    const judged = (statement = 'it explains first'): Expect => ({ kind: 'judged', statement });
+    const verdict = (idx: number, pass: boolean | null): EvalJudgement => ({
+      idx, pass, reason: pass === null ? 'The judge failed.' : 'because', evidence: [], costUsd: 0.01, model: 'sonnet', status: pass === null ? 'unjudged' : 'judged',
+    });
+    class ScriptJudge {
+      answers: Array<boolean | null> = [];
+      reliable = true;
+      judge(_e: unknown, _input: unknown, idx: number) {
+        return Promise.resolve(verdict(idx, this.answers.length ? (this.answers.shift() ?? null) : true));
+      }
+      calibrate() {
+        return Promise.resolve({ examples: 1, disagreements: this.reliable ? [] : [0], reliable: this.reliable, costUsd: 0.01 });
+      }
+    }
+    const v2 = (cases: EvalDefinition['cases'], over: Partial<EvalDefinition> = {}): EvalDefinition => def({ version: 2, cases, ...over });
+    const request = (d: EvalDefinition, cells: number, variants: EvalRunRequest['variants'], samples: number, extra = 0, more: Partial<EvalRunRequest> = {}): Partial<EvalRunRequest> => ({
+      variants, samples, confirmMaxCostUsd: ceilingUsd(d, {}, cells, variants.length, samples, extra), ...more,
+    });
+    const calledTests = { kind: 'called', call: { tool: 'Bash', command: 'pnpm test' } } as Expect;
+
+    it('queues a sample per level the case has a prompt for, and sends that level\'s prompt', async () => {
+      rt.behave = passes;
+      const d = v2([
+        { id: 'c1', prompt: 'neutral one', prompts: { supportive: 'remember: tests', neutral: 'neutral one', competing: 'hurry, skip tests' }, expect: [calledTests] },
+        { id: 'c2', prompt: 'neutral two', expect: [calledTests] },
+      ]);
+      const run = await runner.start(input(d, request(d, 4, ['current'], 1, 0, { pressures: ['supportive', 'neutral', 'competing'] })));
+      const done = await ended(run.id);
+      assert.equal(done.outcome, 'completed');
+      assert.deepEqual(done.pressures, ['supportive', 'neutral', 'competing']);
+      assert.deepEqual(rt.started.map((o) => o.prompt), ['remember: tests', 'neutral one', 'hurry, skip tests', 'neutral two']);
+      assert.deepEqual(store.samples(run.id).map((s) => `${s.caseId}:${s.pressure}`), ['c1:supportive', 'c1:neutral', 'c1:competing', 'c2:neutral']);
+    });
+
+    it('the ceiling counts every level and every judge, and a start must repeat it', async () => {
+      const d = v2([{ id: 'c1', prompt: 'p', prompts: { neutral: 'p', competing: 'q' }, expect: [judged()] }]);
+      assert.equal(ceilingUsd(d, {}, 2, 1, 2, 0.05), Math.round(2 * 2 * 0.55 * 1.25 * 100) / 100);
+      await assert.rejects(
+        runner.start(input(d, { variants: ['current'], samples: 1, pressures: ['neutral', 'competing'], confirmMaxCostUsd: 0.7 })),
+        (e: unknown) => e instanceof EvalStartError && e.code === 'cost-not-confirmed',
+      );
+    });
+
+    it('a judged expectation is decided by the judge, with its verdict stored', async () => {
+      rt.behave = () => ({});
+      const judge = new ScriptJudge();
+      judge.answers = [true, false];
+      runner = build({ judgeFor: () => judge });
+      const d = v2([{ id: 'c1', prompt: 'p', expect: [judged()] }]);
+      const run = await runner.start(input(d, request(d, 1, ['current'], 2, 0.05)));
+      const done = await ended(run.id);
+      assert.deepEqual(done.counts, { passed: 1, failed: 1 });
+      const [first, second] = store.samples(run.id);
+      assert.equal(first?.checks.find((c) => c.kind === 'judged')?.judgement?.pass, true);
+      assert.equal(second?.checks.find((c) => c.kind === 'judged')?.passed, false);
+      assert.ok(done.costUsd > 0.2, 'the judge spend is part of the run cost');
+    });
+
+    it('a judge that fails leaves the sample unjudged; re-judging settles it without running it again', async () => {
+      rt.behave = () => ({});
+      const judge = new ScriptJudge();
+      judge.answers = [null];
+      runner = build({ judgeFor: () => judge });
+      const d = v2([{ id: 'c1', prompt: 'p', expect: [{ kind: 'text', match: { contains: 'done' } }, judged()] }]);
+      const run = await runner.start(input(d, request(d, 1, ['current'], 1, 0.05)));
+      const done = await ended(run.id);
+      assert.deepEqual(done.counts, { unjudged: 1 });
+      assert.equal(done.scored.current, undefined, 'an unjudged sample is not scored');
+      const startedBefore = rt.started.length;
+      assert.deepEqual(await runner.rejudge(run.id), { rejudged: 1, unjudged: 0 });
+      assert.equal(rt.started.length, startedBefore, 'no sample ran again');
+      assert.deepEqual(store.summary(run.id)?.counts, { passed: 1 });
+      const check = store.samples(run.id)[0]?.checks.find((c) => c.kind === 'judged');
+      assert.equal(check?.judgement?.status, 'judged');
+      assert.equal(check?.passed, true);
+    });
+
+    it('a failed deterministic check fails the sample even when the judge could not decide', async () => {
+      rt.behave = () => ({});
+      const judge = new ScriptJudge();
+      judge.answers = [null];
+      runner = build({ judgeFor: () => judge });
+      const d = v2([{ id: 'c1', prompt: 'p', expect: [{ kind: 'text', match: { contains: 'never said' } }, judged()] }]);
+      const run = await runner.start(input(d, request(d, 1, ['current'], 1, 0.05)));
+      assert.deepEqual((await ended(run.id)).counts, { failed: 1 });
+    });
+
+    it('without a judge, a judged expectation is unjudged, never passed', async () => {
+      rt.behave = () => ({});
+      const d = v2([{ id: 'c1', prompt: 'p', expect: [judged()] }]);
+      const run = await runner.start(input(d, request(d, 1, ['current'], 1, 0.05)));
+      assert.deepEqual((await ended(run.id)).counts, { unjudged: 1 });
+      assert.deepEqual(await runner.rejudge(run.id), { rejudged: 0, unjudged: 1 });
+    });
+
+    const gated = async (judge: ScriptJudge | null, expect: Expect[], examples = false): Promise<string> => {
+      // The proposed text decides whether the fake agent runs the tests
+      rt.behave = (_n, opts) => (readFileSync(join(opts.cwd ?? '', 'CLAUDE.md'), 'utf8').includes('lax') ? {} : passes());
+      if (judge) runner = build({ judgeFor: () => judge });
+      const withExamples = examples ? expect.map((e) => (e.kind === 'judged' ? { ...e, examples: [{ calls: [], final: 'x', pass: true }] } : e)) : expect;
+      const d = v2([{ id: 'c1', prompt: 'p', mustHold: true, expect: withExamples }], { samples: 3 });
+      const extra = expect.some((e) => e.kind === 'judged') ? 0.05 : 0;
+      const run = await runner.start(input(d, request(d, 1, ['current', 'proposed'], 3, extra, { proposed: 'lax rules\n' })));
+      await ended(run.id);
+      return run.id;
+    };
+
+    it('the gate: regressed when a mustHold case stops passing, stored with the run', async () => {
+      const id = await gated(null, [calledTests]);
+      const gate = runner.gate(id);
+      assert.equal(gate?.verdict, 'regressed');
+      assert.deepEqual(gate?.regressed.map((r) => [r.caseId, r.pressure, r.from, r.to]), [['c1', 'neutral', 1, 0]]);
+      assert.equal(store.gate(id)?.verdict, 'regressed');
+    });
+
+    it('the gate: incomplete while a mustHold sample is unjudged, promotable after re-judging', async () => {
+      const judge = new ScriptJudge();
+      judge.answers = [true, true, null, true, true, true];
+      const id = await gated(judge, [judged()]);
+      assert.equal(runner.gate(id)?.verdict, 'incomplete');
+      assert.deepEqual(runner.gate(id)?.incomplete.map((i) => i.reason), ['unjudged', 'small-n']);
+      await runner.rejudge(id);
+      assert.equal(runner.gate(id)?.verdict, 'promotable');
+    });
+
+    it('the gate: an unreliable judge holds it until accepted', async () => {
+      const judge = new ScriptJudge();
+      judge.reliable = false;
+      const id = await gated(judge, [judged()], true);
+      assert.equal(runner.gate(id)?.verdict, 'incomplete');
+      assert.deepEqual(runner.gate(id)?.unreliableJudges, [{ caseId: 'c1', idx: 0 }]);
+      assert.equal(runner.acceptJudge(id, 'c1', 0)?.verdict, 'promotable');
+      assert.equal(store.gate(id)?.verdict, 'promotable');
+    });
+
+    it('a run without both current and proposed has no gate', async () => {
+      rt.behave = passes;
+      const run = await runner.start(input(def({ cases: [def().cases[0]!] })));
+      await ended(run.id);
+      assert.equal(runner.gate(run.id), null);
+    });
   });
 });
