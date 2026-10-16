@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T12:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - prompts
     - flow
@@ -147,6 +147,7 @@ the result.
 | Workflow lead | `orchestrator.ts` · `launchWorkflow`; the script from `workflow-engine.ts` · `compileWorkflow` | workflow lead session | first prompt; the script's `agent()` prompts | the graph's model |
 | Supervisor | `supervisor.ts` · `supervisorPrompt` | supervisor run (housekeeping) | first prompt | `haiku` (`DEFAULT_SUPERVISOR`) |
 | Decision (cli provider) | `decisions/providers/cli.ts` · `decisionPrompt`, `decisionSchema` | one housekeeping chat per batch of questions, one turn, no tools | first prompt, `--json-schema`, `--effort`, `--max-budget-usd`, `--restricted --tools= --setting-sources=` | `haiku` (`cli.model`), effort `low` |
+| Instruction eval sample | `evals/runner.ts` · `startChat` (the prompt is the case's `prompt`, sent as the only message; no builder adds text) | one housekeeping chat per sample, in a throwaway worktree ([evals.md](evals.md)) | first prompt, `--max-budget-usd`, `--agents` (agent targets), `--model`, `--effort`; `internal`, `keepAlive: false`, no API token, no uploads, no journal | the eval's `runAs.model`, else the member's, else the CLI's default |
 | Work on it | `work-links.ts` · `workItemPrompt(item)` (mode `chat`) | a person's chat from a work item | first prompt | the chat's model |
 | Orchestration draft of work items | `work-links.ts` · `orchestrationDraft` → `workItemPrompt(item, 'task')` | becomes each node's task prompt | — | the draft's |
 | Team agent files | `team.ts` · `agentFileContent`; `assistant.ts` · `memberFile` | `.claude/agents/*.md` body | a file the CLI reads (`--agents`) | the member's model |
@@ -445,4 +446,4 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Related
 
-[[decision-engine.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]
+[[decision-engine.md]] · [[evals.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - team
     - flow
@@ -937,6 +937,11 @@ described above where it now lives. The last detail, the model's name, was close
   and an id off that scheme is left unnamed rather than guessed. No list of Claudio's own and no
   call to Anthropic: only what the CLI reported.
 
+## Evals
+
+The Team screen's fourth section checks whether agents follow an edited agent file, skill, rule or
+`CLAUDE.md`, by running cases on a pinned commit in throwaway worktrees. See [evals.md](evals.md).
+
 ## Related
 
-[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[evals.md]] · [[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[code-hosts.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

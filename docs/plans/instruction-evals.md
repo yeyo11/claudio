@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T21:00:00Z
-updated_at: 2026-10-15T21:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - plan
     - evals
@@ -14,9 +14,11 @@ tags:
 ---
 # Plan: instruction-compliance evals
 
-Status: **planned** (2026-10-15). Nothing is built. Phase 1 can be launched as written. Phase 2 is
-designed here too, but it starts only after the owner has checked Phase 1's
-[success criterion](#phase-1-success-criterion-the-gate-to-phase-2).
+Status: **Phase 1 built** (2026-10-16): core, API and web are in; the feature doc is
+[evals.md](../evals.md). Owner decision 2026-10-16: Phase 2 is built in the same orchestration, behind
+its own settings switch, and the four-week gate no longer applies. Still open from Phase 1: the CLI
+facts F2–F11 (`e0` was cut short by a usage limit), the raw-JSON view of an invalid file, and a web
+button to delete a run.
 
 **Summary.** You edit a team's agent file, a skill, a rule or `CLAUDE.md`, and you want to know
 whether agents now follow it. An *eval* answers that. It is a small JSON file in the project, with a
