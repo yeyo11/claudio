@@ -333,6 +333,8 @@
   "layer [LAYER_ATTR, hasOpenLayer]",
   "layout [DashboardLayout, DashboardScope, LayoutWidget, SIZE_SPANS, WIDGET_SIZES, WidgetRule, WidgetScope, WidgetSize, configCount, fitsScope, layoutOf, validateLayout]",
   "lead [useLeadingAction, workOnItNeutral]",
+  "legacy-storage [migrateLegacyStorage]",
+  "legacy-storage-init []",
   "limit-rows [LimitRow, limitRows]",
   "limit-words [LimitWindowWord, isKnownLimitWindow, limitWindowWord, useLimitWindowName]",
   "list-keys [KeyLike, ListKey, TargetLike, listKeyAction, useListKeys]",

@@ -69,12 +69,31 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((names) => Promise.all(names.filter((name) => name.startsWith('claudio-shell-') && name !== CACHE).map((name) => caches.delete(name))))
+    adoptLegacyPushState()
+      .then(() => caches.keys())
+      .then((names) => Promise.all(names.filter((name) => (name.startsWith('claudio-shell-') && name !== CACHE) || name.startsWith(LEGACY_PREFIX)).map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
+
+/**
+ * The caches a build from before the rename kept were named `agentry-…`: the shell ones are only
+ * thrown away, and the push state is carried over first, or a subscription made then would lose its
+ * kinds and words until the person turned push off and on again.
+ */
+const LEGACY_PREFIX = 'agentry-';
+const LEGACY_PUSH_STATE = { cache: 'agentry-push', key: '/__agentry-push-state' };
+
+async function adoptLegacyPushState() {
+  try {
+    if (!(await caches.has(LEGACY_PUSH_STATE.cache))) return;
+    const old = await (await caches.open(LEGACY_PUSH_STATE.cache)).match(LEGACY_PUSH_STATE.key);
+    const current = await caches.open(PUSH_STATE_CACHE);
+    if (old && !(await current.match(PUSH_STATE_KEY))) await current.put(PUSH_STATE_KEY, old);
+  } catch {
+    // Push still works without it: in English, and for every kind, until the page writes it again
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
