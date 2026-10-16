@@ -46,6 +46,7 @@ const ACTIVITY_TITLES: Record<Exclude<ChatActivity['kind'], 'tool'>, (name: stri
   writing: (name) => `${name} is writing`,
   thinking: (name) => `${name} is thinking`,
   waiting: (name) => `${name} is waiting for a person`,
+  compacting: (name) => `${name} is compacting its conversation`,
 };
 
 /** One line saying what the chat is doing, for whoever shows the event as it is. */

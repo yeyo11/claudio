@@ -152,7 +152,7 @@ test('the facts of the chat itself are signals too, worst first', () => {
   for (const outcome of ['stopped', 'completed'] as const) assert.equal(chatHealth(facts({ lastEnded: { outcome, error: null } })).level, 'ok', outcome);
 
   assert.equal(chatHealth(facts({ context: { used: 195_000, window: 200_000 } })).level, 'bad');
-  assert.equal(chatHealth(facts({ context: { used: 170_000, window: 200_000 } })).level, 'warn');
+  assert.equal(chatHealth(facts({ context: { used: 130_000, window: 200_000 } })).level, 'warn');
   // Without a window there is no honest percentage
   assert.equal(chatHealth(facts({ context: { used: 900_000, window: null } })).level, 'ok');
   assert.match(chatHealth(facts({ state: 'waiting' })).reason, /answers a permission/);

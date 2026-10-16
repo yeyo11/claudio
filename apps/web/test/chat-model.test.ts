@@ -87,7 +87,9 @@ test('a share of the window exists only when the window is known', () => {
 
 test('the meter warns before the chat compacts', () => {
   assert.equal(contextLevel(0.5), 'ok');
-  assert.equal(contextLevel(0.8), 'warn');
+  assert.equal(contextLevel(0.6), 'warn');
+  assert.equal(contextLevel(0.74), 'warn');
+  assert.equal(contextLevel(0.75), 'full');
   assert.equal(contextLevel(0.95), 'full');
 });
 
