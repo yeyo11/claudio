@@ -1,6 +1,6 @@
 /*
  * High-confidence secret patterns for the `secrets` rule. A superset of the high-confidence part of
- * `decisions/redact.ts`; a test checks that. Every regex is linear: no nested quantifiers, and the
+ * `decisions/redact.ts`; a test checks that. Every regex is linear: no nested quantifiers, and every repeat is bounded (an unbounded one overflows the regexp stack on a 16 MiB run of word characters), and the
  * private-key pattern stops at the header. Only `node:` imports.
  */
 import { createHash } from 'node:crypto';
@@ -8,27 +8,33 @@ import { createHash } from 'node:crypto';
 export interface SecretPattern {
   id: string;
   regex: RegExp;
+  /** Needles start with a rare letter on purpose: a text full of the needle's first letter is the slow case for a search.
+   * One of these must be in the text for the pattern to match; checking them first is a fast skip on large input */
+  needles: readonly string[];
 }
 
 const GITLAB = 'gl(?:pat|oas|rt|dt|ptt|ft|imt|agent|cbt|soat|ffct|wt)-';
 
 export const SECRET_PATTERNS: readonly SecretPattern[] = [
-  { id: 'private-key', regex: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g },
-  { id: 'anthropic-key', regex: /sk-ant-(?:api|admin|oat)\d{2}-[A-Za-z0-9_-]{20,}/g },
-  { id: 'openai-like-key', regex: /\bsk-[A-Za-z0-9_-]{16,}/g },
-  { id: 'github-token', regex: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}|\bgithub_pat_[A-Za-z0-9_]{20,}/g },
-  { id: 'gitlab-token', regex: new RegExp(`\\b${GITLAB}[A-Za-z0-9_-]{20,}|\\bGR1348941[A-Za-z0-9_-]{20,}`, 'g') },
-  { id: 'slack-token', regex: /\bxox[abprs]-[A-Za-z0-9-]{10,}/g },
-  { id: 'aws-access-key', regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },
-  { id: 'google-api-key', regex: /\bAIza[0-9A-Za-z_-]{35}\b/g },
-  { id: 'stripe-key', regex: /\b(?:sk|rk)_live_[0-9A-Za-z]{20,}/g },
-  { id: 'npm-token', regex: /\bnpm_[A-Za-z0-9]{36}\b/g },
-  { id: 'claudio-chat-token', regex: /\bagc_[A-Za-z0-9_-]{20,}/g },
+  { id: 'private-key', regex: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g, needles: ['-----BEGIN'] },
+  { id: 'anthropic-key', regex: /sk-ant-(?:api|admin|oat)\d{2}-[A-Za-z0-9_-]{20,256}/g, needles: ['sk-ant-'] },
+  { id: 'openai-like-key', regex: /sk-[A-Za-z0-9_-]{16,256}/g, needles: ['sk-'] },
+  { id: 'github-token', regex: /gh[pousr]_[A-Za-z0-9]{16,256}/g, needles: ['hp_', 'ho_', 'hu_', 'hs_', 'hr_'] },
+  { id: 'github-token', regex: /github_pat_[A-Za-z0-9_]{20,256}/g, needles: ['github_pat_'] },
+  { id: 'gitlab-token', regex: new RegExp(`${GITLAB}[A-Za-z0-9_-]{20,256}|GR1348941[A-Za-z0-9_-]{20,256}`, 'g'), needles: ['gl', 'GR1348941'] },
+  { id: 'slack-token', regex: /xox[abprs]-[A-Za-z0-9-]{10,256}/g, needles: ['xox'] },
+  { id: 'aws-access-key', regex: /A[KS]IA[0-9A-Z]{16}/g, needles: ['KIA', 'SIA'] },
+  { id: 'google-api-key', regex: /AIza[0-9A-Za-z_-]{35}/g, needles: ['Iza'] },
+  { id: 'stripe-key', regex: /[sr]k_live_[0-9A-Za-z]{20,256}/g, needles: ['_live_'] },
+  { id: 'npm-token', regex: /npm_[A-Za-z0-9]{36}/g, needles: ['npm_'] },
+  { id: 'claudio-chat-token', regex: /agc_[A-Za-z0-9_-]{20,256}/g, needles: ['gc_'] },
 ];
 
 /** The same word shape as the masker's `TOKEN_WORD` */
-const TOKEN_WORD = /[A-Za-z0-9_~+/=-][A-Za-z0-9._~+/=-]{22,}[A-Za-z0-9_~+/=-]/g;
+const TOKEN_WORD = /[A-Za-z0-9_~+/=-][A-Za-z0-9._~+/=-]{22,1024}[A-Za-z0-9_~+/=-]/g;
 const MAX_MATCHES = 64;
+const MAX_CANDIDATES = 2000;
+const MAX_NEEDLE_HITS = 50_000;
 
 export interface SecretMatch {
   /** The pattern id, or `known-secret` */
@@ -54,10 +60,34 @@ export function decodeCodeEscapes(text: string): string {
 }
 
 function scan(text: string, known: ReadonlySet<string> | null, out: SecretMatch[]): void {
-  for (const { id, regex } of SECRET_PATTERNS) {
+  for (const { id, regex, needles } of SECRET_PATTERNS) {
+    let present = false;
+    for (const needle of needles) {
+      let at = text.indexOf(needle);
+      for (let hits = 0; at >= 0; hits++) {
+        present = true;
+        // So many look-alikes cannot be told apart from one real secret hidden among them
+        if (hits >= MAX_NEEDLE_HITS) {
+          out.push({ id: 'scan-limit', value: '' });
+          return;
+        }
+        at = text.indexOf(needle, at + needle.length);
+      }
+    }
+    if (!present) continue;
     regex.lastIndex = 0;
+    let candidates = 0;
     for (let match = regex.exec(text); match !== null && out.length < MAX_MATCHES; match = regex.exec(text)) {
+      // A flood of look-alikes is a way to hide one real secret; past the cap the text is refused
+      if (++candidates > MAX_CANDIDATES) {
+        out.push({ id: 'scan-limit', value: '' });
+        return;
+      }
       const value = match[0];
+      // `\b` before the prefix, checked here so the regex can start on a literal
+      if (id !== 'private-key' && match.index > 0 && /[A-Za-z0-9_]/.test(text.charAt(match.index - 1)) && !value.startsWith('sk-ant-')) continue;
+      // `\b` after a fixed-length key
+      if ((id === 'aws-access-key' || id === 'google-api-key' || id === 'npm-token') && /[A-Za-z0-9_]/.test(text.charAt(match.index + value.length))) continue;
       if (isPlaceholder(value)) continue;
       // An OpenAI-style key has both a digit and a letter; plain words with a dash are not keys
       if (id === 'openai-like-key' && !(/\d/.test(value) && /[A-Za-z]/.test(value.slice(3)))) continue;

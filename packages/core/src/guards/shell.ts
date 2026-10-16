@@ -436,7 +436,7 @@ function parseCommands(text: string, startCwd: string | null): RawCmd[] {
     const lead = /^\d+(?=[<>])/.exec(text.slice(i, i + 12))?.[0] ?? '';
     const at = i + lead.length;
     const rc = text.charAt(at);
-    const isRedirect = rc === '<' || rc === '>' || (ch === '&' && rc === '>');
+    const isRedirect = rc === '<' || rc === '>' || (ch === '&' && text.charAt(i + 1) === '>');
     if (isRedirect) {
       if ((rc === '<' || rc === '>') && text.charAt(at + 1) === '(' && lead === '') {
         // Process substitution is a word
