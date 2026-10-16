@@ -71,7 +71,8 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
   }
 
   if (entry) fold.spent.add(o, entry);
-  if (!entry || entry.isSidechain) return;
+  // A compaction is the CLI's marker and the summary it continued from, never something the person typed
+  if (!entry || entry.isSidechain || entry.compaction) return;
   summary.messageCount++;
   if (isModelName(entry.model)) summary.model = entry.model;
   if (!summary.firstPrompt && entry.role === 'user') {

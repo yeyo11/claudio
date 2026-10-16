@@ -102,6 +102,7 @@ export class ChatActivityTracker {
   private readonly open = new Map<string, OpenCall>();
   private streaming: { kind: 'writing' | 'thinking'; since: string } | null = null;
   private waitingSince: string | null = null;
+  private compactingSince: string | null = null;
 
   constructor(private cwd: string) {}
 
@@ -149,6 +150,12 @@ export class ChatActivityTracker {
     else this.waitingSince = null;
   }
 
+  /** The CLI is summarising the conversation: it beats what the turn was writing, and only a prompt beats it. */
+  compacting(active: boolean, at: string): void {
+    if (active) this.compactingSince ??= at;
+    else this.compactingSince = null;
+  }
+
   /** The turn ended: a call the CLI never answered (an interrupt) is not still running. */
   turnEnded(): void {
     this.open.clear();
@@ -159,10 +166,12 @@ export class ChatActivityTracker {
   clear(): void {
     this.turnEnded();
     this.waitingSince = null;
+    this.compactingSince = null;
   }
 
   current(): ChatActivity | null {
     if (this.waitingSince) return { kind: 'waiting', since: this.waitingSince };
+    if (this.compactingSince) return { kind: 'compacting', since: this.compactingSince };
     const calls = [...this.open.values()];
     const call = calls[calls.length - 1];
     if (call) return { kind: 'tool', tool: call.tool, ...(call.target ? { target: call.target } : {}), since: call.since };

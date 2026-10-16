@@ -180,6 +180,21 @@ test('the Markdown export has a header with the cost the CLI reported, turns, an
   assert.equal((md.match(/One test fails\./g) ?? []).length, 1);
 });
 
+test('a compaction is a line in the Markdown export and its summary a folded block, never a turn of the person', () => {
+  const entry = (over: object) => ({ role: 'user', timestamp: '2026-03-10T10:05:00Z', model: null, isSidechain: false, parentToolUseId: null, blocks: [], ...over });
+  const md = chatToMarkdown(chatFor(), [
+    entry({ uuid: 'u1', blocks: [{ type: 'text', text: 'Run the tests' }] }),
+    entry({ uuid: 'b1', compaction: { part: 'boundary', trigger: 'manual', preTokens: 142_000, postTokens: 18_000, durationMs: 7_000 } }),
+    entry({ uuid: 's1', blocks: [{ type: 'text', text: 'This session is being continued from a previous conversation.' }], compaction: { part: 'summary', trigger: null, preTokens: null, postTokens: null, durationMs: null } }),
+    entry({ uuid: 'b2', compaction: { part: 'boundary', trigger: 'auto', preTokens: 90_000, postTokens: null, durationMs: null } }),
+  ] as never);
+  assert.match(md, /^— Compacted \(manual\) · 142,000 → 18,000 tokens —$/m);
+  assert.match(md, /<details>\n<summary>Summary Claude continued from<\/summary>\n\nThis session is being continued/);
+  assert.match(md, /^— Compacted \(auto\) · 90,000 tokens before —$/m);
+  assert.equal((md.match(/^## User/gm) ?? []).length, 1, "only the person's own message is a turn");
+  assert.match(md, /\*\*Messages:\*\* 1\b/);
+});
+
 test('a chat with no reported cost says so instead of showing a made-up one, and a long result is cut', () => {
   const md = chatToMarkdown(chatFor({ cost: { usd: null, tokens: [], total: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 } } }), [
     { uuid: 'a1', role: 'assistant', timestamp: null, model: null, isSidechain: false, parentToolUseId: null, blocks: [{ type: 'tool_use', id: 't', name: 'Read', input: { file_path: '/a' } }] },

@@ -16,6 +16,7 @@
 //                  ends the turn with whatever answer it gets back, so a request left unanswered hangs it
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
 //   REPLAY-RAW <file>  the same, and the turn ends with the file's own `result`, when it has one
+//   AUTOCOMPACT    plays replay/compact-auto.jsonl: a turn the CLI compacts by itself, ending in its own result
 //   /compact [<args>]  plays what Claude Code 2.1.300 wrote for a compaction (replay/compact-*.jsonl, recorded):
 //                  the bare command, an argument on one line, an argument on several. With
 //                  $FAKE_CLAUDE_COMPACT=fail it plays the recorded failure instead (an interrupted compaction)
@@ -87,13 +88,19 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const content = msg.message?.content;
     const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
     const compact = /^\/compact(?:\s+([\s\S]*))?$/.exec(prompt.trim());
+    // What a turn looks like when the CLI compacts on its own before answering (recorded, F20)
+    if (/^AUTOCOMPACT\b/.test(prompt)) {
+      for (const line of compactionLines('compact-auto.jsonl')) out(line);
+      return;
+    }
     if (compact) {
       // The recording holds its own `init`, after the first statuses, and ends with the turn's `result`
       const file = process.env.FAKE_CLAUDE_COMPACT === 'fail' ? 'compact-failed.jsonl' : !compact[1] ? 'compact-manual.jsonl' : compact[1].includes('\n') ? 'compact-multiline.jsonl' : 'compact-focus.jsonl';
       for (const line of compactionLines(file)) out(line);
       return;
     }
-    out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: initModel, permissionMode: reported(mode), tools: [], argv: args });
+    // The CLI lists `compact` in every session (recorded, F9)
+    out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: initModel, permissionMode: reported(mode), tools: [], slash_commands: ['compact'], argv: args });
     const script = /scriptPath "([^"]+)"/.exec(prompt);
     if (script) {
       // As CLI 2.1 does in -p: the tool runs in the background, so the turn ends at once and a

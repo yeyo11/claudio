@@ -459,3 +459,21 @@ test('a placeholder the CLI stamps on its own messages never becomes the chat mo
   const summary = await new SessionStore(config).summary('cccc-3333');
   assert.equal(summary?.model, 'claude-opus-5');
 });
+
+test('a compaction boundary and its summary are neither messages nor the first prompt', async () => {
+  const config = tempConfig();
+  const dir = join(config.projectsDir, '-work-compacted');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'dddd-4444.jsonl'),
+    [
+      // The summary comes first on purpose: it must not become the title of a chat whose own first prompt was lost
+      line({ type: 'system', subtype: 'compact_boundary', uuid: 'b1', timestamp: '2026-01-01T10:00:00Z', cwd: '/work/compacted', compactMetadata: { trigger: 'auto', preTokens: 900, postTokens: 50 } }),
+      line({ type: 'user', uuid: 's1', timestamp: '2026-01-01T10:00:01Z', cwd: '/work/compacted', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued from a previous conversation that ran out of context.' } }),
+      line({ type: 'user', uuid: 'u1', timestamp: '2026-01-01T10:01:00Z', cwd: '/work/compacted', message: { role: 'user', content: 'now fix the parser' } }),
+    ].join('\n'),
+  );
+  const summary = await new SessionStore(config).summary('dddd-4444');
+  assert.equal(summary?.firstPrompt, 'now fix the parser');
+  assert.equal(summary?.messageCount, 1);
+});
