@@ -960,6 +960,84 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX chat_notes_chat ON chat_notes (chat_id, created_at);
    CREATE UNIQUE INDEX chat_notes_pending ON chat_notes (chat_id) WHERE state = 'pending';
    CREATE UNIQUE INDEX chat_notes_entry ON chat_notes (chat_id, entry_uuid) WHERE entry_uuid IS NOT NULL;`,
+  `-- The review gate (docs/plans/review-gate.md). A round is one review of one head; its runs and its
+  -- findings are rows because they accumulate across rounds and two processes share the data dir.
+  -- The partial unique index lets one process claim a running round, so two cannot review one graph at once.
+  CREATE TABLE review_rounds (
+    id               TEXT PRIMARY KEY,
+    orchestration_id TEXT NOT NULL REFERENCES orchestrations (id) ON DELETE CASCADE,
+    round            INTEGER NOT NULL,
+    pass             INTEGER NOT NULL,
+    base             TEXT NOT NULL,
+    head             TEXT NOT NULL,
+    depth            TEXT NOT NULL,
+    state            TEXT NOT NULL,
+    reason           TEXT,
+    files            INTEGER NOT NULL DEFAULT 0,
+    added            INTEGER NOT NULL DEFAULT 0,
+    deleted          INTEGER NOT NULL DEFAULT 0,
+    chunks           INTEGER NOT NULL DEFAULT 0,
+    skipped_files    TEXT NOT NULL DEFAULT '[]',
+    estimate_usd     REAL,
+    cost_usd         REAL NOT NULL DEFAULT 0,
+    claimed_by       TEXT,
+    accepted_by      TEXT,
+    accepted_reason  TEXT,
+    accepted_at      TEXT,
+    started_at       TEXT NOT NULL,
+    ended_at         TEXT,
+    UNIQUE (orchestration_id, round, pass)
+  );
+  CREATE UNIQUE INDEX review_rounds_live ON review_rounds (orchestration_id) WHERE state = 'running';
+  CREATE INDEX review_rounds_orch ON review_rounds (orchestration_id, started_at);
+  CREATE TABLE review_runs (
+    id           TEXT PRIMARY KEY,
+    round_id     TEXT NOT NULL REFERENCES review_rounds (id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL,
+    dimension    TEXT,
+    chunk        INTEGER,
+    chunks       INTEGER,
+    chat_id      TEXT,
+    model        TEXT,
+    effort       TEXT,
+    account      TEXT,
+    role_source  TEXT,
+    role_sha     TEXT,
+    state        TEXT NOT NULL,
+    failure      TEXT,
+    dropped      INTEGER NOT NULL DEFAULT 0,
+    cost_usd     REAL NOT NULL DEFAULT 0,
+    started_at   TEXT,
+    ended_at     TEXT
+  );
+  CREATE INDEX review_runs_round ON review_runs (round_id, kind);
+  CREATE TABLE review_findings (
+    id                TEXT PRIMARY KEY,
+    round_id          TEXT NOT NULL REFERENCES review_rounds (id) ON DELETE CASCADE,
+    fingerprint       TEXT NOT NULL,
+    source            TEXT NOT NULL,
+    rule              TEXT,
+    dimensions        TEXT NOT NULL,
+    reported_by       INTEGER NOT NULL DEFAULT 1,
+    severity          TEXT NOT NULL,
+    confidence        REAL NOT NULL,
+    title             TEXT NOT NULL,
+    path              TEXT,
+    line              INTEGER,
+    side              TEXT,
+    anchor            TEXT NOT NULL,
+    evidence          TEXT NOT NULL,
+    failure_scenario  TEXT NOT NULL,
+    suggestion        TEXT,
+    verdict           TEXT NOT NULL,
+    verdict_reason    TEXT,
+    verifier_run_id   TEXT,
+    blocking          INTEGER NOT NULL,
+    resolved_in_round INTEGER,
+    created_at        TEXT NOT NULL,
+    UNIQUE (round_id, fingerprint)
+  );
+  CREATE INDEX review_findings_round ON review_findings (round_id, blocking, severity);`,
 ];
 
 /**
@@ -1019,6 +1097,9 @@ export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 's
 
 /** The migration that added the compactions and session notes: a test starts a database from just before it */
 export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE chat_compactions')) + 1;
+
+/** The migration that added the review gate's rounds, runs and findings: a test starts a database from just before it */
+export const REVIEW_GATE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_rounds')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
