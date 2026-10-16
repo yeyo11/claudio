@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core, ChangeRequestFix } from '@claudio/core';
+import { spendGate } from './spend.ts';
 import type {
   AddressReviewRequest,
   ApprovalRequest,
@@ -74,7 +75,7 @@ export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     (req): Promise<ChangeRequestChecks> => core.changeRequests.run(req.params.id, req.params.checkId),
   );
 
-  app.post<{ Params: { id: string } }>('/change-requests/:id/checks/fix', (req): Promise<ChangeRequestFix> => core.changeRequests.fix(req.params.id));
+  app.post<{ Params: { id: string } }>('/change-requests/:id/checks/fix', { preHandler: spendGate(core) }, (req): Promise<ChangeRequestFix> => core.changeRequests.fix(req.params.id));
 
   app.post<{ Params: { id: string } }>(
     '/change-requests/:id/push-fix',

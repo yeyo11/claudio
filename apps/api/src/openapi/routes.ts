@@ -736,6 +736,8 @@ const SPEND_GATED = new Set([
   'POST /chats/:id/fork',
   'POST /workflows/saved/run',
   'POST /schedules/:id/run',
+  'POST /change-requests/:id/checks/fix',
+  'POST /projects/:id/docs/:docId/ask',
   'POST /orchestrations',
   'POST /orchestrations/plan',
   'POST /orchestrations/plan/start',
