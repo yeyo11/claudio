@@ -100,6 +100,10 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   // not, and the core starts the server through tsx instead
   const bundledMcp = fileURLToPath(new URL('./mcp.mjs', import.meta.url));
   if (!process.env[MCP_ENTRY_ENV] && existsSync(bundledMcp)) process.env[MCP_ENTRY_ENV] = bundledMcp;
+  // The guard program sits beside it the same way. The name is the one guards/command.ts exports as
+  // GUARD_ENTRY_ENV; it is repeated here because that module is not part of this task's base
+  const bundledGuard = fileURLToPath(new URL('./guard.mjs', import.meta.url));
+  if (!process.env.CLAUDIO_GUARD_ENTRY && existsSync(bundledGuard)) process.env.CLAUDIO_GUARD_ENTRY = bundledGuard;
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
   // when "start with Claudio" is on
   core.tunnel.attach(port, urlHost);

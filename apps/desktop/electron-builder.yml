@@ -36,7 +36,7 @@ files:
   - package.json
 
 # Paths the shell reads at runtime (src/resources.ts): <resources>/server/server.mjs, the MCP server beside it
-# (<resources>/server/mcp.mjs), the terminal host (<resources>/server/terminal-host.mjs) and
+# (<resources>/server/mcp.mjs), the guard program (<resources>/server/guard.mjs), the terminal host (<resources>/server/terminal-host.mjs) and
 # <resources>/web/index.html.
 extraResources:
   - from: ../api/dist
@@ -44,6 +44,7 @@ extraResources:
     filter:
       - server.mjs
       - mcp.mjs
+      - guard.mjs
       - terminal-host.mjs
   # node-pty, staged by the API's bundle script (package.json, lib/ and the Linux x64 prebuild, with pnpm's
   # symlinks dereferenced). Its own entry: electron-builder drops node_modules/ from a filtered copy, so

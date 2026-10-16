@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { get } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -314,5 +315,52 @@ test('the MCP server is bundled on its own, imports only node: built-ins, and th
   const specifiers = [...bundle.matchAll(/^import\b[^\n]*?["']([^"']+)["'];?$/gm)].map((m) => m[1] ?? '');
   assert.deepEqual(specifiers.filter((s) => !s.startsWith('node:')), []);
   const builder = readFileSync(resolve(here, '../../desktop/electron-builder.yml'), 'utf8');
-  assert.match(builder, /^\s+- server\.mjs\n\s+- mcp\.mjs$/m);
+  assert.match(builder, /^\s+- server\.mjs\n\s+- mcp\.mjs\n\s+- guard\.mjs\n/m);
+});
+
+test('the guard program is bundled on its own, small, imports only node: built-ins, ships root-owned and read-only, and blocks git push', { timeout: 120_000 }, async (t) => {
+  const bundler = spawn(process.execPath, [join(apiRoot, 'scripts/bundle.mjs')], { cwd: apiRoot, stdio: 'ignore' });
+  assert.deepEqual(await once(bundler, 'exit'), [0, null]);
+  const file = join(apiRoot, 'dist/guard.mjs');
+  const bundle = readFileSync(file, 'utf8');
+  assert.ok(statSync(file).size < 200 * 1024, 'guard.mjs is under 200 KiB');
+  const specifiers = [...bundle.matchAll(/^import\b[^\n]*?["']([^"']+)["'];?$/gm)].map((m) => m[1] ?? '');
+  assert.deepEqual(specifiers.filter((s) => !s.startsWith('node:')), []);
+
+  assert.match(dockerfile, /^COPY --from=build --chown=root:root --chmod=0444 \/app\/apps\/api\/dist\/guard\.mjs \/app\/guard\.mjs$/m);
+
+  // Run from a folder of its own, as the CLI runs it: a rules file, its hash, one hook input on stdin
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-guard-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  copyFileSync(file, join(dir, 'guard.mjs'));
+  const work = join(dir, 'work');
+  const rulesBytes = JSON.stringify({
+    version: 1,
+    mode: 'enforce',
+    rules: ['integrity', 'push'],
+    roots: [work],
+    mainCheckout: null,
+    hooksPathDir: null,
+    dataDir: join(dir, 'data'),
+    guardDir: join(dir, 'guards'),
+    claudeConfigDirs: [],
+    protectConfigs: [],
+    knownSecretSha256: [],
+    limits: { maxInputBytes: 16 * 1024 * 1024, maxScriptBytes: 1024 * 1024, maxFilesRead: 8, maxDepth: 4, deadlineMs: 3000 },
+  });
+  const rulesPath = join(dir, 'rules.json');
+  writeFileSync(rulesPath, rulesBytes);
+  const sha = createHash('sha256').update(rulesBytes).digest('hex');
+  const run = async (command: string) => {
+    const child = spawn(process.execPath, [join(dir, 'guard.mjs'), '--rules', rulesPath, '--sha256', sha, '--event', 'pre-tool-use'], { cwd: dir, env: { PATH: process.env.PATH }, stdio: ['pipe', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (c: Buffer) => (stderr += c.toString('utf8')));
+    child.stdin.end(JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', tool_use_id: 'tu1', tool_name: 'Bash', tool_input: { command }, cwd: work }));
+    const [code] = (await once(child, 'exit')) as [number | null];
+    return { code, stderr };
+  };
+  const blocked = await run('git push origin main');
+  assert.equal(blocked.code, 2, blocked.stderr);
+  assert.match(blocked.stderr, /claudio-guard\/1 block/);
+  assert.equal((await run('ls')).code, 0);
 });
