@@ -1,4 +1,4 @@
-import type { ContentBlock, TranscriptEntry } from '@claudio/shared';
+import type { ContentBlock, ToolResultDetail, TranscriptEntry } from '@claudio/shared';
 
 /*
  * How a transcript reads on the chat page: a turn with twenty tool calls is one step that says
@@ -14,7 +14,8 @@ export interface StepCall {
   /** Null for a result whose call is not held */
   name: string | null;
   input: unknown;
-  result: { content: string; isError: boolean } | null;
+  /** `detail` is what the CLI recorded beside the text, which picks how the body reads */
+  result: { content: string; isError: boolean; detail?: ToolResultDetail } | null;
 }
 
 export interface StepThinking {
@@ -80,7 +81,7 @@ function partsOf(entries: TranscriptEntry[]): StepPart[] {
         parts.push(call);
       } else if (block.type === 'tool_result') {
         const call = calls.get(block.toolUseId);
-        const result = { content: block.content, isError: block.isError };
+        const result = { content: block.content, isError: block.isError, ...(block.detail ? { detail: block.detail } : {}) };
         if (call) call.result = result;
         else parts.push({ kind: 'call', id: block.toolUseId, name: null, input: null, result });
       }
