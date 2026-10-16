@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T21:00:00Z
+updated_at: 2026-10-16T22:00:00Z
 tags:
     - plan
     - collaborators
@@ -21,9 +21,9 @@ our own**: the Claudios connect directly over [iroh](https://iroh.computer).
 
 Status: **settled** on 2026-10-16. Proposed by the owner that morning, revised the same day after an
 adversarial review (§10), and **§5 validated by the owner as written** that evening, together with
-the decisions listed at the top of §8. The agent table is in §7.1. **C0 ran the same evening** (§7.2): everything
-proved on this machine, in Electron and in the Docker image; the test across two NATs is the one
-item still pending, on the owner's work PC from another network. Branch `docs/collaborators-plan`
+the decisions listed at the top of §8. The agent table is in §7.1. **C0 is complete** (§7.2): proved on this machine,
+in Electron and in the Docker image, between two machines on the LAN, and between this machine and
+the owner's work PC on a phone hotspot. The orchestration can be launched. Branch `docs/collaborators-plan`
 from `main` at `a13525b3c`.
 
 Facts about the code were verified on 2026-10-16 against `a13525b3c`. Facts about iroh were checked
@@ -143,7 +143,11 @@ The person sets a **display name** that travels with every roster entry.
   under the ALPN `claudio/collab/1`, through `EndpointOptions.alpns` (verified in the binding's
   typings, §9).
 - **Relays:** n0's public relays by default (`aps1`, `euc1`, `use1`, `usw1`). They are rate-limited,
-  and only used while the direct hole punch fails. A **custom relay URL** setting points the endpoint
+  and carry the traffic while the direct hole punch has not succeeded. C0 found that across a mobile
+  carrier's NAT **it never did** in four runs: a teammate on a phone hotspot or a carrier-grade NAT
+  works entirely through the relay, at about 115 ms of round trip and 7–20 Mbps (§7.2). The design
+  holds, since nothing depends on a direct path, but the Collaborators page says "Connected through a
+  relay" for that peer and the rate limit of the public relays is a reason a team may want its own. A **custom relay URL** setting points the endpoint
   at a self-hosted `iroh-relay` (binary or Docker image `n0computer/iroh-relay`), through
   `EndpointBuilder.relayMode(RelayMode.customFromUrls([...]))` on top of `presetN0`; C0 verified that
   the custom map replaces the default one (§7.2). `online()` never resolves with an unreachable relay
@@ -544,7 +548,7 @@ There are new events: `collaborators.changed` (settings, roster, links), `collab
 
 | Stage | What | Checks |
 | --- | --- | --- |
-| **C0 — spike** | **Done 2026-10-16** but for the two-NAT run (§7.2). Proved on this machine: bind with the custom ALPN, direct and relay paths, discovery by id, custom relay map, soft loading, the bundle and staging, loading in Electron 44 and in `node:26-bookworm-slim`. Found the `watch*` abort and the `Array<number>` ceiling, which changed §3.2. Pending: the client on the owner's work PC from another network, with the tarball and tickets §7.2 names. | §7.2 written; spike kept outside the repo (`/tmp/c0-iroh`, tarball on the Desktop) |
+| **C0 — spike** | **Done 2026-10-16** (§7.2). Proved: bind with the custom ALPN, direct and relay paths, discovery by id, custom relay map, soft loading, the bundle and staging, loading in Electron 44 and in `node:26-bookworm-slim`, two machines on the LAN, and two machines across two NATs (home router and a phone hotspot), where every connection stayed on the relay. Found the `watch*` abort and the `Array<number>` ceiling, which changed §3.2. | §7.2 written; spike kept outside the repo (`/tmp/c0-iroh`, `~/Escritorio/claudio-c0-spike.tar.gz`, `/home/jose/spike` on the work PC) |
 | **C1 — core** | identity and lazy loading; roster chain (genesis, verify, suffix fetch, transfer, equivocation report); invites, direct and relayed joins, one-time secrets; `shareKeyFor` with the remote preference, alias resolution, host table and subpath; `serve.ts` with read-only ports, the lint rule and the four checks; pull/watch client; SQLite tables; catalog reconcile; manual links | unit tests: chain verification against every forged variant (wrong signer, broken `prevHash`, equal version, second genesis); a peer offline across five versions converges; joiner rejects a chain whose owner is not the invite's; transfer; invite expiry and one-time use across a restart; relayed join sealed end to end; removal; `shareKeyFor` for fork, alias, case, subpath, two clones and no remote; blob refused by hash alone; the "serve imports no run service" test and lint; cursors per kind; two in-process endpoints syncing a fixture project offline |
 | **C2 — API** | routes, events, OpenAPI, README, `CHAT_FORBIDDEN_COLLABORATORS`, `ProjectSettings.sharing` and schema regeneration | `pnpm --filter @claudio/api openapi:schemas`, route tests, 403 for chat tokens on every route including reads |
 | **C3 — web** | §5 after the owner validates it, the `collaborators` illustration with its reference SVG and its design-system row, the QR encoder, the glossary rows | Night Shift check skill, `en`/`es` parity, both themes, phone, motion levels, the tokens test, at most two gradient surfaces on the Collaborators page |
@@ -661,21 +665,38 @@ never the addresses, and the invite text carries the owner's ticket, which the p
 **Signing.** `SecretKey.sign(Array)` and `EndpointId.verify(Array, Signature)` work; `k2` signs with
 `node:crypto` over the same 32-byte seed and C1 checks both verify each other's signatures.
 
-**Pending: the two-NAT run.** A server with the n0 preset is running on this machine
-(`/tmp/c0-iroh/spike/serve.mjs n0`, log `serve-nat.log`, tickets in `/tmp/c0-iroh/tickets.txt`).
-On the work PC, connected to another network (phone hotspot), with Node ≥ 20.3:
+**Two machines on the LAN.** Client on the owner's work PC (Ubuntu 26.04, Node 24.13 through nvm,
+`pc-work-jose-garrido.local`), server here, both with Tailscale up. Id-only ticket: `online()` 2.6 s,
+handshake **173 ms** through the relay; a direct LAN path (`192.168.1.184`) selected at **~680 ms**;
+iroh also found and sometimes preferred the Tailscale path (`100.92.252.87`), flipping between the
+two. Ping median 40 ms during the migration, `rtt()` 8 ms once direct. Blob of 4 MiB: 12.2 s, 2.75 Mbps
+(the `Array<number>` ceiling plus the migration).
 
-```
-tar -xzf claudio-c0-spike.tar.gz && cd spike
-npm install
-node load-check.mjs
-node client.mjs <id-only ticket>        # dial by key through discovery, the Collaborators case
-node client.mjs <relay-only ticket>     # the relay path, then the hole punch
-```
+**Two machines across two NATs.** The work PC moved to an iPhone hotspot (`172.20.10.2/28`, carrier
+NAT), Tailscale stopped on it; this machine behind the home router, public address
+`95.60.169.146`, port-preserving (`addr()` showed `95.60.169.146:51936` for the local `:51936`). Four
+runs, two with the id-only ticket and two with the relay-only one, each watching paths for 10 s:
 
-Each prints a JSON report; `pathsAtConnect`, `pathsAfterWait` and `pathEvents` say whether the
-connection went direct, how long it stayed on the relay, and the ping and blob figures across the
-internet. Those numbers close C0 and go here.
+| Run | `online()` | handshake | path at connect | path after 10 s | ping median | blob 4 MiB |
+|---|---|---|---|---|---|---|
+| id-only 1 | 776 ms | 366 ms | relay | relay | 126 ms | 3.8 s, 8.8 Mbps |
+| id-only 2 | 712 ms | 129 ms | relay | relay | 114 ms | 1.7 s, 19.6 Mbps |
+| relay-only 1 | 741 ms | 171 ms | relay | relay | 121 ms | 2.8 s, 11.9 Mbps |
+| relay-only 2 | 7.5 s | 120 ms | relay | relay | 114 ms | 5.1 s, 6.6 Mbps |
+
+**No direct path was ever opened**, on either side (the server's path snapshots for the four
+connections, 49 in all, show no `ip` path). Dialling by key through discovery worked every time, every
+frame was answered, one packet was lost in 2,000. So: across a carrier's NAT the relay **is** the path,
+with ~115 ms of round trip, and the hole punch the vendor advertises did not happen in this
+topology. The design needs no direct path; the UI says "Connected through a relay" (§5.1), and a team
+with several members on mobile networks has a reason to run its own `iroh-relay`, which is a setting
+(§3.2). Home-to-home, office-to-home and the LAN case were not the problem: the LAN run went direct
+in under a second.
+
+**Spike artefacts.** `/tmp/c0-iroh/spike` here (`serve.mjs`, `client.mjs`, `tput.mjs`,
+`relay-test.mjs`, `buf-test.mjs`, `load-check.mjs`), the raw reports in `/tmp/c0-iroh/results/`, the
+copy `~/Escritorio/claudio-c0-spike.tar.gz`, and `/home/jose/spike` with `nat-run.sh` on the work PC.
+None of it enters the repository.
 
 ## 8. Decisions taken and rejected
 
