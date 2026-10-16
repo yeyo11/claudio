@@ -29521,6 +29521,254 @@
     ],
     "description": "A sample with the tool calls it made, which `EvalRun` leaves out."
   },
+  "EvalGate": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "verdict": {
+        "$ref": "#/components/schemas/EvalGateVerdictKind"
+      },
+      "regressed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "caseId": {
+              "type": "string"
+            },
+            "pressure": {
+              "$ref": "#/components/schemas/EvalPressure"
+            },
+            "from": {
+              "type": "number"
+            },
+            "to": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "caseId",
+            "pressure",
+            "from",
+            "to"
+          ]
+        },
+        "description": "`mustHold` cases whose pass^k fell, with the levels; set for `regressed`"
+      },
+      "incomplete": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "caseId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pressure": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EvalPressure"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "unjudged",
+                "not-scored",
+                "small-n",
+                "judge-unreliable"
+              ]
+            }
+          },
+          "required": [
+            "caseId",
+            "pressure",
+            "reason"
+          ]
+        },
+        "description": "Why it is `incomplete`: unjudged or not-scored `mustHold` samples, a unreliable judge, n below the gate minimum"
+      },
+      "meanRate": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "proposed": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "current",
+          "proposed",
+          "interval"
+        ],
+        "description": "Mean pass rate across cells, with the interval the fall is compared against"
+      },
+      "unreliableJudges": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "caseId": {
+              "type": "string"
+            },
+            "idx": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "caseId",
+            "idx"
+          ]
+        },
+        "description": "Judged expectations whose judge disagreed with its calibration examples, not yet accepted"
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pinned account or rotation, shown on the card; no effect on the verdict"
+      },
+      "cells": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalCellMetrics"
+        }
+      }
+    },
+    "required": [
+      "runId",
+      "verdict",
+      "regressed",
+      "incomplete",
+      "meanRate",
+      "unreliableJudges",
+      "account",
+      "cells"
+    ],
+    "description": "Phase 2: the verdict on a run with `current` and `proposed`. Nothing is written by it: \"Save proposed\" opens the editor's Save with the proposed text."
+  },
+  "EvalGateVerdictKind": {
+    "type": "string",
+    "enum": [
+      "promotable",
+      "regressed",
+      "incomplete"
+    ]
+  },
+  "EvalCellMetrics": {
+    "type": "object",
+    "properties": {
+      "caseId": {
+        "type": "string"
+      },
+      "variant": {
+        "$ref": "#/components/schemas/EvalVariant"
+      },
+      "pressure": {
+        "$ref": "#/components/schemas/EvalPressure"
+      },
+      "n": {
+        "type": "number"
+      },
+      "c": {
+        "type": "number"
+      },
+      "k": {
+        "type": "number",
+        "description": "Clamped to `n`"
+      },
+      "passAtK": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "At least one of k passes; null when n < k"
+      },
+      "passHatK": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "All k pass; null when n < k"
+      },
+      "interval": {
+        "type": "object",
+        "properties": {
+          "low": {
+            "type": "number"
+          },
+          "high": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "low",
+          "high"
+        ],
+        "description": "Wilson 95 % interval around c / n"
+      },
+      "unjudged": {
+        "type": "number",
+        "description": "Samples left out because a judge failed"
+      },
+      "mustHold": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "caseId",
+      "variant",
+      "pressure",
+      "n",
+      "c",
+      "k",
+      "passAtK",
+      "passHatK",
+      "interval",
+      "unjudged",
+      "mustHold"
+    ],
+    "description": "Phase 2: one cell (case × variant × pressure) read as metrics. `n` counts scored samples, `c` the passing ones; a rate is never shown without `n`."
+  },
   "DecisionFeedbackRequest": {
     "type": "object",
     "properties": {

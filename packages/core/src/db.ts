@@ -1085,6 +1085,8 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    );
    ALTER TABLE eval_runs ADD COLUMN gate TEXT;
    ALTER TABLE eval_runs ADD COLUMN gate_detail TEXT;`,
+  // Phase 2: the eval an assistant `evals` run drafts cases for
+  `ALTER TABLE assistant_runs ADD COLUMN eval_name TEXT;`,
 ];
 
 /**
