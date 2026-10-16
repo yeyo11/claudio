@@ -54,6 +54,13 @@ mistake even though their own rows already gave them a Spanish word.
 | Term | In a Spanish sentence |
 |---|---|
 | worktree | el worktree, los worktrees |
+| eval | la evaluación, las evaluaciones (the Team → Evals section; buttons: "Ejecutar evaluación", "Nueva evaluación") |
+| case (of an eval) | el caso, los casos |
+| sample / attempt | el intento, los intentos |
+| expectation (of a case) | la comprobación, las comprobaciones |
+| pin (a commit) | fijar / el commit fijado ("Fijar en HEAD") |
+| ceiling (of a run's cost) | el tope, el tope de coste |
+| pass@k, pass^k | stay as written |
 | prompt | el prompt, los prompts |
 | system prompt | el system prompt |
 | hook | el hook, los hooks |
