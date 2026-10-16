@@ -94,7 +94,7 @@ import { REVIEW_TOOLS } from './review-roles.ts';
 import { securityTriggered, type ScanFinding } from './review-scan.ts';
 import { ReviewStore, ReviewStoreError } from './review-store.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
-import { isSynthesis, journalError, type JournalRead, type JournalTask } from './workflow-journal.ts';
+import { isSynthesis, journalError, journalRefusal, type JournalRead, type JournalRefusal, type JournalTask } from './workflow-journal.ts';
 import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
@@ -123,6 +123,8 @@ const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
 /** The `orchestrationTaskId` of the review's chats; `chatRole()` links it with role `review` */
 const REVIEW_ROLE_ID = '__review__';
+/** The `orchestrationTaskId` of a workflow's lead, the one session that runs every task; `chatRole()` links it with role `workflow` */
+const WORKFLOW_LEAD = '__workflow__';
 /** Bounds of a person's reason for accepting the gate (D8): enough to say why, not an essay */
 const ACCEPT_REASON_MIN = 10;
 const ACCEPT_REASON_MAX = 1000;
@@ -477,6 +479,16 @@ export class Orchestrator {
   private readonly journalTasks = new Map<string, Set<string>>();
   /** Workflow graphs whose journal is being read, so a slow read is not stacked under the next tick */
   private readonly journalReading = new Set<string>();
+  /** Workflow graphs being settled, so a slow settle is not started again by the next tick */
+  private readonly finishing = new Set<string>();
+  /** Each workflow graph's watcher: a launch into the same session after a limit replaces the one before */
+  private readonly workflowWatchers = new Map<string, NodeJS.Timeout>();
+  /**
+   * Hands a workflow's lead to the rotation at a limit one of its agents met: the account is marked,
+   * the lead stopped and `limit-hit` announced for it (`ChatManager.limitReached`). False when the
+   * rotation cannot take it. Set by Core; none leaves a refused agent a failed task, as any other.
+   */
+  workflowLimit: ((chatId: string, refusal: JournalRefusal) => boolean) | null = null;
   /** Where status changes, task changes and merge conflicts are announced; set by Core */
   bus: EventBus | null = null;
   private readonly tracker = new OrchestrationEventTracker();
@@ -940,8 +952,11 @@ export class Orchestrator {
     if (orch.status !== 'running' && orch.status !== 'waiting') return orch;
     orch.status = 'stopped';
     orch.endedAt = now();
-    // One process runs every task of a workflow
-    if (orch.workflow?.runId && this.runs.get(orch.workflow.runId)?.pid) this.runs.stop(orch.workflow.runId);
+    // One process runs every task of a workflow, and a lead held at a limit waits for nobody now
+    if (orch.workflow?.runId) {
+      if (orch.engine === 'workflow') this.releaseWait?.(orch.workflow.runId);
+      if (this.runs.get(orch.workflow.runId)?.pid) this.runs.stop(orch.workflow.runId);
+    }
     for (const t of orch.tasks) {
       if (t.status === 'running' && t.runId && orch.engine !== 'workflow') {
         this.releaseWait?.(t.runId);
@@ -1618,11 +1633,22 @@ ${quoted}
     return null;
   }
 
+  /** The running workflow graph a chat leads. */
+  private workflowOfLead(chatId: string): Orchestration | null {
+    for (const orch of this.items.values()) {
+      if (orch.engine === 'workflow' && orch.status === 'running' && orch.workflow?.runId === chatId) return orch;
+    }
+    return null;
+  }
+
   /**
-   * What a running task's chat works for. Null for any other chat, and for a workflow graph, whose
-   * one process runs every task and cannot be replayed task by task.
+   * What a running task's chat works for. A workflow's lead works for the whole graph: its one
+   * process runs every task, so at a limit it is moved or waited for as a whole, and goes on by
+   * resuming the run from its cache (`replayWorkflow`). Null for any other chat.
    */
   workOf(chatId: string): ChatWork | null {
+    const workflow = this.workflowOfLead(chatId);
+    if (workflow) return { subjectKind: 'task', subjectId: `${workflow.id}:${WORKFLOW_LEAD}` };
     const found = this.taskOfChat(chatId);
     if (!found || found.task.status !== 'running') return null;
     return { subjectKind: 'task', subjectId: `${found.orch.id}:${found.task.id}` };
@@ -1634,6 +1660,8 @@ ${quoted}
    * fails it, and a person decides.
    */
   waitEnded(move: Pick<ProviderMove, 'fromChat' | 'at'>, end: 'resumed' | 'failed' | 'cancelled', reason: string | null): void {
+    const workflow = this.workflowOfLead(move.fromChat);
+    if (workflow) return this.workflowWaitEnded(workflow, end, reason);
     const found = this.taskOfChat(move.fromChat);
     if (!found || found.task.status !== 'running') return;
     const { orch, task } = found;
@@ -1655,6 +1683,34 @@ ${quoted}
           : `the usage limit reset, but the task could not go on${reason ? ` (${reason})` : ''}`;
     task.endedAt = now();
     this.schedule(orch);
+  }
+
+  /**
+   * A workflow's wait for the limit to reset ended. Resumed, the run already went on from its cache
+   * (`replayWorkflow` follows it); otherwise the graph ends with what is left undone, and can be
+   * resumed by hand once an account has room.
+   */
+  private workflowWaitEnded(orch: Orchestration, end: 'resumed' | 'failed' | 'cancelled', reason: string | null): void {
+    if (end === 'resumed') return this.persist();
+    const error =
+      end === 'cancelled'
+        ? 'a person stopped waiting for the usage limit to reset'
+        : reason === 'limit-wait-expired'
+          ? 'the usage limit did not reset within the time Claudio waits for it'
+          : `the usage limit reset, but the workflow could not go on${reason ? ` (${reason})` : ''}`;
+    const status = end === 'cancelled' ? 'stopped' : 'failed';
+    this.clearWorkflowWatcher(orch.id);
+    for (const t of orch.tasks) {
+      if (t.status !== 'pending' && t.status !== 'running') continue;
+      t.status = status;
+      t.error = error;
+      t.endedAt = now();
+    }
+    orch.status = status;
+    orch.error = error;
+    orch.endedAt = now();
+    this.journalTasks.delete(orch.id);
+    this.persist();
   }
 
   /**
@@ -3437,13 +3493,7 @@ ${quoted}
         mkdirSync(join(this.config.dataDir, 'workflows'), { recursive: true });
         writeFileSync(scriptPath, this.compile(orch));
       }
-      const prompt =
-        'Run the workflow Claudio generated for this orchestration: call the Workflow tool with ' +
-        `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
-        'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
-        `${DELEGATION}\n\n` +
-        // No budget for a workflow today: the signal says time matters all the same
-        timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)));
+      const prompt = this.workflowPrompt(orch, scriptPath, resumeFrom);
       const previous = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
       if (resumeFrom && previous) {
         orch.workflow = { scriptPath, runId: previous.id, workflowRunId: resumeFrom };
@@ -3479,7 +3529,7 @@ ${quoted}
             purpose: 'orchestration',
             keepAlive: false,
           },
-          { orchestrationId: orch.id, orchestrationTaskId: '__workflow__' },
+          { orchestrationId: orch.id, orchestrationTaskId: WORKFLOW_LEAD },
         );
         orch.workflow = { scriptPath, runId: run.id, workflowRunId: null };
         this.workflowBaseline.set(orch.id, 0);
@@ -3500,6 +3550,52 @@ ${quoted}
     this.persist();
   }
 
+  /** What the lead is asked: run the generated script, or resume its run from the cache. */
+  private workflowPrompt(orch: Orchestration, scriptPath: string, resumeFrom: string | null): string {
+    return (
+      'Run the workflow Claudio generated for this orchestration: call the Workflow tool with ' +
+      `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
+      'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
+      `${DELEGATION}\n\n` +
+      // No budget for a workflow today: the signal says time matters all the same
+      timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)))
+    );
+  }
+
+  /**
+   * Goes on with a workflow whose lead the rotation took at a limit: back into the same session, on
+   * the account the rotation moved it to or, once a wait ended, the same one, resuming the run from
+   * its cache. Never by replaying the lead's turn, which would launch the workflow again from nothing.
+   * Null for a chat that leads no workflow; false for one whose graph no longer runs.
+   */
+  replayWorkflow(chatId: string, account?: string): Promise<boolean> | null {
+    const orch = [...this.items.values()].find((o) => o.engine === 'workflow' && o.workflow?.runId === chatId);
+    if (!orch) return null;
+    return (async () => {
+      if (orch.status !== 'running' || !orch.workflow) return false;
+      // The old process may still write to the journal on its way out: it is counted once it is gone
+      if (this.runs.get(chatId)?.pid) {
+        this.runs.stop(chatId);
+        await this.runs.exited(chatId);
+      }
+      const resumeFrom = orch.workflow.workflowRunId;
+      if (resumeFrom) await this.markJournal(orch, chatId, resumeFrom);
+      if (orch.status !== 'running' || !orch.workflow) return false;
+      this.workflowBaseline.set(orch.id, this.runs.get(chatId)?.workflows?.length ?? 0);
+      if (!(await this.runs.replayWith(chatId, this.workflowPrompt(orch, orch.workflow.scriptPath, resumeFrom), account))) return false;
+      this.followWorkflow(orch, chatId);
+      return true;
+    })();
+  }
+
+  private clearWorkflowWatcher(orchestrationId: string): void {
+    const watcher = this.workflowWatchers.get(orchestrationId);
+    if (!watcher) return;
+    clearInterval(watcher);
+    this.timers.delete(watcher);
+    this.workflowWatchers.delete(orchestrationId);
+  }
+
   /**
    * Tracks the workflow until it ends. Its end is its own: in a `-p` session the Workflow tool
    * runs in the background, so the turn that launched it ends at once ("Workflow is running…") and
@@ -3512,24 +3608,35 @@ ${quoted}
       t.runId = runId;
       t.sessionId = run?.id ?? null;
     }
+    this.clearWorkflowWatcher(orch.id);
     const stop = () => {
       clearInterval(watcher);
       this.timers.delete(watcher);
+      if (this.workflowWatchers.get(orch.id) === watcher) this.workflowWatchers.delete(orch.id);
     };
     const watcher = setInterval(() => {
       if (orch.status !== 'running') return stop();
       this.syncWorkflow(orch);
       void this.followJournal(orch);
+      // The rotation has the lead at a limit: it moves the session or waits for the reset, and goes on
+      // through `replayWorkflow`, which follows the run again. A lead it stopped has not ended the graph
+      if (this.limitHeld?.(runId)) return;
       const workflow = this.currentWorkflow(orch);
       const now = this.runs.get(runId);
       const ended = workflow !== null && workflow.status !== 'running';
       const gone = !now || (now.pid === null && ['completed', 'failed', 'stopped'].includes(now.status));
-      if (!ended && !gone) return;
-      stop();
-      void this.finishWorkflow(orch, runId);
+      if (!ended && !gone || this.finishing.has(orch.id)) return;
+      // The last read of the journal may still find a limit, which the rotation then holds: the
+      // watcher stays until the graph has really ended
+      this.finishing.add(orch.id);
+      void this.finishWorkflow(orch, runId).finally(() => {
+        this.finishing.delete(orch.id);
+        if (orch.status !== 'running') stop();
+      });
     }, 1000);
     watcher.unref();
     this.timers.add(watcher);
+    this.workflowWatchers.set(orch.id, watcher);
     this.persist();
   }
 
@@ -3620,9 +3727,11 @@ ${quoted}
     const sessionId = orch.workflow?.runId;
     const workflowRunId = orch.workflow?.workflowRunId;
     if (!this.workflowJournal || !sessionId || !workflowRunId) return;
-    const read = await this.workflowJournal(sessionId, workflowRunId, this.journalFrom.get(orch.id) ?? 0).catch(() => null);
-    // Stopped, relaunched or closed while the files were read: what was read belongs to what is gone
+    const from = this.journalFrom.get(orch.id) ?? 0;
+    const read = await this.workflowJournal(sessionId, workflowRunId, from).catch(() => null);
+    // Stopped, relaunched, resumed after a limit or closed while the files were read: what was read belongs to what is gone
     if (!read || this.closed || orch.status !== 'running' || orch.workflow?.runId !== sessionId || orch.workflow.workflowRunId !== workflowRunId) return;
+    if ((this.journalFrom.get(orch.id) ?? 0) !== from) return;
     this.applyJournal(orch, read.tasks);
   }
 
@@ -3634,7 +3743,9 @@ ${quoted}
     const byId = new Map(orch.tasks.map((t) => [t.id, t]));
     const journalled = new Set<string>();
     let changed = false;
-    for (const entry of entries) {
+    for (const read of entries) {
+      // Refused at a limit the rotation takes: the agent runs again once the run resumes, so it is not a failure
+      const entry = read.state === 'failed' && this.limitTaken(orch, read) ? { ...read, state: 'running' as const } : read;
       if (isSynthesis(entry)) {
         changed = this.applySynthesisJournal(orch, entry) || changed;
         continue;
@@ -3655,10 +3766,25 @@ ${quoted}
       task.startedAt ??= now();
       if (entry.state === 'running') task.endedAt = null;
       else if (wasRunning || !task.endedAt) task.endedAt = now();
+      // Work went on since a limit: the next limit is a new one, which may be waited for again
+      if (entry.state === 'completed' && orch.workflow?.runId) this.runs.limitProgress(orch.workflow.runId);
       changed = true;
     }
     this.journalTasks.set(orch.id, journalled);
     if (changed) this.persist();
+  }
+
+  /**
+   * Whether an agent's refusal is the rotation's: the lead is stopped and handed to it, and the run
+   * resumes from its cache on another account or after the reset. Asked again for the same line until
+   * the run resumes, which the lead being at its limit answers. A refusal the rotation cannot take (no
+   * rotation, or a replay already spent with nothing done since) is the agent's failure.
+   */
+  private limitTaken(orch: Orchestration, entry: JournalTask): boolean {
+    const refusal = journalRefusal(entry);
+    const lead = orch.workflow?.runId;
+    if (!refusal || !lead || !this.workflowLimit) return false;
+    return this.runs.atLimit(lead) || this.workflowLimit(lead, refusal);
   }
 
   /** Whether the synthesis agent's journal entry changed the graph's synthesis. */
@@ -3683,6 +3809,8 @@ ${quoted}
     // The journal's last lines may have been written after the latest tick read it
     await this.syncJournal(orch);
     if (orch.status !== 'running') return;
+    // An agent was refused at a limit the rotation took: the run goes on from its cache, not over
+    if (this.limitHeld?.(runId)) return;
     const live = this.currentWorkflow(orch);
     const run = this.runs.get(runId);
     // The record is written as the workflow ends, around the notification: give it a moment

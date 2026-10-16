@@ -233,7 +233,8 @@ const limitRefusal = (agentId) => ({
   sessionId,
   message: { role: 'assistant', model: '<synthetic>', type: 'message', content: [{ type: 'text', text: "You've hit your session limit · resets 2:40am (Europe/Madrid)" }] },
   apiError: 'usage_limit_reached',
-  apiErrorParams: { rate_limit_info: { status: 'rejected', resetsAt: 1792197600, rateLimitType: 'five_hour' } },
+  // $FAKE_WORKFLOW_RESETS_AT (epoch seconds) moves the reset where a test needs it
+  apiErrorParams: { rate_limit_info: { status: 'rejected', resetsAt: Number(process.env.FAKE_WORKFLOW_RESETS_AT ?? 1792197600), rateLimitType: 'five_hour' } },
   error: 'rate_limit',
   isApiErrorMessage: true,
   apiErrorStatus: 429,
@@ -271,7 +272,8 @@ async function runWorkflow(path, resumeFrom) {
     journal({ type: 'started', key, agentId, label, phase: opts.phase ?? null });
     progress();
     await new Promise((r) => setTimeout(r, 5));
-    if (!resumeFrom && (label === 'synthesis' ? prompt.includes('SYNTH-LIMIT') : /(^|[^-\w])LIMIT\b/.test(prompt))) {
+    // $FAKE_WORKFLOW_LIMIT=always refuses on a resumed run too: every account is at its limit
+    if ((!resumeFrom || process.env.FAKE_WORKFLOW_LIMIT === 'always') && (label === 'synthesis' ? prompt.includes('SYNTH-LIMIT') : /(^|[^-\w])LIMIT\b/.test(prompt))) {
       transcript(agentId, limitRefusal(agentId));
       journal({ type: 'failed', key, agentId });
       return null;

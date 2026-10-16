@@ -62,6 +62,12 @@ export interface RotationDeps {
   evalSample?: (chatId: string) => boolean;
   /** A run held to a schema is waited on only when whoever started it waits for the chat (a flow run) */
   awaiting?: (chatId: string) => boolean;
+  /**
+   * Goes on with a chat whose work is not its last turn: a workflow's lead resumes its run from the
+   * cache (docs/plans/workflow-engine-limits.md §2). Null for a chat it does not know, whose last turn
+   * is replayed; otherwise whether the work went on, on `account` when the limit moved it there.
+   */
+  replay?: (chatId: string, account?: string) => Promise<boolean> | null;
   /** A wait is over: the turn was replayed, it could not be, or a person stopped waiting */
   ended?: (move: ProviderMove, end: WaitEnd, reason: string | null) => void;
   now?: () => number;
@@ -217,7 +223,7 @@ export class ProviderRotation {
       this.record('wait', from, null, auth ? 'auth' : 'limit', run, { waitUntil: choice.waitUntil });
       return { moved: false, waitUntil: choice.waitUntil };
     }
-    const resumed = await this.deps.runtime.replayLastTurn(run.id, to);
+    const resumed = await (this.deps.replay?.(run.id, to) ?? this.deps.runtime.replayLastTurn(run.id, to));
     if (!resumed) return { moved: false, waitUntil: choice.waitUntil };
     this.record('switch', from, to, auth ? 'auth' : (choice.reason ?? 'limit'), run, null);
     this.deps.runtime.notice(run.id, auth ? `The sign-in of account ${from} expired; the turn goes on with account ${to}.` : `Account ${from} reached its usage limit; the turn goes on with account ${to}.`);
@@ -366,11 +372,17 @@ export class ProviderRotation {
     let replayed = false;
     let reason: string | null = null;
     try {
-      replayed = await this.deps.runtime.replayLastTurn(run.id);
-      // A restart forgot the turn that was cut off: the session resumes with a nudge instead
-      if (!replayed) {
-        this.deps.runtime.send(run.id, CONTINUE_TEXT);
-        replayed = true;
+      const own = this.deps.replay?.(run.id) ?? null;
+      if (own) {
+        replayed = await own;
+        if (!replayed) reason = 'its work could not be resumed';
+      } else {
+        replayed = await this.deps.runtime.replayLastTurn(run.id);
+        // A restart forgot the turn that was cut off: the session resumes with a nudge instead
+        if (!replayed) {
+          this.deps.runtime.send(run.id, CONTINUE_TEXT);
+          replayed = true;
+        }
       }
     } catch (error) {
       reason = `its turn could not be resumed: ${error instanceof Error ? error.message : String(error)}`;
