@@ -535,6 +535,9 @@ async function evaluateOne(idx: number, e: EvalExpectation, ctx: EvalContext): P
     }
     case 'sequence':
       return checkSequence(idx, e, ctx);
+    // Phase 2: the runner asks the judge (evals/judge.ts) and replaces this check with its verdict; a matcher never decides it
+    case 'judged':
+      return check(idx, e, false, 'a judged expectation is decided by the judge, not by a matcher', null);
     case 'text': {
       if (ctx.resultText === null) return check(idx, e, false, 'the sample produced no final text', null);
       const ok = matchString(e.match, ctx.resultText, 'text');
