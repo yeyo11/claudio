@@ -7,7 +7,11 @@
     "qa": "QA",
     "researcher": "Investigador",
     "writer": "Redactor técnico",
-    "reviewer": "Revisor"
+    "reviewer": "Revisor",
+    "silent-failure-hunter": "Cazador de fallos silenciosos",
+    "type-design-analyst": "Analista de diseño de tipos",
+    "build-resolver": "Resolutor de builds",
+    "spec-miner": "Minero de especificaciones"
   },
   "stage": {
     "refine": {
@@ -58,6 +62,8 @@
     "onEnd": "Al terminar",
     "answersFor": "Responde de",
     "consulted": "Ninguna columna · se le consulta",
+    "readOnly": "solo lectura",
+    "readOnlyHint": "Su archivo de agente solo permite herramientas que leen: no puede cambiar el proyecto, allí donde el CLI lo cargue.",
     "writes": "Puede escribir en",
     "writesAnywhere": "En todo el proyecto",
     "writesDocuments": "Solo la carpeta de documentos",
@@ -170,6 +176,13 @@
     "applied_one": "{{count}} miembro se ha unido al equipo",
     "applied_other": "{{count}} miembros se han unido al equipo",
     "failed": "No se ha podido añadir el equipo de la plantilla"
+  },
+  "moreRoles": {
+    "label": "Más roles",
+    "title": "Más roles de la plantilla",
+    "add": "Añadir {{name}}",
+    "done": "{{name}} se ha unido al equipo",
+    "failed": "No se ha podido añadir el rol"
   },
   "flow": {
     "title": "Flujo",
@@ -527,6 +540,10 @@
     "qa": "Verifica cada tarea contra sus criterios de aceptación",
     "researcher": "Lee las fuentes y expone lo que se sabe",
     "writer": "Convierte los hallazgos en documentos",
-    "reviewer": "Revisa que los documentos sean exactos y claros"
+    "reviewer": "Revisa que los documentos sean exactos y claros",
+    "silent-failure-hunter": "Encuentra fallos que no hacen ruido: errores tragados, promesas sin esperar, alternativas que los esconden",
+    "type-design-analyst": "Juzga si los tipos hacen irrepresentables los estados ilegales",
+    "build-resolver": "Arregla un build, una comprobación de tipos o un lint que fallan con el cambio más pequeño",
+    "spec-miner": "Deja por escrito lo que hace hoy el código, a partir del código y sus pruebas"
   }
 }

@@ -15,7 +15,7 @@ import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
-import { MemberCells, MemberGrid, ProposeButton, TeamEmpty, useProposeTeam } from './Members';
+import { MemberCells, MemberGrid, MoreRoles, ProposeButton, TeamEmpty, useProposeTeam } from './Members';
 import { proposedFlow, savedFlow, teamActivity, teamSearch, teamSection, workingCount, type TeamSection } from './model';
 import { FlowSummary, TeamActivity } from './parts';
 
@@ -96,14 +96,16 @@ export function ProjectTeam({ project }: { project: Project }) {
     />
   );
 
+  // The template's own team, or the software one when it has none: the same fallback core offers
+  const own = templates.data?.find((template) => template.id === settings.data.template);
+  const optional = (own && own.team.length > 0 ? own : templates.data?.find((template) => template.id === 'custom'))?.optionalTeam ?? [];
   if (count === 0) {
-    const own = templates.data?.find((template) => template.id === settings.data.template);
     const roles = own && own.team.length > 0 ? own.team : (templates.data?.find((template) => template.id === 'custom')?.team ?? []);
     const templateName = own && own.team.length > 0 ? t(`projects:templates.${own.id}.name`) : null;
     return (
       <div className="team-page is-empty">
         {header()}
-        <TeamEmpty projectId={project.id} roles={roles} templateName={templateName} phone={phone} onAdd={() => setAdding({})} />
+        <TeamEmpty projectId={project.id} roles={roles} optional={optional} templateName={templateName} phone={phone} onAdd={() => setAdding({})} />
         {addDialog}
       </div>
     );
@@ -183,6 +185,7 @@ export function ProjectTeam({ project }: { project: Project }) {
         <div className="team-phone-actions">
           {addButton}
           <ProposeButton projectId={project.id} />
+          <MoreRoles projectId={project.id} optional={optional} members={members} />
         </div>
         {addDialog}
       </div>
@@ -195,6 +198,7 @@ export function ProjectTeam({ project }: { project: Project }) {
         {switcher}
         <span className="grow" />
         <ProposeButton projectId={project.id} />
+        <MoreRoles projectId={project.id} optional={optional} members={members} />
         {addButton}
       </div>
       <div className="team-layout">

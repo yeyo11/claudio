@@ -1200,6 +1200,30 @@ test('the query of the activity is checked', () => {
   }
 });
 
+test('the result schema lets a member propose a path-scoped rule, and parses its paths', () => {
+  const target = (
+    flowResultSchema('work') as { properties: { memoryProposals: { items: { properties: { target: { properties: Record<string, { enum?: string[]; description?: string }> } } } } } }
+  ).properties.memoryProposals.items.properties.target.properties;
+  assert.ok(target.kind?.enum?.includes('rule'));
+  assert.match(target.kind?.description ?? '', /rule: a path-scoped rule in `\.claude\/rules\/<file>`, loaded only for files matching `paths`; prefer it to `instructions`/);
+  assert.ok(target.paths);
+  const parsed = parseResult(
+    JSON.stringify({
+      summary: 'ok',
+      memoryProposals: [
+        { target: { kind: 'rule', file: 'tests.md', paths: ['src/**', 3, 'test/**'] }, text: 'Name tests after behaviour', reason: 'seen twice' },
+        { target: { kind: 'memory', file: 'a.md', paths: ['ignored/**'] }, text: 'y' },
+      ],
+      documents: [],
+    }),
+    'work',
+  );
+  assert.deepEqual(parsed?.memoryProposals, [
+    { target: { kind: 'rule', file: 'tests.md', section: null, paths: ['src/**', 'test/**'] }, text: 'Name tests after behaviour', reason: 'seen twice' },
+    { target: { kind: 'memory', file: 'a.md', section: null }, text: 'y', reason: '' },
+  ]);
+});
+
 test('a result is read defensively', () => {
   assert.equal(parseResult(null, 'work'), null);
   assert.equal(parseResult({ verdict: 'pass' }, 'verify'), null);

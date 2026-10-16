@@ -40,6 +40,14 @@ export function scopeAndCompletion(effort?: string | null): string {
 export const REAL_VERIFICATION =
   "Before you report code as done, run a real check that exercises it: its tests, the type check, the build, with the project's own commands. A syntax-only check does not count, and neither does a command that failed to start. Install the dependencies the project declares with its own package manager (the one its lockfile names), never with sudo. If a check cannot run, say which one and why.";
 
+/** One error at a time: the fixes that went wrong unsupervised were the ones aimed at everything at once. */
+export const FIX_ONE_AT_A_TIME =
+  'Fix one error at a time: the first one the output reports, or the one the others follow from. Run the narrowest check that shows it, and move to the next only when it is gone.';
+
+/** When more attempts stop helping; the same three conditions the harness checks from the outside. */
+export const FIX_STOP_WHEN =
+  'Stop fixing when the same error survives three of your fixes, when a fix leaves more errors than it removed, or when the fix needs a change of design (a new dependency, a change to a public interface or a stored format, a rewrite of a module) rather than a local change. Before you stop, undo a fix that made things worse with a new commit, never by rewriting history.';
+
 /** For `--json-schema` runs that reason on Sonnet, which answers better when told to think first. */
 export const THINK_THROUGH = 'Think the problem through before you answer.';
 

@@ -243,7 +243,7 @@ export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions 
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateOptionalTeam, templateTeam, type TeamRunSource } from './team.ts';
 export {
   ASSISTANT_ERRORS,
   AssistantError,
@@ -805,6 +805,8 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
       decisions: this.decisions,
+      // Built further down; read when a rule is approved
+      resources: () => this.resources,
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);

@@ -338,7 +338,7 @@ interface ParsedResult {
 const CHECK_CAUSES: readonly FlowCheckVerdict['cause'][] = ['branch', 'not-branch', 'uncertain'];
 const CHECKS_MAX = 100;
 
-const TARGET_KINDS: readonly MemoryProposalTargetKind[] = ['instructions', 'memory', 'journal'];
+const TARGET_KINDS: readonly MemoryProposalTargetKind[] = ['instructions', 'memory', 'journal', 'rule'];
 
 /** History entries that say where an item is or what worked on it, not what it asks: they give a refine nothing new to check */
 const UNCHANGING: ReadonlySet<WorkItemChange> = new Set<WorkItemChange>(['status', 'link', 'waiting']);
@@ -356,9 +356,19 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
           target: {
             type: 'object',
             properties: {
-              kind: { type: 'string', enum: [...TARGET_KINDS] },
-              file: { type: ['string', 'null'], description: 'For memory: the memory file name, such as testing.md' },
+              kind: {
+                type: 'string',
+                enum: [...TARGET_KINDS],
+                description:
+                  'rule: a path-scoped rule in `.claude/rules/<file>`, loaded only for files matching `paths`; prefer it to `instructions` when the text concerns only part of the project',
+              },
+              file: { type: ['string', 'null'], description: 'For memory: the memory file name, such as testing.md. For rule: the rule file name, such as migrations.md' },
               section: { type: ['string', 'null'], description: 'For instructions: the CLAUDE.md heading it goes under' },
+              paths: {
+                type: ['array', 'null'],
+                items: { type: 'string' },
+                description: 'For rule: 1 to 10 globs, relative to the project, of the files the rule is for, such as packages/core/src/**/*.ts',
+              },
             },
             required: ['kind'],
           },
@@ -2262,7 +2272,9 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
     const kind = TARGET_KINDS.find((k) => k === (p.target as Record<string, unknown>).kind);
     const text = str(p.text);
     if (!kind || !text) continue;
-    memoryProposals.push({ target: { kind, file: str(p.target.file), section: str(p.target.section) }, text, reason: str(p.reason) ?? '' });
+    // Only a rule is scoped to paths; the globs are validated when the proposal is recorded
+    const paths = kind === 'rule' && Array.isArray(p.target.paths) ? p.target.paths.filter((g): g is string => typeof g === 'string') : null;
+    memoryProposals.push({ target: { kind, file: str(p.target.file), section: str(p.target.section), ...(kind === 'rule' ? { paths } : {}) }, text, reason: str(p.reason) ?? '' });
   }
   const documents: FlowRunDocument[] = [];
   for (const d of Array.isArray(value.documents) ? value.documents.slice(0, DOCUMENTS_MAX) : []) {

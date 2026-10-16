@@ -4,7 +4,7 @@ import { ArrowRight, Check, Pencil, X } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys, useMemoryProposals } from '../../../api';
+import { api, ApiRequestError, keys, useMemoryProposals } from '../../../api';
 import { MoreActions } from '@claudio/ui/components/controls';
 import { DecisionMark } from '../../../components/DecisionMark';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -17,7 +17,13 @@ import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 
 const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
 
-/** Where an approved proposal is written, as its card says it: `CLAUDE.md · Conventions`, `memory · tests.md`, `journal`. */
+/** Paths a rule's line names before folding the rest into a count */
+const PATHS_SHOWN = 3;
+
+/**
+ * Where an approved proposal is written, as its card says it: `CLAUDE.md · Conventions`, `memory · tests.md`,
+ * `journal`, or `rule · .claude/rules/tests.md · src/**, test/**` with the paths beyond three folded.
+ */
 export function TargetLine({ target }: { target: MemoryProposalTarget }) {
   const { t } = useTranslation('home');
   const where =
@@ -25,14 +31,21 @@ export function TargetLine({ target }: { target: MemoryProposalTarget }) {
       ? [t('memoryTab.target.instructions'), target.section].filter(Boolean).join(' · ')
       : target.kind === 'memory'
         ? [t('memoryTab.target.memory'), target.file].filter(Boolean).join(' · ')
-        : t('memoryTab.target.journal');
+        : target.kind === 'rule'
+          ? [t('memoryTab.target.rule'), target.file ? `.claude/rules/${target.file}` : null, rulePathsText(target.paths ?? [], (count) => t('memoryTab.target.morePaths', { count }))].filter(Boolean).join(' · ')
+          : t('memoryTab.target.journal');
   return (
     <span className="memory-proposal-to">
       <ArrowRight {...ICON_SM} />
       <span className="sr-only">{t('memoryTab.target.label')}</span>
-      {where}
+      {target.kind === 'rule' ? <span className="mono">{where}</span> : where}
     </span>
   );
+}
+
+function rulePathsText(paths: string[], folded: (count: number) => string): string {
+  const more = paths.length - PATHS_SHOWN;
+  return [...paths.slice(0, PATHS_SHOWN), ...(more > 0 ? [folded(more)] : [])].join(', ');
 }
 
 /** Proposal text is Markdown the agent wrote: an inline `code` is common, a heading is not. */
@@ -46,23 +59,84 @@ function ProposalText({ text }: { text: string }) {
   );
 }
 
+/**
+ * Approving a `rule` answers 409 when `.claude/rules/<file>` exists with other paths: the one refusal
+ * the card answers by asking for another file name, rather than by a toast.
+ */
+export function isRuleNameTaken(error: unknown, target: MemoryProposalTarget): boolean {
+  return error instanceof ApiRequestError && error.status === 409 && target.kind === 'rule' && /other paths/.test(error.message);
+}
+
+/** The rename a taken rule file asks for: what is taken, the name to approve it under instead, and the way out. */
+export function RenameRule({
+  proposal,
+  name,
+  busy = false,
+  onName,
+  onCancel,
+  onSubmit,
+}: {
+  proposal: Pick<MemoryProposal, 'id' | 'target'>;
+  name: string;
+  busy?: boolean;
+  onName: (name: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const { t } = useTranslation(['home', 'common']);
+  return (
+    <form
+      className="memory-proposal-edit memory-proposal-rename"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (name.trim()) onSubmit();
+      }}
+    >
+      <p className="small memory-proposal-taken" role="alert">
+        {t('memoryTab.proposals.rename.taken', { path: `.claude/rules/${proposal.target.file ?? ''}` })}
+      </p>
+      <label className="small muted" htmlFor={`rename-${proposal.id}`}>
+        {t('memoryTab.proposals.rename.label')}
+      </label>
+      <input id={`rename-${proposal.id}`} className="mono" autoFocus value={name} onChange={(event) => onName(event.target.value)} onKeyDown={(event) => event.key === 'Escape' && onCancel()} />
+      <div className="memory-proposal-actions">
+        <button type="button" className="btn doc-quiet btn-small" onClick={onCancel}>
+          {t('common:actions.cancel')}
+        </button>
+        <button type="submit" className="btn btn-small" disabled={busy || !name.trim()}>
+          <Check {...ICON_SM} />
+          {t('memoryTab.proposals.rename.approve')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boolean }) {
   const { t } = useTranslation(['home', 'common']);
   const roleName = useRoleName();
   const qc = useQueryClient();
   const toast = useToast();
   const [editing, setEditing] = useState<string | null>(null);
+  // A rule whose file is taken by a rule with other paths: the name to approve it under instead
+  const [renaming, setRenaming] = useState<string | null>(null);
   useDirty(`proposal:${proposal.id}`, editing !== null && editing !== proposal.text);
 
   const settle = () => void qc.invalidateQueries({ queryKey: keys.memoryProposalsOf(proposal.projectId) });
   const approve = useMutation({
-    mutationFn: (text?: string) => api.approveMemoryProposal(proposal.id, text !== undefined && text !== proposal.text ? { text } : {}),
+    mutationFn: ({ text, file }: { text?: string; file?: string } = {}) =>
+      api.approveMemoryProposal(proposal.id, { ...(text !== undefined && text !== proposal.text ? { text } : {}), ...(file !== undefined && file !== proposal.target.file ? { file } : {}) }),
     onSuccess: () => {
       setEditing(null);
+      setRenaming(null);
       settle();
       toast.success(t('memoryTab.proposals.approved'));
     },
-    onError: (error) => toast.error(t('memoryTab.proposals.approveFailed'), error),
+    onError: (error) => {
+      // 409 on a rule is its name being taken by a rule with other paths: the person renames it
+      if (isRuleNameTaken(error, proposal.target)) setRenaming((current) => current ?? proposal.target.file ?? '');
+      else toast.error(t('memoryTab.proposals.approveFailed'), error);
+    },
   });
   const reject = useMutation({
     mutationFn: () => api.rejectMemoryProposal(proposal.id),
@@ -95,12 +169,23 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
     </div>
   );
 
+  const rename = renaming !== null && (
+    <RenameRule
+      proposal={proposal}
+      name={renaming}
+      busy={busy}
+      onName={setRenaming}
+      onCancel={() => setRenaming(null)}
+      onSubmit={() => approve.mutate({ ...(editing !== null ? { text: editing.trim() } : {}), file: renaming.trim() })}
+    />
+  );
+
   const editor = editing !== null && (
     <form
       className="memory-proposal-edit"
       onSubmit={(event) => {
         event.preventDefault();
-        if (editing.trim()) approve.mutate(editing.trim());
+        if (editing.trim()) approve.mutate({ text: editing.trim() });
       }}
     >
       <textarea
@@ -130,9 +215,10 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
         {meta}
         <TargetLine target={proposal.target} />
         {proposal.reason && <p className="memory-proposal-reason">{proposal.reason}</p>}
-        {editing === null && (
+        {rename}
+        {editing === null && renaming === null && (
           <div className="memory-proposal-actions">
-            <button type="button" className="btn memory-approve" disabled={busy} onClick={() => approve.mutate(undefined)}>
+            <button type="button" className="btn memory-approve" disabled={busy} onClick={() => approve.mutate({})}>
               <Check {...ICON_SM} />
               {t('memoryTab.proposals.approve')}
             </button>
@@ -155,9 +241,10 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
       <TargetLine target={proposal.target} />
       {editor || <ProposalText text={proposal.text} />}
       {proposal.reason && <p className="memory-proposal-reason">{proposal.reason}</p>}
+      {rename}
       <div className="memory-proposal-foot">
         {meta}
-        {editing === null && (
+        {editing === null && renaming === null && (
           <div className="memory-proposal-actions">
             <button type="button" className="btn doc-quiet btn-small memory-reject" disabled={busy} onClick={() => reject.mutate()}>
               <X {...ICON_SM} />
@@ -167,7 +254,7 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
               <Pencil {...ICON_SM} />
               {t('memoryTab.proposals.edit')}
             </button>
-            <button type="button" className="btn btn-small memory-approve" disabled={busy} onClick={() => approve.mutate(undefined)}>
+            <button type="button" className="btn btn-small memory-approve" disabled={busy} onClick={() => approve.mutate({})}>
               <Check {...ICON_SM} />
               {t('memoryTab.proposals.approve')}
             </button>
