@@ -5,8 +5,12 @@ import { test } from 'node:test';
 import webpush from 'web-push';
 import type { ClaudioEvent, PushPayload, TunnelState } from '@claudio/shared';
 import { Db } from '../src/db.ts';
+import { DecisionEngine } from '../src/decisions/engine.ts';
+import { decisionPoint } from '../src/decisions/points.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
-import { PushService, absoluteOn, idOfEndpoint, truncateEndpoint, type PushTransport } from '../src/push.ts';
+import type { ToolCall } from '../src/health.ts';
+import { PushService, absoluteOn, idOfEndpoint, riskLine, truncateEndpoint, type PushTransport } from '../src/push.ts';
 import { readinessFromStatus } from '../src/tunnel.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -384,4 +388,106 @@ test('the worker follows only the kind of address the tunnel hands out', () => {
     '1.102.4',
   );
   assert.ok(host?.endsWith(suffix), `${String(host)} ends with ${suffix}`);
+});
+
+const callAt = (id: string, name: string, input: Record<string, unknown>, at: string): ToolCall => ({ id, name, input, at, endedAt: null, isError: false, result: '' });
+const NOW = Date.parse('2026-01-01T12:00:00Z');
+const CTX = { cwd: '/work/app', roots: [] as string[] };
+
+test('riskLine names the riskiest call of the last ten minutes, and nothing when every call is low', () => {
+  const calls = [
+    callAt('a', 'Bash', { command: 'ls' }, '2026-01-01T11:59:00Z'),
+    callAt('b', 'Edit', { file_path: '/work/app/.github/workflows/ci.yml' }, '2026-01-01T11:58:00Z'),
+    callAt('c', 'Bash', { command: 'git push --force origin main' }, '2026-01-01T11:57:00Z'),
+  ];
+  assert.match(riskLine(calls, CTX, NOW) ?? '', /^high: .*history-rewrite.* \(git push --force origin main\)$/);
+  // Older than ten minutes says nothing about why the chat asks now
+  assert.equal(riskLine([callAt('c', 'Bash', { command: 'rm -rf /home/x' }, '2026-01-01T11:40:00Z')], CTX, NOW), null);
+  assert.equal(riskLine([calls[0] as ToolCall], CTX, NOW), null);
+});
+
+/** An engine that only records what it is asked, and never raises anything */
+function askingEngine(): { engine: Pick<DecisionEngine, 'ask' | 'effective'>; asked: Array<Record<string, unknown>> } {
+  const asked: Array<Record<string, unknown>> = [];
+  const engine = {
+    effective: () => ({ mode: 'shadow', provider: 'jev', limited: false }),
+    ask: (_point: string, subject: { data: Record<string, unknown> }) => {
+      asked.push(subject.data);
+      return Promise.resolve({ act: false, answers: null });
+    },
+  } as unknown as Pick<DecisionEngine, 'ask' | 'effective'>;
+  return { engine, asked };
+}
+
+const idleEvent = {
+  type: 'run.updated',
+  title: 'chat-1 is idle',
+  runId: 'chat-1',
+  runName: 'chat-1',
+  sessionId: 'chat-1',
+  orchestrationId: null,
+  internal: false,
+  previousStatus: 'busy',
+  status: 'idle',
+  turns: 1,
+} as unknown as ClaudioEventInput;
+
+async function urgencyState(recent: ((runId: string) => string | null) | null): Promise<Array<Record<string, unknown>>> {
+  const { push, events } = harness(fakeTransport().transport);
+  const { engine, asked } = askingEngine();
+  push.decisions = engine;
+  push.recentRisk = recent;
+  push.register({ endpoint: ENDPOINT, keys, kinds: ['run'], level: 'all' });
+  events.emit(idleEvent);
+  await push.idle();
+  return asked;
+}
+
+test('the urgency state carries risk only when the run made a risky call, masked and at most 300 characters', async () => {
+  const none = await urgencyState(() => null);
+  assert.equal(none.length, 1);
+  assert.equal('risk' in (none[0] ?? {}), false);
+  assert.equal('risk' in ((await urgencyState(null))[0] ?? {}), false);
+
+  const risky = await urgencyState(() => 'high: irreversible (rm -rf /srv/x)');
+  assert.equal(risky[0]?.risk, 'high: irreversible (rm -rf /srv/x)');
+
+  const long = `high: leaves-machine (curl -H "Authorization: Bearer abcdefghijklmnop1234" ${'x'.repeat(600)})`;
+  const clipped = String((await urgencyState(() => long))[0]?.risk);
+  assert.ok(clipped.length <= 300);
+  assert.equal(clipped.includes('abcdefghijklmnop1234'), false);
+
+  // A failing reader is a question without the field, not a lost notification
+  const broken = await urgencyState(() => {
+    throw new Error('boom');
+  });
+  assert.equal(broken.length, 1);
+  assert.equal('risk' in (broken[0] ?? {}), false);
+});
+
+test('notification.urgency is at state version 2 and lists risk, so a consent for version 1 no longer counts', async () => {
+  const urgency = decisionPoint('notification.urgency');
+  assert.equal(urgency?.stateVersion, 2);
+  assert.ok(urgency?.fields.includes('risk'));
+
+  const asks = async (version: number): Promise<number> => {
+    const config = tempConfig();
+    const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
+    const engine = new DecisionEngine({ settings, db: new Db(config), projectDecisions: () => null });
+    let calls = 0;
+    engine.register({
+      id: 'jev',
+      available: () => true,
+      ask: () => {
+        calls++;
+        return Promise.resolve({ status: 'unavailable', reason: 'no-quota', latencyMs: 1 });
+      },
+    });
+    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), provider: 'jev', points: { 'notification.urgency': { mode: 'shadow', threshold: 0.85, consent: null } } });
+    await settings.setConsent('notification.urgency', { granted: true, stateVersion: version, providers: ['jev'] });
+    await engine.ask('notification.urgency', { kind: 'notification', id: 'k', data: { kind: 'run', title: 't', body: 'b' } }, { projectId: null });
+    return calls;
+  };
+  assert.equal(await asks(1), 0, 'the earlier consent is not enough for the new preview');
+  assert.equal(await asks(2), 1);
 });

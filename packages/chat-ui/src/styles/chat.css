@@ -1620,6 +1620,15 @@
   margin-bottom: 8px;
 }
 
+/* Under the head, above the input: the tag and, beside it, why. Both wrap on a narrow screen */
+.permission-risk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .permission-input {
   margin: 0 0 8px;
   padding: 8px 10px;

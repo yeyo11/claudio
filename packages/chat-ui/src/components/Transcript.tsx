@@ -15,6 +15,7 @@ import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import type { ProgressStatus } from '@claudio/ui/lib/progress';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
+import { RiskTag, useToolRisk } from './RiskTag';
 import { CodeBlock } from '@claudio/ui/components/CodeBlock';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
@@ -342,6 +343,8 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const Icon = call.name ? toolIcon(call.name) : CircleAlert;
   const agentId = subagents && isDelegation(call.name) ? subagents.find(call.input) : null;
   const hint = call.name ? callHint(call.input) : truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110);
+  // Scored from the input, so a call still waiting for its result already shows it
+  const risk = useToolRisk(call.name, call.input);
   return (
     <div className={`call-row is-${outcome}`}>
       <Collapsible
@@ -351,6 +354,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
             {running ? <Spinner className="fold-icon" /> : <Icon {...ICON_SM} className="fold-icon" />}
             <span className="tool-name">{call.name !== null ? toolKindLabel(call.name) : (call.result?.isError ? t('transcript.toolError') : t('transcript.toolResult'))}</span>
             <span className="tool-hint">{hint}</span>
+            <RiskTag risk={risk} />
             {/* The rail's colour is not the only thing that says it failed */}
             {outcome === 'error' && <span className="call-outcome">{t('transcript.callFailed')}</span>}
             {outcome === 'running' && <span className="sr-only">{t('transcript.callRunning')}</span>}

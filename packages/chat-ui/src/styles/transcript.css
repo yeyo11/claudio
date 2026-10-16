@@ -606,6 +606,14 @@
   flex: none;
 }
 
+/* The risk of a call, after its hint: it keeps its size while the hint is the one that gives way */
+.risk-tag {
+  display: inline-flex;
+  flex: none;
+  max-width: 100%;
+  border-radius: var(--radius-xs);
+}
+
 .tool-hint {
   font-family: var(--mono);
   font-size: 12px;

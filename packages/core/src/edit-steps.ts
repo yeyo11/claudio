@@ -1,5 +1,5 @@
 import { isAbsolute, relative, sep } from 'node:path';
-import { normalizeMessage, type EditStep, type EditStepTool, type TranscriptEntry } from '@claudio/shared';
+import { normalizeMessage, toolRisk, type EditStep, type EditStepTool, type ToolRiskContext, type TranscriptEntry } from '@claudio/shared';
 import type { JsonlFold } from './jsonl-cache.ts';
 import type { JsonLine } from './transcript-index.ts';
 
@@ -151,7 +151,7 @@ export function stepPath(path: string, root: string | null): string {
  * the chat works (`running`), and only after the last one that was answered: in a chat nobody runs,
  * or before a later answer, an unanswered call is stale.
  */
-export function editStepsOf(state: EditStepsState, opts: { root: string | null; running: boolean }): EditStep[] {
+export function editStepsOf(state: EditStepsState, opts: { root: string | null; running: boolean; risk?: ToolRiskContext }): EditStep[] {
   const calls = [...state.calls.values()];
   let answered = -1;
   calls.forEach((call, i) => {
@@ -162,6 +162,8 @@ export function editStepsOf(state: EditStepsState, opts: { root: string | null; 
     const result = state.results.get(call.id);
     if (result ? !result.ok : !opts.running || i < answered) return;
     const patch = result?.ok ? result : { diff: '', additions: 0, deletions: 0, created: false };
+    // Scored from the path alone: it is all the file tools' score reads, and the call's input is not kept
+    const risk = opts.risk ? toolRisk({ name: call.tool, input: { file_path: call.path } }, opts.risk) : null;
     steps.push({
       id: call.id,
       index: steps.length + 1,
@@ -175,6 +177,7 @@ export function editStepsOf(state: EditStepsState, opts: { root: string | null; 
       intent: call.intent,
       entryIndex: call.entryIndex,
       pending: !result,
+      ...(risk && risk.level !== 'low' ? { risk } : {}),
     });
   });
   return steps;

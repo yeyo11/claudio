@@ -11,7 +11,9 @@ import {
   LEVELS,
   notificationsFor,
   TEST_PUSH_KEY_PREFIX,
+  toolRisk,
   type ClaudioEvent,
+  type ToolRiskContext,
   type NotificationDraft,
   type NotificationKind,
   type NotificationLevel,
@@ -23,9 +25,37 @@ import {
 } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
+import { maskSecrets } from './decisions/redact.ts';
 import type { Db, PushSubscriptionRecord } from './db.ts';
+import type { ToolCall } from './health.ts';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
+
+/** The longest `risk` line the urgency question is given */
+const RISK_LIMIT = 300;
+
+/** How far back a call still says something about why the chat is asking for attention */
+const RISK_WINDOW_MS = 10 * 60_000;
+
+/**
+ * The riskiest call among `calls` made in the ten minutes before `nowMs`, as
+ * `"<level>: <factors> (<command or path>)"`; null when every one of them is low. On a tie the later
+ * call wins, being the nearer to the notification.
+ */
+export function riskLine(calls: readonly ToolCall[], ctx: ToolRiskContext, nowMs = Date.now()): string | null {
+  let best: { call: ToolCall; risk: ReturnType<typeof toolRisk> } | null = null;
+  for (const call of calls) {
+    const at = Date.parse(call.at);
+    if (!Number.isFinite(at) || nowMs - at > RISK_WINDOW_MS) continue;
+    const risk = toolRisk(call, ctx);
+    if (risk.level === 'low') continue;
+    if (!best || risk.score >= best.risk.score) best = { call, risk };
+  }
+  if (!best) return null;
+  const { call, risk } = best;
+  const target = [call.input.command, call.input.file_path, call.input.notebook_path, call.input.path].find((v): v is string => typeof v === 'string' && v !== '') ?? call.name;
+  return `${risk.level}: ${risk.factors.join(', ')} (${target})`;
+}
 
 /*
  * Web Push, served by this wrapper and nobody else. The server signs a VAPID JWT with its own
@@ -234,6 +264,11 @@ export class PushService {
    * notification to high: a person is never spared one, so the point cannot hide news.
    */
   decisions: Pick<DecisionEngine, 'ask' | 'effective'> | null = null;
+  /**
+   * The riskiest call a chat made in its last ten minutes, as one line, or null when every call was
+   * low. Set once the runtime exists; until then the point's state has no `risk`.
+   */
+  recentRisk: ((runId: string) => string | null) | null = null;
   /** Nothing in core has a logger; the API hands it one, and until then a failure is silent. */
   log: (line: string) => void = () => undefined;
 
@@ -417,11 +452,25 @@ export class PushService {
     return eff.mode === 'active' && !eff.limited && eff.provider === 'jev' ? 'wait' : 'record';
   }
 
+  /** What the state may carry of the chat's riskiest recent call: masked, and no longer than a line should be. */
+  private riskOf(runId: string): string | null {
+    let line: string | null = null;
+    try {
+      line = this.recentRisk?.(runId) ?? null;
+    } catch {
+      // A reading aid: without it the question is asked as it was
+    }
+    if (!line) return null;
+    const masked = maskSecrets(line);
+    return masked.length > RISK_LIMIT ? `${masked.slice(0, RISK_LIMIT - 1)}…` : masked;
+  }
+
   private async askUrgency(draft: NotificationDraft): Promise<boolean> {
     if (!this.decisions) return false;
+    const risk = draft.runId ? this.riskOf(draft.runId) : null;
     const outcome = await this.decisions.ask(
       'notification.urgency',
-      { kind: 'notification', id: draft.key, data: { kind: draft.kind, title: draft.title, body: draft.body } },
+      { kind: 'notification', id: draft.key, data: { kind: draft.kind, title: draft.title, body: draft.body, ...(risk ? { risk } : {}) } },
       { projectId: null },
     );
     const answer = outcome.answers?.urgency;
