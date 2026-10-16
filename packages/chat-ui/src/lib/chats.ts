@@ -2,8 +2,9 @@ import { hashKey, skipToken, useMutation, useQuery, useQueryClient, type QueryKe
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { TRANSCRIPT_PAGE_MAX } from '@claudio/shared';
 import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
-import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@claudio/shared';
+import type { Account, AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@claudio/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
+import { accountSwitchText, switchedAccount } from './chat-notice';
 import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
 
@@ -319,6 +320,22 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       lastSeq = Math.max(lastSeq, event.seq);
       if (event.kind === 'delivery' && event.delivery) {
         store.deliver(event.delivery);
+        return;
+      }
+      const switchedTo = switchedAccount(event);
+      if (switchedTo) {
+        // A person's account switch reads as a line of the conversation, said once when it happens
+        const to = switchedTo;
+        const name = client.getQueryData<Account[]>(['accounts'])?.find((a) => a.id === to);
+        show({
+          uuid: `account-switch-${id}-${event.seq}`,
+          role: 'user',
+          timestamp: event.ts,
+          model: null,
+          isSidechain: false,
+          parentToolUseId: null,
+          blocks: [{ type: 'text', text: accountSwitchText(name ? (name.alias ?? name.email ?? name.id) : to) }],
+        });
         return;
       }
       if (event.kind === 'message' && event.entry) {

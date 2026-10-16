@@ -728,6 +728,96 @@
   margin: 0;
 }
 
+.composer-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-account-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-account-btn:hover,
+.composer-account-btn:focus-visible {
+  background: var(--bg-hover);
+}
+
+.composer-account.is-off .composer-account-btn {
+  cursor: default;
+}
+
+.composer-account.is-off .composer-account-name,
+.composer-account.is-off .composer-account-plan {
+  color: var(--text-faint);
+}
+
+.composer-account-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.composer-account-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.composer-account-head,
+.composer-account-usage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-account-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.composer-account-plan {
+  flex: none;
+}
+
+.composer-account-usage .meter-track {
+  flex: 1;
+}
+
+.composer-account-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.composer-account-pending p {
+  flex: 1;
+  margin: 0;
+}
+
 .composer-servers {
   display: flex;
   flex-direction: column;
