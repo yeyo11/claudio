@@ -15,6 +15,7 @@
     "build": "pnpm --filter @claudio/web build",
     "start": "pnpm --filter @claudio/api start",
     "typecheck": "pnpm -r typecheck",
+    "lint": "eslint packages/core/src/collab",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "test": "pnpm --filter @claudio/shared --filter @claudio/core --filter @claudio/api --filter @claudio/mcp --filter @claudio/web --filter @claudio/ui --filter @claudio/chat-ui --filter @claudio/desktop test",
@@ -39,6 +40,8 @@
   "devDependencies": {
     "@types/node": "^26.6.4",
     "axe-core": "^4.13.0",
+    "eslint": "^9.39.5",
+    "espree": "^10.4.0",
     "gifenc": "^1.0.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
