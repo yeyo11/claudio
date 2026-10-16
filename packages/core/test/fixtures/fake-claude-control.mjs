@@ -16,6 +16,9 @@
 //                  ends the turn with whatever answer it gets back, so a request left unanswered hangs it
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
 //   REPLAY-RAW <file>  the same, and the turn ends with the file's own `result`, when it has one
+//   /compact [<args>]  plays what Claude Code 2.1.300 wrote for a compaction (replay/compact-*.jsonl, recorded):
+//                  the bare command, an argument on one line, an argument on several. With
+//                  $FAKE_CLAUDE_COMPACT=fail it plays the recorded failure instead (an interrupted compaction)
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
 //                  first run), and writes its record to $FAKE_WORKFLOW_DIR/<session>.json
@@ -23,6 +26,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
@@ -63,6 +67,16 @@ let pending = null;
 const modelUsage = { 'claude-opus-5[1m]': { inputTokens: 1, outputTokens: 1, costUSD: 0.01, contextWindow: 1_000_000 } };
 const result = (text, extra = {}) =>
   out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, modelUsage, result: text, ...extra });
+const fixture = (...parts) => JSON.parse(readFileSync(fileURLToPath(new URL(parts.join('/'), import.meta.url)), 'utf8'));
+/** The recorded lines of a compaction, as this process's session: the recordings carry a placeholder id */
+const compactionLines = (file) =>
+  readFileSync(fileURLToPath(new URL(`./replay/${file}`, import.meta.url)), 'utf8')
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => {
+      const line = JSON.parse(l);
+      return line.session_id ? { ...line, session_id: sessionId } : line;
+    });
 const respond = (requestId, response) => out({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
 
 createInterface({ input: process.stdin }).on('line', (line) => {
@@ -72,6 +86,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (msg.type === 'user') {
     const content = msg.message?.content;
     const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
+    const compact = /^\/compact(?:\s+([\s\S]*))?$/.exec(prompt.trim());
+    if (compact) {
+      // The recording holds its own `init`, after the first statuses, and ends with the turn's `result`
+      const file = process.env.FAKE_CLAUDE_COMPACT === 'fail' ? 'compact-failed.jsonl' : !compact[1] ? 'compact-manual.jsonl' : compact[1].includes('\n') ? 'compact-multiline.jsonl' : 'compact-focus.jsonl';
+      for (const line of compactionLines(file)) out(line);
+      return;
+    }
     out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: initModel, permissionMode: reported(mode), tools: [], argv: args });
     const script = /scriptPath "([^"]+)"/.exec(prompt);
     if (script) {
@@ -178,6 +199,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       out({ type: 'system', subtype: 'status', status: null, permissionMode: reported(mode), session_id: sessionId });
     } else if (request.subtype === 'set_model') {
       respond(msg.request_id, undefined);
+    } else if (request.subtype === 'get_context_usage') {
+      // Recorded answers; `full` is what the CLI gives when no detail is asked for, and it refuses any other word
+      if (request.detail === undefined || request.detail === 'full') respond(msg.request_id, fixture('recordings/claude/context-usage-full.json'));
+      else if (request.detail === 'summary') respond(msg.request_id, fixture('recordings/claude/context-usage-summary.json'));
+      else out({ type: 'control_response', response: { subtype: 'error', request_id: msg.request_id, error: "get_context_usage: detail must be 'summary' or 'full'" } });
     } else {
       out({ type: 'control_response', response: { subtype: 'error', request_id: msg.request_id, error: `Unsupported control request subtype: ${request.subtype}` } });
     }

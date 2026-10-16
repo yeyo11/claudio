@@ -1,4 +1,4 @@
-import { PERMISSION_MODES, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
+import { PERMISSION_MODES, type ContextDetail, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
 import { modelOptions } from './models.ts';
@@ -74,8 +74,9 @@ class ClaudeCodeSession implements DriverSession {
     return liveMcpServers(await this.control.request({ subtype: 'mcp_status' }));
   }
 
-  async contextUsage(): Promise<Record<string, unknown>> {
-    return await this.control.request({ subtype: 'get_context_usage' });
+  async contextUsage(detail?: ContextDetail): Promise<Record<string, unknown>> {
+    // The CLI answers `full` when none is given, which counts every category with a call of its own
+    return await this.control.request({ subtype: 'get_context_usage', ...(detail ? { detail } : {}) });
   }
 
   async mcpToggle(name: string, enabled: boolean): Promise<void> {

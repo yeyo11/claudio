@@ -1,6 +1,7 @@
 import type { AccountRef } from '@claudio/accounts';
 import type {
   Attachment,
+  ContextDetail,
   EffectiveEnvironment,
   LiveMcpServer,
   ModelOption,
@@ -162,7 +163,7 @@ export interface DriverSession {
   /** The MCP servers the process has, as it reports them now; a driver that cannot say leaves it out */
   mcpStatus?(): Promise<LiveMcpServer[]>;
   /** The context window's use as the process reports it now, between turns; a driver that cannot say leaves it out */
-  contextUsage?(): Promise<Record<string, unknown>>;
+  contextUsage?(detail?: ContextDetail): Promise<Record<string, unknown>>;
   /** Switches one MCP server of the process on or off; the agent may keep the choice beyond the process */
   mcpToggle?(name: string, enabled: boolean): Promise<void>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
@@ -271,6 +272,21 @@ export type DriverEvent =
       run: RunDraft;
     }
   | { kind: 'mode-changed'; mode: PermissionMode }
+  /** The agent is summarising the conversation (`active`), or has stopped doing so, whichever way it ended */
+  | { kind: 'compacting'; active: boolean }
+  /** The agent's marker of a compaction, as the transcript will hold it; the figures are its own, null where it gave none */
+  | {
+      kind: 'compacted';
+      entry: TranscriptEntry;
+      uuid: string | null;
+      trigger: 'manual' | 'auto' | null;
+      preTokens: number | null;
+      postTokens: number | null;
+      durationMs: number | null;
+      run: RunDraft;
+    }
+  /** The agent said a compaction failed, with its own words when it gave any */
+  | { kind: 'compact-failed'; error: string | null }
   | { kind: 'message'; entry: TranscriptEntry; mainAgent: boolean; stopReason?: string; run: RunDraft }
   | {
       kind: 'block-started';

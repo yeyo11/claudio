@@ -91,6 +91,8 @@ function modelUsageOf(raw: unknown): ModelUsage[] {
 export class ClaudeStream {
   private streaming: 'text' | 'thinking' | null = null;
   private structured = false;
+  /** A `compacting` status is open: the one that closes it says `compacting` is over, and no other status does */
+  private compacting = false;
   private readonly taskKinds = new Map<string, RunTaskChange['taskKind']>();
 
   constructor(
@@ -136,9 +138,29 @@ export class ClaudeStream {
       return;
     }
 
-    // The mode changes under the chat's feet: set from the panel, or by the model leaving plan mode
-    if (type === 'system' && subtype === 'status' && typeof raw.permissionMode === 'string') {
-      sink({ kind: 'mode-changed', mode: reportedMode(raw.permissionMode) });
+    if (type === 'system' && subtype === 'status') {
+      // Read before the mode, so a status that carries both says both: a compaction is not swallowed by the mode
+      this.compactionStatus(raw);
+      // The mode changes under the chat's feet: set from the panel, or by the model leaving plan mode
+      if (typeof raw.permissionMode === 'string') sink({ kind: 'mode-changed', mode: reportedMode(raw.permissionMode) });
+      return;
+    }
+
+    // The CLI's marker of a compaction; the live line and the one in the session file give the same entry
+    if (type === 'system' && subtype === 'compact_boundary') {
+      const entry = normalizeMessage(raw);
+      const compaction = entry?.compaction;
+      if (!entry || !compaction) return;
+      sink({
+        kind: 'compacted',
+        entry,
+        uuid: typeof raw.uuid === 'string' ? raw.uuid : null,
+        trigger: compaction.trigger,
+        preTokens: compaction.preTokens,
+        postTokens: compaction.postTokens,
+        durationMs: compaction.durationMs,
+        run: { kind: 'message', entry },
+      });
       return;
     }
 
@@ -262,6 +284,25 @@ export class ClaudeStream {
     }
 
     // Any other protocol event is one Claudio has no use for
+  }
+
+  /**
+   * `system/status`: `compacting` while the CLI summarises, then a status with `compact_result` that
+   * closes it. Any other status (the mode echo, `requesting`) says nothing about a compaction.
+   */
+  private compactionStatus(raw: Record<string, unknown>): void {
+    if (raw.status === 'compacting') {
+      this.compacting = true;
+      this.sink({ kind: 'compacting', active: true });
+      return;
+    }
+    if (this.compacting && (raw.status === null || raw.status === 'requesting')) {
+      this.compacting = false;
+      this.sink({ kind: 'compacting', active: false });
+    }
+    if (raw.compact_result === 'failed') {
+      this.sink({ kind: 'compact-failed', error: typeof raw.compact_error === 'string' ? raw.compact_error : null });
+    }
   }
 
   /** What a `task_*` event says, in the neutral words. A task's kind is told once, by its `task_started`. */
