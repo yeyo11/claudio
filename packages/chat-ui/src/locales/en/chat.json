@@ -312,11 +312,27 @@
     "examples": "To get started",
     "close": "Close"
   },
-  "launch": {
-    "phase": "phase {{n}} of {{total}}",
-    "agents": "{{done}}/{{total}} agents",
-    "open": "Open",
-    "openHint": "Open {{name}} in the details"
+  "branches": {
+    "title": "Running now",
+    "agents_one": "{{count}} agent",
+    "agents_other": "{{count}} agents",
+    "tasks_one": "{{count}} background task",
+    "tasks_other": "{{count}} background tasks",
+    "workflows_one": "{{count}} workflow",
+    "workflows_other": "{{count}} workflows",
+    "show": "Show what is running",
+    "hide": "Hide",
+    "open": "Open {{what}}",
+    "openButton": "Open",
+    "state": {
+      "running": "working",
+      "completed": "done",
+      "failed": "failed",
+      "stopped": "stopped"
+    },
+    "nested": "from {{owner}}",
+    "workflowFacts": "{{done}}/{{total}} agents · phase {{n}}",
+    "workflowAgents": "{{done}}/{{total}} agents"
   },
   "messageMenu": {
     "label": "Message actions",

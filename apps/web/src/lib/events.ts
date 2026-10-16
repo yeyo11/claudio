@@ -10,6 +10,8 @@ import type {
   ChatActivityEvent,
   ChatDetail,
   ChatState,
+  ChatSubagent,
+  ChatSubagentEntry,
   ChatSummary,
   FlowRun,
   MemoryProposalEvent,
@@ -25,6 +27,7 @@ import type {
   StoredDashboardLayout,
   StreamHelloEvent,
   StreamResyncEvent,
+  SubagentActivityEvent,
   Team,
   TunnelChangedEvent,
   TunnelStatus,
@@ -94,6 +97,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'subagent.started': true,
   'subagent.updated': true,
   'subagent.ended': true,
+  'subagent.activity': true,
   'workflow.progress': true,
   'workflow.ended': true,
   'orchestration.updated': true,
@@ -284,6 +288,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.subagents, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, LISTS], [keys.overview, OVERVIEW]];
     case 'subagent.updated':
       return [[keys.subagents, NOW], [keys.agentDetail, NOW], ...chatOf(event)];
+    case 'subagent.activity':
+      // Like `chat.activity`: the event carries the whole line, and `patchSubagentActivity` writes it
+      return [];
     case 'workflow.progress':
       return [[keys.workflows, NOW], [keys.agentDetail, NOW], ...chatOf(event)];
     case 'workflow.ended':
@@ -487,6 +494,30 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
 }
 
 /**
+ * Writes what a subagent is doing into the caches that list it, in place: the chat's detail (with
+ * and without its sidechains) and the subagents lists. A subagent is named by the agent id once the
+ * CLI gave one and by the call that launched it until then, so either matches.
+ */
+export function patchSubagentActivity(client: QueryClient, event: SubagentActivityEvent): void {
+  const chatId = event.sessionId ?? event.runId;
+  if (!chatId) return;
+  const { activity } = event;
+  const named = (sub: ChatSubagent) => sub.id === event.toolUseId || (event.agentId !== null && sub.id === event.agentId);
+  const patch = <S extends ChatSubagent>(subs: S[]): S[] => (subs.some(named) ? subs.map((sub) => (named(sub) ? { ...sub, activity } : sub)) : subs);
+  for (const sidechains of [false, true]) {
+    client.setQueryData<ChatDetail>(keys.chat(chatId, sidechains), (detail) => {
+      if (!detail || !detail.chat.children.subagents.some(named)) return detail;
+      return { ...detail, chat: { ...detail.chat, children: { ...detail.chat.children, subagents: patch(detail.chat.children.subagents) } } };
+    });
+  }
+  // Every list under the prefix holds entries of every chat: only this chat's are touched
+  client.setQueriesData<ChatSubagentEntry[]>({ queryKey: keys.subagents }, (list) => {
+    if (!Array.isArray(list) || !list.some((sub) => sub.sessionId === chatId && named(sub))) return list;
+    return list.map((sub) => (sub.sessionId === chatId && named(sub) ? { ...sub, activity } : sub));
+  });
+}
+
+/**
  * Moves a task to the status an `orchestration.task` event announces, in the list of graphs, so
  * its cards and segmented bars change with the event instead of after a read of every graph. A
  * task that ended has nothing left to say it is doing.
@@ -609,6 +640,7 @@ function startEventFeed(client: QueryClient): () => void {
     if (event.id <= lastId) return;
     lastId = event.id;
     if (event.type === 'chat.activity') patchActivity(client, event);
+    if (event.type === 'subagent.activity') patchSubagentActivity(client, event);
     if (event.type === 'orchestration.task') patchOrchestrationTask(client, event);
     if (event.type === 'settings.changed' || event.type === 'tunnel.changed') patchSettings(client, event);
     if (event.type === 'dashboard.layout') client.setQueryData<StoredDashboardLayout>(keys.dashboardLayout(event.project), { project: event.project, layout: event.layout });

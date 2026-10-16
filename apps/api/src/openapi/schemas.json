@@ -5968,6 +5968,9 @@
         "$ref": "#/components/schemas/SubagentEndedEvent"
       },
       {
+        "$ref": "#/components/schemas/SubagentActivityEvent"
+      },
+      {
         "$ref": "#/components/schemas/WorkflowProgressEvent"
       },
       {
@@ -7173,6 +7176,71 @@
       "toolUseId",
       "type"
     ]
+  },
+  "SubagentActivityEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "subagent.activity"
+      },
+      "toolUseId": {
+        "type": "string",
+        "description": "The call that launched it, which is how its sidechain names it"
+      },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "activity",
+      "agentId",
+      "at",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "toolUseId",
+      "type"
+    ],
+    "description": "A running subagent's activity moved. At most one per subagent per second, like `chat.activity`."
   },
   "WorkflowProgressEvent": {
     "type": "object",
@@ -11625,6 +11693,17 @@
         "items": {
           "$ref": "#/components/schemas/ChatBackgroundTask"
         }
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it is doing right now, from its latest calls; null while it has no open call or has ended"
       }
     },
     "required": [
@@ -11637,7 +11716,8 @@
       "endedAt",
       "lastActivityAt",
       "cwd",
-      "tasks"
+      "tasks",
+      "activity"
     ],
     "description": "A branch of a chat that works on its own: its messages live inside the chat's transcript."
   },
@@ -12349,9 +12429,21 @@
         "items": {
           "$ref": "#/components/schemas/ChatBackgroundTask"
         }
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it is doing right now, from its latest calls; null while it has no open call or has ended"
       }
     },
     "required": [
+      "activity",
       "chat",
       "cwd",
       "description",
