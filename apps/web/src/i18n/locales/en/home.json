@@ -6,6 +6,7 @@
     "settings": "Settings",
     "documents": "Documents",
     "memory": "Memory",
+    "shared": "Shared",
     "resources": "Resources",
     "worktrees": "Worktrees"
   },

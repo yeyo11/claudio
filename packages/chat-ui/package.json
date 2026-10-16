@@ -12,6 +12,7 @@
     "./components/LiveBranches": "./src/components/LiveBranches.tsx",
     "./components/MediaViewer": "./src/components/MediaViewer.tsx",
     "./components/PermissionPrompts": "./src/components/PermissionPrompts.tsx",
+    "./components/ReadOnlyBar": "./src/components/ReadOnlyBar.tsx",
     "./components/SlashMenu": "./src/components/SlashMenu.tsx",
     "./components/ToolBody": "./src/components/ToolBody.tsx",
     "./components/Transcript": "./src/components/Transcript.tsx",
