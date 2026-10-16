@@ -159,6 +159,14 @@ is answered with no script: the structured output marks the first thread `agent`
 structured output marks the issues `ready`, `needs-refining` and `not-for-agents` in the order asked, then
 round again, so a spec turns the point on and sees all three marks in the import dialog.
 
+**A `lesson.mine` question** (a line `mine: Do these signals show…`) is answered `{"mine": true}` with no
+script, so a chat a spec corrected goes on to the miner.
+
+**The lesson miner's prompt** (it starts `You review part of a chat between a person and a coding agent…`) is
+answered with the scripts file's `"@lesson-miner"` entry, a `json: {"lessons":[…]}` line a spec writes
+with the quote it typed; without the entry the answer is `{"lessons":[]}`. Whatever the miner returns still
+goes through the validator, so a scripted lesson must pass it.
+
 **A message that arrives during a turn** is logged at once, and answered at the turn's next step
 (300 ms after a command ends) with one assistant text `Heard: <first line>` per message, before
 the next `run:` command starts. What is still waiting when the turn ends starts a turn of its own.
