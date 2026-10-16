@@ -377,6 +377,16 @@ const CHAT_FORBIDDEN_DECISIONS = new Set([
 ]);
 
 /**
+ * Compacting a chat and asking it for a note are paid turns the person chose to spend; the chat
+ * that is running must not be able to spend them on itself or on another. Reads stay open.
+ */
+const CHAT_FORBIDDEN_CONTEXT = new Set([
+  `POST ${API_PREFIX}/chats/:id/compact`,
+  `POST ${API_PREFIX}/chats/:id/notes`,
+  `DELETE ${API_PREFIX}/chats/:id/notes/:noteId`,
+]);
+
+/**
  * The terminal is the person's own shell: a chat's token cannot open, read or type into one, and
  * reads are included because the list says which shells are open and where. Under `mode: none` a
  * chat's token only labels the request, and the label is what refuses it here (`terminal-gate.ts`
@@ -615,6 +625,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       }
       if (chat !== null && CHAT_FORBIDDEN.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change the API's authentication" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_CONTEXT.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot compact a chat or ask it for a note: that is the person's click" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
