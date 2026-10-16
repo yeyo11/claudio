@@ -12,6 +12,7 @@ import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { DiffView } from '../DiffView';
 import { Intent } from '../Intent';
+import { StepRisk } from './StepRisk';
 import { Counts } from '../FileMap';
 import { hourMinute, splitPath, unexplainedOf } from '../review-model';
 import { useUnexplainedRows } from '../useUnexplained';
@@ -20,7 +21,6 @@ import {
   patchSpan,
   plainIntent,
   sameFileWindow,
-  scrubDots,
   stepBeside,
   stepKey,
   stepPaths,
@@ -93,32 +93,9 @@ export function StepsLens(props: StepsLensProps) {
   );
 }
 
-// ---------------------------------------------------------------------------------------------
-// The scrubber: one dot per step, under the header
+import { StepScrubber } from './StepScrubber';
 
-export function StepScrubber({ steps, currentId, onPick, className = '' }: { steps: EditStep[]; currentId: string | null; onPick: (id: string) => void; className?: string }) {
-  const { t } = useTranslation('changes');
-  const dots = scrubDots(steps, currentId);
-  const at = steps.findIndex((s) => s.id === currentId);
-  // Dots are too small to be targets of their own: the list and the arrows are how the keyboard
-  // and a screen reader move, and a pointer picks the dot it lands on
-  return (
-    <div
-      className={`edit-scrub ${className}`.trim()}
-      role="img"
-      aria-label={t('steps.stepOf', { n: at + 1, total: steps.length })}
-      style={{ '--n': steps.length } as CSSProperties}
-      onClick={(e) => {
-        const id = (e.target as HTMLElement).closest<HTMLElement>('[data-step]')?.dataset.step;
-        if (id) onPick(id);
-      }}
-    >
-      {steps.map((s, i) => (
-        <i key={s.id} data-step={s.id} className={`is-${dots[i] ?? 'ahead'}`} title={`${s.index} · ${splitPath(s.path).name}`} />
-      ))}
-    </div>
-  );
-}
+export { StepScrubber };
 
 // ---------------------------------------------------------------------------------------------
 // Pieces
@@ -203,6 +180,7 @@ function StepList({ steps, current, hrefOf, note }: { steps: EditStep[]; current
                   <span className="edit-step-path" title={s.path}>
                     {splitPath(s.path).name}
                   </span>
+                  <StepRisk risk={s.risk} inLink />
                   {s.pending && (
                     <>
                       <Spinner />
@@ -286,6 +264,7 @@ function Why({ step, conversation, compact = false }: { step: EditStep; conversa
         <Sparkle size={compact ? 16 : 18} strokeWidth={1.75} fill="currentColor" aria-hidden className="edit-step-spark" />
         <span>{step.intent ? <Intent text={step.intent} /> : <span className="edit-step-silent">{t('steps.noIntent', { agent: Agent })}</span>}</span>
       </h2>
+      <StepRisk risk={step.risk} />
       {(!compact || href) && (
         <span className="edit-step-source">
           {step.intent && !compact && <span>{t('steps.intentLabel', { agent })}</span>}

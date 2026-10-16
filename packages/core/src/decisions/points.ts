@@ -77,7 +77,7 @@ function items(subject: DecisionSubject, field: string): Array<Record<string, un
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-type Base = Pick<DecisionPointDefinition, 'id' | 'kind' | 'scope' | 'primitives' | 'fields'> & Partial<Pick<DecisionPointDefinition, 'maxStateBytes' | 'savesRun' | 'visible' | 'needsLowLatency'>>;
+type Base = Pick<DecisionPointDefinition, 'id' | 'kind' | 'scope' | 'primitives' | 'fields'> & Partial<Pick<DecisionPointDefinition, 'maxStateBytes' | 'savesRun' | 'visible' | 'needsLowLatency' | 'stateVersion'>>;
 
 function point(base: Base, questions: DecisionPointDefinition['questions']): DecisionPointDefinition {
   return {
@@ -216,7 +216,8 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
     if (commands.length === 0) return [];
     return [choice('command', 'Which command does the query ask for?', [...commands.map((c): [string, string] => [c.id, text(c.title) || c.id]), ['none', 'None of these commands'] as [string, string]])];
   }),
-  point({ id: 'notification.urgency', kind: 'act', scope: 'global', primitives: ['choice'], visible: false, maxStateBytes: 2 * 1024, fields: ['kind', 'title', 'body'] }, () => [
+  // `risk` is the riskiest tool call of the chat in its last ten minutes, one line; version 2 asks for consent again with it in the preview
+  point({ id: 'notification.urgency', kind: 'act', scope: 'global', primitives: ['choice'], visible: false, maxStateBytes: 2 * 1024, stateVersion: 2, fields: ['kind', 'title', 'body', 'risk'] }, () => [
     choice('urgency', 'Should this notification interrupt the person now?', [
       ['normal', 'Normal: it can wait until the person next looks'],
       ['high', 'High: the person would want to know right away'],
