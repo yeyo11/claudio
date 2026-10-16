@@ -1,6 +1,6 @@
 ---
-created_at: 2026-10-16T23:00:00Z
-updated_at: 2026-10-16T23:00:00Z
+created_at: 2026-10-16T22:32:57.97745428Z
+updated_at: 2026-10-16T22:42:40.140217922Z
 tags:
     - collaborators
     - peer-to-peer
@@ -33,14 +33,24 @@ nobody's quota is spent: serving a copy never runs Claude.
 - **Create a group**, which makes this install its owner, or **join** one by pasting an invite.
 - **Invite**: the owner makes an invite (text and QR code, valid 7 days, usable once). If the owner is
   offline when someone joins, the request waits with a member and reaches the owner when they are
-  back; the page says "Waiting for the owner to come online".
+  back; the page says "Waiting for the owner to come online" and names the member holding it (an
+  invite carries the names of the members it lists as relays, so the joiner knows them before it has
+  the roster).
 - **Manage members** (owner): accept or deny join requests, remove a member, or make another member
-  the owner. A member can leave, which deletes every copy synced through that group.
+  the owner. A member can leave, which deletes every copy synced through that group. Members, join
+  requests and waiting joins are shown by name, with the label and the short endpoint id in mono as
+  detail, and roster changes are announced by who joined, left or became the owner.
+- **Be told of a join request**: a join waiting for the owner's answer notifies the owner in the bell
+  and by push, and answering it settles the notification
+  ([notifications.md](notifications.md#join-requests)).
 - **Share a project**: in the project's Settings, the **Sharing** section has a switch per group, the
   share key and the warning that what was sent cannot be taken back.
 - **Read what others share**: inside a project, the **Shared** tab shows a teammate's chats, memory,
-  documents and board in read-only mode. The Collaborators page lists everything shared with the
-  person, grouped by person and install, and links a project that did not match to a local one.
+  journal, documents, artifacts and board in read-only mode. A chat's subagents open from its
+  delegations in the side panel, as in a local chat, and the files attached to its messages are
+  among the artifacts. The Collaborators page lists everything shared with the person, grouped by
+  person and install. A project that is not cloned here opens a **read-only view** of the same tabs,
+  and can be linked to a local project.
 
 ## Where it shows
 
@@ -48,7 +58,9 @@ nobody's quota is spent: serving a copy never runs Claude.
 | --- | --- |
 | `/collaborators` | the page: this install, the groups and their members, join requests, what is shared with you |
 | A project's Settings → Sharing | per-group switches, the share key and its remote, the warning |
-| A project's **Shared** tab | member switcher, then Chats, Memory, Documents and Board, read only |
+| A project's **Shared** tab | member switcher, then Chats, Memory, Journal, Documents, Artifacts and Board, read only |
+| `/collaborators/shared/:owner/:shareId` | the read-only view of a shared project not cloned here: its name, owner, share key and sync state, the same sub-tabs, and **Link to a local project** |
+| The bell | a join request waiting for the owner's answer, until it is answered |
 
 The Shared tab only appears when Collaborators is on and a teammate's project matches this one. A
 teammate's chats never mix into the person's own chat list, counts or badges. A chat that is running
@@ -73,7 +85,11 @@ as soon as it meets any member, and nobody can forge a roster for a group they d
 - **Transferring ownership** is one click: the owner signs a version naming the new owner. Do it
   before changing machines.
 - **If the owner's install is lost** nobody can sign again. The group is frozen with its last roster,
-  the page says so, and the way out is a new group. That is the price of a single signer.
+  and the way out is a new group. That is the price of a single signer. The owner's own Claudio
+  knows: each group remembers the endpoint id the install held its chain as, and when that id is the
+  owner but the install now has another key (the vault was lost, or the data restored without it),
+  the group card says the group can no longer change and offers **Create a new group**. A member's
+  install cannot tell a lost owner from one that is offline, so it never says frozen.
 
 **The share key** says which projects are "the same project" on two machines. Project ids are random
 on each machine, so the key is built from the git remote: `<host>/<path>`, plus `#<subpath>` for a
@@ -129,20 +145,33 @@ What the sharing side does enforce, on its own machine:
 - **A process of its own.** The iroh endpoint runs in a child process, `collab-host.mjs`, forked by
   the core as `terminal-host.mjs` is. A panic in the native binding loses the connections and nothing
   else; the core restarts it and reports it. The host polls and never uses the binding's `watch*`
-  calls, which abort the process in `@number0/iroh` 1.1.0 (pinned until that is answered upstream).
+  calls, which abort the process in `@number0/iroh` 1.1.0 (pinned until that and the `Buffer` issue
+  are answered upstream; both are drafted, not filed, in
+  [reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md)).
 - **Its own protocol**, `claudio/collab/1`, as length-prefixed JSON frames on QUIC streams. The HTTP
   API is never exposed to the network.
 - **Storage.** Settings, the signed chains, links and cursors are JSON under
   `<dataDir>/collaborators/`; the synchronised records, transcript lines, peers, pending joins and
   used invites are SQLite rows; blobs are files named by their hash, fetched when opened. The
   project's own sharing choice is `ProjectSettings.sharing`.
+- **Subagents and uploads travel with their chat.** A chat's record lists its subagents and workflow
+  agents; their transcripts are served through the chat's, kept beside it on the copy, pulled only
+  when their size changed and dropped with the chat. Which uploads a chat attached is kept as
+  `chat_uploads` rows, written as a message goes out (a chat from before them is scanned once from
+  its transcript), so the owner answers a chat's uploads after a restart too, and a receiver pulls
+  the artifacts after any chat changed.
 - **Live** means a `changed` notice makes the receiver pull right away, and a running chat's
   transcript is pulled as it grows. Removed records are found by a catalog reconcile on connect and
   every 10 minutes.
+- **Quiet failures.** A peer that answers `forbidden` stopped sharing or removed this install: its
+  copies say so once, the log says so once, and it is asked again at a wait that doubles from the
+  reconcile pace up to a day, or as soon as it says hello. Any other failure is logged when its
+  reason changes, and the recovery once. Log lines name the peer with the start of its id.
 - **The API** is the Collaborators table in the [README](../README.md#collaborators); the events are
-  `collaborators.changed`, `collaborators.peer`, `collaborators.synced` and
-  `collaborators.join-request`.
+  `collaborators.changed`, `collaborators.peer`, `collaborators.synced`,
+  `collaborators.join-request` and `collaborators.join-answered`. A join request notifies the owner
+  in the bell and by push, and its answer clears it ([notifications.md](notifications.md#join-requests)).
 
 ## Related
 
-[[plans/collaborators.md]] · [[security-model.md]] · [[projects.md]] · [[design-system.md]] · [[tunnel.md]] · [[terminal.md]] · [[team-and-flow.md]]
+[[plans/collaborators.md]] · [[reports/iroh-upstream-issues.md]] · [[notifications.md]] · [[security-model.md]] · [[projects.md]] · [[design-system.md]] · [[tunnel.md]] · [[terminal.md]] · [[team-and-flow.md]]

@@ -1,6 +1,6 @@
 import type { CollaboratorsStatus, Group, GroupList, GroupMember, JoinRequest, PendingJoin, Project, SharedProject, UpdateCollaboratorsRequest } from '@claudio/shared';
 import { FolderPlus, LogIn, Plus, UserPlus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjects } from '../api';
 import { useConfirm } from '@claudio/ui/components/Dialog';
@@ -9,6 +9,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { collaboratorsApi, useCollaboratorGroups, useCollaboratorsMutation, useCollaboratorsStatus, useSharedProjects } from '../lib/api/collaborators';
+import { settleJoinRequests } from '../lib/notifications';
 import { localized } from '../lib/server-strings';
 import { CreateGroupDialog, InviteDialog, JoinDialog, LinkDialog } from './collaborators/dialogs';
 import { GroupCard, type GroupActions } from './collaborators/GroupCard';
@@ -32,6 +33,13 @@ export function Collaborators() {
   const projects = useProjects(false);
   const update = useCollaboratorsMutation((body: UpdateCollaboratorsRequest) => collaboratorsApi.update(body));
   const toast = useToast();
+
+  // A request answered from another device while this page was closed clears its notification here
+  useEffect(() => {
+    if (!groups.data) return;
+    const holding = new Set(groups.data.groups.filter((g) => g.isOwner && g.joinRequestCount > 0).map((g) => g.id));
+    settleJoinRequests((groupId) => holding.has(groupId), groups.dataUpdatedAt);
+  }, [groups.data, groups.dataUpdatedAt]);
 
   if (status.isLoading) return <Skeleton rows={6} height={20} />;
   if (status.error) return <ErrorBox error={status.error} />;

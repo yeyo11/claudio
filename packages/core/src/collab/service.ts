@@ -15,6 +15,7 @@ import {
   type GroupList,
   type GroupMember,
   type JoinGroupResult,
+  type JoinAnswer,
   type JoinRequest,
   type JournalEntry,
   type Localized,
@@ -42,7 +43,7 @@ import { git } from '../git.ts';
 import type { CoreConfig } from '../paths.ts';
 import type { ProjectSettingsStore } from '../project-settings.ts';
 import type { ProjectRecord } from '../projects.ts';
-import { PeerError, relayEntry, SyncClient, type KnownShare } from './client.ts';
+import { agentFile, agentKey, PeerError, relayEntry, SyncClient, type KnownShare } from './client.ts';
 import { GroupsStore } from './groups-store.ts';
 import { CollabHost, type CollabHostOptions, type HostPeer, type HostStatus, type HostUnavailable } from './host-client.ts';
 import type { HostPreset } from './host/protocol.ts';
@@ -63,10 +64,11 @@ import {
   transferOwnership,
   type RosterVersion,
 } from './roster.ts';
+import { describeMember, nameOf, rosterChangeTitle } from './names.ts';
 import { CollabServer, type HeldGroup, type JoinPort, type ReplySink } from './serve.ts';
 import { CollaboratorsSettingsStore } from './settings.ts';
 import { isValidShareKey, listRemotes, preferredRemote, shareIdOf, shareKeyFor } from './share-key.ts';
-import { parseRequest, type WireReply, type WireRequest } from './wire.ts';
+import { isAgentFile, parseRequest, type WireReply, type WireRequest } from './wire.ts';
 
 /*
  * Collaborators on this install (docs/plans/collaborators.md): the switch, the identity, the groups
@@ -184,6 +186,8 @@ export class CollaboratorsService {
   private readonly tickets = new Map<string, string>();
   private readonly presence = new Map<string, { online: boolean; path: CollaboratorsPath | null }>();
   private readonly conflicts = new Map<string, { version: number; hashes: string[] }>();
+  /** The endpoint id this install was a member of each group as (`GroupDoc.heldAs`) */
+  private readonly heldAs = new Map<string, string>();
   private readonly defaultKeys = new Map<string, Promise<string | null>>();
   private seedCache: Buffer | null = null;
   private hostStatus: HostStatus | null = null;
@@ -198,7 +202,11 @@ export class CollaboratorsService {
     this.groups = new GroupsStore(deps.config);
     this.dir = join(deps.config.dataDir, 'collaborators');
     this.pendingFile = join(this.dir, 'pending-joins.json');
-    for (const doc of this.groups.all()) if (doc.chain.length) this.chains.set(doc.groupId, doc.chain);
+    for (const doc of this.groups.all()) {
+      if (!doc.chain.length) continue;
+      this.chains.set(doc.groupId, doc.chain);
+      if (doc.heldAs) this.heldAs.set(doc.groupId, doc.heldAs);
+    }
     this.host = (deps.host ?? ((options) => new CollabHost(options)))({
       serve: (from, frame, sink) => this.incoming(from, frame, sink),
       listener: {
@@ -235,6 +243,7 @@ export class CollaboratorsService {
       synced: (owner, shareKey, kind) => this.emitSynced(owner, shareKey, kind),
       sharesChanged: () => this.changed('links'),
       log: (message) => this.log(message),
+      who: (id) => this.who(id),
       ...(deps.reconcileMs !== undefined ? { reconcileMs: deps.reconcileMs } : {}),
       ...(deps.retryMs !== undefined ? { retryMs: deps.retryMs } : {}),
       ...(deps.debounceMs !== undefined ? { debounceMs: deps.debounceMs } : {}),
@@ -258,7 +267,36 @@ export class CollaboratorsService {
 
   /** Binds the endpoint when Collaborators is on; with it off, nothing of iroh is loaded */
   async start(): Promise<void> {
+    await this.recordHeldAs();
     if (this.settings.read().enabled) await this.bind();
+  }
+
+  /**
+   * A chain stored before `heldAs` was kept learns it now, from the key held, when that key is a
+   * member of its head. A key that is not a member records nothing: it may be a new one made after
+   * the old was lost, and recording it would hide that the group is frozen.
+   */
+  private async recordHeldAs(): Promise<void> {
+    const me = this.endpointId();
+    for (const [groupId, chain] of this.chains) {
+      const head = chain.at(-1);
+      const held = this.heldAs.get(groupId);
+      if (held && held !== me && head?.owner === held) this.log(`collab: group ${short(groupId)} is frozen: it was owned by ${short(held)}, a key this install no longer holds`);
+      if (held || !me || !head || !isMember(head, me)) continue;
+      await this.groups.setHeldAs(groupId, me);
+      this.heldAs.set(groupId, me);
+    }
+  }
+
+  /**
+   * The group can no longer change (§3.3): this install held it as its owner, and the key it holds
+   * now is another, so nobody has the key that signs the next version. Only the install that lost
+   * the key can tell; to its members the owner just looks offline.
+   */
+  private isFrozen(groupId: string, head: RosterVersion): boolean {
+    const me = this.endpointId();
+    const held = this.heldAs.get(groupId);
+    return !!me && !!held && held !== me && head.owner === held;
   }
 
   private async bind(): Promise<void> {
@@ -413,7 +451,8 @@ export class CollaboratorsService {
   private heard(from: string, hello: Extract<WireRequest, { type: 'hello' }>): void {
     if (!this.peerIds().has(from)) return;
     if (hello.ticket) this.tickets.set(from, hello.ticket);
-    let pull = !!hello.changed || !this.client.isOnline(from);
+    // A peer that refused this install says hello only once it lists it again
+    let pull = !!hello.changed || !this.client.isOnline(from) || this.client.isRefused(from);
     for (const [groupId, theirs] of Object.entries(hello.heads)) {
       const chain = this.chains.get(groupId);
       const head = chain?.at(-1);
@@ -466,8 +505,14 @@ export class CollaboratorsService {
     return null;
   }
 
-  private memberName(id: string): string {
-    return this.memberEntry(id)?.name ?? short(id);
+  /** A member by the name its newest roster version gives it; `hints` name who no roster held here lists yet */
+  private memberName(id: string, hints?: Readonly<Record<string, string>>): string {
+    return nameOf(this.chains.values(), id, hints) ?? short(id);
+  }
+
+  /** A member in a log line: its name and the start of its endpoint id */
+  private who(id: string): string {
+    return describeMember(nameOf(this.chains.values(), id), id);
   }
 
   private requireChain(groupId: string): RosterVersion[] {
@@ -490,8 +535,7 @@ export class CollaboratorsService {
       owner: head.owner,
       isOwner,
       members,
-      // Nothing outside the owner's install can tell its key is lost; the page says so when the person does
-      frozen: false,
+      frozen: this.isFrozen(groupId, head),
       conflict: this.conflicts.get(groupId) ?? null,
       joinRequestCount: isOwner ? this.deps.store.joinRequests({ groupId }).length : 0,
     };
@@ -518,8 +562,10 @@ export class CollaboratorsService {
     const trimmed = typeof name === 'string' ? name.trim() : '';
     if (!trimmed || trimmed.length > 100) throw new CollaboratorsError('invalid', 'A group needs a name of at most 100 characters');
     const genesis = createGenesis({ seed, name: trimmed, owner: this.me() });
-    await this.groups.setChain(genesis.groupId, [genesis]);
+    const me = endpointIdFromSeed(seed);
+    await this.groups.setChain(genesis.groupId, [genesis], me);
     this.chains.set(genesis.groupId, [genesis]);
+    this.heldAs.set(genesis.groupId, me);
     this.changed('roster', genesis.groupId);
     return this.getGroup(genesis.groupId);
   }
@@ -533,12 +579,15 @@ export class CollaboratorsService {
   /** Writes a chain that grew, and acts on what changed in its membership */
   private async commit(groupId: string, chain: RosterVersion[]): Promise<void> {
     const prev = this.chains.get(groupId)?.at(-1) ?? null;
-    await this.groups.setChain(groupId, chain);
-    this.chains.set(groupId, chain);
     const head = chain.at(-1) as RosterVersion;
+    const me = this.endpointId();
+    // Only a key the head lists is recorded: a chain that drops this install keeps the id it held
+    const heldAs = me && isMember(head, me) ? me : undefined;
+    await this.groups.setChain(groupId, chain, heldAs);
+    this.chains.set(groupId, chain);
+    if (heldAs) this.heldAs.set(groupId, heldAs);
     const conflict = this.conflicts.get(groupId);
     if (conflict && head.version > conflict.version) this.conflicts.delete(groupId);
-    const me = this.endpointId();
     if (prev) {
       for (const removed of membershipChanges(prev, head).removed) {
         if (removed.endpointId === me || this.peerIds().has(removed.endpointId)) continue;
@@ -548,7 +597,11 @@ export class CollaboratorsService {
       }
     }
     this.refreshPeers();
-    this.changed('roster', groupId);
+    this.changed('roster', groupId, null, rosterChangeTitle(prev, head));
+    // Joins this install held as a member are its own to answer now that it signs the roster
+    if (prev && me && prev.owner !== me && head.owner === me) {
+      for (const row of this.deps.store.joinRequests({ groupId })) this.announceJoinRequest(groupId, row.fromEndpointId);
+    }
   }
 
   /** The owner signs the next version, stores it and tells every member it can reach */
@@ -594,7 +647,7 @@ export class CollaboratorsService {
           if (held && theirs) this.conflicts.set(groupId, { version: held.version, hashes: [headOf([held]).hash, headOf([theirs]).hash].sort() });
           this.changed('roster', groupId);
         }
-        this.log(`collab: a roster from ${short(from)} was refused: ${error instanceof Error ? error.message : String(error)}`);
+        this.log(`collab: a roster from ${this.who(from)} was refused: ${error instanceof Error ? error.message : String(error)}`);
         return;
       }
       if (next.length > chain.length) await this.commit(groupId, next);
@@ -629,6 +682,7 @@ export class CollaboratorsService {
     await this.serialized(async () => {
       this.chains.delete(groupId);
       this.conflicts.delete(groupId);
+      this.heldAs.delete(groupId);
       await this.groups.delete(groupId);
       this.deps.store.dropGroup(groupId);
     });
@@ -745,7 +799,7 @@ export class CollaboratorsService {
       groupId: p.invite.groupId,
       groupName: p.invite.groupName,
       owner: { endpointId: p.invite.owner, name: p.invite.ownerName },
-      relayedBy: p.relayedBy ? { endpointId: p.relayedBy, name: this.memberName(p.relayedBy) } : null,
+      relayedBy: p.relayedBy ? { endpointId: p.relayedBy, name: this.memberName(p.relayedBy, { ...p.invite.relayNames, [p.invite.owner]: p.invite.ownerName }) } : null,
       sentAt: p.sentAt,
       expiresAt: p.invite.expiresAt,
     };
@@ -806,14 +860,13 @@ export class CollaboratorsService {
         if (!check.ok) return check.reason === 'already-member' ? { type: 'ack' } : { type: 'error', code: 'refused', reason: check.reason };
         if (check.request.endpointId !== request.from) return { type: 'error', code: 'refused', reason: 'wrong-endpoint' };
         this.deps.store.putJoinRequest({ groupId: group.groupId, fromEndpointId: request.from, sealed: request.sealed, relayedBy, expiresAt: check.request.expiresAt, receivedAt: request.receivedAt });
-        const view = this.joinRequestView(group.groupId, request.from);
-        if (view) this.deps.emit({ type: 'collaborators.join-request', title: `${view.name} asks to join ${head.name}`, request: view });
+        this.announceJoinRequest(group.groupId, request.from);
         return { type: 'ack' };
       },
       leave: async (from, group) => {
         const head = this.chains.get(group.groupId)?.at(-1);
         if (head && head.owner === this.endpointId() && from !== head.owner && isMember(head, from)) {
-          await this.removeMember(group.groupId, from).catch((error: unknown) => this.log(`collab: removing ${short(from)} who left failed: ${error instanceof Error ? error.message : String(error)}`));
+          await this.removeMember(group.groupId, from).catch((error: unknown) => this.log(`collab: removing ${this.who(from)} who left failed: ${error instanceof Error ? error.message : String(error)}`));
         }
         return { type: 'ack' };
       },
@@ -835,7 +888,7 @@ export class CollaboratorsService {
       const { endpointId, name, label } = check.request;
       const next = [...chain, addMember(head, seed, endpointId, { name, ...(label !== undefined ? { label } : {}) })];
       await this.commit(groupId, next);
-      this.deps.store.deleteJoinRequest(groupId, endpointId);
+      this.settleJoinRequest(groupId, endpointId, 'accepted');
       this.announce(groupId);
       return { type: 'roster', groupId, versions: next };
     });
@@ -885,17 +938,17 @@ export class CollaboratorsService {
       const head = chain.at(-1) as RosterVersion;
       const check = checkJoin({ seed, head, sealed: row.sealed, isUsed: (hash) => this.deps.store.isInviteUsed(groupId, hash) });
       if (!check.ok || check.request.endpointId !== from) {
-        this.deps.store.deleteJoinRequest(groupId, from);
+        this.settleJoinRequest(groupId, from, !check.ok && check.reason === 'already-member' ? 'accepted' : 'dropped');
         if (check.ok || check.reason !== 'already-member') throw new CollaboratorsError(!check.ok && check.reason === 'expired' ? 'expired' : 'refused', `The request cannot be accepted${check.ok ? '' : `: ${check.reason}`}`);
         return this.getGroup(groupId);
       }
       if (!this.deps.store.useInvite(groupId, check.secretHash, now())) {
-        this.deps.store.deleteJoinRequest(groupId, from);
+        this.settleJoinRequest(groupId, from, 'dropped');
         throw new CollaboratorsError('refused', 'The invite was used already');
       }
       const { endpointId, name, label } = check.request;
       await this.commit(groupId, [...chain, addMember(head, seed, endpointId, { name, ...(label !== undefined ? { label } : {}) })]);
-      this.deps.store.deleteJoinRequest(groupId, from);
+      this.settleJoinRequest(groupId, from, 'accepted');
       this.announce(groupId);
       return this.getGroup(groupId);
     });
@@ -905,8 +958,25 @@ export class CollaboratorsService {
   denyJoin(groupId: string, from: string): void {
     this.requireOwner(groupId);
     if (!this.deps.store.joinRequest(groupId, from)) throw new CollaboratorsError('not-found', 'No such join request');
-    this.deps.store.deleteJoinRequest(groupId, from);
+    this.settleJoinRequest(groupId, from, 'denied');
     this.changed('roster', groupId);
+  }
+
+  /** Tells the owner a join waits for them: the event the bell and the push sender turn into a notification */
+  private announceJoinRequest(groupId: string, from: string): void {
+    const view = this.joinRequestView(groupId, from);
+    const head = this.chains.get(groupId)?.at(-1);
+    if (!view || !head) return;
+    this.deps.emit({ type: 'collaborators.join-request', title: `${view.name} asks to join ${head.name}`, request: view, groupName: head.name });
+  }
+
+  /** Deletes a join request the owner held, and says so, which clears its notification */
+  private settleJoinRequest(groupId: string, from: string, answer: JoinAnswer): void {
+    // A direct join with nothing held here was never announced, so it has nothing to clear
+    if (!this.deps.store.joinRequest(groupId, from)) return;
+    const name = this.joinRequestView(groupId, from)?.name ?? short(from);
+    this.deps.store.deleteJoinRequest(groupId, from);
+    this.deps.emit({ type: 'collaborators.join-answered', title: `The join of ${name} was ${answer}`, groupId, from, answer });
   }
 
   // ---------- What this install shares ----------
@@ -1073,7 +1143,7 @@ export class CollaboratorsService {
       const linked = this.linkOf(share.shareKey);
       out.push({
         owner,
-        ownerName: member?.name ?? short(owner),
+        ownerName: this.memberName(owner),
         ownerLabel: member?.label ?? null,
         groupIds: share.groupIds.filter((g) => this.chains.has(g)),
         shareKey: share.shareKey,
@@ -1120,6 +1190,15 @@ export class CollaboratorsService {
     const share = this.resolveShare(owner, shareId);
     for (const id of this.chains.keys()) if (this.groups.read(id)?.links[share.shareKey]) await this.groups.setLink(id, share.shareKey, null);
     this.changed('links');
+    return this.sharedOne(owner, shareId);
+  }
+
+  /**
+   * `GET /collaborators/shared/:owner/:shareId`: one shared project, as the catalog lists it. What
+   * the read-only view of a project not cloned here heads itself with; not-found once the owner no
+   * longer shares it with this install.
+   */
+  sharedProject(owner: string, shareId: string): Promise<SharedProject> {
     return this.sharedOne(owner, shareId);
   }
 
@@ -1180,18 +1259,33 @@ export class CollaboratorsService {
    * A window of a copied transcript, as the JSONL lines the CLI wrote, oldest first after `after` (a
    * line seq); `total` is how many lines the copy holds. Turning lines into entries is the reader's.
    */
-  sharedTranscript(owner: string, shareId: string, chatId: string, opts: { after?: number; limit?: number } = {}): { lines: Array<{ seq: number; line: string }>; total: number; live: boolean } {
+  sharedTranscript(
+    owner: string,
+    shareId: string,
+    chatId: string,
+    opts: { after?: number; limit?: number; agent?: { agentId: string; workflowRunId: string | null } } = {},
+  ): { lines: Array<{ seq: number; line: string }>; total: number; live: boolean } {
     const share = this.resolveShare(owner, shareId);
     const ref = { ownerId: owner, shareKey: share.shareKey };
     const chat = this.deps.store.record(ref, 'chats', chatId);
     if (!chat) throw new CollaboratorsError('not-found', 'No such shared chat');
-    let live = false;
+    let data: Partial<SharedChat> = {};
     try {
-      live = !!(JSON.parse(chat.json) as { live?: unknown }).live;
+      data = JSON.parse(chat.json) as Partial<SharedChat>;
     } catch {
-      // A record that does not parse is shown as not live
+      // A record that does not parse is shown as not live, with no agents
     }
-    return { lines: this.deps.store.transcriptLines(ref, chatId, opts), total: this.deps.store.transcriptLineCount(ref, chatId), live };
+    const live = !!data.live;
+    let key = chatId;
+    if (opts.agent) {
+      const { agentId, workflowRunId } = opts.agent;
+      // Only an agent the copied chat lists, and so one whose transcript was pulled with it
+      const listed = Array.isArray(data.subagents) && data.subagents.some((a) => a?.agentId === agentId && (a.workflowRunId ?? null) === workflowRunId);
+      const file = agentFile(agentId, workflowRunId);
+      if (!listed || !isAgentFile(file)) throw new CollaboratorsError('not-found', 'No such subagent in the shared chat');
+      key = agentKey(chatId, file);
+    }
+    return { lines: this.deps.store.transcriptLines(ref, key, opts), total: this.deps.store.transcriptLineCount(ref, key), live };
   }
 
   /**
@@ -1224,8 +1318,8 @@ export class CollaboratorsService {
 
   // ---------- Events ----------
 
-  private changed(scope: CollaboratorsChangeScope, groupId: string | null = null, projectId: string | null = null): void {
-    this.deps.emit({ type: 'collaborators.changed', title: 'Collaborators changed', scope, groupId, projectId });
+  private changed(scope: CollaboratorsChangeScope, groupId: string | null = null, projectId: string | null = null, title: string | null = null): void {
+    this.deps.emit({ type: 'collaborators.changed', title: title ?? 'Collaborators changed', scope, groupId, projectId });
   }
 
   private emitSynced(owner: string, shareKey: string, kind: CollaboratorsKind): void {

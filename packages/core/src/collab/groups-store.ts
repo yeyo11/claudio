@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { COLLABORATORS_KINDS, type CollaboratorsKind, type EndpointId, type RosterVersion } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
+import { isEndpointId } from './roster.ts';
 
 /*
  * `<dataDir>/collaborators/groups/<groupId>.json` (docs/plans/collaborators.md §4.3): per group the
@@ -28,6 +29,13 @@ export interface GroupDoc {
   links: Record<string, string>;
   /** By the sharing install's endpoint id, then by share key */
   cursors: Record<EndpointId, Record<string, ShareCursors>>;
+  /**
+   * The endpoint id this install was a member as when it last stored the chain; null before it is
+   * known. The key lives in the vault and the chain here, so a vault lost or restored apart from the
+   * data leaves this id behind the install's own: when it is also the chain's owner, nobody holds the
+   * key that signs the group's next version, and the group is frozen (§3.3).
+   */
+  heldAs: EndpointId | null;
 }
 
 /** A group id is the hex sha256 of its genesis, so it is safe as a file name once it matches this. */
@@ -72,7 +80,8 @@ function sanitize(groupId: string, value: unknown): GroupDoc {
     }
   }
   const chain = Array.isArray(raw.chain) ? (raw.chain.filter(isObject) as unknown as RosterVersion[]) : [];
-  return { groupId, chain, links, cursors };
+  const heldAs = isEndpointId(raw.heldAs) ? raw.heldAs : null;
+  return { groupId, chain, links, cursors, heldAs };
 }
 
 export class GroupsStore {
@@ -130,15 +139,23 @@ export class GroupsStore {
       if (!held && existsSync(file)) throw new Error(`the document of group ${groupId} does not parse`);
       const current = held ?? sanitize(groupId, null);
       const next = change(current) ?? current;
-      const doc: GroupDoc = { groupId, chain: next.chain, links: next.links, cursors: next.cursors };
+      const doc: GroupDoc = { groupId, chain: next.chain, links: next.links, cursors: next.cursors, heldAs: next.heldAs };
       await writeAtomic(file, `${JSON.stringify(doc, null, 2)}\n`);
       return doc;
     });
   }
 
-  /** Replaces the chain: a verified suffix appended to it, or a joiner's first chain. */
-  setChain(groupId: string, chain: readonly RosterVersion[]): Promise<GroupDoc> {
-    return this.update(groupId, (doc) => ({ ...doc, chain: [...chain] }));
+  /**
+   * Replaces the chain: a verified suffix appended to it, or a joiner's first chain. `heldAs`, when
+   * given, records the endpoint id the install is a member as; without it the one recorded stays.
+   */
+  setChain(groupId: string, chain: readonly RosterVersion[], heldAs?: EndpointId): Promise<GroupDoc> {
+    return this.update(groupId, (doc) => ({ ...doc, chain: [...chain], heldAs: heldAs ?? doc.heldAs }));
+  }
+
+  /** Records the endpoint id the install is a member as, for a document written before it was kept. */
+  setHeldAs(groupId: string, heldAs: EndpointId): Promise<GroupDoc> {
+    return this.update(groupId, (doc) => ({ ...doc, heldAs }));
   }
 
   /** Pairs a share key with a local project, or undoes the pairing with null. */

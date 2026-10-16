@@ -8,6 +8,7 @@ import test, { after } from 'node:test';
 import type { Attachment, ChatActivity, ClaudioEvent, JournalEntry, Milestone, ProjectSettings, ProjectSharingSettings, WorkItem, WorkItemDetail } from '@claudio/shared';
 import type { ChatRecord } from '../src/chat-records.ts';
 import type { ReaderSources } from '../src/collab/readers.ts';
+import { decodeInvite, joinPayloadFor, sealJoin } from '../src/collab/invite.ts';
 import { CollaboratorsService } from '../src/collab/service.ts';
 import { CollabStore, Db } from '../src/db.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
@@ -65,10 +66,22 @@ const chatRecord = {
 } as unknown as ChatRecord;
 const transcript = join(root, `${chatId}.jsonl`);
 writeFileSync(transcript, '{"n":1}\n{"n":2}\n');
+// A subagent the chat delegated to, whose transcript the CLI keeps beside the chat's
+const subagentDir = join(root, chatId, 'subagents');
+mkdirSync(subagentDir, { recursive: true });
+const subagentTranscript = join(subagentDir, 'agent-a1.jsonl');
+writeFileSync(subagentTranscript, '{"sub":1}\n');
+writeFileSync(join(subagentDir, 'agent-a1.meta.json'), JSON.stringify({ agentType: 'Explore', description: 'Find the bug' }));
+const subagent = { agentId: 'a1', workflowRunId: null };
 
 const uploadFile = join(root, 'notes.txt');
 writeFileSync(uploadFile, 'an upload of the chat');
 const upload: Attachment = { id: randomUUID(), name: 'notes.txt', mediaType: 'text/plain', kind: 'file', sizeBytes: 21, path: uploadFile, createdAt: '2026-10-16T09:10:00.000Z' };
+// A later message attaches a second file: the copy gets it with the chat, not on an artifacts notice
+const laterFile = join(root, 'later.txt');
+writeFileSync(laterFile, 'attached later');
+const laterUpload: Attachment = { id: randomUUID(), name: 'later.txt', mediaType: 'text/plain', kind: 'file', sizeBytes: 14, path: laterFile, createdAt: '2026-10-16T09:20:00.000Z' };
+const chatUploads = [{ uploadId: upload.id, attachedAt: upload.createdAt }];
 
 const journal: JournalEntry[] = [
   { id: 'j1', projectId: project.id, kind: 'note', text: 'Decided to use iroh', createdAt: '2026-10-16T08:00:00.000Z' } as unknown as JournalEntry,
@@ -99,11 +112,12 @@ const anaSources: ReaderSources = {
     get: (id) => ({ ...item, id }) as unknown as WorkItemDetail,
     milestones: (projectId) => (projectId === project.id ? [milestone] : []),
   },
-  uploadsOfChat: (id) => (id === chatId ? [upload.id] : []),
+  uploadsOfChat: async (id) => (id === chatId ? [...chatUploads] : []),
   uploads: {
     get: (id) => {
-      if (id !== upload.id) throw new Error('upload not found');
-      return upload;
+      const found = [upload, laterUpload].find((u) => u.id === id);
+      if (!found) throw new Error('upload not found');
+      return found;
     },
   },
   orchestrations: (projectId) => (projectId === project.id ? [{ id: 'o1', name: 'Build', finalResult: 'Done', updatedAt: '2026-10-16T09:50:00.000Z' }] : []),
@@ -237,6 +251,13 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   assert.equal(shared.ownerName, 'Ana');
   assert.equal(shared.name, 'api');
   const shareId = shared.shareId;
+  // Ben has no clone of it: the read-only view is headed by the project alone, as the catalog lists it
+  assert.deepEqual(shared.matches, []);
+  assert.equal(shared.linkedProjectId, null);
+  // Sync goes on meanwhile, so the state is left out of the comparison
+  const one = await ben.service.sharedProject(anaId, shareId);
+  assert.deepEqual({ ...one, sync: null, counts: null }, { ...shared, sync: null, counts: null });
+  await assert.rejects(ben.service.sharedProject(anaId, '0'.repeat(32)), /No such shared project/);
   await until('Ben holds every kind', () => {
     const counts = ben.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY });
     return counts.chats && counts.memory && counts.journal && counts.documents && counts.board && counts.artifacts;
@@ -250,6 +271,11 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   assert.deepEqual(ben.service.sharedArtifacts(anaId, shareId).map((a) => `${a.kind}:${a.id}`).sort(), [`orchestration:o1`, `upload:${upload.id}`]);
   await until('the transcript', () => ben.service.sharedTranscript(anaId, shareId, chatId).total === 2);
   assert.deepEqual(ben.service.sharedTranscript(anaId, shareId, chatId).lines.map((l) => l.line), ['{"n":1}', '{"n":2}']);
+  // The subagent's transcript comes with the chat's, held apart from it
+  await until("the subagent's transcript", () => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).total === 1);
+  assert.deepEqual(ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).lines.map((l) => l.line), ['{"sub":1}']);
+  assert.deepEqual(ben.service.sharedChats(anaId, shareId)[0]?.subagents?.map((a) => [a.agentId, a.description]), [['a1', 'Find the bug']]);
+  assert.throws(() => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: { agentId: 'nope', workflowRunId: null } }), /No such subagent/);
 
   // A blob on open: a document, by the hash its copied record names, and nothing else
   const docHash = sha('# The plan\n');
@@ -262,6 +288,15 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   appendFileSync(transcript, '{"n":3}\n');
   anaEvent('sessions.changed');
   await until('the appended line', () => ben.service.sharedTranscript(anaId, shareId, chatId).total === 3);
+  appendFileSync(subagentTranscript, '{"sub":2}\n');
+  anaEvent('sessions.changed');
+  await until("the subagent's appended line", () => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).total === 2);
+  assert.equal(ben.service.sharedTranscript(anaId, shareId, chatId).total, 3, "the chat's own transcript is not touched by its subagent's");
+  chatUploads.push({ uploadId: laterUpload.id, attachedAt: new Date().toISOString() });
+  appendFileSync(transcript, '{"n":4}\n');
+  anaEvent('sessions.changed');
+  await until('the upload the chat attached later', () => ben.service.sharedArtifacts(anaId, shareId).some((a) => a.kind === 'upload' && a.id === laterUpload.id));
+  assert.equal(readFileSync(await ben.service.blob(anaId, shareId, sha('attached later')), 'utf8'), 'attached later');
   journal.push({ id: 'j2', projectId: project.id, kind: 'note', text: 'And a relay', createdAt: '2026-10-16T11:00:00.000Z' } as unknown as JournalEntry);
   anaEvent('journal.changed');
   await until('the new journal entry', () => ben.service.sharedJournal(anaId, shareId).some((e) => e.id === 'j2'));
@@ -274,6 +309,9 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   const pending = await cleo.service.join(relayedInvite.text);
   assert.equal(pending.state, 'pending');
   assert.equal(pending.state === 'pending' ? pending.pending.relayedBy?.endpointId : null, benId);
+  // Cleo holds no roster yet: the invite's relay names tell her who holds the request
+  assert.equal(pending.state === 'pending' ? pending.pending.relayedBy?.name : null, 'Ben');
+  assert.equal(cleo.service.groupList().pendingJoins[0]?.relayedBy?.name, 'Ben');
   assert.equal(cleo.service.groupList().pendingJoins.length, 1);
   // The relaying member carries an opaque request, never the secret
   const held = ben.store.joinRequest(group.id, cleoId);
@@ -285,9 +323,26 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
     const list = ana.service.joinRequests(group.id);
     return list.length ? list : null;
   });
-  assert.deepEqual(requests.map((r) => [r.from, r.name, r.relayedBy?.endpointId]), [[cleoId, 'Cleo', benId]]);
-  assert.ok(ana.events.some((e) => e.type === 'collaborators.join-request'));
+  assert.deepEqual(requests.map((r) => [r.from, r.name, r.relayedBy?.endpointId, r.relayedBy?.name]), [[cleoId, 'Cleo', benId, 'Ben']]);
+  // The event the owner's notification is made of names the group and who relayed the request
+  const asked = ana.events.find((e) => e.type === 'collaborators.join-request');
+  assert.ok(asked?.type === 'collaborators.join-request');
+  assert.deepEqual([asked.groupName, asked.request.from, asked.request.relayedBy?.name], [group.name, cleoId, 'Ben']);
   await ana.service.acceptJoin(group.id, cleoId);
+  assert.ok(ana.events.some((e) => e.type === 'collaborators.changed' && e.title === `Cleo joined ${group.name}`));
+  // The answer clears the notification
+  assert.deepEqual(
+    ana.events.filter((e) => e.type === 'collaborators.join-answered').map((e) => (e.type === 'collaborators.join-answered' ? [e.groupId, e.from, e.answer] : null)),
+    [[group.id, cleoId, 'accepted']],
+  );
+  // A request the owner denies is cleared too; one never held here has nothing to clear
+  const dan = 'd'.repeat(64);
+  const danInvite = decodeInvite(ana.service.createInvite(group.id).text);
+  ana.store.putJoinRequest({ groupId: group.id, fromEndpointId: dan, sealed: sealJoin(anaId, joinPayloadFor(danInvite, { endpointId: dan, name: 'Dan' })), relayedBy: benId, expiresAt: null, receivedAt: new Date().toISOString() });
+  ana.service.denyJoin(group.id, dan);
+  const denied = ana.events.filter((e) => e.type === 'collaborators.join-answered').at(-1);
+  assert.deepEqual(denied?.type === 'collaborators.join-answered' ? [denied.from, denied.answer, denied.title] : denied?.type, [dan, 'denied', 'The join of Dan was denied']);
+  assert.throws(() => ana.service.denyJoin(group.id, dan), /No such join request/);
   await until('Cleo is in', () => cleo.service.groupList().groups.some((g) => g.id === group.id && g.members.some((m) => m.endpointId === cleoId)));
   assert.equal(cleo.service.groupList().pendingJoins.length, 0);
   await until('Cleo syncs Ana too', () => cleo.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY }).journal);
@@ -307,6 +362,8 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   // ---- Unshare: Ben's copy goes
   await ana.service.updateProjectSharing(project.id, { groups: [] });
   await until('Ben drops the copy', async () => !(await ben.service.shared()).some((p) => p.shareKey === SHARE_KEY));
+  await assert.rejects(ben.service.sharedProject(anaId, shareId), /No such shared project/);
   assert.deepEqual(ben.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY }), {});
   assert.equal(ben.store.transcriptLineCount({ ownerId: anaId, shareKey: SHARE_KEY }, chatId), 0);
+  assert.equal(ben.store.transcriptLineCount({ ownerId: anaId, shareKey: SHARE_KEY }, `${chatId}/agent-a1.jsonl`), 0);
 });

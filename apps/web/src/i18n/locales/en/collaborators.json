@@ -84,7 +84,7 @@
   },
   "pending": {
     "connecting": "Connecting to {{owner}}…",
-    "waiting": "{{owner}} is offline. Your request has been left with {{member}} and will be accepted when {{owner}} is back.",
+    "waiting": "{{owner}} is offline. Your request has been left with {{member}} (<id>{{memberId}}</id>) and will be accepted when {{owner}} is back.",
     "cancel": "Cancel request",
     "expires": "The invite expires {{when}}"
   },
@@ -136,7 +136,8 @@
     "linkTitle": "Link {{project}} to a local project",
     "linkHint": "The shared project then shows in the Shared tab of the project you choose.",
     "linkProject": "Local project",
-    "linkSubmit": "Link"
+    "linkSubmit": "Link",
+    "openReadOnly": "Open {{project}} read only"
   },
   "sync": {
     "live": "Up to date · syncing",
@@ -225,7 +226,9 @@
     "tabs": {
       "chats": "Chats",
       "memory": "Memory",
+      "journal": "Journal",
       "documents": "Documents",
+      "artifacts": "Artifacts",
       "board": "Board"
     },
     "sync": {
@@ -246,7 +249,32 @@
       "chats": "{{name}} has no chats in this project yet",
       "memory": "No memory files in this project yet",
       "documents": "No documents in this project yet",
-      "board": "No tasks on this board yet"
+      "board": "No tasks on this board yet",
+      "journal": "No journal entries in this project yet",
+      "artifacts": "No artifacts in this project yet"
+    },
+    "artifacts": {
+      "orchestration": "Orchestration",
+      "upload": "Attachment",
+      "plan": "Plan draft",
+      "noResult": "This orchestration left no result",
+      "noObjective": "No objective written",
+      "tasks_one": "{{n}} task",
+      "tasks_other": "{{n}} tasks",
+      "type": "Type",
+      "size": "Size",
+      "chat": "Chat",
+      "download": "Download",
+      "downloadFailed": "Could not download the file"
     }
+  },
+  "readOnly": {
+    "title": "Shared project",
+    "from": "Shared by {{name}} · read only",
+    "hint": "Read from the copy this install holds. Link it to a local project to read it in that project's Shared tab.",
+    "hintLinked": "Linked to {{project}}: it is also read in that project's Shared tab.",
+    "gone": "This project is no longer shared with you",
+    "goneHint": "Its owner stopped sharing it, or you are no longer in a group with them.",
+    "back": "Back to Collaborators"
   }
 }

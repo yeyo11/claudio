@@ -1,7 +1,7 @@
 import type { PermissionDecision } from '@claudio/shared';
 import * as Popover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCheck, CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, Trash2, X, type LucideIcon } from 'lucide-react';
+import { Check, CheckCheck, CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, Trash2, UserPlus, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +25,8 @@ function iconFor(n: AppNotification): LucideIcon {
       return Gauge;
     case 'activity':
       return n.tone === 'bad' ? CircleAlert : Timer;
+    case 'collaborators':
+      return UserPlus;
     default:
       return n.tone === 'bad' ? CircleAlert : n.tone === 'warn' ? TriangleAlert : CircleCheck;
   }
@@ -96,7 +98,7 @@ function NotificationItem({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNo
           {n.body && <span className="notif-body">{n.body}</span>}
           <span className="notif-meta">
             {timeAgo(n.at)}
-            {n.kind === 'waiting' && n.resolved && ` · ${t('notificationPanel.answered')}`}
+            {(n.kind === 'waiting' || n.kind === 'collaborators') && n.resolved && ` · ${t('notificationPanel.answered')}`}
             {!n.read && <span className="sr-only"> · {t('notificationPanel.unread')}</span>}
           </span>
         </span>

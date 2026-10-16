@@ -78,8 +78,9 @@ function collaboratorRoutes(projectId: string): Array<{ method: string; url: str
 
 test('documents every route of §6 under the Collaborators tag', () => {
   const routes = collaboratorRoutes('p').map((r) => r.route);
-  assert.equal(routes.length, 26);
-  for (const route of ['GET /projects/:id/sharing', 'PUT /projects/:id/sharing', 'GET /collaborators/shared/:owner/:shareId/blobs/:sha256']) assert.ok(routes.includes(route), route);
+  assert.equal(routes.length, 28);
+  for (const route of ['GET /collaborators/shared/:owner/:shareId', 'GET /projects/:id/sharing', 'PUT /projects/:id/sharing', 'GET /collaborators/shared/:owner/:shareId/blobs/:sha256', 'GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId'])
+    assert.ok(routes.includes(route), route);
 });
 
 test("a chat's token is refused on every route, reads included, in either access mode", async (t) => {
@@ -123,13 +124,17 @@ test('with Collaborators off: the status answers, group writes are refused, a pr
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/collaborators/join/nope' })).statusCode, 404);
   assert.deepEqual((await app.inject('/api/collaborators/shared')).json(), []);
 
-  // A shared project this install does not know is 404 on every reader
-  for (const kind of ['chats', 'memory', 'journal', 'documents', 'work-items', 'artifacts', 'chats/x/transcript', `blobs/${SHA}`]) {
+  // A shared project this install does not know is 404, itself and on every reader
+  const one = await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}`);
+  assert.equal(one.statusCode, 404, one.body);
+  assert.equal(one.json().code, 'not-found');
+  for (const kind of ['chats', 'memory', 'journal', 'documents', 'work-items', 'artifacts', 'chats/x/transcript', 'chats/x/subagents/a1', `blobs/${SHA}`]) {
     const res = await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}/${kind}`);
     assert.equal(res.statusCode, 404, `${kind}: ${res.body}`);
   }
   assert.equal((await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}/blobs/not-a-hash`)).statusCode, 400);
   assert.equal((await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}/chats/x/transcript?limit=-1`)).statusCode, 400);
+  assert.equal((await app.inject(`/api/collaborators/shared/${OWNER}/${SHARE}/chats/x/subagents/a1?before=x`)).statusCode, 400);
 });
 
 test("a project's sharing: the default key, an edited one, and 409 when another project holds it", async (t) => {
@@ -219,4 +224,15 @@ test("a copied transcript is paged as entries, newest last, without subagents' l
   assert.equal(earlier.from, 0);
   assert.deepEqual(earlier.entries.map((e) => e.uuid), ['u0', 'u2']);
   assert.deepEqual(transcriptPage('c', lines, false, { before: 0 }).entries, []);
+});
+
+test("a copied subagent's transcript is read whole: every line of it is a sidechain", () => {
+  const line = (n: number) =>
+    JSON.stringify({ type: 'assistant', uuid: `s${n}`, isSidechain: true, timestamp: '2026-10-16T09:00:00.000Z', message: { role: 'assistant', content: [{ type: 'text', text: `step ${n}` }] } });
+  const lines = [line(0), '{torn', line(1), line(2)];
+  const page = transcriptPage('c', lines, false, { agent: true, limit: 2 });
+  assert.equal(page.total, 3);
+  assert.deepEqual(page.entries.map((e) => e.uuid), ['s1', 's2']);
+  // Read as a chat's, the same lines are a subagent's and left out
+  assert.equal(transcriptPage('c', lines, false).total, 0);
 });

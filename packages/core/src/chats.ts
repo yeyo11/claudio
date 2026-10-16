@@ -1602,6 +1602,8 @@ export class ChatManager extends EventEmitter {
     const { text, attachments } = message;
     const uploads = this.uploads;
     const shown = chat.session?.send({ id: message.id, text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
+    // Kept as rows: which uploads a chat has must be known for a chat not loaded since the start (a shared chat's copy)
+    if (attachments.length) this.db.addChatUploads(chat.id, attachments.map((a) => a.id), new Date().toISOString());
     const entry = userEntry(message, shown);
     // A provider whose transcript Claudio keeps itself has no other record of what the person said
     recordEntry(this.host, chat, entry);

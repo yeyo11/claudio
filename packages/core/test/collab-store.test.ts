@@ -108,6 +108,23 @@ test('transcript lines are numbered in order, paged, and a pull replayed from a 
   });
 });
 
+test("a chat that is no longer shared takes its agents' transcripts with it, and only its own", () => {
+  withDb((store) => {
+    store.appendTranscriptLines(share, 'c1', ['chat']);
+    store.appendTranscriptLines(share, 'c1/agent-a1.jsonl', ['sub']);
+    store.appendTranscriptLines(share, 'c1/workflows/wf_1/agent-w1.jsonl', ['wf']);
+    store.appendTranscriptLines(share, 'c10', ['another chat']);
+    store.appendTranscriptLines(share, 'c10/agent-a1.jsonl', ['its sub']);
+    // A rewritten agent file starts over alone
+    store.deleteTranscript(share, 'c1/agent-a1.jsonl');
+    assert.equal(store.transcriptLineCount(share, 'c1'), 1);
+    store.appendTranscriptLines(share, 'c1/agent-a1.jsonl', ['sub']);
+    store.deleteChatTranscripts(share, 'c1');
+    for (const gone of ['c1', 'c1/agent-a1.jsonl', 'c1/workflows/wf_1/agent-w1.jsonl']) assert.equal(store.transcriptLineCount(share, gone), 0, gone);
+    for (const kept of ['c10', 'c10/agent-a1.jsonl']) assert.equal(store.transcriptLineCount(share, kept), 1, kept);
+  });
+});
+
 test('a peer is seen with its path, and a connection that does not know the path keeps the last one', () => {
   withDb((store) => {
     store.seePeer(owner, at, 'relay');

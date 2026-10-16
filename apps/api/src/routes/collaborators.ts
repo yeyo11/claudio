@@ -8,6 +8,7 @@ import type {
   CreateGroupRequest,
   JoinGroupRequest,
   LinkSharedProjectRequest,
+  SharedAgentTranscriptPage,
   SharedTranscriptPage,
   TranscriptEntry,
   TransferGroupOwnershipRequest,
@@ -35,9 +36,10 @@ function count(raw: string | undefined, name: string): number | undefined {
 /**
  * A window of a copied transcript as `GET /chats/:id` pages its own: the newest `limit` entries, or
  * the ones just before `before`. The copy holds the CLI's JSONL lines as they were written; they are
- * read as entries here, with the same normalisation as a local transcript, subagents' lines left out.
+ * read as entries here, with the same normalisation as a local transcript, subagents' lines left out
+ * of a chat's. `agent` reads a subagent's own transcript, every line of which is a sidechain.
  */
-export function transcriptPage(chatId: string, lines: readonly string[], live: boolean, opts: { limit?: number; before?: number } = {}): SharedTranscriptPage {
+export function transcriptPage(chatId: string, lines: readonly string[], live: boolean, opts: { limit?: number; before?: number; agent?: boolean } = {}): SharedTranscriptPage {
   const entries: TranscriptEntry[] = [];
   for (const line of lines) {
     let parsed: unknown;
@@ -48,7 +50,7 @@ export function transcriptPage(chatId: string, lines: readonly string[], live: b
       continue;
     }
     const entry = normalizeMessage(parsed);
-    if (entry && !entry.isSidechain) entries.push(entry);
+    if (entry && (opts.agent || !entry.isSidechain)) entries.push(entry);
   }
   const total = entries.length;
   const limit = Math.min(Math.max(1, opts.limit ?? TRANSCRIPT_PAGE), TRANSCRIPT_PAGE_MAX);
@@ -109,6 +111,7 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
   // ---- What others share with this install
   type Shared = { owner: string; shareId: string };
   app.get('/collaborators/shared', () => collab.shared());
+  app.get<{ Params: Shared }>('/collaborators/shared/:owner/:shareId', (req) => collab.sharedProject(req.params.owner, req.params.shareId));
   app.put<{ Params: Shared; Body: LinkSharedProjectRequest }>('/collaborators/shared/:owner/:shareId/link', (req) => collab.link(req.params.owner, req.params.shareId, bodyOf(req.body).projectId));
   app.delete<{ Params: Shared }>('/collaborators/shared/:owner/:shareId/link', (req) => collab.unlink(req.params.owner, req.params.shareId));
 
@@ -142,23 +145,45 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
     return collab.sharedArtifacts(req.params.owner, req.params.shareId);
   });
 
-  app.get<{ Params: Shared & { chatId: string }; Querystring: { limit?: string; before?: string } }>('/collaborators/shared/:owner/:shareId/chats/:chatId/transcript', (req) => {
-    const { owner, shareId, chatId } = req.params;
-    const limit = count(req.query.limit, 'limit');
-    const before = count(req.query.before, 'before');
-    // Every line is read: an entry's index depends on the lines before it, and the copy is local
+  // Every line is read: an entry's index depends on the lines before it, and the copy is local
+  const copiedLines = (owner: string, shareId: string, chatId: string, agent?: { agentId: string; workflowRunId: string | null }): { lines: string[]; live: boolean } => {
     const lines: string[] = [];
     let live = false;
     for (let after = -1; ; ) {
-      const batch = collab.sharedTranscript(owner, shareId, chatId, { after, limit: LINES_BATCH });
+      const batch = collab.sharedTranscript(owner, shareId, chatId, { after, limit: LINES_BATCH, ...(agent ? { agent } : {}) });
       live = batch.live;
       for (const row of batch.lines) lines.push(row.line);
       const last = batch.lines.at(-1);
       if (!last || batch.lines.length < LINES_BATCH) break;
       after = last.seq;
     }
-    return transcriptPage(chatId, lines, live, { ...(limit !== undefined ? { limit } : {}), ...(before !== undefined ? { before } : {}) });
+    return { lines, live };
+  };
+  const windowOf = (query: { limit?: string; before?: string }): { limit?: number; before?: number } => {
+    const limit = count(query.limit, 'limit');
+    const before = count(query.before, 'before');
+    return { ...(limit !== undefined ? { limit } : {}), ...(before !== undefined ? { before } : {}) };
+  };
+
+  app.get<{ Params: Shared & { chatId: string }; Querystring: { limit?: string; before?: string } }>('/collaborators/shared/:owner/:shareId/chats/:chatId/transcript', (req) => {
+    const { owner, shareId, chatId } = req.params;
+    // The query is checked before the copy is read, so a bad one is 400 whatever is held
+    const window = windowOf(req.query);
+    const { lines, live } = copiedLines(owner, shareId, chatId);
+    return transcriptPage(chatId, lines, live, window);
   });
+
+  // A subagent's, or with `?workflow=` a workflow agent's, transcript, copied with its chat's
+  app.get<{ Params: Shared & { chatId: string; agentId: string }; Querystring: { workflow?: string; limit?: string; before?: string } }>(
+    '/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId',
+    (req): SharedAgentTranscriptPage => {
+      const { owner, shareId, chatId, agentId } = req.params;
+      const workflowRunId = req.query.workflow || null;
+      const window = windowOf(req.query);
+      const { lines, live } = copiedLines(owner, shareId, chatId, { agentId, workflowRunId });
+      return { ...transcriptPage(chatId, lines, live, { ...window, agent: true }), agentId, workflowRunId };
+    },
+  );
 
   app.get<{ Params: Shared & { sha256: string } }>('/collaborators/shared/:owner/:shareId/blobs/:sha256', async (req, reply) => {
     const { owner, shareId, sha256 } = req.params;

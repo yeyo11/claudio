@@ -129,3 +129,7 @@ export const localProjectOf = (project: SharedProject): string | null => project
 
 /** Where a shared project is read: its local project's Shared tab (§5.3). */
 export const sharedTabPath = (projectId: string): string => `/?project=${encodeURIComponent(projectId)}&view=shared`;
+
+/** Where a shared project not cloned here is read: its own read-only view, by owner and share id (§5.1). */
+export const sharedProjectPath = (project: Pick<SharedProject, 'owner' | 'shareId'>): string =>
+  `/collaborators/shared/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.shareId)}`;

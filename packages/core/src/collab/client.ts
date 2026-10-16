@@ -9,8 +9,9 @@ import type { GroupsStore } from './groups-store.ts';
 import type { HostReplyPart } from './host-client.ts';
 import type { HostTarget } from './host/protocol.ts';
 import type { Invite } from './invite.ts';
+import { shortEndpoint } from './names.ts';
 import { compareHeads, headOf, isEndpointId, verifyJoinerChain, type RosterHead, type RosterVersion } from './roster.ts';
-import { isSessionId, isTicket, rawLength, type CatalogEntry, type WireErrorCode, type WireReply } from './wire.ts';
+import { isAgentFile, isSessionId, isTicket, rawLength, type CatalogEntry, type WireErrorCode, type WireReply } from './wire.ts';
 
 /*
  * The receiving side of `claudio/collab/1` (docs/plans/collaborators.md §3.3, §4.1, §4.2): what this
@@ -249,10 +250,14 @@ export interface SyncDeps {
   /** The shares a peer lists changed: one appeared or went */
   sharesChanged(owner: string): void;
   log(message: string): void;
+  /** A peer in a log line, by its roster name; the start of its endpoint id when absent */
+  who?(endpointId: string): string;
   /** How often a connected peer's catalog is read again to find removed records (§4.1) */
   reconcileMs?: number;
   /** The first wait before an unreachable peer is tried again; it doubles up to `reconcileMs` */
   retryMs?: number;
+  /** The longest wait before a peer that refused this install is asked again; the wait doubles from `reconcileMs` */
+  refusedMaxMs?: number;
   /** How long `changed` notices are gathered before they are pulled */
   debounceMs?: number;
 }
@@ -275,6 +280,16 @@ interface PeerState {
   /** The last run reached the peer */
   online: boolean;
   failures: number;
+  /**
+   * The peer answered `forbidden`: it no longer lists this install (the share was revoked or this
+   * install was removed). Its copies say so, and it is asked again ever more rarely until a hello
+   * from it or a roster change says it may list this install again.
+   */
+  refused: boolean;
+  /** How many runs in a row it refused; the wait before the next one doubles with it */
+  refusals: number;
+  /** The failure last logged for this peer: the same one again is not logged, a change is */
+  lastFailure: string | null;
   /** Network work on this peer, one at a time: a run and the pulls `changed` notices ask for */
   lock: Promise<unknown>;
   notices: Set<string>;
@@ -283,6 +298,7 @@ interface PeerState {
 
 const RECONCILE_MS = 10 * 60 * 1000;
 const RETRY_MS = 30 * 1000;
+const REFUSED_MAX_MS = 24 * 60 * 60 * 1000;
 const DEBOUNCE_MS = 150;
 /** A transcript is read in pieces of at most 4 MiB (`MAX_TRANSCRIPT_BYTES`); this caps one catch-up */
 const TRANSCRIPT_ROUNDS = 256;
@@ -294,9 +310,31 @@ const stateKey = (owner: string, shareKey: string): string => `${owner}\u0000${s
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 /** The transcript cursor beside a session's byte offset: the line seq that offset starts at */
 const seqKey = (session: string): string => `${session}#seq`;
+/** Where an agent's copied transcript is held, beside its chat's: in the store and in the cursors */
+export const agentKey = (chatId: string, agentFile: string): string => `${chatId}/${agentFile}`;
+/** The agent file of a subagent or workflow agent, as the wire names it (`wire.ts`) */
+export const agentFile = (agentId: string, workflowRunId: string | null): string => (workflowRunId ? `workflows/${workflowRunId}/agent-${agentId}.jsonl` : `agent-${agentId}.jsonl`);
+/** More agents than a chat record lists (`readers.ts`) */
+const MAX_AGENTS = 500;
+
+/** The agents a peer's chat record lists, as files the wire accepts; anything else of it is ignored */
+function agentFiles(data: unknown): Array<{ file: string; size: number }> {
+  const list = (data as { subagents?: unknown } | null)?.subagents;
+  if (!Array.isArray(list)) return [];
+  const out: Array<{ file: string; size: number }> = [];
+  for (const item of list.slice(-MAX_AGENTS)) {
+    if (!item || typeof item !== 'object') continue;
+    const { agentId, workflowRunId, size } = item as { agentId?: unknown; workflowRunId?: unknown; size?: unknown };
+    if (typeof agentId !== 'string' || (workflowRunId !== null && typeof workflowRunId !== 'string')) continue;
+    const file = agentFile(agentId, workflowRunId);
+    if (!isAgentFile(file)) continue;
+    out.push({ file, size: typeof size === 'number' && Number.isSafeInteger(size) && size >= 0 ? size : -1 });
+  }
+  return out;
+}
 
 const ERRORS: Record<string, Localized> = {
-  forbidden: { code: 'collaborators.sync.forbidden', text: 'The owner does not list this install in the group' },
+  forbidden: { code: 'collaborators.sync.forbidden', text: 'The owner no longer shares this project with this install: it stopped sharing it or removed this install from the group' },
   failed: { code: 'collaborators.sync.failed', text: 'The last pull failed' },
 };
 
@@ -311,6 +349,10 @@ export class SyncClient {
     for (const owner of this.catalog.owners()) {
       for (const share of this.catalog.of(owner)) this.shares.set(stateKey(owner, share.shareKey), { owner, share, lastSyncedAt: null, error: null });
     }
+  }
+
+  private who(id: string): string {
+    return this.deps.who?.(id) ?? shortEndpoint(id);
   }
 
   private get askOptions(): AskOptions {
@@ -343,7 +385,7 @@ export class SyncClient {
     }
     for (const id of wanted) {
       if (this.peers.has(id)) continue;
-      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, lock: Promise.resolve(), notices: new Set(), noticeTimer: null };
+      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, refused: false, refusals: 0, lastFailure: null, lock: Promise.resolve(), notices: new Set(), noticeTimer: null };
       this.peers.set(id, peer);
       this.start(peer);
     }
@@ -362,6 +404,11 @@ export class SyncClient {
 
   isOnline(id: string): boolean {
     return this.peers.get(id)?.online ?? false;
+  }
+
+  /** The peer's last answer was `forbidden`: it does not list this install */
+  isRefused(id: string): boolean {
+    return this.peers.get(id)?.refused ?? false;
   }
 
   /** Lets every peer go: Collaborators was turned off */
@@ -404,7 +451,7 @@ export class SyncClient {
         try {
           await this.exclusive(peer, () => this.runOnce(peer));
           ok = true;
-          peer.failures = 0;
+          this.recovered(peer);
         } catch (error) {
           ok = false;
           this.failed(peer, error);
@@ -419,7 +466,11 @@ export class SyncClient {
   private schedule(peer: PeerState, ok: boolean): void {
     if (this.stopped || this.peers.get(peer.id) !== peer) return;
     const reconcile = this.deps.reconcileMs ?? RECONCILE_MS;
-    const delay = ok ? reconcile : Math.min(reconcile, (this.deps.retryMs ?? RETRY_MS) * 2 ** Math.min(peer.failures - 1, 10));
+    const delay = ok
+      ? reconcile
+      : peer.refused
+        ? Math.max(reconcile, Math.min(this.deps.refusedMaxMs ?? REFUSED_MAX_MS, reconcile * 2 ** Math.min(peer.refusals - 1, 20)))
+        : Math.min(reconcile, (this.deps.retryMs ?? RETRY_MS) * 2 ** Math.min(peer.failures - 1, 10));
     if (peer.timer) clearTimeout(peer.timer);
     peer.timer = setTimeout(() => {
       peer.timer = null;
@@ -439,13 +490,43 @@ export class SyncClient {
       peer.watchKeys = '';
       if (was) for (const share of this.sharesOf(peer.id)) this.deps.synced(peer.id, share.share.shareKey, share.share.kinds[0] ?? 'chats');
     } else {
-      // Reached, and refused or misunderstood: shown on its copies, and tried again at the reconcile's pace
+      // Reached, and refused or misunderstood: shown on its copies, and tried again at the reconcile's pace or slower
       peer.online = true;
-      const why = error.code === 'forbidden' ? ERRORS.forbidden : ERRORS.failed;
-      for (const share of this.sharesOf(peer.id)) share.error = why ?? null;
       peer.failures = 64;
+      if (error.code === 'forbidden') {
+        this.refuse(peer);
+        return;
+      }
+      for (const share of this.sharesOf(peer.id)) share.error = ERRORS.failed ?? null;
     }
-    this.deps.log(`collab: sync with ${peer.id.slice(0, 10)} failed: ${describe(error)}`);
+    this.note(peer, error, `collab: sync with ${this.who(peer.id)} failed: ${describe(error)}`);
+  }
+
+  /** The peer does not list this install: said once on its copies and in the log, not on every retry */
+  private refuse(peer: PeerState): void {
+    peer.refusals += 1;
+    for (const share of this.sharesOf(peer.id)) share.error = ERRORS.forbidden ?? null;
+    if (peer.refused) return;
+    peer.refused = true;
+    peer.lastFailure = 'forbidden';
+    this.deps.log(`collab: ${this.who(peer.id)} no longer lists this install; its copies stop syncing until it does`);
+  }
+
+  /** A failure is logged when its reason differs from the last one logged for the peer */
+  private note(peer: PeerState, error: unknown, message: string): void {
+    const reason = describe(error);
+    if (peer.lastFailure === reason) return;
+    peer.lastFailure = reason;
+    this.deps.log(message);
+  }
+
+  /** A run went through: what failed before is said to be over, once */
+  private recovered(peer: PeerState): void {
+    if (peer.lastFailure !== null) this.deps.log(`collab: sync with ${this.who(peer.id)} works again`);
+    peer.failures = 0;
+    peer.refused = false;
+    peer.refusals = 0;
+    peer.lastFailure = null;
   }
 
   // ---------- One run ----------
@@ -501,7 +582,9 @@ export class SyncClient {
         throw error;
       });
     } catch (error) {
-      this.deps.log(`collab: telling ${id.slice(0, 10)} failed: ${describe(error)}`);
+      if (!peer) this.deps.log(`collab: telling ${this.who(id)} failed: ${describe(error)}`);
+      else if (error instanceof PeerError && error.code === 'forbidden') this.refuse(peer);
+      else this.note(peer, error, `collab: telling ${this.who(id)} failed: ${describe(error)}`);
       if (peer && error instanceof PeerError && error.code === 'unreachable') this.start(peer);
     }
   }
@@ -610,7 +693,7 @@ export class SyncClient {
         const gone = [...store.recordVersions(ref, kind).keys()].filter((id) => !Object.hasOwn(listed, id));
         if (!gone.length) continue;
         store.deleteRecords(ref, kind, gone);
-        if (kind === 'chats') for (const id of gone) store.deleteTranscript(ref, id);
+        if (kind === 'chats') for (const id of gone) store.deleteChatTranscripts(ref, id);
         this.deps.synced(peer.id, shareKey, kind);
       }
     }
@@ -649,7 +732,7 @@ export class SyncClient {
     const ref = shareRef(owner, shareKey);
     const since = groups.cursors(groupId, owner, shareKey).kinds[kind] ?? null;
     const before = kind === 'chats' ? store.recordVersions(ref, 'chats') : null;
-    const transcripts: string[] = [];
+    const transcripts: Array<{ chatId: string; data: unknown }> = [];
     let cursor: string | null = null;
     let ended = false;
     try {
@@ -663,7 +746,7 @@ export class SyncClient {
           if (before) {
             for (const r of reply.records) {
               const live = !!(r.data as { live?: unknown } | null)?.live;
-              if (before.get(r.id) !== r.version || live) transcripts.push(r.id);
+              if (before.get(r.id) !== r.version || live) transcripts.push({ chatId: r.id, data: r.data });
             }
           }
         } else if (reply.type === 'cursor') {
@@ -678,26 +761,41 @@ export class SyncClient {
     }
     if (!ended) throw new PeerError('protocol', 'a pull ended without its cursor');
     if (cursor !== null && cursor !== since) await groups.setKindCursor(groupId, owner, shareKey, kind, cursor);
-    for (const chatId of transcripts) await this.pullTranscript(owner, state, chatId, to);
+    for (const { chatId, data } of transcripts) {
+      await this.pullTranscript(owner, state, chatId, null, to);
+      for (const agent of agentFiles(data)) {
+        const held = groupId ? groups.cursors(groupId, owner, shareKey).transcripts[agentKey(chatId, agent.file)] : undefined;
+        // Only an agent whose transcript is not the size already copied: a chat delegates to many
+        if (held !== undefined && held === agent.size) continue;
+        await this.pullTranscript(owner, state, chatId, agent.file, to);
+      }
+    }
+    // A chat's uploads come with it: what a changed chat attached is listed under artifacts, which
+    // the owner only announces for orchestrations and runs
+    if (transcripts.length && state.share.kinds.includes('artifacts')) await this.pullKind(owner, state, 'artifacts', to);
     state.lastSyncedAt = new Date().toISOString();
     state.error = null;
     this.deps.synced(owner, shareKey, kind);
   }
 
-  /** What was appended to a chat's transcript since the offset held; a shorter file is copied again whole */
-  private async pullTranscript(owner: string, state: ShareState, chatId: string, to: HostTarget): Promise<void> {
+  /**
+   * What was appended to a chat's transcript, or with `agent` to one of its agents' (held under
+   * `agentKey`), since the offset held; a shorter file is copied again whole
+   */
+  private async pullTranscript(owner: string, state: ShareState, chatId: string, agent: string | null, to: HostTarget): Promise<void> {
     const groupId = this.cursorGroup(state);
-    if (!groupId || !isSessionId(chatId)) return;
+    if (!groupId || !isSessionId(chatId) || (agent !== null && !isAgentFile(agent))) return;
     const { store, groups } = this.deps;
     const { shareKey } = state.share;
     const ref = shareRef(owner, shareKey);
+    const key = agent === null ? chatId : agentKey(chatId, agent);
     for (let round = 0; round < TRANSCRIPT_ROUNDS; round++) {
       const held = groups.cursors(groupId, owner, shareKey).transcripts;
-      const offset = held[chatId] ?? 0;
-      const fromSeq = offset === 0 ? 0 : held[seqKey(chatId)];
+      const offset = held[key] ?? 0;
+      const fromSeq = offset === 0 ? 0 : held[seqKey(key)];
       let got: Reply;
       try {
-        got = await this.ask(to, { type: 'transcript', shareKey, session: chatId, agent: null, offset });
+        got = await this.ask(to, { type: 'transcript', shareKey, session: chatId, agent, offset });
       } catch (error) {
         // The chat has no transcript yet, or went since the pull
         if (error instanceof PeerError && error.code === 'not-found') return;
@@ -707,14 +805,14 @@ export class SyncClient {
       if (reply.type !== 'transcript' || !raw) throw new PeerError('protocol', 'transcript was answered with something else');
       if (reply.offset < offset) {
         // The file is shorter than what was held: it was rewritten, so the copy starts over
-        store.deleteTranscript(ref, chatId);
-        await this.setTranscriptCursor(groupId, owner, shareKey, chatId, 0, 0);
+        store.deleteTranscript(ref, key);
+        await this.setTranscriptCursor(groupId, owner, shareKey, key, 0, 0);
         continue;
       }
       const lines = new TextDecoder().decode(raw).split('\n');
       if (lines.at(-1) === '') lines.pop();
-      const nextSeq = store.appendTranscriptLines(ref, chatId, lines, fromSeq);
-      await this.setTranscriptCursor(groupId, owner, shareKey, chatId, reply.next, nextSeq);
+      const nextSeq = store.appendTranscriptLines(ref, key, lines, fromSeq);
+      await this.setTranscriptCursor(groupId, owner, shareKey, key, reply.next, nextSeq);
       if (raw.length === 0 || reply.next >= reply.size) return;
     }
   }
@@ -805,7 +903,10 @@ export class SyncClient {
           if (!state || !state.share.kinds.includes(k)) continue;
           await this.pullKind(peer.id, state, k);
         }
-      }).catch((error: unknown) => this.deps.log(`collab: pulling from ${peer.id.slice(0, 10)} failed: ${describe(error)}`));
+      }).catch((error: unknown) => {
+        if (error instanceof PeerError && error.code === 'forbidden') this.refuse(peer);
+        else this.note(peer, error, `collab: pulling from ${this.who(peer.id)} failed: ${describe(error)}`);
+      });
     }, this.deps.debounceMs ?? DEBOUNCE_MS);
   }
 

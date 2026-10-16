@@ -116,7 +116,8 @@ import { SecretVault } from './secret-vault.ts';
 import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
 import { CollabStore, Db } from './db.ts';
-import { CollaboratorsService, collabHostSettings, uploadIdsIn } from './collab/index.ts';
+import { CollaboratorsService, collabHostSettings } from './collab/index.ts';
+import { ChatUploads } from './chat-uploads.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
@@ -518,6 +519,8 @@ export class Core {
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
+  /** Which uploads belong to each chat, kept as rows so it holds for a chat not loaded since the start */
+  readonly chatUploads: ChatUploads;
   /** What happens when Claude reaches its limit: the account to move to, else the waits and the timers behind them */
   readonly rotation: ProviderRotation;
   /** The instruction evals: files, runs and their export (docs/plans/instruction-evals.md) */
@@ -1464,6 +1467,11 @@ export class Core {
     this.terminals.reapStrays();
     // The serving side is handed reads only: nothing below can start a chat, a run or a flow
     const projectOfDir = (dir: string): string | null => this.projectOf(resolve(dir)).project?.id ?? null;
+    const transcriptFile = async (sessionId: string): Promise<string | null> => {
+      const summary = await this.sessions.summary(sessionId);
+      return summary ? join(config.projectsDir, summary.projectId, `${summary.id}.jsonl`) : null;
+    };
+    this.chatUploads = new ChatUploads(this.db, this.uploads.dir, transcriptFile);
     this.collaborators = new CollaboratorsService({
       config,
       store: new CollabStore(this.db.connection),
@@ -1478,15 +1486,12 @@ export class Core {
         worktreeOf: (dir) => this.locator.worktreeOf(dir),
         chats: () => this.db.loadChats().map((stored) => stored.record),
         liveChats: () => new Map(this.runtime.list().filter((chat) => chat.pid !== null).map((chat) => [chat.id, chat.activity])),
-        transcriptFile: async (sessionId) => {
-          const summary = await this.sessions.summary(sessionId);
-          return summary ? join(config.projectsDir, summary.projectId, `${summary.id}.jsonl`) : null;
-        },
+        transcriptFile,
         memory: { list: (projectId) => this.memoryFiles(projectId) },
         journal: this.journal,
         documents: this.documents,
         workItems: this.workItems,
-        uploadsOfChat: (chatId) => uploadIdsIn(this.runtime.messages(chatId) ?? [], this.uploads.dir),
+        uploadsOfChat: (chatId) => this.chatUploads.of(chatId),
         uploads: this.uploads,
         orchestrations: (projectId) =>
           this.orchestrator

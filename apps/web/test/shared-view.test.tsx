@@ -2,19 +2,23 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CollaboratorsStatus, GroupList, Project, ProjectSharing, SharedBoard, SharedChat, SharedDocument, SharedProject, SharedTranscriptPage, TranscriptEntry } from '@claudio/shared';
+import type { CollaboratorsStatus, GroupList, JournalEntry, Project, ProjectSharing, SharedArtifact, SharedBoard, SharedChat, SharedDocument, SharedProject, SharedTranscriptPage, TranscriptEntry } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as React from 'react';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ReadOnlyBar } from '@claudio/chat-ui/components/ReadOnlyBar';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { projectViews, sharedWith } from '../src/pages/dashboard/views';
 import { collaboratorsKeys } from '../src/pages/project/shared-data';
-import { contiguousTail, memberValue, sharedSections, SharedView, sortMembers } from '../src/pages/project/SharedView';
+import { ApiRequestError } from '../src/api';
+import { sharedProjectPath } from '../src/pages/collaborators/model';
+import { SharedProjectPage, SharedProjectView } from '../src/pages/collaborators/SharedProjectPage';
+import { SharedWithYou } from '../src/pages/collaborators/SharedWithYou';
+import { artifactValue, contiguousTail, journalAuthor, memberValue, sharedSections, sharedSubagentLink, SharedView, sortMembers } from '../src/pages/project/SharedView';
 import { SHARE_KEY_RE, SharingSection } from '../src/pages/project/SharingSection';
 
 // §5.2 and §5.3 of docs/plans/collaborators.md: the Sharing section of a project's settings and the
@@ -110,7 +114,8 @@ test('the Shared tab is there only while Collaborators is on and a teammate shar
 test('members are listed by person, then install, and each carries only the sub-tabs of its kinds', () => {
   const sorted = sortMembers([sharedProject({ owner: 'b', ownerName: 'Bea', ownerLabel: null }), sharedProject({ owner: 'a2', ownerLabel: 'laptop' }), sharedProject({ owner: 'a1', ownerLabel: 'desktop' })]);
   assert.deepEqual(sorted.map((m) => m.owner), ['a1', 'a2', 'b']);
-  assert.deepEqual(sharedSections(sharedProject({ kinds: ['board', 'journal', 'chats'] })), ['chats', 'board']);
+  assert.deepEqual(sharedSections(sharedProject({ kinds: ['board', 'journal', 'chats'] })), ['chats', 'journal', 'board']);
+  assert.deepEqual(sharedSections(sharedProject()), ['chats', 'memory', 'journal', 'documents', 'artifacts', 'board']);
   assert.equal(memberValue(sharedProject()), `ana-laptop:${'a'.repeat(32)}`);
 });
 
@@ -183,6 +188,20 @@ test("an open chat is read only: the bar says whose it is, and there is no compo
   assert.doesNotMatch(html, /composer|msg-actions/);
 });
 
+test("a delegation opens the subagent copied with the chat, matched as a local chat matches its own", () => {
+  const listed = chat({ subagents: [{ agentId: 'a1b2', workflowRunId: null, subagentType: 'Explore', description: 'Find the bug', workflowPhase: null, size: 120, updatedAt: null }] });
+  // Matched on what the call asked for, as a local chat matches; a workflow agent is not a delegation's
+  const opened: string[] = [];
+  const link = sharedSubagentLink(listed.subagents, (id) => opened.push(id));
+  assert.equal(link?.find({ description: 'Find the bug', subagent_type: 'Explore' }), 'a1b2');
+  assert.equal(link?.find({ description: 'Find the bug', subagent_type: 'Plan' }), null);
+  assert.equal(link?.find({ description: 'Read the docs' }), null);
+  link?.open('a1b2');
+  assert.deepEqual(opened, ['a1b2']);
+  assert.equal(sharedSubagentLink([{ agentId: 'w1', workflowRunId: 'wf_1', subagentType: null, description: 'Find the bug', workflowPhase: null, size: 1, updatedAt: null }], () => undefined), undefined);
+  assert.equal(sharedSubagentLink(undefined, () => undefined), undefined);
+});
+
 test("a document is read from the teammate's working copy, and says so", () => {
   const source = sharedProject();
   const doc: SharedDocument = { path: 'docs/plan.md', title: 'Plan', size: 10, updatedAt: null, sha256: 'f'.repeat(64) };
@@ -212,6 +231,126 @@ test("a teammate's board has its columns and cards, with nothing to drag, create
   assert.match(html, /class="workitem-board shared-board"/);
   assert.match(html, /Rate limits/);
   assert.doesNotMatch(html, /draggable="true"|workitem-col-add|href="\/tasks/);
+});
+
+const journalEntry = (over: Partial<JournalEntry> = {}): JournalEntry => ({
+  id: 'j1',
+  projectId: 'remote',
+  kind: 'decision',
+  text: 'Use iroh for the transport',
+  itemId: null,
+  item: null,
+  author: { kind: 'person' },
+  approvedBy: null,
+  proposalId: null,
+  documentPath: null,
+  sources: [],
+  createdAt: new Date().toISOString(),
+  ...over,
+});
+
+test("a teammate's journal reads as the person's own, by day, written by the teammate, with nothing to delete", () => {
+  const source = sharedProject();
+  const qc = client((q) => {
+    q.setQueryData(collaboratorsKeys.status, status(true));
+    q.setQueryData(collaboratorsKeys.catalog, [source]);
+    q.setQueryData(collaboratorsKeys.records(source, 'journal'), [
+      journalEntry(),
+      journalEntry({ id: 'j2', kind: 'closed', text: 'Rate limits', item: { id: 'w1', key: 'API-1', title: 'Rate limits', type: 'task', status: 'done' } }),
+    ]);
+  });
+  const html = render(qc, <SharedView project={project} />, '/?project=p1&view=shared&section=journal');
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>.*?Diario/);
+  assert.match(html, /Decisión: Use iroh for the transport/);
+  assert.match(html, /Decisión · Ana/);
+  assert.match(html, /API-1/);
+  // The teammate's tasks are not this install's: no link into them, and no delete or add
+  assert.doesNotMatch(html, /href="\/tasks|journal-delete|Tú/);
+  assert.equal(journalAuthor({ author: { kind: 'agent', role: null } }, 'Ana', (r) => r, 'Un agente'), 'Un agente');
+  assert.equal(journalAuthor({ author: { kind: 'agent', role: 'qa' } }, 'Ana', (r) => `role:${r}`, 'Un agente'), 'role:qa');
+});
+
+test("a teammate's artifacts: results and plan objectives are read, an attachment is downloaded, nothing is launched", () => {
+  const source = sharedProject();
+  const older = new Date(Date.now() - 3_600_000).toISOString();
+  const artifacts: SharedArtifact[] = [
+    { kind: 'plan', id: 'p1', name: 'Rate limits plan', objective: 'Limit **every** route', taskCount: 3, createdAt: older },
+    { kind: 'orchestration', id: 'o1', name: 'Rate limits', finalResult: '## Done\nAll routes are limited.', updatedAt: new Date().toISOString() },
+    { kind: 'upload', id: 'u1', name: 'trace.log', mediaType: 'text/plain', sizeBytes: 2048, sha256: 'e'.repeat(64), chatId: 'c-quiet-000', createdAt: older },
+  ];
+  const qc = client((q) => {
+    q.setQueryData(collaboratorsKeys.status, status(true));
+    q.setQueryData(collaboratorsKeys.catalog, [source]);
+    q.setQueryData(collaboratorsKeys.records(source, 'artifacts'), artifacts);
+  });
+  // Newest first, and the newest opens: the orchestration's result
+  const html = render(qc, <SharedView project={project} />, '/?project=p1&view=shared&section=artifacts');
+  const order = [...html.matchAll(/class="strong break">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(order, ['Rate limits', 'Rate limits plan', 'trace.log']);
+  assert.match(html, /Orquestación/);
+  assert.match(html, /All routes are limited/);
+  assert.doesNotMatch(html, /Descargar|href="\/orchestration/);
+
+  const plan = render(qc, <SharedView project={project} />, `/?project=p1&view=shared&section=artifacts&file=${encodeURIComponent(artifactValue(artifacts[0] as SharedArtifact))}`);
+  assert.match(plan, /3 tareas/);
+  assert.match(plan, /Limit (\*\*every\*\*|<strong>every<\/strong>) route/);
+
+  const upload = render(qc, <SharedView project={project} />, `/?project=p1&view=shared&section=artifacts&file=${encodeURIComponent('upload:u1')}`);
+  assert.match(upload, /text\/plain/);
+  assert.match(upload, /2(,|\.)0 KB|2 KB/);
+  assert.match(upload, /Descargar/);
+});
+
+test('a project not cloned here opens its own read-only view from the Collaborators page, beside the link', () => {
+  const uncloned = sharedProject({ matches: [] });
+  const html = render(new QueryClient(), <SharedWithYou shared={[uncloned]} projects={[project]} busy={false} onLink={() => undefined} onUnlink={() => undefined} />);
+  assert.match(html, /No clonado aquí/);
+  assert.match(html, /Vincular con un proyecto local/);
+  assert.match(html, new RegExp(`href="/collaborators/shared/ana-laptop/${'a'.repeat(32)}"`));
+  assert.match(html, /aria-label="Abrir api en solo lectura"/);
+  assert.equal(sharedProjectPath({ owner: 'a b', shareId: 'c/d' }), '/collaborators/shared/a%20b/c%2Fd');
+});
+
+test('the read-only view of a project not cloned here: its tabs from the copy, and Link to a local project as its action', () => {
+  const uncloned = sharedProject({ matches: [] });
+  const qc = client((q) => {
+    q.setQueryData(collaboratorsKeys.project(uncloned), uncloned);
+    q.setQueryData(collaboratorsKeys.records(uncloned, 'chats'), [chat()]);
+  });
+  const path = sharedProjectPath(uncloned);
+  const html = render(
+    qc,
+    <Routes>
+      <Route path="/collaborators/shared/:owner/:shareId" element={<SharedProjectPage />} />
+    </Routes>,
+    path,
+  );
+  assert.match(html, /<h1>api<\/h1>/);
+  assert.match(html, /Compartido por Ana · laptop · solo lectura/);
+  assert.match(html, /github\.com\/acme\/api/);
+  assert.match(html, /No clonado aquí/);
+  assert.match(html, /data-testid="collab-link"/);
+  assert.match(html, /Vincular con un proyecto local/);
+  // Every kind the copy carries is a tab, the journal and artifacts included
+  for (const tab of ['Chats', 'Memoria', 'Diario', 'Documentos', 'Artefactos', 'Tablero']) assert.match(html, new RegExp(`role="tab"[^>]*>(?:(?!</button>).)*${tab}`), tab);
+  // Chats open inside this view, never the person's own chat page; nothing here is the person's work
+  assert.match(html, new RegExp(`href="${path}\\?chat=c-quiet-000"`));
+  assert.doesNotMatch(html, /href="\/chats\/|live-energy|composer|btn-primary/);
+});
+
+test('once linked, the read-only view leads into the local project, and a project no longer shared says so', () => {
+  const linked = sharedProject({ matches: [], linkedProjectId: 'p1' });
+  const html = render(new QueryClient(), <SharedProjectView shared={linked} projects={[project]} />);
+  assert.match(html, /Abrir en api/);
+  assert.match(html, /href="\/\?project=p1&amp;view=shared"/);
+  assert.doesNotMatch(html, /data-testid="collab-link"|No clonado aquí/);
+
+  const gone = render(new QueryClient(), <SharedProjectView shared={null} error={new ApiRequestError('No such shared project', 404)} projects={[]} />);
+  assert.match(gone, /Este proyecto ya no se comparte contigo/);
+  assert.match(gone, /href="\/collaborators"/);
+  const failed = render(new QueryClient(), <SharedProjectView shared={null} error={new ApiRequestError('boom', 500)} projects={[]} />);
+  assert.match(failed, /boom/);
+  assert.doesNotMatch(failed, /ya no se comparte/);
 });
 
 test('the read-only bar names the teammate, or says what the caller tells it', () => {

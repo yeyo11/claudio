@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T23:00:00Z
+updated_at: 2026-10-16T22:45:00Z
 tags:
     - plan
     - collaborators
@@ -743,7 +743,8 @@ Taken on 2026-10-16:
   methods abort the process and its promises can reject unhandled; a host process after
   `terminal-host.mjs` keeps that away from the API, and polling at 250–1000 ms is enough for presence
   and paths.
-- **`@number0/iroh` pinned at 1.1.0** until the `watch*` and `Buffer` issues are answered upstream;
+- **`@number0/iroh` pinned at 1.1.0** until the `watch*` and `Buffer` issues are answered upstream
+  (drafted in [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md));
   the wire stays 1.x-compatible either way.
 - **A QR encoder of our own** in `packages/ui`, over a dependency: the encoder is small, has tests,
   and the design system already keeps third-party art out.
@@ -842,11 +843,9 @@ Shared tab, the `collaborators` illustration and the in-house QR encoder (versio
   projectName }`. With Collaborators off, the owner-only routes answer 409 `off` before they look at
   the group, so an unknown group gets 409 rather than 404.
 - The You card has a **Turn off** button, which §5.1 does not specify.
-- A shared project that is not cloned here shows "Not cloned here" and **Link to a local project**
-  only. The read-only view of the same tabs that §5.1 also asks for needs a route of its own and is
-  not built.
-- The Shared tab's sub-tabs are the four of §5.3 (Chats, Memory, Documents, Board); the journal and
-  artifact routes exist in the API but have no tab.
+- A shared project that is not cloned here first showed only "Not cloned here" and **Link to a local
+  project**; the follow-ups below added the read-only view §5.1 asks for.
+- The Shared tab's sub-tabs were first the four of §5.3; the follow-ups added Journal and Artifacts.
 - The Sharing section and the Shared tab add no CSS. The page's variants are `.collab-*` in
   `claudio-ds.css`.
 - The design-system stylesheet is `docs/design-system/claudio-ds.css`, not `agentry-ds.css`.
@@ -856,6 +855,43 @@ schema drift check, and an API test that runs a real iroh endpoint on the minima
 by any of them:** the browser specs (the `e1` and `e2e-specs` tasks own them) and a run between two
 real machines after C0.
 
+### Follow-ups (R12, 2026-10-17)
+
+The gaps that orchestration left ([requests.md](../requests.md) R12) were closed on
+`feat/collaborators-gaps`, one task each:
+
+- **Frozen is real.** A group document records the endpoint id the install held the chain as
+  (`heldAs`, backfilled for older chains). When that id is the owner's and the install now holds
+  another key, `Group.frozen` is true and the card shows its warn line and **Create a new group**. A
+  member's install never reports frozen: it cannot tell a lost owner from an offline one.
+- **Members by name.** An invite names the members it lists as relays, so a joiner names the member
+  holding its request before it has the roster; roster changes are announced by name; the web shows
+  the short endpoint id in mono beside each member, join request and waiting join.
+- **Quiet sync logs.** A `forbidden` answer is recorded once on the copies (translated reason) and once
+  in the log, and the peer is asked again at a doubling wait from the reconcile pace up to a day, or
+  on its hello. Other repeated failures are logged once per reason, and a recovery once.
+- **Subagent transcripts.** A chat's record lists its subagents and workflow agents; their transcripts
+  are pulled with the chat when their size changes and open from its delegations in the side panel.
+  New route: `GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`.
+- **Uploads per chat.** `chat_uploads` rows record which uploads a message attached (older chats are
+  scanned once from their transcripts), so the owner serves a chat's uploads after a restart and a
+  receiver pulls the artifacts after any chat changed.
+- **Join requests notify.** The decision was yes: `collaborators.join-request` is a `high`
+  notification of the new kind `collaborators`, in the bell and by push, and the new
+  `collaborators.join-answered` event settles it ([notifications.md](../notifications.md#join-requests)).
+- **Read-only view of an uncloned project.** `GET /collaborators/shared/:owner/:shareId` and the web
+  route of the same path: the copy's name, owner, share key and sync state, the Shared tab's
+  sub-tabs (now Chats, Memory, Journal, Documents, Artifacts, Board) and **Link to a local project**.
+- **Browser specs and timings.** `collaborators.spec.mjs` covers names, the join notification, the
+  read-only view and a revoked share; the new `collaborators-copies.spec.mjs` covers subagents,
+  uploads and a frozen group (a peer restarted without its vault). Both have entries in
+  `e2e/timings.json`.
+- **iroh issues.** Both are rechecked against 1.1.0 and drafted, ready to file, in
+  [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md). The pin of §8 stays until
+  they are answered.
+
+**Still open:** a run between two real machines, and filing the two iroh issues (the owner's call).
+
 ## Related
 
-[[collaborators.md]] · [[team-and-flow.md]] · [[tunnel.md]] · [[security-model.md]] · [[projects.md]] · [[layered-settings.md]] · [[design-system.md]] · [[accounts.md]]
+[[collaborators.md]] · [[reports/iroh-upstream-issues.md]] · [[notifications.md]] · [[team-and-flow.md]] · [[tunnel.md]] · [[security-model.md]] · [[projects.md]] · [[layered-settings.md]] · [[design-system.md]] · [[accounts.md]]

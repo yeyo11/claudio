@@ -5103,7 +5103,11 @@ export interface Group {
   isOwner: boolean;
   /** The head version's members, the owner first */
   members: GroupMember[];
-  /** The owner's install is gone (its key is lost): the group can no longer change */
+  /**
+   * The owner's install is gone (its key is lost): the group can no longer change. Known on the
+   * install that held the group as its owner and holds another key now (a vault lost or restored
+   * apart from the data); to a member, the owner only looks offline.
+   */
   frozen: boolean;
   /**
    * The owner's install found two versions with the same number and different hashes (§3.3). Shown
@@ -5316,6 +5320,28 @@ export interface SharedChat {
   live: boolean;
   /** What that agent is doing, while `live` */
   activity: ChatActivity | null;
+  /** The subagents and workflow agents whose transcripts the CLI kept beside the chat's; absent in a copy from an older install */
+  subagents?: SharedSubagent[];
+}
+
+/**
+ * A subagent or workflow agent of a teammate's chat, as copied: what opens its transcript from the
+ * call that launched it. Its transcript is pulled with the chat's.
+ */
+export interface SharedSubagent {
+  /** The CLI's id of the agent, which names its transcript */
+  agentId: string;
+  /** The workflow run (`wf_…`) a workflow agent belongs to; null for a subagent */
+  workflowRunId: string | null;
+  /** The CLI's `agentType` (`Explore`, `general-purpose`…) */
+  subagentType: string | null;
+  /** The description given at launch */
+  description: string | null;
+  workflowPhase: string | null;
+  /** Bytes of its transcript on the owner's machine when the chat was read */
+  size: number;
+  /** When its transcript last changed */
+  updatedAt: string | null;
 }
 
 /** `GET /collaborators/shared/:owner/:shareId/chats/:chatId/transcript`: a window of the copied transcript. */
@@ -5327,6 +5353,12 @@ export interface SharedTranscriptPage {
   from: number;
   total: number;
   live: boolean;
+}
+
+/** `GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`: a window of a copied subagent's transcript. */
+export interface SharedAgentTranscriptPage extends SharedTranscriptPage {
+  agentId: string;
+  workflowRunId: string | null;
 }
 
 /** A memory file of the owner's project, as copied. */
@@ -5396,6 +5428,23 @@ export interface CollaboratorsSyncedEvent extends ClaudioEventBase {
 export interface CollaboratorsJoinRequestEvent extends ClaudioEventBase {
   type: 'collaborators.join-request';
   request: JoinRequest;
+  /** The group's name, so the owner's notification can say which group without a read */
+  groupName: string;
+}
+
+/** How a join request on the owner's install was settled. */
+export type JoinAnswer = 'accepted' | 'denied' | 'dropped';
+
+/**
+ * A join request on the owner's install was answered, or dropped because it could no longer be
+ * accepted (expired, spent, superseded): its notification is over. Only the owner's install emits it.
+ */
+export interface CollaboratorsJoinAnsweredEvent extends ClaudioEventBase {
+  type: 'collaborators.join-answered';
+  groupId: string;
+  /** The joiner's endpoint id, as in `JoinRequest.from` */
+  from: EndpointId;
+  answer: JoinAnswer;
 }
 
 // ---------- Effective environment ----------
@@ -8781,7 +8830,8 @@ export type ClaudioEvent =
   | CollaboratorsChangedEvent
   | CollaboratorsPeerEvent
   | CollaboratorsSyncedEvent
-  | CollaboratorsJoinRequestEvent;
+  | CollaboratorsJoinRequestEvent
+  | CollaboratorsJoinAnsweredEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 
