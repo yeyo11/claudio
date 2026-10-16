@@ -18,5 +18,8 @@
     "lastActivity": "last activity {{ago}}",
     "worktrees_one": "{{count}} worktree",
     "worktrees_other": "{{count}} worktrees"
+  },
+  "spendWait": {
+    "card": "Waiting for the daily cap · back at {{time}}"
   }
 }

@@ -143,5 +143,10 @@
     "externalTitle_other": "Bloqueadas por {{count}} tareas fuera de la selección",
     "externalBody_one": "El grafo no puede esperarla. Lánzalo cuando esté hecha, o añádela a la selección en el tablero.",
     "externalBody_other": "El grafo no puede esperarlas. Lánzalo cuando estén hechas, o añádelas a la selección en el tablero."
+  },
+  "spendWait": {
+    "tasks_one": "{{count}} tarea espera al tope diario · vuelve a las {{time}}",
+    "tasks_other": "{{count}} tareas esperan al tope diario · vuelven a las {{time}}",
+    "why": "El tope solo frena el trabajo nuevo: lo que está en marcha sigue."
   }
 }

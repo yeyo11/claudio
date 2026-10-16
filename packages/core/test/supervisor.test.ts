@@ -63,7 +63,9 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
   const hints: SupervisorProposal[] = [];
   const charged: Array<[string, number]> = [];
   let steps: TranscriptEntry[] = [];
+  const spend = { open: true };
   const supervisor = new Supervisor({
+    spendOpen: () => spend.open,
     settings,
     db,
     ask: async (q) => {
@@ -79,7 +81,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     charge: (id, usd) => charged.push([id, usd]),
   });
   const enable = (over: Partial<typeof DEFAULT_SUPERVISOR> = {}) => settings.set({ ...DEFAULT_SUPERVISOR, enabled: true, ...over });
-  return { db, settings, supervisor, asked, events, hints, charged, enable, setSteps: (s: TranscriptEntry[]) => (steps = s) };
+  return { db, settings, supervisor, asked, events, hints, charged, spend, enable, setSteps: (s: TranscriptEntry[]) => (steps = s) };
 }
 
 test('the settings are off by default, validated whole, and a field broken by hand falls back on its own', async () => {
@@ -368,4 +370,17 @@ test('what the supervisor spends on a worker of a graph is added to the graph', 
   } finally {
     core.shutdown();
   }
+});
+
+test('over the daily spend cap it makes no call, and asks about the signal once the cap lets go', async () => {
+  const h = harness();
+  const chat = chatOf('c1');
+  await h.enable();
+  h.spend.open = false;
+  assert.equal(await h.supervisor.wake(chat, null, [hung]), null);
+  assert.equal(h.asked.length, 0);
+  assert.deepEqual(h.db.proposalsOf('c1'), [], 'a signal not asked about is not answered either');
+  h.spend.open = true;
+  assert.equal((await h.supervisor.wake(chat, null, [hung]))?.signal, 'hung-command');
+  assert.equal(h.asked.length, 1);
 });

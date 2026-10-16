@@ -88,5 +88,16 @@
     "saved_one": "{{count}} ejecución del agente ahorrada",
     "saved_other": "{{count}} ejecuciones del agente ahorradas",
     "history": "Ver el historial"
+  },
+  "cap": {
+    "label": "Tope diario",
+    "figure": "{{spent}} de {{cap}}",
+    "near": "cerca del tope",
+    "reached": "tope alcanzado · vuelve a las {{time}}",
+    "over": "{{amount}} por encima del tope, de trabajo que ya estaba en marcha",
+    "unreported_one": "{{count}} resultado sin coste",
+    "unreported_other": "{{count}} resultados sin coste",
+    "note": "Lo que informa el CLI; en cuentas de suscripción es lo que costaría el uso en la API.",
+    "change": "Cambiar el tope"
   }
 }

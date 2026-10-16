@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, SquareTerminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
-import { api, keys, useAccounts } from '../../api';
+import { api, keys, useAccounts, useSpend } from '../../api';
 import { accountName, usagePct, windowRows } from '../../lib/accounts';
 import { ICON } from '@claudio/ui/components/icons';
 import { formatCost } from '@claudio/ui/lib/format';
@@ -11,6 +11,8 @@ import { cardProvider, limitReading } from '../../lib/shell-live';
 import { useLimitWindowName } from '../../lib/limit-words';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { resetWhen } from '../../lib/reset-when';
+import { spendResetTime, spendView } from '../../lib/spend-cap';
+import { SPEND_CAP_SETTINGS_PATH } from '../SpendCapDialog';
 import { useUsageNow } from '../../lib/usage-now';
 import { limitRows } from '../../lib/limit-rows';
 import { StatusDot, usageTone, type DotTone } from '@claudio/ui/components/motion';
@@ -212,6 +214,45 @@ function AccountChip({ now }: { now: Now }) {
 }
 
 /**
+ * The day's spend against the daily cap, beside the limit dots: a neutral bar below 60 %, warn with
+ * "near the cap" from 60 %, bad with the percentage from 75 %, and bad with when it comes back once
+ * the cap is reached. Nothing is drawn with no cap, and nothing is invented when the reading failed.
+ */
+export function SpendItem() {
+  const { t } = useTranslation('shell');
+  const state = useSpend().data;
+  const view = state ? spendView(state) : null;
+  if (!state || !view || state.capUsd === null) return null;
+  const time = spendResetTime(state);
+  const tone = view.tone === 'neutral' ? '' : ` statusbar-${view.tone}`;
+  const tip = (
+    <span className="statusbar-tip">
+      <span>{t('statusbar.spend.tipSpent', { spent: formatCost(state.spentUsd), cap: formatCost(state.capUsd) })}</span>
+      {state.unreported > 0 && <span className="mono">{t('statusbar.spend.tipUnreported', { count: state.unreported })}</span>}
+      <span className="mono">{t('statusbar.spend.tipZone', { time, zone: state.timezone })}</span>
+    </span>
+  );
+  return (
+    <Tooltip content={tip} side="top">
+      <NavLink to={SPEND_CAP_SETTINGS_PATH} className={`statusbar-item spend${tone}`}>
+        {view.exhausted ? (
+          <span className="ellipsis">{t('statusbar.spend.reached', { time })}</span>
+        ) : (
+          <>
+            <span>{t('statusbar.spend.label')}</span>
+            <span className="meter-track meter-thin statusbar-meter" aria-hidden>
+              <span className={`meter-fill ${view.tone === 'neutral' ? '' : `is-${view.tone}`}`.trim()} style={{ width: `${view.fill}%` }} />
+            </span>
+            <span className="mono">{view.percent} %</span>
+            {view.tone === 'warn' && <span>{t('statusbar.spend.near')}</span>}
+          </>
+        )}
+      </NavLink>
+    </Tooltip>
+  );
+}
+
+/**
  * The Terminal item: an icon and how many shells are running, a button that shows or hides the panel
  * above the bar. Absent where a terminal cannot be opened. A shell is the person's, not an agent
  * working, so the count never moves or lights up.
@@ -263,6 +304,7 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
           {now.todayCost === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(now.todayCost) })}
         </NavLink>
       )}
+      <SpendItem />
       <AccountChip now={now} />
       <ProviderDots limits={now.limits} />
     </footer>

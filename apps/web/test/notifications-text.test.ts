@@ -39,6 +39,26 @@ const conflict = (paths: string[], resolving: boolean): ClaudioEvent => ({
   resolving,
 });
 
+const spendAlert = (level: 'warn' | 'exhausted', spentUsd: number): ClaudioEvent => ({
+  type: 'spend.alert',
+  ...base('Daily spend'),
+  level,
+  spend: {
+    day: '2026-01-01',
+    timezone: 'UTC',
+    capUsd: 20,
+    spentUsd,
+    share: spentUsd / 20,
+    level: level === 'exhausted' ? 'exhausted' : 'bad',
+    blocked: level === 'exhausted',
+    resetsAt: '2026-01-02T00:00:00Z',
+    unreported: 0,
+    byPurpose: {},
+    byAccountKind: { login: 0, token: 0, apiKey: 0, unknown: 0 },
+    waiting: { flowRuns: 0, orchestrationTasks: 0 },
+  },
+});
+
 // One event per sentence, including both halves of every plural and the fallbacks for an account
 // or an error Claudio cannot name.
 const EVENTS: ClaudioEvent[] = [
@@ -61,6 +81,8 @@ const EVENTS: ClaudioEvent[] = [
   { type: 'task.ended', ...base('npm test'), ...run, sessionId: 's1', taskId: 't1', taskType: 'bash', description: 'npm test', status: 'completed', summary: null, fromSubagent: true },
   { type: 'supervisor.proposed', ...base('hint'), ...run, taskId: null, taskName: null, proposal: { id: 'sp1', chatId: 'run1', signal: 'hung-command', hint: 'Run the unit tests instead.', costUsd: 0.01, at: AT, status: 'proposed' } },
   { type: 'health.changed', ...base('stuck'), ...run, taskId: null, taskName: null, level: 'warn', previousLevel: 'ok', reason: 'It has been quiet for 5 min.', signals: ['hung-command'] },
+  spendAlert('warn', 15),
+  spendAlert('exhausted', 20),
 ];
 
 for (const [index, event] of EVENTS.entries()) {

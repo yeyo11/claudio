@@ -436,8 +436,8 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return event.login.endedAt ? [[keys.setup, NOW]] : [];
     case 'spend.changed':
     case 'spend.alert':
-      // Nothing is cached from the daily spend yet; the cap's own card reads it when it opens
-      return [];
+      // The status bar, the Usage line and the wait lines read the day's spend: the next reading is theirs
+      return [[keys.spend, NOW]];
   }
 }
 

@@ -22,7 +22,7 @@ const ROOT_TYPES = [
   'ClaudioEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Claudio's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatMessageResponse', 'ChatInterruptRequest', 'ChatSettingsUpdate', 'ChatMcpServers', 'ChatMcpToggle',
-  'UsageReport',
+  'UsageReport', 'SpendState', 'SpendCapRefusal',
   // Models per account
   'ModelFallback', 'ModelFallbacksRequest', 'ModelFallbackSuggestRequest', 'ModelFallbackSuggestion',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',

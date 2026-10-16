@@ -225,3 +225,32 @@ test('with a client header registered, each client through the tunnel waits on i
   assert.equal(await status(app, 'abc123.lhr.life', { authorization: `Bearer ${token}` }), 200);
   assert.equal(await status(app, 'localhost', { authorization: `Bearer ${token}` }), 200);
 });
+
+test('the daily spend cap is read and written like the other settings, rounded to cents, and refused out of range', async (t) => {
+  const { app, core } = await wrapper();
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
+
+  const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ dailySpendCapUsd: 12.345 }) });
+  assert.equal(put.statusCode, 200);
+  assert.equal(put.json<AppSettings>().dailySpendCapUsd, 12.35);
+  assert.equal(put.json<AppSettings>().sources.dailySpendCapUsd, 'file');
+  for (const bad of [0, -1, 100_001, 'twenty']) assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ dailySpendCapUsd: bad }) })).statusCode, 400, String(bad));
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ dailySpendCapUsd: null }) })).json<AppSettings>().dailySpendCapUsd, null);
+});
+
+test('a cap the environment holds cannot be changed here', async (t) => {
+  const { app, core } = await wrapper({ CLAUDIO_DAILY_SPEND_CAP_USD: '40' });
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
+  const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
+  assert.equal(settings.dailySpendCapUsd, 40);
+  assert.equal(settings.sources.dailySpendCapUsd, 'env');
+  const refused = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ dailySpendCapUsd: 5 }) });
+  assert.equal(refused.statusCode, 400);
+  assert.match(refused.json().error, /CLAUDIO_DAILY_SPEND_CAP_USD/);
+});

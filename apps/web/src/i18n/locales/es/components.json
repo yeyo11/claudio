@@ -299,7 +299,10 @@
     "conflictResolving_one": "{{count}} archivo en {{branch}}.",
     "conflictResolving_other": "{{count}} archivos en {{branch}}.",
     "fromSubagent": "Lo ha iniciado un subagente.",
-    "supervisorProposed": "{{name}}: el supervisor propone una pista"
+    "supervisorProposed": "{{name}}: el supervisor propone una pista",
+    "spendWarnTitle": "Gasto de hoy al 75 % del tope",
+    "spendExhaustedTitle": "Tope de gasto diario alcanzado: el trabajo automático espera hasta las 00:00",
+    "spendBody": "{{spent}} de {{cap}}, según el CLI."
   },
   "projectExport": {
     "title": "Exportar {{name}}",
@@ -368,5 +371,16 @@
       "sonnet-high": "Sonnet 5.5 rinde mejor en high al planificar y al arreglar lo que falló, donde el trabajo es difícil o largo."
     },
     "unavailableModel": "Este modelo no admite niveles de effort."
+  },
+  "spendCap": {
+    "title": "Has alcanzado el tope de gasto diario",
+    "amounts": "{{spent}} de {{cap}} hoy, según el CLI.",
+    "body": "El trabajo automático espera a mañana. Esto sigue solo porque tú lo dices, y hoy no se te volverá a preguntar por ello.",
+    "over": "{{amount}} por encima del tope, de trabajo que ya estaba en marcha.",
+    "change": "Cambiar el tope",
+    "cancel": "Cancelar",
+    "send": "Enviar igualmente",
+    "goOn": "Seguir hoy de todos modos",
+    "declined": "No se ha iniciado nada: se alcanzó el tope de gasto diario."
   }
 }
