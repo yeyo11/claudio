@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T22:00:00Z
+updated_at: 2026-10-16T23:00:00Z
 tags:
     - plan
     - collaborators
@@ -42,6 +42,7 @@ sources in §9. What is still unchecked is what stage C0 (§7) is for, and is ma
 8. [Decisions taken and rejected](#8-decisions-taken-and-rejected)
 9. [Sources](#9-sources)
 10. [Review of 2026-10-16](#10-review-of-2026-10-16)
+11. [Outcome](#outcome)
 
 ---
 
@@ -820,6 +821,41 @@ The first draft was reviewed adversarially the same day. What changed, so the re
 | Isolation: add a lint rule; a package boundary adds nothing | §3.5, §8 |
 | `ProjectSettings` is strict; `PROJECT_VIEWS` is module-gated; workflow subagent transcripts; vault's new secret kind; QR dependency | §4.3, §5.3, §4.1, §3.1, §8 |
 
+## Outcome
+
+Built on `feat/collaborators` by the `claudio-collaborators` orchestration (2026-10-16), stages C1 to
+C5 as §7.1 defines them. The feature is described in [collaborators.md](../collaborators.md); the
+security additions are in [security-model.md](../security-model.md#collaborators) and the screens'
+notes in the design system's [Landed](../design-system.md#collaborators-as-built) section.
+
+**What shipped.** Everything in §3 to §6: the host process and the read-only serving side, the roster
+chain and invites (direct and relayed joins), the share key, the storage and the sync client, every
+§6 route (closed to chat tokens, reads included), the Collaborators page, the Sharing section and the
+Shared tab, the `collaborators` illustration and the in-house QR encoder (versions 1 to 40).
+
+**Where it differs from the plan.**
+
+- The OpenAPI tag is `Collaborators`, capitalised like the other tags, not `collaborators`.
+- The copy readers also take `?refresh=1`, which pulls from the owner first, and transcripts page by
+  `limit` and `before` like a local chat. Neither is in §6.
+- A share key already in use answers 409 with `{ error, code: 'share-key-in-use', projectId,
+  projectName }`. With Collaborators off, the owner-only routes answer 409 `off` before they look at
+  the group, so an unknown group gets 409 rather than 404.
+- The You card has a **Turn off** button, which §5.1 does not specify.
+- A shared project that is not cloned here shows "Not cloned here" and **Link to a local project**
+  only. The read-only view of the same tabs that §5.1 also asks for needs a route of its own and is
+  not built.
+- The Shared tab's sub-tabs are the four of §5.3 (Chats, Memory, Documents, Board); the journal and
+  artifact routes exist in the API but have no tab.
+- The Sharing section and the Shared tab add no CSS. The page's variants are `.collab-*` in
+  `claudio-ds.css`.
+- The design-system stylesheet is `docs/design-system/claudio-ds.css`, not `agentry-ds.css`.
+
+**Verified by the workers:** type checks, the core, API, ui, chat-ui and web tests of each task, the
+schema drift check, and an API test that runs a real iroh endpoint on the minimal preset. **Not run
+by any of them:** the browser specs (the `e1` and `e2e-specs` tasks own them) and a run between two
+real machines after C0.
+
 ## Related
 
-[[team-and-flow.md]] · [[tunnel.md]] · [[security-model.md]] · [[projects.md]] · [[layered-settings.md]] · [[design-system.md]] · [[accounts.md]]
+[[collaborators.md]] · [[team-and-flow.md]] · [[tunnel.md]] · [[security-model.md]] · [[projects.md]] · [[layered-settings.md]] · [[design-system.md]] · [[accounts.md]]
