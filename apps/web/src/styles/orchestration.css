@@ -2152,7 +2152,7 @@
   .rg-run .meta { grid-column: 2 / -1; display: flex; gap: 10px; }
   .rg-group-head { min-height: var(--touch); }
   .rg-foot { flex-direction: column; align-items: stretch; }
-  .rg-foot .btn { justify-content: center; }
+  .rg-foot .btn { justify-content: center; min-height: var(--touch); }
 }
 
 .rg-actions-note {
