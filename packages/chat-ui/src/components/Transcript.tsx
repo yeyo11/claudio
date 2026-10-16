@@ -612,8 +612,8 @@ export function Transcript({
   compactions?: CompactionActions;
   /**
    * Someone else's chat, copied from their machine: nothing in it leads into this install (no
-   * message menu, no edit chips, no subagent or branch to open, no note from a compaction), whatever
-   * the caller passed
+   * message menu, no edit chips, no branch of this install to open, no note from a compaction),
+   * whatever the caller passed. `subagents` is kept: there it opens a subagent copied with the chat
    */
   readOnly?: boolean;
 }) {
@@ -621,7 +621,6 @@ export function Transcript({
     messages = undefined;
     edits = undefined;
     compactions = undefined;
-    subagents = undefined;
     branches = undefined;
   }
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);

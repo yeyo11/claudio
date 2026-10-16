@@ -1,12 +1,14 @@
-import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type Project, type SharedChat, type SharedProject, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
+import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type Project, type SharedChat, type SharedProject, type SharedSubagent, type SharedTranscriptPage, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookText, FileText, MessagesSquare, SquareKanban } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ReadOnlyBar } from '@claudio/chat-ui/components/ReadOnlyBar';
-import { Transcript } from '@claudio/chat-ui/components/Transcript';
+import { Transcript, type SubagentLink } from '@claudio/chat-ui/components/Transcript';
+import { subagentFor } from '@claudio/chat-ui/lib/chat-steps';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
+import { Dialog } from '@claudio/ui/components/Dialog';
 import { Select } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
@@ -155,12 +157,13 @@ export function SyncLine({ sync }: { sync: SyncState }) {
 }
 
 /** An address on this tab with one more thing open, so a link opens it and a middle click opens a tab. */
-function useHref(): (key: string, value: string | null) => string {
+function useHref(): (key: string, value: string | null, ...drop: string[]) => string {
   const [params] = useSearchParams();
-  return (key, value) => {
+  return (key, value, ...drop) => {
     const next = new URLSearchParams(params);
     if (value === null) next.delete(key);
     else next.set(key, value);
+    for (const other of drop) next.delete(other);
     return `?${next.toString()}`;
   };
 }
@@ -230,48 +233,72 @@ function SharedChatRow({ chat }: { chat: SharedChat }) {
 }
 
 /**
- * One teammate's chat: its transcript as it was copied, with no composer and the read-only bar in
- * its place. A chat still running on their machine keeps growing here, its last step carrying the
- * live rail; earlier pages load as the reader scrolls up.
+ * A copied transcript as it is drawn: the latest window, kept fresh by the `collaborators.*` events,
+ * and earlier windows loaded as the reader scrolls up, joined by their place in the transcript.
  */
-function SharedChatView({ source, chat, from }: { source: SharedRef; chat: SharedChat; from: string }) {
-  const { t } = useTranslation('collaborators');
-  const href = useHref();
-  const latest = useQuery({ queryKey: collaboratorsKeys.transcript(source, chat.id), queryFn: ({ signal }) => collaboratorsApi.transcript(source, chat.id, null, { signal }) });
+function useCopiedTranscript(queryKey: readonly unknown[], page: (before: number | null, signal?: AbortSignal) => Promise<SharedTranscriptPage>) {
+  const latest = useQuery({ queryKey, queryFn: ({ signal }) => page(null, signal) });
   const [byIndex, setByIndex] = useState<ReadonlyMap<number, TranscriptEntry>>(new Map());
   const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const merge = useCallback(
+    (next: SharedTranscriptPage) =>
+      setByIndex((before) => {
+        const map = new Map(before);
+        next.entries.forEach((entry, i) => map.set(next.from + i, entry));
+        return map;
+      }),
+    [],
+  );
   useEffect(() => {
-    const page = latest.data;
-    if (!page) return;
-    setByIndex((before) => {
-      const next = new Map(before);
-      page.entries.forEach((entry, i) => next.set(page.from + i, entry));
-      return next;
-    });
-  }, [latest.data]);
+    if (latest.data) merge(latest.data);
+  }, [latest.data, merge]);
   const tail = useMemo(() => contiguousTail(byIndex), [byIndex]);
-  const live = latest.data?.live ?? chat.live;
 
   const earlier = () => {
     if (loadingEarlier || tail.from === 0 || tail.entries.length === 0) return;
     setLoadingEarlier(true);
-    void collaboratorsApi
-      .transcript(source, chat.id, tail.from)
-      .then((page) =>
-        setByIndex((before) => {
-          const next = new Map(before);
-          page.entries.forEach((entry, i) => next.set(page.from + i, entry));
-          return next;
-        }),
-      )
+    void page(tail.from)
+      .then(merge)
       .catch(() => undefined)
       .finally(() => setLoadingEarlier(false));
   };
+  return { latest, tail, earlier };
+}
+
+/**
+ * One teammate's chat: its transcript as it was copied, with no composer and the read-only bar in
+ * its place. A chat still running on their machine keeps growing here, its last step carrying the
+ * live rail; earlier pages load as the reader scrolls up. A delegation whose subagent was copied
+ * with the chat opens it in the side panel, as a local chat's does.
+ */
+function SharedChatView({ source, chat, from }: { source: SharedRef; chat: SharedChat; from: string }) {
+  const { t } = useTranslation('collaborators');
+  const href = useHref();
+  const [params, setParams] = useSearchParams();
+  const { latest, tail, earlier } = useCopiedTranscript(collaboratorsKeys.transcript(source, chat.id), (before, signal) => collaboratorsApi.transcript(source, chat.id, before, { signal }));
+  const live = latest.data?.live ?? chat.live;
+
+  const agents = chat.subagents;
+  const setAgent = useCallback(
+    (agentId: string | null) =>
+      setParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (agentId === null) next.delete('agent');
+          else next.set('agent', agentId);
+          return next;
+        },
+        { replace: agentId === null },
+      ),
+    [setParams],
+  );
+  const subagents = useMemo<SubagentLink | undefined>(() => sharedSubagentLink(agents, setAgent), [agents, setAgent]);
+  const openAgent = agents?.find((agent) => agent.workflowRunId === null && agent.agentId === params.get('agent'));
 
   return (
     <section className="stack shared-chat" aria-label={sharedChatTitle(chat)}>
       <div className="toolbar">
-        <Link to={href('chat', null)} className="btn btn-small btn-quiet">
+        <Link to={href('chat', null, 'agent')} className="btn btn-small btn-quiet">
           <ArrowLeft {...ICON_SM} />
           {t('shared.allChats')}
         </Link>
@@ -284,10 +311,77 @@ function SharedChatView({ source, chat, from }: { source: SharedRef; chat: Share
       ) : !latest.data ? (
         <Skeleton rows={6} height={18} />
       ) : (
-        <Transcript entries={tail.entries} working={live} pinToBottom={live} onReachTop={earlier} readOnly />
+        <Transcript entries={tail.entries} working={live} pinToBottom={live} onReachTop={earlier} subagents={subagents} readOnly />
       )}
       <ReadOnlyBar from={from} />
+      {openAgent && <SharedAgentPanel source={source} chatId={chat.id} agent={openAgent} onClose={() => setAgent(null)} />}
     </section>
+  );
+}
+
+/**
+ * Which copied subagent a delegation started, matched as a local chat matches its own (on what the
+ * call asked for); none when the copy lists no subagent, so no call offers to open one.
+ */
+export function sharedSubagentLink(agents: readonly SharedSubagent[] | undefined, open: (agentId: string) => void): SubagentLink | undefined {
+  const list = (agents ?? []).filter((agent) => agent.workflowRunId === null).map((agent) => ({ id: agent.agentId, description: agent.description ?? '', kind: agent.subagentType ?? 'agent' }));
+  return list.length > 0 ? { find: (input) => subagentFor(input, list)?.id ?? null, open } : undefined;
+}
+
+/**
+ * A teammate's subagent, read in the side panel a local one opens in: what it was, then its
+ * transcript as copied. The copy does not say whether it is still working, so nothing here moves.
+ */
+function SharedAgentPanel({ source, chatId, agent, onClose }: { source: SharedRef; chatId: string; agent: SharedSubagent; onClose: () => void }) {
+  const { t } = useTranslation('components');
+  const { latest, tail, earlier } = useCopiedTranscript(collaboratorsKeys.agentTranscript(source, chatId, agent), (before, signal) =>
+    collaboratorsApi.agentTranscript(source, chatId, agent, before, { signal }),
+  );
+  return (
+    <Dialog
+      title={
+        <span className="ellipsis">
+          {agent.workflowRunId ? t('detail.workflowAgent') : t('detail.subagent')}
+          {agent.description ? ` · ${agent.description}` : ''}
+        </span>
+      }
+      onClose={onClose}
+      variant="drawer"
+      width={760}
+    >
+      <div className="detail-scroll" data-scroll-root>
+        <dl className="kv kv-narrow detail-facts">
+          <dt>{t('detail.type')}</dt>
+          <dd>{agent.subagentType ?? (agent.workflowRunId ? t('detail.workflowAgentType') : '—')}</dd>
+          {agent.workflowRunId && (
+            <>
+              <dt>{t('detail.workflow')}</dt>
+              <dd className="mono">{agent.workflowRunId}</dd>
+            </>
+          )}
+          {agent.workflowPhase && (
+            <>
+              <dt>{t('detail.phase')}</dt>
+              <dd>{agent.workflowPhase}</dd>
+            </>
+          )}
+        </dl>
+        <section className="detail-section">
+          <h3 className="dialog-section">{t('detail.transcript', { total: latest.data?.total ?? 0 })}</h3>
+          {latest.error ? (
+            <ErrorBox error={latest.error} title={t('detail.agentFailed')} />
+          ) : !latest.data ? (
+            <Skeleton rows={6} height={18} />
+          ) : tail.entries.length === 0 ? (
+            <div className="muted small">{t('detail.nothingYet')}</div>
+          ) : (
+            <div className="detail-transcript">
+              <Transcript entries={tail.entries} onReachTop={earlier} readOnly />
+            </div>
+          )}
+        </section>
+      </div>
+    </Dialog>
   );
 }
 

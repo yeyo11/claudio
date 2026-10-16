@@ -65,6 +65,13 @@ const chatRecord = {
 } as unknown as ChatRecord;
 const transcript = join(root, `${chatId}.jsonl`);
 writeFileSync(transcript, '{"n":1}\n{"n":2}\n');
+// A subagent the chat delegated to, whose transcript the CLI keeps beside the chat's
+const subagentDir = join(root, chatId, 'subagents');
+mkdirSync(subagentDir, { recursive: true });
+const subagentTranscript = join(subagentDir, 'agent-a1.jsonl');
+writeFileSync(subagentTranscript, '{"sub":1}\n');
+writeFileSync(join(subagentDir, 'agent-a1.meta.json'), JSON.stringify({ agentType: 'Explore', description: 'Find the bug' }));
+const subagent = { agentId: 'a1', workflowRunId: null };
 
 const uploadFile = join(root, 'notes.txt');
 writeFileSync(uploadFile, 'an upload of the chat');
@@ -250,6 +257,11 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   assert.deepEqual(ben.service.sharedArtifacts(anaId, shareId).map((a) => `${a.kind}:${a.id}`).sort(), [`orchestration:o1`, `upload:${upload.id}`]);
   await until('the transcript', () => ben.service.sharedTranscript(anaId, shareId, chatId).total === 2);
   assert.deepEqual(ben.service.sharedTranscript(anaId, shareId, chatId).lines.map((l) => l.line), ['{"n":1}', '{"n":2}']);
+  // The subagent's transcript comes with the chat's, held apart from it
+  await until("the subagent's transcript", () => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).total === 1);
+  assert.deepEqual(ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).lines.map((l) => l.line), ['{"sub":1}']);
+  assert.deepEqual(ben.service.sharedChats(anaId, shareId)[0]?.subagents?.map((a) => [a.agentId, a.description]), [['a1', 'Find the bug']]);
+  assert.throws(() => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: { agentId: 'nope', workflowRunId: null } }), /No such subagent/);
 
   // A blob on open: a document, by the hash its copied record names, and nothing else
   const docHash = sha('# The plan\n');
@@ -262,6 +274,10 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   appendFileSync(transcript, '{"n":3}\n');
   anaEvent('sessions.changed');
   await until('the appended line', () => ben.service.sharedTranscript(anaId, shareId, chatId).total === 3);
+  appendFileSync(subagentTranscript, '{"sub":2}\n');
+  anaEvent('sessions.changed');
+  await until("the subagent's appended line", () => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).total === 2);
+  assert.equal(ben.service.sharedTranscript(anaId, shareId, chatId).total, 3, "the chat's own transcript is not touched by its subagent's");
   journal.push({ id: 'j2', projectId: project.id, kind: 'note', text: 'And a relay', createdAt: '2026-10-16T11:00:00.000Z' } as unknown as JournalEntry);
   anaEvent('journal.changed');
   await until('the new journal entry', () => ben.service.sharedJournal(anaId, shareId).some((e) => e.id === 'j2'));
@@ -313,4 +329,5 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
   await until('Ben drops the copy', async () => !(await ben.service.shared()).some((p) => p.shareKey === SHARE_KEY));
   assert.deepEqual(ben.store.recordCounts({ ownerId: anaId, shareKey: SHARE_KEY }), {});
   assert.equal(ben.store.transcriptLineCount({ ownerId: anaId, shareKey: SHARE_KEY }, chatId), 0);
+  assert.equal(ben.store.transcriptLineCount({ ownerId: anaId, shareKey: SHARE_KEY }, `${chatId}/agent-a1.jsonl`), 0);
 });

@@ -5320,6 +5320,28 @@ export interface SharedChat {
   live: boolean;
   /** What that agent is doing, while `live` */
   activity: ChatActivity | null;
+  /** The subagents and workflow agents whose transcripts the CLI kept beside the chat's; absent in a copy from an older install */
+  subagents?: SharedSubagent[];
+}
+
+/**
+ * A subagent or workflow agent of a teammate's chat, as copied: what opens its transcript from the
+ * call that launched it. Its transcript is pulled with the chat's.
+ */
+export interface SharedSubagent {
+  /** The CLI's id of the agent, which names its transcript */
+  agentId: string;
+  /** The workflow run (`wf_…`) a workflow agent belongs to; null for a subagent */
+  workflowRunId: string | null;
+  /** The CLI's `agentType` (`Explore`, `general-purpose`…) */
+  subagentType: string | null;
+  /** The description given at launch */
+  description: string | null;
+  workflowPhase: string | null;
+  /** Bytes of its transcript on the owner's machine when the chat was read */
+  size: number;
+  /** When its transcript last changed */
+  updatedAt: string | null;
 }
 
 /** `GET /collaborators/shared/:owner/:shareId/chats/:chatId/transcript`: a window of the copied transcript. */
@@ -5331,6 +5353,12 @@ export interface SharedTranscriptPage {
   from: number;
   total: number;
   live: boolean;
+}
+
+/** `GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`: a window of a copied subagent's transcript. */
+export interface SharedAgentTranscriptPage extends SharedTranscriptPage {
+  agentId: string;
+  workflowRunId: string | null;
 }
 
 /** A memory file of the owner's project, as copied. */

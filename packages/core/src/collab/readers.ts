@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { open, readFile, stat } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import type {
   Attachment,
@@ -17,6 +17,7 @@ import type {
   SharedChat,
   SharedDocument,
   SharedMemoryFile,
+  SharedSubagent,
   WorkItem,
   WorkItemDetail,
   WorkItemFilter,
@@ -218,6 +219,62 @@ function chatsOf(sources: ReaderSources, place: SharedPlace): Array<{ record: Ch
   return out;
 }
 
+/** Agent files are named as the wire accepts them (`wire.ts`), so a listed one can always be asked for */
+const AGENT_FILE_NAME = /^agent-([A-Za-z0-9_-]{1,64})\.jsonl$/;
+const RUN_DIR = /^[A-Za-z0-9_-]{1,64}$/;
+/** More than any chat delegates; a listing past it keeps the most recent */
+const MAX_SUBAGENTS = 500;
+const MAX_META_TEXT = 500;
+
+const metaText = (value: unknown): string | null => (typeof value === 'string' && value ? value.slice(0, MAX_META_TEXT) : null);
+
+/**
+ * The agents of a chat, from the files the CLI keeps beside its transcript (`sessions.ts`):
+ * `subagents/agent-<id>.jsonl` and `subagents/workflows/<runId>/agent-<id>.jsonl`, each with its
+ * `.meta.json`. Only what names and sizes a transcript; nothing of the owner's paths.
+ */
+async function subagentsOf(sources: ReaderSources, chatId: string): Promise<SharedSubagent[]> {
+  const main = await sources.transcriptFile(chatId);
+  if (!main) return [];
+  const base = join(main.slice(0, -'.jsonl'.length), 'subagents');
+  const out: SharedSubagent[] = [];
+  const scan = async (dir: string, runId: string | null): Promise<void> => {
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const agentId = AGENT_FILE_NAME.exec(name)?.[1];
+      if (!agentId) continue;
+      const info = await stat(join(dir, name)).catch(() => null);
+      if (!info?.isFile()) continue;
+      let meta: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(await readFile(join(dir, `agent-${agentId}.meta.json`), 'utf8')) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) meta = parsed as Record<string, unknown>;
+      } catch {
+        // An agent whose meta is not there yet is listed by its id
+      }
+      out.push({
+        agentId,
+        workflowRunId: runId,
+        subagentType: metaText(meta.agentType),
+        description: metaText(meta.description),
+        workflowPhase: metaText(meta.workflowPhase),
+        size: info.size,
+        updatedAt: info.mtime.toISOString(),
+      });
+    }
+  };
+  await scan(base, null);
+  const runs = await readdir(join(base, 'workflows')).catch(() => [] as string[]);
+  for (const run of runs) if (RUN_DIR.test(run)) await scan(join(base, 'workflows', run), run);
+  out.sort((a, b) => (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''));
+  return out.slice(-MAX_SUBAGENTS);
+}
+
 function chatEntry(sources: ReaderSources, record: ChatRecord, branch: string | null): ReadEntry<SharedChat> {
   const live = sources.liveChats();
   const isLive = live.has(record.id);
@@ -226,7 +283,7 @@ function chatEntry(sources: ReaderSources, record: ChatRecord, branch: string | 
     version: `${record.updatedAt}${isLive ? '+live' : ''}`,
     cursor: `${record.updatedAt}|${record.id}`,
     ...(isLive ? { always: true } : {}),
-    load: () => ({
+    load: async () => ({
       id: record.id,
       title: record.name || record.prompt.slice(0, 120),
       firstPrompt: record.prompt || null,
@@ -238,6 +295,7 @@ function chatEntry(sources: ReaderSources, record: ChatRecord, branch: string | 
       branch,
       live: isLive,
       activity: live.get(record.id) ?? null,
+      subagents: await subagentsOf(sources, record.id),
     }),
   };
 }

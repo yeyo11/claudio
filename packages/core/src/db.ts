@@ -3239,6 +3239,17 @@ export class CollabStore {
     this.sql.prepare('DELETE FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ? AND session_id = ?').run(share.ownerId, share.shareKey, sessionId);
   }
 
+  /**
+   * A chat's transcript and its agents' (held as `<chatId>/<agent file>`, `collab/client.ts`): the
+   * chat is no longer shared.
+   */
+  deleteChatTranscripts(share: CollabShareRef, chatId: string): void {
+    const prefix = `${chatId}/`;
+    this.sql
+      .prepare('DELETE FROM collab_transcript_lines WHERE owner_id = ? AND share_key = ? AND (session_id = ? OR substr(session_id, 1, ?) = ?)')
+      .run(share.ownerId, share.shareKey, chatId, prefix.length, prefix);
+  }
+
   // peers
 
   /** Records a connection to a peer; a `path` of null keeps the one stored. */

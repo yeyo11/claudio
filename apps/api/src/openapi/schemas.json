@@ -34082,6 +34082,13 @@
           }
         ],
         "description": "What that agent is doing, while `live`"
+      },
+      "subagents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SharedSubagent"
+        },
+        "description": "The subagents and workflow agents whose transcripts the CLI kept beside the chat's; absent in a copy from an older install"
       }
     },
     "required": [
@@ -34098,6 +34105,63 @@
       "activity"
     ],
     "description": "A teammate's chat, as copied: what its row and its header need, nothing of the owner's process."
+  },
+  "SharedSubagent": {
+    "type": "object",
+    "properties": {
+      "agentId": {
+        "type": "string",
+        "description": "The CLI's id of the agent, which names its transcript"
+      },
+      "workflowRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The workflow run (`wf_…`) a workflow agent belongs to; null for a subagent"
+      },
+      "subagentType": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's `agentType` (`Explore`, `general-purpose`…)"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The description given at launch"
+      },
+      "workflowPhase": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "size": {
+        "type": "number",
+        "description": "Bytes of its transcript on the owner's machine when the chat was read"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When its transcript last changed"
+      }
+    },
+    "required": [
+      "agentId",
+      "workflowRunId",
+      "subagentType",
+      "description",
+      "workflowPhase",
+      "size",
+      "updatedAt"
+    ],
+    "description": "A subagent or workflow agent of a teammate's chat, as copied: what opens its transcript from the call that launched it. Its transcript is pulled with the chat's."
   },
   "SharedTranscriptPage": {
     "type": "object",
@@ -34131,6 +34195,50 @@
       "live"
     ],
     "description": "`GET /collaborators/shared/:owner/:shareId/chats/:chatId/transcript`: a window of the copied transcript."
+  },
+  "SharedAgentTranscriptPage": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": "string"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TranscriptEntry"
+        },
+        "description": "Oldest first"
+      },
+      "from": {
+        "type": "number",
+        "description": "Index of the first entry in `entries` within the copied transcript"
+      },
+      "total": {
+        "type": "number"
+      },
+      "live": {
+        "type": "boolean"
+      },
+      "agentId": {
+        "type": "string"
+      },
+      "workflowRunId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "agentId",
+      "chatId",
+      "entries",
+      "from",
+      "live",
+      "total",
+      "workflowRunId"
+    ],
+    "description": "`GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`: a window of a copied subagent's transcript."
   },
   "SharedMemoryFile": {
     "type": "object",

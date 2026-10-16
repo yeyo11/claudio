@@ -505,6 +505,7 @@ const CHAT_FORBIDDEN_COLLABORATORS = new Set([
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/work-items`,
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/artifacts`,
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/transcript`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`,
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/blobs/:sha256`,
 ]);
 

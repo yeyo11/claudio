@@ -13,6 +13,8 @@ import type {
   SharedDocument,
   SharedMemoryFile,
   SharedProject,
+  SharedAgentTranscriptPage,
+  SharedSubagent,
   SharedTranscriptPage,
   UpdateProjectSharingRequest,
 } from '@claudio/shared';
@@ -26,6 +28,9 @@ import { sharedWith } from '../dashboard/views';
 /** A teammate's project, as the routes name it: a share key holds `/` and `#`, so they use its id. */
 export type SharedRef = Pick<SharedProject, 'owner' | 'shareId'>;
 
+/** Which agent of a teammate's chat: a subagent, or a workflow agent of `workflowRunId`. */
+export type SharedAgentRef = Pick<SharedSubagent, 'agentId' | 'workflowRunId'>;
+
 const sharedPath = (ref: SharedRef) => `/collaborators/shared/${enc(ref.owner)}/${enc(ref.shareId)}`;
 
 export const collaboratorsApi = {
@@ -38,6 +43,14 @@ export const collaboratorsApi = {
   /** The latest window, or the one that ends where `before` starts */
   transcript: (ref: SharedRef, chatId: string, before: number | null, o: ReadOptions = {}) =>
     request<SharedTranscriptPage>(`${sharedPath(ref)}/chats/${enc(chatId)}/transcript${before === null ? '' : `?before=${before}`}`, o),
+  /** A subagent's transcript, copied with its chat's: the latest window, or the one that ends where `before` starts */
+  agentTranscript: (ref: SharedRef, chatId: string, agent: SharedAgentRef, before: number | null, o: ReadOptions = {}) => {
+    const query = new URLSearchParams();
+    if (agent.workflowRunId) query.set('workflow', agent.workflowRunId);
+    if (before !== null) query.set('before', String(before));
+    const qs = query.toString();
+    return request<SharedAgentTranscriptPage>(`${sharedPath(ref)}/chats/${enc(chatId)}/subagents/${enc(agent.agentId)}${qs ? `?${qs}` : ''}`, o);
+  },
   memory: (ref: SharedRef, o: ReadOptions = {}) => request<SharedMemoryFile[]>(`${sharedPath(ref)}/memory`, o),
   documents: (ref: SharedRef, o: ReadOptions = {}) => request<SharedDocument[]>(`${sharedPath(ref)}/documents`, o),
   board: (ref: SharedRef, o: ReadOptions = {}) => request<SharedBoard>(`${sharedPath(ref)}/work-items`, o),
@@ -59,6 +72,8 @@ export const collaboratorsKeys = {
   sharing: (projectId: string) => ['collaborators', 'sharing', projectId] as const,
   records: (ref: SharedRef, kind: 'chats' | 'memory' | 'documents' | 'board') => ['collaborators', 'shared', ref.owner, ref.shareId, kind] as const,
   transcript: (ref: SharedRef, chatId: string) => ['collaborators', 'shared', ref.owner, ref.shareId, 'transcript', chatId] as const,
+  agentTranscript: (ref: SharedRef, chatId: string, agent: SharedAgentRef) =>
+    ['collaborators', 'shared', ref.owner, ref.shareId, 'transcript', chatId, agent.workflowRunId ?? '', agent.agentId] as const,
   blob: (ref: SharedRef, sha256: string) => ['collaborators', 'blob', ref.owner, ref.shareId, sha256] as const,
 };
 

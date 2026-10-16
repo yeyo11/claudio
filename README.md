@@ -1083,6 +1083,7 @@ Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](d
 | DELETE | `/collaborators/shared/:owner/:shareId/link` | Undo the link |
 | GET | `/collaborators/shared/:owner/:shareId/{chats,memory,journal,documents,work-items,artifacts}?refresh=1` | The copies held; `refresh=1` pulls from the owner first |
 | GET | `/collaborators/shared/:owner/:shareId/chats/:chatId/transcript?limit=&before=` | A copied transcript, paged as `GET /chats/:id` pages a local one |
+| GET | `/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId?workflow=&limit=&before=` | A copied subagent's (or workflow agent's) transcript, pulled with its chat's |
 | GET | `/collaborators/shared/:owner/:shareId/blobs/:sha256` | A document's or an upload's content, fetched from the owner on first open; a hash no copied record names is 404 |
 
 ### Chats

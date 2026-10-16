@@ -42,7 +42,7 @@ import { git } from '../git.ts';
 import type { CoreConfig } from '../paths.ts';
 import type { ProjectSettingsStore } from '../project-settings.ts';
 import type { ProjectRecord } from '../projects.ts';
-import { PeerError, relayEntry, SyncClient, type KnownShare } from './client.ts';
+import { agentFile, agentKey, PeerError, relayEntry, SyncClient, type KnownShare } from './client.ts';
 import { GroupsStore } from './groups-store.ts';
 import { CollabHost, type CollabHostOptions, type HostPeer, type HostStatus, type HostUnavailable } from './host-client.ts';
 import type { HostPreset } from './host/protocol.ts';
@@ -67,7 +67,7 @@ import { describeMember, nameOf, rosterChangeTitle } from './names.ts';
 import { CollabServer, type HeldGroup, type JoinPort, type ReplySink } from './serve.ts';
 import { CollaboratorsSettingsStore } from './settings.ts';
 import { isValidShareKey, listRemotes, preferredRemote, shareIdOf, shareKeyFor } from './share-key.ts';
-import { parseRequest, type WireReply, type WireRequest } from './wire.ts';
+import { isAgentFile, parseRequest, type WireReply, type WireRequest } from './wire.ts';
 
 /*
  * Collaborators on this install (docs/plans/collaborators.md): the switch, the identity, the groups
@@ -1229,18 +1229,33 @@ export class CollaboratorsService {
    * A window of a copied transcript, as the JSONL lines the CLI wrote, oldest first after `after` (a
    * line seq); `total` is how many lines the copy holds. Turning lines into entries is the reader's.
    */
-  sharedTranscript(owner: string, shareId: string, chatId: string, opts: { after?: number; limit?: number } = {}): { lines: Array<{ seq: number; line: string }>; total: number; live: boolean } {
+  sharedTranscript(
+    owner: string,
+    shareId: string,
+    chatId: string,
+    opts: { after?: number; limit?: number; agent?: { agentId: string; workflowRunId: string | null } } = {},
+  ): { lines: Array<{ seq: number; line: string }>; total: number; live: boolean } {
     const share = this.resolveShare(owner, shareId);
     const ref = { ownerId: owner, shareKey: share.shareKey };
     const chat = this.deps.store.record(ref, 'chats', chatId);
     if (!chat) throw new CollaboratorsError('not-found', 'No such shared chat');
-    let live = false;
+    let data: Partial<SharedChat> = {};
     try {
-      live = !!(JSON.parse(chat.json) as { live?: unknown }).live;
+      data = JSON.parse(chat.json) as Partial<SharedChat>;
     } catch {
-      // A record that does not parse is shown as not live
+      // A record that does not parse is shown as not live, with no agents
     }
-    return { lines: this.deps.store.transcriptLines(ref, chatId, opts), total: this.deps.store.transcriptLineCount(ref, chatId), live };
+    const live = !!data.live;
+    let key = chatId;
+    if (opts.agent) {
+      const { agentId, workflowRunId } = opts.agent;
+      // Only an agent the copied chat lists, and so one whose transcript was pulled with it
+      const listed = Array.isArray(data.subagents) && data.subagents.some((a) => a?.agentId === agentId && (a.workflowRunId ?? null) === workflowRunId);
+      const file = agentFile(agentId, workflowRunId);
+      if (!listed || !isAgentFile(file)) throw new CollaboratorsError('not-found', 'No such subagent in the shared chat');
+      key = agentKey(chatId, file);
+    }
+    return { lines: this.deps.store.transcriptLines(ref, key, opts), total: this.deps.store.transcriptLineCount(ref, key), live };
   }
 
   /**

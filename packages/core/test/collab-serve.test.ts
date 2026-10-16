@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
-import type { Attachment, ChatActivity, ClaudioEvent, CollaboratorsKind, DocumentNode, JournalEntry, Milestone, WorkItem, WorkItemDetail } from '@claudio/shared';
+import type { Attachment, ChatActivity, ClaudioEvent, CollaboratorsKind, DocumentNode, JournalEntry, Milestone, SharedChat, WorkItem, WorkItemDetail } from '@claudio/shared';
 import type { ChatRecord } from '../src/chat-records.ts';
 import { createReaders, type ReaderSources, type SharedPlace } from '../src/collab/readers.ts';
 import { addMember, createGenesis, endpointIdFromSeed, headOf, type RosterVersion } from '../src/collab/roster.ts';
@@ -109,6 +109,16 @@ const chats = [
 const transcripts = join(root, 'transcripts');
 mkdirSync(transcripts, { recursive: true });
 for (const c of chats) writeFileSync(join(transcripts, `${c.id}.jsonl`), `{"n":1,"chat":"${c.id}"}\n{"n":2}\n`);
+// The agents the CLI keeps beside a session's transcript: a subagent with its meta, a workflow
+// agent, and a subagent of the chat of the unshared project
+const agentsOf = (id: string) => join(transcripts, id, 'subagents');
+mkdirSync(join(agentsOf(sharedChat), 'workflows', 'wf_run1'), { recursive: true });
+writeFileSync(join(agentsOf(sharedChat), 'agent-a1.jsonl'), '{"sub":1}\n{"sub":2}\n');
+writeFileSync(join(agentsOf(sharedChat), 'agent-a1.meta.json'), JSON.stringify({ agentType: 'Explore', description: 'Find the bug', toolUseId: 'toolu_1' }));
+writeFileSync(join(agentsOf(sharedChat), 'workflows', 'wf_run1', 'agent-w1.jsonl'), '{"wf":1}\n');
+writeFileSync(join(agentsOf(sharedChat), 'notes.txt'), 'not an agent');
+mkdirSync(agentsOf(otherChat), { recursive: true });
+writeFileSync(join(agentsOf(otherChat), 'agent-x1.jsonl'), '{"other":1}\n');
 
 const uploadsDir = join(root, 'uploads');
 mkdirSync(uploadsDir, { recursive: true });
@@ -374,6 +384,33 @@ test('a transcript is served only for a chat the project shares', async () => {
   // A session of another project, named under the shared project's key
   assert.equal(errorOf(await ask(member.id, { type: 'transcript', shareKey: key(shared), session: otherChat, agent: null, offset: 0 })), 'not-found');
   assert.equal(errorOf(await ask(member.id, { type: 'transcript', shareKey: key(shared), session: randomUUID(), agent: null, offset: 0 })), 'not-found');
+});
+
+test("a chat's agents are listed with it, and their transcripts are served only through a shared chat", async () => {
+  const pulled = await ask(member.id, { type: 'pull', shareKey: key(shared), kind: 'chats', since: null });
+  const records = pulled.frames.flatMap((f) => (f.type === 'records' ? f.records : []));
+  const agents = (records.find((r) => r.id === sharedChat)?.data as SharedChat).subagents ?? [];
+  assert.deepEqual(
+    agents.map(({ agentId, workflowRunId, subagentType, description, size }) => ({ agentId, workflowRunId, subagentType, description, size })).sort((a, b) => a.agentId.localeCompare(b.agentId)),
+    [
+      { agentId: 'a1', workflowRunId: null, subagentType: 'Explore', description: 'Find the bug', size: 20 },
+      { agentId: 'w1', workflowRunId: 'wf_run1', subagentType: null, description: null, size: 9 },
+    ],
+  );
+  // Nothing of the owner's paths goes with them
+  assert.ok(!JSON.stringify(agents).includes(transcripts));
+  assert.deepEqual((records.find((r) => r.id === liveChat)?.data as SharedChat).subagents, []);
+
+  const sub = await ask(member.id, { type: 'transcript', shareKey: key(shared), session: sharedChat, agent: 'agent-a1.jsonl', offset: 0 });
+  assert.equal(sub.frames[0]?.type, 'transcript');
+  assert.equal(Buffer.from(sub.bytes).toString(), '{"sub":1}\n{"sub":2}\n');
+  const wf = await ask(member.id, { type: 'transcript', shareKey: key(shared), session: sharedChat, agent: 'workflows/wf_run1/agent-w1.jsonl', offset: 0 });
+  assert.equal(Buffer.from(wf.bytes).toString(), '{"wf":1}\n');
+
+  // An agent of a chat the project does not share, one that is not there, and a path that walks out
+  assert.equal(errorOf(await ask(member.id, { type: 'transcript', shareKey: key(shared), session: otherChat, agent: 'agent-x1.jsonl', offset: 0 })), 'not-found');
+  assert.equal(errorOf(await ask(member.id, { type: 'transcript', shareKey: key(shared), session: sharedChat, agent: 'agent-nope.jsonl', offset: 0 })), 'not-found');
+  assert.equal(errorOf(await ask(member.id, { type: 'transcript', shareKey: key(shared), session: sharedChat, agent: '../agent-a1.jsonl', offset: 0 })), 'bad-request');
 });
 
 test('watch sends changed notices for the watched project only, and ends with its stream', async () => {

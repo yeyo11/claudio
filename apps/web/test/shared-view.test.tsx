@@ -14,7 +14,7 @@ import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { projectViews, sharedWith } from '../src/pages/dashboard/views';
 import { collaboratorsKeys } from '../src/pages/project/shared-data';
-import { contiguousTail, memberValue, sharedSections, SharedView, sortMembers } from '../src/pages/project/SharedView';
+import { contiguousTail, memberValue, sharedSections, sharedSubagentLink, SharedView, sortMembers } from '../src/pages/project/SharedView';
 import { SHARE_KEY_RE, SharingSection } from '../src/pages/project/SharingSection';
 
 // §5.2 and §5.3 of docs/plans/collaborators.md: the Sharing section of a project's settings and the
@@ -181,6 +181,20 @@ test("an open chat is read only: the bar says whose it is, and there is no compo
   assert.match(html, /Solo lectura · de Ana/);
   assert.match(html, /Todos los chats/);
   assert.doesNotMatch(html, /composer|msg-actions/);
+});
+
+test("a delegation opens the subagent copied with the chat, matched as a local chat matches its own", () => {
+  const listed = chat({ subagents: [{ agentId: 'a1b2', workflowRunId: null, subagentType: 'Explore', description: 'Find the bug', workflowPhase: null, size: 120, updatedAt: null }] });
+  // Matched on what the call asked for, as a local chat matches; a workflow agent is not a delegation's
+  const opened: string[] = [];
+  const link = sharedSubagentLink(listed.subagents, (id) => opened.push(id));
+  assert.equal(link?.find({ description: 'Find the bug', subagent_type: 'Explore' }), 'a1b2');
+  assert.equal(link?.find({ description: 'Find the bug', subagent_type: 'Plan' }), null);
+  assert.equal(link?.find({ description: 'Read the docs' }), null);
+  link?.open('a1b2');
+  assert.deepEqual(opened, ['a1b2']);
+  assert.equal(sharedSubagentLink([{ agentId: 'w1', workflowRunId: 'wf_1', subagentType: null, description: 'Find the bug', workflowPhase: null, size: 1, updatedAt: null }], () => undefined), undefined);
+  assert.equal(sharedSubagentLink(undefined, () => undefined), undefined);
 });
 
 test("a document is read from the teammate's working copy, and says so", () => {
