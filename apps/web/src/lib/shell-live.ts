@@ -40,7 +40,7 @@ export interface LiveSummary {
   items: LiveItem[];
 }
 
-const ACTIVITY_KINDS = new Set(['tool', 'writing', 'thinking', 'waiting']);
+const ACTIVITY_KINDS = new Set(['tool', 'writing', 'thinking', 'waiting', 'compacting']);
 
 /**
  * A chat's current activity when the server sends one, `null` otherwise. Read defensively: the

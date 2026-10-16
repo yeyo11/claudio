@@ -87,6 +87,8 @@ import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsP
 import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
 import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
+import { ContextControl } from './context-control.ts';
+import { ChatNotes } from './context-notes.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
@@ -242,6 +244,8 @@ export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnaps
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { orchestrationTimings, type TimingsChat } from './orchestration-timings.ts';
 export { chatRole } from './chat-service.ts';
+export { CONTEXT_USAGE_CACHE_MS, ContextControl, type CompactAndWaitOptions } from './context-control.ts';
+export { ChatNotes, compactText, ContextRefusal, NOTE_REQUEST_PROMPT, parseSessionNote, SESSION_NOTE_INSTRUCTIONS, TYPED_COMPACT } from './context-notes.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
@@ -393,6 +397,10 @@ export class Core {
   readonly runtime: ChatManager;
   /** The chats the API serves: the transcript, the runtime and the CLI's own list, as one */
   readonly chats: ChatService;
+  /** The chat's context window: its breakdown, Compact now and the rows of every compaction */
+  readonly context: ContextControl;
+  /** Session notes: the summary a compaction continued from, kept per chat */
+  readonly notes: ChatNotes;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
   /** Today's spend against the daily cap: the start gate every automated unit of work asks (docs/plans/agent-run-improvements.md) */
@@ -764,6 +772,25 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
+      compact: (chat) => this.context.availability(chat),
+      typedCompact: (id, request) => this.context.sendTyped(id, request),
+      transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
+    });
+    this.notes = new ChatNotes({
+      db: this.db,
+      check: (chatId) => this.context.assertAvailable(chatId),
+      turn: (chatId, text) => this.context.startTurn(chatId, text, 'note'),
+      compactionEntries: (chatId) => this.chats.compactionEntries(chatId),
+    });
+    this.context = new ContextControl({
+      db: this.db,
+      runtime: this.runtime,
+      chats: this.chats,
+      flowOwns: (chatId) => this.flow.ownsChat(chatId),
+      assistantOwns: (chatId) => this.assistant.workOf(chatId) !== null,
+      limitHeld: (chatId) => this.rotation.holds(chatId),
+      notes: this.notes,
+      emit: (event) => this.events.emit(event),
     });
     this.changes = new Changes({
       orchestrator: this.orchestrator,
@@ -1044,6 +1071,18 @@ export class Core {
       language: () => this.language,
       limitHeld: (chatId) => this.rotation.holds(chatId),
       cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
+      contextOf: async (chatId) => {
+        const chat = await this.chats.get(chatId, { fresh: true });
+        if (!chat) return null;
+        const { used, window, compactedSince } = chat.context ?? { used: 0, window: null, compactedSince: undefined };
+        const tokens = compactedSince?.postTokens ?? used;
+        return {
+          share: window ? tokens / window : null,
+          usedTokens: tokens,
+          window,
+          compactable: !!chat.environment?.slashCommands.includes('compact') && !this.db.openCompaction(chatId),
+        };
+      },
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -1077,6 +1116,8 @@ export class Core {
     // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation
     // hears it before the flow, which ends its run on it and so stops claiming the chat
     this.runtime.on('chat-result', (chatId: string, result: RunResult) => {
+      // A compaction or a note turn is the chat's upkeep, not its work: no item moves and no run ends on it (D8)
+      if (result.purpose) return;
       this.workLinks.chatResult(chatId, result);
       void this.flow.chatResult(chatId, result);
       this.assistant.chatResult(chatId, result);
@@ -2199,6 +2240,12 @@ export class Core {
         // The run knows its chat, and its result still lands; only the item's list of chats misses it
       }
     };
+    if (launch.resumeChatId && launch.compactFirst) {
+      // Before onStart, so the run never sees the compaction's chat, result or exit. It runs under the
+      // run's own policy and budget (so a push stays denied), and never fails the run: one that does
+      // not happen leaves the chat as it was
+      await this.context.compactAndWait(launch.resumeChatId, { flowRunId: run.id, options: { ...options, agent: member.agent, agentsFile } });
+    }
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
       // Told first: the result is matched to the run by its chat, and may not wait for the resume to return

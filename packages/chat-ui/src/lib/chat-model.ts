@@ -6,7 +6,8 @@ import { formatCost } from '@claudio/ui/lib/format';
 export function contextShare(chat: Pick<ChatSummary, 'context'>): number | null {
   const { context } = chat;
   if (!context || context.window === null || context.window <= 0) return null;
-  return context.used / context.window;
+  // Right after a compaction the last response still reads the old, full context: the boundary's own figure is the truth
+  return (context.compactedSince?.postTokens ?? context.used) / context.window;
 }
 
 export type ContextLevel = 'ok' | 'warn' | 'full';

@@ -192,5 +192,143 @@
       "resumes": "resumes at {{at}}",
       "resetUnknown": "reset not known"
     }
+  },
+  "context": {
+    "failed": "Compaction failed",
+    "actions": {
+      "breakdown": "Breakdown",
+      "compactNow": "Compact now",
+      "compacting": "Compacting…",
+      "compactMenu": "Compact the conversation",
+      "exact": "Count exactly",
+      "retry": "Retry"
+    },
+    "lastCompacted": "Compacted {{when}} · {{pre}} → {{post}}",
+    "lastCompactedNoPost": "Compacted {{when}} · {{pre}} →",
+    "refusal": {
+      "busy": "The chat is working. Interrupt it first, or wait for the turn to end.",
+      "waiting": "The chat is waiting on a permission. Answer it first.",
+      "open": "A compaction or a note is already being written.",
+      "read-only": "This chat is held somewhere else and cannot be changed from here.",
+      "housekeeping": "This is one of Claudio's own chats and is not compacted.",
+      "at-limit": "The chat is at its usage limit. Compact it once the limit resets.",
+      "run": "A flow or assistant run is using this chat right now.",
+      "unsupported": "This version of {{agent}} has no /compact.",
+      "no-history": "The chat has not answered yet: there is nothing to compact."
+    },
+    "category": {
+      "system-prompt": "System prompt",
+      "system-tools": "System tools",
+      "system-tools-deferred": "System tools (deferred)",
+      "mcp-tools": "MCP tools",
+      "mcp-tools-deferred": "MCP tools (deferred)",
+      "custom-agents": "Custom agents",
+      "memory-files": "Memory files",
+      "skills": "Skills",
+      "messages": "Messages",
+      "free-space": "Free space",
+      "autocompact-buffer": "Compaction reserve"
+    },
+    "panel": {
+      "title": "Context breakdown",
+      "neverAnswered": "No context yet: the chat has not answered.",
+      "tokensOf": "{{used}} of {{window}} tokens",
+      "tokensOnly": "{{used}} tokens",
+      "unknownWindow": "The window is not known, so there is no share to draw.",
+      "over": "{{n}} tokens over the window",
+      "autoAt": "{{agent}} compacts by itself at {{percent}} %",
+      "autoOn": "{{agent}} compacts by itself when the window fills",
+      "autoOff": "Automatic compaction is off",
+      "unreported": {
+        "no-process": "The breakdown comes from {{agent}} while the conversation is open. This is the last count from the transcript.",
+        "unsupported": "This version of {{agent}} does not report a breakdown. This is the last count from the transcript.",
+        "refused": "{{agent}} did not give a breakdown. This is the last count from the transcript.",
+        "timeout": "{{agent}} did not answer in time. This is the last count from the transcript."
+      },
+      "categories": "Categories",
+      "categoriesCaption": "What fills the context window, by category",
+      "colName": "Category",
+      "colTokens": "Tokens",
+      "colShare": "Share",
+      "lessThanOne": "<1 %",
+      "outside": "Outside the window",
+      "outsideHint": "Not counted: these schemas are loaded only when they are needed.",
+      "mcp": "MCP servers",
+      "mcpNone": "No MCP server is loaded in this chat.",
+      "mcpTools": "{{loaded}} of {{total}} tools · {{tokens}} tokens",
+      "mcpMore_one": "{{count}} more server",
+      "mcpMore_other": "{{count}} more servers",
+      "warn": {
+        "many-tools": "Many MCP tools ({{count}})",
+        "large-share": "MCP takes {{percent}} % of the context"
+      },
+      "memory": "Memory files",
+      "copyPath": "Copy {{path}}",
+      "other": "Agents, skills and messages",
+      "agents": "Agents",
+      "agentsValue_one": "{{count}} agent · {{tokens}} tokens",
+      "agentsValue_other": "{{count}} agents · {{tokens}} tokens",
+      "skills": "Skills",
+      "commands": "Slash commands",
+      "counted": "{{included}} of {{total}} · {{tokens}} tokens",
+      "messages": {
+        "toolCalls": "Tool calls",
+        "toolResults": "Tool results",
+        "attachments": "Attachments",
+        "assistant": "Assistant messages",
+        "user": "Your messages",
+        "other": "Other"
+      },
+      "estimated": "Counted by estimate",
+      "exact": "Counted exactly",
+      "exactBusy": "The exact count waits until the chat is idle."
+    },
+    "compactDialog": {
+      "title": "Compact the conversation",
+      "body": "{{agent}} summarises the conversation and goes on from the summary. The messages stay visible here, but the agent no longer sees them in full. It is a turn paid like any other, about the size of the context now ({{size}}).",
+      "bodyNoSize": "{{agent}} summarises the conversation and goes on from the summary. The messages stay visible here, but the agent no longer sees them in full. It is a turn paid like any other.",
+      "size": "about {{n}} tokens",
+      "focus": "What to keep (optional)",
+      "focusPlaceholder": "the plan and the failing test",
+      "count": "{{n}} / {{max}}",
+      "note": "Save the summary as a session note",
+      "cancel": "Cancel",
+      "confirm": "Compact",
+      "working": "Compacting…",
+      "started": "Compacting…"
+    },
+    "notes": {
+      "title": "Session notes",
+      "empty": "No notes yet. A compaction with the note switch on leaves one here.",
+      "source": {
+        "compaction": "from a compaction",
+        "agent": "asked for",
+        "summary": "kept from a summary"
+      },
+      "pending": "Writing the note…",
+      "failedTag": "Failed",
+      "failed": "The note could not be written.",
+      "fallbackTitle": "Session note",
+      "write": "Write a note",
+      "writing": "Writing…",
+      "copy": "Copy the note",
+      "addToJournal": "Add to journal",
+      "delete": "Delete",
+      "moreActions": "Note actions",
+      "removed": "Note deleted",
+      "removeFailed": "Could not delete the note",
+      "saved": "Kept as a session note",
+      "saveFailed": "Could not keep the summary as a note",
+      "journal": {
+        "title": "Add the note to the journal",
+        "hint": "Every run of this project reads the journal. Read the text before you add it: anything that looked like a secret was masked.",
+        "label": "Journal entry",
+        "counter": "{{n}} / {{max}} characters",
+        "over": "over the limit, trim it",
+        "cancel": "Cancel",
+        "save": "Add to journal",
+        "saved": "Added to the journal"
+      }
+    }
   }
 }

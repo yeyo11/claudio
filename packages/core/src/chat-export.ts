@@ -95,9 +95,23 @@ export function chatToMarkdown(chat: Chat, entries: TranscriptEntry[], { depth =
     return fence(shown || '(empty)');
   };
 
-  const out: string[] = [header(chat, main, entries.length - main.length, depth)];
+  const out: string[] = [header(chat, main.filter((e) => !e.compaction), entries.length - main.length, depth)];
   let previous = '';
   for (const entry of main) {
+    if (entry.compaction?.part === 'boundary') {
+      const { trigger, preTokens, postTokens } = entry.compaction;
+      const sizes = preTokens === null ? '' : ` · ${count(preTokens)}${postTokens === null ? ' tokens before' : ` → ${count(postTokens)} tokens`}`;
+      out.push(`— Compacted${trigger ? ` (${trigger})` : ''}${sizes} —`);
+      // What follows is a new turn by whoever speaks next, not a continuation of the last one
+      previous = '';
+      continue;
+    }
+    if (entry.compaction?.part === 'summary') {
+      const text = entry.blocks.flatMap((b) => (b.type === 'text' ? [b.text.trim()] : [])).join('\n\n');
+      if (text) out.push(details('Summary Claude continued from', text));
+      previous = '';
+      continue;
+    }
     const parts: string[] = [];
     for (const block of entry.blocks) {
       switch (block.type) {

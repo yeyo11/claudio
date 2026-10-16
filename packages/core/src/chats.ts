@@ -15,6 +15,7 @@ import {
   type ChatMessageTaken,
   type ChatToolConfig,
   type ChatSettingsUpdate,
+  type ContextDetail,
   type ChatStartOptions,
   type EffectiveEnvironment,
   type Execution,
@@ -45,7 +46,9 @@ import {
   type ChatHost,
   type ChatPulse,
   type ChatRuntime,
+  type ContextSignal,
   type ExecutionExtras,
+  type HousekeepingPurpose,
   type NewChat,
   type ResolvedTools,
   type RunMeta,
@@ -641,10 +644,12 @@ export class ChatManager extends EventEmitter {
     chat.limitReplays = 0;
     const known = this.chats.has(id);
     if (!known) this.chats.set(id, chat);
+    chat.purpose = request.housekeeping ?? null;
     try {
       this.spawnProcess(chat, sent(request.prompt, attachments));
     } catch (err) {
       // Refused before any process started (something else holds the session): an adopted chat is not ours yet
+      chat.purpose = null;
       if (!known) this.chats.delete(id);
       throw err;
     }
@@ -812,7 +817,7 @@ export class ChatManager extends EventEmitter {
    * An id already taken writes nothing and answers as it did the first time: a send retried after a
    * timeout reaches the agent once.
    */
-  sendMessage(id: string, text: string, attachmentIds: string[] = [], messageId?: string): ChatMessageReceipt {
+  sendMessage(id: string, text: string, attachmentIds: string[] = [], messageId?: string, purpose?: HousekeepingPurpose): ChatMessageReceipt {
     const chat = this.chats.get(id);
     if (!chat) throw new Error('chat not found');
     const known = messageId ? chat.receipts.get(messageId) : undefined;
@@ -824,6 +829,8 @@ export class ChatManager extends EventEmitter {
     chat.undelivered = [];
     let taken: ChatMessageTaken;
     if (this.leaving(chat)) {
+      // Held for a replacement process, it would reach the CLI as work and its result would be fanned out as such
+      if (purpose) throw new ChatRefusal('the chat is ending: try again when it has', 409);
       // A message written now would never be read: it waits for the replacement, behind any
       // message already waiting, so the order they were sent in is the order they arrive in
       chat.pending.set(message.id, { ...message, state: 'held' });
@@ -831,10 +838,19 @@ export class ChatManager extends EventEmitter {
       taken = 'held';
     } else if (!chat.alive) {
       this.admit({}, chat.driver);
-      this.spawnProcess(chat, message);
+      chat.purpose = purpose ?? null;
+      try {
+        this.spawnProcess(chat, message);
+      } catch (err) {
+        chat.purpose = null;
+        throw err;
+      }
       taken = 'started';
     } else {
       const idle = chat.status === 'idle';
+      // A housekeeping turn is only ever sent to a chat between turns: on a busy one the purpose would mark the wrong result
+      if (purpose && !idle) throw new ChatRefusal('the chat is working: try again when it is idle', 409);
+      if (purpose) chat.purpose = purpose;
       this.writeUserMessage(chat, message);
       // A driver that starts the turn at once has reported it taken by now; a CLI that reports
       // nothing leaves it written, as far as anyone here can tell
@@ -976,6 +992,36 @@ export class ChatManager extends EventEmitter {
     }
     this.persist();
     return chat.summary();
+  }
+
+  /**
+   * What a chat's last execution was started with that is not in its tools or request: a housekeeping
+   * resume carries it so a confined chat stays confined. The schema is left out on purpose, a
+   * compaction is not held to a structured result.
+   */
+  executionExtrasOf(id: string): ExecutionExtras {
+    const opts = this.chats.get(id)?.opts;
+    if (!opts) return {};
+    return {
+      ...(opts.agent ? { agent: opts.agent } : {}),
+      ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
+      ...(opts.systemPromptSnapshot ? { systemPromptSnapshot: opts.systemPromptSnapshot } : {}),
+      ...(opts.uploads === false ? { uploads: false as const } : {}),
+      ...(opts.confine ? { confine: opts.confine } : {}),
+      // A compaction spends for what the chat is for, not as a person's turn
+      ...(opts.purpose ? { purpose: opts.purpose } : {}),
+    };
+  }
+
+  /**
+   * The live process's own account of what fills its context window, raw. Null when Claudio has no
+   * process on the chat or its driver cannot say; a CLI that refuses or does not answer rejects.
+   */
+  async contextUsage(id: string, detail?: ContextDetail): Promise<Record<string, unknown> | null> {
+    const chat = this.chats.get(id);
+    const session = chat?.alive ? chat.session : null;
+    if (!session?.contextUsage) return null;
+    return session.contextUsage(detail);
   }
 
   /** The MCP servers of the chat's live process, as it reports them now. */
@@ -1427,6 +1473,8 @@ export class ChatManager extends EventEmitter {
     this.noteActivity(chat);
     this.persist();
     this.maybeLimit(chat);
+    chat.purpose = null;
+    this.emit('chat-context', chat.id, { kind: 'ended', stopped: chat.stopRequested, error: chat.error } satisfies ContextSignal);
   }
 
   /**
@@ -1435,6 +1483,11 @@ export class ChatManager extends EventEmitter {
    */
   private maybeLimit(chat: LiveChat): void {
     if (!chat.rateLimited || chat.limitRequested || !chat.lastUserTurn) return;
+    // A compaction lost to the limit fails as such and is never replayed, on this account or another
+    if (chat.purpose) {
+      chat.limitRequested = true;
+      return;
+    }
     if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return;
     chat.limitRequested = true;
     this.emit('limit-hit', chat.summary(), this.limits.get(chat.provider));

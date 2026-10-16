@@ -19,6 +19,7 @@ import type {
   RunEvent,
   RunStatus,
   SpendPurpose,
+  TranscriptEntry,
 } from '@claudio/shared';
 import { isEffort } from '@claudio/shared';
 import { ChatActivityTracker } from './chat-activity.ts';
@@ -66,7 +67,16 @@ export function pendingView(message: SentMessage & { state: ChatPendingMessage['
 }
 const PARTIAL_THROTTLE_MS = 50;
 
+/**
+ * What a turn Claudio sends for the chat's own upkeep is: a compaction, or a request for a session
+ * note. Its result is real (it costs, it counts) but it is nobody's work product, so it never reaches
+ * what acts on a chat's result (docs/plans/context-control.md, D8).
+ */
+export type HousekeepingPurpose = 'compact' | 'note';
+
 export interface RunResult {
+  /** Set when the turn was housekeeping: the listeners that move work along on a result leave it alone */
+  purpose?: HousekeepingPurpose;
   isError: boolean;
   result: string;
   structuredOutput: unknown;
@@ -164,6 +174,11 @@ export interface ExecutionExtras {
   confine?: ChatConfinement | null;
   /** Why this execution spends, for the daily spend ledger; left out, the chat keeps the purpose it had */
   purpose?: SpendPurpose;
+  /**
+   * The first turn of this execution is housekeeping: it is told apart from work wherever results are
+   * acted on. Not `purpose`, which is the spend ledger's: a compaction spends for whatever the chat is for.
+   */
+  housekeeping?: HousekeepingPurpose;
 }
 
 export interface RunMeta {
@@ -282,6 +297,17 @@ export interface ChatHost {
 }
 
 /**
+ * What `ContextControl` hears of a chat, through the manager's `chat-context` event: the agent's own
+ * compaction events, the end of a housekeeping turn, and the end of the process.
+ */
+export type ContextSignal =
+  | { kind: 'driver'; event: Extract<DriverEvent, { kind: 'compacting' | 'compacted' | 'compact-failed' }>; interrupted?: boolean; stopped?: boolean }
+  /** The summary Claude Code continued from, as the stream carries it right after the boundary */
+  | { kind: 'summary'; entry: TranscriptEntry }
+  | { kind: 'result'; result: RunResult; interrupted: boolean }
+  | { kind: 'ended'; stopped: boolean; error: string | null };
+
+/**
  * A chat Claudio has a record of, in memory: its live stream, whatever it delegated, its history of
  * executions and, while one is running, the process. There is one per session id, however many
  * times the chat is resumed: resuming adds an execution here, it never adds a chat.
@@ -320,6 +346,8 @@ export class LiveChat {
   workingDir: string | null = null;
   error: string | null = null;
   lastResult: RunResult | null = null;
+  /** The housekeeping turn under way, cleared by its result, by an exit and by an interrupt */
+  purpose: HousekeepingPurpose | null = null;
   stopRequested = false;
   idleTimer: NodeJS.Timeout | null = null;
   /** When the chat went idle, while its idle timer runs */

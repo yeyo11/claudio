@@ -972,7 +972,8 @@
           "tool",
           "writing",
           "thinking",
-          "waiting"
+          "waiting",
+          "compacting"
         ],
         "description": "`tool`: a tool call without its result yet; `writing`/`thinking`: a text or thinking block is streaming; `waiting`: blocked on a permission prompt"
       },
@@ -1008,6 +1009,37 @@
           "null"
         ],
         "description": "The model's context window; null when the model is not known, so no percentage is invented"
+      },
+      "compactedSince": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "auto"
+            ]
+          },
+          "preTokens": {
+            "type": "number"
+          },
+          "postTokens": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "trigger",
+          "preTokens",
+          "postTokens"
+        ],
+        "description": "Set only while the newest compaction boundary is later than the last main response: the meter shows `postTokens` at once instead of waiting for the next response"
       }
     },
     "required": [
@@ -1747,6 +1779,10 @@
         "items": {
           "$ref": "#/components/schemas/ContentBlock"
         }
+      },
+      "compaction": {
+        "$ref": "#/components/schemas/TranscriptCompaction",
+        "description": "Set on the CLI's compaction marker (`blocks` is empty) and on the summary it continued from; both have `role: 'user'` and are not the person's words"
       }
     },
     "required": [
@@ -1884,6 +1920,55 @@
         ]
       }
     ]
+  },
+  "TranscriptCompaction": {
+    "type": "object",
+    "properties": {
+      "part": {
+        "type": "string",
+        "enum": [
+          "boundary",
+          "summary"
+        ]
+      },
+      "trigger": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "manual",
+          "auto",
+          null
+        ]
+      },
+      "preTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "postTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "part",
+      "trigger",
+      "preTokens",
+      "postTokens",
+      "durationMs"
+    ],
+    "description": "A compaction as the transcript records it: the CLI's marker, or the summary it continued from"
   },
   "RunStatus": {
     "type": "string",
@@ -11250,6 +11335,10 @@
           }
         ],
         "description": "Set on a chat of the Claudio assistant: it keeps its confinement whenever it is continued, resumed or forked"
+      },
+      "compact": {
+        "$ref": "#/components/schemas/ChatCompactAvailability",
+        "description": "Whether Compact now is offered, and why not; only on a chat read alone, a list does not pay for it"
       }
     },
     "required": [
@@ -11642,6 +11731,223 @@
       "memoryPaths"
     ],
     "description": "What Claude loaded when the chat last started."
+  },
+  "ChatCompactAvailability": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean"
+      },
+      "refusal": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CompactRefusal"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "open": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatCompaction"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The open compaction or note turn, while there is one"
+      }
+    },
+    "required": [
+      "available",
+      "refusal",
+      "open"
+    ]
+  },
+  "CompactRefusal": {
+    "type": "string",
+    "enum": [
+      "busy",
+      "waiting",
+      "open",
+      "read-only",
+      "housekeeping",
+      "at-limit",
+      "run",
+      "unsupported",
+      "no-history"
+    ],
+    "description": "Why Compact now is not offered; the same codes the 409 carries as `code`"
+  },
+  "ChatCompaction": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": "string"
+      },
+      "origin": {
+        "$ref": "#/components/schemas/CompactionOrigin"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CompactionState"
+      },
+      "trigger": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "manual",
+          "auto",
+          null
+        ],
+        "description": "The CLI's word, once its boundary is seen"
+      },
+      "focus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The person's words, as written"
+      },
+      "structuredNote": {
+        "type": "boolean",
+        "description": "The summary was asked for in the session-note shape"
+      },
+      "flowRunId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "preTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "postTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "What the CLI reported for the turn; null when it reported none (never estimated)"
+      },
+      "failure": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CompactionFailure"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's text for a failure, or Claudio's for one the CLI did not explain"
+      },
+      "boundaryUuid": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "noteId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "requestedAt": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "chatId",
+      "origin",
+      "state",
+      "trigger",
+      "focus",
+      "structuredNote",
+      "flowRunId",
+      "preTokens",
+      "postTokens",
+      "durationMs",
+      "costUsd",
+      "failure",
+      "error",
+      "boundaryUuid",
+      "noteId",
+      "requestedAt",
+      "startedAt",
+      "endedAt"
+    ]
+  },
+  "CompactionOrigin": {
+    "type": "string",
+    "enum": [
+      "person",
+      "typed",
+      "flow",
+      "cli"
+    ]
+  },
+  "CompactionState": {
+    "type": "string",
+    "enum": [
+      "requested",
+      "running",
+      "done",
+      "failed",
+      "cancelled"
+    ]
+  },
+  "CompactionFailure": {
+    "type": "string",
+    "enum": [
+      "cli",
+      "interrupted",
+      "stopped",
+      "process-ended",
+      "limit",
+      "budget",
+      "lost",
+      "not-started"
+    ]
   },
   "ChatDetail": {
     "type": "object",
@@ -12695,6 +13001,572 @@
       "enabled"
     ],
     "description": "Switches one server of a live chat on or off. The CLI keeps the choice for the chat's folder."
+  },
+  "ChatContextUsage": {
+    "type": "object",
+    "properties": {
+      "live": {
+        "type": "boolean",
+        "description": "A process of this Claudio runs the chat"
+      },
+      "unreported": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextUnreported"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "detail": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextDetail"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "observedAt": {
+        "type": "string"
+      },
+      "snapshot": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContext"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "From the transcript, always: what the meters show"
+      },
+      "breakdown": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextBreakdown"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "live",
+      "unreported",
+      "detail",
+      "observedAt",
+      "snapshot",
+      "breakdown"
+    ],
+    "description": "`GET /chats/:id/context`"
+  },
+  "ContextUnreported": {
+    "type": "string",
+    "enum": [
+      "no-process",
+      "unsupported",
+      "timeout",
+      "refused"
+    ],
+    "description": "Why there is no breakdown; the transcript's snapshot is still there"
+  },
+  "ContextDetail": {
+    "type": "string",
+    "enum": [
+      "summary",
+      "full"
+    ]
+  },
+  "ContextBreakdown": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "totalTokens": {
+        "type": "number"
+      },
+      "rawMaxTokens": {
+        "type": "number",
+        "description": "What the share is measured against: the CLI's compaction window, which can be smaller than the model's"
+      },
+      "maxTokens": {
+        "type": "number"
+      },
+      "percentage": {
+        "type": "number",
+        "description": "As the CLI rounds it; may pass 100"
+      },
+      "autoCompact": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "thresholdTokens": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "enabled",
+          "thresholdTokens"
+        ]
+      },
+      "overBy": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "`totalTokens - rawMaxTokens` when positive, else null"
+      },
+      "categories": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ContextCategory"
+        },
+        "description": "Rows with zero tokens are dropped here, as the CLI's own renderer does"
+      },
+      "mcp": {
+        "type": "object",
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextMcpServerWeight"
+            }
+          },
+          "loadedTools": {
+            "type": "number"
+          },
+          "tokens": {
+            "type": "number"
+          },
+          "share": {
+            "type": "number"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextMcpWarning"
+            }
+          }
+        },
+        "required": [
+          "servers",
+          "loadedTools",
+          "tokens",
+          "share",
+          "warnings"
+        ],
+        "description": "Per server, most tokens first; never per tool, which can be hundreds of rows"
+      },
+      "memoryFiles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "tokens": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "path",
+            "type",
+            "tokens"
+          ]
+        }
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "tokens": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "name",
+            "source",
+            "tokens"
+          ]
+        }
+      },
+      "skills": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "included": {
+                "type": "number"
+              },
+              "tokens": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "total",
+              "included",
+              "tokens"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "slashCommands": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "included": {
+                "type": "number"
+              },
+              "tokens": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "total",
+              "included",
+              "tokens"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "messages": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "toolCalls": {
+                "type": "number"
+              },
+              "toolResults": {
+                "type": "number"
+              },
+              "attachments": {
+                "type": "number"
+              },
+              "assistant": {
+                "type": "number"
+              },
+              "user": {
+                "type": "number"
+              },
+              "other": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "toolCalls",
+              "toolResults",
+              "attachments",
+              "assistant",
+              "user",
+              "other"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "model",
+      "totalTokens",
+      "rawMaxTokens",
+      "maxTokens",
+      "percentage",
+      "autoCompact",
+      "overBy",
+      "categories",
+      "mcp",
+      "memoryFiles",
+      "agents",
+      "skills",
+      "slashCommands",
+      "messages"
+    ]
+  },
+  "ContextCategory": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The CLI's own label"
+      },
+      "key": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextCategoryKey"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ContextCategoryKind"
+      },
+      "tokens": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "name",
+      "key",
+      "kind",
+      "tokens"
+    ]
+  },
+  "ContextCategoryKey": {
+    "type": "string",
+    "enum": [
+      "system-prompt",
+      "system-tools",
+      "system-tools-deferred",
+      "mcp-tools",
+      "mcp-tools-deferred",
+      "custom-agents",
+      "memory-files",
+      "skills",
+      "messages",
+      "free-space",
+      "autocompact-buffer"
+    ],
+    "description": "The names Claudio knows how to translate; anything else is shown as the CLI wrote it. The list is the names recorded from Claude Code 2.1.300 (recordings/c0-NOTES.md, F3): there is no row for slash commands, which the CLI reports as an object and not as a category."
+  },
+  "ContextCategoryKind": {
+    "type": "string",
+    "enum": [
+      "used",
+      "free",
+      "buffer",
+      "deferred"
+    ],
+    "description": "How the CLI classifies a row of its breakdown; math uses this, never the row's English name"
+  },
+  "ContextMcpServerWeight": {
+    "type": "object",
+    "properties": {
+      "server": {
+        "type": "string",
+        "description": "`serverName` as the CLI reports it, which is what `PUT /chats/:id/mcp/:name` takes"
+      },
+      "tools": {
+        "type": "number"
+      },
+      "loadedTools": {
+        "type": "number",
+        "description": "Tools whose schema sits in the window now; a deferred tool costs nothing until it is loaded"
+      },
+      "tokens": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "server",
+      "tools",
+      "loadedTools",
+      "tokens"
+    ]
+  },
+  "ContextMcpWarning": {
+    "type": "string",
+    "enum": [
+      "many-tools",
+      "large-share"
+    ]
+  },
+  "CompactChatRequest": {
+    "type": "object",
+    "properties": {
+      "focus": {
+        "type": "string"
+      },
+      "structuredNote": {
+        "type": "boolean",
+        "description": "Defaults to true"
+      }
+    },
+    "description": "`POST /chats/:id/compact`"
+  },
+  "ChatSessionNote": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": "string"
+      },
+      "source": {
+        "$ref": "#/components/schemas/ChatNoteSource",
+        "description": "`compaction`: kept from a structured compaction; `agent`: asked for with no compaction; `summary`: a person saved a summary"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ChatNoteState"
+      },
+      "text": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Markdown, as Claude wrote it; null while pending"
+      },
+      "sections": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "goal": {
+                "type": "string"
+              },
+              "done": {
+                "type": "string"
+              },
+              "failed": {
+                "type": "string"
+              },
+              "not-tried": {
+                "type": "string"
+              },
+              "files": {
+                "type": "string"
+              },
+              "next": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The headings it was asked for, when they were all found; null otherwise"
+      },
+      "compactionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "entryUuid": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The transcript entry it came from"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "readyAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "chatId",
+      "source",
+      "state",
+      "text",
+      "sections",
+      "compactionId",
+      "entryUuid",
+      "error",
+      "createdAt",
+      "readyAt"
+    ]
+  },
+  "ChatNoteSource": {
+    "type": "string",
+    "enum": [
+      "compaction",
+      "agent",
+      "summary"
+    ]
+  },
+  "ChatNoteState": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "ready",
+      "failed"
+    ]
+  },
+  "CreateChatNoteRequest": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "const": "agent"
+          }
+        },
+        "required": [
+          "from"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "const": "summary"
+          },
+          "entryUuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "entryUuid"
+        ]
+      }
+    ],
+    "description": "`POST /chats/:id/notes`"
   },
   "UsageReport": {
     "type": "object",
@@ -15506,6 +16378,19 @@
             }
           },
           "flow.restart": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "context.compact": {
             "type": "object",
             "properties": {
               "mode": {
@@ -24778,6 +25663,9 @@
           "flow.restart": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
+          "context.compact": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
           "run.continuation": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
@@ -24945,6 +25833,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "flow.restart": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "context.compact": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "run.continuation": {
@@ -25216,6 +26107,7 @@
       "flow.criteria-precheck",
       "flow.criteria-merge",
       "flow.restart",
+      "context.compact",
       "run.continuation",
       "orchestration.model",
       "orchestration.fixer",

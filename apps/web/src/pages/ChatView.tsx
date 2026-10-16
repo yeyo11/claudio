@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import { entryText, type Chat, type ChatDetail, type ChatPendingAttachment, type EditStep } from '@claudio/shared';
+import { entryText, type Chat, type ChatDetail, type ChatPendingAttachment, type EditStep, type TranscriptEntry } from '@claudio/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -35,6 +35,7 @@ import { ChatLoading } from './chat/ChatLoading';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { LimitStopped } from './chat/LimitStopped';
 import { BlockedComposer, LimitBanner, useLimitState } from './chat/LimitBanner';
+import { ContextControlProvider } from './chat/ContextPanel';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from '@claudio/chat-ui/composer/queued';
@@ -86,7 +87,7 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
   useEffect(() => preloadMarkdown(), []);
-  const { t } = useTranslation(['chat', 'work', 'common']);
+  const { t } = useTranslation(['chat', 'work', 'common', 'chats']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -292,6 +293,22 @@ export function ChatView() {
     [id, stepList],
   );
 
+  // A summary the person keeps as a note: the divider offers the button and hides it once it is one
+  const notes = useQuery({ queryKey: keys.chatNotes(id), queryFn: () => api.chatNotes(id), enabled: painted && Boolean(chat) });
+  const noted = useMemo(() => new Set((notes.data ?? []).flatMap((note) => (note.entryUuid ? [note.entryUuid] : []))), [notes.data]);
+  const saveSummary = useCallback(
+    (summary: TranscriptEntry) =>
+      void api
+        .createChatNote(id, { from: 'summary', entryUuid: summary.uuid })
+        .then(() => {
+          void queryClient.invalidateQueries({ queryKey: keys.chatNotes(id) });
+          toast.success(t('chats:context.notes.saved'));
+        })
+        .catch((error: unknown) => toast.error(t('chats:context.notes.saveFailed'), error)),
+    [id, queryClient, toast, t],
+  );
+  const compactions = useMemo(() => ({ saveAsNote: saveSummary, noted }), [saveSummary, noted]);
+
   const { open: findOpen, show: findShow, close: findClose } = find;
   const actions = useMemo<HeaderActions>(
     () => ({
@@ -341,6 +358,7 @@ export function ChatView() {
 
   return (
     <AgentScope chat={chat}>
+    <ContextControlProvider chat={chat}>
     <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
         <ChatHeader chat={chat} connected={connected} actions={actions} limitPhase={limit.phase} limitResetsAt={limit.resetsAt} />
@@ -411,6 +429,7 @@ export function ChatView() {
                 workflows={workflows}
                 messages={messages}
                 edits={edits}
+                compactions={compactions}
               />
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
@@ -520,6 +539,7 @@ export function ChatView() {
 
       <Inspector chat={chat} entries={transcript.items} state={inspector} />
     </div>
+    </ContextControlProvider>
     </AgentScope>
   );
 }

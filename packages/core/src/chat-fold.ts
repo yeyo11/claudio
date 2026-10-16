@@ -3,7 +3,7 @@ import { isClaudioMcpWriteTool } from '@claudio/mcp';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
-import { now, type ChatHost, type LiveChat } from './live-chat.ts';
+import { now, type ChatHost, type ContextSignal, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
 
 /** The next `seq` of a chat's stored entries; read once from the table, so a resumed chat carries on after what an earlier process wrote */
@@ -94,6 +94,30 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       chat.updatedAt = now();
       return;
 
+    // The CLI summarises the conversation: the ticker says so, and ContextControl keeps the row and its lease. The
+    // status repeats on a timer, so it is not pushed as an event: only the activity and the signal change
+    case 'compacting':
+      chat.activity.compacting(event.active, now());
+      chat.activityAt = now();
+      host.noteActivity(chat);
+      host.emit('chat-context', chat.id, { kind: 'driver', event } satisfies ContextSignal);
+      return;
+
+    case 'compacted':
+      chat.activity.compacting(false, now());
+      host.noteActivity(chat);
+      // The divider shows at once, and the meter reads the boundary's figures until the next response
+      chat.push(event.run);
+      host.emit('chat-context', chat.id, { kind: 'driver', event } satisfies ContextSignal);
+      return;
+
+    case 'compact-failed':
+      chat.activity.compacting(false, now());
+      host.noteActivity(chat);
+      // An interrupted compaction fails by the CLI's own count (recorded, F14), but it is the person's doing
+      host.emit('chat-context', chat.id, { kind: 'driver', event, interrupted: chat.interruptRequested, stopped: chat.stopRequested } satisfies ContextSignal);
+      return;
+
     case 'block-started':
       // The ticker reacts to the block, not to the message that closes it: a tool call is named
       // here, seconds before its arguments have finished streaming
@@ -172,6 +196,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         if (isModelName(entry.model)) chat.setSettings({ model: entry.model });
       }
       chat.push(event.run);
+      if (entry.compaction?.part === 'summary') host.emit('chat-context', chat.id, { kind: 'summary', entry } satisfies ContextSignal);
       return;
     }
 
@@ -266,11 +291,13 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     host.observeLimit(chat, event);
   }
   const { isError } = event;
+  const purpose = chat.purpose;
+  const interrupted = chat.interruptRequested;
   const cause = !isError ? undefined : chat.interruptRequested || chat.stopRequested ? 'stopped' : event.budget ? 'budget' : chat.rateLimited ? 'rate-limit' : undefined;
   const stopReason = event.stopReason ?? chat.stopReason;
   // The next turn's reason is its own
   chat.stopReason = null;
-  chat.lastResult = { isError, result: event.text, structuredOutput: event.structuredOutput, costUsd: chat.costUsd, ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) };
+  chat.lastResult = { isError, result: event.text, structuredOutput: event.structuredOutput, costUsd: chat.costUsd, ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}), ...(purpose ? { purpose } : {}) };
   // An interrupted turn ends as an error by the agent's own count, but nothing went wrong
   if (isError && !chat.interruptRequested) chat.error = event.failure;
   chat.interruptRequested = false;
@@ -280,6 +307,7 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   // Every result, where waitForResult only hands out the first: a chat continued by hand keeps
   // producing them, and whoever the chat works for has to hear about each
   host.emit('chat-result', chat.id, chat.lastResult);
+  if (purpose) host.emit('chat-context', chat.id, { kind: 'result', result: chat.lastResult, interrupted } satisfies ContextSignal);
   if (chat.reportsDelivery === null) {
     // The turn ended and the agent never said it took the message that started it: it does not say,
     // and what was written to it is not followed any further
@@ -311,7 +339,9 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
     chat.idleTimer.unref();
   }
+  // Last, so the limit check above still knew this was housekeeping
   host.maybeLimit(chat);
+  chat.purpose = null;
 }
 
 /** The parts of a policy a request falls under; a driver lists in `host` the ones it leaves to the judge. */

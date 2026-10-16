@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution, ProviderMove } from '@claudio/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, SPEND_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CONTEXT_CONTROL_SCHEMA_VERSION, type HousekeepingClaim, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, SPEND_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -765,7 +765,7 @@ test('the cost backfill prices only the jev rows that kept tokens and lost their
   // A database as the release before the backfill left it
   raw.exec(`PRAGMA user_version = ${String(JEV_COST_SCHEMA_VERSION - 1)}`);
   // What the migrations after it added is not there yet, or migrating again would add it twice
-  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments; DROP TABLE spend_ledger; DROP TABLE spend_alerts; DROP TABLE flow_spend_passes; ALTER TABLE flow_runs DROP COLUMN checks; ALTER TABLE memory_proposals DROP COLUMN target_paths;');
+  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments; DROP TABLE spend_ledger; DROP TABLE spend_alerts; DROP TABLE flow_spend_passes; ALTER TABLE flow_runs DROP COLUMN checks; ALTER TABLE memory_proposals DROP COLUMN target_paths; DROP TABLE chat_compactions; DROP TABLE chat_notes;');
   const insert = raw.prepare(
     `INSERT INTO decisions (id, point, kind, subject_kind, provider, model, mode, status, state, questions, acted, visible, saved_run, latency_ms, input_tokens, cost_usd, at)
      VALUES (?, 'run.continuation', 'act', 'flow_run', ?, 'm', 'shadow', 'answered', '{}', '[]', 0, 0, 0, 1, ?, ?, '2026-09-30T10:00:00Z')`,
@@ -874,4 +874,131 @@ test('the spend ledger upgrade adds its tables and columns, and backfills the ex
   raw.prepare("INSERT INTO spend_alerts (day, level, at) VALUES ('2026-10-15', 'warn', ?)").run(today);
   assert.throws(() => raw.prepare("INSERT INTO spend_alerts (day, level, at) VALUES ('2026-10-15', 'warn', ?)").run(today), /UNIQUE|PRIMARY/);
   raw.close();
+});
+
+const compactionClaim = (id: string, leaseUntil: string): HousekeepingClaim => ({
+  kind: 'compaction',
+  leaseUntil,
+  row: { id, origin: 'person', focus: 'the parser', structuredNote: true, flowRunId: null, requestedBy: 'token:t1', requestedAt: at(0) },
+});
+const noteClaim = (id: string, leaseUntil: string): HousekeepingClaim => ({ kind: 'note', leaseUntil, row: { id, source: 'agent', entryUuid: null, createdAt: at(0) } });
+
+test('a database from the version before context control gains its tables and keeps its chats', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
+  migrate(raw, CONTEXT_CONTROL_SCHEMA_VERSION - 1);
+  assert.equal(raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'chat_compactions'").get(), undefined);
+  raw.prepare("INSERT INTO chats (id, created_at, provider, json) VALUES ('c1', ?, 'claude-code', '{}')").run(at(1));
+  raw.close();
+
+  const db = new Db(config);
+  const sql = db.connection;
+  for (const name of ['chat_compactions', 'chat_notes', 'chat_compactions_open', 'chat_compactions_boundary', 'chat_notes_pending', 'chat_notes_entry']) {
+    assert.ok(sql.prepare('SELECT 1 FROM sqlite_master WHERE name = ?').get(name), name);
+  }
+  assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM chats').get() as { n: number }).n, 1);
+  assert.equal((sql.prepare('PRAGMA user_version').get() as { user_version: number }).user_version >= CONTEXT_CONTROL_SCHEMA_VERSION, true);
+  db.close();
+});
+
+test('a second connection cannot claim the chat while the first claim is open, and can once its lease has passed', () => {
+  const config = tempConfig();
+  const first = new Db(config);
+  const second = new Db(config);
+  try {
+    const claimed = first.claimHousekeeping('c1', compactionClaim('k1', at(10)), at(1));
+    assert.equal(claimed?.id, 'k1');
+    assert.equal(second.claimHousekeeping('c1', compactionClaim('k2', at(20)), at(2)), null, 'open in the other process');
+    assert.equal(second.claimHousekeeping('c1', noteClaim('n1', at(20)), at(2)), null, 'a note turn is refused too');
+    assert.equal(second.claimHousekeeping('c2', compactionClaim('k3', at(20)), at(2))?.id, 'k3', 'another chat is free');
+
+    const taken = second.claimHousekeeping('c1', compactionClaim('k4', at(30)), at(11));
+    assert.equal(taken?.id, 'k4', 'the lease passed');
+    const lost = first.compactionById('k1');
+    assert.equal(lost?.state, 'failed');
+    assert.equal(lost?.failure, 'lost');
+    assert.equal(first.openCompaction('c1')?.id, 'k4');
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test('two claims on one file in a row: exactly one wins', () => {
+  const config = tempConfig();
+  const a = new Db(config);
+  const b = new Db(config);
+  try {
+    const results = [a.claimHousekeeping('c1', noteClaim('na', at(10)), at(1)), b.claimHousekeeping('c1', noteClaim('nb', at(10)), at(1))];
+    assert.equal(results.filter((r) => r !== null).length, 1);
+    assert.equal(a.notes('c1').length, 1);
+  } finally {
+    a.close();
+    b.close();
+  }
+});
+
+test('guarded updates report whether a row changed, so two events cannot both close a compaction', () => {
+  const config = tempConfig();
+  const db = new Db(config);
+  try {
+    db.claimHousekeeping('c1', compactionClaim('k1', at(10)), at(1));
+    assert.equal(db.updateCompaction('k1', { state: 'running', startedAt: at(2), leaseUntil: at(12) }, { from: ['requested'] }), true);
+    assert.equal(db.updateCompaction('k1', { state: 'running' }, { from: ['requested'] }), false, 'no longer requested');
+    assert.equal(db.updateCompaction('k1', { state: 'done', boundaryUuid: 'b1', trigger: 'manual', preTokens: 900, postTokens: 90, costUsd: 0.02, endedAt: at(3) }, { from: ['requested', 'running'] }), true);
+    assert.equal(db.updateCompaction('k1', { state: 'failed', failure: 'cli' }, { from: ['requested', 'running'] }), false, 'already closed');
+    const row = db.compactionByBoundary('b1');
+    assert.equal(row?.state, 'done');
+    assert.equal(row?.trigger, 'manual');
+    assert.equal(row?.structuredNote, true);
+    assert.equal(row?.focus, 'the parser');
+    assert.equal(row?.postTokens, 90);
+    assert.equal(db.openCompaction('c1'), null);
+    assert.equal(db.compactions('c1')[0]?.id, 'k1');
+
+    assert.equal(db.claimHousekeeping('c1', noteClaim('n1', at(10)), at(4))?.id, 'n1');
+    assert.equal(db.updateNote('n1', { state: 'ready', text: '## Goal\nship', sections: { goal: 'ship' }, readyAt: at(5) }, { from: ['pending'] }), true);
+    assert.equal(db.updateNote('n1', { state: 'failed', error: 'late' }, { from: ['pending'] }), false);
+    assert.deepEqual(db.notes('c1')[0]?.sections, { goal: 'ship' });
+    assert.equal(db.deleteNote('c1', 'n1'), true);
+    assert.equal(db.deleteNote('c1', 'n1'), false);
+  } finally {
+    db.close();
+  }
+});
+
+test('the boot sweep closes expired rows and leaves one still inside its lease', () => {
+  const config = tempConfig();
+  const db = new Db(config);
+  try {
+    db.claimHousekeeping('old', compactionClaim('k1', at(5)), at(1));
+    db.claimHousekeeping('live', compactionClaim('k2', at(50)), at(1));
+    db.claimHousekeeping('note', noteClaim('n1', at(5)), at(1));
+    db.sweepHousekeeping(at(10));
+    assert.equal(db.compactionById('k1')?.failure, 'lost');
+    assert.equal(db.compactionById('k2')?.state, 'requested');
+    assert.equal(db.noteById('n1')?.state, 'failed');
+    assert.equal(db.noteById('n1')?.error, 'lost');
+  } finally {
+    db.close();
+  }
+});
+
+test('deleting a chat deletes its compactions and notes, and only its own', () => {
+  const config = tempConfig();
+  const db = new Db(config);
+  try {
+    db.claimHousekeeping('gone', compactionClaim('k1', at(50)), at(1));
+    const note = { id: 'n1', chatId: 'gone', source: 'summary', state: 'ready', text: 'x', sections: null, compactionId: null, entryUuid: 'e1', error: null, createdAt: at(1), readyAt: at(1) } as const;
+    assert.equal(db.insertNote(note), true);
+    assert.equal(db.insertNote({ ...note, id: 'n2' }), false, 'one note per entry');
+    db.claimHousekeeping('kept', compactionClaim('k2', at(50)), at(1));
+    db.deleteChat('gone');
+    assert.deepEqual(db.compactions('gone'), []);
+    assert.deepEqual(db.notes('gone'), []);
+    assert.equal(db.compactions('kept').length, 1);
+  } finally {
+    db.close();
+  }
 });

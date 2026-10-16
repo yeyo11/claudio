@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 
 const argv = process.argv.slice(2);
 const env = process.env;
@@ -43,6 +44,8 @@ const TURN_COST_USD = numberEnv('CLAUDIO_FAKE_CLI_TURN_COST_USD', 0);
 const SETTLE_MS = 300;
 // How long a `read:` step holds its Read call open, so a page can show what is being read
 const READ_MS = numberEnv('CLAUDIO_FAKE_CLI_READ_MS', 400);
+// How long a `/compact` takes before its boundary: long enough for a page to show the chat compacting
+const COMPACT_MS = numberEnv('CLAUDIO_FAKE_CLI_COMPACT_MS', 1500);
 
 /** What a spec reads to know the process heard something: one JSON line per fact, when the variable names a file. */
 function log(event, fields = {}) {
@@ -95,6 +98,20 @@ const modelName = (m) => (m.includes('-') ? m : `claude-${m}-5`);
 let model = modelName(flag('--model') ?? 'sonnet');
 let turns = 0;
 let costUsd = 0;
+
+/**
+ * What the context holds, as the assistant lines' usage report it. A spec that wants a meter worth
+ * watching sets `"@context": <tokens>` in the scripts file (read when the process starts); a
+ * compaction brings it down to the recorded `post_tokens`.
+ */
+let contextTokens = (() => {
+  try {
+    const set = env.CLAUDIO_FAKE_CLI_SCRIPTS ? JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8'))['@context'] : undefined;
+    return Number.isFinite(set) && set > 0 ? set : 10;
+  } catch {
+    return 10;
+  }
+})();
 
 /**
  * `--worktree <name>` as the CLI does it: a worktree of the repository under `.claude/worktrees/<name>`,
@@ -160,7 +177,7 @@ function record(line) {
 
 const emit = (message) => process.stdout.write(`${JSON.stringify({ ...message, session_id: sessionId })}\n`);
 const assistant = (content) => {
-  const message = { type: 'assistant', uuid: randomUUID(), parent_tool_use_id: null, message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: 10, output_tokens: 10 } } };
+  const message = { type: 'assistant', uuid: randomUUID(), parent_tool_use_id: null, message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: contextTokens, output_tokens: 10 } } };
   emit(message);
   record({ type: 'assistant', uuid: message.uuid, message: message.message });
 };
@@ -170,23 +187,27 @@ const toolResult = (toolUseId, content, isError) => {
   record({ type: 'user', uuid: message.uuid, message: message.message });
 };
 
-emit({
-  type: 'system',
-  subtype: 'init',
-  cwd: process.cwd(),
-  model,
-  permissionMode,
-  // The subagent tool a real CLI always lists: without it the detector reads the first session as a
-  // CLI missing subagents, and Claude Code turns `degraded` for every spec after it
-  tools: ['Agent', 'Bash'],
-  mcp_servers: [],
-  slash_commands: ['compact', 'context', 'cost', 'review'],
-  claude_code_version: VERSION,
-  output_style: 'default',
-  agents: [],
-  skills: [],
-  plugins: [],
-});
+/** The `init` a session opens with; a failed compaction opens another, as the recording shows */
+function init() {
+  emit({
+    type: 'system',
+    subtype: 'init',
+    cwd: process.cwd(),
+    model,
+    permissionMode,
+    // The subagent tool a real CLI always lists: without it the detector reads the first session as a
+    // CLI missing subagents, and Claude Code turns `degraded` for every spec after it
+    tools: ['Agent', 'Bash'],
+    mcp_servers: [],
+    slash_commands: ['compact', 'context', 'cost', 'review'],
+    claude_code_version: VERSION,
+    output_style: 'default',
+    agents: [],
+    skills: [],
+    plugins: [],
+  });
+}
+init();
 log('started', { argv, cwd: process.cwd() });
 
 /** Every descendant of a pid, children before parents, read from /proc: a command's tree, never matched by name. */
@@ -271,6 +292,7 @@ function scriptFor(text) {
 }
 
 function startTurn(message, uuid = null) {
+  if (/^\/compact(\s|$)/.test(message.trim())) return startCompact(message, uuid);
   record({ type: 'user', uuid: uuid ?? randomUUID(), message: { role: 'user', content: message } });
   replay(message, uuid);
   const text = scriptFor(message);
@@ -526,13 +548,109 @@ const mcpServers = (() => {
   ];
 })();
 
+
+// ---------- context usage and /compact, from the recordings of packages/core/test/fixtures ----------
+
+const FIXTURES = fileURLToPath(new URL('../../packages/core/test/fixtures/', import.meta.url));
+const fixture = (path) => JSON.parse(readFileSync(join(FIXTURES, path), 'utf8'));
+/** Two servers with 93 tools between them, all loaded: past the 80 at which the panel warns */
+const MCP_TOOLS = { alpha: 47, beta: 46 };
+const MCP_TOOL_TOKENS = 109;
+
+/**
+ * The recorded `get_context_usage` answer (`context-usage-summary.json` / `-full.json`), with the MCP
+ * tools of two servers swapped in and the totals following them, so the warning shows. `detail` is
+ * what the CLI accepts; the recording of a bad one is `context-usage-errors.json`.
+ */
+function contextUsage(detail) {
+  const answer = fixture(`recordings/claude/context-usage-${detail}.json`);
+  const mcpTools = Object.entries(MCP_TOOLS).flatMap(([serverName, count]) =>
+    Array.from({ length: count }, (_, i) => ({ name: `mcp__${serverName}__tool_${i + 1}`, serverName, tokens: MCP_TOOL_TOKENS, isLoaded: true })),
+  );
+  const loaded = mcpTools.length * MCP_TOOL_TOKENS;
+  const before = answer.categories.find((c) => c.name === 'MCP tools')?.tokens ?? 0;
+  const categories = answer.categories.map((c) => (c.name === 'MCP tools' ? { ...c, tokens: loaded } : c));
+  // The context after a compaction is the recorded `post_tokens`; before one it is what the recording held
+  const totalTokens = compacted ? compacted.post : answer.totalTokens - before + loaded;
+  return { ...answer, categories, mcpTools, totalTokens, percentage: Math.round((totalTokens / answer.maxTokens) * 100) };
+}
+
+/** Set once a `/compact` has succeeded: the context from then on is the recorded one after it */
+let compacted = null;
+const COMPACT_POST_TOKENS = 1655;
+const COMPACT_SUMMARY = () => {
+  const line = readFileSync(join(FIXTURES, 'replay/compact-manual.jsonl'), 'utf8')
+    .split('\n').filter(Boolean).map((l) => JSON.parse(l)).find((m) => m.type === 'user' && m.message?.content?.startsWith('This session is being continued'));
+  return line.message.content;
+};
+
+/**
+ * A `/compact` played as the CLI plays it (`replay/compact-manual.jsonl`): `system/status` `compacting`,
+ * then the status that ends it, the `compact_boundary`, the summary, the `<local-command-stdout>`
+ * and a result. A text with the word `FAKE-COMPACT-FAIL` fails as `replay/compact-failed.jsonl`
+ * does (the status, then `init`, the synthetic "Compaction canceled." line and a result); one with
+ * `FAKE-COMPACT-SLOW` waits half a minute, for an interrupt to cut. An interrupt while it runs fails it.
+ */
+function startCompact(text, uuid) {
+  record({ type: 'user', uuid: uuid ?? randomUUID(), message: { role: 'user', content: text } });
+  replay(text, uuid);
+  const own = { steps: [], current: null, startedAt: Date.now(), interrupted: false, scripted: true, lastSaid: '', structured: undefined, compacting: true };
+  turn = own;
+  log('turn', { text, commands: [], compact: true });
+  emit({ type: 'system', subtype: 'status', status: 'compacting', uuid: randomUUID() });
+  const slow = /FAKE-COMPACT-SLOW/.test(text);
+  own.timer = setTimeout(() => {
+    if (turn !== own) return;
+    if (/FAKE-COMPACT-FAIL/.test(text)) failCompact(own);
+    else finishCompact(own, text);
+  }, slow ? 30_000 : COMPACT_MS);
+}
+
+function failCompact(own) {
+  clearTimeout(own.timer);
+  emit({ type: 'system', subtype: 'status', status: null, compact_result: 'failed', compact_error: 'API Error: Request was aborted.', uuid: randomUUID() });
+  init();
+  const uuid = randomUUID();
+  const message = { id: randomUUID(), type: 'message', role: 'assistant', model: '<synthetic>', stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 }, content: [{ type: 'text', text: 'Compaction canceled.' }] };
+  emit({ type: 'assistant', message, parent_tool_use_id: null, local_command_source: '<local-command-stdout>Compaction canceled.</local-command-stdout>', uuid });
+  record({ type: 'assistant', uuid, message });
+  endTurn({ result: '' });
+}
+
+function finishCompact(own, text) {
+  // A fake chat reports a few tokens a turn; the recorded size stands in for a context worth compacting
+  const pre = compacted ? compacted.post : Math.max(contextTokens, 18_517);
+  const post = COMPACT_POST_TOKENS;
+  const boundary = randomUUID();
+  const summary = randomUUID();
+  const durationMs = Date.now() - own.startedAt;
+  emit({ type: 'system', subtype: 'status', status: null, compact_result: 'success', uuid: randomUUID() });
+  emit({ type: 'system', subtype: 'compact_boundary', uuid: boundary, compact_metadata: { trigger: 'manual', pre_tokens: pre, post_tokens: post, cumulative_dropped_tokens: pre - post, duration_ms: durationMs }, logical_parent_uuid: lastLine });
+  emit({ type: 'user', message: { role: 'user', content: COMPACT_SUMMARY() }, parent_tool_use_id: null, uuid: summary, timestamp: new Date().toISOString(), isReplay: false, isSynthetic: true });
+  // The session file, in CLI 2.1's shape (recordings/claude/compacted.jsonl): camelCase, the boundary's
+  // uuid the same as on stdout, the summary under it, then the command and what it printed
+  record({ type: 'system', subtype: 'compact_boundary', uuid: boundary, parentUuid: null, logicalParentUuid: lastLine, content: 'Conversation compacted', isMeta: false, level: 'info', compactMetadata: { trigger: 'manual', preTokens: pre, durationMs, postTokens: post, cumulativeDroppedTokens: pre - post } });
+  record({ type: 'user', uuid: summary, parentUuid: boundary, message: { role: 'user', content: COMPACT_SUMMARY() }, isVisibleInTranscriptOnly: true, isCompactSummary: true });
+  const [, ...args] = text.trim().split(/\s+/);
+  record({ type: 'user', uuid: randomUUID(), message: { role: 'user', content: `<command-name>/compact</command-name>\n<command-message>compact</command-message>\n<command-args>${args.join(' ')}</command-args>` } });
+  const stdout = randomUUID();
+  record({ type: 'user', uuid: stdout, message: { role: 'user', content: '<local-command-stdout>Compacted </local-command-stdout>' } });
+  emit({ type: 'user', message: { role: 'user', content: '<local-command-stdout>Compacted </local-command-stdout>' }, parent_tool_use_id: null, uuid: stdout, timestamp: new Date().toISOString(), isReplay: true });
+  compacted = { post };
+  contextTokens = post;
+  endTurn({ result: '' });
+}
+
 function control(message) {
   const request = message.request ?? {};
   const reply = (response) => emit({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response } });
   log('control', { subtype: request.subtype });
   if (request.subtype === 'interrupt') {
     // The command running goes down with the turn, as the CLI's does; its exit ends the turn
-    if (turn?.current?.child) {
+    if (turn?.compacting) {
+      // As the CLI aborts it: the compaction fails with the abort's own words
+      failCompact(turn);
+    } else if (turn?.current?.child) {
       turn.interrupted = true;
       killTree(turn.current.child.pid);
     } else if (turn) {
@@ -555,6 +673,16 @@ function control(message) {
   if (request.subtype === 'set_model' && typeof request.model === 'string') {
     model = modelName(request.model);
     reply({});
+    return;
+  }
+  if (request.subtype === 'get_context_usage') {
+    // Without `detail` the CLI answers `full`; anything else is refused in the words it recorded
+    const detail = request.detail ?? 'full';
+    if (detail !== 'summary' && detail !== 'full') {
+      emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: "get_context_usage: detail must be 'summary' or 'full'" } });
+      return;
+    }
+    reply(contextUsage(detail));
     return;
   }
   if (request.subtype === 'mcp_status') {

@@ -1,0 +1,253 @@
+{
+  "manual": [
+    {
+      "kind": "compacting",
+      "active": true
+    },
+    {
+      "kind": "compacting",
+      "active": false
+    },
+    {
+      "kind": "init",
+      "sessionId": "<id>",
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "kind": "compacted",
+      "entry": {
+        "uuid": "<id>",
+        "role": "user",
+        "timestamp": null,
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [],
+        "compaction": {
+          "part": "boundary",
+          "trigger": "manual",
+          "preTokens": 18517,
+          "postTokens": 1655
+        }
+      },
+      "uuid": "<id>",
+      "trigger": "manual",
+      "preTokens": 18517,
+      "postTokens": 1655,
+      "run": {
+        "kind": "message",
+        "entry": {
+          "uuid": "<id>",
+          "role": "user",
+          "timestamp": null,
+          "model": null,
+          "isSidechain": false,
+          "parentToolUseId": null,
+          "blocks": [],
+          "compaction": {
+            "part": "boundary",
+            "trigger": "manual",
+            "preTokens": 18517,
+            "postTokens": 1655
+          }
+        }
+      }
+    },
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "<id>",
+        "role": "user",
+        "timestamp": "<time>",
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\n<summary: 3387 chars>"
+          }
+        ],
+        "compaction": {
+          "part": "summary",
+          "trigger": null,
+          "preTokens": null,
+          "postTokens": null
+        }
+      },
+      "mainAgent": false,
+      "run": {
+        "kind": "message",
+        "entry": {
+          "uuid": "<id>",
+          "role": "user",
+          "timestamp": "<time>",
+          "model": null,
+          "isSidechain": false,
+          "parentToolUseId": null,
+          "blocks": [
+            {
+              "type": "text",
+              "text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\n<summary: 3387 chars>"
+            }
+          ],
+          "compaction": {
+            "part": "summary",
+            "trigger": null,
+            "preTokens": null,
+            "postTokens": null
+          }
+        }
+      }
+    },
+    {
+      "kind": "delivered",
+      "ids": [
+        "<id>"
+      ]
+    },
+    {
+      "kind": "result",
+      "isError": false,
+      "text": "",
+      "failure": "success",
+      "turns": 0,
+      "costUsd": 0.0040927,
+      "modelUsage": [
+        {
+          "model": "claude-haiku-5-5",
+          "costUsd": 0.0040927,
+          "contextWindow": 1000000,
+          "inputTokens": 2071,
+          "outputTokens": 1751,
+          "cacheReadInputTokens": 80280,
+          "cacheCreationInputTokens": 11059,
+          "webSearchRequests": 0,
+          "maxOutputTokens": 128000
+        }
+      ],
+      "budget": false,
+      "rateLimited": false,
+      "run": {
+        "kind": "result",
+        "text": "",
+        "outcome": {
+          "isError": false,
+          "turns": 0,
+          "costUsd": 0.0040927,
+          "permissionDenials": []
+        }
+      }
+    }
+  ],
+  "failed": [
+    {
+      "kind": "compacting",
+      "active": true
+    },
+    {
+      "kind": "compacting",
+      "active": false
+    },
+    {
+      "kind": "compact-failed",
+      "error": "API Error: Request was aborted."
+    },
+    {
+      "kind": "init",
+      "sessionId": "<id>",
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "<id>",
+        "role": "assistant",
+        "timestamp": "<time>",
+        "model": "<synthetic>",
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Compaction canceled."
+          }
+        ]
+      },
+      "mainAgent": true,
+      "stopReason": "end_turn",
+      "run": {
+        "kind": "message",
+        "entry": {
+          "uuid": "<id>",
+          "role": "assistant",
+          "timestamp": "<time>",
+          "model": "<synthetic>",
+          "isSidechain": false,
+          "parentToolUseId": null,
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Compaction canceled."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "result",
+      "isError": false,
+      "text": "",
+      "failure": "success",
+      "turns": 0,
+      "costUsd": 0.010194425,
+      "modelUsage": [
+        {
+          "model": "claude-haiku-5-5",
+          "costUsd": 0.010194425,
+          "contextWindow": 1000000,
+          "inputTokens": 10109,
+          "outputTokens": 6156,
+          "cacheReadInputTokens": 148730,
+          "cacheCreationInputTokens": 24143,
+          "webSearchRequests": 0,
+          "maxOutputTokens": 128000
+        }
+      ],
+      "budget": false,
+      "rateLimited": false,
+      "run": {
+        "kind": "result",
+        "text": "",
+        "outcome": {
+          "isError": false,
+          "turns": 0,
+          "costUsd": 0.010194425,
+          "permissionDenials": []
+        }
+      }
+    }
+  ],
+  "withMode": [
+    {
+      "kind": "compacting",
+      "active": true
+    },
+    {
+      "kind": "mode-changed",
+      "mode": "plan"
+    },
+    {
+      "kind": "compacting",
+      "active": false
+    },
+    {
+      "kind": "mode-changed",
+      "mode": "manual"
+    },
+    {
+      "kind": "mode-changed",
+      "mode": "plan"
+    }
+  ]
+}

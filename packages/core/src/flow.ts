@@ -44,6 +44,7 @@ import {
   type FlowVerdict,
   type FlowWaiting,
   type FlowWaitingColumn,
+  FLOW_COMPACT_MIN_SHARE,
   type LimitWait,
   type ProviderId,
   type ProviderMove,
@@ -230,6 +231,11 @@ export interface FlowLaunch {
    * no worktree for every card it refines.
    */
   inWorktree: boolean;
+  /**
+   * `context.compact` said to compact the resumed chat first (active, and above its threshold). The
+   * compaction ends before the run takes the chat, and one that fails leaves the run to go on.
+   */
+  compactFirst: boolean;
 }
 
 export interface FlowDeps {
@@ -272,10 +278,24 @@ export interface FlowDeps {
   pullRequests?: FlowPullRequests;
   /** The decision engine; without it every decision point is off and the flow behaves as it always did */
   decisions?: Pick<DecisionEngine, 'ask' | 'effective' | 'resolve'>;
+  /**
+   * How full a chat is and whether it can be compacted now (its CLI lists `compact` and no
+   * housekeeping turn is open): the code gate of `context.compact`. Null when the chat is unknown
+   */
+  contextOf?: (chatId: string) => Promise<FlowChatContext | null>;
   /** The commit subjects and changed paths of what the item's branch did, for the `flow.criteria-precheck` state */
   workDone?: (item: WorkItem) => { commits: string[]; paths: string[] } | null;
   /** The daily spend cap lets a new run start; without it every run may (docs/plans/agent-run-improvements.md) */
   spendOpen?: (itemId: string) => boolean;
+}
+
+/** What the flow reads of a chat it may compact before it continues it */
+export interface FlowChatContext {
+  /** Share of the window in use, after a compaction that has not been answered yet; null when the window is unknown */
+  share: number | null;
+  usedTokens: number;
+  window: number | null;
+  compactable: boolean;
 }
 
 /** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
@@ -1485,6 +1505,7 @@ export class FlowService {
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
     const documentsPath = project.settings.documents?.path ?? 'docs';
     const checkCommands = stage === 'verify' ? testCommands(project.path) : [];
+    const compactFirst = stage === 'work' && !continuing && resumeChatId ? await this.compactFirst(row, resumeChatId, item) : false;
     const fix = stage === 'work' && !continuing ? await this.fixPromptOf(item.id) : null;
     const { permissionMode, policy } = stagePolicy(stage, member.writes, { documentsPath, checks: checkCommands, commands: member.commands });
     const rules = rulesFor('claude-code', policy);
@@ -1515,6 +1536,7 @@ export class FlowService {
       resumeChatId,
       continuing,
       inWorktree: stage !== 'refine',
+      compactFirst,
     };
     let started = false;
     try {
@@ -1542,6 +1564,39 @@ export class FlowService {
       else if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
       else this.end(row.id, 'failed', null, message, 'not-started');
     }
+  }
+
+  /**
+   * `context.compact`: whether the Developer's own chat is compacted before the next round. Nothing
+   * is asked below the share gate, for a CLI that cannot compact, or while the chat has housekeeping
+   * open; shadow records only, and any other outcome continues as it always did.
+   */
+  private async compactFirst(row: RunRow, chatId: string, item: WorkItem): Promise<boolean> {
+    const stance = this.stance('context.compact', row.project_id);
+    if (stance === 'off') return false;
+    let context: FlowChatContext | null = null;
+    try {
+      context = (await this.deps.contextOf?.(chatId)) ?? null;
+    } catch {
+      return false;
+    }
+    if (!context?.compactable || context.share === null || context.share < FLOW_COMPACT_MIN_SHARE) return false;
+    const settings = this.deps.project(row.project_id)?.settings;
+    const data = {
+      stage: 'work',
+      share: Math.round(context.share * 100) / 100,
+      usedTokens: context.usedTokens,
+      window: context.window,
+      bounces: item.bounces ?? 0,
+      rejectionChars: settings ? (this.rejection(item.id, settings)?.length ?? 0) : 0,
+    };
+    const asked = this.ask('context.compact', { kind: 'flow_run', id: row.id, data }, row.project_id);
+    if (stance === 'watch') {
+      this.track(asked);
+      return false;
+    }
+    const answer = (await asked)?.answers?.compact;
+    return answer?.kind === 'choice' && answer.value === 'compact-first';
   }
 
   /**

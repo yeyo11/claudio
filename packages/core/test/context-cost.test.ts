@@ -95,6 +95,25 @@ test('context is the last response, so the CLI compacting shows as a drop and sp
   }
 });
 
+test('a chat read after a compaction shows the meter at what the boundary left, until the next response', async () => {
+  const { config, core } = setup();
+  try {
+    const file = terminalChat(config, 'compacted-1', [{ id: 'm1', model: 'claude-opus-5', at: DAY, in: 3, out: 500, read: 150_000 }]);
+    appendFileSync(file, `\n${JSON.stringify({ type: 'system', subtype: 'compact_boundary', uuid: 'b1', timestamp: '2026-03-10T10:05:00Z', compactMetadata: { trigger: 'manual', preTokens: 150_503, postTokens: 2_000 } })}\n`);
+    const compacted = await core.chats.get('compacted-1');
+    assert.equal(compacted?.context?.used, 150_003);
+    assert.equal(compacted?.context?.compactedSince?.postTokens, 2_000);
+    assert.equal(compacted?.messageCount, 2, 'the turn\'s own two lines: a boundary adds none');
+
+    appendFileSync(file, transcript('compacted-1', '/x', [{ id: 'm2', model: 'claude-opus-5', at: '2026-03-10T10:06:00Z', in: 3, out: 20, read: 2_100 }]));
+    const answered = await core.chats.get('compacted-1');
+    assert.equal(answered?.context?.used, 2_103);
+    assert.equal(answered?.context?.compactedSince, undefined);
+  } finally {
+    core.shutdown();
+  }
+});
+
 test('a subagent is spent but never fills the chat context', async () => {
   const { config, core } = setup();
   try {

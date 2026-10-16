@@ -18,6 +18,8 @@ export interface ContextSnapshot {
   /** `input + cacheRead + cacheCreation` of that response */
   used: number;
   model: string | null;
+  /** The newest compaction boundary, while it is later than the response above: the meter can drop before the next response */
+  compactedSince?: { at: string; trigger: 'manual' | 'auto'; preTokens: number; postTokens: number | null };
 }
 
 interface MessageUsage {
@@ -26,6 +28,8 @@ interface MessageUsage {
   sidechain: boolean;
   /** When the response was written: the day it was spent on */
   at: string | null;
+  /** Where the response stands among the lines folded, so a boundary is compared by order and not by clocks */
+  order: number;
 }
 
 /** What was spent on one day with one model. */
@@ -64,9 +68,23 @@ export function localDay(iso: string): string | null {
 export class UsageFold {
   // A Map keeps the order ids first appeared in, which is the order of the responses
   private readonly byMessage = new Map<string, MessageUsage>();
+  /** Counts every line folded: the order a boundary and a response came in */
+  private lines = 0;
+  /** The newest boundary of the main conversation */
+  private boundary: { order: number; at: string; trigger: 'manual' | 'auto'; preTokens: number; postTokens: number | null } | null = null;
 
   /** `line` is the raw transcript line and `entry` what `normalizeMessage` made of it. */
   add(line: Record<string, unknown>, entry: TranscriptEntry): void {
+    const order = this.lines++;
+    const compaction = entry.compaction;
+    if (compaction?.part === 'boundary') {
+      // A subagent's own compaction says nothing about the main window; one with no trigger or no
+      // size before it is not one the meter can be told about
+      if (!entry.isSidechain && compaction.trigger && compaction.preTokens !== null && entry.timestamp) {
+        this.boundary = { order, at: entry.timestamp, trigger: compaction.trigger, preTokens: compaction.preTokens, postTokens: compaction.postTokens };
+      }
+      return;
+    }
     if (entry.role !== 'assistant') return;
     const message = line.message as { id?: unknown; usage?: unknown } | undefined;
     const u = message?.usage;
@@ -85,6 +103,7 @@ export class UsageFold {
       model: isModelName(entry.model) ? entry.model : null,
       sidechain: entry.isSidechain,
       at: entry.timestamp,
+      order,
     });
   }
 
@@ -92,6 +111,8 @@ export class UsageFold {
   clone(): UsageFold {
     const copy = new UsageFold();
     for (const [id, m] of this.byMessage) copy.byMessage.set(id, m);
+    copy.lines = this.lines;
+    copy.boundary = this.boundary;
     return copy;
   }
 
@@ -140,8 +161,13 @@ export class UsageFold {
     for (const m of this.byMessage.values()) {
       if (!m.sidechain && m.usage.input + m.usage.cacheRead + m.usage.cacheCreation > 0) last = m;
     }
+    const since = this.boundary && (!last || this.boundary.order > last.order) ? this.boundary : null;
     if (!last) return null;
-    return { used: last.usage.input + last.usage.cacheRead + last.usage.cacheCreation, model: last.model };
+    return {
+      used: last.usage.input + last.usage.cacheRead + last.usage.cacheCreation,
+      model: last.model,
+      ...(since ? { compactedSince: { at: since.at, trigger: since.trigger, preTokens: since.preTokens, postTokens: since.postTokens } } : {}),
+    };
   }
 }
 

@@ -1003,6 +1003,71 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * A compaction: the CLI folded the conversation into a summary here. A hairline with its sentence in
+ * the middle, in the muted mono of every system line. It is not a status, so no colour, and it
+ * never moves. The summary Claude continues from sits under it behind a fold.
+ */
+.compaction {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.compaction-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-muted);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.compaction-divider::before,
+.compaction-divider::after {
+  content: '';
+  flex: 1 1 24px;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Narrow, the sentence wraps to a second line instead of crushing the rules */
+.compaction-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.fold.compaction-fold {
+  align-self: center;
+  width: 100%;
+  max-width: 720px;
+  background: none;
+}
+
+.fold.compaction-fold > .collapsible-trigger {
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.compaction-summary {
+  padding: 4px 0 10px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .compaction-fold .btn {
+    min-height: 44px;
+  }
+}
+
 /* A message that is nothing but notices has no bubble and no name over it */
 .msg-notice .msg-body {
   gap: 6px;

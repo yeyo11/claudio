@@ -21,7 +21,7 @@ export function spinnerGlyph(index: number, moving = true): string {
  * types task can land independently. Anything with these fields can be given to an `ActivityTicker`.
  */
 export interface TickerActivity {
-  kind: 'tool' | 'writing' | 'thinking' | 'waiting';
+  kind: 'tool' | 'writing' | 'thinking' | 'waiting' | 'compacting';
   tool?: string;
   target?: string;
   /** ISO timestamp of when this started */
@@ -29,7 +29,7 @@ export interface TickerActivity {
 }
 
 /** The verbs a ticker says; each has its text under `primitives:activity.<verb>`. */
-export const ACTIVITY_VERBS = ['editing', 'reading', 'running', 'searching', 'delegating', 'browsing', 'writing', 'thinking', 'waiting', 'working'] as const;
+export const ACTIVITY_VERBS = ['editing', 'reading', 'running', 'searching', 'delegating', 'browsing', 'writing', 'thinking', 'waiting', 'compacting', 'working'] as const;
 export type ActivityVerb = (typeof ACTIVITY_VERBS)[number];
 
 const TOOL_VERBS: Record<string, ActivityVerb> = {
@@ -59,6 +59,7 @@ export function activityVerb(activity: TickerActivity): ActivityVerb {
   if (activity.kind === 'writing') return 'writing';
   if (activity.kind === 'thinking') return 'thinking';
   if (activity.kind === 'waiting') return 'waiting';
+  if (activity.kind === 'compacting') return 'compacting';
   const tool = activity.tool?.trim().toLowerCase() ?? '';
   return TOOL_VERBS[tool] ?? 'working';
 }

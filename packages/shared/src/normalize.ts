@@ -1,4 +1,4 @@
-import type { ContentBlock, TranscriptEntry } from './types.ts';
+import type { ContentBlock, TranscriptCompaction, TranscriptEntry } from './types.ts';
 
 const MAX_TOOL_RESULT = 20_000;
 
@@ -69,6 +69,7 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   if (o.type === 'system' && o.subtype === 'local_command') return localCommand(o);
+  if (o.type === 'system' && o.subtype === 'compact_boundary') return compactBoundary(o);
   if (o.type === 'attachment') return queuedCommand(o);
   if (o.type !== 'user' && o.type !== 'assistant') return null;
   if (o.isMeta === true) return null;
@@ -76,6 +77,7 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (!message) return null;
   const blocks = toBlocks(message.content);
   if (blocks.length === 0) return null;
+  const summary = o.type === 'user' && isCompactSummary(o, message.content);
   return {
     uuid: String(o.uuid ?? ''),
     role: o.type,
@@ -89,6 +91,52 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
           ? o.parentToolUseID
           : null,
     blocks,
+    ...(summary ? { compaction: { part: 'summary', trigger: null, preTokens: null, postTokens: null, durationMs: null } } : {}),
+  };
+}
+
+/** How the summary starts, whoever wrote it down: the CLI's fixed lead sentence */
+const SUMMARY_LEAD = 'This session is being continued from a previous conversation';
+
+/**
+ * The summary Claude Code continues a compacted session from. The file marks it `isCompactSummary`;
+ * the stream sends the same line as a synthetic message without that flag (recordings/c0-NOTES.md,
+ * F11), so a synthetic line that starts with the CLI's lead sentence is the same summary. Either way
+ * it is not something the person typed, and `isVisibleInTranscriptOnly` alone says nothing.
+ */
+function isCompactSummary(o: Record<string, unknown>, content: unknown): boolean {
+  if (o.isCompactSummary === true) return true;
+  if (o.isSynthetic !== true) return false;
+  const text = typeof content === 'string' ? content : Array.isArray(content) ? (content.find((c) => c?.type === 'text')?.text ?? '') : '';
+  return typeof text === 'string' && text.startsWith(SUMMARY_LEAD);
+}
+
+const count = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * The CLI's marker that the conversation was compacted here. The stream spells the metadata in
+ * snake_case (`compact_metadata`) and the file in camelCase (`compactMetadata`); both are read, and
+ * neither carries `post_tokens` always, so it stays null when absent and is never estimated.
+ */
+function compactBoundary(o: Record<string, unknown>): TranscriptEntry | null {
+  const meta = (o.compact_metadata ?? o.compactMetadata ?? {}) as Record<string, unknown>;
+  const trigger = meta.trigger === 'manual' || meta.trigger === 'auto' ? meta.trigger : null;
+  const compaction: TranscriptCompaction = {
+    part: 'boundary',
+    trigger,
+    preTokens: count(meta.pre_tokens ?? meta.preTokens),
+    postTokens: count(meta.post_tokens ?? meta.postTokens),
+    durationMs: count(meta.duration_ms ?? meta.durationMs),
+  };
+  return {
+    uuid: String(o.uuid ?? ''),
+    role: 'user',
+    timestamp: typeof o.timestamp === 'string' ? o.timestamp : null,
+    model: null,
+    isSidechain: false,
+    parentToolUseId: null,
+    blocks: [],
+    compaction,
   };
 }
 

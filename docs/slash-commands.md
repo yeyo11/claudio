@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T18:45:00Z
-updated_at: 2026-09-25T18:45:00Z
+updated_at: 2026-10-16T12:00:00Z
 tags:
     - chat
     - composer
@@ -48,6 +48,14 @@ The logic is in `apps/web/src/lib/slash-commands.ts`, and the popover and its ke
 
 The popover reuses the `menu` and `menu-item` classes, plus `slash-menu`, which sets a minimum
 width, 44 px rows on touch screens and mono names.
+
+## `/compact`
+
+A `/compact` typed into an idle chat is sent as typed and recorded like the **Compact now** button:
+a compaction row with origin `typed`, shown in the transcript as a divider, not as a user message.
+It is a housekeeping turn, so its result reaches no run listener. Only the person may do it: with a
+chat's token, a typed `/compact` (also as the prompt of a resume or a fork) is `403`. See
+[context-control.md](context-control.md).
 
 ## Related fix
 

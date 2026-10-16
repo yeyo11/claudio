@@ -85,9 +85,18 @@ test('a share of the window exists only when the window is known', () => {
   assert.equal(contextShare(chat({ context: { used: 50_000, window: 200_000 } })), 0.25);
 });
 
+test("right after a compaction the share is the boundary's figure, not the response before it", () => {
+  const compactedSince = { at: '2026-10-16T14:02:00.000Z', trigger: 'manual' as const, preTokens: 150_000 };
+  assert.equal(contextShare(chat({ context: { used: 150_000, window: 200_000, compactedSince: { ...compactedSince, postTokens: 20_000 } } })), 0.1);
+  // The CLI gave no figure: the last response is all there is until the next one
+  assert.equal(contextShare(chat({ context: { used: 150_000, window: 200_000, compactedSince: { ...compactedSince, postTokens: null } } })), 0.75);
+});
+
 test('the meter warns before the chat compacts', () => {
   assert.equal(contextLevel(0.5), 'ok');
-  assert.equal(contextLevel(0.8), 'warn');
+  assert.equal(contextLevel(0.6), 'warn');
+  assert.equal(contextLevel(0.74), 'warn');
+  assert.equal(contextLevel(0.75), 'full');
   assert.equal(contextLevel(0.95), 'full');
 });
 

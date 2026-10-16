@@ -287,6 +287,9 @@ stage. On by default for orchestration workers and flow runs, off by default for
 
 ### ★4 Context control
 
+Built (2026-10-16): see [plans/context-control.md](../plans/context-control.md) and
+[context-control.md](../context-control.md).
+
 **Goal.** People see what fills a chat's context, compact it when it makes sense, and long automated
 runs compact at a boundary instead of in the middle of a task.
 
@@ -449,7 +452,7 @@ Good practices worth keeping in mind:
 
 ## Related
 
-[[plans/claude-only-fork.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[prompts.md]] ·
+[[plans/context-control.md]] · [[context-control.md]] · [[plans/claude-only-fork.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[prompts.md]] ·
 [[decision-engine.md]] · [[security-model.md]] · [[plans/sdk-driver-improvements.md]] ·
 [[plans/worker-checks.md]] · [[plans/verify-faster.md]] · [[plans/agent-observability.md]] ·
 [[plans/changes-review.md]] · [[code-hosts.md]] · [[accounts.md]] · [[terminal.md]] ·

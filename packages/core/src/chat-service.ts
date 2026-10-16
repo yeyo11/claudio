@@ -14,9 +14,11 @@ import {
   type CancelCommandResult,
   type Chat,
   type ChatBackgroundTaskEntry,
+  type ChatCompactAvailability,
   type ChatControl,
   type ChatDetail,
   type ChatInterruptRequest,
+  type ChatMessageReceipt,
   type ChatMessageRequest,
   type ChatMessageResponse,
   type ChatOrchestration,
@@ -58,6 +60,7 @@ import {
   type UsageSeries,
 } from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
+import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
 import { gitRaw } from './git.ts';
 import type { Db } from './db.ts';
@@ -203,6 +206,15 @@ export interface ChatServiceDeps {
    * before: a person who continues it gets it back without the run's rules.
    */
   memberChat?: (chatId: string) => boolean;
+  /** Whether Compact now is offered on a chat read alone, and why not (`ContextControl.availability`) */
+  compact?: (chat: Chat) => ChatCompactAvailability;
+  /**
+   * A message typed into an idle chat that is a `/compact`: handled as the person's compaction, and
+   * answered with how it was taken; null when it is an ordinary message after all
+   */
+  typedCompact?: (id: string, request: ChatMessageRequest) => Promise<ChatMessageReceipt | null>;
+  /** Told of every page of a transcript read, so a summary that was not streamed is noticed when it is read (E34) */
+  transcriptRead?: (id: string, entries: TranscriptEntry[]) => void;
 }
 
 /** The run, task or item a chat works for: what makes its limit the rotation's rather than a person's. */
@@ -414,7 +426,13 @@ export class ChatService {
       // Only a process of ours streams what it is doing; a chat a terminal holds says nothing
       activity: (own && runtime?.activity) || null,
       executions,
-      context: usage?.context ? { used: usage.context.used, window: usage.context.model ? this.deps.windowOf(usage.context.model) : null } : null,
+      context: usage?.context
+        ? {
+            used: usage.context.used,
+            window: usage.context.model ? this.deps.windowOf(usage.context.model) : null,
+            ...(usage.context.compactedSince ? { compactedSince: usage.context.compactedSince } : {}),
+          }
+        : null,
       // Dollars exist only where the CLI reported them, so a chat nobody launched from here has none
       // and is not priced from its tokens
       cost: { usd: costs.length ? costs.reduce((a, b) => a + b, 0) : null, tokens: usage?.tokens ?? [], total: usage?.total ?? emptyTokenUsage() },
@@ -513,7 +531,8 @@ export class ChatService {
       failedBranches: [...children.subagents, ...children.backgroundTasks, ...children.workflows].filter((b) => b.status === 'failed').length,
       ...(task ? { limits: task.limits, taskElapsedMs: task.elapsedMs, taskSpentUsd: task.spentUsd } : {}),
     });
-    return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health, tools: runtime?.tools ?? null };
+    const chat: Chat = { ...summary, children, environment: env ? toChatEnvironment(env) : null, health, tools: runtime?.tools ?? null };
+    return this.deps.compact ? { ...chat, compact: this.deps.compact(chat) } : chat;
   }
 
   /** The list's view of one chat, read fresh when a decision hangs on it. */
@@ -584,6 +603,7 @@ export class ChatService {
     // Read before the transcript, so what is pushed in between is covered by the stream's replay
     const stream = this.deps.runtime.streamPosition(id);
     const page = await this.fromStores(id, (store, key) => store.page(key, opts));
+    if (page) this.deps.transcriptRead?.(id, page.entries);
     if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream };
     const messages = this.deps.runtime.messages(id) ?? [];
     const visible = opts.includeSidechains ? messages : messages.filter((m) => !m.isSidechain);
@@ -611,6 +631,20 @@ export class ChatService {
       before = page.from;
     }
     return { exportedAt: new Date().toISOString(), chat, entries: this.deps.runtime.messages(id) ?? [] };
+  }
+
+  /** Every compaction boundary and summary of a chat's transcript, oldest first: what a note is kept from */
+  async compactionEntries(id: string): Promise<TranscriptEntry[]> {
+    const pages: TranscriptEntry[][] = [];
+    let before: number | undefined;
+    for (;;) {
+      const page = await this.fromStores(id, (store, key) => store.page(key, { limit: TRANSCRIPT_PAGE_MAX, ...(before !== undefined ? { before } : {}) }));
+      if (!page) break;
+      pages.unshift(page.entries.filter((e) => e.compaction));
+      if (page.from === 0 || page.entries.length === 0) break;
+      before = page.from;
+    }
+    return pages.flat();
   }
 
   /** The whole transcript searched, in the index space `detail` pages in; a chat with none, over what its process streamed. */
@@ -780,6 +814,7 @@ export class ChatService {
         ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
         // A starter says what its execution is for; a person's own turn is theirs
         purpose: extras.purpose ?? 'person',
+        ...(extras.housekeeping ? { housekeeping: extras.housekeeping } : {}),
         ...(handBack ? { handBack } : {}),
       },
       adoption,
@@ -833,7 +868,8 @@ export class ChatService {
       if (chat.control.mode !== 'interactive') {
         throw new ChatConflictError(chat.control.mode === 'readOnly' ? chat.control.reason : 'This chat has no live execution: resume it to continue.', chat.control.mode === 'readOnly' ? chat.control.action : null);
       }
-      return this.deps.runtime.sendMessage(id, request.text ?? '', request.attachments ?? [], request.id);
+      const typed = this.deps.typedCompact && TYPED_COMPACT.test((request.text ?? '').trim()) && !request.attachments?.length ? await this.deps.typedCompact(id, request) : null;
+      return typed ?? this.deps.runtime.sendMessage(id, request.text ?? '', request.attachments ?? [], request.id);
     });
     const settled = turn.then(
       () => undefined,
