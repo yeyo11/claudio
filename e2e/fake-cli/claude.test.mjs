@@ -40,7 +40,7 @@ function chat(env = {}, { args = [], setup } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-'));
   const logFile = join(dir, 'log.jsonl');
   setup?.(dir);
-  const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...args], {
+  const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...(typeof args === 'function' ? args(dir) : args)], {
     cwd: dir,
     env: { ...process.env, CLAUDIO_FAKE_CLI_LOG: logFile, ...env },
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -562,4 +562,58 @@ test('a transcript records toolUseResult, the subagent in its own file, and the 
   } finally {
     rmSync(config, { recursive: true, force: true });
   }
+});
+
+/** A settings file like the guard's: SessionStart and PreToolUse run one script, which blocks a command that contains `push` */
+function guardSetup(dir) {
+  const script = join(dir, 'hook.sh');
+  writeFileSync(script, 'input=$(cat)\ncase "$input" in *\'"hook_event_name":"SessionStart"\'*) echo "claudio-guard/1 armed" >&2; exit 0;; esac\ncase "$input" in *push*) echo "Claudio guard blocked this (push): no pushing" >&2; exit 2;; esac\necho "claudio-guard/1 pass" >&2\nexit 0\n');
+  const hook = { matcher: '*', hooks: [{ type: 'command', command: `sh ${script}` }] };
+  const settings = join(dir, 'settings.json');
+  writeFileSync(settings, JSON.stringify({ disableAllHooks: false, hooks: { SessionStart: [hook], PreToolUse: [hook] } }));
+  return ['--settings', settings, '--include-hook-events'];
+}
+const hookResponse = (event) => (e) => e.type === 'system' && e.subtype === 'hook_response' && e.hook_event === event;
+
+test('--settings: SessionStart runs before init, a passing command runs and a hook_response follows its call', async () => {
+  const c = chat({}, { args: guardSetup });
+  const start = await c.next(hookResponse('SessionStart'));
+  assert.equal(start.exit_code, 0);
+  assert.equal(c.events.findIndex((e) => e.subtype === 'init'), c.events.indexOf(start) + 1);
+  c.say('run: echo fine');
+  await c.next(toolUse);
+  const pass = await c.next(hookResponse('PreToolUse'));
+  assert.equal(pass.hook_name, 'PreToolUse:Bash');
+  assert.match(pass.stderr, /claudio-guard\/1 pass/);
+  const result = await c.next((e) => e.type === 'user');
+  assert.deepEqual([result.message.content[0].content, result.message.content[0].is_error], ['fine', false]);
+  await c.done();
+});
+
+test('--settings: exit 2 blocks the command, which never runs, and the tool_result carries the CLI\'s text', async () => {
+  const c = chat({}, { args: guardSetup });
+  await c.next(hookResponse('SessionStart'));
+  c.say('run: touch ran-push && git push');
+  const call = await c.next(toolUse);
+  const response = await c.next(hookResponse('PreToolUse'));
+  assert.equal(response.exit_code, 2);
+  assert.equal(response.outcome, 'error');
+  const result = await c.next((e) => e.type === 'user');
+  assert.equal(result.message.content[0].tool_use_id, call.message.content[0].id);
+  assert.equal(result.message.content[0].is_error, true);
+  assert.match(result.message.content[0].content, /^PreToolUse:Bash hook error: \[sh .*hook\.sh\]: Claudio guard blocked this \(push\): no pushing/);
+  assert.ok(!existsSync(join(c.dir, 'ran-push')), 'a blocked command never runs');
+  assert.ok(c.log().some((l) => l.event === 'command-blocked'));
+  await c.done();
+});
+
+test('--settings: CLAUDIO_FAKE_CLI_NO_HOOKS=1 leaves a call with no hook_response, and NO_ARM=1 no SessionStart', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_NO_HOOKS: '1', CLAUDIO_FAKE_CLI_NO_ARM: '1' }, { args: guardSetup });
+  await c.next((e) => e.subtype === 'init');
+  c.say('run: echo push');
+  await c.next(toolUse);
+  const result = await c.next((e) => e.type === 'user');
+  assert.equal(result.message.content[0].is_error, false);
+  assert.ok(!c.events.some((e) => e.subtype === 'hook_response'), 'no hook ran');
+  await c.done();
 });

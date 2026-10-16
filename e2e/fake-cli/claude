@@ -238,6 +238,46 @@ function init() {
     plugins: [],
   });
 }
+// ---------- the hooks of --settings (g0's contract): SessionStart arms, PreToolUse can block ----------
+
+const settingsFile = flag('--settings');
+let hookCommands = {};
+try {
+  hookCommands = settingsFile ? (JSON.parse(readFileSync(settingsFile, 'utf8')).hooks ?? {}) : {};
+} catch {
+  // an unreadable settings file means no hooks, as for the CLI
+}
+const hookEvents = argv.includes('--include-hook-events');
+/**
+ * Runs the first command of a hook event the way the CLI does: `sh -c` with the hook input on stdin.
+ * With `--include-hook-events` it streams `hook_started` and `hook_response`, in the shape g0 recorded.
+ * Only exit 2 blocks; any other code lets the call run.
+ */
+function runHook(event, name, input) {
+  const command = hookCommands[event]?.[0]?.hooks?.[0]?.command;
+  if (!command) return null;
+  const hookId = randomUUID();
+  if (hookEvents) emit({ type: 'system', subtype: 'hook_started', hook_id: hookId, hook_name: name, hook_event: event, uuid: randomUUID() });
+  const ran = spawnSync('/bin/sh', ['-c', command], { input: JSON.stringify({ session_id: sessionId, cwd: process.cwd(), hook_event_name: event, ...input }), encoding: 'utf8' });
+  const code = ran.status ?? 1;
+  if (hookEvents) {
+    emit({ type: 'system', subtype: 'hook_response', hook_id: hookId, hook_name: name, hook_event: event, output: `${ran.stdout}${ran.stderr}`, stdout: ran.stdout, stderr: ran.stderr, exit_code: code, outcome: code === 0 ? 'success' : 'error', uuid: randomUUID() });
+  }
+  return { code, command, stderr: ran.stderr };
+}
+// SessionStart runs when the process starts, before `init` and before any message (g0, F9)
+if (settingsFile && env.CLAUDIO_FAKE_CLI_NO_ARM !== '1') runHook('SessionStart', `SessionStart:${flag('--resume') ? 'resume' : 'startup'}`, { source: flag('--resume') ? 'resume' : 'startup' });
+/**
+ * The PreToolUse hook of a Bash call, run after the call is announced as the CLI does. Returns the text the
+ * model gets for an exit 2 (F5), or null when the call may run. `CLAUDIO_FAKE_CLI_NO_HOOKS=1` never runs it:
+ * a guard that is not there, which the wrapper's liveness check must notice.
+ */
+function bashBlock(id, command) {
+  if (env.CLAUDIO_FAKE_CLI_NO_HOOKS === '1') return null;
+  const verdict = runHook('PreToolUse', 'PreToolUse:Bash', { tool_name: 'Bash', tool_input: { command, description: `Run ${command}` }, tool_use_id: id });
+  return verdict?.code === 2 ? `PreToolUse:Bash hook error: [${verdict.command}]: ${verdict.stderr}` : null;
+}
+
 init();
 log('started', { argv, cwd: process.cwd() });
 
@@ -458,12 +498,24 @@ function nextStep() {
   if (step.kind === 'background') return startBackground(own, step.text);
   const command = step.text;
   const id = newToolId();
+  // With hooks the call is announced first and the hook answers after it, as the CLI streams them
+  const hooked = settingsFile !== undefined && hookCommands.PreToolUse !== undefined;
+  if (hooked) {
+    assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
+    const blocked = bashBlock(id, command);
+    if (blocked !== null) {
+      log('command-blocked', { toolUseId: id, command });
+      toolResult(id, blocked, true, `Error: ${blocked}`);
+      afterTool(own);
+      return;
+    }
+  }
   // A direct child of this process, the way the CLI's shell calls are: the wrapper finds it under our
   // pid, by its start time against the call's (it allows two seconds either way). It is started and
   // logged before the call is announced, so whoever reads the call can already find its pid in the log
   const child = spawn('sh', ['-c', command], { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
   log('command', { toolUseId: id, command, commandPid: child.pid });
-  assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
+  if (!hooked) assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
   const started = Date.now();
   let stdout = '';
   let stderr = '';
