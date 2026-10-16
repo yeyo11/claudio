@@ -2,14 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Braces, Check, FileWarning, History, Pin, Play, Plus, TriangleAlert, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EVAL_LIMITS, type EvalDefinition, type EvalFileDetail, type EvalTargetKind, type Team } from '@claudio/shared';
-import { Collapsible, Combobox, NumberInput, Select } from '@claudio/ui/components/controls';
+import { EVAL_LIMITS, type EvalDefinition, type EvalFileDetail, type EvalPressure, type EvalTargetKind, type Team } from '@claudio/shared';
+import { Collapsible, Combobox, NumberInput, Select, Switch } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { api, ApiRequestError, keys, useEvalFile, useEvalHead } from '../../../api';
+import { api, ApiRequestError, keys, useEvalFile, useEvalHead, useEvalsPhase2 } from '../../../api';
 import { useDirty } from '../../../lib/dirty';
+import { DraftCases } from './DraftCases';
 import { ExpectRow } from './Expect';
 import {
   blankCase,
@@ -23,11 +24,14 @@ import {
   INSTRUCTION_NAMES,
   jsonOf,
   nameFromTitle,
+  PRESSURE_LIST,
+  pressuresOf,
   problemsAt,
   resourceKindOf,
   sameDefinition,
   shortSha,
   validName,
+  type CaseForm,
   type EvalForm,
 } from './model';
 
@@ -46,6 +50,29 @@ function Row({ label, hint, errors, children }: { label: string; hint?: ReactNod
         </span>
       ))}
     </div>
+  );
+}
+
+/** The prompt of one case, a tab per pressure level once Phase 2 is on; `neutral` is the task alone and always there. */
+function PromptField({ value, onChange, errors, phase2 }: { value: CaseForm; onChange: (patch: Partial<CaseForm>) => void; errors: string[]; phase2: boolean }) {
+  const { t } = useTranslation('evals');
+  const [level, setLevel] = useState<EvalPressure>('neutral');
+  const withLevels = phase2 || value.promptSupportive !== '' || value.promptCompeting !== '';
+  const active = withLevels ? level : 'neutral';
+  const field = active === 'supportive' ? 'promptSupportive' : active === 'competing' ? 'promptCompeting' : 'prompt';
+  const written = pressuresOf(value);
+  return (
+    <Row label={t('editor.prompt')} errors={errors} hint={t(`pressure.hint.${active}`, { max: EVAL_LIMITS.promptChars.max })}>
+      {withLevels && (
+        <Segmented<EvalPressure>
+          value={active}
+          label={t('pressure.label')}
+          onChange={setLevel}
+          options={PRESSURE_LIST.map((p) => ({ value: p, label: `${t(`pressure.${p}`)}${written.includes(p) && p !== 'neutral' ? ' ●' : ''}` }))}
+        />
+      )}
+      <textarea rows={4} value={value[field]} onChange={(event) => onChange({ [field]: event.target.value })} aria-label={withLevels ? t('pressure.promptAt', { level: t(`pressure.${active}`) }) : t('editor.prompt')} />
+    </Row>
   );
 }
 
@@ -195,6 +222,7 @@ function Form({
   const toast = useToast();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
+  const phase2 = useEvalsPhase2();
   const blank = blankDefinition(headSha ?? '');
   const base: EvalDefinition = loaded?.definition ?? (initialAgent ? { ...blank, target: { kind: 'agent', scope: 'project', name: initialAgent } } : blank);
   const [baseline, setBaseline] = useState<{ sha: string | null; def: EvalDefinition }>({ sha: loaded?.sha ?? null, def: base });
@@ -521,11 +549,23 @@ function Form({
                   value={asNumber(form.samples)}
                   onChange={(n) => set({ samples: n === undefined ? '' : String(n) })}
                   min={EVAL_LIMITS.samples.min}
-                  max={EVAL_LIMITS.samples.max}
+                  max={phase2 || form.version === 2 ? EVAL_LIMITS.metricSamples.max : EVAL_LIMITS.samples.max}
                   placeholder={String(EVAL_LIMITS.samples.default)}
                   aria-label={t('editor.samples')}
                 />
               </Row>
+              {(phase2 || form.version === 2 || form.k !== '') && (
+                <Row label={t('editor.k')} errors={err('k')} hint={t('editor.kHint', { default: EVAL_LIMITS.metricK.default })}>
+                  <NumberInput
+                    value={asNumber(form.k)}
+                    onChange={(n) => set({ k: n === undefined ? '' : String(n) })}
+                    min={1}
+                    max={EVAL_LIMITS.metricSamples.max}
+                    placeholder={String(EVAL_LIMITS.metricK.default)}
+                    aria-label={t('editor.k')}
+                  />
+                </Row>
+              )}
               <Row label={t('editor.perSample')} errors={err('limits.maxCostUsdPerSample')}>
                 <NumberInput
                   decimal
@@ -613,9 +653,13 @@ function Form({
                         <input className="mono" value={c.pin} onChange={(event) => setCase({ pin: event.target.value.trim() })} spellCheck={false} aria-label={t('editor.casePin')} />
                       </Row>
                     </div>
-                    <Row label={t('editor.prompt')} errors={err(`${at}.prompt`)} hint={t('editor.promptHint', { max: EVAL_LIMITS.promptChars.max })}>
-                      <textarea rows={4} value={c.prompt} onChange={(event) => setCase({ prompt: event.target.value })} aria-label={t('editor.prompt')} />
-                    </Row>
+                    <PromptField value={c} onChange={setCase} errors={[...err(`${at}.prompt`), ...err(`${at}.prompts`)]} phase2={phase2} />
+                    {(phase2 || c.mustHold) && (
+                      <Switch checked={c.mustHold} onChange={(mustHold) => setCase({ mustHold })} aria-label={t('editor.mustHold')} className="check">
+                        <span>{t('editor.mustHold')}</span>
+                        <span className="field-hint">{t('editor.mustHoldHint')}</span>
+                      </Switch>
+                    )}
                     <h4 className="evals-expect-heading">{t('editor.expectations')}</h4>
                     <ol className="evals-expects">
                       {c.expect.map((e, k) => (
@@ -624,6 +668,7 @@ function Form({
                           index={k}
                           value={e}
                           errors={problemsAt(problems, `${at}.expect[${k}]`)}
+                          phase2={phase2}
                           onChange={(next) => setCase({ expect: c.expect.map((x, m) => (m === k ? next : x)) })}
                           onRemove={() => setCase({ expect: c.expect.filter((_, m) => m !== k) })}
                         />
@@ -650,6 +695,9 @@ function Form({
               );
             })}
           </section>
+
+          {phase2 && name !== null && baseline.sha !== null &&
+            (dirty ? <p className="field-hint">{t('draft.saveFirst')}</p> : <DraftCases projectId={projectId} name={name} sha={baseline.sha} onChanged={() => void queryClient.invalidateQueries({ queryKey: keys.evalFile(projectId, name) })} />)}
         </>
       )}
 

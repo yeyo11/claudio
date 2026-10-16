@@ -768,6 +768,293 @@
   overflow-wrap: anywhere;
 }
 
+/* ---------- Phase 2: metrics, gate, drafting, trend ---------- */
+
+/* A rate with its interval: a track, the interval's range and a dot at the rate; the words carry the numbers */
+.evals-rate {
+  position: relative;
+  display: block;
+  height: 8px;
+  min-width: 96px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+.evals-rate-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border-inline: 1px solid var(--accent);
+}
+
+.evals-rate-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-elev);
+}
+
+.evals-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.evals-metric-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  color: var(--text);
+}
+
+.evals-metric-interval,
+.evals-metric-k {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.evals-drops h4,
+.evals-trend-head h4 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-drop-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.evals-drop-list li {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.evals-drop-variant {
+  color: var(--text-muted);
+}
+
+.evals-check-judge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  flex-basis: 100%;
+}
+
+.evals-check-judge q {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.evals-estimate-levels {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The promotion gate: the verdict is a word and an icon, and its colour is the status colour of that word */
+.evals-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evals-gate-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.evals-gate-head h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-gate-verdict {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.evals-gate-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.evals-gate-means {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 13px;
+}
+
+.evals-gate-means dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.evals-gate-means dd {
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Drafted cases */
+.evals-draft-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evals-draft-case {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.evals-draft-case[data-status='discarded'] {
+  opacity: 0.6;
+}
+
+.evals-draft-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.evals-draft-prompts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.evals-draft-prompts dt {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.evals-draft-prompts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.evals-draft-expects {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.evals-draft-kind {
+  color: var(--text-muted);
+}
+
+/* The pass-rate trend: one series, a recessive grid, a 2 px line and the interval as a band behind it */
+.evals-trend {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.evals-trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.evals-trend-svg {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+}
+
+.evals-trend-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.evals-trend-axis,
+.evals-trend-value {
+  fill: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.evals-trend-value {
+  fill: var(--text);
+}
+
+.evals-trend-band {
+  fill: var(--accent-soft);
+}
+
+.evals-trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.evals-trend-dot {
+  fill: var(--accent);
+  stroke: var(--bg-elev);
+  stroke-width: 2;
+}
+
+.evals-trend-hit {
+  fill: transparent;
+}
+
 /* A phone: the dialog is a sheet whose fields are 16 px and whose targets are 44 px */
 .evals-start-sheet input,
 .evals-start-sheet textarea {
@@ -778,4 +1065,15 @@
 .evals-start-sheet .select-trigger,
 .evals-sample-sheet .btn {
   min-height: var(--touch);
+}
+
+.team-page.is-phone .evals-gate .btn,
+.team-page.is-phone .evals-draft .btn,
+.team-page.is-phone .evals-trend .segmented button {
+  min-height: var(--touch);
+}
+
+.team-page.is-phone .evals-gate-means {
+  flex-direction: column;
+  gap: 12px;
 }

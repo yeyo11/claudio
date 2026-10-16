@@ -112,7 +112,8 @@
       "text": "Final text",
       "file": "File",
       "touched": "Touched",
-      "command": "Command"
+      "command": "Command",
+      "judged": "Judged"
     },
     "hint": {
       "called": "A call happens, as many times as asked",
@@ -123,7 +124,8 @@
       "text": "The final answer matches",
       "file": "A file exists or holds something",
       "touched": "A path changed, or did not",
-      "command": "A command run in the lane exits as expected"
+      "command": "A command run in the lane exits as expected",
+      "judged": "A model checks a statement against what happened"
     },
     "call": "Call",
     "min": "At least",
@@ -152,7 +154,12 @@
     "run": "Command",
     "runHint": "Runs on this machine, in the lane, once you accept the file",
     "exitCode": "Exit code",
-    "timeoutSeconds": "Timeout (s)"
+    "timeoutSeconds": "Timeout (s)",
+    "statement": "Statement",
+    "statementHint": "What a judge model must find true, for example “Explains why it chose X over Y before editing”. The judge sees only the calls and the final answer.",
+    "judgeModel": "Judge model",
+    "examplesKept_one": "{{count}} calibration example, edited in JSON",
+    "examplesKept_other": "{{count}} calibration examples, edited in JSON"
   },
   "editor": {
     "back": "Evals",
@@ -249,7 +256,11 @@
     "addExpectation": "Add a check",
     "removeCase": "Remove the case",
     "run": "Run eval",
-    "saveFirst": "Save the eval first: a run uses the file as it is on disk."
+    "saveFirst": "Save the eval first: a run uses the file as it is on disk.",
+    "k": "k for pass@k and pass^k",
+    "kHint": "At most the attempts per case. Default {{default}}.",
+    "mustHold": "Must hold",
+    "mustHoldHint": "A regression guard: the promotion gate reads its pass^k."
   },
   "notice": {
     "waiting": {
@@ -314,7 +325,8 @@
       "interrupted": "The run was interrupted before this attempt finished.",
       "cancelled": "The run was cancelled before this attempt finished.",
       "skipped": "The run stopped at its ceiling before this attempt.",
-      "infra": "Something outside the target failed (the CLI, the worktree or the setup), so the attempt says nothing about it."
+      "infra": "Something outside the target failed (the CLI, the worktree or the setup), so the attempt says nothing about it.",
+      "unjudged": "A judge failed (an error, a limit or an unreadable answer), so a judged expectation has no verdict. It is not scored, and the gate treats it as missing."
     },
     "fact": {
       "cost": "Cost",
@@ -324,7 +336,9 @@
       "model": "Model",
       "cli": "CLI",
       "pin": "Pin"
-    }
+    },
+    "unjudged": "Not judged",
+    "judge": "Judge {{model}}"
   },
   "history": {
     "open": "History",
@@ -390,7 +404,10 @@
       "title": "Estimate",
       "line_one": "{{count}} attempt · up to {{cost}}",
       "line_other": "{{count}} attempts · up to {{cost}}",
-      "typical": "typically {{cost}}"
+      "typical": "typically {{cost}}",
+      "perLevel": "Per pressure level",
+      "level_one": "{{level}}: {{count}} attempt · up to {{cost}}",
+      "level_other": "{{level}}: {{count}} attempts · up to {{cost}}"
     },
     "warning": {
       "dirty-checkout": "The checkout has uncommitted changes. Only the target's current text is used; other uncommitted changes are not in the eval.",
@@ -450,6 +467,12 @@
         "title": "The Team module is off",
         "fix": "Switch it on in the project's settings to use evals."
       }
+    },
+    "pressures": "Pressure levels",
+    "pressureHint": {
+      "supportive": "Prompts that remind the agent of the rule",
+      "neutral": "The task alone",
+      "competing": "Prompts that give a reason to skip the rule"
     }
   },
   "member": {
@@ -457,5 +480,101 @@
     "new": "New eval",
     "needsChange": "Change the agent file first: an eval compares a change.",
     "tooLarge": "The file is too large to hand to an eval (256 KiB at most)."
+  },
+  "pressure": {
+    "label": "Pressure level",
+    "supportive": "Supportive",
+    "neutral": "Neutral",
+    "competing": "Competing",
+    "promptAt": "Prompt at the {{level}} level",
+    "hint": {
+      "supportive": "Reminds the agent of the rule. Written by you; up to {{max}} characters.",
+      "neutral": "The task alone, sent as the attempt's only message, up to {{max}} characters.",
+      "competing": "The task plus a plausible reason to skip the rule, such as urgency. Written by you; up to {{max}} characters."
+    }
+  },
+  "draft": {
+    "title": "Draft cases",
+    "note": "The project assistant reads the target file and proposes up to five cases, with prompts at each pressure level. Nothing is written until you accept a case.",
+    "start": "Draft cases",
+    "again": "Draft again",
+    "drafting": "Drafting…",
+    "startFailed": "Could not start the draft",
+    "decideFailed": "Could not update the case",
+    "failed": "The draft failed. Try again.",
+    "none": "The assistant proposed no cases.",
+    "accept": "Add to eval",
+    "discard": "Discard",
+    "accepted": "Added to the eval",
+    "discarded": "Discarded",
+    "mustHold": "Must hold",
+    "commands_one": "This case runs {{count}} command. Adding it changes the file, so you will be asked for consent again.",
+    "commands_other": "This case runs {{count}} commands. Adding it changes the file, so you will be asked for consent again.",
+    "saveFirst": "Save the eval to draft cases for it."
+  },
+  "metrics": {
+    "title": "Metrics",
+    "note": "Rates are shown with the number of attempts and a 95 % interval: with few attempts the interval is wide.",
+    "caption": "Pass rate per case and variant at the {{pressure}} level",
+    "empty": "No attempt was scored at this level.",
+    "notScored": "Not scored",
+    "unjudged_one": "{{count}} unjudged",
+    "unjudged_other": "{{count}} unjudged",
+    "rate": "{{c}}/{{n}} · {{rate}}",
+    "interval": "95 % interval {{range}}",
+    "barLabel": "{{rate}}, 95 % interval {{range}}",
+    "passAt": "pass@{{k}} {{value}}",
+    "passHat": "pass^{{k}} {{value}}",
+    "dropTitle": "Pressure",
+    "dropNote": "How much the pass rate falls from supportive to competing: how much pressure it takes to break the rule.",
+    "drop": "−{{points}} points"
+  },
+  "gate": {
+    "title": "Promotion gate",
+    "verdict": {
+      "promotable": "May be promoted",
+      "regressed": "Regressed",
+      "incomplete": "Incomplete"
+    },
+    "explain": {
+      "promotable": "No must-hold case fell and the mean pass rate did not fall by more than its interval. Nothing is applied: you decide.",
+      "regressed": "A must-hold case fell, or the mean pass rate fell by more than its interval. Nothing is applied.",
+      "incomplete": "Some attempts could not be scored, so the gate does not say it may be promoted."
+    },
+    "regressedList": "Cases that fell",
+    "regressedLine": "{{case}} · {{pressure}}: pass^k {{from}} → {{to}}",
+    "incompleteList": "Why it is incomplete",
+    "reason": {
+      "unjudged": "a judge failed, so the attempt is not scored",
+      "not-scored": "no attempt was scored",
+      "small-n": "fewer than {{min}} scored attempts",
+      "judge-unreliable": "its judge disagreed with the calibration examples"
+    },
+    "unreliable": {
+      "title": "Judge unreliable",
+      "body": "A judge disagreed with its calibration examples. The gate stays incomplete until you accept it or edit the statement.",
+      "which": "{{case}} · expectation {{n}}",
+      "accept": "Accept this judge"
+    },
+    "meanBar": "Proposed mean {{rate}} against the current interval {{range}}",
+    "accountPinned": "Run on the pinned account {{account}}.",
+    "accountRotation": "Run on the account rotation.",
+    "rejudge": "Judge again",
+    "rejudgeFailed": "Could not judge again",
+    "acceptFailed": "Could not accept the judge",
+    "saveProposed": "Save proposed",
+    "saveFailed": "Could not hand over the proposed text"
+  },
+  "trend": {
+    "title": "Pass rate over time",
+    "view": "View",
+    "chart": "Chart",
+    "table": "Table",
+    "few": "Two scored runs are needed to draw a trend.",
+    "aria": "Pass rate over {{count}} runs, the latest {{rate}}",
+    "point": "{{when}}: {{passed}}/{{of}} cases, {{rate}} (95 % interval {{range}})",
+    "when": "Run",
+    "cases": "Cases",
+    "rate": "Pass rate (95 % interval)"
   }
 }

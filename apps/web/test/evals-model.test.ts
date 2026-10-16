@@ -114,6 +114,7 @@ test('the problems of a refused write are found by the field they name, and by w
 const run = (over: Partial<EvalRunSummary>): EvalRunSummary => ({
   id: 'r',
   projectId: 'p',
+  pressures: ['neutral'],
   evalName: 'e',
   definitionSha: 'x',
   variants: ['current'],
