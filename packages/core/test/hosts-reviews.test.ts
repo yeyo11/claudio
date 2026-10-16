@@ -219,7 +219,8 @@ test('github reviews: pending reviews are paged and only PENDING ones are pendin
   assert.equal(entries.length, 2);
   assert.ok(entries.every((e) => !e.pending));
   assert.equal(entries[0]?.author, 'yeyo11');
-  assert.equal(entries[0]?.body.includes('[claudio-review:r0probe]'), true);
+  // The recorded review was posted by the upstream project, under its name
+  assert.equal(entries[0]?.body.includes('[agentry-review:r0probe]'), true);
   const pending = githubAdapter.parsePendingReviews(result('[[{"id":9,"state":"PENDING","body":"","user":{"login":"me"}}]]'));
   assert.deepEqual(pending, [{ id: '9', pending: true, body: '', author: 'me' }]);
 });

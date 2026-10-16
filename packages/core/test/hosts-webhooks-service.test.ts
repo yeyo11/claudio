@@ -145,7 +145,7 @@ test('the hook calls are the recorded ones, with the secret on stdin and never i
 test('the recorded hook answers parse, and a failing last response is told from a good one', () => {
   const created = githubHooks.parseHook(recorded('hook_create').stdout);
   assert.equal(created.id, HOOK);
-  assert.equal(created.url, 'https://claudio.example.net/github/1');
+  assert.equal(created.url, 'https://agentry.example.net/github/1' /* as recorded */);
   assert.deepEqual(created.lastResponse, { code: null, status: 'unused' });
   const after = githubHooks.parseHook(recorded('hook_get_after').stdout);
   assert.deepEqual(after.lastResponse, { code: 204, status: 'active' });
@@ -576,7 +576,7 @@ test('the GitLab hook calls are the recorded ones, with the token and signing to
 
 test('the recorded GitLab answers parse: the hook, its newest delivery and the failed ones', () => {
   const created = gitlabHooks.parseHook([glRecorded('w0_hook_create').stdout]);
-  assert.deepEqual([created.id, created.url, created.disabled, created.lastResponse], [GL_HOOK, 'https://claudio.example.net/gitlab/1', false, null]);
+  assert.deepEqual([created.id, created.url, created.disabled, created.lastResponse], [GL_HOOK, 'https://agentry.example.net/gitlab/1' /* as recorded */, false, null]);
   const events = gitlabHooks.parseHook([glRecorded('w0_hook_get').stdout, glRecorded('w0_hook_events').stdout]);
   assert.deepEqual(events.lastResponse, { code: 204, status: 'active' });
   assert.equal(events.deliveryKey, '27604479645');
