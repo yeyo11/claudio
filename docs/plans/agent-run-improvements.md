@@ -2626,8 +2626,9 @@ differed from the text above.
 - **The cap is asked in `request()`.** The web's `api.ts` shows `SpendCapDialog` on any `409 spend-cap`
   and resends with the override header, so no page wires it. While the dialog is open a chat message
   sits in the composer's "sending" card and returns to the composer on cancel. The cap's card lives
-  on Settings → Security, where `AppSettingsCards` is; there is no "Runtime" tab. The same
-  per-item pass serves the flow (resolved question 2).
+  on Settings → Security, where `AppSettingsCards` is; there is no "Runtime" tab. The per-item
+  "Keep going today" pass exists for graphs only: a flow card waits at the cap with its wait line
+  and has no pass of its own yet (resolved question 2 is open for the flow).
 - **Optional roles and rules.** `ApproveMemoryProposalRequest` gained an optional `file` for the
   rename after a `409`. A role accepted from the assistant keeps the template's `tools` and
   `commands`. `MemoryProposalTarget.paths` stays optional in the type.
