@@ -23,7 +23,8 @@
 // in one shard, behind one restart of its server. See e2e/shards.mjs.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { availableParallelism, tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
@@ -122,11 +123,30 @@ releaseFixture.unref();
 const releasesUrl = `http://127.0.0.1:${releaseFixture.address().port}/repos/yeyo11/claudio/releases/latest`;
 
 const sandbox = mkdtempSync(join(tmpdir(), 'claudio-e2e-'));
-// Specs seed transcripts and files straight into these directories
+// The guard program every guarded run is armed with, bundled the way apps/api/scripts/bundle.mjs ships
+// it and read-only, as the image and the packages install it. The server runs from source, where the
+// guard would be packages/core/src/guards/main.ts: under umask 002 a checkout leaves it group-writable,
+// preflight refuses it (rightly), and every orchestration task failed with guard-unavailable before
+// it ran. The suite tests the app, not the umask of the machine it was cloned on.
+const guardEntry = join(sandbox, 'guard', 'guard.mjs');
+createRequire(join(root, 'apps/api/package.json'))('esbuild').buildSync({
+  entryPoints: [join(root, 'packages/core/src/guards/main.ts')],
+  outfile: guardEntry,
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  logLevel: 'error',
+});
+chmodSync(guardEntry, 0o444);
+// Specs seed transcripts and files straight into these directories; `guardEntry` is the guard the
+// server runs, which a spec may make untrustworthy for a while
 const dirs = {
   configDir: live ? null : join(sandbox, 'claude'),
   workspaceDir: join(sandbox, 'workspace'),
   dataDir: join(sandbox, 'data'),
+  guardEntry,
 };
 // Without setup recorded as seen, the setup assistant stands in for the app on every page
 // load, and no other spec could see the app. So the sandbox starts as a machine that finished that
@@ -163,6 +183,8 @@ const env = {
   // server serves that instead, and the suite reports on a build nobody asked it to look at. The
   // check above proves this directory exists; it is also the one every spec means.
   CLAUDIO_WEB_DIST: join(root, 'apps/web/dist'),
+  // The bundled guard above, and never one the environment pointed at (a desktop install exports its own)
+  CLAUDIO_GUARD_ENTRY: guardEntry,
   CLAUDIO_RELEASES_URL: releasesUrl,
   CLAUDIO_UPDATE_CHECK: 'off',
   // The Updates card offers the Docker commands, the one distribution a browser run can stand for

@@ -5,18 +5,15 @@
 // a chat token refused on PUT /settings/guards, the guard made unavailable, and the phone.
 //
 // guard.spec.mjs is the unsaved-changes guard; this file is about the guards of agents.
-import { chmodSync, existsSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { chmodSync, statSync } from 'node:fs';
 
 export const fakeCli = true;
 export const timeout = 300_000;
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-/** The bundle the server runs the guard from (`pnpm build`); scenario 6 makes it untrustworthy for a while */
-const GUARD_BUNDLE = join(root, 'apps/api/dist/guard.mjs');
 
 export default async ({ page, api, check, dirs }) => {
+  /** The bundle run.mjs arms the server's guards with; scenario 6 makes it untrustworthy for a while */
+  const GUARD_BUNDLE = dirs.guardEntry;
   const settled = (state) => state !== 'running' && state !== 'starting';
   const untilChat = async (id, label) => {
     for (let i = 0; i < 120; i++) {
@@ -46,6 +43,8 @@ export default async ({ page, api, check, dirs }) => {
     const base = await api.put('/settings/guards', { mode: 'enforce', automated: true, rules: { 'no-verify': true, push: true, destructive: true, secrets: true, 'protect-configs': false } });
     check(base.status === 200, `the guard settings were set (${base.status})`);
     await page.viewport(1440, 900);
+    // localStorage belongs to the app's origin: a spec that runs first starts on about:blank, which has none
+    await page.goto('/', 800);
     await theme('dark');
 
     // ===== a project that opted in to guards in its chats =====
@@ -133,7 +132,7 @@ export default async ({ page, api, check, dirs }) => {
     // ===== 6. the guard made unavailable: a launched task fails, Settings shows bad =====
     // run.mjs cannot restart the server with another CLAUDIO_GUARD_ENTRY for one spec, so the bundle the
     // server uses is made writable by everyone for a while, which preflight refuses as well as a missing file
-    if (existsSync(GUARD_BUNDLE)) {
+    {
       bundleMode = statSync(GUARD_BUNDLE).mode & 0o777;
       chmodSync(GUARD_BUNDLE, 0o666);
       await page.goto('/settings?tab=security', 1500);
@@ -144,7 +143,7 @@ export default async ({ page, api, check, dirs }) => {
       check(/guard/i.test(failed), `a launch with guards unavailable says so (${failed.slice(0, 200)})`);
       chmodSync(GUARD_BUNDLE, bundleMode);
       bundleMode = null;
-    } else check(true, `no ${GUARD_BUNDLE}: the server runs from source, scenario 6 needs the built bundle`);
+    }
 
     // ===== 7. the phone: the card and the rules Sheet, 44 px targets, both themes =====
     await page.viewport(390, 844);
