@@ -150,7 +150,8 @@ import { AuthStore } from './security/auth.ts';
 import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
-import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
+import { agentsDefinitionFile } from './agents-file.ts';
+import { TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
@@ -2284,25 +2285,7 @@ export class Core {
     } catch {
       throw new Error(`the agent file .claude/agents/${agent}.md is missing: write it again from the Team screen`);
     }
-    const fields = readFrontmatter(content);
-    const prompt = content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
-    const tools = readFrontmatterList(content, 'tools');
-    const disallowedTools = readFrontmatterList(content, 'disallowedTools');
-    const definition = {
-      [agent]: {
-        description: fields.description || agent,
-        prompt: prompt || fields.description || agent,
-        model: member.model,
-        ...(tools?.length ? { tools } : {}),
-        ...(disallowedTools?.length ? { disallowedTools } : {}),
-      },
-    };
-    const body = `${JSON.stringify(definition, null, 2)}\n`;
-    const dir = join(this.config.dataDir, 'flow-agents');
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
-    await writeFile(file, body, { mode: 0o600 });
-    return file;
+    return agentsDefinitionFile(content, agent, member.model, join(this.config.dataDir, 'flow-agents'));
   }
 
   // ---------- work items ----------
