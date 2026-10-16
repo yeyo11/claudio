@@ -29,6 +29,8 @@ optional, so a graph stored before it still loads, and nothing is backfilled.
 | `VerificationState` | `fixes[]` | `fix()`, one per fixer attempt: its chat (`runId`, null if it could not start), the command, the attempt, start, end and cost |
 | `VerificationCommand` | `runs[]` | `checkAll()`, one per execution: `pass`, `startedAt`, `durationMs`, `passed`/`failed`, `timedOut`, `cancelled`. `durationMs` still means the last run |
 | `Orchestration` | `synthesisStartedAt`, `synthesisEndedAt` | `synthesize()`, the failure path included |
+| `VerificationState.review` | `startedAt`, `endedAt` | the review gate, from its first round to its end |
+| `review_rounds` rows | runs of each round, `costUsd` | the gate runner; `orchestrationTimings` takes the rounds as its fourth argument |
 
 A wrapper restart closes a phase it cut off at the moment it came back, so no figure counts up for
 ever.
@@ -78,6 +80,12 @@ nothing is cached. What is still running counts up to `at`.
   (`failureSignature`, `errorCount` and `parseFixerReport` in `packages/core/src/verification.ts`). The
   attempts it had are still in `fixes[]`, so `fixerMs` counts them.
 
+- **Review**: when the graph has a review gate, `verification.review` carries `startedAt`,
+  `endedAt` and, per round, `reviewMs` and `verifyMs` (from the earliest start to the latest end of
+  the round's reviewer runs, and of its verifier runs), `fixMs` (the fix recorded in
+  `verification.fixes` with the command `review round N`) and `costUsd`. The gate's chats are
+  linked with the role `review` (`REVIEW_CHAT_ROLE`, the pseudo-id `__review__`).
+
 ## The script
 
 `node scripts/orchestration-timings.mjs [id|name…] [--min-tasks N] [--json]` prints the plan's
@@ -111,4 +119,4 @@ Rebased on 2026-10-07 onto `main`, where three things had changed under it:
 
 ## Related
 
-[[plans/orchestration-timings.md]] · [[plans/orchestration-speed.md]] · [[decisions/orchestration-timings-on-read.md]] · [[design-system.md]]
+[[plans/review-gate.md]] · [[plans/orchestration-timings.md]] · [[plans/orchestration-speed.md]] · [[decisions/orchestration-timings-on-read.md]] · [[design-system.md]]

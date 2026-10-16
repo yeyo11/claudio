@@ -19,6 +19,8 @@ export interface MapFile {
   uncommitted: boolean;
   seen: boolean;
   live: boolean;
+  /** Open findings of the review gate on this file */
+  findings?: number;
 }
 
 export function Counts({ additions, deletions, binary = false }: { additions: number; deletions: number; binary?: boolean }) {
@@ -58,6 +60,7 @@ export function useRowWords() {
       m.uncommitted ? t('row.uncommitted') : null,
       m.seen ? t('row.seen') : null,
       m.live ? t('row.live', { agent: Agent }) : null,
+      m.findings ? t('row.findings', { count: m.findings }) : null,
     ]
       .filter(Boolean)
       .join(' · ');
@@ -176,6 +179,7 @@ function FileRow({ m, current, to, words }: { m: MapFile; current: boolean; to: 
       <span className="changes-file-end" aria-hidden>
         {m.seen && <Check size={14} strokeWidth={2.2} />}
         {m.live && <Spinner />}
+        {m.findings ? <span className="changes-findings-count">{m.findings}</span> : null}
         <Counts additions={m.file.additions} deletions={m.file.deletions} binary={m.file.binary} />
       </span>
     </Link>

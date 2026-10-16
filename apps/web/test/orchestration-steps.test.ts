@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationTaskState, VerificationState } from '@claudio/shared';
-import { followedStep, graphShape, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, stageState, taskStage, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
+import { followedStep, graphShape, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, reviewProgress, stageState, taskStage, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({
   id,
@@ -339,4 +339,50 @@ test('a dependency on a task not in the graph is ignored, as is a task with no i
 test('a cycle has no shape, and the function returns instead of looping', () => {
   assert.equal(graphShape([dep('a', ['b']), dep('b', ['a'])]), null);
   assert.equal(graphShape([dep('ok'), dep('self', ['self'])]), null);
+});
+
+// ---------- the review inside the verification step ----------
+
+const gate = (status: 'running' | 'blocked') => ({
+  status,
+  phase: 'reviewing' as const,
+  round: 1,
+  maxFixRounds: 2,
+  head: null,
+  startedAt: null,
+  endedAt: null,
+  costUsd: 0,
+  reason: null,
+  counts: { blocking: 0, advisory: 0, refuted: 0, outside: 0 },
+  runs: { total: 4, done: 3, running: 1, failed: 0 },
+  depth: 'full' as const,
+});
+
+test('the review is inside the verification step, never a step of its own, and says where it is while it runs', () => {
+  const done = [task('a', { status: 'completed', branch: 'b' })];
+  const running = orch(done, {
+    worktree: true,
+    verificationSpec: { commands: [], fixer: true, maxAttempts: 2, review: {} },
+    integration: integration('merged'),
+    verification: { ...verification('running'), review: gate('running') },
+  });
+  assert.equal(orchestrationSteps(running).filter((s) => s.id === 'verification').length, 1);
+  assert.equal(orchestrationSteps(running).find((s) => s.id === 'verification')?.state, 'current');
+  assert.equal(orchestrationSteps(running).some((s) => s.id.includes('review')), false);
+  assert.deepEqual(reviewProgress(running), { round: 1, rounds: 3, done: 3, total: 4 });
+});
+
+test('a blocked review makes the verification step failed and holds the pull request step', () => {
+  const done = [task('a', { status: 'completed', branch: 'b' })];
+  const blocked = orch(done, {
+    worktree: true,
+    status: 'completed',
+    verificationSpec: { commands: [], fixer: true, maxAttempts: 2, review: {} },
+    integration: integration('merged'),
+    verification: { ...verification('failed'), gate: 'review', review: gate('blocked') },
+  });
+  assert.equal(orchestrationSteps(blocked).find((s) => s.id === 'verification')?.state, 'failed');
+  assert.equal(orchestrationSteps(blocked).some((s) => s.id === 'pull-request'), false);
+  assert.equal(reviewProgress(blocked), null);
+  assert.equal(reviewProgress(orch(done)), null);
 });

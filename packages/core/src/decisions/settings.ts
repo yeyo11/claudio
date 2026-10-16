@@ -46,6 +46,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'review.triage',
   'issue.triage',
   'account.model-fallback',
+  'review.depth',
 ];
 
 /** The provider points of the multi-vendor days, which an old `project.json` may still carry */

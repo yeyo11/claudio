@@ -181,6 +181,21 @@ test('the stream of "compact" reads the recorded manual compaction, and the one 
   assert.deepEqual(actual, JSON.parse(readFileSync(file, 'utf8')));
 });
 
+// The reviewer runs of docs/plans/review-gate.md ("Recorded facts"), recorded with scripts/review-facts.mjs.
+for (const [file, subtype, structured] of [
+  ['review-success.jsonl', 'success', true],
+  ['review-schema-fail.jsonl', 'success', false],
+  ['review-budget.jsonl', 'error_max_budget_usd', false],
+] as const) {
+  test(`the recorded reviewer run ${file} reads without error and ends as ${subtype}`, () => {
+    const lines = recordedLines(file);
+    assert.doesNotThrow(() => compactionEvents(lines));
+    const result = lines.map((l) => JSON.parse(l) as { type: string; subtype?: string; structured_output?: unknown }).find((e) => e.type === 'result');
+    assert.equal(result?.subtype, subtype);
+    assert.equal(result !== undefined && 'structured_output' in result, structured);
+  });
+}
+
 test('a boundary read from the stream and from the session file is the same entry', () => {
   const live = compactionEvents(recordedLines('compact-manual.jsonl')).find((e) => e.kind === 'compacted');
   assert.ok(live && live.kind === 'compacted');

@@ -3,9 +3,9 @@ import { Info } from 'lucide-react';
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphShape } from '../lib/orchestration-steps';
-import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
-import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
-import { Field } from '@claudio/ui/components/ui';
+import { limitsOf, type InstallMode, type ReviewDraft, type VerificationDraft } from '../lib/orchestration-v2';
+import { Checkbox, NumberInput, Select, Switch } from '@claudio/ui/components/controls';
+import { Field, Segmented } from '@claudio/ui/components/ui';
 import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 
@@ -42,6 +42,88 @@ export function DefaultLimits({ value, onChange }: { value: TaskLimits | undefin
         </Field>
       </div>
       <p className="muted small">{t('limits.graphHint')}</p>
+    </div>
+  );
+}
+
+const SECURITY_MODES: readonly ReviewDraft['security'][] = ['auto', 'always', 'off'];
+
+/**
+ * The review of the merged branch (docs/plans/review-gate.md): off by default, because it spends
+ * money on every graph and a blocked review holds the pull request.
+ */
+export function ReviewFields({ value, onChange }: { value: ReviewDraft; onChange: (next: ReviewDraft) => void }) {
+  const { t } = useTranslation('orchestrationV2');
+  const set = (patch: Partial<ReviewDraft>) => onChange({ ...value, ...patch });
+  return (
+    <div className="stack-tight review-fields" data-testid="review-fields">
+      <Switch checked={value.enabled} onChange={(enabled) => set({ enabled })}>
+        {t('review.enable')}
+      </Switch>
+      <p className="muted small">{t('review.enableHint')}</p>
+      {value.enabled && (
+        <>
+          <div className="stack-tight" role="group" aria-label={t('review.dimensions')}>
+            <div className="strong small">{t('review.dimensions')}</div>
+            <Checkbox checked disabled onChange={() => {}}>
+              {t('review.dimension.correctness')} <span className="muted small">{t('review.always')}</span>
+            </Checkbox>
+            <Checkbox checked={value.tests} onChange={(tests) => set({ tests })}>
+              {t('review.dimension.tests')}
+            </Checkbox>
+            <Checkbox checked={value.conventions} onChange={(conventions) => set({ conventions })}>
+              {t('review.dimension.conventions')}
+            </Checkbox>
+          </div>
+          <div className="form-grid">
+            <Field label={t('review.security')} hint={t(`review.securityHint.${value.security}`)}>
+              <Select<ReviewDraft['security']>
+                aria-label={t('review.security')}
+                value={value.security}
+                onChange={(security) => set({ security })}
+                options={SECURITY_MODES.map((mode) => ({ value: mode, label: t(`review.securityMode.${mode}`) }))}
+              />
+            </Field>
+            <Field label={t('review.depth')} hint={t(`review.depthHint.${value.depth}`)}>
+              <Segmented<ReviewDraft['depth']>
+                label={t('review.depth')}
+                value={value.depth}
+                onChange={(depth) => set({ depth })}
+                options={[
+                  { value: 'full', label: t('review.depthFull') },
+                  { value: 'light', label: t('review.depthLight') },
+                ]}
+              />
+            </Field>
+          </div>
+          <Switch checked={value.fixer} onChange={(fixer) => set({ fixer })}>
+            {t('review.fixer')}
+          </Switch>
+          <div className="form-grid">
+            {value.fixer && (
+              <Field label={t('review.fixRounds')} hint={t('review.fixRoundsHint')}>
+                <NumberInput aria-label={t('review.fixRounds')} min={0} max={5} value={value.maxFixRounds} onChange={(v) => set({ maxFixRounds: v ?? 0 })} />
+              </Field>
+            )}
+            <Field label={t('review.maxCost')} hint={t('review.maxCostHint')}>
+              <NumberInput aria-label={t('review.maxCost')} min={0.1} max={1000} step={0.5} value={value.maxCostUsd} onChange={(v) => set({ maxCostUsd: v ?? 5 })} />
+            </Field>
+            <Field label={t('review.maxRunCost')} hint={t('review.maxRunCostHint')}>
+              <NumberInput aria-label={t('review.maxRunCost')} min={0.1} max={1000} step={0.5} value={value.maxRunCostUsd} onChange={(v) => set({ maxRunCostUsd: v ?? 1 })} />
+            </Field>
+            <Field label={t('review.reviewerModel')}>
+              <ModelCombobox aria-label={t('review.reviewerModel')} placeholder={t('review.modelDefault', { model: 'sonnet' })} value={value.reviewerModel} onChange={(reviewerModel) => set({ reviewerModel })} />
+            </Field>
+            <Field label={t('review.verifierModel')}>
+              <ModelCombobox aria-label={t('review.verifierModel')} placeholder={t('review.modelDefault', { model: 'opus' })} value={value.verifierModel} onChange={(verifierModel) => set({ verifierModel })} />
+            </Field>
+          </div>
+          <Field label={t('review.exclude')} hint={t('review.excludeHint')}>
+            <textarea rows={3} className="mono" value={value.exclude} placeholder={t('review.excludePlaceholder')} onChange={(e) => set({ exclude: e.target.value })} />
+          </Field>
+          <p className="muted small">{t('review.cost')}</p>
+        </>
+      )}
     </div>
   );
 }
@@ -127,6 +209,7 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
             {t('verification.e2eSpecs')}
           </Switch>
           <p className="muted small">{t('verification.e2eSpecsHint')}</p>
+          <ReviewFields value={value.review} onChange={(review) => onChange({ ...value, review })} />
         </>
       )}
     </div>

@@ -15,6 +15,7 @@ import { DiffView } from './DiffView';
 import { DraftsChip, useDraftNotes } from './DraftNotes';
 import { Counts } from './FileMap';
 import { Intent } from './Intent';
+import { FileFindingsFold, FindingsChip, findingLayer, mergeLayers, useFileFindings, useReviewFindings } from './ReviewFindings';
 import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
@@ -139,7 +140,11 @@ export function FileReview({
   const mine = useFileThreads(threadsQ.data, file.path);
   const notes = useDraftNotes({ changeRequestId: review?.notes ? review.changeRequestId : undefined, path: file.path, diff: shown, head: threadsQ.data?.headSha });
   // The layer follows the notes' state (the composer, the drafts), so it is built on every render
-  const layer = review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: notes.extra, onAddNote: notes.onAddNote }) : undefined;
+  const threadsLayer = review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: notes.extra, onAddNote: notes.onAddNote }) : undefined;
+  // ---- the review gate's findings on this file (an integration branch whose graph has the gate on) ----
+  const gateQ = useReviewFindings(source.reviewGate?.orchestrationId);
+  const findings = useFileFindings(gateQ.data, file.path);
+  const layer = mergeLayers(threadsLayer, source.reviewGate ? findingLayer({ file: findings, phone }) : undefined);
 
   // ---- blocks ----
   const marks = useMemo(() => (shown ? blockStarts(shown) : []), [shown]);
@@ -289,6 +294,7 @@ export function FileReview({
         <div className="changes-diff-scroll" ref={scrollRef} data-scroll-root>
           {tooBig && <p className="changes-diff-note">{t('blocksOnly')}</p>}
           <div className="changes-diff-content" ref={contentRef}>
+            {source.reviewGate && <FileFindingsFold file={findings} phone={phone} />}
             {review && mine.file && <FileThreadsFold changeRequestId={review.changeRequestId} file={mine.file} phone={phone} />}
             <DiffView
               diff={shown}
@@ -338,7 +344,7 @@ export function FileReview({
         </header>
         {(mine.threads.length > 0 || notes.count > 0) && (
           <div className="changes-phone-modes">
-            <ThreadsChip threads={mine.threads} />
+            <><ThreadsChip threads={mine.threads} />{source.reviewGate && <FindingsChip file={findings} />}</>
             <DraftsChip count={notes.count} />
           </div>
         )}
@@ -389,7 +395,7 @@ export function FileReview({
           </span>
         )}
         {!file.binary && <Counts additions={file.additions} deletions={file.deletions} />}
-        <ThreadsChip threads={mine.threads} />
+        <><ThreadsChip threads={mine.threads} />{source.reviewGate && <FindingsChip file={findings} />}</>
         <DraftsChip count={notes.count} />
         {textual && (
           <>

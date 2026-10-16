@@ -48,6 +48,16 @@
 //   FAKE_CLAUDE_ARM_DELAY_MS=<ms> waits that long before the SessionStart hook runs
 //   FAKE_CLAUDE_TIMELINE=<file>   appends `armed` when SessionStart ran and `message` when the first message was read
 //   FAKE_CLAUDE_INTERRUPTS=<file> appends a line per interrupt control request it is sent
+//   The review gate (docs/plans/review-gate.md), scripted by lines of the graph's objective, which every
+//   review prompt carries:
+//   FAKE-RESULT-REVIEW[-<DIMENSION>] <json>  the findings a reviewer answers (the dimension in lower
+//                                 case, as the prompt names it); without a line, zero findings
+//   FAKE-REVIEW-CLEAN-IF <file>   a reviewer whose checkout has that file answers zero findings: a fix landed
+//   FAKE-REVIEW-IF <file> <json> a reviewer whose checkout has that file answers that instead: a fix made it worse
+//   FAKE-REVIEW-INVALID           a reviewer ends successfully with no structured output
+//   FAKE-REVIEW-SLOW <ms>         a reviewer or verifier waits that long before answering
+//   FAKE-REVIEW-VERDICT <status>  what the verifier answers for every claim; default confirmed
+//   FAKE-REVIEW-FIX <file> <content>  the review fixer's prompt makes it write that file
 //
 //   --model fake-refused          exits 1 at once with an error on stderr, as the CLI does with an
 //                                 option it refuses: a chat that never starts its turn
@@ -212,6 +222,9 @@ lines.on('line', (line) => {
   if (process.env.FAKE_CLAUDE_PROMPTS) appendFileSync(process.env.FAKE_CLAUDE_PROMPTS, `${JSON.stringify({ cwd: dir, resume: flag('--resume') ?? null, prompt })}\n`);
 
   for (const [, file, text] of prompt.matchAll(/^FAKE-WRITE (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
+  if (prompt.startsWith('You are the review fixer')) {
+    for (const [, file, text] of prompt.matchAll(/^FAKE-REVIEW-FIX (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
+  }
   if (prompt.includes('You are integrating the work')) {
     for (const [, branch] of prompt.matchAll(/^- (worktree-[\w-]+)$/gm)) {
       try {
@@ -301,6 +314,32 @@ lines.on('line', (line) => {
   }
 
   const schema = flag('--json-schema');
+  if (schema && (JSON.parse(schema).properties?.findings || JSON.parse(schema).properties?.verdicts)) {
+    const reviewing = JSON.parse(schema).properties.findings !== undefined;
+    const answer = () => {
+      if (reviewing) {
+        if (/^FAKE-REVIEW-INVALID$/m.test(prompt)) return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: 'no structure' });
+        const clean = /^FAKE-REVIEW-CLEAN-IF (\S+)$/m.exec(prompt);
+        const dimension = /Your dimension is `(\w+)`/.exec(prompt)?.[1] ?? '';
+        const scripted = new RegExp(`^FAKE-RESULT-REVIEW-${dimension.toUpperCase()} (.*)$`, 'm').exec(prompt) ?? /^FAKE-RESULT-REVIEW (.*)$/m.exec(prompt);
+        const zero = { findings: [], coverage: { complete: true } };
+        const worse = /^FAKE-REVIEW-IF (\S+) (.*)$/m.exec(prompt);
+        let output = scripted && !(clean && existsSync(join(dir, clean[1]))) ? JSON.parse(scripted[1]) : zero;
+        if (worse && existsSync(join(dir, worse[1]))) output = JSON.parse(worse[2]);
+        return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: output });
+      }
+      // A claim re-asked after a fix, with the file the fix leaves behind present, is gone
+      const mended = /^FAKE-REVIEW-CLEAN-IF (\S+)$/m.exec(prompt);
+      const gone = mended && existsSync(join(dir, mended[1])) && prompt.includes('still present at the current head');
+      const status = gone ? 'refuted' : (/^FAKE-REVIEW-VERDICT (\w+)$/m.exec(prompt)?.[1] ?? 'confirmed');
+      const verdicts = [...prompt.matchAll(/^Claim (f\d+)\./gm)].map((m) => ({ id: m[1], status, reason: `fake verifier: ${status}` }));
+      return out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: { verdicts } });
+    };
+    const slow = /^FAKE-REVIEW-SLOW (\d+)$/m.exec(prompt);
+    if (slow) setTimeout(answer, Number(slow[1]));
+    else answer();
+    return;
+  }
   if (schema) {
     const props = JSON.parse(schema).properties ?? {};
     const stage = props.read ? 'ASSISTANT' : props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';
