@@ -449,7 +449,7 @@ transpiler.
 | `VITE_API_TARGET` | `http://localhost:8797` | Where the Vite dev server proxies `/api` |
 | `CLAUDIO_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
 | `CLAUDIO_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
-| `CLAUDIO_MCP_ENTRY` | the `mcp.mjs` beside the API bundle, when it exists | The bundle of Claudio's own MCP server a confined chat's CLI starts; from source it runs `packages/mcp` with tsx. See [docs/agentry-mcp-server.md](docs/agentry-mcp-server.md) |
+| `CLAUDIO_MCP_ENTRY` | the `mcp.mjs` beside the API bundle, when it exists | The bundle of Claudio's own MCP server a confined chat's CLI starts; from source it runs `packages/mcp` with tsx. See [docs/claudio-mcp-server.md](docs/claudio-mcp-server.md) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 Claudio sets two variables for every chat it starts, so an agent that calls the REST API reaches the
