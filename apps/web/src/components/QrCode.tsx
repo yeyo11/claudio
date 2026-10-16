@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { encodeQr } from '../lib/qr';
+import { DEFAULT_MAX_VERSION, encodeQr } from '../lib/qr';
 
 // The standard asks for four light modules around the code; a camera needs them to find its edge
 const QUIET = 4;
@@ -7,10 +7,11 @@ const QUIET = 4;
 /**
  * `text` as a QR code, drawn as one SVG path so it stays sharp at any size. Its colours come from
  * `.qr` (dark on light in both themes), and it carries its own name, because a picture of an
- * address says nothing to a screen reader. Nothing is drawn for text too long to encode.
+ * address says nothing to a screen reader. Nothing is drawn for text too long to encode up to
+ * `maxVersion`.
  */
-export function QrCode({ text, label }: { text: string; label: string }) {
-  const qr = useMemo(() => encodeQr(text), [text]);
+export function QrCode({ text, label, maxVersion = DEFAULT_MAX_VERSION }: { text: string; label: string; maxVersion?: number }) {
+  const qr = useMemo(() => encodeQr(text, maxVersion), [text, maxVersion]);
   if (!qr) return null;
   const extent = qr.size + QUIET * 2;
   let path = '';
