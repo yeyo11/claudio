@@ -442,3 +442,124 @@ test('an interrupt during a compaction fails it, and a message sent meanwhile is
   assert.equal(text(await c.next((e) => e.type === 'assistant' && text(e) === 'Heard: and then this')), 'Heard: and then this');
   await c.done();
 });
+
+const toolResultOf = (e) => (e.type === 'user' && Array.isArray(e.message.content) ? e.message.content.find((b) => b.type === 'tool_result') : undefined);
+const system = (subtype) => (e) => e.type === 'system' && e.subtype === subtype;
+
+test('read: and run: results carry tool_use_result in the shapes the CLI writes', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'notes.txt'), 'one\ntwo\n') });
+  c.say('read: notes.txt\nrun: echo out; echo err >&2\nrun: exit 3');
+  const read = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(read.tool_use_result.type, 'text');
+  assert.match(read.tool_use_result.file.filePath, /notes\.txt$/);
+  const { content, numLines, startLine, totalLines } = read.tool_use_result.file;
+  assert.deepEqual([content, numLines, startLine, totalLines], ['one\ntwo\n', 2, 1, 2]);
+  const ran = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.deepEqual(ran.tool_use_result, { stdout: 'out', stderr: 'err', interrupted: false, isImage: false, noOutputExpected: false });
+  // A call that failed records the error as a string, not an object
+  const failed = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(toolResultOf(failed).is_error, true);
+  assert.equal(typeof failed.tool_use_result, 'string');
+  await c.next((e) => e.type === 'result');
+  await c.done();
+});
+
+test('agent: plays a subagent: the call, task_started, its sidechain, then its result and task_notification', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'a.txt'), 'a\n') });
+  c.say('agent: Look at a | read: a.txt; run: echo inside');
+  const call = await c.next((e) => toolUse(e) && e.message.content[0].name === 'Agent');
+  const { id, input } = call.message.content[0];
+  assert.deepEqual(input, { description: 'Look at a', subagent_type: 'Explore', prompt: 'Look around' });
+  assert.equal(call.parent_tool_use_id, null);
+  const started = await c.next(system('task_started'));
+  assert.deepEqual([started.task_type, started.tool_use_id, started.is_backgrounded], ['local_agent', id, false]);
+  const agentId = started.task_id;
+  const inner = await c.next((e) => toolUse(e) && e.message.content[0].name === 'Read');
+  assert.deepEqual([inner.parent_tool_use_id, inner.isSidechain], [id, true]);
+  const innerRead = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.deepEqual([innerRead.parent_tool_use_id, innerRead.isSidechain, innerRead.tool_use_result.type], [id, true, 'text']);
+  await c.next((e) => toolUse(e) && e.parent_tool_use_id === id && e.message.content[0].name === 'Bash');
+  const innerRun = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(innerRun.tool_use_result.stdout, 'inside');
+  const done = await c.next((e) => toolResultOf(e)?.tool_use_id === id);
+  assert.equal(done.parent_tool_use_id, null);
+  const { agentId: reported, status, description, prompt } = done.tool_use_result;
+  assert.deepEqual([reported, status, description, prompt], [agentId, 'completed', 'Look at a', 'Look around']);
+  const ended = await c.next(system('task_notification'));
+  assert.deepEqual([ended.task_id, ended.status], [agentId, 'completed']);
+  assert.ok(ended.summary);
+  await c.next((e) => e.type === 'result');
+  assert.ok(c.log().some((l) => l.event === 'agent' && l.agentId === agentId && l.background === false));
+  assert.ok(c.log().some((l) => l.event === 'agent-ended' && l.agentId === agentId));
+  await c.done();
+});
+
+test('a background agent answers at once and runs after the next step; background: runs a command beside the turn', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' });
+  c.say('agent: background: Watch it | read: a.txt; hold: go\nbackground: sleep 0.3\nsay: Both started.');
+  const call = await c.next((e) => toolUse(e) && e.message.content[0].name === 'Agent');
+  const agentCall = call.message.content[0].id;
+  const started = await c.next(system('task_started'));
+  assert.deepEqual([started.task_type, started.is_backgrounded], ['local_agent', true]);
+  const launched = await c.next((e) => toolResultOf(e)?.tool_use_id === agentCall);
+  assert.deepEqual([launched.tool_use_result.status, launched.tool_use_result.isAsync, launched.tool_use_result.agentId], ['async_launched', true, started.task_id]);
+  // The next step comes before anything of the sidechain
+  const bash = await c.next((e) => toolUse(e));
+  assert.equal(bash.parent_tool_use_id, null);
+  assert.deepEqual(bash.message.content[0].input, { command: 'sleep 0.3', description: 'Run sleep 0.3', run_in_background: true });
+  const answered = await c.next((e) => toolResultOf(e) !== undefined);
+  const taskId = answered.tool_use_result.backgroundTaskId;
+  assert.match(taskId, /^b\w+$/);
+  assert.deepEqual([answered.tool_use_result.stdout, answered.tool_use_result.stderr, answered.tool_use_result.interrupted], ['', '', false]);
+  const task = await c.next(system('task_started'));
+  assert.deepEqual([task.task_id, task.task_type, task.is_backgrounded, task.tool_use_id], [taskId, 'local_bash', true, bash.message.content[0].id]);
+  // The sidechain's read is held open by its hold, and the turn ends meanwhile
+  await c.next((e) => toolUse(e) && e.parent_tool_use_id === agentCall);
+  await c.next((e) => e.type === 'result');
+  const until = Date.now() + 5000;
+  while (!c.events.some((e) => e.subtype === 'task_notification' && e.task_id === taskId) && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(c.events.find((e) => e.subtype === 'task_notification' && e.task_id === taskId)?.status, 'completed');
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(!c.events.some((e) => toolResultOf(e) !== undefined && e.parent_tool_use_id === agentCall), 'the held read is still open');
+  writeFileSync(join(c.dir, 'go'), '');
+  const read = await c.next((e) => toolResultOf(e) !== undefined && e.parent_tool_use_id === agentCall);
+  assert.equal(read.tool_use_result, '(file not found)');
+  const agentEnded = await c.next((e) => e.subtype === 'task_notification' && e.task_id === started.task_id);
+  assert.equal(agentEnded.status, 'completed');
+  assert.ok(c.log().some((l) => l.event === 'background-ended' && l.taskId === taskId && l.code === 0));
+  await c.done();
+});
+
+test('a transcript records toolUseResult, the subagent in its own file, and the notifications a reload reads', async () => {
+  const config = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-config-'));
+  try {
+    const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50', CLAUDIO_FAKE_CLI_TRANSCRIPT: '1', CLAUDE_CONFIG_DIR: config });
+    c.say('agent: Look | run: echo inside\nbackground: true');
+    const started = await c.next(system('task_started'));
+    await c.next((e) => e.type === 'result');
+    const until = Date.now() + 5000;
+    while (c.events.filter((e) => e.subtype === 'task_notification').length < 2 && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+    const files = [];
+    const walk = (dir) => readdirSync(dir, { withFileTypes: true }).forEach((d) => (d.isDirectory() ? walk(join(dir, d.name)) : files.push(join(dir, d.name))));
+    walk(config);
+    const read = (file) => readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const session = files.find((f) => f.endsWith('/fake-session.jsonl'));
+    const agentFile = files.find((f) => f.endsWith(`/fake-session/subagents/agent-${started.task_id}.jsonl`));
+    const meta = files.find((f) => f.endsWith(`/fake-session/subagents/agent-${started.task_id}.meta.json`));
+    assert.ok(session && agentFile && meta, files.join(', '));
+    const lines = read(session);
+    assert.ok(lines.some((l) => l.toolUseResult?.agentId === started.task_id && l.toolUseResult.status === 'completed'));
+    assert.ok(lines.some((l) => typeof l.toolUseResult?.backgroundTaskId === 'string'));
+    assert.ok(!lines.some((l) => l.isSidechain), 'the sidechain stays out of the session file');
+    const notes = lines.filter((l) => l.type === 'queue-operation' && /<task-notification>/.test(l.content ?? ''));
+    assert.ok(notes.some((l) => l.content.includes(`<task-id>${started.task_id}</task-id>`) && l.content.includes('<status>completed</status>')));
+    assert.equal(notes.length, 2);
+    const own = read(agentFile);
+    assert.ok(own.every((l) => l.isSidechain === true && l.agentId === started.task_id && l.parentToolUseID === started.tool_use_id));
+    assert.ok(own.some((l) => l.toolUseResult?.stdout === 'inside'));
+    assert.deepEqual(JSON.parse(readFileSync(meta, 'utf8')), { agentType: 'Explore', description: 'Look', toolUseId: started.tool_use_id });
+    await c.done();
+  } finally {
+    rmSync(config, { recursive: true, force: true });
+  }
+});

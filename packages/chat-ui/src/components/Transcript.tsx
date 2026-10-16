@@ -4,7 +4,8 @@ import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useChatUi } from '../lib/context';
-import { upperFirst, useAgentName } from '../lib/agent';
+import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
+import { toolHint } from '../lib/tool-lens';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
@@ -18,7 +19,7 @@ import { BranchCard } from './LiveBranches';
 import { branchesOfStep, type Branch } from '../lib/chat-branches';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { RiskTag, useToolRisk } from './RiskTag';
-import { CodeBlock } from '@claudio/ui/components/CodeBlock';
+import { ToolBody } from './ToolBody';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
@@ -29,8 +30,6 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { CopyButton } from '@claudio/ui/components/ui';
 import { VirtualList } from '@claudio/ui/components/VirtualList';
 import { copyText } from '@claudio/ui/lib/clipboard';
-
-const RESULT_PREVIEW_CHARS = 6000;
 
 const loadMarkdown = () => import('@claudio/ui/components/Markdown');
 const Markdown = lazy(loadMarkdown);
@@ -51,17 +50,6 @@ export const RichText = memo(function RichText({ text, className = '', streaming
     </div>
   );
 });
-
-function ResultBlock({ content, isError }: { content: string; isError: boolean }) {
-  const { t } = useTranslation('chat');
-  const long = content.length > RESULT_PREVIEW_CHARS;
-  return (
-    <CodeBlock
-      tone={isError ? 'error' : undefined}
-      code={long ? `${content.slice(0, RESULT_PREVIEW_CHARS)}\n${t('transcript.moreChars', { count: content.length - RESULT_PREVIEW_CHARS })}` : content || t('transcript.empty')}
-    />
-  );
-}
 
 function ThinkingFold({ text }: { text: string }) {
   const { t } = useTranslation('chat');
@@ -102,20 +90,7 @@ function Block({ block, role, streaming = false }: { block: ContentBlock; role: 
     case 'tool_use':
       return <CallRow call={{ kind: 'call', id: block.id, name: block.name, input: block.input, result: null }} settled />;
     case 'tool_result':
-      return (
-        <Collapsible
-          className={`fold fold-call ${block.isError ? 'is-error' : 'is-ok'}`}
-          title={
-            <>
-              <CircleAlert {...ICON_SM} className="fold-icon" />
-              <span className="tool-name">{block.isError ? t('transcript.toolError') : t('transcript.toolResult')}</span>
-              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || t('transcript.empty')}</span>
-            </>
-          }
-        >
-          <ResultBlock content={block.content} isError={block.isError} />
-        </Collapsible>
-      );
+      return <CallRow call={{ kind: 'call', id: block.toolUseId, name: null, input: null, result: { content: block.content, isError: block.isError, ...(block.detail ? { detail: block.detail } : {}) } }} settled />;
   }
 }
 
@@ -354,7 +329,8 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const outcome = call.result ? (call.result.isError ? 'error' : 'ok') : running ? 'running' : 'none';
   const Icon = call.name ? toolIcon(call.name) : CircleAlert;
   const agentId = subagents && isDelegation(call.name) ? subagents.find(call.input) : null;
-  const hint = call.name ? callHint(call.input) : truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110);
+  const { cwd } = useRiskContext();
+  const hint = call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') };
   // Scored from the input, so a call still waiting for its result already shows it
   const risk = useToolRisk(call.name, call.input);
   return (
@@ -365,7 +341,10 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
           <>
             {running ? <Spinner className="fold-icon" /> : <Icon {...ICON_SM} className="fold-icon" />}
             <span className="tool-name">{call.name !== null ? toolKindLabel(call.name) : (call.result?.isError ? t('transcript.toolError') : t('transcript.toolResult'))}</span>
-            <span className="tool-hint">{hint}</span>
+            <span className="tool-hint">
+              {hint.items !== undefined ? t('transcript.call.items', { count: hint.items }) : hint.text}
+              {hint.aside && <span className="tool-hint-aside"> {hint.aside}</span>}
+            </span>
             <RiskTag risk={risk} />
             {/* The rail's colour is not the only thing that says it failed */}
             {outcome === 'error' && <span className="call-outcome">{t('transcript.callFailed')}</span>}
@@ -373,10 +352,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
           </>
         }
       >
-        <div className="call-body">
-          {call.name !== null && <CodeBlock code={JSON.stringify(call.input, null, 2)} lang="json" />}
-          {call.result ? <ResultBlock content={call.result.content} isError={call.result.isError} /> : running && <p className="muted small">{t('transcript.callWaiting')}</p>}
-        </div>
+        <ToolBody call={call} running={running} />
       </Collapsible>
       {agentId && subagents && (
         <Tooltip content={t('transcript.openSubagent')}>
