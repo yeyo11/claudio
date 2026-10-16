@@ -373,6 +373,14 @@ packages with their SHA-512 — to that draft before it is published. electron-b
 the files while the release is still a draft; a published release is immutable, so a rebuild of one
 only keeps the packages as a run artifact.
 
+**The first release and the release app.** The repository's history starts in Agentry, so
+`release-please-config.json` sets `bootstrap-sha` to the fork point (`d1ee00514`) and the manifest
+starts at `0.0.0`: the first release is `v0.1.0` and its changelog holds Claudio's commits only. The
+release workflow uses a GitHub App token (`vars.RELEASE_APP_ID`, `secrets.RELEASE_APP_PRIVATE_KEY`)
+when the app is configured, so the release pull request runs CI like any other; without it the
+workflow falls back to `GITHUB_TOKEN`, releases still publish, and only that pull request's checks
+must be started by hand. Until a release exists, `scripts/install.sh` has nothing to download.
+
 You can also run the **Desktop** workflow by hand from the Actions tab. With no tag it only builds
 and keeps the packages as the `claudio-linux` run artifact, which is a way to try a change before a
 release.

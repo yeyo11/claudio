@@ -35,8 +35,10 @@ jobs:
       tag: ${{ steps.release.outputs.tag_name }}
     steps:
       # GitHub does not trigger workflows on pushes made with GITHUB_TOKEN, so a release PR opened with it
-      # never runs CI. An app token makes the release PR run CI like any other pull request.
+      # never runs CI. An app token makes the release PR run CI like any other pull request. Without the
+      # app configured (a fresh repository), releases still work on GITHUB_TOKEN; only that PR's CI waits.
       - id: app-token
+        if: vars.RELEASE_APP_ID != ''
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
@@ -45,7 +47,7 @@ jobs:
       - id: release
         uses: googleapis/release-please-action@v5
         with:
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
