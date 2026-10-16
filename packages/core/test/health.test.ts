@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { Core } from '../src/index.ts';
+import { GuardEventStore } from '../src/guards/events.ts';
+import { tempConfig } from './helpers.ts';
 import { chatHealth, HUNG_COMMAND_MS, type HealthFacts } from '../src/chat-model.ts';
 import { usualDuration } from '../src/commands.ts';
 import {
   budget,
+  GUARD_BAD_BLOCKS,
+  GUARD_WINDOW_MS,
+  guardSignals,
   loop,
   noProgress,
   NO_PROGRESS_BAD_MS,
@@ -11,6 +17,7 @@ import {
   repeatStall,
   weakenedTests,
   weakening,
+  type GuardTraceEntry,
   type ToolCall,
   type Trace,
 } from '../src/health.ts';
@@ -232,4 +239,79 @@ test('signals that mean something only while working are dropped for a chat that
   assert.deepEqual(chatHealth(facts({ extra, standing }), now).signals.map((s) => s.kind), ['loop', 'weakened-test']);
   assert.deepEqual(chatHealth(facts({ state: 'waiting', extra, standing }), now).signals.map((s) => s.kind).sort(), ['waiting', 'weakened-test']);
   assert.deepEqual(chatHealth(facts({ live: null, extra, standing }), now).signals, []);
+});
+
+// ---------- the guard ----------
+
+const guarded = (guards: GuardTraceEntry[]): Trace => ({ ...trace([]), guards });
+const blockAt = (msAfter: number, rule = 'push'): GuardTraceEntry => ({ at: at(msAfter), outcome: 'blocked', rule });
+
+test('guard signals: nothing without guard entries, and observed or allowed-once calls say nothing', () => {
+  assert.deepEqual(guardSignals(trace([]), T0), []);
+  assert.deepEqual(
+    guardSignals(guarded([{ at: at(0), outcome: 'observed', rule: 'push' }, { at: at(1), outcome: 'allowed-once', rule: 'push' }]), T0 + 1000),
+    [],
+  );
+});
+
+test('guard signals: a block warns, five in 15 min are bad, and old ones age out', () => {
+  const one = guardSignals(guarded([blockAt(0)]), T0 + 1000);
+  assert.equal(one.length, 1);
+  assert.equal(one[0]?.kind, 'guard-blocked');
+  assert.equal(one[0]?.level, 'warn');
+  assert.equal(one[0]?.reasonCode, 'health.guardBlocked');
+  assert.deepEqual(one[0]?.params, { count: 1, rule: 'push' });
+  assert.match(one[0]?.reason ?? '', /blocked 1 tool call in the last 15 min \(last rule: push\)/);
+  assert.equal(one[0]?.hintCode, 'health.hint.guardBlocked');
+
+  const four = Array.from({ length: GUARD_BAD_BLOCKS - 1 }, (_, i) => blockAt(i * 1000));
+  assert.equal(guardSignals(guarded(four), T0 + 10_000)[0]?.level, 'warn');
+  const five = Array.from({ length: GUARD_BAD_BLOCKS }, (_, i) => blockAt(i * 1000));
+  assert.equal(guardSignals(guarded(five), T0 + 10_000)[0]?.level, 'bad');
+  // The edge of the window still counts, a millisecond past it does not
+  assert.equal(guardSignals(guarded([blockAt(0)]), T0 + GUARD_WINDOW_MS).length, 1);
+  assert.deepEqual(guardSignals(guarded([blockAt(0)]), T0 + GUARD_WINDOW_MS + 1), []);
+  // Five spread wider than the window never add up
+  const spread = Array.from({ length: GUARD_BAD_BLOCKS }, (_, i) => blockAt(i * 4 * 60_000));
+  assert.equal(guardSignals(guarded(spread), T0 + 16 * 60_000)[0]?.level, 'warn');
+});
+
+test('guard signals: a missing marker or an unarmed process is bad and stays until the run ends', () => {
+  for (const outcome of ['missing', 'unarmed'] as const) {
+    const [signal] = guardSignals(guarded([{ at: at(0), outcome, rule: 'integrity' }]), T0 + 3 * 60 * 60_000);
+    assert.equal(signal?.kind, 'guard-missing');
+    assert.equal(signal?.level, 'bad');
+    assert.equal(signal?.reasonCode, 'health.guardMissing');
+    assert.equal(signal?.since, at(0));
+  }
+  const both = guardSignals(guarded([{ at: at(0), outcome: 'missing', rule: 'integrity' }, blockAt(1000)]), T0 + 2000);
+  assert.deepEqual(both.map((s) => s.kind), ['guard-missing', 'guard-blocked']);
+});
+
+test('a graph reads the blocks of each task from the audit trail', () => {
+  const config = tempConfig();
+  const core = new Core(config);
+  try {
+    const orch = core.orchestrator.create({
+      name: 'g',
+      cwd: config.workspaceDir,
+      tasks: [
+        { id: 'a', name: 'A', prompt: 'a' },
+        { id: 'b', name: 'B', prompt: 'b' },
+      ],
+    });
+    const store = new GuardEventStore(core.db.connection);
+    const add = (taskId: string, toolUseId: string, outcome: 'blocked' | 'observed') =>
+      store.insert({ chatId: `c-${taskId}`, orchestrationId: orch.id, taskId, toolUseId, toolName: 'Bash', rule: 'push', matcher: 'push.verb', outcome, reason: 'r', excerpt: 'x' });
+    add('a', 't1', 'blocked');
+    add('a', 't2', 'blocked');
+    add('a', 't3', 'observed');
+    add('b', 't1', 'observed');
+    const tasks = core.orchestrator.view(orch).tasks;
+    assert.equal(tasks.find((t) => t.id === 'a')?.guardBlocks, 2);
+    assert.equal(tasks.find((t) => t.id === 'b')?.guardBlocks, undefined);
+    assert.equal(core.orchestrator.get(orch.id)?.tasks.find((t) => t.id === 'a')?.guardBlocks, undefined, 'never stored');
+  } finally {
+    core.shutdown();
+  }
 });

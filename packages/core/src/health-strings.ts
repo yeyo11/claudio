@@ -55,6 +55,9 @@ export const HEALTH_REASONS = {
   'health.budget.timePast': (p: { minutes: number; limitMinutes: number }) =>
     `Past its time limit: ${String(p.minutes)} min of ${String(p.limitMinutes)} min.`,
   'health.budget.cost': (p: { spentUsd: number; limitUsd: number }) => `${usd(p.spentUsd)} of its ${usd(p.limitUsd)} spent.`,
+  'health.guardBlocked': (p: { count: number; rule: string }) =>
+    `The guard blocked ${String(p.count)} ${p.count === 1 ? 'tool call' : 'tool calls'} in the last 15 min (last rule: ${p.rule}).`,
+  'health.guardMissing': () => 'A tool call ran with no answer from the guard, or the guard never armed: nothing says what this worker runs.',
   /** What a chat with no signal says */
   'health.ok': () => 'Nothing unusual.',
 } as const;
@@ -77,6 +80,9 @@ export const HEALTH_HINTS = {
   'health.hint.weakenedTest': (p: { file: string }) =>
     `You edited \`${p.file}\` so that it asserts less. Fix the code so the original assertion passes. If the behaviour changed on purpose, say so, and update the assertion to the new behaviour instead of weakening it.`,
   'health.hint.silence': (p: { minutes: number }) => `I have heard nothing from you for ${String(p.minutes)} min. Reply with what you are doing right now.`,
+  'health.hint.guardBlocked': (p: { rule: string }) =>
+    `The guard refused what you tried (${p.rule}). Do not look for another way round it: do the task without that action, or say what you need and let a person decide.`,
+  'health.hint.guardMissing': () => 'The guard is not answering for your tool calls. Stop what you are doing and say what you were about to run.',
   'health.hint.budget.time': (p: { limitMinutes: number }) =>
     `You are close to its time limit of ${String(p.limitMinutes)} min. Wrap up: commit what works and report what is left.`,
   'health.hint.budget.cost': (p: { limitUsd: number }) =>

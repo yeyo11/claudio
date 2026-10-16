@@ -89,6 +89,7 @@ import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, taskBlock, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
+import { GuardEventStore } from './guards/events.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
@@ -615,8 +616,25 @@ export class Orchestrator {
     }
     // Nothing of this moment to say: the stored graph is already the answer, copies and all
     const pullRequest = this.pullRequests?.newest(orch.id) ?? null;
-    if (!pullRequest && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
-    return { ...orch, ...(pullRequest ? { pullRequest } : {}), tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
+    const blocks = this.guardBlocks(orch.id);
+    if (!pullRequest && !blocks.size && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
+    return {
+      ...orch,
+      ...(pullRequest ? { pullRequest } : {}),
+      tasks: orch.tasks.map((t) => {
+        const guardBlocks = blocks.get(t.id);
+        return now.has(t.id) || guardBlocks ? { ...t, ...now.get(t.id), ...(guardBlocks ? { guardBlocks } : {}) } : t;
+      }),
+    };
+  }
+
+  /** Blocks per task, read from the audit trail; a table that cannot be read says none */
+  private guardBlocks(orchestrationId: string): Map<string, number> {
+    try {
+      return new GuardEventStore(this.db.connection).countByTask(orchestrationId);
+    } catch {
+      return new Map();
+    }
   }
 
   /** The graph and task a chat works for, with the limits that apply to it; null for a chat that is not a running task. */

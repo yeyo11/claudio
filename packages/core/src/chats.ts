@@ -59,7 +59,7 @@ import {
 } from './live-chat.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { runningCommands, type ToolCall, type Trace } from './health.ts';
+import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
 import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
@@ -545,8 +545,13 @@ export class ChatManager extends EventEmitter {
     const live = chat?.execution;
     if (!chat || !live || !chat.alive) return null;
     const calls = new Map<string, ToolCall>();
+    const guards: GuardTraceEntry[] = [];
     for (const event of chat.events) {
       if (event.ts < live.startedAt) continue;
+      if (event.kind === 'guard' && event.guard) {
+        guards.push({ at: event.ts, outcome: event.guard.outcome, rule: event.guard.rule });
+        continue;
+      }
       if (event.kind === 'result') {
         for (const call of calls.values()) call.endedAt ??= event.ts;
         continue;
@@ -561,7 +566,7 @@ export class ChatManager extends EventEmitter {
         }
       }
     }
-    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats) };
+    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats), ...(guards.length ? { guards } : {}) };
   }
 
   /**

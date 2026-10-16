@@ -1,4 +1,4 @@
-import type { HealthSignal, TaskLimits } from '@claudio/shared';
+import type { GuardOutcome, HealthSignal, TaskLimits } from '@claudio/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
 
@@ -33,6 +33,15 @@ export interface Trace {
   calls: ToolCall[];
   /** The CLI's own heartbeat for a running command: how long it says it has run, and when it said so */
   heartbeats: Map<string, { elapsedSeconds: number; at: string }>;
+  /** What the guard said in this execution, oldest first; absent on a chat that is not guarded */
+  guards?: GuardTraceEntry[];
+}
+
+/** One thing the guard said about a tool call of the live execution. */
+export interface GuardTraceEntry {
+  at: string;
+  outcome: GuardOutcome;
+  rule: string;
 }
 
 /**
@@ -384,4 +393,42 @@ export function budget(limits: TaskLimits | null | undefined, spent: { elapsedMs
     }
   }
   return signals.sort((a, b) => Number(b.level === 'bad') - Number(a.level === 'bad'))[0] ?? null;
+}
+
+// ---------- the guard ----------
+
+/** The window a block counts in, and how many in it mean the agent is fighting the guard. */
+export const GUARD_WINDOW_MS = 15 * 60_000;
+export const GUARD_BAD_BLOCKS = 5;
+
+/**
+ * What the guard's hooks say about a worker. Blocks in the last 15 min warn, and five or more are
+ * bad: the agent keeps asking for what is refused. A call that ran with no marker (`missing`), or a
+ * process that never armed (`unarmed`), is bad from the first until the run ends, because from then
+ * on nothing says what the worker runs. Observed and allowed-once calls are the person's own
+ * choice and say nothing.
+ */
+export function guardSignals(trace: Trace, nowMs: number): HealthSignal[] {
+  const entries = trace.guards ?? [];
+  const signals: HealthSignal[] = [];
+  const broken = entries.find((e) => e.outcome === 'missing' || e.outcome === 'unarmed');
+  if (broken) {
+    signals.push({
+      kind: 'guard-missing',
+      level: 'bad',
+      ...said('health.guardMissing', { rule: broken.rule }, 'health.hint.guardMissing'),
+      since: broken.at,
+    });
+  }
+  const blocks = entries.filter((e) => e.outcome === 'blocked' && nowMs - ms(e.at) <= GUARD_WINDOW_MS);
+  if (blocks.length) {
+    const last = blocks[blocks.length - 1] as GuardTraceEntry;
+    signals.push({
+      kind: 'guard-blocked',
+      level: blocks.length >= GUARD_BAD_BLOCKS ? 'bad' : 'warn',
+      ...said('health.guardBlocked', { count: blocks.length, rule: last.rule }, 'health.hint.guardBlocked'),
+      since: (blocks[0] as GuardTraceEntry).at,
+    });
+  }
+  return signals;
 }
