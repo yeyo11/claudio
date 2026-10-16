@@ -727,7 +727,8 @@
       "integration",
       "verification",
       "synthesis",
-      "workflow"
+      "workflow",
+      "review"
     ],
     "description": "What a chat does for the orchestration it works for."
   },
@@ -3897,6 +3898,10 @@
       "e2eSpecs": {
         "type": "boolean",
         "description": "Before integration, a task of the graph (`e2e-specs`) runs only the browser specs the graph's changes touch, each alone on a port of its own, so a spec the work broke or left stale is caught before the merge (CW-15). On by default; `false` leaves the task out."
+      },
+      "review": {
+        "$ref": "#/components/schemas/ReviewGateSpec",
+        "description": "The review gate, after the checks pass; absent means no review. `commands` may then be empty"
       }
     },
     "required": [
@@ -3906,11 +3911,106 @@
     ],
     "description": "Checks to run once the graph is integrated, and what may happen to what fails."
   },
+  "ReviewGateSpec": {
+    "type": "object",
+    "properties": {
+      "dimensions": {
+        "type": "object",
+        "properties": {
+          "tests": {
+            "type": "boolean",
+            "description": "default true: weak or missing tests for the changed behaviour"
+          },
+          "security": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "off"
+            ],
+            "description": "default 'auto': runs when the trigger matches; 'always' runs it on every diff"
+          },
+          "conventions": {
+            "type": "boolean",
+            "description": "default true when the base commit has CLAUDE.md, CONTRIBUTING.md or .claude/rules"
+          }
+        },
+        "description": "`correctness` always runs; the others as set here"
+      },
+      "depth": {
+        "type": "string",
+        "enum": [
+          "light",
+          "full"
+        ],
+        "description": "default 'full'. 'light' runs correctness (plus security when triggered) and packs chunks twice as large"
+      },
+      "fixer": {
+        "type": "boolean",
+        "description": "default true: blocking findings go to a fixer"
+      },
+      "maxFixRounds": {
+        "type": "number",
+        "description": "default 2, 0–5: fixer rounds; the gate reviews at most maxFixRounds + 1 times"
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "default 5, > 0: USD over the whole gate (reviewers, verifiers, fixers, every round)"
+      },
+      "maxRunCostUsd": {
+        "type": "number",
+        "description": "default 1, > 0: USD ceiling of one reviewer or verifier run"
+      },
+      "timeoutMinutes": {
+        "type": "number",
+        "description": "default 15, 1–60: minutes of one run's own work; a usage-limit wait does not count"
+      },
+      "concurrency": {
+        "type": "number",
+        "description": "default 3, 1–6: review runs of this graph at the same time"
+      },
+      "models": {
+        "type": "object",
+        "properties": {
+          "reviewer": {
+            "type": "string"
+          },
+          "verifier": {
+            "type": "string"
+          },
+          "fixer": {
+            "type": "string"
+          }
+        },
+        "description": "defaults: reviewer 'sonnet', verifier 'opus', fixer = verification.model ?? graph model"
+      },
+      "exclude": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "globs added to the built-in exclusions (gitignore syntax, relative to the repository top)"
+      }
+    },
+    "description": "The review gate (docs/plans/review-gate.md). Present means on; absent means no review."
+  },
   "VerificationState": {
     "type": "object",
     "properties": {
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
+      },
+      "gate": {
+        "type": "string",
+        "enum": [
+          "checks",
+          "review"
+        ],
+        "description": "Which gate made a `failed` verification fail; `VerificationStatus` has no member for the review"
+      },
+      "review": {
+        "$ref": "#/components/schemas/ReviewGateState",
+        "description": "The review gate's summary; absent when the graph has no review"
       },
       "startedAt": {
         "type": [
@@ -3984,6 +4084,192 @@
       "failed"
     ],
     "description": "`fixed`: it failed, the fixer mended it, and the re-run passed."
+  },
+  "ReviewGateState": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/ReviewGateStatus"
+      },
+      "phase": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewGatePhase"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "round": {
+        "type": "number"
+      },
+      "maxFixRounds": {
+        "type": "number"
+      },
+      "head": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The commit the latest round reviewed"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "English, Claudio's own sentence"
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "blocking": {
+            "type": "number"
+          },
+          "advisory": {
+            "type": "number"
+          },
+          "refuted": {
+            "type": "number"
+          },
+          "outside": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "blocking",
+          "advisory",
+          "refuted",
+          "outside"
+        ]
+      },
+      "runs": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number"
+          },
+          "done": {
+            "type": "number"
+          },
+          "running": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "total",
+          "done",
+          "running",
+          "failed"
+        ]
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LimitWait"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set while a run waits for a usage limit to reset"
+      },
+      "accepted": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "by": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "head": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "reason",
+              "at",
+              "head"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Bound to the head it was given on: a new commit voids it"
+      },
+      "depth": {
+        "type": "string",
+        "enum": [
+          "light",
+          "full"
+        ]
+      }
+    },
+    "required": [
+      "status",
+      "phase",
+      "round",
+      "maxFixRounds",
+      "head",
+      "startedAt",
+      "endedAt",
+      "costUsd",
+      "reason",
+      "counts",
+      "runs",
+      "depth"
+    ],
+    "description": "The gate's summary, on the orchestration's verification; rounds, runs and findings are rows"
+  },
+  "ReviewGateStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "running",
+      "passed",
+      "blocked",
+      "incomplete",
+      "accepted",
+      "skipped"
+    ],
+    "description": "- `incomplete` (warn): something that should be reviewed could not be, so the gate cannot pass\n- `blocked` (bad): a blocking finding is left\n- `accepted`: a person let a blocked or incomplete gate through, with a reason"
+  },
+  "ReviewGatePhase": {
+    "type": "string",
+    "enum": [
+      "preparing",
+      "reviewing",
+      "verifying",
+      "fixing",
+      "rechecking"
+    ]
   },
   "VerificationFix": {
     "type": "object",
@@ -4626,6 +4912,18 @@
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
       },
+      "gate": {
+        "type": "string",
+        "enum": [
+          "checks",
+          "review"
+        ],
+        "description": "Which gate made a `failed` verification fail; `VerificationStatus` has no member for the review"
+      },
+      "review": {
+        "$ref": "#/components/schemas/ReviewGateState",
+        "description": "The review gate's summary; absent when the graph has no review"
+      },
       "startedAt": {
         "type": [
           "string",
@@ -5102,6 +5400,58 @@
   "VerificationTimings": {
     "type": "object",
     "properties": {
+      "review": {
+        "type": "object",
+        "properties": {
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "round": {
+                  "type": "number"
+                },
+                "reviewMs": {
+                  "type": "number"
+                },
+                "verifyMs": {
+                  "type": "number"
+                },
+                "fixMs": {
+                  "type": "number"
+                },
+                "costUsd": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "round",
+                "reviewMs",
+                "verifyMs",
+                "fixMs",
+                "costUsd"
+              ]
+            }
+          }
+        },
+        "required": [
+          "startedAt",
+          "endedAt",
+          "rounds"
+        ]
+      },
       "checksMs": {
         "type": "number",
         "description": "Every run of every command"
@@ -14800,6 +15150,584 @@
     ],
     "description": "What cancelling a command did."
   },
+  "ReviewGateDetail": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewGateState"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "rounds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewRound"
+        }
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewFinding"
+        }
+      },
+      "totalFindings": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "state",
+      "rounds",
+      "findings",
+      "totalFindings"
+    ],
+    "description": "GET /orchestrations/:id/review"
+  },
+  "ReviewRound": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "round": {
+        "type": "number"
+      },
+      "pass": {
+        "type": "number"
+      },
+      "base": {
+        "type": "string"
+      },
+      "head": {
+        "type": "string"
+      },
+      "depth": {
+        "type": "string",
+        "enum": [
+          "light",
+          "full"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "running",
+          "passed",
+          "blocked",
+          "incomplete",
+          "accepted"
+        ],
+        "description": "- `incomplete` (warn): something that should be reviewed could not be, so the gate cannot pass\n- `blocked` (bad): a blocking finding is left\n- `accepted`: a person let a blocked or incomplete gate through, with a reason"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "files": {
+        "type": "number"
+      },
+      "added": {
+        "type": "number"
+      },
+      "deleted": {
+        "type": "number"
+      },
+      "chunks": {
+        "type": "number"
+      },
+      "skippedFiles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "why": {
+              "type": "string",
+              "enum": [
+                "excluded",
+                "binary",
+                "submodule",
+                "renamed",
+                "not-reviewable"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "why"
+          ]
+        },
+        "description": "A file that should be reviewed but was not (anything but `excluded`) makes the round incomplete"
+      },
+      "estimateUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "accepted": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "by": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "reason",
+              "at"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewRun"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "round",
+      "pass",
+      "base",
+      "head",
+      "depth",
+      "state",
+      "reason",
+      "files",
+      "added",
+      "deleted",
+      "chunks",
+      "skippedFiles",
+      "estimateUsd",
+      "costUsd",
+      "startedAt",
+      "endedAt",
+      "accepted",
+      "runs"
+    ]
+  },
+  "ReviewRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ReviewRunKind"
+      },
+      "dimension": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewDimension"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "chunk": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "chunks": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "roleSource": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "builtin",
+          "project",
+          null
+        ],
+        "description": "Whether the role file was Claudio's or the project's, so a weakened reviewer shows"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ReviewRunState"
+      },
+      "failure": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "dropped": {
+        "type": "number",
+        "description": "Findings the run reported that failed validation and were dropped"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "dimension",
+      "chunk",
+      "chunks",
+      "chatId",
+      "model",
+      "effort",
+      "account",
+      "roleSource",
+      "state",
+      "failure",
+      "dropped",
+      "costUsd",
+      "startedAt",
+      "endedAt"
+    ]
+  },
+  "ReviewRunKind": {
+    "type": "string",
+    "enum": [
+      "reviewer",
+      "verifier",
+      "fixer"
+    ]
+  },
+  "ReviewDimension": {
+    "type": "string",
+    "enum": [
+      "correctness",
+      "tests",
+      "security",
+      "conventions"
+    ],
+    "description": "What a reviewer looks at; `correctness` always runs, the others as the spec sets"
+  },
+  "ReviewRunState": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "running",
+      "waiting",
+      "done",
+      "invalid",
+      "budget",
+      "failed",
+      "timed-out",
+      "cancelled",
+      "interrupted",
+      "incomplete-coverage"
+    ]
+  },
+  "ReviewFinding": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "roundId": {
+        "type": "string"
+      },
+      "fingerprint": {
+        "type": "string",
+        "description": "Stable across rounds, so a finding is deduplicated and can be marked resolved"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "model",
+          "claudio"
+        ]
+      },
+      "rule": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "dimensions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewDimension"
+        }
+      },
+      "reportedBy": {
+        "type": "number",
+        "description": "How many reviewers reported it"
+      },
+      "severity": {
+        "$ref": "#/components/schemas/ReviewSeverity"
+      },
+      "confidence": {
+        "type": "number"
+      },
+      "title": {
+        "type": "string"
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "line": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "side": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSide"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The diff's side as `ReviewSide`: a finding's `old` is `left` and its `new` is `right`"
+      },
+      "anchor": {
+        "$ref": "#/components/schemas/ReviewAnchor"
+      },
+      "evidence": {
+        "type": "string",
+        "description": "Masked before it is stored: a finding must never copy a secret into the database"
+      },
+      "failureScenario": {
+        "type": "string"
+      },
+      "suggestion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "verdict": {
+        "$ref": "#/components/schemas/ReviewVerdict"
+      },
+      "verdictReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "verifierChatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "blocking": {
+        "type": "boolean"
+      },
+      "resolvedInRound": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "roundId",
+      "fingerprint",
+      "source",
+      "rule",
+      "dimensions",
+      "reportedBy",
+      "severity",
+      "confidence",
+      "title",
+      "path",
+      "line",
+      "side",
+      "anchor",
+      "evidence",
+      "failureScenario",
+      "suggestion",
+      "verdict",
+      "verdictReason",
+      "verifierChatId",
+      "blocking",
+      "resolvedInRound"
+    ]
+  },
+  "ReviewSeverity": {
+    "type": "string",
+    "enum": [
+      "critical",
+      "high",
+      "medium",
+      "low"
+    ]
+  },
+  "ReviewSide": {
+    "type": "string",
+    "enum": [
+      "left",
+      "right"
+    ],
+    "description": "Which side of the diff a line is on: `right` is the head (new) file, `left` the base (old) one."
+  },
+  "ReviewAnchor": {
+    "type": "string",
+    "enum": [
+      "line",
+      "file",
+      "outside",
+      "none"
+    ],
+    "description": "Where a finding could be placed in the diff; `outside` is a line the diff does not touch"
+  },
+  "ReviewVerdict": {
+    "type": "string",
+    "enum": [
+      "not-asked",
+      "confirmed",
+      "refuted",
+      "uncertain",
+      "unverified",
+      "deterministic"
+    ],
+    "description": "`deterministic` is a finding Claudio's own scan made, which no verifier is asked about"
+  },
+  "AcceptReviewRequest": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "reason"
+    ],
+    "description": "A person's acceptance of a blocked or incomplete gate; a chat token is refused"
+  },
+  "ReviewRoleInfo": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewDimension"
+          },
+          {
+            "type": "string",
+            "const": "verifier"
+          }
+        ]
+      },
+      "file": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "builtin",
+          "project"
+        ]
+      },
+      "sha": {
+        "type": "string"
+      },
+      "bytes": {
+        "type": "number"
+      },
+      "problem": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "role",
+      "file",
+      "source",
+      "sha",
+      "bytes",
+      "problem"
+    ],
+    "description": "GET /projects/:id/review-roles"
+  },
   "VerifyOrchestrationRequest": {
     "type": "object",
     "properties": {
@@ -16818,6 +17746,19 @@
             }
           },
           "account.model-fallback": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "review.depth": {
             "type": "object",
             "properties": {
               "mode": {
@@ -24749,14 +25690,6 @@
     ],
     "description": "A conversation on a file line, or a general one when `path` is null. It is drawn on its new-side line when it was left on the head commit, and folded as outdated (with `originalLine`) when not."
   },
-  "ReviewSide": {
-    "type": "string",
-    "enum": [
-      "left",
-      "right"
-    ],
-    "description": "Which side of the diff a line is on: `right` is the head (new) file, `left` the base (old) one."
-  },
   "ReviewComment": {
     "type": "object",
     "properties": {
@@ -25972,6 +26905,9 @@
           },
           "account.model-fallback": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.depth": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -26143,6 +27079,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "account.model-fallback": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.depth": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -26390,7 +27329,8 @@
       "checks.fix",
       "review.triage",
       "issue.triage",
-      "account.model-fallback"
+      "account.model-fallback",
+      "review.depth"
     ]
   },
   "DecisionPointKind": {

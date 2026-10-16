@@ -114,6 +114,7 @@
       "reviewTriage": "Sugerir quién atiende cada comentario de revisión",
       "issueTriage": "Sugerir en qué issues importados puede empezar un agente",
       "accountModelFallback": "Sugerir el modelo más cercano que ofrece otra cuenta",
+      "reviewDepth": "Elegir la profundidad de la revisión de una rama",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
       "paletteIntent": "Interpretar lo que escribes en la paleta"
     },
@@ -309,6 +310,7 @@
       "reviewTriage": "Sugirió quién atiende cada comentario",
       "issueTriage": "Sugirió en qué issues puede empezar un agente",
       "accountModelFallback": "Sugirió el modelo más cercano que ofrece otra cuenta",
+      "reviewDepth": "Eligió la profundidad de una revisión",
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }

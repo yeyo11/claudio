@@ -952,7 +952,7 @@ export interface ChatWorktree {
 }
 
 /** What a chat does for the orchestration it works for. */
-export type OrchestrationChatRole = 'task' | 'integration' | 'verification' | 'synthesis' | 'workflow';
+export type OrchestrationChatRole = 'task' | 'integration' | 'verification' | 'synthesis' | 'workflow' | 'review';
 
 /** The orchestration a chat works for. */
 export interface ChatOrchestration {
@@ -3753,6 +3753,175 @@ export interface OrchestrationSummary extends Omit<Orchestration, 'tasks' | 'fin
   verification?: VerificationSummary | null;
 }
 
+// ---------- Review gate (docs/plans/review-gate.md) ----------
+
+/** What a reviewer looks at; `correctness` always runs, the others as the spec sets */
+export type ReviewDimension = 'correctness' | 'tests' | 'security' | 'conventions';
+export type ReviewSeverity = 'critical' | 'high' | 'medium' | 'low';
+/**
+ * - `incomplete` (warn): something that should be reviewed could not be, so the gate cannot pass
+ * - `blocked` (bad): a blocking finding is left
+ * - `accepted`: a person let a blocked or incomplete gate through, with a reason
+ */
+export type ReviewGateStatus = 'pending' | 'running' | 'passed' | 'blocked' | 'incomplete' | 'accepted' | 'skipped';
+export type ReviewGatePhase = 'preparing' | 'reviewing' | 'verifying' | 'fixing' | 'rechecking';
+export type ReviewRunKind = 'reviewer' | 'verifier' | 'fixer';
+export type ReviewRunState =
+  | 'pending' | 'running' | 'waiting' | 'done' | 'invalid' | 'budget' | 'failed' | 'timed-out' | 'cancelled' | 'interrupted' | 'incomplete-coverage';
+/** `deterministic` is a finding Claudio's own scan made, which no verifier is asked about */
+export type ReviewVerdict = 'not-asked' | 'confirmed' | 'refuted' | 'uncertain' | 'unverified' | 'deterministic';
+/** Where a finding could be placed in the diff; `outside` is a line the diff does not touch */
+export type ReviewAnchor = 'line' | 'file' | 'outside' | 'none';
+
+/** The review gate (docs/plans/review-gate.md). Present means on; absent means no review. */
+export interface ReviewGateSpec {
+  /** `correctness` always runs; the others as set here */
+  dimensions?: {
+    /** default true: weak or missing tests for the changed behaviour */
+    tests?: boolean;
+    /** default 'auto': runs when the trigger matches; 'always' runs it on every diff */
+    security?: 'auto' | 'always' | 'off';
+    /** default true when the base commit has CLAUDE.md, CONTRIBUTING.md or .claude/rules */
+    conventions?: boolean;
+  };
+  /** default 'full'. 'light' runs correctness (plus security when triggered) and packs chunks twice as large */
+  depth?: 'light' | 'full';
+  /** default true: blocking findings go to a fixer */
+  fixer?: boolean;
+  /** default 2, 0–5: fixer rounds; the gate reviews at most maxFixRounds + 1 times */
+  maxFixRounds?: number;
+  /** default 5, > 0: USD over the whole gate (reviewers, verifiers, fixers, every round) */
+  maxCostUsd?: number;
+  /** default 1, > 0: USD ceiling of one reviewer or verifier run */
+  maxRunCostUsd?: number;
+  /** default 15, 1–60: minutes of one run's own work; a usage-limit wait does not count */
+  timeoutMinutes?: number;
+  /** default 3, 1–6: review runs of this graph at the same time */
+  concurrency?: number;
+  /** defaults: reviewer 'sonnet', verifier 'opus', fixer = verification.model ?? graph model */
+  models?: { reviewer?: string; verifier?: string; fixer?: string };
+  /** globs added to the built-in exclusions (gitignore syntax, relative to the repository top) */
+  exclude?: string[];
+}
+
+/** The gate's summary, on the orchestration's verification; rounds, runs and findings are rows */
+export interface ReviewGateState {
+  status: ReviewGateStatus;
+  phase: ReviewGatePhase | null;
+  round: number;
+  maxFixRounds: number;
+  /** The commit the latest round reviewed */
+  head: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  costUsd: number;
+  /** English, Claudio's own sentence */
+  reason: string | null;
+  counts: { blocking: number; advisory: number; refuted: number; outside: number };
+  runs: { total: number; done: number; running: number; failed: number };
+  /** Set while a run waits for a usage limit to reset */
+  waiting?: LimitWait | null;
+  /** Bound to the head it was given on: a new commit voids it */
+  accepted?: { by: string; reason: string; at: string; head: string } | null;
+  depth: 'light' | 'full';
+}
+
+export interface ReviewRound {
+  id: string;
+  round: number;
+  pass: number;
+  base: string;
+  head: string;
+  depth: 'light' | 'full';
+  state: Exclude<ReviewGateStatus, 'pending' | 'skipped'>;
+  reason: string | null;
+  files: number;
+  added: number;
+  deleted: number;
+  chunks: number;
+  /** A file that should be reviewed but was not (anything but `excluded`) makes the round incomplete */
+  skippedFiles: { path: string; why: 'excluded' | 'binary' | 'submodule' | 'renamed' | 'not-reviewable'; detail?: string }[];
+  estimateUsd: number | null;
+  costUsd: number;
+  startedAt: string;
+  endedAt: string | null;
+  accepted: { by: string; reason: string; at: string } | null;
+  runs: ReviewRun[];
+}
+
+export interface ReviewRun {
+  id: string;
+  kind: ReviewRunKind;
+  dimension: ReviewDimension | null;
+  chunk: number | null;
+  chunks: number | null;
+  chatId: string | null;
+  model: string | null;
+  effort: Effort | null;
+  account: string | null;
+  /** Whether the role file was Claudio's or the project's, so a weakened reviewer shows */
+  roleSource: 'builtin' | 'project' | null;
+  state: ReviewRunState;
+  failure: string | null;
+  /** Findings the run reported that failed validation and were dropped */
+  dropped: number;
+  costUsd: number;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+export interface ReviewFinding {
+  id: string;
+  roundId: string;
+  /** Stable across rounds, so a finding is deduplicated and can be marked resolved */
+  fingerprint: string;
+  source: 'model' | 'claudio';
+  rule: string | null;
+  dimensions: ReviewDimension[];
+  /** How many reviewers reported it */
+  reportedBy: number;
+  severity: ReviewSeverity;
+  confidence: number;
+  title: string;
+  path: string | null;
+  line: number | null;
+  /** The diff's side as `ReviewSide`: a finding's `old` is `left` and its `new` is `right` */
+  side: ReviewSide | null;
+  anchor: ReviewAnchor;
+  /** Masked before it is stored: a finding must never copy a secret into the database */
+  evidence: string;
+  failureScenario: string;
+  suggestion: string | null;
+  verdict: ReviewVerdict;
+  verdictReason: string | null;
+  verifierChatId: string | null;
+  blocking: boolean;
+  resolvedInRound: number | null;
+}
+
+/** GET /orchestrations/:id/review */
+export interface ReviewGateDetail {
+  state: ReviewGateState | null;
+  rounds: ReviewRound[];
+  findings: ReviewFinding[];
+  totalFindings: number;
+}
+
+/** A person's acceptance of a blocked or incomplete gate; a chat token is refused */
+export interface AcceptReviewRequest {
+  reason: string;
+}
+
+/** GET /projects/:id/review-roles */
+export interface ReviewRoleInfo {
+  role: ReviewDimension | 'verifier';
+  file: string;
+  source: 'builtin' | 'project';
+  sha: string;
+  bytes: number;
+  problem: string | null;
+}
+
 // ---------- Verification ----------
 //
 // Workers run typecheck and unit tests; the whole suite runs once, here, on the integration branch.
@@ -3794,6 +3963,8 @@ export interface VerificationSpec {
    * before the merge (CW-15). On by default; `false` leaves the task out.
    */
   e2eSpecs?: boolean;
+  /** The review gate, after the checks pass; absent means no review. `commands` may then be empty */
+  review?: ReviewGateSpec;
 }
 
 /** Runs the checks on a finished graph's integration branch, or runs them again. */
@@ -3880,6 +4051,10 @@ export interface FlowCheckVerdict {
 
 export interface VerificationState {
   status: VerificationStatus;
+  /** Which gate made a `failed` verification fail; `VerificationStatus` has no member for the review */
+  gate?: 'checks' | 'review';
+  /** The review gate's summary; absent when the graph has no review */
+  review?: ReviewGateState;
   /** When the checks started and ended; absent on graphs stored before they were recorded */
   startedAt?: string | null;
   endedAt?: string | null;
@@ -3984,6 +4159,7 @@ export interface CriticalPathLink {
 }
 
 export interface VerificationTimings {
+  review?: { startedAt: string | null; endedAt: string | null; rounds: { round: number; reviewMs: number; verifyMs: number; fixMs: number; costUsd: number }[] };
   /** Every run of every command */
   checksMs: number;
   /** Every fixer attempt */
@@ -7430,7 +7606,8 @@ export type DecisionPointId =
   | 'checks.fix'
   | 'review.triage'
   | 'issue.triage'
-  | 'account.model-fallback';
+  | 'account.model-fallback'
+  | 'review.depth';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =

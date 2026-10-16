@@ -27,7 +27,8 @@
       "integration": "integration",
       "verification": "verification",
       "synthesis": "synthesis",
-      "workflow": "workflow"
+      "workflow": "workflow",
+      "review": "review"
     },
     "partOf": {
       "label": "Part of orchestration",
