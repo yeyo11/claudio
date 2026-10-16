@@ -981,6 +981,8 @@ export interface ChatSubagent {
   /** Where it works, when that is not the chat's directory (a worktree) */
   cwd: string | null;
   tasks: ChatBackgroundTask[];
+  /** What it is doing right now, from its latest calls; null while it has no open call or has ended */
+  activity: ChatActivity | null;
 }
 
 /** One agent of a workflow. */
@@ -5334,6 +5336,15 @@ export interface SubagentEndedEvent extends ClaudioEventBase, ActivityEventRef {
   status: 'completed' | 'failed' | 'stopped';
 }
 
+/** A running subagent's activity moved. At most one per subagent per second, like `chat.activity`. */
+export interface SubagentActivityEvent extends ClaudioEventBase, ActivityEventRef {
+  type: 'subagent.activity';
+  /** The call that launched it, which is how its sidechain names it */
+  toolUseId: string;
+  agentId: string | null;
+  activity: ChatActivity | null;
+}
+
 /** A workflow's phases, agents or token count moved while it runs. */
 export interface WorkflowProgressEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'workflow.progress';
@@ -7286,6 +7297,7 @@ export type ClaudioEvent =
   | SubagentStartedEvent
   | SubagentUpdatedEvent
   | SubagentEndedEvent
+  | SubagentActivityEvent
   | WorkflowProgressEvent
   | WorkflowEndedEvent
   | OrchestrationUpdatedEvent

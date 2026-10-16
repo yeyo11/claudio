@@ -94,6 +94,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'subagent.started': true,
   'subagent.updated': true,
   'subagent.ended': true,
+  'subagent.activity': true,
   'workflow.progress': true,
   'workflow.ended': true,
   'orchestration.updated': true,
@@ -284,6 +285,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.subagents, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, LISTS], [keys.overview, OVERVIEW]];
     case 'subagent.updated':
       return [[keys.subagents, NOW], [keys.agentDetail, NOW], ...chatOf(event)];
+    case 'subagent.activity':
+      // Like `chat.activity`: the event carries the whole line, so nothing is read again for it
+      return [];
     case 'workflow.progress':
       return [[keys.workflows, NOW], [keys.agentDetail, NOW], ...chatOf(event)];
     case 'workflow.ended':
