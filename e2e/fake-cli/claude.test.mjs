@@ -340,3 +340,105 @@ test('mcp_status lists the servers and mcp_toggle switches one, as the CLI does'
   assert.equal(after.response.response.mcpServers[0].status, 'disabled');
   await c.done();
 });
+
+const control = (c, id, request) => {
+  c.send({ type: 'control_request', request_id: id, request });
+  return c.next((e) => e.type === 'control_response' && e.response.request_id === id);
+};
+const status = (e) => e.type === 'system' && e.subtype === 'status';
+
+test('get_context_usage answers the recorded shape, with 93 MCP tools on two servers, and refuses a bad detail', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_COMPACT_MS: '50' });
+  const summary = (await control(c, 'u-1', { subtype: 'get_context_usage', detail: 'summary' })).response.response;
+  const recorded = JSON.parse(readFileSync(join(dirname(bin), '../../packages/core/test/fixtures/recordings/claude/context-usage-summary.json'), 'utf8'));
+  assert.deepEqual(Object.keys(summary), Object.keys(recorded));
+  assert.equal(summary.mcpTools.length, 93);
+  assert.deepEqual([...new Set(summary.mcpTools.map((t) => t.serverName))], ['alpha', 'beta']);
+  assert.equal(summary.mcpTools.filter((t) => t.isLoaded).length, 93);
+  const loaded = summary.categories.find((cat) => cat.name === 'MCP tools');
+  assert.equal(loaded.tokens, summary.mcpTools.reduce((n, t) => n + t.tokens, 0));
+  assert.ok(summary.categories.some((cat) => cat.kind === 'deferred'));
+  // No detail is `full`, as the CLI does
+  const bare = (await control(c, 'u-2', { subtype: 'get_context_usage' })).response.response;
+  const full = (await control(c, 'u-3', { subtype: 'get_context_usage', detail: 'full' })).response.response;
+  assert.deepEqual(bare, full);
+  const bad = await control(c, 'u-4', { subtype: 'get_context_usage', detail: 'bogus' });
+  assert.equal(bad.response.subtype, 'error');
+  assert.equal(bad.response.error, "get_context_usage: detail must be 'summary' or 'full'");
+  // After a compaction the total is the boundary's post_tokens
+  const before = summary.totalTokens;
+  c.say('/compact');
+  await c.next((e) => e.type === 'result');
+  const after = (await control(c, 'u-5', { subtype: 'get_context_usage', detail: 'summary' })).response.response;
+  assert.ok(after.totalTokens < before);
+  assert.equal(after.totalTokens, 1655);
+  await c.done();
+});
+
+test('/compact plays the recorded sequence: status, boundary, summary, stdout, result', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_COMPACT_MS: '50' }, { args: ['--replay-user-messages'] });
+  c.send({ type: 'user', uuid: 'u-compact', message: { role: 'user', content: '/compact Keep the plan' } });
+  assert.equal((await c.next(status)).status, 'compacting');
+  const ended = await c.next(status);
+  assert.deepEqual([ended.status, ended.compact_result], [null, 'success']);
+  const boundary = await c.next((e) => e.type === 'system' && e.subtype === 'compact_boundary');
+  assert.equal(boundary.compact_metadata.trigger, 'manual');
+  assert.equal(boundary.compact_metadata.post_tokens, 1655);
+  assert.ok(boundary.compact_metadata.pre_tokens > boundary.compact_metadata.post_tokens);
+  const summary = await c.next((e) => e.type === 'user' && e.uuid !== 'u-compact' && !e.isReplay);
+  assert.match(summary.message.content, /^This session is being continued from a previous conversation/);
+  const stdout = await c.next((e) => e.type === 'user' && e.isReplay && e.uuid !== 'u-compact');
+  assert.match(stdout.message.content, /<local-command-stdout>Compacted/);
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.is_error, false);
+  // Not a turn of the model: it said nothing in words of its own
+  assert.ok(!c.events.some((e) => text(e)));
+  await c.done();
+});
+
+test('/compact writes the boundary and the summary to the transcript when one is kept', async () => {
+  const config = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-config-'));
+  try {
+    const c = chat({ CLAUDIO_FAKE_CLI_COMPACT_MS: '50', CLAUDIO_FAKE_CLI_TRANSCRIPT: '1', CLAUDE_CONFIG_DIR: config });
+    c.say('/compact');
+    await c.next((e) => e.type === 'result');
+    const files = [];
+    const walk = (dir) => readdirSync(dir, { withFileTypes: true }).forEach((d) => (d.isDirectory() ? walk(join(dir, d.name)) : files.push(join(dir, d.name))));
+    walk(config);
+    const lines = readFileSync(files[0], 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const boundary = lines.find((l) => l.subtype === 'compact_boundary');
+    assert.equal(boundary.compactMetadata.postTokens, 1655);
+    const summary = lines.find((l) => l.isCompactSummary);
+    assert.equal(summary.parentUuid, boundary.uuid);
+    await c.done();
+  } finally {
+    rmSync(config, { recursive: true, force: true });
+  }
+});
+
+test('a /compact that says FAKE-COMPACT-FAIL fails as the recording does, and the process goes on', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_COMPACT_MS: '50' });
+  c.say('/compact FAKE-COMPACT-FAIL');
+  assert.equal((await c.next(status)).status, 'compacting');
+  const failed = await c.next(status);
+  assert.deepEqual([failed.status, failed.compact_result, failed.compact_error], [null, 'failed', 'API Error: Request was aborted.']);
+  await c.next((e) => e.type === 'system' && e.subtype === 'init');
+  assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Compaction canceled.');
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.is_error, false);
+  assert.ok(!c.events.some((e) => e.subtype === 'compact_boundary'));
+  c.say('after the failure');
+  assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Heard: after the failure');
+  await c.done();
+});
+
+test('an interrupt during a compaction fails it, and a message sent meanwhile is answered after', async () => {
+  const c = chat();
+  c.say('/compact FAKE-COMPACT-SLOW');
+  assert.equal((await c.next(status)).status, 'compacting');
+  c.say('and then this');
+  c.send({ type: 'control_request', request_id: 'i-1', request: { subtype: 'interrupt' } });
+  assert.equal((await c.next(status)).compact_result, 'failed');
+  assert.equal(text(await c.next((e) => e.type === 'assistant' && text(e) === 'Heard: and then this')), 'Heard: and then this');
+  await c.done();
+});
