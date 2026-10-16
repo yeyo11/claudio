@@ -645,5 +645,8 @@
       "wide-scope": "Alcance amplio"
     },
     "reason": "{{level}}: {{factors}}"
+  },
+  "readOnlyBar": {
+    "from": "Solo lectura · de {{name}}"
   }
 }

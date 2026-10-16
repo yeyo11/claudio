@@ -1,5 +1,5 @@
 import type { Project } from '@claudio/shared';
-import { BookText, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Package, Pencil, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
+import { BookText, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Network, Package, Pencil, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
 import { ALL_PROJECTS_LAYOUT } from '@claudio/shared';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import { usePendingProposalCount } from './home/memory/Proposals';
 import { PhoneAssistantRow, PhoneHead, PhoneViewHead, ProjectHead } from './home/ProjectHead';
 import { useProjectResourceCount } from './home/resources/data';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
+import { useSharedWith } from './project/shared-data';
 
 // The dashboard is what most visits are for; the project's other tabs load when opened
 const ProjectSettings = lazy(() => import('./home/ProjectSettings').then((m) => ({ default: m.ProjectSettings })));
@@ -29,6 +30,7 @@ const ProjectWorktrees = lazy(() => import('./home/ProjectWorktrees').then((m) =
 // The Tasks board itself: it reads the selected project, which on this page is the one shown
 const ProjectBoard = lazy(() => import('./tasks/Board').then((m) => ({ default: m.Board })));
 const ProjectTeam = lazy(() => import('./team/Team').then((m) => ({ default: m.ProjectTeam })));
+const ProjectShared = lazy(() => import('./project/SharedView').then((m) => ({ default: m.SharedView })));
 
 type TabId = 'summary' | ProjectViewId;
 
@@ -38,6 +40,7 @@ const TAB_ICON: Record<TabId, LucideIcon> = {
   team: Users,
   documents: FileText,
   memory: BookText,
+  shared: Network,
   resources: Package,
   worktrees: GitFork,
   settings: SlidersHorizontal,
@@ -159,6 +162,7 @@ function TabBody({ project, tab }: { project: Project; tab: ProjectViewId }) {
       {tab === 'settings' && <ProjectSettings project={project} />}
       {tab === 'memory' && <ProjectMemory project={project} />}
       {tab === 'documents' && <ProjectDocuments project={project} />}
+      {tab === 'shared' && <ProjectShared project={project} />}
       {tab === 'resources' && <ProjectResources project={project} />}
       {tab === 'worktrees' && <ProjectWorktrees project={project} />}
     </Suspense>
@@ -180,7 +184,9 @@ function ProjectPage({ project }: { project: Project }) {
   const group = useTabGroup();
   const counts = useTabCounts(project);
   const [editing, setEditing] = useState(false);
-  const views = projectViews(project.modules);
+  // Teammates' projects open the Shared tab; until the catalog is read, an address naming it waits
+  const shared = useSharedWith(project.id);
+  const views = projectViews(project.modules, shared.projects.length > 0);
   const asked = asProjectView(params.get('view'));
   const view = asked && views.includes(asked) ? asked : null;
   const tab: TabId = view ?? 'summary';
@@ -188,6 +194,8 @@ function ProjectPage({ project }: { project: Project }) {
   useEffect(() => {
     if (tab !== 'summary') setEditing(false);
   }, [tab]);
+
+  if (asked === 'shared' && !view && !shared.settled) return <Skeleton rows={5} height={18} />;
 
   if (asked && !view) {
     const next = new URLSearchParams(params);
