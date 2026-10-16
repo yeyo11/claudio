@@ -64,6 +64,17 @@ export default async ({ page, api, check }) => {
     check((await page.eval(`return document.querySelectorAll('.msg-step .call-row.is-error').length`)) === 1, 'the failed call has its own rail');
     check((await page.text('.msg-step .call-row.is-error')).includes('failed'), 'the failed call says so in words');
 
+    // ---- an opened call reads as what happened: labelled zones, the command as code, no JSON ----
+    await page.click('.msg-step .call-row.is-error .collapsible-trigger');
+    await page.waitFor(`return !!document.querySelector('.msg-step .call-row.is-error .call-body')`, { label: 'the Bash row opens onto its body' });
+    const body = await page.eval(`
+      const b = document.querySelector('.msg-step .call-row.is-error .call-body');
+      return { labels: [...b.querySelectorAll('.call-label')].map((l) => l.textContent.trim()), code: [...b.querySelectorAll('pre.code, code')].map((c) => c.textContent).join('\\n'), text: b.innerText };`);
+    check(body.labels.includes('Call') && body.labels.includes('Result'), `the body labels its zones Call and Result (${body.labels.join(', ')})`);
+    check(body.code.includes('npm run build'), `the command is shown as code (${body.code.slice(0, 80)})`);
+    check(!body.text.includes('{"') && !body.text.includes('"command"'), `the body shows no raw JSON (${body.text.slice(0, 160)})`);
+    check(body.text.includes('exit 1'), 'the failed call keeps its error as the result');
+
     // ---- the ⋯ menu holds what the header used to spell out ----
     await page.focus('.chat-head button[aria-label="More chat actions"]');
     await page.key('Enter');

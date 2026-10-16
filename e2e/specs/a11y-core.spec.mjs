@@ -1,6 +1,7 @@
 // Accessibility of the app's own pages (see a11y-shared.mjs): the contrast of the theme tokens, and
 // axe over Home, the chats, the orchestrations, connectors and every Settings tab, in both themes, and
-// the context breakdown and the compact confirmation that open over a chat, in both themes and at phone width.
+// the context breakdown and the compact confirmation that open over a chat, in both themes and at phone width,
+// and the strip of what is running over a chat's composer, open in both themes and as the phone's sheet.
 import { a11ySpec, OVERLAY_RULES, scanBothThemes, scanNarrow, SESSION, SETTINGS_TABS, settle, tokenContrast } from './a11y-shared.mjs';
 
 // Two themes and two dozen pages
@@ -49,6 +50,60 @@ async function scanContextOverlays(page, scan, problems, narrow) {
   }
 }
 
+/**
+ * The strip of what is running over the composer (plans/tool-rows-and-live-branches.md §3.3) is only
+ * on the page while a branch runs, and this spec has no process to run one. The seeded chat has a
+ * subagent and the background task it launched, both ended; the page is handed the chat's detail
+ * with both still running, so axe judges the strip's own markup: open on a desktop in both themes,
+ * and as the phone's sheet.
+ */
+const RUNNING_BRANCHES = `(() => {
+  const native = window.fetch;
+  const running = (branch) => ({ ...branch, status: 'running', endedAt: null });
+  window.fetch = async (input, init) => {
+    const res = await native(input, init);
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
+    if (!res.ok || (init?.method ?? 'GET') !== 'GET' || !url.pathname.endsWith('/chats/${SESSION}')) return res;
+    const body = await res.clone().json().catch(() => null);
+    const children = body?.chat?.children;
+    if (!children) return res;
+    children.subagents = children.subagents.map((sub) => ({ ...running(sub), activity: null, tasks: (sub.tasks ?? []).map(running) }));
+    children.backgroundTasks = children.backgroundTasks.map(running);
+    return new Response(JSON.stringify(body), { status: res.status, statusText: res.statusText, headers: res.headers });
+  };
+})();`;
+
+async function scanBranchStrip(page, scan, problems) {
+  const remove = await page.onNewDocument(RUNNING_BRANCHES);
+  try {
+    await page.eval(`localStorage.setItem('claudio-chat-branches', 'open'); return true`);
+    for (const theme of ['dark', 'light']) {
+      await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
+      await settle(page, `/chats/${SESSION}`);
+      const open = await page.eval(`return document.querySelectorAll('.chat-branches .chat-branch-row').length`);
+      if (open === 0) {
+        problems.push(`[${theme}] the chat with running branches shows no open strip`);
+        continue;
+      }
+      await scan(page, `${theme} chat with the branch strip open`);
+    }
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
+    await page.viewport(420, 900);
+    await settle(page, `/chats/${SESSION}`);
+    if (await page.eval(`return !!document.querySelector('.chat-branches .chat-branches-bar')`)) {
+      await page.click('.chat-branches .chat-branches-bar', undefined, 800);
+      await page.waitFor(`return !!document.querySelector('[role=dialog] .chat-branch-row')`, { label: 'the branch sheet' });
+      await scan(page, '420px branch sheet', { rules: OVERLAY_RULES });
+      await page.key('Escape');
+      await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the branch sheet closed' });
+    } else problems.push('[420px] the chat with running branches shows no strip');
+  } finally {
+    await remove();
+    await page.viewport(1440, 900);
+    await page.eval(`localStorage.removeItem('claudio-chat-branches'); return true`);
+  }
+}
+
 export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
   const pages = [
     '/',
@@ -78,6 +133,7 @@ export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
     await page.viewport(420, 900);
     await scanContextOverlays(page, scan, problems, true);
     await page.viewport(1440, 900);
+    await scanBranchStrip(page, scan, problems);
   } finally {
     if (shell.body?.id) await api.del(`/terminals/${shell.body.id}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});

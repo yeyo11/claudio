@@ -15,6 +15,9 @@
 // the Resources tab, one of each kind at once, each kept reading by a `run:` line in the fake CLI's
 // scripts file (their prompts are core's, so the spec cannot type them). A run at work is the one
 // energy border of its screen, and it stops like everything else.
+//
+// The strip of what is running beside a chat (plans/tool-rows-and-live-branches.md §3.4): a chat whose
+// background command outlives its turn, and the strip's braille spinner, which holds its still glyph.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -215,6 +218,33 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
       if (level !== 'full') {
         const running = await page.eval(loops('main'));
         check(running.length === 0, `a chat compacting: nothing repeats at ${level} (${running.join(', ')})`);
+      }
+    }
+    await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
+
+    // ---- what is running beside a chat: the strip's braille spinner turns at full, holds still at subtle and off ----
+    // The fake's `background:` line leaves a command running after the turn; the cleanup stops the chat, and it with it
+    writeFileSync(fakeCli.scripts, JSON.stringify({ 'MOTION-BRANCHES': 'background: sleep 120\nsay: The watcher runs.' }));
+    const watching = await api.post('/chats', { prompt: 'MOTION-BRANCHES: start the watcher', cwd: dir });
+    check(watching.status === 201, `a chat with a background command (${watching.status})`);
+    flowChats.push(watching.body.id);
+    // Four reads of the glyph a beat apart (not a multiple of the ten-frame turn): a spinner that turns
+    // shows more than one, and a still one shows the still glyph (SPINNER_STILL) every time
+    const glyphs = `
+      const read = () => document.querySelector('.chat-branches-bar .spinner-glyph')?.textContent ?? null;
+      const seen = [read()];
+      for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 330)); seen.push(read()); }
+      return seen;`;
+    for (const level of ['full', 'subtle', 'off']) {
+      await page.eval(`localStorage.setItem('claudio-motion', '${level}');`);
+      await open(`/chats/${watching.body.id}`, '.chat-branches-bar .spinner-glyph');
+      const seen = await page.eval(glyphs);
+      if (level === 'full') {
+        check(new Set(seen).size > 1, `the strip's spinner turns at full (${seen.join(' ')})`);
+      } else {
+        check(seen.every((glyph) => glyph === '⠿'), `the strip's spinner holds still at ${level} (${seen.join(' ')})`);
+        const running = await page.eval(loops('main'));
+        check(running.length === 0, `a chat with a branch running: nothing repeats at ${level} (${running.join(', ')})`);
       }
     }
     await page.eval(`localStorage.setItem('claudio-motion', 'full');`);
