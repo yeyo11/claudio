@@ -14,7 +14,7 @@ type Kind = 'login' | 'token' | 'api-key';
 const KINDS: readonly Kind[] = ['login', 'token', 'api-key'];
 
 /** A sign-in that still waits for the CLI or the person. */
-const live = (session: AccountLoginSession | null): boolean => session !== null && session.endedAt === null;
+export const live = (session: AccountLoginSession | null): boolean => session !== null && session.endedAt === null;
 
 /**
  * The sign-in panel of a `login` account, in the shape of the setup flow's: where to go, the link
@@ -22,7 +22,7 @@ const live = (session: AccountLoginSession | null): boolean => session !== null 
  * braille spinner beside "Waiting for you to approve". The box carries the energy border: it is the
  * one live surface of the dialog while it waits. Only the URL the CLI printed reaches this panel.
  */
-function SignInSession({ session, onCode, sending, error }: { session: AccountLoginSession; onCode: (code: string) => void; sending: boolean; error: unknown }) {
+export function SignInSession({ session, onCode, sending, error }: { session: AccountLoginSession; onCode: (code: string) => void; sending: boolean; error: unknown }) {
   const { t } = useTranslation('accountsConfig');
   const [code, setCode] = useState('');
   const failed = session.state === 'failed' || session.state === 'cancelled';

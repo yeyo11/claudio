@@ -85,7 +85,10 @@
     "limitUnknown": "Límite desconocido",
     "limitNone": "No informa de su límite",
     "ready": "Lista",
-    "ofTotal": "{{ready}} de {{total}} listas"
+    "ofTotal": "{{ready}} de {{total}} listas",
+    "signInExpired": "{{name}}: sesión caducada",
+    "signInIncomplete": "{{name}}: sesión incompleta",
+    "signInAgain": "Volver a iniciar sesión"
   },
   "notFound": {
     "body": "La dirección puede estar mal escrita, o la página ya no existe.",

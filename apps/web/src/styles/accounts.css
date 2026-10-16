@@ -45,6 +45,15 @@
   color: var(--bad);
 }
 
+.account-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--bad);
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--text);
+}
+
 .account-id {
   flex: 1;
   display: flex;

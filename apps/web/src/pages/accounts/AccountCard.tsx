@@ -1,12 +1,12 @@
 import type { Account } from '@claudio/shared';
-import { CircleCheck, CirclePause, Trash2 } from 'lucide-react';
+import { CircleCheck, CirclePause, LogIn, Trash2, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { MoreActions, type MenuItem } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
 import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
-import { accountExhausted, accountName, isDefaultAccount, timeToReset, usagePct, windowRows, type WindowRow } from '../../lib/accounts';
+import { accountExhausted, accountName, canSignInAgain, isDefaultAccount, signInProblem, timeToReset, usagePct, windowRows, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */
 function useResetText() {
@@ -51,6 +51,7 @@ export function AccountCard({
   busy,
   onToggle,
   onRemove,
+  onSignInAgain,
 }: {
   account: Account;
   /** New work would start on this account */
@@ -58,6 +59,7 @@ export function AccountCard({
   busy: boolean;
   onToggle: () => void;
   onRemove: () => void;
+  onSignInAgain: () => void;
 }) {
   const { t } = useTranslation(['accountsConfig', 'common']);
   const resetText = useResetText();
@@ -68,11 +70,12 @@ export function AccountCard({
   const sub = [account.alias ? account.email : null, account.organization, account.plan].filter(Boolean).join(' · ');
   const toggleLabel = account.enabled ? t('card.holdOut') : t('card.returnToRotation');
   const rows = windowRows(account.limits);
+  const problem = signInProblem(account);
 
   const toggleItem: MenuItem = { id: 'toggle', label: toggleLabel, icon: account.enabled ? CirclePause : CircleCheck, disabled: busy, onSelect: onToggle };
   const removeItem: MenuItem = { id: 'remove', label: t('card.remove'), icon: Trash2, destructive: true, disabled: busy, onSelect: onRemove };
   const menu = isDefaultAccount(account) ? [toggleItem] : [toggleItem, removeItem];
-  const classes = ['card', 'account-card', current ? 'grad-border glow-top is-active' : '', exhausted ? 'is-exhausted' : ''].filter(Boolean).join(' ');
+  const classes = ['card', 'account-card', current ? 'grad-border glow-top is-active' : '', exhausted || problem ? 'is-exhausted' : ''].filter(Boolean).join(' ');
 
   return (
     <li className={classes}>
@@ -86,7 +89,13 @@ export function AccountCard({
             {current && <span className="badge badge-grad">{t('card.inUse')}</span>}
             {isDefaultAccount(account) && <Tag tone="muted">{t('card.default')}</Tag>}
             {!account.enabled && <Tag tone="muted">{t('card.outOfRotation')}</Tag>}
-            {!account.signedIn && <Tag tone="warn">{t('card.signedOut')}</Tag>}
+            {problem ? (
+              <Tag tone="bad">
+                <TriangleAlert {...ICON_SM} /> {t(problem === 'expired' ? 'card.signInExpired' : 'card.signInIncomplete')}
+              </Tag>
+            ) : (
+              !account.signedIn && <Tag tone="warn">{t('card.signedOut')}</Tag>
+            )}
             {exhausted && <Tag tone="bad">{t('card.exhausted')}</Tag>}
           </span>
           <span className="account-sub">
@@ -106,6 +115,12 @@ export function AccountCard({
         )}
       </div>
 
+      {problem && (
+        <p className="account-notice small" role="status">
+          {t(problem === 'expired' ? 'card.expiredHint' : 'card.incompleteHint')}
+        </p>
+      )}
+
       <div className="account-meters">
         {rows.length > 0 ? (
           rows.map((row) => <WindowMeter key={row.key} row={row} />)
@@ -122,6 +137,12 @@ export function AccountCard({
 
       <div className="account-foot">
         <span className="account-actions">
+          {problem && canSignInAgain(account) && (
+            <button type="button" className="btn btn-small btn-primary" onClick={onSignInAgain} disabled={busy} aria-label={t('card.signInAgainFor', { name })}>
+              <LogIn {...ICON_SM} />
+              <span className="account-action-text">{t('card.signInAgain')}</span>
+            </button>
+          )}
           <button type="button" className="btn btn-small" onClick={onToggle} disabled={busy} aria-label={`${toggleLabel}: ${name}`}>
             {account.enabled ? <CirclePause {...ICON_SM} /> : <CircleCheck {...ICON_SM} />}
             <span className="account-action-text">{toggleLabel}</span>
