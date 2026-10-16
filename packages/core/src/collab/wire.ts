@@ -40,11 +40,18 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const AGENT_FILE = /^(?:workflows\/[A-Za-z0-9_-]{1,64}\/)?agent-[A-Za-z0-9_-]{1,64}\.jsonl$/;
 /** Sealed join payloads are base64url of a small box (invite.ts) */
 const SEALED = /^[A-Za-z0-9_-]{16,8192}$/;
+/** An iroh endpoint ticket: a lower-case base32 string */
+const TICKET = /^[A-Za-z0-9]{1,4096}$/;
+export const isTicket = (value: unknown): value is string => typeof value === 'string' && TICKET.test(value);
 
 // ---------- Requests ----------
 
 export type WireRequest =
-  | { type: 'hello'; heads: Record<string, RosterHead> }
+  /**
+   * `ticket`: the sender's own, so a member can later dial it or hand it to an invitee as a relay.
+   * `changed`: what the sender shares changed, so the receiver pulls its catalog again now
+   */
+  | { type: 'hello'; heads: Record<string, RosterHead>; ticket?: string; changed?: boolean }
   | { type: 'roster'; groupId: string; sinceVersion: number }
   | { type: 'join'; groupId: string; sealed: string }
   | { type: 'joinRelay'; groupId: string; sealed: string; from: string; receivedAt: string; expiresAt: string | null }
@@ -85,7 +92,7 @@ export interface CatalogEntry {
 export type WireErrorCode = 'bad-request' | 'forbidden' | 'not-found' | 'refused' | 'unavailable' | 'internal';
 
 export type WireReply =
-  | { type: 'hello'; heads: Record<string, RosterHead> }
+  | { type: 'hello'; heads: Record<string, RosterHead>; ticket?: string }
   | { type: 'roster'; groupId: string; versions: RosterVersion[] }
   | { type: 'pending'; groupId: string; owner: string }
   | { type: 'ack' }
@@ -245,7 +252,8 @@ export function parseRequest(value: unknown): WireRequest | null {
   switch (value.type) {
     case 'hello': {
       const heads = parseHeads(value.heads);
-      return heads ? { type: 'hello', heads } : null;
+      if (!heads) return null;
+      return { type: 'hello', heads, ...(isTicket(value.ticket) ? { ticket: value.ticket } : {}), ...(value.changed === true ? { changed: true } : {}) };
     }
     case 'roster':
       return isGroupIdOnWire(value.groupId) && isCount(value.sinceVersion) ? { type: 'roster', groupId: value.groupId, sinceVersion: value.sinceVersion } : null;
