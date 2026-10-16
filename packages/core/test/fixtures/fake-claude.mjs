@@ -13,6 +13,8 @@
 //   FAKE-BUDGET                   ends the turn as the CLI does when --max-budget-usd ran out
 //   FAKE-LIMIT-ONCE               the session's first turn dies against the rate limit (a 429), and
 //                                 the same prompt sent again (the rotation's replay) goes on as usual
+//   FAKE-LIMIT-REPORTED-ONCE      the same, with the rejected rate_limit_event the CLI sends before the 429
+//                                 (replay/rate-limit.jsonl), which is what records the provider's limit
 //
 //   FAKE-TEXT-ONCE <text>         the session's first turn ends with that text as its result, and every
 //                                 later turn answers `continued: <the prompt it got>`: a worker that
@@ -198,8 +200,13 @@ lines.on('line', (line) => {
     return;
   }
   const limited = join(tmpdir(), `fake-claude-limit-${sessionId}`);
-  if (/^FAKE-LIMIT-ONCE$/m.test(prompt) && !existsSync(limited)) {
+  const reported = /^FAKE-LIMIT-REPORTED-ONCE$/m.test(prompt);
+  if ((reported || /^FAKE-LIMIT-ONCE$/m.test(prompt)) && !existsSync(limited)) {
     writeFileSync(limited, '1');
+    if (reported) {
+      const resetsAt = Math.floor(Date.now() / 1000) + 3600;
+      out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt, unifiedWindows: { '5h': { utilization: 1 } } } });
+    }
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
     return;
   }
