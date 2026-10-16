@@ -21,6 +21,13 @@
 // split is greedy longest-first over e2e/timings.json (seconds per spec, checked in so every CI job
 // computes the same split; a spec missing from it weighs the median), and every fakeCli spec stays
 // in one shard, behind one restart of its server. See e2e/shards.mjs.
+// Collaborators (docs/plans/collaborators.md, C4): a spec that exports `peers = ['ben', …]` gets one
+// more wrapper per name, each with a sandbox, a port and a fake `claude` of its own, started before
+// it and stopped after it; its context gains `peers.<name>` (`api`, `dirs`, `fakeCli`, `baseUrl`,
+// and `page`, the same browser tab with `goto` aimed at that wrapper). Every wrapper of a run binds
+// its iroh endpoint on the minimal preset to a fixed loopback port (CLAUDIO_COLLAB_PRESET,
+// CLAUDIO_COLLAB_BIND): no relay and no discovery, so installs reach each other by their loopback
+// tickets and the suite needs no network, and an invite stays good across a turn off and on.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -30,7 +37,7 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './driver.mjs';
 import { runShards } from './parallel.mjs';
-import { killGroup } from './processes.mjs';
+import { freePort, killGroup } from './processes.mjs';
 import { defaultShardCount, groupSpecs, loadTimings, parseCount, parseShard, splitSpecs } from './shards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -121,6 +128,9 @@ await once(releaseFixture, 'listening');
 releaseFixture.unref();
 const releasesUrl = `http://127.0.0.1:${releaseFixture.address().port}/repos/yeyo11/claudio/releases/latest`;
 
+/** Collaborators on loopback only, at a UDP port the wrapper keeps for the whole run (see the header) */
+const collabEnv = async () => ({ CLAUDIO_COLLAB_PRESET: 'minimal', CLAUDIO_COLLAB_BIND: `127.0.0.1:${await freePort('udp')}` });
+
 const sandbox = mkdtempSync(join(tmpdir(), 'claudio-e2e-'));
 // Specs seed transcripts and files straight into these directories
 const dirs = {
@@ -176,6 +186,7 @@ const env = {
   FAKE_TAILSCALE_STATE: join(sandbox, 'tailscale-node.json'),
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
+  ...(await collabEnv()),
 };
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
@@ -225,6 +236,7 @@ function stopServer() {
 // 'exit' is the one hook every way out passes through (the browser closes itself from its own
 // handler, registered when it launches). The server goes first, then the sandbox it was using.
 process.on('exit', () => {
+  stopPeers();
   stopServer();
   if (process.env.E2E_KEEP !== '1') rmSync(sandbox, { recursive: true, force: true, maxRetries: 3 });
 });
@@ -257,8 +269,7 @@ const SERVER_START_LIMIT_MS = envMs('E2E_SERVER_START_TIMEOUT', 120_000);
  * registered, since the server listens last. Its `ok` field speaks of the CLI's login, which the
  * sandbox does not have: any 200 means the server is ready.
  */
-async function waitForServer() {
-  const child = server;
+async function waitForServer(child = server, url = baseUrl, stderr = () => serverStderr) {
   // Already gone if it failed between the spawn and this call
   let exited = child.exitCode !== null || child.signalCode !== null ? { code: child.exitCode, signal: child.signalCode } : null;
   const onExit = (code, signal) => (exited = { code, signal });
@@ -267,33 +278,105 @@ async function waitForServer() {
   try {
     while (Date.now() - started < SERVER_START_LIMIT_MS) {
       if (exited) {
-        throw new Error(`the API exited before it answered (${exited.signal ?? `code ${exited.code}`}):\n${serverStderr.trim() || '(no stderr)'}`);
+        throw new Error(`the API exited before it answered (${exited.signal ?? `code ${exited.code}`}):\n${stderr().trim() || '(no stderr)'}`);
       }
       try {
-        const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) return;
       } catch {
         // not up yet
       }
       await new Promise((r) => setTimeout(r, 250));
     }
-    throw new Error(`the API did not answer /api/health within ${SERVER_START_LIMIT_MS / 1000}s (set E2E_SERVER_START_TIMEOUT to allow longer):\n${serverStderr.trim() || '(no stderr)'}`);
+    throw new Error(`the API did not answer /api/health within ${SERVER_START_LIMIT_MS / 1000}s (set E2E_SERVER_START_TIMEOUT to allow longer):\n${stderr().trim() || '(no stderr)'}`);
   } finally {
     child.off('exit', onExit);
   }
 }
 
-const api = {
-  baseUrl,
-  async request(method, path, body) {
-    const res = await fetch(`${baseUrl}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
-    return { status: res.status, body: await res.json().catch(() => null) };
-  },
-  get: (path) => api.request('GET', path),
-  put: (path, body) => api.request('PUT', path, body),
-  post: (path, body) => api.request('POST', path, body),
-  del: (path) => api.request('DELETE', path),
-};
+function apiAt(url) {
+  const client = {
+    baseUrl: url,
+    async request(method, path, body) {
+      const res = await fetch(`${url}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      return { status: res.status, body: await res.json().catch(() => null) };
+    },
+    get: (path) => client.request('GET', path),
+    put: (path, body) => client.request('PUT', path, body),
+    post: (path, body) => client.request('POST', path, body),
+    del: (path) => client.request('DELETE', path),
+  };
+  return client;
+}
+const api = apiAt(baseUrl);
+
+// ---------- peers: the other wrappers of a Collaborators spec ----------
+
+/** The peers running now, by name; started for one spec and stopped after it */
+const peers = new Map();
+let peerRuns = 0;
+const PEER_NAME = /^[a-z][a-z0-9-]{0,30}$/;
+
+function stopPeers() {
+  for (const peer of peers.values()) killGroup(peer.child.pid, { graceMs: 3000 });
+  peers.clear();
+}
+
+/**
+ * One more wrapper, as the main one is made but always on the fake CLI: a peer is a teammate's
+ * machine, and nothing a spec does there may reach the real `claude`. Each run of a spec gets fresh
+ * directories, so no spec sees what an earlier one left on a peer.
+ */
+async function startPeer(name, page) {
+  const home = join(sandbox, 'peers', `${name}-${++peerRuns}`);
+  const peerDirs = { configDir: join(home, 'claude'), workspaceDir: join(home, 'workspace'), dataDir: join(home, 'data') };
+  for (const dir of Object.values(peerDirs)) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(peerDirs.dataDir, 'app-settings.json'), `${JSON.stringify({ setupSeen: true }, null, 2)}\n`);
+  const port = await freePort('tcp');
+  const url = `http://127.0.0.1:${port}`;
+  const peerFake = { bin: fakeCli.bin, log: join(home, 'fake-cli.jsonl'), scripts: join(home, 'fake-cli-scripts.json') };
+  const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], {
+    cwd: root,
+    env: {
+      ...fakeEnv,
+      PORT: String(port),
+      CLAUDIO_WORKSPACE_DIR: peerDirs.workspaceDir,
+      CLAUDIO_DATA_DIR: peerDirs.dataDir,
+      CLAUDE_CONFIG_DIR: peerDirs.configDir,
+      CLAUDIO_FAKE_CLI_LOG: peerFake.log,
+      CLAUDIO_FAKE_CLI_SCRIPTS: peerFake.scripts,
+      FAKE_TAILSCALE_STATE: join(home, 'tailscale-node.json'),
+      ...(await collabEnv()),
+    },
+    stdio: ['ignore', 'ignore', 'pipe'],
+    detached: true,
+  });
+  let stderr = '';
+  child.stderr.on('data', (chunk) => {
+    process.stderr.write(`[${name}] ${chunk}`);
+    stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS);
+  });
+  child.on('error', () => {});
+  peers.set(name, { child });
+  await waitForServer(child, url, () => stderr);
+  const peerPage = Object.assign(Object.create(page), {
+    baseUrl: url,
+    // The same tab, sent to the peer's own origin: a person looking at a teammate's screen
+    async goto(path, wait = 1200) {
+      await page.eval(`location.assign(${JSON.stringify(`${url}${path}`)}); return true`);
+      await page.sleep(wait);
+    },
+  });
+  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage };
+}
+
+async function startPeers(names, page) {
+  if (!Array.isArray(names) || names.some((n) => typeof n !== 'string' || !PEER_NAME.test(n)) || new Set(names).size !== names.length) {
+    throw new Error(`\`peers\` must be distinct lower-case names, got ${JSON.stringify(names)}`);
+  }
+  const started = await Promise.all(names.map((name) => startPeer(name, page)));
+  return Object.fromEntries(started.map((peer) => [peer.name, peer]));
+}
 
 function check(condition, message) {
   if (!condition) throw new Error(`assertion failed: ${message}`);
@@ -335,6 +418,7 @@ try {
       await browser.page.reset();
       browser.page.takeErrors();
       const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli, releases } : { page: browser.page, api, check, dirs, releases };
+      if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page);
       await within(spec.default(context), limit, file);
       const errors = browser.page.takeErrors();
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);
@@ -349,6 +433,8 @@ try {
         console.log('- stopping: the timed-out spec may still be driving the browser');
         break;
       }
+    } finally {
+      stopPeers();
     }
   }
 } catch (error) {
