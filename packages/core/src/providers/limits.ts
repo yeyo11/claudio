@@ -72,24 +72,6 @@ export function limitFromInfo(provider: ProviderId, info: RateLimitInfo, source:
 }
 
 /**
- * A turn died on the limit. The reset comes from the last reading while it is still ahead, else it
- * is unknown; the wording of the failure is never read for it.
- */
-export function limitFromFailure(provider: ProviderId, last: ProviderLimit | null, observedAt: string): ProviderLimit {
-  const ahead = last?.resetsAt !== null && last?.resetsAt !== undefined && Date.parse(last.resetsAt) > Date.parse(observedAt);
-  return {
-    provider,
-    state: 'exhausted',
-    window: ahead ? last.window : null,
-    utilization: ahead ? 1 : null,
-    resetsAt: ahead ? last.resetsAt : null,
-    windows: ahead ? last.windows : {},
-    observedAt,
-    source: 'failure',
-  };
-}
-
-/**
  * A reading as it stands at `nowMs`. Once the binding window has reset the old use says nothing, so
  * the reading becomes `unknown`, never `ok` without a new one.
  */
@@ -114,15 +96,14 @@ export class ProviderLimits {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** A driver event of `provider`'s chat: the window reports, a failure on the limit, a result that says so. */
+  /**
+   * A driver event of `provider`'s chat: only its window reports change the reading. A turn that
+   * died on the limit (Claude's 429) leaves the last reading as it stands: the failure says neither
+   * how much was used nor when the window resets, and the rejected report that usually comes before
+   * it already does.
+   */
   observe(provider: ProviderId, event: DriverEvent): void {
     if (event.kind === 'rate-limit') this.record(limitFromInfo(provider, event.info, 'stream', this.stamp()));
-    else if (event.kind === 'rate-limited' || (event.kind === 'result' && event.rateLimited)) this.observeFailure(provider);
-  }
-
-  /** A turn failed on the limit (Claude's 429). */
-  observeFailure(provider: ProviderId): void {
-    this.record(limitFromFailure(provider, this.raw(provider), this.stamp()));
   }
 
   /** A read that spends nothing (a handshake that reads them). */

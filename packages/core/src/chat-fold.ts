@@ -216,11 +216,6 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       host.observeLimit(chat, event);
       return;
 
-    case 'rate-limited':
-      chat.rateLimited = true;
-      host.observeLimit(chat, event);
-      return;
-
     case 'permission-request':
       askPermission(host, chat, event.question);
       return;
@@ -292,6 +287,9 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   if (event.rateLimited) {
     chat.rateLimited = true;
     host.observeLimit(chat, event);
+  } else if (!event.isError) {
+    // A turn went through: the accounts an earlier one died on may have reset since
+    chat.limitedAccounts.clear();
   }
   const { isError } = event;
   const purpose = chat.purpose;

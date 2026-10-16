@@ -844,6 +844,11 @@
         ],
         "description": "Why it failed, when it did"
       },
+      "cause": {
+        "type": "string",
+        "const": "rate-limit",
+        "description": "`rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution recorded before it was kept. The error's wording is never read for it."
+      },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
       },

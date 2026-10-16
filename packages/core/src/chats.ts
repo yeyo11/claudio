@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { DEFAULT_ID, readingFromEvent, readingFromFailure, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
+import { DEFAULT_ID, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -67,7 +67,6 @@ import { ProviderLimits } from './providers/limits.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
-import { RATE_LIMIT_RE } from './providers/claude-code/stream.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
@@ -75,11 +74,19 @@ export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
 /**
- * Whether an error is the account's limit rather than the work's: the classification that gives a
- * result `cause: 'rate-limit'` (and so the flow its `rate-limit`/`no-account`), for the places that
- * only have an execution's stored error to go on.
+ * The accounts a chat's latest executions died on at their limit, newest first, up to the first
+ * that did not. Recorded on the executions, so it survives a restart; the chat's set covers the turn
+ * still running, which has no record of its end yet.
  */
-export const isRateLimitError = (error: string | null | undefined): boolean => !!error && RATE_LIMIT_RE.test(error);
+export function limitedTail(executions: readonly Execution[]): string[] {
+  const accounts: string[] = [];
+  for (let i = executions.length - 1; i >= 0; i--) {
+    const e = executions[i];
+    if (!e || e.cause !== 'rate-limit') break;
+    if (e.account) accounts.push(e.account);
+  }
+  return accounts;
+}
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
  * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong
@@ -1263,26 +1270,19 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * What the chat's account reports, kept per account: a stream reading is stored as it is, a turn
-   * that died on the limit marks the account out until its reset (or, when no reset is known, for
-   * the cooldown), and every change of a window lands in `usage_history`.
+   * What the chat's account reports, kept per account: a stream reading is stored as it is, and
+   * every change of a window lands in `usage_history`. A turn that died on the limit writes nothing
+   * into the account's reading, since the CLI said neither how much was used nor until when; the chat
+   * only remembers the account, so that its next move does not go back to it.
    */
   private observeAccount(chat: LiveChat, event: DriverEvent): void {
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
-    const at = Date.now();
-    let reading: Reading | null = null;
-    if (event.kind === 'rate-limit') {
-      const { info } = event;
-      reading = readingFromEvent({ status: info.status, rateLimitType: info.rateLimitType, resetsAt: info.resetsAt, unifiedWindows: info.windows }, at);
-    } else {
-      const known = store.get(id).limits;
-      // A rejection the stream already reported says when the account is back
-      if (known?.state === 'exhausted' && known.resetsAt && Date.parse(known.resetsAt) > at) return;
-      const cooldown = store.settings().cooldownSeconds * 1000;
-      reading = readingFromFailure(Math.floor((at + cooldown) / 1000), at);
-    }
+    if (event.kind !== 'rate-limit' || event.info.status === 'rejected') chat.limitedAccounts.add(id);
+    if (event.kind !== 'rate-limit') return;
+    const { info } = event;
+    const reading = readingFromEvent({ status: info.status, rateLimitType: info.rateLimitType, resetsAt: info.resetsAt, utilization: info.utilization, unifiedWindows: info.windows }, Date.now());
     if (!reading) return;
     void this.noteAccountReading(id, reading).catch(() => undefined);
   }
@@ -1307,14 +1307,16 @@ export class ChatManager extends EventEmitter {
 
   /**
    * What `choose` makes of the accounts for a chat that just hit its limit: the account to move it
-   * to, or when none is left the earliest reset. Null for a chat that runs on none.
+   * to, or when none is left the earliest reset. Null for a chat that runs on none. Every account
+   * the turn already died on is passed over, so a chain of moves ends by itself.
    */
   chooseNext(id: string): Choice | null {
     const chat = this.chats.get(id);
     const store = this.accounts;
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model });
+    const failedOn = new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)]);
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn: [...failedOn] });
   }
 
   /** Reads the model lists the account choice needs and does not have yet (no turn, no tokens). */
@@ -1491,7 +1493,7 @@ export class ChatManager extends EventEmitter {
     chat.branches.endAll(chat.endedAt);
     const execution = chat.execution;
     if (execution) {
-      Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error });
+      Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error, ...(chat.rateLimited ? { cause: 'rate-limit' as const } : {}) });
     }
     // What the agent still had in its queue died with it; what waits for the next process does not
     for (const message of chat.written()) {
@@ -1565,7 +1567,7 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     if (!chat || !chat.lastUserTurn) return false;
     // A move to another account is not the second failure the counter guards against: every account
-    // that fails is out until its reset, so a chain of moves ends by itself
+    // the turn died on is no candidate for its next move (`chooseNext`), so a chain of moves ends by itself
     if (account) chat.forcedAccount = account;
     else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
     else chat.limitReplays++;

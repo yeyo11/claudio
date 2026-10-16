@@ -40,6 +40,9 @@ const claude = (status: string, windows: RateLimitInfo['windows'], rateLimitType
 const usedInfo = (used: number, resetsAt: number): RateLimitInfo =>
   claude(used >= 100 ? 'rejected' : 'allowed', { '5h': { utilization: used / 100, resetsAt } });
 
+/** A real rejection, with its window spent until an hour on */
+const rejected: DriverEvent = { kind: 'rate-limit', info: usedInfo(100, seconds(T0 + 3_600_000)) };
+
 describe('limitFromInfo', () => {
   const reset = seconds(T0 + 3_600_000);
 
@@ -63,27 +66,32 @@ describe('limitFromInfo', () => {
     assert.equal(limitFromInfo('claude-code', claude('', {}), 'stream', 'x').state, 'unknown');
   });
 
-  it('a failure on the limit is exhausted, with the reset of the last reading while it is ahead', () => {
+  it('a turn that died on the limit leaves the last reading as it stands', () => {
     const time = clock();
     const limits = new ProviderLimits(memory().store, time.now);
     limits.observe('claude-code', { kind: 'rate-limit', info: claude('allowed_warning', { '5h': { utilization: 0.9, resetsAt: seconds(T0 + 600_000) } }) });
     time.tick(1000);
-    limits.observe('claude-code', { kind: 'rate-limited' });
-    const failed = limits.get('claude-code');
-    assert.deepEqual([failed?.state, failed?.source, failed?.window], ['exhausted', 'failure', '5h']);
-    assert.equal(failed?.resetsAt, new Date(T0 + 600_000).toISOString());
+    limits.observe('claude-code', { kind: 'result', rateLimited: true } as DriverEvent);
+    const after = limits.get('claude-code');
+    assert.deepEqual([after?.state, after?.source, after?.utilization], ['near', 'stream', 0.9]);
+    assert.equal(after?.resetsAt, new Date(T0 + 600_000).toISOString());
   });
 
-  it('a failure with no reading has no reset', () => {
-    const limits = new ProviderLimits(memory().store, clock().now);
-    limits.observeFailure('other');
-    assert.deepEqual([limits.get('other')?.state, limits.get('other')?.resetsAt], ['exhausted', null]);
-  });
-
-  it('a result that says it was rate limited counts as a failure', () => {
+  it('a turn that died on the limit with no reading invents none: no 100 %, no reset', () => {
     const limits = new ProviderLimits(memory().store, clock().now);
     limits.observe('claude-code', { kind: 'result', rateLimited: true } as DriverEvent);
-    assert.equal(limits.get('claude-code')?.state, 'exhausted');
+    assert.equal(limits.get('claude-code'), null);
+  });
+
+  it('a rejected report with only its window and reset is exhausted until that reset, with no use drawn', () => {
+    const time = clock();
+    const limits = new ProviderLimits(memory().store, time.now);
+    const resetsAt = seconds(T0 + 600_000);
+    limits.observe('claude-code', { kind: 'rate-limit', info: { ...claude('rejected', {}, 'five_hour'), resetsAt } });
+    const out = limits.get('claude-code');
+    assert.deepEqual([out?.state, out?.window, out?.utilization, out?.resetsAt], ['exhausted', 'five_hour', null, new Date(resetsAt * 1000).toISOString()]);
+    time.tick(601_000);
+    assert.equal(limits.get('claude-code')?.state, 'unknown');
   });
 
   it('a reset in the past reads unknown, and a new reading replaces it', () => {
@@ -123,10 +131,10 @@ describe('limitFromInfo', () => {
     const { store } = memory();
     const a = new ProviderLimits(store, clock().now);
     const b = new ProviderLimits(store, clock(T0 + 5000).now);
-    a.observeFailure('other');
+    a.observe('other', rejected);
     assert.equal(b.get('other')?.state, 'exhausted');
     b.observeProbe('other', usedInfo(5, seconds(T0 + 20_000_000)));
-    a.observeFailure('other'); // stamped earlier than b's reading
+    a.observe('other', rejected); // stamped earlier than b's reading
     assert.equal(b.get('other')?.state, 'ok');
   });
 
@@ -134,14 +142,14 @@ describe('limitFromInfo', () => {
     const limits = new ProviderLimits(memory().store, clock().now);
     const seen: string[] = [];
     limits.onChange((l) => seen.push(l.state));
-    limits.observeFailure('other');
-    limits.observeFailure('other');
+    limits.observe('other', rejected);
+    limits.observe('other', rejected);
     assert.deepEqual(seen, ['exhausted']);
   });
 
   it('lists the readings that stand', () => {
     const limits = new ProviderLimits(memory().store, clock().now);
-    limits.observeFailure('other');
+    limits.observe('other', rejected);
     limits.observe('claude-code', { kind: 'rate-limit', info: claude('allowed', { '5h': { utilization: 0.1, resetsAt: seconds(T0 + 60_000) } }) });
     assert.deepEqual(limits.list().map((l) => l.provider), ['claude-code', 'other']);
   });

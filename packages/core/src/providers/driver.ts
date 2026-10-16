@@ -308,8 +308,6 @@ export type DriverEvent =
   /** The session cannot go on: the execution fails with `reason` (`auth-required: …`, `protocol: …`) and the process is stopped */
   | { kind: 'failed'; reason: string }
   | { kind: 'rate-limit'; info: RateLimitInfo }
-  /** The agent's wording says the account's window is spent: what a rotation is asked for on */
-  | { kind: 'rate-limited' }
   | { kind: 'permission-request'; question: PermissionQuestion }
   | { kind: 'permission-withdrawn'; id: string }
   /** The agent took these messages, by the id each was sent with: into the running turn or as a turn of its own */
@@ -327,7 +325,7 @@ export type DriverEvent =
       stopReason?: string;
       /** The agent ended the turn because the budget ran out */
       budget: boolean;
-      /** The failure was the account's rate limit */
+      /** The failure was the account's rate limit, as the agent reports it in data (Claude's 429), never as its wording reads */
       rateLimited: boolean;
       run: RunDraft;
     }

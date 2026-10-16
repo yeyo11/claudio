@@ -163,12 +163,29 @@ describe('readings', () => {
     assert.equal(fold(readingFromEvent(info('allowed_warning', 0.2, 0.8), NOW) ?? r, NOW).state, 'near');
   });
 
-  it('a rejected event is exhausted until its reset, then unknown', () => {
+  it('a rejected event is exhausted on its window until its reset, then unknown, with no use made up', () => {
     const r = readingFromEvent({ status: 'rejected', resetsAt: sec(NOW) + 600, rateLimitType: 'five_hour' }, NOW);
     assert.ok(r);
-    assert.equal(fold(r, NOW).state, 'exhausted');
+    const l = fold(r, NOW);
+    assert.deepEqual([l.state, l.window, l.resetsAt], ['exhausted', 'five_hour', new Date((sec(NOW) + 600) * 1000).toISOString()]);
+    assert.equal(l.utilization, null, 'the event gave no utilization: no 100 % is drawn');
+    assert.deepEqual(l.windows, {}, 'and no window is written for it');
     assert.equal(fold(r, NOW + 601_000).state, 'unknown');
     assert.equal(readingFromEvent({ status: 'allowed' }, NOW), null);
+  });
+
+  it('a rejected event keeps the use it reported, and binds on its own window', () => {
+    const r = readingFromEvent({ ...info('rejected', 0.2, 0.97), rateLimitType: 'five_hour' }, NOW);
+    assert.ok(r);
+    const l = fold(r, NOW);
+    assert.deepEqual([l.state, l.window, l.utilization], ['exhausted', 'five_hour', 0.2]);
+    assert.equal(l.windows.seven_day?.utilization, 0.97);
+  });
+
+  it('a rejected event that names no window or no reset is no reading', () => {
+    assert.equal(readingFromEvent({ status: 'rejected' }, NOW), null);
+    assert.equal(readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour' }, NOW), null);
+    assert.equal(readingFromEvent({ status: 'rejected', resetsAt: sec(NOW) + 600 }, NOW), null);
   });
 
   it('reads the CLI cache, stamped, and a window past its reset reads unknown', () => {
@@ -237,6 +254,17 @@ describe('choose', () => {
     ...extra,
   });
 
+  it('off an account that is out, takes one over the margin rather than wait, and still waits when every one is out', () => {
+    const opts = { current: 'a', now: NOW };
+    // 83 % and 90 % are over the margin (80 %) and at the threshold: neither was a candidate, and the chat waited
+    assert.equal(choose(accts, { a: lim(1), b: lim(0.83), c: lim(0.9) }, settings, opts).account, 'b', 'the emptier of the two with room');
+    assert.equal(choose(accts, { a: lim(1), b: lim(0.83), c: lim(0.9) }, settings, opts).reason, 'limit');
+    // An account merely near the threshold still keeps its chat: the margin is about flapping, and it holds
+    assert.equal(choose(accts, { a: lim(0.92), b: lim(0.85), c: lim(0.9) }, settings, { ...opts, lastSwitchAt: NOW - 3600_000 }).account, 'a', 'no move between accounts that are all near the threshold');
+    const allOut = choose(accts, { a: lim(1), b: lim(1), c: lim(1) }, settings, opts);
+    assert.equal(allOut.account, null, 'with every account out there is nothing to move to');
+  });
+
   it('skips an account that cannot run the chat\'s model, and waits for one that can', () => {
     const canRun = (id: string): boolean => id === 'c';
     const opts = { current: 'a', now: NOW, model: 'opus', canRun };
@@ -245,6 +273,13 @@ describe('choose', () => {
     assert.deepEqual(waits, { account: null, reason: null, waitUntil: NOW + 7200_000 }, 'b is back sooner but cannot run it');
     assert.equal(choose(accts, { a: lim(1), b: lim(0) }, settings, { ...opts, model: 'default' }).account, 'b', 'the default model runs anywhere');
     assert.equal(choose(accts, { a: lim(0), b: lim(0), c: lim(0) }, settings, { ...opts, current: null, pinned: 'b' }).account, 'c', 'a pinned account that cannot run it is not kept');
+  });
+
+  it('passes over the accounts the turn already failed on, whatever their readings say, with no reset to wait for', () => {
+    const opts = { current: 'a', now: NOW, failedOn: ['a'] };
+    assert.deepEqual(choose(accts, { a: lim(0.1), b: lim(0.5) }, settings, opts), { account: 'b', reason: 'limit', waitUntil: null });
+    assert.equal(choose(accts, {}, settings, { ...opts, current: 'b', failedOn: ['a', 'b'] }).account, 'c', 'no reading at all');
+    assert.deepEqual(choose(accts, {}, settings, { ...opts, failedOn: ['a', 'b', 'c'] }), { account: null, reason: null, waitUntil: null });
   });
 
   it('keeps the current account while under the threshold, even when an earlier one is free', () => {

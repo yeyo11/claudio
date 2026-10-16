@@ -317,6 +317,9 @@ describe('provider limits in the status', () => {
     const rows = new Map<string, ProviderLimit>();
     return { upsertProviderLimit: (l) => !!rows.set(l.provider, l), providerLimit: (p) => rows.get(p) ?? null, providerLimits: () => [...rows.values()] };
   };
+  /** A chat's real rejection: the five-hour window is spent until an hour from now */
+  const reject = (limits: ProviderLimits): void =>
+    limits.observe('claude-code', { kind: 'rate-limit', info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, windows: {}, observedAt: new Date().toISOString() } });
 
   it('serves a limit a chat reported without a detection, and announces it', async () => {
     await fake('claude', CLAUDE('2.1.285', true));
@@ -325,7 +328,7 @@ describe('provider limits in the status', () => {
     const d = detector({ limits, events });
     await d.refresh();
     events.length = 0;
-    limits.observeFailure('claude-code');
+    reject(limits);
     const status = d.knownOne('claude-code');
     assert.deepEqual([status?.state, status?.reason], ['degraded', 'limit-reached']);
     assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1);
@@ -337,7 +340,7 @@ describe('provider limits in the status', () => {
     let allOut = false;
     const d = detector({ limits, accountsAtLimit: () => allOut });
     await d.refresh();
-    limits.observeFailure('claude-code');
+    reject(limits);
     const status = d.knownOne('claude-code');
     assert.deepEqual([status?.state, status?.limit?.state], ['ready', 'exhausted']);
     allOut = true;

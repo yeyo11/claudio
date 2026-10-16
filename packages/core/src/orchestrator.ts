@@ -1307,6 +1307,21 @@ ${quoted}
     return timeSignal(elapsedMs(task, Date.now()), limits?.maxMinutes !== undefined ? limits.maxMinutes * 60_000 : null);
   }
 
+  /** Chats whose next result a task already listens for: a limit and the end of its wait both ask, and one result is settled once. */
+  private readonly following = new Set<string>();
+
+  private followNextResult(orch: Orchestration, task: OrchestrationTaskState, chatId: string): void {
+    if (this.following.has(chatId)) return;
+    this.following.add(chatId);
+    void this.runs.nextResult(chatId).then(
+      (result) => {
+        this.following.delete(chatId);
+        this.settle(orch, task, result);
+      },
+      () => void this.following.delete(chatId),
+    );
+  }
+
   /**
    * Takes what an execution of a task produced. A failure is tried again, in the same chat, until
    * the task has used its attempts; what a retry cannot mend (a budget that ran out, a task stopped
@@ -1316,8 +1331,15 @@ ${quoted}
     if (task.status !== 'running') return; // stopped meanwhile
     // The usage limit is the rotation's: it waits for the reset in this chat (`waitEnded` listens for
     // the replayed turn) or moves the task to a new chat (`moved`). Not a failure, not an attempt
-    if (result.isError && result.cause === 'rate-limit' && task.runId && this.limitHeld?.(task.runId)) {
+    // The usage limit is the rotation's either way: it moves the chat to another account and replays the
+    // turn in it (`replayLastTurn`, no wait and no `waitEnded`), or it waits for the reset and replays
+    // then. The next result of the chat is this attempt's in both cases, so the task follows it. Before,
+    // only a wait was followed, and a task whose turn went on with another account stayed running after
+    // that turn had ended (2026-10-16: five finished tasks of a graph, each first refused by an account
+    // at its weekly limit, held the graph for 50 minutes)
+    if (result.isError && result.cause === 'rate-limit' && task.runId) {
       this.charge(orch, task, result);
+      this.followNextResult(orch, task, task.runId);
       return this.persist();
     }
     const deciding = this.decide(orch, task, result);
@@ -1487,7 +1509,7 @@ ${quoted}
     task.waiting = null;
     if (end === 'resumed') {
       // The turn was sent just before this: only a result after it is the task's next
-      void this.runs.nextResult(move.fromChat).then((result) => this.settle(orch, task, result), () => undefined);
+      this.followNextResult(orch, task, move.fromChat);
       return this.persist();
     }
     task.status = end === 'cancelled' ? 'stopped' : 'failed';

@@ -549,6 +549,12 @@ export interface Execution {
   outcome: ExecutionOutcome | null;
   /** Why it failed, when it did */
   error: string | null;
+  /**
+   * `rate-limit` when the turn died on its account's limit, as the CLI reported it in data (a
+   * rejected `rate_limit_event`, or a result with a 429); absent otherwise and on an execution
+   * recorded before it was kept. The error's wording is never read for it.
+   */
+  cause?: 'rate-limit';
   permissionMode: PermissionMode;
   model: string | null;
   /** Id of the {@link Account} its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login */
