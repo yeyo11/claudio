@@ -68,6 +68,7 @@ import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
 import { RATE_LIMIT_RE } from './providers/claude-code/stream.ts';
+import { LESSONS_ARG_MAX_BYTES } from './lessons/render.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
@@ -183,6 +184,11 @@ export class ChatManager extends EventEmitter {
   accounts: ChatAccounts | null = null;
   /** The project a directory belongs to, for its rotation policy; Core sets it */
   projectOf: ((dir: string) => string | null) | null = null;
+  /**
+   * What a process of an interactive chat or an orchestration worker is appended: the Lessons
+   * section and the note on pasted text, or '' when the project gives none; Core sets it
+   */
+  lessonsFor: ((projectId: string | null, orchestrated: boolean) => string) | null = null;
   /** Epoch ms of the last time a chat moved to another account, for the cooldown between switches */
   private lastSwitchAt: number | null = null;
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
@@ -770,7 +776,7 @@ export class ChatManager extends EventEmitter {
   private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools & ExecutionExtras): void {
     const { opts } = chat;
     if (options.handBack) {
-      for (const key of ['agent', 'agentsFile', 'jsonSchema', 'systemPromptSnapshot', 'uploads', 'confine', 'keepAlive', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'toolConfig', 'mcp'] as const) {
+      for (const key of ['lessons', 'agent', 'agentsFile', 'jsonSchema', 'systemPromptSnapshot', 'uploads', 'confine', 'keepAlive', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'toolConfig', 'mcp'] as const) {
         delete opts[key];
       }
       chat.setSettings({ permissionMode: options.permissionMode ?? this.defaults.defaultPermissionMode });
@@ -790,6 +796,10 @@ export class ChatManager extends EventEmitter {
     if (options.systemPromptSnapshot !== undefined) {
       if (options.systemPromptSnapshot === null) delete opts.systemPromptSnapshot;
       else opts.systemPromptSnapshot = options.systemPromptSnapshot;
+    }
+    if (options.lessons !== undefined) {
+      if (options.lessons === null) delete opts.lessons;
+      else opts.lessons = options.lessons;
     }
     if (options.uploads !== undefined) {
       if (options.uploads === null) delete opts.uploads;
@@ -1036,6 +1046,7 @@ export class ChatManager extends EventEmitter {
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
       ...(opts.systemPromptSnapshot ? { systemPromptSnapshot: opts.systemPromptSnapshot } : {}),
       ...(opts.uploads === false ? { uploads: false as const } : {}),
+      ...(opts.lessons ? { lessons: opts.lessons } : {}),
       ...(opts.confine ? { confine: opts.confine } : {}),
       // A compaction spends for what the chat is for, not as a person's turn
       ...(opts.purpose ? { purpose: opts.purpose } : {}),
@@ -1183,6 +1194,28 @@ export class ChatManager extends EventEmitter {
     chat.setSettings({ permissionMode: launch.permissionMode });
   }
 
+  /**
+   * The chat's own `appendSystemPrompt` and, per spawn, the Lessons section after it. The section is
+   * read now so a lesson approved since the last process reaches this one, and it is never written
+   * to `chat.opts`, which is what a resume or a fork carries on. Housekeeping, confined and assistant
+   * chats get none, and neither does a run whose handoff already holds it.
+   */
+  private appendedPrompt(chat: LiveChat): { appendSystemPrompt?: string } {
+    const { opts } = chat;
+    const own = opts.appendSystemPrompt ?? '';
+    const skip = opts.internal || opts.confine || opts.claudioAssistant || opts.lessons === 'handoff' || chat.origin === 'internal';
+    const projectId = skip ? null : (this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null);
+    const section = skip ? '' : (this.lessonsFor?.(projectId, chat.origin === 'orchestration') ?? '');
+    if (!section) return own ? { appendSystemPrompt: own } : {};
+    const joined = own ? `${own}\n\n${section}` : section;
+    // One argument of `claude`: past this the person's text is kept whole and the section is dropped
+    if (Buffer.byteLength(joined) > LESSONS_ARG_MAX_BYTES) {
+      chat.push({ kind: 'notice', text: 'The lessons were left out of this process: the instructions already appended to this chat leave no room for them.' });
+      return own ? { appendSystemPrompt: own } : {};
+    }
+    return { appendSystemPrompt: joined };
+  }
+
   /** What a process of the chat is started from: the driver turns it into a command line. */
   private launchSpec(chat: LiveChat, account: AccountRef | null): SessionLaunch {
     const { opts } = chat;
@@ -1197,7 +1230,7 @@ export class ChatManager extends EventEmitter {
       permissionMode: chat.permissionMode,
       ...(opts.model ? { model: opts.model } : {}),
       ...(chat.effort ? { effort: chat.effort } : {}),
-      ...(opts.appendSystemPrompt ? { appendSystemPrompt: opts.appendSystemPrompt } : {}),
+      ...this.appendedPrompt(chat),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
       ...(opts.mcp?.config ? { mcpConfig: opts.mcp.config } : {}),

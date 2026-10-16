@@ -138,6 +138,8 @@ import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
+import { EMPTY_SECTION, type LessonSection } from './lessons/render.ts';
+import { PASTED_NOTE } from './prompt-rules.ts';
 import { LessonService } from './lessons/service.ts';
 import { LessonStore } from './lessons/store.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
@@ -857,6 +859,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
       decisions: this.decisions,
+      lessons: (projectId) => this.lessonSection(projectId, 'handoff'),
       sources: (id) =>
         this.workItems
           .links(id)
@@ -884,6 +887,13 @@ export class Core {
       proposals: this.memoryProposals,
       emit: (event) => this.events.emit(event),
     });
+    this.events.observe((event) => {
+      if (event.type === 'lesson.changed') this.lessons.invalidate();
+    });
+    this.runtime.lessonsFor = (projectId, orchestrated) => {
+      const section = this.lessonSection(projectId, orchestrated ? 'worker' : 'chat');
+      return section.text ? `${section.text}\n${PASTED_NOTE}` : '';
+    };
     this.lessons.start();
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
@@ -1354,6 +1364,20 @@ export class Core {
    * The project a directory belongs to and the worktree it is in, which is what a chat records. The
    * project is null when the directory is under none that was imported: a loose chat.
    */
+  /**
+   * The Lessons section a run is handed, or an empty one when the project does not allow it: the
+   * Memory module off, the switch of that kind of run off, or a chat outside any project when
+   * loose chats do not get global lessons. `handoff` is the journal's, for flow and assistant runs.
+   */
+  private lessonSection(projectId: string | null, kind: 'handoff' | 'chat' | 'worker'): LessonSection {
+    if (projectId === null) return kind === 'handoff' || !this.lessons.delivery().looseChats ? EMPTY_SECTION : this.lessons.section(null);
+    const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
+    if (!settings?.modules.includes('memory')) return EMPTY_SECTION;
+    const { deliverToChats = true, deliverToWorkers = true, useGlobal = true } = settings.lessons ?? {};
+    if ((kind === 'chat' && !deliverToChats) || (kind === 'worker' && !deliverToWorkers)) return EMPTY_SECTION;
+    return this.lessons.section(projectId, { useGlobal });
+  }
+
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
     const attached = this.attach(dir);
     const facts = attached ? attached.worktree : this.locator.worktreeOf(dir);
@@ -2089,7 +2113,7 @@ export class Core {
       quiet(async () => (await this.resources.list(scope, 'commands')).map((r) => r.name), [] as string[]),
       quiet(() => this.sessions.listSessions(encodeProjectId(project.path)), []),
     ]);
-    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0 });
+    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
     const items = await quiet(() => this.workItems.list({ projectId: project.id }), []);
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
     const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
@@ -2243,7 +2267,7 @@ export class Core {
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const };
+    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false, purpose: 'flow' as const, lessons: 'handoff' as const };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });

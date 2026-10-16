@@ -7,6 +7,7 @@ import type { ClaudioEvent, FlowMemoryProposal, WorkItemActor } from '@claudio/s
 import { Db } from '../src/db.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { JOURNAL_HANDOFF_BYTES, JournalService } from '../src/journal.ts';
+import { renderSection } from '../src/lessons/render.ts';
 import { MemoryProposalService, withText } from '../src/memory-proposals.ts';
 import { MemoryStore } from '../src/memory.ts';
 import { WorkItemError, WorkItemService } from '../src/work-items.ts';
@@ -148,7 +149,7 @@ test('a client hears the move to done before the journal entry it causes, as cor
 
 test('a flow run is handed the newest entries that fit the cap, newest first and without a hole', () => {
   const { journal } = setup();
-  assert.deepEqual(journal.handoff('p1'), { text: '', entries: 0, bytes: 0 });
+  assert.deepEqual(journal.handoff('p1'), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
 
   const big = 'x'.repeat(6_000);
   journal.create('p1', { text: `oldest ${big}` });
@@ -160,7 +161,7 @@ test('a flow run is handed the newest entries that fit the cap, newest first and
   assert.ok(handed.bytes <= JOURNAL_HANDOFF_BYTES);
   assert.ok(handed.text.indexOf('small, and newest') < handed.text.indexOf('middle'));
   assert.ok(!handed.text.includes('oldest'));
-  assert.deepEqual(journal.page('p1').handed, { entries: 3, bytes: handed.bytes });
+  assert.deepEqual(journal.page('p1').handed, { entries: 3, bytes: handed.bytes, lessons: 0, lessonBytes: 0 });
   // The entries are people's words and runs' summaries: one pasted block, and the note after it
   assert.match(handed.text, /^# Project journal\n[^]*\n<pasted_content id="([0-9a-f]{8})">\n- [^]*small, and newest[^]*\n<\/pasted_content id="\1">\n\n/);
   assert.ok(handed.text.includes(PASTED_NOTE));
@@ -395,4 +396,35 @@ test('text lands at the end of its section, in a new section, or at the end of t
   assert.equal(withText('## T\n\n```\n## U\n```\n', 'Fact', 'U'), '## T\n\n```\n## U\n```\n\n## U\n\nFact\n');
   // The last section of the file
   assert.equal(withText('# A\n\n## T\n\nold\n', 'Fact', 'T'), '# A\n\n## T\n\nold\n\nFact\n');
+});
+
+test('lessons open the handoff and count against its cap; the note is written once', () => {
+  const { journal: plain, db, events } = setup();
+  const section = renderSection(
+    [{ id: 'a', key: 'L-1', projectId: 'p1', status: 'active', trigger: 'When adding a dependency', action: 'use pnpm.', confidence: 0.9, effectiveConfidence: 0.9, delivered: true, seenCount: 1, pinned: false, overrides: null, lastConfirmedAt: '2026-10-01T00:00:00.000Z' } as never],
+    2048,
+  );
+  const journal = new JournalService({ db, emit: (e) => void events.push(e), lessons: (id) => (id === 'p1' ? section : { text: '', lessons: [], bytes: 0, overBudget: 0 }) });
+  // Lessons and no entries: the section and the note, where the journal alone would be empty
+  const only = journal.handoff('p1');
+  assert.equal(only.entries, 0);
+  assert.equal(only.lessons, 1);
+  assert.equal(only.lessonBytes, section.bytes);
+  assert.equal(only.text, `${section.text}\n${PASTED_NOTE}\n`);
+  assert.deepEqual(journal.handoff('p2'), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
+
+  const big = 'x'.repeat(3_800);
+  for (const text of [`oldest ${big}`, `older ${big}`, `middle ${big}`, `newer ${big}`]) plain.create('p1', { text });
+  assert.equal(plain.handoff('p1').entries, 4);
+  const handed = journal.handoff('p1');
+  assert.ok(handed.text.startsWith('## Lessons\n'));
+  assert.ok(handed.text.indexOf('## Lessons') < handed.text.indexOf('# Project journal'));
+  assert.equal(handed.text.split(PASTED_NOTE).length - 1, 1);
+  assert.ok(handed.bytes <= JOURNAL_HANDOFF_BYTES);
+  assert.equal(handed.bytes, Buffer.byteLength(handed.text));
+  // The lessons took bytes the entries would have had: the oldest big one no longer fits
+  assert.equal(handed.entries, 3);
+  assert.ok(!handed.text.includes('oldest'));
+  assert.deepEqual(journal.page('p1').handed, { entries: 3, bytes: handed.bytes, lessons: 1, lessonBytes: section.bytes });
+  db.close();
 });
