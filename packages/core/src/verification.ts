@@ -538,7 +538,8 @@ export function parseFixerReport(text: string): { fixed: VerificationFixedLocati
   const fixed: VerificationFixedLocation[] = [];
   let stop: { kind: FixStopKind; note: string } | null = null;
   for (const raw of text.split('\n')) {
-    const line = raw.trim();
+    // The prompt shows the row in backticks, and a model often copies them or writes it as a list item
+    const line = raw.trim().replace(/^[-*]\s+/, '').replace(/^`(.*)`$/, '$1');
     const f = FIXED_ROW.exec(line);
     if (f) {
       if (fixed.length < MAX_FIXED_ROWS) fixed.push({ path: f[1] as string, line: Number(f[2]), note: (f[3] as string).trim().slice(0, MAX_FIXED_NOTE) });
