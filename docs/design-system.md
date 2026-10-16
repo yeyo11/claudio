@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-16T22:45:00Z
+updated_at: 2026-10-17T09:00:00Z
 tags:
     - design-system
     - web
@@ -2478,6 +2478,11 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   link button; the owner-only menu entries are gone.
 - A join request waiting for the owner is a notification of the `collaborators` kind, in the `warn`
   tone, linking to the Collaborators page; once answered the bell shows it as settled.
+- A join of the person's own that ended without joining keeps its row in the pending card, with the
+  group's name, then a `.collab-tone` word and icon: **Denied** in `bad` with the circled cross, when
+  the owner said no, or **Expired** in `warn` with the clock, when the invite ran out first (the
+  request stopped unanswered). The sentence under it names the owner, and **Dismiss** is a link
+  button. No CSS of its own: it is `.collab-pending` and `.collab-tone`.
 - A shared chat's subagent opens from its delegation in the same side panel as a local chat's,
   read only.
 - The nav item sits where the plan's §5.1 puts it: the Space group reads Projects, Collaborators,

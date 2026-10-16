@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T22:45:00Z
+updated_at: 2026-10-17T09:00:00Z
 tags:
     - plan
     - collaborators
@@ -351,6 +351,11 @@ apply to every one of them:
   `pending {owner}` when a member stores it to relay. `sealed` is `{secret, name, label,
   endpointId}` sealed to the owner's key
 - `joinRelay {groupId, sealed, from}` member → owner, the stored request, forwarded once
+- `roster {groupId, sinceVersion: 0, denial}` from a joiner not in the chain yet: `denied` when the
+  install holds a denial for that joiner and tag, `forbidden` otherwise; `join` is answered `denied`
+  too for an invite the owner denied (R14, below)
+- `joinAnswers {groupId}` member → owner → `joinAnswers {groupId, denied: [{from, tag, deniedAt,
+  expiresAt}]}`, the group's denials, which the member keeps to answer joiners while the owner is away
 - `leave {groupId}` → ack
 - `catalog {groupId}` → shared projects `{shareKey, name, remote?, subpath?, kinds, counts, versions}`
 - `pull {shareKey, kind, since}` → batches of records, ending with the new cursor
@@ -891,6 +896,32 @@ The gaps that orchestration left ([requests.md](../requests.md) R12) were closed
   they are answered.
 
 **Still open:** a run between two real machines, and filing the two iroh issues (the owner's call).
+
+### A denied join reaches the joiner (R14, 2026-10-17)
+
+The owner's three-install LAN test found that a denial reached nobody: `denyJoin` deleted the
+request on the owner and nothing told the joiner or the member that relayed it, and the joiner's
+retry asked only for a chain, which a denied joiner never gets, so its page said pending for ever.
+An invite that expired left the join pending for ever too. Fixed on `feat/collaborators-merge`:
+
+- **The owner remembers.** `collab_join_denials` rows (group, joiner, `denialTag` of the invite
+  secret's hash, the hash itself on the owner only, denied and expiry times), pruned once the invite
+  would have expired. The tag, not the hash, travels: the hash is what spends an invite.
+- **The wire says so.** `denied` answers a joiner's `roster` that names the tag, and a `join` with a
+  denied invite. Members learn the group's denials with `joinAnswers` on each sync with the owner (the
+  holding member is told to sync at once), keep them, drop the request copy they still held, and
+  answer the joiner the same way. Every member hears every denial of the group, rather than only the
+  one that held it: a joiner may ask any member its invite names.
+- **Older peers.** A release before this drops `denial` and refuses `joinAnswers`; both read as "no
+  answer yet", so the joiner waits as before and sync goes on.
+- **The joiner.** A pending join now has a `state` (`waiting`, `denied`, `expired`) and `endedAt`;
+  an ended one is never asked after again, emits `collaborators.join-ended`, and stays on the page
+  until dismissed with `DELETE /collaborators/join/:groupId`. Pasting the denied invite again is
+  refused with "Ana denied the request to join UDD with this invite".
+- **Tests.** `packages/core/test/collab-join-answer.test.ts` runs the installs over an in-process
+  network: a relayed deny learnt through the member with the owner gone, a direct one, an expiry, an
+  owner from before this, and an answer from a newer peer. The web tests cover the two cards, and
+  `collaborators.spec.mjs` a denial seen live on the joiner's open page.
 
 ## Related
 

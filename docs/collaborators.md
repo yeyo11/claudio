@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T22:32:57.97745428Z
-updated_at: 2026-10-16T22:42:40.140217922Z
+updated_at: 2026-10-17T09:00:00Z
 tags:
     - collaborators
     - peer-to-peer
@@ -36,6 +36,12 @@ nobody's quota is spent: serving a copy never runs Claude.
   back; the page says "Waiting for the owner to come online" and names the member holding it (an
   invite carries the names of the members it lists as relays, so the joiner knows them before it has
   the roster).
+- **Learn how a join ended.** A join that will not be signed does not stay pending: when the owner
+  denies it, the joiner's page says "Ana denied your request to join UDD" (the bad tone, with the word
+  **Denied** and an icon), and when the invite expires before the owner answered it says "The invite
+  expired before Ana answered" (the warn tone, **Expired**). Either stays until the person
+  **Dismisses** it, nothing asks after it any more, and the page changes live, without a reload. A new
+  invite is a new request: being denied with one invite says nothing about the next.
 - **Manage members** (owner): accept or deny join requests, remove a member, or make another member
   the owner. A member can leave, which deletes every copy synced through that group. Members, join
   requests and waiting joins are shown by name, with the label and the short endpoint id in mono as
@@ -80,6 +86,16 @@ as soon as it meets any member, and nobody can forge a roster for a group they d
 - **Joining** needs the invite's one-time secret. A second use is refused and an expired one is too.
   When the owner is offline, the request is sealed to the owner's key, so the member holding it only
   carries an opaque blob.
+- **Denying** is remembered. The owner keeps each denial (the group, the joiner's endpoint id, the
+  invite secret's hash, when) as a `collab_join_denials` row until the invite would have expired. A
+  joiner that is not in the chain yet asks with a tag derived from that hash (`denialTag`), never the
+  secret nor the hash itself, and an install holding a denial with that tag answers `denied` instead
+  of `forbidden`; the owner answers a `join` with an invite it denied the same way. Members ask the
+  owner for the group's denials (`joinAnswers`) on every sync with it, and the member that held the
+  request is told to sync at once, so a joiner whose owner is away again learns the answer from any
+  member its invite names. A member drops the copy it still held of a denied request. A peer from
+  before this answers `forbidden` and refuses `joinAnswers` as a frame it does not know, which reads as
+  "still waiting": nothing breaks, the joiner just learns nothing until its invite expires.
 - **Removing** a member makes every unmodified Claudio stop serving that person. The copies they
   already hold stay on their machine, and the page says so before the owner confirms.
 - **Transferring ownership** is one click: the owner signs a version naming the new owner. Do it
@@ -169,8 +185,10 @@ What the sharing side does enforce, on its own machine:
   reason changes, and the recovery once. Log lines name the peer with the start of its id.
 - **The API** is the Collaborators table in the [README](../README.md#collaborators); the events are
   `collaborators.changed`, `collaborators.peer`, `collaborators.synced`,
-  `collaborators.join-request` and `collaborators.join-answered`. A join request notifies the owner
-  in the bell and by push, and its answer clears it ([notifications.md](notifications.md#join-requests)).
+  `collaborators.join-request`, `collaborators.join-answered` and, on the joiner's install,
+  `collaborators.join-ended` (its join denied, or its invite expired unanswered). A join request
+  notifies the owner in the bell and by push, and its answer clears it
+  ([notifications.md](notifications.md#join-requests)).
 
 ## Related
 
