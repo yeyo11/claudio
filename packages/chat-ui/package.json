@@ -7,6 +7,7 @@
     "./components/Attachments": "./src/components/Attachments.tsx",
     "./components/ChatBadges": "./src/components/ChatBadges.tsx",
     "./components/ChatDelete": "./src/components/ChatDelete.tsx",
+    "./components/CompactionDivider": "./src/components/CompactionDivider.tsx",
     "./components/ContextRing": "./src/components/ContextRing.tsx",
     "./components/MediaViewer": "./src/components/MediaViewer.tsx",
     "./components/PermissionPrompts": "./src/components/PermissionPrompts.tsx",

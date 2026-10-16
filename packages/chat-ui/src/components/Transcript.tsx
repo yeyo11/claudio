@@ -1,5 +1,5 @@
 import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
-import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import { Brain, CircleAlert, CircleX, CircleStop, Check, ChevronRight, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, tran
 import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import type { ProgressStatus } from '@claudio/ui/lib/progress';
+import { CompactionDivider, type CompactionActions } from './CompactionDivider';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from '@claudio/ui/components/CodeBlock';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
@@ -136,7 +137,7 @@ function RowTime({ at }: { at: string | null }) {
   );
 }
 
-const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop };
+const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX };
 
 /**
  * Something the system said, not the person: a strip in the machine's own voice — mono, in the
@@ -145,7 +146,7 @@ const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info
 function NoticeRow({ notice }: { notice: Notice }) {
   const { t } = useTranslation('chat');
   const Icon = NOTICE_ICONS[notice.kind];
-  const failed = Boolean(notice.status) && notice.status !== 'completed';
+  const failed = notice.kind === 'compaction-failed' || (Boolean(notice.status) && notice.status !== 'completed');
   const line = (
     <>
       <Icon {...ICON_SM} className="notice-icon" />
@@ -185,6 +186,12 @@ function readEntry(entry: TranscriptEntry): { blocks: ContentBlock[]; notices: N
     if (read.prose) blocks.push({ type: 'text', text: read.prose });
   }
   return { blocks, notices };
+}
+
+/** A compaction's summary as Markdown: the text blocks of its entry. */
+function SummaryText({ entry }: { entry: TranscriptEntry }) {
+  const text = entry.blocks.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n\n');
+  return <RichText text={text} />;
 }
 
 /** What the chat page lets a person do with one message: where its menu comes from. */
@@ -270,6 +277,11 @@ export const EntryView = memo(function EntryView({
   const { t } = useTranslation('chat');
   const agentName = useAgentName();
   const { blocks, notices } = useMemo(() => readEntry(entry), [entry]);
+  // Whatever way it got here, a compaction marker or its summary is never drawn as the person's message
+  if (entry.compaction) {
+    const summary = entry.compaction.part === 'summary';
+    return <CompactionDivider boundary={summary ? null : entry} summary={summary ? entry : null} summaryBody={summary ? <SummaryText entry={entry} /> : null} />;
+  }
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
   const head = !onlyToolResults && !continued;
@@ -630,6 +642,7 @@ const sizeHint = (row: TranscriptRow): number | undefined => (row.kind === 'entr
 
 function estimateRow(row: TranscriptRow, width: number): number {
   if (row.kind === 'step') return 40;
+  if (row.kind === 'compaction') return row.boundary ? 36 : 40;
   const perLine = Math.max(20, Math.floor((width - 44) / 7.2));
   let lines = 0;
   let extra = 0;
@@ -654,6 +667,7 @@ export function Transcript({
   workflows,
   messages,
   edits,
+  compactions,
 }: {
   entries: TranscriptEntry[];
   /** The rows of `entries`, when the caller has already worked them out */
@@ -670,6 +684,8 @@ export function Transcript({
   messages?: MessageActions;
   /** The chat's edits: each step that edited files shows a chip per file, into the review */
   edits?: TranscriptEdits;
+  /** What a compaction's fold offers: saving its summary as a note, a callback of the app's */
+  compactions?: CompactionActions;
 }) {
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
   const target = focus ? rowOf(own, focus.item) : undefined;
@@ -688,7 +704,15 @@ export function Transcript({
   return (
     <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>
-        row.kind === 'entry' ? (
+        row.kind === 'compaction' ? (
+          <CompactionDivider
+            boundary={row.boundary}
+            summary={row.summary}
+            summaryBody={row.summary ? <SummaryText entry={row.summary} /> : null}
+            actions={compactions}
+            focused={Boolean(focus && row.summary && focus.item === row.summary)}
+          />
+        ) : row.kind === 'entry' ? (
           // Only what a person sent: an answer of Claude's was already on screen as it was written
           <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} streamedCopy={row.entry.role === 'assistant' && justStreamed(row.entry)} actions={messages} />
         ) : (
