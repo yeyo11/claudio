@@ -115,7 +115,8 @@
       "issueTriage": "Sugerir en qué issues importados puede empezar un agente",
       "accountModelFallback": "Sugerir el modelo más cercano que ofrece otra cuenta",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
-      "paletteIntent": "Interpretar lo que escribes en la paleta"
+      "paletteIntent": "Interpretar lo que escribes en la paleta",
+      "lessonMine": "Buscar lecciones en tus correcciones"
     },
     "areas": {
       "flow": "Flujo del proyecto",
@@ -310,7 +311,8 @@
       "issueTriage": "Sugirió en qué issues puede empezar un agente",
       "accountModelFallback": "Sugirió el modelo más cercano que ofrece otra cuenta",
       "notificationUrgency": "Fijó la urgencia",
-      "paletteIntent": "Eligió el comando"
+      "paletteIntent": "Eligió el comando",
+      "lessonMine": "Buscó una lección"
     }
   },
   "bulk": {

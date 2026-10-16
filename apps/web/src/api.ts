@@ -127,6 +127,16 @@ import type {
   InstructionsDoc,
   JournalEntry,
   JournalPage,
+  Lesson,
+  LessonInstructionsRequest,
+  LessonJob,
+  LessonList,
+  LessonSettings,
+  LessonStatus,
+  DemoteLessonRequest,
+  UpdateLessonRequest,
+  PreviewMemoryProposalRequest,
+  MemoryProposalPreview,
   LaunchOrchestrationTemplateRequest,
   LinkWorkItemIssueRequest,
   McpScope,
@@ -984,6 +994,28 @@ export const api = {
     request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/approve`, { method: 'POST', body: req }),
   rejectMemoryProposal: (proposalId: string, req: RejectMemoryProposalRequest = {}) =>
     request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/reject`, { method: 'POST', body: req }),
+  previewMemoryProposal: (proposalId: string, req: PreviewMemoryProposalRequest = {}) =>
+    request<MemoryProposalPreview>(`/memory-proposals/${enc(proposalId)}/preview`, { method: 'POST', body: req }),
+  // ---- lessons (docs/plans/lessons.md)
+  lessons: (projectId: string, status?: LessonStatus | 'all', o?: ReadOptions) =>
+    request<LessonList>(`/projects/${enc(projectId)}/lessons${qs({ status })}`, o),
+  globalLessons: (status?: LessonStatus | 'all', o?: ReadOptions) => request<LessonList>(`/lessons/global${qs({ status })}`, o),
+  /** A real link: the route answers with Content-Disposition: attachment */
+  lessonsExportUrl: (projectId: string) => withToken(`${BASE}/projects/${enc(projectId)}/lessons/export`),
+  lessonJobs: (projectId: string, limit?: number, o?: ReadOptions) =>
+    request<LessonJob[]>(`/projects/${enc(projectId)}/lessons/jobs${qs({ limit: num(limit) })}`, o),
+  lessonSettings: (o?: ReadOptions) => request<LessonSettings>('/lessons/settings', o),
+  putLessonSettings: (req: Partial<LessonSettings>) => request<LessonSettings>('/lessons/settings', { method: 'PUT', body: req }),
+  updateLesson: (lessonId: string, req: UpdateLessonRequest) => request<Lesson>(`/lessons/${enc(lessonId)}`, { method: 'PATCH', body: req }),
+  confirmLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/confirm`, { method: 'POST' }),
+  retireLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/retire`, { method: 'POST', body: {} }),
+  restoreLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/restore`, { method: 'POST' }),
+  deleteLesson: (lessonId: string) => request<{ ok: true }>(`/lessons/${enc(lessonId)}`, { method: 'DELETE' }),
+  promoteLesson: (lessonId: string) => request<Lesson>(`/lessons/${enc(lessonId)}/promote`, { method: 'POST' }),
+  demoteLesson: (lessonId: string, req: DemoteLessonRequest = {}) => request<Lesson>(`/lessons/${enc(lessonId)}/demote`, { method: 'POST', body: req }),
+  lessonToInstructions: (lessonId: string, req: LessonInstructionsRequest = {}) =>
+    request<MemoryProposal>(`/lessons/${enc(lessonId)}/instructions`, { method: 'POST', body: req }),
+  mineChatLessons: (chatId: string) => request<LessonJob>(`/chats/${enc(chatId)}/lessons/mine`, { method: 'POST' }),
   projectDocs: (projectId: string, o?: ReadOptions) => request<ProjectDocsOverview>(`/projects/${enc(projectId)}/docs`, o),
   addProjectDoc: (projectId: string, body: AddProjectDocRequest) => request<ProjectDoc>(`/projects/${enc(projectId)}/docs`, { method: 'POST', body, timeoutMs: 300_000 }),
   refreshProjectDocs: (projectId: string) => request<ProjectDocsOverview>(`/projects/${enc(projectId)}/docs/refresh`, { method: 'POST', timeoutMs: 300_000 }),
@@ -1318,6 +1350,11 @@ export const keys = {
   /** Not under `memory`: that prefix is the CLI's memory files, which a proposal only reaches once approved */
   memoryProposalsOf: (projectId: string) => ['memory-proposals', projectId] as const,
   memoryProposals: (projectId: string, status?: MemoryProposalStatus) => ['memory-proposals', projectId, status ?? 'all'] as const,
+  /** Every list of a project's lessons (any status) and its jobs; `projectId` null is the global list */
+  lessonsOf: (projectId: string | null) => ['lessons', projectId ?? 'global'] as const,
+  lessons: (projectId: string | null, status: LessonStatus | 'all') => ['lessons', projectId ?? 'global', status] as const,
+  lessonJobs: (projectId: string) => ['lesson-jobs', projectId] as const,
+  lessonSettings: ['lesson-settings'] as const,
   /** A project's tree and every file read of it */
   documentsOf: (projectId: string) => ['documents', projectId] as const,
   projectDocs: (projectId: string) => ['project-docs', projectId] as const,
@@ -1641,6 +1678,26 @@ export const useMemoryProposals = (projectId: string | null, status?: MemoryProp
     enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
   });
+
+/** A project's lessons, or the global ones with a null project; `handed` is what a run is given now. */
+export const useLessons = (projectId: string | null, status: LessonStatus | 'all', global = false) =>
+  useQuery({
+    queryKey: keys.lessons(global ? null : projectId, status),
+    queryFn: ({ signal }) => (global ? api.globalLessons(status, { signal }) : api.lessons(projectId ?? '', status, { signal })),
+    enabled: global || projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useLessonJobs = (projectId: string | null, limit = 3) =>
+  useQuery({
+    queryKey: [...keys.lessonJobs(projectId ?? ''), limit] as const,
+    queryFn: ({ signal }) => api.lessonJobs(projectId ?? '', limit, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useLessonSettings = () =>
+  useQuery({ queryKey: keys.lessonSettings, queryFn: ({ signal }) => api.lessonSettings({ signal }) });
 
 /** The stored layout of a project's Home, or of All projects' with `all`; null `layout` means the default. */
 export const useDashboardLayout = (project: string) =>

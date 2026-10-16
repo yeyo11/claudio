@@ -4,12 +4,15 @@ import { ArrowRight, Check, Pencil, X } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, ApiRequestError, keys, useMemoryProposals } from '../../../api';
+import { api, ApiRequestError, keys, useLessons, useMemoryProposals } from '../../../api';
 import { MoreActions } from '@claudio/ui/components/controls';
 import { DecisionMark } from '../../../components/DecisionMark';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { Dialog } from '@claudio/ui/components/Dialog';
+import { EvidenceList, LessonText } from './Lessons';
+import { InstructionsDiffDialog } from './InstructionsDiff';
 import { useDirty } from '../../../lib/dirty';
 import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { taskPath } from '../../../lib/work-items';
@@ -33,7 +36,9 @@ export function TargetLine({ target }: { target: MemoryProposalTarget }) {
         ? [t('memoryTab.target.memory'), target.file].filter(Boolean).join(' · ')
         : target.kind === 'rule'
           ? [t('memoryTab.target.rule'), target.file ? `.claude/rules/${target.file}` : null, rulePathsText(target.paths ?? [], (count) => t('memoryTab.target.morePaths', { count }))].filter(Boolean).join(' · ')
-          : t('memoryTab.target.journal');
+          : target.kind === 'lesson'
+            ? t('memoryTab.target.lesson')
+            : t('memoryTab.target.journal');
   return (
     <span className="memory-proposal-to">
       <ArrowRight {...ICON_SM} />
@@ -112,6 +117,97 @@ export function RenameRule({
   );
 }
 
+/** A lesson proposal: the sentence, up to two quotes in the person's words, and the badges that say what it meets */
+function LessonBody({ proposal }: { proposal: MemoryProposal }) {
+  const { t } = useTranslation('home');
+  const lesson = proposal.lesson;
+  const known = useLessons(proposal.projectId, 'all').data?.lessons ?? [];
+  if (!lesson) return <ProposalText text={proposal.text} />;
+  const against = known.find((l) => l.id === lesson.contradicts);
+  return (
+    <div className="lesson-proposal">
+      <LessonText trigger={lesson.trigger} action={lesson.action} />
+      <div className="lesson-badges">
+        {lesson.contradicts && <Tag tone="warn">{t('memoryTab.lessons.contradicts', { key: against?.key ?? '' }).trim()}</Tag>}
+        {lesson.conflictsWithInstructions && <Tag tone="warn">{t('memoryTab.lessons.conflicts')}</Tag>}
+      </div>
+      <EvidenceList evidence={lesson.evidence} limit={2} />
+    </div>
+  );
+}
+
+/** The choice a lesson's approval may need: a contradicted lesson to retire or keep, or a CLAUDE.md conflict */
+function LessonChoice({ proposal, busy, onClose, onApprove }: { proposal: MemoryProposal; busy: boolean; onClose: () => void; onApprove: (req: { retire?: string[]; keepBoth?: boolean }) => void }) {
+  const { t } = useTranslation(['home', 'common']);
+  const known = useLessons(proposal.projectId, 'all').data?.lessons ?? [];
+  const against = known.find((l) => l.id === proposal.lesson?.contradicts);
+  return (
+    <Dialog
+      title={t('memoryTab.lessons.choiceTitle')}
+      onClose={onClose}
+      footer={
+        <div className="memory-proposal-actions">
+          <button type="button" className="btn doc-quiet" onClick={onClose}>
+            {t('common:actions.cancel')}
+          </button>
+          {against ? (
+            <>
+              <button type="button" className="btn" disabled={busy} onClick={() => onApprove({ keepBoth: true })}>
+                {t('memoryTab.lessons.keepBoth')}
+              </button>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onApprove({ retire: [against.id] })}>
+                {t('memoryTab.lessons.retireOther', { key: against.key })}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onApprove({})}>
+              {t('memoryTab.proposals.approve')}
+            </button>
+          )}
+        </div>
+      }
+    >
+      <p>{against ? t('memoryTab.lessons.contradictsBody', { key: against.key }) : t('memoryTab.lessons.conflictsBody')}</p>
+      {!against && <p className="small muted">{t('memoryTab.lessons.conflictsHint')}</p>}
+    </Dialog>
+  );
+}
+
+/** A lesson proposal edited as two fields, kept in the person's words */
+function LessonProposalEdit({ lesson, busy, onCancel, onSubmit }: { lesson: { trigger: string; action: string }; busy: boolean; onCancel: () => void; onSubmit: (lesson: { trigger: string; action: string }) => void }) {
+  const { t } = useTranslation(['home', 'common']);
+  const [trigger, setTrigger] = useState(lesson.trigger);
+  const [action, setAction] = useState(lesson.action);
+  const ready = trigger.trim() !== '' && action.trim() !== '';
+  return (
+    <form
+      className="memory-proposal-edit lesson-edit"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (ready) onSubmit({ trigger: trigger.trim(), action: action.trim() });
+      }}
+    >
+      <label className="small muted">
+        {t('memoryTab.lessons.triggerLabel')}
+        <input autoFocus maxLength={160} value={trigger} onChange={(event) => setTrigger(event.target.value)} />
+      </label>
+      <label className="small muted">
+        {t('memoryTab.lessons.actionLabel')}
+        <textarea rows={3} maxLength={240} value={action} onChange={(event) => setAction(event.target.value)} />
+      </label>
+      <div className="memory-proposal-actions">
+        <button type="button" className="btn doc-quiet btn-small" onClick={onCancel}>
+          {t('common:actions.cancel')}
+        </button>
+        <button type="submit" className="btn btn-small" disabled={busy || !ready}>
+          <Check {...ICON_SM} />
+          {t('memoryTab.proposals.approveEdited')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boolean }) {
   const { t } = useTranslation(['home', 'common']);
   const roleName = useRoleName();
@@ -120,16 +216,21 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
   const [editing, setEditing] = useState<string | null>(null);
   // A rule whose file is taken by a rule with other paths: the name to approve it under instead
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const [diffing, setDiffing] = useState(false);
+  const isLesson = proposal.target.kind === 'lesson';
   useDirty(`proposal:${proposal.id}`, editing !== null && editing !== proposal.text);
 
   const settle = () => void qc.invalidateQueries({ queryKey: keys.memoryProposalsOf(proposal.projectId) });
   const approve = useMutation({
-    mutationFn: ({ text, file }: { text?: string; file?: string } = {}) =>
-      api.approveMemoryProposal(proposal.id, { ...(text !== undefined && text !== proposal.text ? { text } : {}), ...(file !== undefined && file !== proposal.target.file ? { file } : {}) }),
+    mutationFn: ({ text, file, lesson, retire, keepBoth }: { text?: string; file?: string; lesson?: { trigger: string; action: string }; retire?: string[]; keepBoth?: boolean } = {}) =>
+      api.approveMemoryProposal(proposal.id, { ...(lesson ? { lesson } : {}), ...(retire ? { retire } : {}), ...(keepBoth ? { keepBoth } : {}), ...(text !== undefined && text !== proposal.text ? { text } : {}), ...(file !== undefined && file !== proposal.target.file ? { file } : {}) }),
     onSuccess: () => {
       setEditing(null);
       setRenaming(null);
+      setChoosing(false);
       settle();
+      void qc.invalidateQueries({ queryKey: ['lessons'] });
       toast.success(t('memoryTab.proposals.approved'));
     },
     onError: (error) => {
@@ -147,6 +248,18 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
     onError: (error) => toast.error(t('memoryTab.proposals.rejectFailed'), error),
   });
   const busy = approve.isPending || reject.isPending;
+  // An instructions proposal is read as a diff first; a lesson that meets another is asked about
+  const start = () => {
+    if (proposal.target.kind === 'instructions') setDiffing(true);
+    else if (isLesson && (proposal.lesson?.contradicts || proposal.lesson?.conflictsWithInstructions)) setChoosing(true);
+    else approve.mutate({});
+  };
+  const overlays = (
+    <>
+      {diffing && <InstructionsDiffDialog proposal={proposal} onClose={() => setDiffing(false)} />}
+      {choosing && <LessonChoice proposal={proposal} busy={busy} onClose={() => setChoosing(false)} onApprove={(req) => approve.mutate(req)} />}
+    </>
+  );
   const role = proposal.proposedBy.role ?? null;
   const who = role ? roleName(role) : t('memoryTab.proposals.anAgent');
 
@@ -180,7 +293,10 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
     />
   );
 
-  const editor = editing !== null && (
+  const lessonEditor = isLesson && editing !== null && proposal.lesson && (
+    <LessonProposalEdit lesson={proposal.lesson} busy={busy} onCancel={() => setEditing(null)} onSubmit={(lesson) => approve.mutate({ lesson })} />
+  );
+  const editor = lessonEditor || (editing !== null && (
     <form
       className="memory-proposal-edit"
       onSubmit={(event) => {
@@ -206,19 +322,19 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
         </button>
       </div>
     </form>
-  );
+  ));
 
   if (phone) {
     return (
       <li className="memory-proposal" aria-label={proposal.text}>
-        {editor || <ProposalText text={proposal.text} />}
+        {editor || (isLesson ? <LessonBody proposal={proposal} /> : <ProposalText text={proposal.text} />)}
         {meta}
         <TargetLine target={proposal.target} />
         {proposal.reason && <p className="memory-proposal-reason">{proposal.reason}</p>}
         {rename}
         {editing === null && renaming === null && (
           <div className="memory-proposal-actions">
-            <button type="button" className="btn memory-approve" disabled={busy} onClick={() => approve.mutate({})}>
+            <button type="button" className="btn memory-approve" disabled={busy} onClick={start}>
               <Check {...ICON_SM} />
               {t('memoryTab.proposals.approve')}
             </button>
@@ -232,6 +348,7 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
             />
           </div>
         )}
+        {overlays}
       </li>
     );
   }
@@ -239,7 +356,7 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
   return (
     <li className="memory-proposal" aria-label={proposal.text}>
       <TargetLine target={proposal.target} />
-      {editor || <ProposalText text={proposal.text} />}
+      {editor || (isLesson ? <LessonBody proposal={proposal} /> : <ProposalText text={proposal.text} />)}
       {proposal.reason && <p className="memory-proposal-reason">{proposal.reason}</p>}
       {rename}
       <div className="memory-proposal-foot">
@@ -254,13 +371,14 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
               <Pencil {...ICON_SM} />
               {t('memoryTab.proposals.edit')}
             </button>
-            <button type="button" className="btn btn-small memory-approve" disabled={busy} onClick={() => approve.mutate({})}>
+            <button type="button" className="btn btn-small memory-approve" disabled={busy} onClick={start}>
               <Check {...ICON_SM} />
               {t('memoryTab.proposals.approve')}
             </button>
           </div>
         )}
       </div>
+      {overlays}
     </li>
   );
 }

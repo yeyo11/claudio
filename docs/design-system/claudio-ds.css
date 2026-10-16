@@ -2447,3 +2447,56 @@ a.cont-from:hover { color: var(--fg); }
 .chat-launch-facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-launch-open { flex: none; }
 /* ---------- end of Tool rows and live branches ---------- */
+
+/* ---------- Lessons (docs/plans/lessons.md): a record, so nothing here is live ---------- */
+.lessons { margin: 0; padding: 0; list-style: none; }
+.lesson-row { display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.lesson-row:last-child { border-bottom: 0; }
+.lesson-row.is-retired .lesson-text { color: var(--fg-3); }
+.lesson-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.lesson-key { flex: none; font-size: 12px; color: var(--fg-3); }
+.lesson-text { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.lesson-when { color: var(--fg-2); }
+.lesson-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.lesson-conf { color: var(--fg-2); }
+.lesson-evidence-toggle .is-open { transform: rotate(180deg); }
+.lesson-evidence { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lesson-evidence-item { display: flex; flex-direction: column; gap: 4px; }
+.lesson-quote { margin: 0; padding-left: 12px; border-left: 2px solid var(--line-2); color: var(--fg); line-height: 1.45; overflow-wrap: anywhere; }
+.lesson-quote.is-empty { color: var(--fg-3); font-style: italic; }
+.lesson-evidence-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0; padding-left: 14px; }
+.lesson-context { overflow-wrap: anywhere; }
+.lesson-more { margin: 0; }
+.lesson-edit { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.lesson-proposal { display: flex; flex-direction: column; gap: 8px; }
+.lesson-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.lessons-count { flex: none; }
+.lessons-handed { display: inline-flex; align-items: center; gap: 8px; }
+.lessons-phone-head { gap: 12px; }
+.lessons-none a { white-space: nowrap; }
+.lessons-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+.lessons-mining { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
+.lesson-jobs { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.lesson-job { display: flex; align-items: baseline; gap: 10px; }
+.lesson-job-warn { color: var(--warn); }
+.lesson-job-bad { color: var(--bad); }
+.lessons-settings { display: flex; flex-direction: column; gap: 14px; }
+.lessons-switches { display: flex; flex-direction: column; gap: 10px; }
+.lessons-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.project-lessons-cell { display: flex; align-items: center; min-height: var(--touch); padding: 0 16px; }
+/* The CLAUDE.md diff: a Dialog on a desktop, a full-height Sheet on a phone */
+.instr-diff { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.instr-diff-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.instr-diff-section { display: flex; flex-direction: column; gap: 4px; }
+.instr-diff-view { max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.instr-diff-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.instr-diff-foot.is-sheet .btn { flex: 1 1 0; justify-content: center; min-height: var(--touch); }
+.instr-diff-sheet { height: 100%; max-height: 100%; }
+.instr-diff-sheet .instr-diff-view { max-height: none; }
+@media (max-width: 900px) {
+  .lesson-row { padding: 14px; }
+  .lesson-facts .btn, .lesson-facts .icon-btn { min-height: var(--touch); }
+  .lessons-foot { padding: 12px 14px 16px; }
+  .lesson-edit input, .lesson-edit textarea, .instr-diff-section input { font-size: 16px; }
+}
+/* ---------- end of Lessons ---------- */

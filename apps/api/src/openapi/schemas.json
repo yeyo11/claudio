@@ -21028,6 +21028,10 @@
         "type": "string",
         "description": "For an `instructions` proposal made from a lesson: the sha256 of the `CLAUDE.md` the person saw the diff against, so a file that changed since is refused"
       },
+      "section": {
+        "type": "string",
+        "description": "For an `instructions` target: the heading to write under instead of the proposed one; empty for the end of the file"
+      },
       "file": {
         "type": "string",
         "description": "For a `rule` target: the rule file to write instead of the proposed one, when that name is taken by a rule with other paths"
@@ -21391,6 +21395,10 @@
       "text": {
         "type": "string",
         "description": "The text to preview instead of the proposed one, while the person edits it"
+      },
+      "section": {
+        "type": "string",
+        "description": "The heading to preview under instead of the proposed one, while the person picks it"
       }
     }
   },

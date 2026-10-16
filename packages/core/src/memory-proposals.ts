@@ -362,7 +362,8 @@ export class MemoryProposalService {
     const path = join(project.path, 'CLAUDE.md');
     const exists = existsSync(path);
     const current = exists ? await readFile(path, 'utf8') : '';
-    const after = withText(current, text, proposal.target.section);
+    const section = input?.section === undefined ? proposal.target.section : sectionOf(input.section, 'section');
+    const after = withText(current, text, section);
     return { path: 'CLAUDE.md', exists, sha256: sha256(current), diff: lineDiff(current, after, 3), bytesAfter: Buffer.byteLength(after) };
   }
 
@@ -388,7 +389,10 @@ export class MemoryProposalService {
     if (before.target.kind === 'instructions' && !previewOf && this.row(proposalId)?.lesson_id) {
       throw new WorkItemError('previewOf is required to approve a lesson into CLAUDE.md: preview it first', 400);
     }
+    // The person may move it to another heading while reading the diff; the target keeps what was written
+    const section = before.target.kind === 'instructions' && input?.section !== undefined ? sectionOf(input.section, 'section') : before.target.section;
     this.claim(proposalId, 'approved', decidedBy, { approvedText: text === before.text ? null : text });
+    if (section !== before.target.section) this.sql.prepare('UPDATE memory_proposals SET target_section = ? WHERE id = ?').run(section, proposalId);
     // An `instructions` proposal made from a lesson retires it with the claim: CLAUDE.md holds it now
     const fromLesson = before.target.kind === 'instructions' ? this.row(proposalId)?.lesson_id : null;
     const retired = fromLesson ? (this.lessons?.retireForInstructions(fromLesson, decidedBy) ?? false) : false;
@@ -414,7 +418,7 @@ export class MemoryProposalService {
         const path = join(project.path, 'CLAUDE.md');
         const current = existsSync(path) ? await readFile(path, 'utf8') : '';
         if (previewOf && previewOf !== sha256(current)) throw new WorkItemError('CLAUDE.md changed since you saw the diff', 409);
-        await writeAtomic(path, withText(current, text, before.target.section));
+        await writeAtomic(path, withText(current, text, section));
       }
     } catch (err) {
       // Both rows go back: the proposal waits again and the lesson is handed again
@@ -585,6 +589,14 @@ export class MemoryProposalService {
 
 // ---------- checks ----------
 
+/** A heading name as `CLAUDE.md` keeps it: no `#`, one line; null for none */
+function sectionOf(value: unknown, field: string): string | null {
+  if (value !== undefined && value !== null && typeof value !== 'string') throw new WorkItemError(`${field} must be text`, 400);
+  const section = typeof value === 'string' ? value.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim() : '';
+  if (section.length > SECTION_MAX) throw new WorkItemError(`${field} is longer than ${String(SECTION_MAX)} characters`, 400);
+  return section || null;
+}
+
 function targetOf(value: unknown): MemoryProposalTarget {
   if (typeof value !== 'object' || value === null) throw new WorkItemError('a proposal needs its target', 400);
   const v = value as { kind?: unknown; file?: unknown; section?: unknown };
@@ -606,9 +618,7 @@ function targetOf(value: unknown): MemoryProposalTarget {
     return { kind, file: ruleFile(v.file), section: null, paths: [...new Set((paths as string[]).map((g) => g.trim()))] };
   }
   if (kind === 'instructions') {
-    const section = typeof v.section === 'string' ? v.section.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim() : '';
-    if (section.length > SECTION_MAX) throw new WorkItemError(`target.section is longer than ${String(SECTION_MAX)} characters`, 400);
-    return { kind, file: null, section: section || null };
+    return { kind, file: null, section: sectionOf(v.section, 'target.section') };
   }
   return { kind, file: null, section: null };
 }

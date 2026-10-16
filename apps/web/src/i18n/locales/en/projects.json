@@ -347,5 +347,13 @@
     "scopeHintProject": "The short name of the YouTrack project, such as PROJ: the issues of that project.",
     "statusPlaceholder": "State, as your project calls it",
     "mapHintNamed": "Each column sets the issue's State field to the name you write here, as your project calls it, and Claudio reads it back to check it. A State the project does not have is shown on the task, and nothing else changes."
+  },
+  "lessons": {
+    "title": "Lessons",
+    "deliverToChats": "Hand lessons to chats",
+    "deliverToWorkers": "Hand lessons to orchestration workers",
+    "useGlobal": "Include global lessons",
+    "hint": "Flow runs always get the project’s lessons. Saved at once.",
+    "saveFailed": "Could not save the lesson settings"
   }
 }
