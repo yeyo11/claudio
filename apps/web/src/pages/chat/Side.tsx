@@ -3,6 +3,7 @@ import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { AnimatedNumber } from '@claudio/ui/components/AnimatedNumber';
 import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, ProviderBadge, StateBadge } from '@claudio/chat-ui/components/ChatBadges';
 import { upperFirst, useAgentName } from '@claudio/chat-ui/lib/agent';
@@ -243,6 +244,8 @@ export function BranchesCard({ chat }: { chat: Chat }) {
                   <button type="button" className="link-btn detail-task-link" onClick={() => open({ kind: 'subagent', chatId: chat.id, agentId: sub.id })}>
                     {sub.description || sub.kind}
                   </button>
+                  {/* What it is doing now; one with no open call reads as working, from when it started */}
+                  {sub.status === 'running' && <ActivityTicker activity={sub.activity ?? { kind: 'tool', since: sub.startedAt }} />}
                   {sub.cwd && <span className="mono small muted break">{sub.cwd}</span>}
                   {/* What it launched hangs off it: the chat's own background tasks are only the ones the chat started */}
                   {sub.tasks.map((task) => (
