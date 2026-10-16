@@ -42,6 +42,8 @@
  *      its facts, what it read, its live head, a proposed work item's line
  *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
  *    - `usage`: the Usage page (pages/Usage)
+ *    - `collaborators`: the Collaborators page (pages/Collaborators, pages/collaborators/*), and under
+ *      `shared.*` and `sharing.*` a project's Shared tab and its Sharing section
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)
  *    - `server`: sentences the server writes with a stable code (health signals, connector steps),
  *      keyed by that code and read through lib/server-strings, never with `t` directly

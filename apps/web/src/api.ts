@@ -384,7 +384,8 @@ export interface ChangeRequestFixResult {
   pullRequest: WorkItemPullRequest | OrchestrationPullRequest | null;
 }
 
-async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal; spendOverride?: boolean } = {}): Promise<T> {
+// Exported for the clients of a feature that keep their routes in a file of their own (lib/api/*)
+export async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal; spendOverride?: boolean } = {}): Promise<T> {
   const hasBody = init.body !== undefined;
   // A person who already said "go on" for this chat today is not asked again on its next turn
   const scope = spendScope(init.method ?? 'GET', path);
