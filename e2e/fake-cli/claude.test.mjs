@@ -205,6 +205,30 @@ test('an issue.triage question is answered without a script: the marks go round 
   await c.done();
 });
 
+test('a lesson.mine question is answered true without a script', async () => {
+  const c = chat();
+  c.say('Answer the questions below from the state that follows, in the structured result.\n\nQuestions:\n\nmine: Do these signals show a person correcting, stopping or overruling the agent in a way that should change how agents work in this project from now on, beyond this one task? Answer true or false.');
+  const result = await c.next((e) => e.type === 'result');
+  assert.deepEqual(result.structured_output, { mine: true });
+  await c.done();
+});
+
+test('the lesson miner\'s prompt is answered with the scripts file\'s "@lesson-miner" line, or with no lessons', async () => {
+  const prompt = 'You review part of a chat between a person and a coding agent working in one project. The person corrected the agent.\n\nSignals, newest first:\n\nS1 no, usa pnpm siempre';
+  const dir = mkdtempSync(join(tmpdir(), 'fake-miner-'));
+  const scripts = join(dir, 'scripts.json');
+  const lesson = { trigger: 'When installing dependencies', action: 'Use `pnpm`.', signals: ['S1'], quote: 'no, usa pnpm siempre', confidence: 0.8, restates: '', contradicts: '', instructions: 'none', mechanical: false };
+  writeFileSync(scripts, JSON.stringify({ '@lesson-miner': `json: ${JSON.stringify({ lessons: [lesson] })}` }));
+  const scripted = chat({ CLAUDIO_FAKE_CLI_SCRIPTS: scripts });
+  scripted.say(prompt);
+  assert.deepEqual((await scripted.next((e) => e.type === 'result')).structured_output, { lessons: [lesson] });
+  await scripted.done();
+  const bare = chat();
+  bare.say(prompt);
+  assert.deepEqual((await bare.next((e) => e.type === 'result')).structured_output, { lessons: [] });
+  await bare.done();
+});
+
 test('read: holds a Read call open, and json: is the structured output of the result', async () => {
   const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'README.md'), '# hello\n') });
   c.say('read: README.md\nread: missing.md\njson: {"summary":"ok","workItems":[]}');

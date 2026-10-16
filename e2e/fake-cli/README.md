@@ -170,6 +170,13 @@ announced, with the hook input on stdin (`sh -c`). With `--include-hook-events` 
 `PreToolUse:Bash hook error: [<hook command>]: <stderr>` (g0's F5); any other code lets it run. This is how
 the real bundled `guard.mjs` runs in `e2e/specs/guard-hooks.spec.mjs`. Subagent steps and the other tools are
 not hooked.
+**A `lesson.mine` question** (a line `mine: Do these signals show…`) is answered `{"mine": true}` with no
+script, so a chat a spec corrected goes on to the miner.
+
+**The lesson miner's prompt** (it starts `You review part of a chat between a person and a coding agent…`) is
+answered with the scripts file's `"@lesson-miner"` entry, a `json: {"lessons":[…]}` line a spec writes
+with the quote it typed; without the entry the answer is `{"lessons":[]}`. Whatever the miner returns still
+goes through the validator, so a scripted lesson must pass it.
 
 **A message that arrives during a turn** is logged at once, and answered at the turn's next step
 (300 ms after a command ends) with one assistant text `Heard: <first line>` per message, before

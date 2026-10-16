@@ -336,6 +336,9 @@ function textOf(message) {
 const firstLine = (text) => text.trim().split('\n')[0] ?? '';
 const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
 
+const MINER_FIRST_SENTENCE = 'You review part of a chat between a person and a coding agent working in one project.';
+const EMPTY_MINER_ANSWER = 'json: {"lessons":[]}';
+
 /**
  * Turns written elsewhere, so the prompt a page shows reads like a person's and not like a script:
  * `CLAUDIO_FAKE_CLI_SCRIPTS` names a JSON object of `{ "<text>": "<script>" }`, and a message that
@@ -351,13 +354,19 @@ function scriptFor(text) {
   // ready, needs-refining, not-for-agents in the order asked, so a spec sees all three without a script
   const issues = [...text.matchAll(/^(\S+): Can an agent start on issue/gm)].map((m) => m[1]);
   if (issues.length > 0) return `json: ${JSON.stringify(Object.fromEntries(issues.map((id, i) => [id, ['ready', 'needs-refining', 'not-for-agents'][i % 3]])))}`;
-  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return text;
+  // `lesson.mine` asks one yes/no question ("mine: Do these signals show…"): always yes, so a spec's
+  // chat that was corrected goes on to the miner
+  if (/^mine: Do these signals show/m.test(text)) return 'json: {"mine":true}';
+  const isMiner = text.includes(MINER_FIRST_SENTENCE);
+  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return isMiner ? EMPTY_MINER_ANSWER : text;
   let scripts;
   try {
     scripts = JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8'));
   } catch {
-    return text;
+    return isMiner ? EMPTY_MINER_ANSWER : text;
   }
+  // The lesson miner's prompt is Claudio's own text, so the scripts file names it by `"@lesson-miner"`
+  if (isMiner) return typeof scripts['@lesson-miner'] === 'string' ? scripts['@lesson-miner'] : EMPTY_MINER_ANSWER;
   const key = Object.keys(scripts).find((k) => k && text.includes(k));
   return key === undefined ? text : String(scripts[key]);
 }
