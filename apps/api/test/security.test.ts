@@ -911,3 +911,24 @@ test("a chat's token reads lessons but cannot decide, change or mine them, or de
   assert.equal((await app.inject({ url: '/api/lessons/nope', ...fromChat(token) })).statusCode, 404);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/lessons/settings', ...authed(owner, { manualMining: false }) })).statusCode, 200);
 });
+
+test("a chat's token cannot change who receives lessons through the project's settings document", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-lessons-project-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...authed(owner, { path: dir, name: 'Lessons' }) });
+  assert.equal(imported.statusCode, 201);
+  const { id } = imported.json() as { id: string };
+  const url = `/api/projects/${id}/settings`;
+  const current = (await app.inject({ url, ...bearer(owner) })).json() as Record<string, unknown>;
+
+  const mine = { deliverToChats: false, deliverToWorkers: false, useGlobal: false };
+  assert.equal((await app.inject({ method: 'PUT', url, ...authed(owner, { ...current, lessons: mine }) })).statusCode, 200);
+  // The chat saves the document with every switch turned the other way: its copy of `lessons` is not kept
+  const grab = { deliverToChats: true, deliverToWorkers: true, useGlobal: true };
+  assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(token, { ...current, lessons: grab }) })).statusCode, 200);
+  assert.deepEqual(((await app.inject({ url, ...bearer(owner) })).json() as { lessons: unknown }).lessons, mine);
+});

@@ -66,8 +66,15 @@ const SPAN = /`([^`]*)`/g;
 const SHELL_SYNTAX = /&&|\|\||;|\||\$\(|\$\{|>|</;
 const RUN_A_SPAN = /^(?:run|execute|invoke|type|paste|curl)\s+(?:the\s+|a\s+|this\s+)?`/i;
 const SUSPICIOUS =
-  /ignore\s+(?:all|any|previous|prior|the)\s+(?:instructions|rules)|system\s+prompt|you\s+are\s+now|disregard|override\s+(?:the|your|these)\s+(?:rules|instructions)|exfiltrat|(?:send|post|upload)\b.*\b(?:to|at)\s+(?:http|an?\s+(?:server|url|address|e-?mail))/i;
-const URL_LIKE = /:\/\/|\bwww\.|\bmailto:/i;
+  /ignore\s+(?:all|any|previous|prior|the)\s+(?:instructions|rules)|system\s+prompt|you\s+are\s+now|disregard|override\s+(?:the|your|these)\s+(?:rules|instructions)|exfiltrat|(?:send|post|upload)\b.*\b(?:to|at)\s+(?:http|an?\s+(?:server|url|address|e-?mail))|forget\s+(?:everything|all|any|previous|prior|what)|from\s+now\s+on,?\s+you\b|new\s+instructions|pretend\s+(?:to|you)|\bact\s+as\s+(?:the\s+|an?\s+)?(?:owner|admin|administrator|system|root|person|user)\b|(?:do\s+not|don't|never)\s+(?:tell|inform|mention\s+(?:this\s+)?to|let)\s+the\s+(?:user|person|owner)|(?:secret|hidden)\s+(?:from|rule|instruction)|without\s+(?:telling|informing|asking)\s+the|(?:reveal|print|show|leak)\b.*\b(?:instructions|prompt)\b|(?:disable|bypass|circumvent|skip|turn\s+off)\s+(?:the\s+|all\s+)?(?:guards?|hooks?|sandbox|permissions?\s+(?:prompts?|checks?)|approvals?|reviews?\s+gate)|approve\s+(?:your|its)\s+own|\.ssh\b|id_rsa|\/etc\/(?:passwd|shadow)|^\s*(?:system|assistant|human|user)\s*:/im;
+// A scheme, a host with a common top-level domain or an address, an e-mail: where text could be sent or fetched from
+const URL_LIKE =
+  /:\/\/|\bwww\.|\bmailto:|\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|dev|xyz|ru|cn|info|biz|tk|ly|link|site|online|top)\b|\b\d{1,3}(?:\.\d{1,3}){3}\b|\blocalhost:\d|[\w.+-]+@[a-z0-9-]+\.[a-z]/i;
+// A command named in prose or a flag that switches a safety off: even in backticks, a lesson never asks for these
+const DANGEROUS_COMMAND =
+  /\b(?:curl|wget|sudo|chmod|chown)\b|\brm\s+-[a-z]*[rf]|\b(?:pipe|piped|piping)\b.*\b(?:sh|bash|zsh|shell)\b|--dangerously|--no-verify|--no-gpg-sign|\beval\b/i;
+// A word that mixes Latin letters with Cyrillic or Greek ones is a lookalike written to slip past the patterns
+const LOOKALIKE = /(?=\S*\p{Script=Latin})(?=\S*[\p{Script=Cyrillic}\p{Script=Greek}])\S+/u;
 
 const SPANISH = new Set(['el', 'la', 'los', 'las', 'que', 'para', 'con', 'por', 'una', 'cuando', 'usar', 'nunca', 'siempre']);
 
@@ -136,8 +143,8 @@ export function checkCandidate(raw: unknown, ctx: ValidationContext): Candidate 
   if (URL_LIKE.test(trigger) || URL_LIKE.test(action)) return 'url';
   // A newline, a tab or any other control character, even at an end: a lesson is one line of prose
   if (untrimmed.some((t) => /\p{Cc}/u.test(t))) return 'command-like';
-  if (commandLike(trigger, false) || commandLike(action, true)) return 'command-like';
-  if (SUSPICIOUS.test(trigger) || SUSPICIOUS.test(action)) return 'suspicious';
+  if (commandLike(trigger, false) || commandLike(action, true) || DANGEROUS_COMMAND.test(trigger) || DANGEROUS_COMMAND.test(action)) return 'command-like';
+  if (SUSPICIOUS.test(trigger) || SUSPICIOUS.test(action) || LOOKALIKE.test(trigger) || LOOKALIKE.test(action)) return 'suspicious';
   if (spanish(trigger) || spanish(action)) return 'not-english';
   if (given.instructions === 'restates') return 'restates-instructions';
   if (ctx.rejected.some((r) => similarity({ trigger, action }, r) >= SAME_AT)) return 'duplicate-rejected';
@@ -191,9 +198,9 @@ export function checkLessonText(trigger: unknown, action: unknown): { trigger: s
   if (length(a) > LESSON_ACTION_MAX) throw new WorkItemError(`the action is longer than ${String(LESSON_ACTION_MAX)} characters`, 400);
   if (maskSecrets(t) !== t || maskSecrets(a) !== a) throw new WorkItemError('a lesson cannot hold a secret', 400);
   if (URL_LIKE.test(t) || URL_LIKE.test(a)) throw new WorkItemError('a lesson cannot hold a link', 400);
-  if (raw.some((x) => /\p{Cc}/u.test(x)) || commandLike(t, false) || commandLike(a, true)) {
+  if (raw.some((x) => /\p{Cc}/u.test(x)) || commandLike(t, false) || commandLike(a, true) || DANGEROUS_COMMAND.test(t) || DANGEROUS_COMMAND.test(a)) {
     throw new WorkItemError('a lesson describes behaviour: write the command as a single word in inline code, or leave it to a guard', 400);
   }
-  if (SUSPICIOUS.test(t) || SUSPICIOUS.test(a)) throw new WorkItemError('a lesson cannot give instructions about instructions', 400);
+  if (SUSPICIOUS.test(t) || SUSPICIOUS.test(a) || LOOKALIKE.test(t) || LOOKALIKE.test(a)) throw new WorkItemError('a lesson cannot give instructions about instructions', 400);
   return { trigger: t, action: a };
 }

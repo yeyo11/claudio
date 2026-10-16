@@ -164,11 +164,17 @@ export function emptyCorrections(): CorrectionState {
 const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+/**
+ * The first `n` characters of a text, masked before they are cut: a secret that straddles the cut
+ * would otherwise leave a prefix the masks no longer recognise.
+ */
+const keep = (text: string, n: number): string => maskSecrets(text).slice(0, n);
+
 /** "Edit src/cart.ts", "Bash: npm install": what a call did, short and without its output */
 export function actionOf(tool: string, input: unknown): string {
   const r = asRecord(input);
   const path = asText(r.file_path) || asText(r.notebook_path) || asText(r.path);
-  if (tool === 'Bash') return `Bash: ${asText(r.command).replace(/\s+/g, ' ').trim().slice(0, 120)}`;
+  if (tool === 'Bash') return `Bash: ${keep(asText(r.command).replace(/\s+/g, ' ').trim(), 120)}`;
   return path ? `${tool} ${path}` : tool;
 }
 
@@ -275,7 +281,7 @@ function noteResult(state: CorrectionState, entry: TranscriptEntry, toolUseId: s
   const failed = isError && !content.startsWith(DECLINE_TEXT) && !INTERRUPT_MARKERS.some((m) => content.includes(m));
   if (call.tool === 'Bash' && call.command !== null) {
     if (failed && state.lastBash?.failed && state.lastBash.command === call.command) {
-      state.repeated.push({ uuid: entry.uuid, at: entry.timestamp, tool: 'Bash', context: `${call.context} failed twice in a row: ${content.slice(0, ERROR_KEPT)}`, count: 2 });
+      state.repeated.push({ uuid: entry.uuid, at: entry.timestamp, tool: 'Bash', context: `${call.context} failed twice in a row: ${keep(content, ERROR_KEPT)}`, count: 2 });
     }
     state.lastBash = { command: call.command, failed };
   }
@@ -284,7 +290,7 @@ function noteResult(state: CorrectionState, entry: TranscriptEntry, toolUseId: s
   const count = (state.errors.get(key) ?? 0) + 1;
   state.errors.set(key, count);
   if (count === REPEATED_ERROR_AT) {
-    state.repeated.push({ uuid: entry.uuid, at: entry.timestamp, tool: call.tool, context: `${call.tool} failed the same way ${String(count)} times: ${content.slice(0, ERROR_KEPT)}`, count });
+    state.repeated.push({ uuid: entry.uuid, at: entry.timestamp, tool: call.tool, context: `${call.tool} failed the same way ${String(count)} times: ${keep(content, ERROR_KEPT)}`, count });
   }
 }
 
@@ -428,7 +434,7 @@ export class SignalRecorder {
 
   /** S-rewound: a resume carried `resumeSessionAt`; the next person message becomes the quote */
   rewound(chat: { chatId: string; projectId: string | null }, resumeSessionAt: string, abandoned: string | null = null): RecordedSignal | null {
-    return this.write(chat.projectId, chat.chatId, 'rewound', resumeSessionAt, '', abandoned ? cutToBytes(abandoned, 500) : '');
+    return this.write(chat.projectId, chat.chatId, 'rewound', resumeSessionAt, '', abandoned ? cutToBytes(maskSecrets(abandoned), 500) : '');
   }
 
   /** S-rejected-proposal: a rejection with a reason, for the chat the proposal came from */
