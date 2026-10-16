@@ -36,6 +36,7 @@ import {
   type Lane,
   LanesError,
   type Overlay,
+  assertInsideLane,
   createLane,
   ensureLanesRoot,
   lanesRoot,
@@ -140,7 +141,18 @@ export interface EvalRunnerDeps {
   /** When this process started, to tell its own rows from those of its earlier life */
   startedAt?: string;
   isAlive?: (pid: number) => boolean;
-  runCommand?: (command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void) => Promise<CommandOutcome>;
+  runCommand?: (command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void, runId?: string, env?: NodeJS.ProcessEnv) => Promise<CommandOutcome>;
+}
+
+/**
+ * The environment of a setup or check command. It runs in a lane after the agent edited it, so what
+ * it executes may be code the variant under test wrote: it must not inherit the person's API
+ * credentials, which a sample itself never gets (`api: false`).
+ */
+function commandEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const out = { ...env };
+  for (const name of Object.keys(out)) if (/^CLAUDIO_(AUTH_|DESKTOP_TOKEN|API_|CHAT_ID|OIDC_)/.test(name)) delete out[name];
+  return out;
 }
 
 export interface EvalStartInput {
@@ -671,7 +683,10 @@ export class EvalRunner {
       try {
         lane = run.free.pop() ?? (await createLane(run.repo, this.root, run.id, ++run.lanes, sample.pin));
         await resetLane(lane, sample.pin, plan.overlay);
-        if (plan.absent && run.rel) rmSync(join(lane.path, run.rel), { force: true });
+        if (plan.absent && run.rel) {
+          assertInsideLane(lane.path, join(lane.path, run.rel));
+          rmSync(join(lane.path, run.rel), { force: true });
+        }
       } catch (err) {
         laneOk = false;
         this.endSample(run, sampleId, { outcome: 'infra', reason: `lane-failed: ${err instanceof Error ? err.message : String(err)}` });
@@ -745,10 +760,15 @@ export class EvalRunner {
     const onAbort = () => handle?.cancel();
     run.abort.signal.addEventListener('abort', onAbort, { once: true });
     try {
-      const done = runIt(command, cwd, timeoutMs, (h) => {
-        handle = h;
-        if (run.abort.signal.aborted) h.cancel();
-      });
+      const done = runIt(
+        command, cwd, timeoutMs,
+        (h) => {
+          handle = h;
+          if (run.abort.signal.aborted) h.cancel();
+        },
+        run.id,
+        commandEnv(),
+      );
       return await done;
     } finally {
       run.abort.signal.removeEventListener('abort', onAbort);
