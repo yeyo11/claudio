@@ -210,6 +210,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums the `total_cost_usd` of each `result` message in the stream (the CLI's own figure; Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
+| Instruction evals | one housekeeping chat per sample (`claude -p --input-format stream-json --output-format stream-json`, no API token, no journal) in a detached `git worktree` outside the repository, with `--max-budget-usd` as the per-sample cap. The tool calls are read from the stream and the files from the worktree, and nothing is judged by a model ([docs/plans/instruction-evals.md](docs/plans/instruction-evals.md)) |
 | Path-scoped rules | `.claude/rules/*.md` files with a `paths:` list in their front matter, which the CLI loads as project memory; Claudio writes them when a person approves a `rule` proposal ([docs/team-and-flow.md](docs/team-and-flow.md)) |
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
@@ -504,9 +505,9 @@ directory it wins over the environment).
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
 - **`?token=`.** A browser cannot put a header on an `EventSource`, an `<img>` or a download link,
-  so five GETs also accept the credential in the query string: `/api/events`,
-  `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export` and
-  `/api/projects/:id/export`. Nothing else does. A proxy's access log will record that token, so keep
+  so six GETs also accept the credential in the query string: `/api/events`,
+  `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export`,
+  `/api/projects/:id/export` and `/api/eval-runs/:runId/export`. Nothing else does. A proxy's access log will record that token, so keep
   query strings out of it for those routes.
 - **OIDC is validation only.** Claudio checks a JWT and never talks to a token endpoint or signs
   anyone in; the browser UI signs in with a token, so in `oidc` mode clients bring a JWT their
@@ -644,8 +645,8 @@ or an answer; every write, and reading a sign-in, is refused to a chat's token. 
 Authentication is off by default (`mode: none`), which is what a local install on loopback wants.
 With `token` every route needs `Authorization: Bearer …`; with `oidc` it needs a JWT the issuer's
 JWKS validates (`aud` and `exp` are checked). `GET /api/health` stays open, `/docs` does not, and
-only the five GETs a browser makes without headers — `/events`, `/chats/:id/stream`,
-`/uploads/:id/content`, `/chats/:id/export` and `/projects/:id/export` — also accept the credential
+only the six GETs a browser makes without headers — `/events`, `/chats/:id/stream`,
+`/uploads/:id/content`, `/chats/:id/export`, `/projects/:id/export` and `/eval-runs/:runId/export` — also accept the credential
 as `?token=`. Only the SHA-256 of a token is stored; the token itself exists once, in the answer
 that created it. Lost it? `CLAUDIO_AUTH_TOKEN` with `CLAUDIO_AUTH_TOKEN_RESET=1` replaces it on the
 next start, audited with actor `env` (see [Securing it](#securing-it)).
@@ -935,6 +936,34 @@ Where GitHub and GitLab deliver for a hook Claudio registered (tag `Webhooks`). 
 | POST | `/projects/:id/docs/refresh` | Read every title again; one that no longer resolves is marked `unavailable`, not dropped. Not open to a chat's token |
 | DELETE | `/projects/:id/docs/:docId` | Drop the entry (the document on claude.ai is never touched) → `204`. Not open to a chat's token |
 | POST | `/projects/:id/docs/:docId/ask` | Open a chat in the project about the document → `201` with the chat. Not open to a chat's token |
+
+### Evals
+
+Instruction-compliance evals (Team module): a committed file in the project's
+`.claude/claudio-evals/<name>.json` holds prompts and deterministic expectations about the tool calls,
+the final text and the resulting files, and a run measures an agent file, skill, rule or `CLAUDE.md`
+in up to three variants (`pinned` at a commit, `current` on disk, `proposed` as sent). Only a
+person's click starts a run, and the start must repeat the cost ceiling the estimate showed
+(`confirmMaxCostUsd`). A chat's token may read and cancel but is refused (403) on writing, consent,
+starting, resuming and deleting; read-only mode refuses every write (405). Errors carry `code`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/evals` | The eval files, each with its parse problems and the newest run of that eval. 404 project; 409 `team-off` |
+| GET | `/projects/:id/evals/:name` | One file: definition, problems, SHA and whether this content has the person's consent. 400 name; 404 |
+| PUT | `/projects/:id/evals/:name` | `{ definition, ifMatch }` — write the file after a strict parse; `ifMatch` is the SHA that was read (`null` for a new file). 400 with the field paths; 409 `changed-on-disk`; 413 over 256 KiB |
+| DELETE | `/projects/:id/evals/:name` | Remove the file and its consent; the run history stays. 404; 409 `eval-running` |
+| POST | `/projects/:id/evals/:name/estimate` | `EvalRunRequest` → `EvalEstimate` (samples, ceiling, typical cost, commands to consent to, warnings). Starts nothing. 422 `pin-missing`, `target-missing`, `not-git`, `no-commit`, `lanes-root-contaminated`, `user-scope-proposal` |
+| POST | `/projects/:id/evals/:name/consent` | `{ sha }` — record consent for that content. 409 `changed-on-disk` when the SHA is not the file's now |
+| POST | `/projects/:id/evals/:name/runs` | `EvalRunRequest` — start a run (201). 409 `eval-running`, `cost-not-confirmed`; 412 `consent-needed`; 422 as in estimate |
+| GET | `/projects/:id/eval-runs` | History, newest first: `?eval=&before=&limit=` (≤ 50) → `{ runs, next }`. 404 |
+| GET | `/eval-runs/:runId` | A run with its variants, samples and checks (calls left out). 404 |
+| GET | `/eval-runs/:runId/samples/:sampleId` | A sample with its calls, checks and final text. 404 |
+| GET | `/eval-runs/:runId/compare?base=&other=` | `EvalComparison` of two variants of the run (`current` and `proposed` by default). 400 when a variant is not in the run; 404 |
+| POST | `/eval-runs/:runId/cancel` | Cancel a live run; idempotent. 404 |
+| POST | `/eval-runs/:runId/resume` | `{ confirmMaxCostUsd }` — re-queue the unscored samples of an `interrupted` or `capped` run under a new ceiling (spent plus what is left). 409 `not-resumable`, `cost-not-confirmed`, `eval-running`; 412 `consent-needed` |
+| DELETE | `/eval-runs/:runId` | Remove an ended run's rows. 404; 409 while it is live |
+| GET | `/eval-runs/:runId/export?format=json\|markdown` | Download the run (`content-disposition: attachment`); accepts `?token=`. 400 format; 404 |
 
 ### Decisions
 

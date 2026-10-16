@@ -91,6 +91,7 @@ const ROOT_TYPES = [
   'DecisionPointInfo', 'DecisionPreview', 'DecisionConsentRequest', 'DecisionRecord', 'DecisionPage', 'DecisionPageQuery', 'DecisionFilter',
   // Instruction evals
   'EvalDefinition', 'EvalFile', 'EvalRunRequest', 'EvalEstimate', 'EvalRun', 'EvalRunSummary', 'EvalSample', 'EvalCall', 'EvalCheck', 'EvalComparison',
+  'EvalFileListItem', 'EvalFileDetail', 'PutEvalFileRequest', 'EvalConsentRequest', 'ResumeEvalRunRequest', 'EvalRunPage', 'EvalSampleDetail',
   'DecisionFeedbackRequest', 'DecisionPaletteActionRequest', 'DecisionNotificationOpenedRequest', 'DecisionNotificationOpenedResult', 'DecisionClearResult', 'DecisionStats', 'DecisionPaletteRequest', 'DecisionPaletteResult',
 ];
 

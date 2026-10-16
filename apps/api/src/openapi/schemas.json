@@ -28801,6 +28801,319 @@
       "same"
     ]
   },
+  "EvalFileListItem": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "sha": {
+        "type": "string",
+        "description": "SHA-256 of the file's bytes: the key of consent and of `ifMatch`"
+      },
+      "definition": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EvalDefinition"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "problems": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "One entry per problem, each starting with the path of the field"
+      },
+      "latestRun": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EvalRunSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "definition",
+      "latestRun",
+      "name",
+      "path",
+      "problems",
+      "sha"
+    ],
+    "description": "An eval file in the project's list, with the newest run of that eval (null when it never ran)."
+  },
+  "EvalFileDetail": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "sha": {
+        "type": "string",
+        "description": "SHA-256 of the file's bytes: the key of consent and of `ifMatch`"
+      },
+      "definition": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EvalDefinition"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "problems": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "One entry per problem, each starting with the path of the field"
+      },
+      "consented": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "consented",
+      "definition",
+      "name",
+      "path",
+      "problems",
+      "sha"
+    ],
+    "description": "One eval file; `consented` says whether the person accepted this very content (consent is per SHA)."
+  },
+  "PutEvalFileRequest": {
+    "type": "object",
+    "properties": {
+      "definition": {
+        "$ref": "#/components/schemas/EvalDefinition"
+      },
+      "ifMatch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "definition",
+      "ifMatch"
+    ],
+    "description": "`ifMatch` is the SHA the editor read, or null when it expects there to be no file yet."
+  },
+  "EvalConsentRequest": {
+    "type": "object",
+    "properties": {
+      "sha": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "sha"
+    ]
+  },
+  "ResumeEvalRunRequest": {
+    "type": "object",
+    "properties": {
+      "confirmMaxCostUsd": {
+        "type": "number",
+        "description": "Must equal the new ceiling the person was shown: what was spent plus the worst case of what is left"
+      }
+    },
+    "required": [
+      "confirmMaxCostUsd"
+    ]
+  },
+  "EvalRunPage": {
+    "type": "object",
+    "properties": {
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalRunSummary"
+        }
+      },
+      "next": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "runs",
+      "next"
+    ],
+    "description": "A page of runs, newest first; pass `next` back as `before` for the following page."
+  },
+  "EvalSampleDetail": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "caseId": {
+        "type": "string"
+      },
+      "variant": {
+        "$ref": "#/components/schemas/EvalVariant"
+      },
+      "attempt": {
+        "type": "number"
+      },
+      "try": {
+        "type": "number",
+        "description": "A sample hit by a usage limit is run again from scratch as a new try, never replayed"
+      },
+      "seq": {
+        "type": "number",
+        "description": "Queue order"
+      },
+      "state": {
+        "$ref": "#/components/schemas/EvalSampleState"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EvalSampleOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "cliVersion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "pin": {
+        "type": "string"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "turns": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "callsTruncated": {
+        "type": "boolean",
+        "description": "The checks ran on the full list; only the stored one was cut"
+      },
+      "resultText": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Cut to 8 KiB and masked"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "checks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalCheck"
+        }
+      },
+      "calls": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvalCall"
+        }
+      }
+    },
+    "required": [
+      "account",
+      "attempt",
+      "calls",
+      "callsTruncated",
+      "caseId",
+      "chatId",
+      "checks",
+      "cliVersion",
+      "costUsd",
+      "durationMs",
+      "endedAt",
+      "id",
+      "model",
+      "outcome",
+      "pin",
+      "reason",
+      "resultText",
+      "runId",
+      "seq",
+      "startedAt",
+      "state",
+      "try",
+      "turns",
+      "variant"
+    ],
+    "description": "A sample with the tool calls it made, which `EvalRun` leaves out."
+  },
   "DecisionFeedbackRequest": {
     "type": "object",
     "properties": {

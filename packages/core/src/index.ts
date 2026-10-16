@@ -1238,7 +1238,9 @@ export class Core {
         return { waitUntil: resets.length === ready.length ? Math.min(...resets) : null };
       },
     });
-    this.evals = new EvalService({ store: evalStore, runner: evalRunner, definitions: evalDefinitions, consents: evalConsents, projectPath: evalProjectPath });
+    this.evals = new EvalService({ store: evalStore, runner: evalRunner, definitions: evalDefinitions, consents: evalConsents, projectPath: evalProjectPath,
+      teamOn: (id) => this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.modules.includes('team') ?? false,
+    });
     this.rotation = new ProviderRotation({
       db: this.db,
       evalSample: (chatId) => this.evals.isSample(chatId),

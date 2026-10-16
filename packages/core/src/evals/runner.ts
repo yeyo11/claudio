@@ -8,12 +8,14 @@ import {
   type EvalCall,
   type EvalCheck,
   type EvalDefinition,
+  type EvalEstimate,
   type EvalRunOutcome,
   type EvalRunRequest,
   type EvalRunSummary,
   type EvalSampleOutcome,
   type EvalVariant,
   type EvalVariantInfo,
+  type EvalWarning,
   type FlowStage,
   type PermissionMode,
   type RunEvent,
@@ -86,7 +88,10 @@ export type EvalStartErrorCode =
   | 'proposed-too-large'
   | 'unknown-case'
   | 'no-variants'
-  | 'lanes-root-contaminated';
+  | 'lanes-root-contaminated'
+  | 'not-resumable'
+  | 'team-off'
+  | 'variant-not-in-run';
 
 /** Why a start was refused; the API maps `code` to its status (409, 412, 413, 422). */
 export class EvalStartError extends Error {
@@ -352,20 +357,162 @@ export class EvalRunner {
       if (err instanceof Error && 'code' in err && err.code === 'eval-running') throw new EvalStartError('eval-running', err.message);
       throw err;
     }
-    const run: Active = {
-      id: runId, projectId, repo, evalName, def, sha: input.sha, account: request.account ?? null, maxCostUsd: ceiling,
-      cap: def.limits?.maxCostUsdPerSample ?? EVAL_LIMITS.maxCostUsdPerSample.default,
-      concurrency: Math.max(1, Math.min(EVAL_LIMITS.concurrency, deps.maxConcurrentRuns())),
-      timeoutMs: deps.timeoutMs ?? (def.limits?.timeoutMinutes ?? EVAL_LIMITS.timeoutMinutes.default) * 60_000,
-      plans, rel: this.relativeTarget(def, repo), abort: new AbortController(), free: [], lanes: 0, inflight: new Map(), infraStreak: 0,
-      timer: null, pumping: false, again: false, ending: null, stopAs: 'skipped', pinned: new Map(),
-    };
-    this.active.set(runId, run);
-    this.emitRun(runId);
-    void this.pump(run);
+    this.activate({ id: runId, projectId, repo, evalName, def, sha: input.sha, account: request.account ?? null, maxCostUsd: ceiling, plans });
     const summary = deps.store.summary(runId);
     if (!summary) throw new Error('the run was not stored');
     return summary;
+  }
+
+  /** Registers a run in memory and starts pumping it: shared by a new run and a resumed one. */
+  private activate(a: Pick<Active, 'id' | 'projectId' | 'repo' | 'evalName' | 'def' | 'sha' | 'account' | 'maxCostUsd' | 'plans'>): void {
+    const { deps } = this;
+    const { def } = a;
+    const run: Active = {
+      ...a,
+      cap: def.limits?.maxCostUsdPerSample ?? EVAL_LIMITS.maxCostUsdPerSample.default,
+      concurrency: Math.max(1, Math.min(EVAL_LIMITS.concurrency, deps.maxConcurrentRuns())),
+      timeoutMs: deps.timeoutMs ?? (def.limits?.timeoutMinutes ?? EVAL_LIMITS.timeoutMinutes.default) * 60_000,
+      rel: this.relativeTarget(def, a.repo), abort: new AbortController(), free: [], lanes: 0, inflight: new Map(), infraStreak: 0,
+      timer: null, pumping: false, again: false, ending: null, stopAs: 'skipped', pinned: new Map(),
+    };
+    this.active.set(a.id, run);
+    this.emitRun(a.id);
+    void this.pump(run);
+  }
+
+  /**
+   * What a start would cost and need, with the refusals a start would give for the request itself.
+   * Nothing is stored and nothing starts; consent and the confirmed ceiling are the start's to check.
+   */
+  async estimate(input: Omit<EvalStartInput, 'startedBy'>): Promise<EvalEstimate> {
+    const { deps } = this;
+    const { definition: def, request, evalName, projectId } = input;
+    const repo = deps.projectPath(projectId);
+    if (!repo || !existsSync(repo) || !isGitRepo(repo)) throw new EvalStartError('not-git', 'the project is not a git repository');
+    let head: string;
+    try {
+      head = headCommit(repo);
+    } catch {
+      throw new EvalStartError('no-commit', 'the repository has no commit yet');
+    }
+    const cases = request.cases ? def.cases.filter((c) => request.cases?.includes(c.id)) : def.cases;
+    for (const id of request.cases ?? []) if (!def.cases.some((c) => c.id === id)) throw new EvalStartError('unknown-case', `the eval has no case ${id}`, id);
+    if (cases.length === 0 || request.variants.length === 0) throw new EvalStartError('no-variants', 'nothing to run');
+    const variants = [...new Set(request.variants)];
+    const pins = new Set([def.pin, ...cases.map((c) => c.pin ?? def.pin)]);
+    for (const pin of pins) {
+      try {
+        gitRaw(repo, [...GIT_QUIET, 'cat-file', '-e', `${pin}^{commit}`], { timeout: 10_000 });
+      } catch {
+        throw new EvalStartError('pin-missing', `the commit ${pin.slice(0, 12)} is not in this repository (shallow clone, collected or rewritten history)`, pin);
+      }
+    }
+    const plans = await this.plansFor(def, repo, variants, request.proposed);
+    try {
+      ensureLanesRoot(this.root);
+    } catch (err) {
+      if (err instanceof LanesError && err.code === 'lanes-root-contaminated') throw new EvalStartError('lanes-root-contaminated', err.message, err.path);
+      throw err;
+    }
+
+    const samplesPerCase = request.samples ?? def.samples ?? EVAL_LIMITS.samples.default;
+    const warnings: EvalWarning[] = [];
+    try {
+      if (gitRaw(repo, [...GIT_QUIET, 'status', '--porcelain=v1', '-uno'], { timeout: 30_000 }).trim()) warnings.push('dirty-checkout');
+    } catch {
+      /* a status that fails is not worth refusing an estimate for */
+    }
+    if ([...plans.values()].some((p) => p.absent)) warnings.push('target-absent');
+    if (def.target.scope === 'user') warnings.push('user-scope');
+    if ([...pins].some((pin) => !head.startsWith(pin))) warnings.push('pin-behind-head');
+
+    const commands = [...(def.setup ? [def.setup] : []), ...cases.flatMap((c) => c.expect.flatMap((e) => (e.kind === 'command' ? [e.run] : [])))];
+    const written = deps.definitions?.wroteSha(join(repo, EVAL_DIR, `${evalName}.json`), input.sha) ?? true;
+    const consentNeeded = (commands.length > 0 || !written) && !(await deps.consents.has(repo, evalName, input.sha));
+    return {
+      samples: cases.length * variants.length * samplesPerCase,
+      ceilingUsd: ceilingUsd(def, request, cases.length, variants.length, samplesPerCase),
+      typicalUsd: this.typicalUsd(projectId, evalName),
+      commands: [...new Set(commands)],
+      prompts: cases.map((c) => c.prompt),
+      consentNeeded,
+      warnings,
+    };
+  }
+
+  /** The median spend of this eval's finished runs; null when it has none. */
+  private typicalUsd(projectId: string, evalName: string): number | null {
+    const costs = this.deps.store
+      .history(projectId, evalName, { limit: 20 })
+      .runs.filter((r) => r.outcome === 'completed')
+      .map((r) => r.costUsd)
+      .sort((a, b) => a - b);
+    if (costs.length === 0) return null;
+    const mid = Math.floor(costs.length / 2);
+    return cents(costs.length % 2 ? (costs[mid] ?? 0) : ((costs[mid - 1] ?? 0) + (costs[mid] ?? 0)) / 2);
+  }
+
+  /**
+   * Re-queues the unscored samples of an `interrupted` or `capped` run, from the definition and the
+   * variants as that run stored them. The new ceiling is what was spent plus the worst case of what
+   * is left, held to the eval's own limit, and the person must repeat it.
+   */
+  async resume(runId: string, confirmMaxCostUsd: number): Promise<EvalRunSummary> {
+    const { deps } = this;
+    const summary = deps.store.summary(runId);
+    const def = deps.store.definition(runId);
+    if (!summary || !def) throw new EvalStartError('not-resumable', 'there is no such run');
+    if (summary.state !== 'ended' || (summary.outcome !== 'interrupted' && summary.outcome !== 'capped')) {
+      throw new EvalStartError('not-resumable', 'only an interrupted or capped run can be resumed');
+    }
+    const repo = deps.projectPath(summary.projectId);
+    if (!repo || !existsSync(repo) || !isGitRepo(repo)) throw new EvalStartError('not-git', 'the project is not a git repository');
+    if (deps.store.liveRun(summary.projectId)) throw new EvalStartError('eval-running', 'this project already has an eval run in progress');
+
+    const hasCommands = !!def.setup || def.cases.some((c) => c.expect.some((e) => e.kind === 'command'));
+    const written = deps.definitions?.wroteSha(join(repo, EVAL_DIR, `${summary.evalName}.json`), summary.definitionSha) ?? true;
+    if ((hasCommands || !written) && !(await deps.consents.has(repo, summary.evalName, summary.definitionSha))) {
+      throw new EvalStartError('consent-required', 'the eval file has not been accepted: review what it runs first');
+    }
+
+    const user = def.target.scope === 'user';
+    const rel = this.relativeTarget(def, repo);
+    const plans = new Map<EvalVariant, VariantPlan>();
+    for (const info of deps.store.variants(runId)) {
+      if (info.present && info.content === null) throw new EvalStartError('not-resumable', 'a variant of this run was too large to keep, so it cannot be run again');
+      const text = info.variant === 'pinned' ? null : info.content;
+      plans.set(info.variant, {
+        info,
+        text,
+        overlay: info.variant !== 'pinned' && !user && rel && text !== null ? { [rel]: text } : {},
+        absent: info.variant !== 'pinned' && !user && !info.present,
+      });
+    }
+
+    const pending = deps.store.samples(runId).filter((s) => s.state === 'ended' && (s.outcome === 'skipped' || s.outcome === 'interrupted')).length;
+    const cap = def.limits?.maxCostUsdPerSample ?? EVAL_LIMITS.maxCostUsdPerSample.default;
+    const limit = def.limits?.maxCostUsd;
+    const worst = cents(summary.costUsd + worstCaseUsd(pending, cap));
+    const ceiling = limit === undefined ? worst : cents(Math.min(worst, limit));
+    if (cents(confirmMaxCostUsd) !== ceiling) {
+      throw new EvalStartError('cost-not-confirmed', `the resume must confirm the ceiling of ${ceiling} USD that was shown`, String(ceiling));
+    }
+    try {
+      ensureLanesRoot(this.root);
+    } catch (err) {
+      if (err instanceof LanesError && err.code === 'lanes-root-contaminated') throw new EvalStartError('lanes-root-contaminated', err.message, err.path);
+      throw err;
+    }
+    try {
+      if (!deps.store.reopenRun(runId, ceiling, { pid: this.pid, startedAt: this.startedAt })) throw new EvalStartError('not-resumable', 'the run is no longer resumable');
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'eval-running') throw new EvalStartError('eval-running', err.message);
+      throw err;
+    }
+    this.activate({ id: runId, projectId: summary.projectId, repo, evalName: summary.evalName, def, sha: summary.definitionSha, account: summary.account, maxCostUsd: ceiling, plans });
+    const reopened = deps.store.summary(runId);
+    if (!reopened) throw new Error('the run was not stored');
+    return reopened;
   }
 
   private relativeTarget(def: EvalDefinition, repo: string): string | null {

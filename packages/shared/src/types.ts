@@ -7579,6 +7579,42 @@ export interface EvalComparison {
   mean: Partial<Record<EvalVariant, { costUsd: number | null; durationMs: number | null }>>;
 }
 
+/** An eval file in the project's list, with the newest run of that eval (null when it never ran). */
+export interface EvalFileListItem extends EvalFile {
+  latestRun: EvalRunSummary | null;
+}
+
+/** One eval file; `consented` says whether the person accepted this very content (consent is per SHA). */
+export interface EvalFileDetail extends EvalFile {
+  consented: boolean;
+}
+
+/** `ifMatch` is the SHA the editor read, or null when it expects there to be no file yet. */
+export interface PutEvalFileRequest {
+  definition: EvalDefinition;
+  ifMatch: string | null;
+}
+
+export interface EvalConsentRequest {
+  sha: string;
+}
+
+export interface ResumeEvalRunRequest {
+  /** Must equal the new ceiling the person was shown: what was spent plus the worst case of what is left */
+  confirmMaxCostUsd: number;
+}
+
+/** A page of runs, newest first; pass `next` back as `before` for the following page. */
+export interface EvalRunPage {
+  runs: EvalRunSummary[];
+  next: string | null;
+}
+
+/** A sample with the tool calls it made, which `EvalRun` leaves out. */
+export interface EvalSampleDetail extends EvalSample {
+  calls: EvalCall[];
+}
+
 /** An eval run changed state, counts or cost. */
 export interface EvalRunEvent extends ClaudioEventBase {
   type: 'eval.run';

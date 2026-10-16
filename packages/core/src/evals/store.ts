@@ -404,6 +404,43 @@ export class EvalStore {
     if (row) this.pruneEval(row.project_id, row.eval_name);
   }
 
+  /**
+   * Opens an `interrupted` or `capped` run again: the samples that never scored (`skipped`,
+   * `interrupted`) go back in the queue clean, and the ceiling is the one the person confirmed.
+   * False when the run is not in such a state. The partial unique index makes a second live run of
+   * the project an `eval-running` error, as for an insert.
+   */
+  reopenRun(runId: string, maxCostUsd: number, owner: { pid: number; startedAt: string }): boolean {
+    try {
+      return this.immediate(() => {
+        const result = this.db
+          .prepare(
+            `UPDATE eval_runs SET state = 'queued', outcome = NULL, reason = NULL, resets_at = NULL, ended_at = NULL, max_cost_usd = ?,
+               owner_pid = ?, owner_started_at = ?
+             WHERE id = ? AND state = 'ended' AND outcome IN ('interrupted', 'capped')`,
+          )
+          .run(maxCostUsd, owner.pid, owner.startedAt, runId);
+        if (Number(result.changes) === 0) return false;
+        const pending = "run_id = ? AND state = 'ended' AND outcome IN ('skipped', 'interrupted')";
+        this.db.prepare(`DELETE FROM eval_calls WHERE sample_id IN (SELECT id FROM eval_samples WHERE ${pending})`).run(runId);
+        this.db.prepare(`DELETE FROM eval_checks WHERE sample_id IN (SELECT id FROM eval_samples WHERE ${pending})`).run(runId);
+        this.db
+          .prepare(
+            `UPDATE eval_samples SET state = 'queued', outcome = NULL, reason = NULL, owner_pid = NULL, chat_id = NULL, started_at = NULL, ended_at = NULL,
+               cost_usd = NULL, duration_ms = NULL, turns = NULL, result_text = NULL, calls_truncated = 0
+             WHERE ${pending}`,
+          )
+          .run(runId);
+        return true;
+      });
+    } catch (err) {
+      if (err instanceof Error && /UNIQUE constraint failed: eval_runs\.project_id/.test(err.message)) {
+        throw new EvalStoreError('eval-running', 'A run of this project is already queued, running or waiting');
+      }
+      throw err;
+    }
+  }
+
   /** Deletes a run and, by cascade, everything under it. Refuses a live run. */
   deleteRun(runId: string): boolean {
     const result = this.db.prepare("DELETE FROM eval_runs WHERE id = ? AND state = 'ended'").run(runId);

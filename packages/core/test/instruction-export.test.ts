@@ -125,7 +125,7 @@ test('a startup recovers a run its earlier life left live', async () => {
       isAlive: () => false,
       env: {},
     });
-    const service = new EvalService({ store, runner, definitions: new EvalDefinitionStore(), consents: new EvalConsents({ dataDir: dir }), projectPath: () => null });
+    const service = new EvalService({ store, runner, definitions: new EvalDefinitionStore(), consents: new EvalConsents({ dataDir: dir }), projectPath: () => null, teamOn: () => true });
     assert.equal(service.live('p1')?.id, 'r2');
     await service.load();
     const run = service.summary('r2');
