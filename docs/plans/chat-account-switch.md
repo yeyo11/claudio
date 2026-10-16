@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: switch a chat's account from the composer
 
-Status: **planned** (2026-10-16). Builds R1 of [requests.md](../requests.md): the owner asked on
+Status: **built** (2026-10-16). Builds R1 of [requests.md](../requests.md): the owner asked on
 2026-10-15 to switch a chat's account "en caliente", automatically **and on demand**. The automatic
 half exists (at a limit the turn is replayed on another account); this plan builds the on-demand
 half. The owner chose the place on 2026-10-16: **an account section in the composer's "+" menu**,
@@ -104,6 +104,19 @@ Every worker is `claude-sonnet-5-5`, commits with Conventional Commits (no attri
   branch touched>`; ports 8860–8863 are yours; fix what fails on the right side.
 - Update `docs/accounts.md` (switching on demand), `docs/chat-composer.md` (the Account section),
   `docs/requests.md` (R1 closed with its commits) and this plan's status and Outcome.
+
+## Outcome
+
+Built on 2026-10-16 in `a4c345c55` (core: `switchAccount`, queued or immediate), `56ca47b7c`
+(`POST /chats/:id/account`, chat tokens refused) and `b465ed15d` (the composer's Account section),
+with the e2e spec `e2e/specs/chat-account-switch.spec.mjs` and the docs of [accounts.md](../accounts.md)
+and [chat-composer.md](../chat-composer.md). Known gaps:
+
+- The "Switched to X" transcript line comes from the live stream, so a page reload drops it; making
+  it permanent needs the server to write the notice into the chat's transcript.
+- "Sign-in expired" rests on `Account.signInState` once [rotation-auth-fixes.md](rotation-auth-fixes.md)
+  adds it; until then only `signedIn` is read.
+- The spec was written but not run by this task; it runs with the e2e suite on the merged branch.
 
 ## Related
 

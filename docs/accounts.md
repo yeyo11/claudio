@@ -67,6 +67,15 @@ and an unknown account is allowed.
   chat, resumed on the new account. A person's chat does it when `rotateOnLimit` is on (the
   default); automated work always does. With no account left, the work waits for the earliest
   reset.
+- **On demand**, the person moves a chat from the Account section of the composer's "+" menu
+  (`POST /chats/:id/account`, [chat-composer.md](chat-composer.md)). It is a new execution of the
+  same session with `--resume` under the chosen account's config directory or token, as at a limit.
+  An idle chat moves at once (a live process is ended between turns); a working chat queues the
+  choice (`chat.pendingAccount`) and takes it when the turn ends, never interrupting it. Naming the
+  chat's own account cancels a pending switch. A disabled, signed-out or exhausted account, one that
+  does not offer the chat's model, or the chat's own account is refused with a 409 and a `code`.
+  The choice is not a pin: the rotation can still move the chat at a limit. It is recorded as a
+  rotation event with `reason: 'person'`. Only the person may do it; a chat's own token gets 403.
 
 Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 
@@ -85,7 +94,8 @@ Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 The unit tests run against `packages/accounts/test/fake-claude.mjs`, which honours
 `CLAUDE_CONFIG_DIR`. The end-to-end spec `e2e/specs/accounts.spec.mjs` uses the fake CLI of
 `e2e/fake-cli`: a token account starting with `fake-limited` is out on the `FAKE-LIMIT-ACCOUNT`
-line, and the chat is replayed on another account.
+line, and the chat is replayed on another account. `e2e/specs/chat-account-switch.spec.mjs` covers the
+on-demand switch from the "+" menu: idle, while working, and an exhausted account shown disabled.
 
 ## Related
 
