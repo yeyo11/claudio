@@ -1,9 +1,13 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import {
   EVAL_LIMITS,
+  EVAL_PRESSURES,
   type EvalCall,
   type EvalCheck,
   type EvalDefinition,
+  type EvalGate,
+  type EvalJudgement,
+  type EvalPressure,
   type EvalRunOutcome,
   type EvalRunState,
   type EvalRunSummary,
@@ -43,6 +47,8 @@ export interface NewEvalSample {
   id: string;
   caseId: string;
   variant: EvalVariant;
+  /** Phase 2; a Phase 1 sample is `neutral` */
+  pressure?: EvalPressure;
   attempt: number;
   seq: number;
   pin: string;
@@ -98,6 +104,7 @@ interface SampleRow {
   run_id: string;
   case_id: string;
   variant: EvalVariant;
+  pressure: EvalPressure;
   attempt: number;
   try: number;
   seq: number;
@@ -127,6 +134,17 @@ interface CheckRow {
   detail: string;
   evidence_seq: number | null;
   output: string | null;
+}
+
+interface JudgementRow {
+  sample_id: string;
+  idx: number;
+  pass: number | null;
+  reason: string;
+  evidence: string;
+  cost_usd: number | null;
+  model: string | null;
+  status: EvalJudgement['status'];
 }
 
 interface CallRow {
@@ -172,6 +190,7 @@ function sampleOf(row: SampleRow, checks: EvalCheck[]): EvalSample {
     runId: row.run_id,
     caseId: row.case_id,
     variant: row.variant,
+    pressure: row.pressure,
     attempt: row.attempt,
     try: row.try,
     seq: row.seq,
@@ -194,8 +213,22 @@ function sampleOf(row: SampleRow, checks: EvalCheck[]): EvalSample {
   };
 }
 
-function checkOf(row: CheckRow): EvalCheck {
-  return { idx: row.idx, kind: row.kind, passed: row.passed === 1, detail: row.detail, evidenceSeq: row.evidence_seq, output: row.output };
+function judgementOf(row: JudgementRow): EvalJudgement {
+  return {
+    idx: row.idx,
+    pass: row.pass === null ? null : row.pass === 1,
+    reason: row.reason,
+    evidence: JSON.parse(row.evidence) as number[],
+    costUsd: row.cost_usd,
+    model: row.model,
+    status: row.status,
+  };
+}
+
+function checkOf(row: CheckRow, judgements: Map<string, EvalJudgement> = new Map()): EvalCheck {
+  const check: EvalCheck = { idx: row.idx, kind: row.kind, passed: row.passed === 1, detail: row.detail, evidenceSeq: row.evidence_seq, output: row.output };
+  if (row.kind === 'judged') check.judgement = judgements.get(`${row.sample_id}\u0000${row.idx}`) ?? null;
+  return check;
 }
 
 /** The SQL of the instruction evals (docs/plans/instruction-evals.md): rows in, rows out, no policy. */
@@ -237,9 +270,9 @@ export class EvalStore {
         );
         for (const v of variants) addVariant.run(run.id, v.variant, v.targetPath, v.present ? 1 : 0, v.contentSha, v.content);
         const addSample = this.db.prepare(
-          `INSERT INTO eval_samples (id, run_id, case_id, variant, attempt, seq, state, pin) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)`,
+          `INSERT INTO eval_samples (id, run_id, case_id, variant, pressure, attempt, seq, state, pin) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
         );
-        for (const s of samples) addSample.run(s.id, run.id, s.caseId, s.variant, s.attempt, s.seq, s.pin);
+        for (const s of samples) addSample.run(s.id, run.id, s.caseId, s.variant, s.pressure ?? 'neutral', s.attempt, s.seq, s.pin);
         this.pruneEval(run.projectId, run.evalName);
       });
     } catch (err) {
@@ -327,8 +360,8 @@ export class EvalStore {
   addTry(sampleId: string, newId: string): boolean {
     const result = this.db
       .prepare(
-        `INSERT INTO eval_samples (id, run_id, case_id, variant, attempt, try, seq, state, pin)
-         SELECT ?, run_id, case_id, variant, attempt, try + 1, seq, 'queued', pin FROM eval_samples WHERE id = ?`,
+        `INSERT INTO eval_samples (id, run_id, case_id, variant, pressure, attempt, try, seq, state, pin)
+         SELECT ?, run_id, case_id, variant, pressure, attempt, try + 1, seq, 'queued', pin FROM eval_samples WHERE id = ?`,
       )
       .run(newId, sampleId);
     return Number(result.changes) > 0;
@@ -364,6 +397,66 @@ export class EvalStore {
       seq: r.seq, message: r.message, toolUseId: r.tool_use_id, name: r.name, scope: r.scope, outcome: r.outcome,
       input: r.input, result: r.result, at: r.at,
     }));
+  }
+
+  /** Replaces a sample's judgements: a re-judge after a usage limit overwrites the `unjudged` ones. */
+  putJudgements(sampleId: string, judgements: EvalJudgement[]): void {
+    this.immediate(() => {
+      const put = this.db.prepare(
+        `INSERT OR REPLACE INTO eval_judgements (sample_id, idx, pass, reason, evidence, cost_usd, model, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const j of judgements) {
+        put.run(sampleId, j.idx, j.pass === null ? null : j.pass ? 1 : 0, j.reason, JSON.stringify(j.evidence), j.costUsd, j.model, j.status);
+      }
+    });
+  }
+
+  judgements(sampleId: string): EvalJudgement[] {
+    const rows = this.db.prepare('SELECT * FROM eval_judgements WHERE sample_id = ? ORDER BY idx').all(sampleId) as unknown as JudgementRow[];
+    return rows.map(judgementOf);
+  }
+
+  private judgementsOfRun(runId: string): Map<string, EvalJudgement> {
+    const rows = this.db
+      .prepare('SELECT j.* FROM eval_judgements j JOIN eval_samples s ON s.id = j.sample_id WHERE s.run_id = ?')
+      .all(runId) as unknown as JudgementRow[];
+    return new Map(rows.map((r) => [`${r.sample_id}\u0000${r.idx}`, judgementOf(r)] as const));
+  }
+
+  /**
+   * Settles a sample that ended `unjudged` (or whose checks are being redone) with its scored outcome,
+   * without running it again: its calls are stored. False unless it was ended.
+   */
+  rescoreSample(sampleId: string, outcome: Extract<EvalSampleOutcome, 'passed' | 'failed' | 'unjudged'>, checks?: EvalCheck[]): boolean {
+    return this.immediate(() => {
+      const result = this.db.prepare("UPDATE eval_samples SET outcome = ? WHERE id = ? AND state = 'ended'").run(outcome, sampleId);
+      if (Number(result.changes) === 0) return false;
+      if (checks) {
+        this.db.prepare('DELETE FROM eval_checks WHERE sample_id = ?').run(sampleId);
+        const add = this.db.prepare('INSERT INTO eval_checks (sample_id, idx, kind, passed, detail, evidence_seq, output) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        for (const c of checks) add.run(sampleId, c.idx, c.kind, c.passed ? 1 : 0, c.detail, c.evidenceSeq, c.output);
+      }
+      return true;
+    });
+  }
+
+  /** Ids of a run's samples waiting for a judge, to re-judge after a reset. */
+  unjudgedSamples(runId: string): string[] {
+    const rows = this.db.prepare("SELECT id FROM eval_samples WHERE run_id = ? AND outcome = 'unjudged' ORDER BY seq, try").all(runId) as unknown as Array<{ id: string }>;
+    return rows.map((r) => r.id);
+  }
+
+  /** Stores the promotion gate's verdict and the detail it was computed from (JSON); null clears it. */
+  setGate(runId: string, gate: EvalGate | null): void {
+    this.db
+      .prepare('UPDATE eval_runs SET gate = ?, gate_detail = ? WHERE id = ?')
+      .run(gate?.verdict ?? null, gate ? JSON.stringify(gate) : null, runId);
+  }
+
+  /** The stored gate, or null when none was computed. */
+  gate(runId: string): EvalGate | null {
+    const row = this.db.prepare('SELECT gate_detail FROM eval_runs WHERE id = ?').get(runId) as { gate_detail: string | null } | undefined;
+    return row?.gate_detail ? (JSON.parse(row.gate_detail) as EvalGate) : null;
   }
 
   /** Moves a live run on; false when it had already ended. */
@@ -448,10 +541,11 @@ export class EvalStore {
     const checks = this.db
       .prepare('SELECT c.* FROM eval_checks c JOIN eval_samples s ON s.id = c.sample_id WHERE s.run_id = ? ORDER BY c.sample_id, c.idx')
       .all(runId) as unknown as CheckRow[];
+    const judged = this.judgementsOfRun(runId);
     const bySample = new Map<string, EvalCheck[]>();
     for (const c of checks) {
       const list = bySample.get(c.sample_id) ?? [];
-      list.push(checkOf(c));
+      list.push(checkOf(c, judged));
       bySample.set(c.sample_id, list);
     }
     return rows.map((r) => sampleOf(r, bySample.get(r.id) ?? []));
@@ -461,7 +555,8 @@ export class EvalStore {
     const row = this.db.prepare('SELECT * FROM eval_samples WHERE id = ?').get(sampleId) as SampleRow | undefined;
     if (!row) return null;
     const checks = this.db.prepare('SELECT * FROM eval_checks WHERE sample_id = ? ORDER BY idx').all(sampleId) as unknown as CheckRow[];
-    return sampleOf(row, checks.map(checkOf));
+    const judged = new Map(this.judgements(sampleId).map((j) => [`${sampleId}\u0000${j.idx}`, j] as const));
+    return sampleOf(row, checks.map((c) => checkOf(c, judged)));
   }
 
   /** The next queued sample in queue order, or null. */
@@ -533,13 +628,15 @@ export class EvalStore {
     const counts: EvalRunSummary['counts'] = {};
     const perCase = new Map<string, { variant: EvalVariant; passed: number; scored: number }>();
     const rows = this.db
-      .prepare('SELECT case_id, variant, state, outcome FROM eval_samples WHERE run_id = ?')
-      .all(row.id) as unknown as Array<{ case_id: string; variant: EvalVariant; state: string; outcome: EvalSampleOutcome | null }>;
+      .prepare('SELECT case_id, variant, pressure, state, outcome FROM eval_samples WHERE run_id = ?')
+      .all(row.id) as unknown as Array<{ case_id: string; variant: EvalVariant; pressure: EvalPressure; state: string; outcome: EvalSampleOutcome | null }>;
+    const levels = new Set<EvalPressure>();
     for (const s of rows) {
+      levels.add(s.pressure);
       const key = s.state === 'ended' && s.outcome ? s.outcome : s.state === 'ended' ? 'skipped' : (s.state as 'queued' | 'running');
       counts[key] = (counts[key] ?? 0) + 1;
       if (s.outcome === 'passed' || s.outcome === 'failed') {
-        const id = `${s.case_id}\u0000${s.variant}`;
+        const id = `${s.case_id}\u0000${s.variant}\u0000${s.pressure}`;
         const entry = perCase.get(id) ?? { variant: s.variant, passed: 0, scored: 0 };
         entry.scored += 1;
         if (s.outcome === 'passed') entry.passed += 1;
@@ -560,6 +657,7 @@ export class EvalStore {
       definitionSha: row.definition_sha,
       variants: row.variants.split(',').filter(Boolean) as EvalVariant[],
       samplesPerCase: row.samples_per_case,
+      pressures: levels.size ? EVAL_PRESSURES.filter((p) => levels.has(p)) : ['neutral'],
       account: row.account,
       state: row.state,
       outcome: row.outcome,
