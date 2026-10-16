@@ -122,7 +122,7 @@ import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
-import { PushService } from './push.ts';
+import { PushService, riskLine } from './push.ts';
 import { claudioMcp, claudioMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions } from './claudio-mcp.ts';
 import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
@@ -705,6 +705,12 @@ export class Core {
     this.orchestrator.decisions = this.decisions;
     this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
     this.push.decisions = this.decisions;
+    this.push.recentRisk = (runId) => {
+      const calls = this.runtime.trace(runId)?.calls;
+      const chat = this.runtime.get(runId);
+      if (!calls || !chat) return null;
+      return riskLine(calls, { cwd: chat.workingDir, roots: [chat.cwd] });
+    };
     this.health.decisions = this.decisions;
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,

@@ -141,6 +141,14 @@
   font-size: 12px;
 }
 
+.changes-review .edit-step-risk {
+  display: inline-flex;
+  flex: none;
+  align-self: flex-start;
+  max-width: 100%;
+  border-radius: var(--radius-xs);
+}
+
 .changes-review .edit-step-time {
   flex: none;
   min-width: 34px;
@@ -434,6 +442,11 @@
 .changes-review .edit-scrub > i.is-live {
   background: var(--live);
   box-shadow: 0 0 0 3px var(--live-soft);
+}
+
+.changes-review .edit-scrub > i[data-risk='high'] {
+  /* After is-live, so a high-risk step that is still running keeps the ring */
+  box-shadow: 0 0 0 2px var(--bad);
 }
 
 .changes-review .edit-scrub-keys {

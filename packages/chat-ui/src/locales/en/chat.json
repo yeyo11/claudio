@@ -560,5 +560,22 @@
       "context": "Most context in use",
       "messages": "Most messages"
     }
+  },
+  "risk": {
+    "level": {
+      "high": "High risk",
+      "medium": "Medium risk"
+    },
+    "factor": {
+      "irreversible": "Irreversible",
+      "history-rewrite": "Rewrites history",
+      "leaves-machine": "Leaves this machine",
+      "privilege": "Privileged",
+      "outside-workdir": "Outside the working directory",
+      "secrets": "Reads secrets",
+      "sensitive-path": "Sensitive file",
+      "wide-scope": "Wide scope"
+    },
+    "reason": "{{level}}: {{factors}}"
   }
 }
