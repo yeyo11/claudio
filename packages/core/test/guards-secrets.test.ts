@@ -69,15 +69,15 @@ describe('guard secret patterns', () => {
 describe('guard engine imports', () => {
   it('imports nothing outside node: and guards/, and uses erasable syntax only', () => {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), '../src/guards');
+    // Only what the bundled program reaches: the store and the launcher live in guards/ too but run in the server
     const files: string[] = [];
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (entry.isDirectory()) walk(join(dir, entry.name));
-        else if (entry.name.endsWith('.ts')) files.push(join(dir, entry.name));
-      }
+    const visit = (file: string): void => {
+      if (files.includes(file)) return;
+      files.push(file);
+      for (const match of readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\b[^'"\n]*?from\s+['"](\.[^'"]*)['"]/gm)) visit(resolve(dirname(file), match[1] ?? ''));
     };
-    walk(root);
-    assert.ok(files.length >= 10);
+    visit(join(root, 'main.ts'));
+    assert.ok(files.length >= 5);
     for (const file of files) {
       const source = readFileSync(file, 'utf8');
       for (const match of source.matchAll(/^\s*(?:import|export)\b[^'"\n]*?from\s+['"]([^'"]+)['"]|^\s*import\s+['"]([^'"]+)['"]/gm)) {

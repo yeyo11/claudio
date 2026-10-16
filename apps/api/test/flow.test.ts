@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,6 +64,9 @@ async function settings(change: (s: ProjectSettings) => ProjectSettings): Promis
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'claudio-api-flow-data-'));
+  // Guards are on for automated runs by default and refuse a guard program a checkout under umask 002 leaves group-writable
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'data', 'guards.json'), `${JSON.stringify({ automated: false })}\n`);
   spawns = join(root, 'spawns.log');
   process.env.FAKE_CLAUDE_SPAWNS = spawns;
   core = new Core(

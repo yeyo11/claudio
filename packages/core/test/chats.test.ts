@@ -204,12 +204,14 @@ test('a chat is told which wrapper runs it, and never inherits the address of an
   process.env.CLAUDIO_API_URL = 'http://127.0.0.1:1/api';
   const core = new Core({ ...config, claudeBin: claude });
   try {
+    let after: { id: string } | undefined;
     const before = core.runtime.start({ prompt: 'hi', keepAlive: false });
-    const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []);
+    // Core's own probes (`claude agents --json`) log a line of their own: only this test's chats count
+    const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter((line) => line.startsWith(`${before.id}|`) || line.startsWith(`${after?.id}|`)) : []);
     assert.equal(await until(() => lines()[0], 'the first launch'), `${before.id}|`, 'no address until the API listens');
 
     core.runtime.apiUrl = 'http://127.0.0.1:34331/api';
-    const after = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    after = core.runtime.start({ prompt: 'hi', keepAlive: false });
     assert.equal(await until(() => lines()[1], 'the second launch'), `${after.id}|http://127.0.0.1:34331/api`);
   } finally {
     if (inherited === undefined) delete process.env.CLAUDIO_API_URL;
@@ -230,11 +232,12 @@ function tokenCli() {
   const hold = join(config.dataDir, 'hold');
   const claude = join(config.dataDir, 'claude');
   mkdirSync(config.dataDir, { recursive: true });
-  writeFileSync(claude, `#!/bin/sh\necho "$CLAUDIO_CHAT_ID|$CLAUDIO_API_TOKEN" >> "${log}"\nif [ -f "${hold}" ]; then exec sleep 30; fi\n`);
+  writeFileSync(claude, `#!/bin/sh\necho "$CLAUDIO_CHAT_ID|$CLAUDIO_API_TOKEN|$*" >> "${log}"\nif [ -f "${hold}" ]; then exec sleep 30; fi\n`);
   chmodSync(claude, 0o755);
   const core = new Core({ ...config, claudeBin: claude });
   core.runtime.apiUrl = 'http://127.0.0.1:34331/api';
-  const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []);
+  // Core's own probes (`claude agents --json`) land in the log too; a chat's launches are the `-p` ones
+  const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter((line) => line.split('|')[2]?.startsWith('-p ')) : []);
   const tokenOf = async (n: number) => (await until(() => lines()[n], `launch ${String(n + 1)}`)).split('|')[1] ?? '';
   return { core, hold, tokenOf };
 }

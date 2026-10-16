@@ -47,6 +47,9 @@ function repoWithCommit(): string {
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'claudio-api-changes-data-'));
+  // Guards are on for automated runs by default and refuse a guard program a checkout under umask 002 leaves group-writable
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'data', 'guards.json'), `${JSON.stringify({ automated: false })}\n`);
   const config = loadConfig({
     CLAUDE_BIN: FAKE_CLAUDE,
     CLAUDE_CONFIG_DIR: join(root, 'claude'),

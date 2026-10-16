@@ -133,6 +133,8 @@ test('every shared type holding a GuardOverride is covered by a route checked he
     ProjectFlowSettings: ['PUT /projects/:id/settings'],
     OrchestrationSpec: ['POST /orchestrations', 'POST /orchestrations/:id/relaunch', 'POST /orchestrations/templates', 'PATCH /orchestrations/templates/:templateId', 'POST /orchestrations/templates/:templateId/launch'],
     ResumeOrchestrationRequest: ['POST /orchestrations/:id/resume'],
+    // The read model echoes the spec's override; nothing writes it
+    Orchestration: [],
   };
   assert.deepEqual([...holders].sort(), Object.keys(covered).sort(), 'a shared type with a GuardOverride has no covered route: add the weakening check and list it here');
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,9 @@ const turnOver = (chatId: string) => until(() => core.runtime.get(chatId)?.statu
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'claudio-api-links-data-'));
+  // Guards are on for automated runs by default and refuse a guard program a checkout under umask 002 leaves group-writable
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'data', 'guards.json'), `${JSON.stringify({ automated: false })}\n`);
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,

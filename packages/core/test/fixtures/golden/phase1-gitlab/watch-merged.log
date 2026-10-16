@@ -58,8 +58,8 @@ glab mr view 4 -R https://gitlab.com/acme/shop -F json
   env: GL_HOST=<unset>
   env: NO_COLOR=1
   env: LC_ALL=C
-git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff -M --name-status -z HEAD --
-git -C <root>/project/.claude/worktrees/task-cw-1 diff --no-textconv --no-ext-diff -M --numstat -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 -c diff.external= -c core.fsmonitor=false diff --no-textconv --no-ext-diff -M --name-status -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 -c diff.external= -c core.fsmonitor=false diff --no-textconv --no-ext-diff -M --numstat -z HEAD --
 git -C <root>/project/.claude/worktrees/task-cw-1 ls-files --others --exclude-standard -z
 git -C <root>/project rev-parse --path-format=absolute --git-common-dir
 git -C <root>/project rev-parse --absolute-git-dir
