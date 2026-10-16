@@ -2627,19 +2627,51 @@ differed from the text above.
   and resends with the override header, so no page wires it. While the dialog is open a chat message
   sits in the composer's "sending" card and returns to the composer on cancel. The cap's card lives
   on Settings → Security, where `AppSettingsCards` is; there is no "Runtime" tab. The per-item
-  "Keep going today" pass exists for graphs only: a flow card waits at the cap with its wait line
-  and has no pass of its own yet (resolved question 2 is open for the flow).
+  "Keep going today" pass exists for graphs and, since the review fixes below, for flow cards.
 - **Optional roles and rules.** `ApproveMemoryProposalRequest` gained an optional `file` for the
   rename after a `409`. A role accepted from the assistant keeps the template's `tools` and
   `commands`. `MemoryProposalTarget.paths` stays optional in the type.
 - **Delegation.** `FlowDeps.delegates` is optional and wired to the runtime's chat, and `fake-claude.mjs`
   gained `FAKE-BG-AGENT` and a multi-line `FAKE-TEXT-ONCE`.
 
+**Review fixes (task s8, 2026-10-16)**
+
+Built after the final review of the merged work, on the branch `fix/agent-run-findings`:
+
+- **The card pass (resolved question 2).** `POST /work-items/:itemId/spend-pass` records a row in
+  `flow_spend_passes` (`item_id`, `day`, `granted_at`) through `FlowService.grantSpendPass`; the flow
+  asks the gate with the card's id (`SpendGate.allows('flow', { itemId })`), so the card starts
+  although the cap is reached, until the local day boundary. Person only: a chat's token gets `403`
+  (`CHAT_FORBIDDEN`). The held card's wait line has the button "Seguir hoy de todos modos" and opens
+  the same `SpendCapDialog` as a graph. The line is no longer `role="status"`: one visually hidden
+  polite region on the board (`SpendWaitSummary`) says how many cards wait.
+- **The risk scorer counts scratch space as inside.** Writes and deletes strictly under `/tmp`,
+  `/var/tmp`, `os.tmpdir()` and `$TMPDIR` are not "outside the working directory"; the server names
+  the last two in `ToolRiskContext.tempDirs`. `/tmp` itself and a path that climbs out of it stay
+  outside.
+- **Prompt texts.** A graph with no objective points at the task itself (`RETRIEVAL`); the checks
+  fixer is told how to tell whose failure it is (the branch's diff against the base, the same check
+  failing on the base) and to start on none that is not the branch's; `[STOP] no-code-fix` is a fifth
+  row of `FIXER_REPORT_ROWS` and `FixStopKind`, parsed and worded in the UI; refine returns the whole
+  description; task names go through `taskBlock()` (pasted blocks) in the worker head, the
+  integrator, the synthesis, the verification fixer and the generated workflow script, and the
+  workflow run prompt no longer carries the graph's name; a plateau with no criteria says "the
+  verdict is still a fail for the same reason" instead of "unmet ()"; the `checks.fix` refusal names
+  the check, not the whole run summary; the assistant's optional-roles line no longer gives an example
+  of roles the template may not offer.
+- **UI.** The cap dialog's link is 44 px on a phone; the "read-only" tag no longer counts a member
+  with `Bash` as read-only; the status bar and Usage percentages go through i18n; the plateau setting
+  is a three-value control (Observe, Stop, Off) in `Flow.tsx`; GLOSSARY rows for "tope diario",
+  "riesgo", "build" and "lint".
+- **`ChecksFix` is built.** It was constructed only in tests, so `ChecksFixDeps.comment` (the plan's
+  "one comment, from the flow") never ran. `Core` now builds it, hands the watcher its
+  `onChecksFailing`, and comments as the system actor. It is still inert while `checks.fix` is off,
+  its default.
+- **Docs.** `plateau` and `notification.urgency` at `stateVersion` 2 are described in
+  `team-and-flow.md` and `notifications.md`; the pass in `security-model.md` and `team-and-flow.md`.
+
 **Not done, or left to the integrator**
 
-- `ChecksFix` is not constructed in the source, only in tests, so `ChecksFixDeps.comment` is unwired:
-  `historyAllows` still refuses, but its item comment is not written until `ChecksFix` is built with the
-  work-item service as its actor.
 - The backtest script over `flow_runs` (idea 14, "How to measure") is not written. Plateau stays in
   `observe` until the owner has the backtest and two weeks of comments.
 - `e2e/specs/spend-cap.spec.mjs` is written and was not run by its task. The end-to-end suite, the

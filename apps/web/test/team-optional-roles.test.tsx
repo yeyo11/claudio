@@ -81,7 +81,8 @@ for (const [lang, more, readOnly] of [
     setLanguage(lang);
     await i18n.changeLanguage(lang);
     const members = [
-      member({ role: 'silent-failure-hunter', ...(HUNTER.tools ? { tools: HUNTER.tools } : {}) }),
+      // Without Bash: a shell can write files, so a member that has it is not read-only
+      member({ role: 'silent-failure-hunter', tools: ['Read', 'Grep', 'Glob'] }),
       member({ role: 'spec-miner', ...(MINER.tools ? { tools: MINER.tools } : {}) }),
       member({ role: 'build-resolver' }),
     ];

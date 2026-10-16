@@ -172,7 +172,8 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 - **The cap.** A chat's token that names `dailySpendCapUsd` in `PUT /settings/app` gets `403`
   (`routes/app-settings.ts`).
 - **The pass.** `POST /orchestrations/:id/spend-pass` is in `CHAT_FORBIDDEN`: a chat token cannot grant
-  a graph today's pass.
+  a graph today's pass. So is `POST /work-items/:itemId/spend-pass`, the same pass for a flow card the
+  cap holds (a row in `flow_spend_passes`, good for the local day it names).
 - **The override.** `X-Claudio-Spend-Override: 1` lets a person's request through a `409 spend-cap`.
   On a chat token the header is ignored, so the request still answers `409`.
 

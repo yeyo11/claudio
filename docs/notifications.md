@@ -43,7 +43,8 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
 - **Urgency with risk.** `notification.urgency` also receives `risk`: the riskiest medium-or-high tool
   call of the chat in its last ten minutes, masked and clipped to 300 characters
   (`PushService.recentRisk` in `packages/core/src/push.ts`). A call that is high risk can make a
-  notification more urgent; the score never blocks anything. See
+  notification more urgent; the score never blocks anything. The point is at `stateVersion` 2, so a
+  consent given for version 1 is asked again. See
   [decision-engine.md](decision-engine.md) for the consent this changed.
 
 ## Decisions

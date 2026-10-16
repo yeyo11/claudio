@@ -70,7 +70,7 @@ Every builder imports these. No builder keeps its own copy of the text.
 | `DELEGATION` | The run owns the results of what it delegates: wait for each subagent or background task, read what it returned and use it before the turn ends. Never end a turn by saying it is waiting for background work, because the end of the turn is the end of the process. | 3 |
 | `FIX_ONE_AT_A_TIME` | Fix one error at a time, the first one reported or the one the others follow from, with the narrowest check that shows it. | 5 |
 | `FIX_STOP_WHEN` | Stop when the same error survives three fixes, when a fix leaves more errors than it removed, or when the fix needs a change of design. Undo a fix that made things worse with a new commit, never by rewriting history. | 3 |
-| `FIXER_REPORT_ROWS` | The fixer ends its report with `[FIXED] path:line: what was wrong` per fix and, if it stopped early, `[STOP] same-error|more-errors|design: what a person must decide`. | 5 |
+| `FIXER_REPORT_ROWS` | The fixer ends its report with `[FIXED] path:line: what was wrong` per fix and, if it stopped early, `[STOP] same-error|more-errors|design|no-code-fix: what a person must decide`; `no-code-fix` is a failure no code change can fix (a missing tool, no network, a service that is down). | 5 |
 
 The harness side lives in `packages/core/src/open-items.ts`:
 
@@ -398,7 +398,9 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 - **The title line is not wrapped.** A chat is listed by its first line: `Role · KEY · title` for
   a flow run, `KEY · title` for "Work on it" and a node, the assistant's title line, and a node's
   name at the head of a worker prompt. That line stays bare. So does the epic's title in "part of
-  the epic …", and the task names in the `<task name="…">` attributes.
+  the epic …". A task's name is no longer an attribute: `taskBlock()` puts it, and the result, in
+  `<pasted_content>` blocks inside `<task id="…">`, in the graph worker, the integrator, the
+  synthesis, the verification fixer and the generated workflow script.
 - **The CLI loads CLAUDE.md itself for flow runs and workers.** Claudio wraps the CLAUDE.md it
   appends for the assistant (which runs with no setting sources). But the CLAUDE.md the CLI reads
   on its own, for every run that loads the project's settings, reaches the model as the CLI puts

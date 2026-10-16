@@ -562,6 +562,13 @@ continued by a later run is not left without one. An assistant run's turn, also 
 (`ChatManager.heldToSchema`), is still not replayed: the run that started it ended on the error, and
 replaying it would spend on a result nobody reads.
 
+### A card the daily cap holds
+
+A queued flow run waits at the cap with its wait line under the card. The line offers "Seguir hoy de
+todos modos" (`POST /work-items/:itemId/spend-pass`): the person's answer, never a chat's (`403`),
+recorded as a row in `flow_spend_passes` and good until the local day boundary, as a graph's pass is.
+The board speaks the wait once, in one polite live region, not once per card.
+
 ### Plateau, and the history of `checks.fix`
 
 Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
@@ -573,7 +580,8 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
   it would have stopped; in `stop` the card waits for a person with `waiting: 'bounces'`,
   `WorkItem.waitingCause: 'plateau'` and the cause `flow.plateau`, shown on the board strip and in
   the history as "Sin mejora en dos rondas"; `off` does nothing. The bounce limit is checked first.
-  Team → Flow has the switch (`stop` on, `observe` off). The orchestration side has its own rule: in
+  Team → Flow has a three-value control (Observe, Stop, Off), not a switch: a switch has two
+  positions and `off` would turn into `observe` after two toggles. The orchestration side has its own rule: in
   `Orchestrator.settleNow` a task whose two consecutive attempts failed with the same error stops
   retrying.
 - **The fixer's stop rules and `flow_runs.checks`.** The work stage reports, for each check it was

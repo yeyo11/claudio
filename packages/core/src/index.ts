@@ -166,6 +166,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { ChecksFix } from './decisions/checks-fix.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
@@ -478,6 +479,8 @@ export class Core {
   readonly trackerImport: TrackerImportService;
   readonly trackerSync: TrackerSyncService;
   private readonly pullRequestWatcher: PullRequestWatcher;
+  /** The `checks.fix` decision point: asked once per failing head of an item's change request; off unless the person turns it on */
+  private checksFix: ChecksFix | null = null;
   /** The change requests of orchestrations' integration branches */
   readonly orchestrationPullRequests: OrchestrationPullRequestService;
   /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
@@ -901,6 +904,8 @@ export class Core {
       },
       busy: (itemId) => this.itemBusy(itemId),
       onMerged: (notice) => this.trackerSync.merged(notice),
+      // Built after the flow, which it reads: the watcher cannot announce a failing head before then
+      onChecksFailing: (notice) => this.checksFix?.onChecksFailing(notice),
       verdicts: (itemId) => this.flow.verdicts(itemId),
       // A tracker that is off gets no closing word in a change request's body either
       projectTracker: (id) => {
@@ -983,6 +988,21 @@ export class Core {
     // A healthy hook for a repository lets the pacer read its rows every 15 minutes instead of every two
     this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests], { signals: { webhookHealthy: (row) => this.webhookService.covers(row.url) } });
     this.events.observe((event) => this.pullRequests.observe(event));
+    this.checksFix = new ChecksFix({
+      decisions: this.decisions,
+      sql: this.db.connection,
+      checks: this.checks,
+      pullRequests: this.pullRequests,
+      item: (id) => this.workItems.find(id),
+      // Claudio's own word on the card, not an agent's: the point only decides whether a fix may start by itself
+      comment: (itemId, body) => void this.workItems.comment(itemId, { body }, { actor: { kind: 'system', role: null } }),
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        const settings = record ? this.projectSettingsStore.stored(id, record.name) : null;
+        return record && settings ? { path: record.path, settings } : null;
+      },
+      spendOpen: () => this.spend.allows('flow'),
+    });
     this.flow = new FlowService({
       db: this.db,
       spendOpen: (itemId) => this.spend.allows('flow', { itemId }),
