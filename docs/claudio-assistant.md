@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-07T16:00:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-10-17T09:00:00Z
 tags:
     - assistant
     - mcp
@@ -33,10 +33,14 @@ which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call
   the first row of the Más sheet; the tab bar keeps its four tabs.
 - **Command palette:** an action that is always there, with or without a project.
 - **Entry screen:** the greeting, optional live figures (chats running, orchestrations, today's
-  spend), four read-only starter chips and a composer. A starter only fills the composer. The project
-  in scope shows as "Con <project> como contexto" and an × clears it. The model picker defaults to
-  `sonnet`, and the effort picker beside it to the level recommended for an assistant (`medium` on
-  Opus 5.5 and Sonnet 5.5, see [effort.md](effort.md)). The send button is the screen's one gradient; there is no illustration.
+  spend), four read-only starter chips and a composer. The composer is a chat's own: `StartComposer`
+  of `@claudio/chat-ui`, the same card, editor, send button, line of chips and keys hint, without the
+  "+", the stop button, the queue and the permission chip, which the confined assistant cannot use
+  (R16, [requests.md](requests.md)). A starter only fills the composer. The project in scope shows as
+  "Con <project> como contexto", first in the line of chips, and an × clears it. Model and effort show
+  as chips that open the chat's options popover (a sheet on a phone): the model defaults to `sonnet`,
+  and the effort to the level recommended for an assistant (`medium` on Opus 5.5 and Sonnet 5.5, see
+  [effort.md](effort.md)). The send button is the screen's one gradient; there is no illustration.
 - **Starting:** `POST /assistant/chats` with `{ prompt, projectId?, model?, effort? }` and nothing else a chat
   could choose. The language comes from `Accept-Language`. The web then opens `/chats/:id`.
 - **Greeting:** drawn by `ChatView` from i18n (`AssistantGreeting`) for every chat that carries the
