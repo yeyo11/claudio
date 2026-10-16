@@ -6061,6 +6061,12 @@
         "$ref": "#/components/schemas/JournalChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/LessonChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/LessonJobEvent"
+      },
+      {
         "$ref": "#/components/schemas/MemoryProposalEvent"
       },
       {
@@ -9440,6 +9446,144 @@
     ],
     "description": "What a journal entry records: `closed`, an item reached `done` (written once per item); `decision`, a decision taken; `memory`, an approved memory proposal addressed to the journal; `note`, anything else a person wrote by hand."
   },
+  "LessonChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "lesson.changed"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lessonId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/LessonChangeAction"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "lessonId",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A lesson changed. `projectId` is null for a global lesson, which every project's list shows."
+  },
+  "LessonChangeAction": {
+    "type": "string",
+    "enum": [
+      "proposed",
+      "approved",
+      "rejected",
+      "edited",
+      "confirmed",
+      "pinned",
+      "retired",
+      "restored",
+      "deleted",
+      "promoted",
+      "demoted",
+      "merged"
+    ]
+  },
+  "LessonJobEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "lesson.job"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "jobId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/LessonJobStatus"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LessonJobOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "jobId",
+      "outcome",
+      "projectId",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "A mining job moved on, so the Lessons tab can show it without polling."
+  },
+  "LessonJobStatus": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "deferred",
+      "running",
+      "done",
+      "skipped",
+      "failed",
+      "cancelled"
+    ]
+  },
+  "LessonJobOutcome": {
+    "type": "string",
+    "enum": [
+      "proposed",
+      "nothing",
+      "shadow",
+      "gate-no",
+      "gate-unavailable",
+      "daily-cap",
+      "rate-limited",
+      "invalid-output",
+      "interrupted",
+      "chat-removed",
+      "over-budget"
+    ],
+    "description": "Why a finished job proposed nothing, or what it dropped"
+  },
   "MemoryProposalEvent": {
     "type": "object",
     "properties": {
@@ -9554,9 +9698,10 @@
       "instructions",
       "memory",
       "journal",
-      "rule"
+      "rule",
+      "lesson"
     ],
-    "description": "Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section` when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`, appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal; `rule`, a path-scoped rule file of the project's `.claude/rules/` (`file`, loaded by the CLI only for the files `paths` matches), which keeps guidance that concerns part of the project out of `CLAUDE.md`."
+    "description": "Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section` when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`, appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal; `rule`, a path-scoped rule file of the project's `.claude/rules/` (`file`, loaded by the CLI only for the files `paths` matches), which keeps guidance that concerns part of the project out of `CLAUDE.md`; `lesson`, a row of the lessons store (`MemoryProposal.lesson`), which approval makes active. Only the lesson miner proposes it: a lesson rests on a person's correction, so flow runs and chats cannot."
   },
   "DocumentChangedEvent": {
     "type": "object",
@@ -16270,6 +16415,10 @@
       "providers": {
         "$ref": "#/components/schemas/ProjectProvidersSettings",
         "description": "Per-project overrides of the provider order and of what happens at a limit; a missing field inherits"
+      },
+      "lessons": {
+        "$ref": "#/components/schemas/ProjectLessonsSettings",
+        "description": "What lessons this project's runs are handed; a missing field takes the default"
       }
     },
     "required": [
@@ -16571,6 +16720,19 @@
             }
           },
           "journal.relevance": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "lesson.mine": {
             "type": "object",
             "properties": {
               "mode": {
@@ -16932,6 +17094,29 @@
     "type": "string",
     "const": "wait",
     "description": "What work does at a usage limit: it waits for the reset (a switch of account is a later stage)."
+  },
+  "ProjectLessonsSettings": {
+    "type": "object",
+    "properties": {
+      "deliverToChats": {
+        "type": "boolean",
+        "description": "Interactive chats in the project get the Lessons section (default true)"
+      },
+      "deliverToWorkers": {
+        "type": "boolean",
+        "description": "Orchestration workers, the integrator, the fixer and the planner get it (default true)"
+      },
+      "useGlobal": {
+        "type": "boolean",
+        "description": "Global lessons are handed in this project too (default true)"
+      }
+    },
+    "required": [
+      "deliverToChats",
+      "deliverToWorkers",
+      "useGlobal"
+    ],
+    "description": "In the project's settings document (`ProjectSettings.lessons`)"
   },
   "ProjectTemplate": {
     "type": "object",
@@ -20230,11 +20415,19 @@
           },
           "bytes": {
             "type": "number"
+          },
+          "lessons": {
+            "type": "number"
+          },
+          "lessonBytes": {
+            "type": "number"
           }
         },
         "required": [
           "entries",
-          "bytes"
+          "bytes",
+          "lessons",
+          "lessonBytes"
         ],
         "description": "What a flow run is handed: the newest entries that fit the cap"
       },
@@ -20473,6 +20666,24 @@
         ],
         "description": "The journal entry an approval to the journal wrote"
       },
+      "lesson": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Lesson"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read, for `target.kind === 'lesson'`: the lesson and its evidence, which the card shows"
+      },
+      "lessonId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for an `instructions` proposal made from a lesson, so the lesson can be retired once it is approved"
+      },
       "createdAt": {
         "type": "string"
       }
@@ -20494,6 +20705,8 @@
       "decidedAt",
       "rejectReason",
       "journalEntryId",
+      "lesson",
+      "lessonId",
       "createdAt"
     ],
     "description": "A memory entry a team member proposed. Nothing is written until the person approves it."
@@ -20506,12 +20719,314 @@
       "rejected"
     ]
   },
+  "Lesson": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string",
+        "description": "`L-<seq>`, stable, what runs and people refer to"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null for a global lesson"
+      },
+      "status": {
+        "$ref": "#/components/schemas/LessonStatus"
+      },
+      "trigger": {
+        "type": "string",
+        "description": "When it applies: English, starting with \"When\", at most 160 characters"
+      },
+      "action": {
+        "type": "string",
+        "description": "What to do or avoid then: at most 240 characters, behaviour only"
+      },
+      "confidence": {
+        "type": "number",
+        "description": "Stored base confidence, 0.3 to 0.95"
+      },
+      "effectiveConfidence": {
+        "type": "number",
+        "description": "After decay, as of the read; what delivery compares"
+      },
+      "delivered": {
+        "type": "boolean",
+        "description": "Whether it is handed to runs now"
+      },
+      "seenCount": {
+        "type": "number"
+      },
+      "pinned": {
+        "type": "boolean"
+      },
+      "mechanical": {
+        "type": "boolean",
+        "description": "About one command, tool or path: a candidate for a guard rule (plans/guards.md)"
+      },
+      "conflictsWithInstructions": {
+        "type": "boolean",
+        "description": "The miner said it conflicts with CLAUDE.md"
+      },
+      "contradicts": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The lesson it contradicts, when the person kept both"
+      },
+      "overrides": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A project lesson that overrides this global one in its project"
+      },
+      "promotedFrom": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a global lesson: the project lesson it was promoted from"
+      },
+      "alsoInProjects": {
+        "type": "number",
+        "description": "Active lessons in other projects that say the same (similarity rule), counted when read"
+      },
+      "retiredReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LessonRetiredReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "proposalId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "instructionsProposalId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The pending or decided `instructions` proposal made from it"
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LessonEvidence"
+        }
+      },
+      "proposedBy": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "editedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lastSeenAt": {
+        "type": "string"
+      },
+      "lastConfirmedAt": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "key",
+      "projectId",
+      "status",
+      "trigger",
+      "action",
+      "confidence",
+      "effectiveConfidence",
+      "delivered",
+      "seenCount",
+      "pinned",
+      "mechanical",
+      "conflictsWithInstructions",
+      "contradicts",
+      "overrides",
+      "promotedFrom",
+      "alsoInProjects",
+      "retiredReason",
+      "proposalId",
+      "instructionsProposalId",
+      "evidence",
+      "proposedBy",
+      "decidedBy",
+      "decidedAt",
+      "editedAt",
+      "lastSeenAt",
+      "lastConfirmedAt",
+      "createdAt",
+      "updatedAt"
+    ]
+  },
+  "LessonStatus": {
+    "type": "string",
+    "enum": [
+      "proposed",
+      "active",
+      "retired",
+      "rejected",
+      "superseded"
+    ],
+    "description": "proposed: waits for the person; active: handed to runs; retired: kept, not handed; rejected: refused, never proposed again; superseded: replaced by its global copy"
+  },
+  "LessonRetiredReason": {
+    "type": "string",
+    "enum": [
+      "person",
+      "decayed",
+      "instructions",
+      "merged",
+      "contradicted"
+    ],
+    "description": "Why a lesson stopped being handed"
+  },
+  "LessonEvidence": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "signal": {
+        "$ref": "#/components/schemas/LessonSignalKind"
+      },
+      "quote": {
+        "type": "string",
+        "description": "The person's own words, as written (any language), redacted; empty for a denial without a message"
+      },
+      "context": {
+        "type": "string",
+        "description": "What the agent had just done, in English, redacted: \"Edit src/cart.ts\", \"Bash: npm install\""
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "chatTitle": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Filled in when read: null when the chat is gone, which the UI says"
+      },
+      "entryUuid": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The transcript line it points at, for the chat's \"jump to\" link"
+      },
+      "at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "signal",
+      "quote",
+      "context",
+      "chatId",
+      "chatTitle",
+      "entryUuid",
+      "at"
+    ]
+  },
+  "LessonSignalKind": {
+    "type": "string",
+    "enum": [
+      "correction",
+      "hint",
+      "denied",
+      "cancelled",
+      "reverted",
+      "rewound",
+      "interrupted",
+      "repeated-error",
+      "rejected-proposal"
+    ],
+    "description": "What the person did that a lesson rests on"
+  },
   "ApproveMemoryProposalRequest": {
     "type": "object",
     "properties": {
       "text": {
         "type": "string",
         "description": "The text to write instead of the proposed one"
+      },
+      "lesson": {
+        "type": "object",
+        "properties": {
+          "trigger": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trigger",
+          "action"
+        ],
+        "description": "For a `lesson` proposal: the person's edit of it, kept in their words"
+      },
+      "mergeInto": {
+        "type": "string",
+        "description": "For a `lesson` proposal: approve it by folding it into this existing lesson instead of adding one"
+      },
+      "retire": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "For a `lesson` proposal: contradicted lessons to retire with the approval"
+      },
+      "keepBoth": {
+        "type": "boolean",
+        "description": "For a `lesson` proposal: keep a contradicted lesson too, marking both"
+      },
+      "previewOf": {
+        "type": "string",
+        "description": "For an `instructions` proposal made from a lesson: the sha256 of the `CLAUDE.md` the person saw the diff against, so a file that changed since is refused"
       },
       "file": {
         "type": "string",
@@ -25916,6 +26431,9 @@
           "journal.relevance": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
+          "lesson.mine": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
           "board.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
@@ -26086,6 +26604,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "journal.relevance": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "lesson.mine": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "board.triage": {
@@ -26372,6 +26893,7 @@
       "assistant.rerank",
       "assistant.sources",
       "journal.relevance",
+      "lesson.mine",
       "board.triage",
       "team.assign",
       "flow.scope-drift",

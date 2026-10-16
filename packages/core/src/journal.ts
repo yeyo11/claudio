@@ -129,7 +129,7 @@ export class JournalService {
     return {
       entries: shown.map((r) => this.entryOf(r)),
       total,
-      handed: { entries: handoff.entries, bytes: handoff.bytes },
+      handed: { entries: handoff.entries, bytes: handoff.bytes, lessons: 0, lessonBytes: 0 },
       nextBefore: rows.length > limit && last ? String(last.seq) : null,
     };
   }

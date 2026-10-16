@@ -12,6 +12,8 @@ import type {
   FlowStep,
   FlowVerdict,
   JournalChangeAction,
+  LessonSignalKind,
+  LessonStatus,
   JournalEntryKind,
   MemoryProposalAction,
   MemoryProposalStatus,
@@ -271,7 +273,21 @@ export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'deci
 
 export const JOURNAL_CHANGE_ACTIONS = valuesOf<JournalChangeAction>()(['added', 'removed']);
 
-export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal', 'rule']);
+export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal', 'rule', 'lesson']);
+
+export const LESSON_STATUSES = valuesOf<LessonStatus>()(['proposed', 'active', 'retired', 'rejected', 'superseded']);
+
+export const LESSON_SIGNAL_KINDS = valuesOf<LessonSignalKind>()([
+  'correction', 'hint', 'denied', 'cancelled', 'reverted', 'rewound', 'interrupted', 'repeated-error', 'rejected-proposal',
+]);
+
+/** Limits the miner's output and a person's edit are held to, so a lesson stays a one-line rule */
+export const LESSON_TRIGGER_MAX = 160;
+export const LESSON_ACTION_MAX = 240;
+/** The Lessons section's own share of the journal handoff, inside `JOURNAL_HANDOFF_BYTES` */
+export const LESSONS_HANDOFF_BYTES = 2048;
+/** Evidence rows kept per lesson; older ones are dropped so a much-repeated lesson stays small */
+export const LESSON_EVIDENCE_MAX = 10;
 
 export const MEMORY_PROPOSAL_STATUSES = valuesOf<MemoryProposalStatus>()(['pending', 'approved', 'rejected']);
 

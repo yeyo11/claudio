@@ -415,6 +415,9 @@ export class MemoryProposalService {
       decidedAt: r.decided_at,
       rejectReason: r.reject_reason,
       journalEntryId: r.journal_entry_id,
+      // Filled in by the lesson store; a row has neither until it exists
+      lesson: null,
+      lessonId: null,
       createdAt: r.created_at,
     };
   }
