@@ -205,6 +205,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Context breakdown | the `get_context_usage` control request (`detail: summary` unless asked) |
 | Compaction | `/compact` sent as a user turn over stream-json; the `system/status` (`compacting`) and `system/compact_boundary` events; the boundary and `isCompactSummary` lines of the transcript |
 | Orchestration planner | `--json-schema` structured output |
+| Review gate | `--json-schema` findings under `--restricted --tools=Read,Grep,Glob`, `--max-budget-usd`, `--max-turns`, `--agents` and `--agent` for the role |
 | Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
 | Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
 | Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |

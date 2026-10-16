@@ -128,6 +128,37 @@ itself (changes, the diff stat of a failing check, the health probe, the merge s
 integrator, verification and fixer, planner, workflow, synthesis), to the supervisor, and to every flow
 stage. The push of a pull request branch is Claudio's own process, after the person approved.
 
+## The review gate
+
+The review gate ([orchestrations.md](orchestrations.md#the-review-gate)) reads code a worker wrote, so
+everything it reads is untrusted, and it fails closed.
+
+- **Confinement.** A reviewer and a verifier run with `--restricted --tools=Read,Grep,Glob`: no
+  Bash, no Write, no network, no settings of the user or the project, and the file tools confined to
+  the working directory (a `Read` or `Grep` outside it is refused; recorded in the plan's CLI
+  facts). They run in a checkout of the integration branch and have a budget and a turn limit. The
+  fixer is the only run that writes.
+- **The role file cannot widen it.** Claudio supplies the rules, the tools and the model of every
+  reviewer. A role file only says what to look for; its `tools`, `disallowedTools` and `model` are
+  ignored. Role files are read from the project checkout, never from the integration branch, so a
+  worker cannot weaken its own reviewer in the diff under review. The conventions reviewer is shown
+  the project rules as they were at the base commit, for the same reason.
+- **Text addressed to an agent.** A scan of the added lines flags text that tells a reviewer to
+  approve, ignore or skip. It becomes a high finding and goes to a verifier, and the reviewer's own
+  rules say the same.
+- **Committed secrets block.** A deterministic scan of the added lines, generated and locked files
+  included, blocks on a committed secret, and so do conflict markers. The diff is not redacted before
+  a reviewer reads it (redacting would hide the very finding); instead every stored finding has its
+  evidence masked and cut.
+- **Fail closed.** A reviewer that crashes, times out, overspends or answers outside the schema makes
+  the gate `incomplete`, and an incomplete gate cannot pass. The pull request stays held while the
+  gate is neither passed nor accepted.
+- **Only a person accepts.** `POST /orchestrations/:id/review/accept` and
+  `POST /projects/:id/review-roles/:role` answer `403` to a chat's token, also under `auth.mode:
+  none`, where the chat's label on the request is what refuses it. An acceptance needs a written
+  reason, is bound to the head it was given on, and a new commit voids it. Reading the gate and
+  asking for a retry stay open to a chat's token: a retry only runs Claudio's own gate again.
+
 ## A chat cannot approve its own memory
 
 What a memory proposal writes (`CLAUDE.md`, a memory file, the journal) is read as instructions by every
@@ -194,4 +225,4 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 ## Related
 
 [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[plans/review-gate.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]

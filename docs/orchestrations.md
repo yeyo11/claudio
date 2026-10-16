@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-09-29T00:00:00Z
+updated_at: 2026-10-16T18:00:00Z
 tags:
     - orchestration
     - planner
@@ -109,6 +109,68 @@ core ── web ─┬─ web-review
 
 The hint reads "3 stages in series · core → web → web-review", with no notice.
 
+## The review gate
+
+A graph can opt in to a review that fails closed. It is off by default and costs nothing for a graph
+that leaves it out. The full design is in [plans/review-gate.md](plans/review-gate.md).
+
+- **The spec.** `verification.review` (`ReviewGateSpec`) in the graph's spec. Present means on.
+  `commands` may then be empty. `/verify` validates every bound and answers `400` for one out of
+  range:
+  - `dimensions`: `correctness` always runs; `tests` (default on), `security` (`auto`, `always` or
+    `off`; `auto` runs when a changed path or an added line matches a trigger) and `conventions`
+    (default on when the base commit has `CLAUDE.md`, `CONTRIBUTING.md` or `.claude/rules`);
+  - `depth`: `light` or `full` (`full` unless the `review.depth` point chooses;
+    `light` runs correctness, plus security when triggered, with chunks twice as large; see
+    [decision-engine.md](decision-engine.md#reviewdepth));
+  - `fixer` (default on), `maxFixRounds` (default 2, 0–5), `maxCostUsd` (default 5, over the whole
+    gate), `maxRunCostUsd` (default 1), `timeoutMinutes` (default 15, 1–60), `concurrency` (default
+    3, 1–6), `models` (reviewer `sonnet`, verifier `opus`, fixer the verification's or the graph's)
+    and `exclude` (globs added to the built-in exclusions).
+- **Where it runs.** Inside verification, after integration and only after the checks pass, on the
+  integration branch's diff against the graph's base commit. A review taken before the checks would
+  miss the check fixer's commits.
+- **A round.** Claudio collects the diff and runs its own scans (conflict markers, committed
+  secrets, text addressed to an agent). One reviewer per dimension then reads the diff as untrusted
+  data, read-only and under a budget, and returns findings that match a schema. Claudio
+  deduplicates them and anchors each to a line, the file, or "outside" the diff. Every critical or
+  high finding goes to a separate verifier whose default answer is `refuted`.
+- **What blocks.** A finding of high severity or more that is `confirmed` or `uncertain`, and the
+  deterministic ones. The rest is advisory.
+- **The fixer loop.** A blocking review goes to a fixer, every check runs again from the first, and
+  the review runs again, up to `maxFixRounds` fixer rounds (so at most `maxFixRounds + 1` reviews).
+  The loop stops early when a fix makes the review worse, when the gate's budget is spent, or when
+  `fixer` is false.
+- **Statuses.** `ReviewGateState.status` is `pending`, `running`, `passed`, `blocked`,
+  `incomplete`, `accepted` or `skipped`. A reviewer that crashes, times out, overspends or answers
+  outside the schema, or a file that could not be reviewed, makes the round `incomplete`; a run
+  that ends well without structured output counts as failed, never as "no findings".
+  `VerificationStatus` has no new member: a gate that is blocked or incomplete makes the
+  verification `failed` with `gate: 'review'` (`'checks'` otherwise).
+- **It holds the pull request.** When the gate is on and is neither passed nor accepted, the
+  pull request is held, whatever `failGraph` says. `failGraph` still decides only the graph's own
+  status.
+- **Skipping.** A re-run skips the gate only when the checks passed on the head and the review
+  passed or was accepted on that same head. A restart or a stop ends a running review as
+  `incomplete`.
+- **Retry and accept.** `POST /orchestrations/:id/review/retry` runs the gate again. A person may
+  accept a blocked or incomplete gate with `POST /orchestrations/:id/review/accept` and a written
+  reason. An `incomplete` gate is accepted only after a retry also ended `incomplete`. The
+  acceptance is bound to the head it was given on: a new commit voids it. A chat's token gets
+  `403` on accept ([security-model.md](security-model.md#the-review-gate)).
+- **Reviewer roles.** Each dimension's reviewer (and the verifier) has a role file in the project,
+  `.claude/agents/claudio-review-<role>.md`, read from the project checkout and never from the
+  integration branch. It says what to look for; Claudio supplies the rules, the tools and the
+  model. `GET /projects/:id/review-roles` lists them and `POST /projects/:id/review-roles/:role`
+  writes the built-in text for a person to edit, never over an existing file.
+- **Where it shows.** The graph form, the verification card (the head, the reason, the runs, the
+  findings grouped with the blocking ones open, **Retry** and **Accept anyway**), the findings as
+  cards under their lines in the integration diff, and the verification step of the pipeline.
+- **Cost.** The estimate of a round is checked before anything starts; one over `maxCostUsd` stops
+  the gate as `incomplete` before spending. Measured costs are in the plan's
+  [Outcome](plans/review-gate.md#outcome); the review's time is in
+  [orchestration-timings.md](orchestration-timings.md#what-is-recorded).
+
 ## Related
 
-[[plans/orchestration-speed.md]] · [[plans/graph-shape.md]] · [[plans/worker-checks.md]] · [[design-system.md]]
+[[plans/review-gate.md]] · [[plans/orchestration-speed.md]] · [[plans/graph-shape.md]] · [[plans/worker-checks.md]] · [[design-system.md]]

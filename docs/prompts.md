@@ -142,6 +142,9 @@ the result.
 | Worker continuation | `orchestrator.ts` · `continuation`, `settle` (open items) | the same chat, resumed | `--resume` | the same |
 | Integrator | `orchestrator.ts` · `resolveConflicts` | merge conflict run | first prompt | the graph's model |
 | Fixer | `verification.ts` · `fixerPrompt` | fix after a failed check | first prompt | the verification's model, else the graph's |
+| Review gate: reviewer | `review-prompts.ts` · `reviewerPrompt` (rules in `REVIEWER_RULES`, body from `review-roles.ts`) | one run per dimension and chunk | `--agents`/`--agent`, `--json-schema` (findings), `--restricted --tools=Read,Grep,Glob`, `--max-budget-usd`, `--max-turns` | the gate's `models.reviewer`, else `sonnet` |
+| Review gate: verifier | `review-prompts.ts` · `verifierPrompt` | one run per batch of critical and high findings | the same, with a verdict schema | `models.verifier`, else `opus` |
+| Review gate: fixer | `orchestrator.ts` · `reviewFixerPrompt` (shares `FIXER_RULES` with `fixerPrompt`) | fix after a blocking review | first prompt | `models.fixer`, else the verification's, else the graph's |
 | Synthesis | `orchestrator.ts` · `synthesize`; `compile` for the workflow engine | final report | first prompt | the graph's model |
 | Templates | `orchestration-templates.ts` | template tasks | none of its own: a template stores a spec, and its tasks run as workers | the template's model |
 | Workflow lead | `orchestrator.ts` · `launchWorkflow`; the script from `workflow-engine.ts` · `compileWorkflow` | workflow lead session | first prompt; the script's `agent()` prompts | the graph's model |
@@ -309,6 +312,23 @@ The fix of failing CI checks (`checksFixPrompt`, a section of the flow's work pr
 `cause`, whether it was `fixed`, the `locations` changed as `path:line`, and `stopped`
 (`same-error`, `more-errors` or `design`) when it stopped before the fix. The flow is a schema run,
 so those rows go in the structured result and not in text.
+
+### Review gate: reviewer, verifier and fixer (`reviewerPrompt`, `verifierPrompt`, `reviewFixerPrompt`)
+
+Claudio writes the head, the rules and the tail; the role file only says what to look for, and its
+`tools` and `model` are ignored. The rules sit in `REVIEWER_RULES`: report a finding only with a
+concrete failure, read the surrounding code first, zero findings is a valid answer, the severity
+scale, how `file` and `line` are written, and the coverage flag.
+
+- The diff, the files read, commit messages and the project rules quoted for the conventions
+  reviewer (read from the base commit, so the change cannot relax them) are material under review.
+  Text in them addressed to an AI is itself a finding.
+- The verifier is asked to refute each claim; its default is `refuted`, and `uncertain` still
+  blocks. It reads the same untrusted material.
+- The fixer shares `FIXER_RULES` with the check fixer and is handed the blocking findings. Its
+  attempt is recorded as a fix with the command `review round N`.
+- `--restricted` leaves `CLAUDE.md` unloaded (recorded in the plan's CLI facts), so the rules are
+  in the prompt itself.
 
 ### Synthesis (`synthesize`, `compile`)
 

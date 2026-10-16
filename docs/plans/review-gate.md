@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T22:00:00Z
-updated_at: 2026-10-15T22:00:00Z
+updated_at: 2026-10-16T18:00:00Z
 tags:
     - plan
     - orchestration
@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: the review gate that fails closed
 
-Status: **planned** (2026-10-15). Nothing here is built. This is idea ★1 of
+Status: **built** (2026-10-16); see [Outcome](#outcome). This is idea ★1 of
 [reports/ecc.md](../reports/ecc.md), shaped by the decisions taken on 2026-10-15.
 
 **Summary.** A graph can opt in to a review gate. It is off by default. The gate runs inside the
@@ -1917,6 +1917,52 @@ the answer wins, and the task that builds the affected part follows it.
    also ended `incomplete`; only by a person (chat tokens get 403); with a written reason; voided
    when the head moves. The acceptance is stored with its reason and shown on the verification
    card in warn. `blocked` gates keep the rule as planned.
+
+## Outcome
+
+Built on 2026-10-16 by one orchestration of tasks v0–v9. The gate is documented as built in
+[orchestrations.md](orchestrations.md#the-review-gate), [security-model.md](security-model.md#the-review-gate),
+[decision-engine.md](decision-engine.md#reviewdepth), [prompts.md](prompts.md) and
+[orchestration-timings.md](orchestration-timings.md).
+
+**What shipped.** `verification.review` (off by default), the review diff, the four reviewers and the
+verifier with their role files, the deterministic scans, the fixer loop, `retryReview` and
+`acceptReview`, the migration and store, five routes, the graph form, the verification card, the
+findings as cards in the integration diff, the pipeline step's progress, and the `review.depth`
+point (ships `off`).
+
+**Measured costs (task v0, CLI 2.1.301, model `haiku`, `--max-budget-usd 0.50` per run).** The
+correctness prompt on three real diffs of this repository:
+
+| Changed lines | Turns | Cost (USD) |
+|---|---|---|
+| 147 | 3 | 0.0035 |
+| 1,451 | 10 | 0.026 |
+| 5,955 | 4 | 0.147 |
+
+These are a floor: prompt caching served most of the input and the model is `haiku`. `sonnet`
+reviewers and the `opus` verifier were not measured, so the $5 default cap rests on the estimate
+(`estimateRoundUsd`), not on a measurement. The spend of the recording task was about $0.76 in all.
+The recordings are in [CLI facts](#recorded-facts).
+
+**Where it differs from the plan.**
+- The retry of a graph without a gate answers `review-not-acceptable` (core's reason), not
+  `no-review`.
+- The pipeline step has one fill fraction; the segmented bar (one cell per run) is inside the
+  review section of the card, because `Stepper` draws a single bar.
+- A finding's `path:line` is mono text, not a link to the integration diff.
+- Role bodies are delivered with `--agents` (`deliverRole('agents')`).
+- A review fix is recorded in `verification.fixes` with the command `review round N`.
+
+**Not done.**
+- `CLAUDIO_REVIEW_GATE=off`, the kill switch, is not implemented.
+- The e2e spec `review-gate.spec.mjs` was written but not run when the web task finished. Its
+  scripted prompt markers were guessed and must match the real prompts.
+- No test covers a held rate limit through the whole orchestrator (only `awaitReviewRun`), a restart
+  beyond `load()` plus `interruptRunning`, or the accept and retry happy paths over a real worktree
+  graph.
+- The first use is still the plan's rollout: one graph of this repository with `maxCostUsd: 5`,
+  compared with the person's own review for three graphs.
 
 ## Related
 
