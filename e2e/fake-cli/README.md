@@ -118,6 +118,11 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 - `FAKE-LIMIT-ACCOUNT` (a line of its own) — the same limit, but only on the account whose
   `CLAUDE_CODE_OAUTH_TOKEN` starts with `fake-limited`; on any other account it is an ordinary prompt.
   It is how a spec sees a chat leave a limited account and replay on another.
+- `FAKE-AUTH-EXPIRED-ACCOUNT` (a line of its own) — the recorded sign-in failure: an assistant line
+  with `error: "authentication_failed"`, then an error `result` with `api_error_status: 401`
+  ("Failed to authenticate: OAuth session expired and could not be refreshed"). Only on the account
+  whose `CLAUDE_CODE_OAUTH_TOKEN` starts with `fake-expired`; on any other account it is an ordinary
+  prompt. It is how a spec sees an account marked "Sign-in expired" and the chat replayed elsewhere.
 - `hold: <path>` — waits until `<path>` (against the working directory) exists before the next step.
 - `ask: <command>` — a Bash call the CLI asks permission for: the `tool_use`, then a `can_use_tool`
   control request; the turn waits for the `control_response`. Allowed, the call answers

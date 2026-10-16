@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-15T18:00:00Z
+updated_at: 2026-10-16T14:00:00Z
 tags:
     - accounts
     - rotation
@@ -54,6 +54,24 @@ The latest reading per account is `<data>/accounts/limits.json`; the history is 
 rows and each switch or wait a `rotation_events` row. An account with neither reading is `unknown`,
 and an unknown account is allowed.
 
+## Sign-in state
+
+An account's `signInState` says whether its sign-in can be relied on, beside `signedIn`:
+
+| State | Meaning | Chosen? |
+|---|---|---|
+| `ok` | signed in, nothing against it | yes |
+| `unknown` | nothing read yet | yes |
+| `expired` | a run on it failed to authenticate (`authFailedAt` in `accounts.json`) | no |
+| `incomplete` | its credentials file has no non-empty `refreshToken` key (a broken copy) | no |
+
+`claude auth status` keeps answering `loggedIn: true` for a dead session, so the state is not read
+from it. Claudio only looks at whether the credentials file exists, its modification time and
+whether the `refreshToken` key is non-empty, never its value. `expired` clears when the file
+changes after `authFailedAt` (a new sign-in) or when a later run on the account succeeds; the
+Accounts page and the status bar card show "Sign-in expired" with a "Sign in again" action
+(`POST /accounts/:id/login`) that reopens the sign-in panel.
+
 ## Choosing and switching
 
 - A new chat that does not name an account takes the one the rotation chooses: with the `least-used`
@@ -67,6 +85,15 @@ and an unknown account is allowed.
   chat, resumed on the new account. A person's chat does it when `rotateOnLimit` is on (the
   default); automated work always does. With no account left, the work waits for the earliest
   reset.
+- **At a sign-in failure** the CLI ends the turn with an error `result` whose `api_error_status` is
+  401 (never read from its wording). The account is marked `expired` and the turn moves exactly as
+  at a limit, replayed in the same chat on another account, with `reason: 'auth'` on the rotation
+  event and a notice in the chat. With no usable account, automated work waits with the move reason
+  "sign-in expired" and resumes as soon as an account can take it; a person's chat follows
+  `rotateOnLimit`.
+- **A retry** of an orchestration task resumes the same chat, but the account is chosen again at
+  that launch: an exhausted or expired one is skipped, and the chat's own account is kept only if it
+  is usable. A limit hit on the retry moves the turn like any other.
 
 Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 
@@ -85,8 +112,10 @@ Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 The unit tests run against `packages/accounts/test/fake-claude.mjs`, which honours
 `CLAUDE_CONFIG_DIR`. The end-to-end spec `e2e/specs/accounts.spec.mjs` uses the fake CLI of
 `e2e/fake-cli`: a token account starting with `fake-limited` is out on the `FAKE-LIMIT-ACCOUNT`
-line, and the chat is replayed on another account.
+line, and the chat is replayed on another account; one starting with `fake-expired` fails to sign in on
+the `FAKE-AUTH-EXPIRED-ACCOUNT` line, and the chat moves with the account marked "Sign-in expired".
+The retry is guarded in core by `packages/core/test/orchestration-retry-account.test.ts`.
 
 ## Related
 
-[[plans/claude-only-fork.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
+[[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
