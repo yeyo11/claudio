@@ -52,9 +52,16 @@ export type WireRequest =
    * `changed`: what the sender shares changed, so the receiver pulls its catalog again now
    */
   | { type: 'hello'; heads: Record<string, RosterHead>; ticket?: string; changed?: boolean }
-  | { type: 'roster'; groupId: string; sinceVersion: number }
+  /**
+   * `denial`: from a joiner that is no member yet, the `denialTag` of its invite, so an install that
+   * holds a denial of it answers `denied` rather than `forbidden`. A peer from before it drops the
+   * field and answers `forbidden`, which the joiner reads as still waiting
+   */
+  | { type: 'roster'; groupId: string; sinceVersion: number; denial?: string }
   | { type: 'join'; groupId: string; sealed: string }
   | { type: 'joinRelay'; groupId: string; sealed: string; from: string; receivedAt: string; expiresAt: string | null }
+  /** Member → owner: the joins of the group the owner denied, so the member answers the joiner while the owner is away */
+  | { type: 'joinAnswers'; groupId: string }
   | { type: 'leave'; groupId: string }
   | { type: 'catalog'; groupId: string }
   | { type: 'pull'; shareKey: string; kind: CollaboratorsKind; since: string | null }
@@ -65,6 +72,14 @@ export type WireRequest =
 export type WireRequestType = WireRequest['type'];
 
 // ---------- Replies ----------
+
+/** A denied join as the owner hands it to a member: who, the tag the joiner asks with, when, and until when */
+export interface WireDenial {
+  from: string;
+  tag: string;
+  deniedAt: string;
+  expiresAt: string;
+}
 
 /** One record of a `pull`: `version` changes whenever the record does, `cursor` orders the pull */
 export interface WireRecord {
@@ -95,6 +110,9 @@ export type WireReply =
   | { type: 'hello'; heads: Record<string, RosterHead>; ticket?: string }
   | { type: 'roster'; groupId: string; versions: RosterVersion[] }
   | { type: 'pending'; groupId: string; owner: string }
+  /** The owner denied this joiner's request with this invite: to `join`, and to a joiner's `roster` */
+  | { type: 'denied'; groupId: string }
+  | { type: 'joinAnswers'; groupId: string; denied: WireDenial[] }
   | { type: 'ack' }
   | { type: 'catalog'; groupId: string; projects: CatalogEntry[] }
   | { type: 'records'; kind: CollaboratorsKind; records: WireRecord[] }
@@ -256,7 +274,11 @@ export function parseRequest(value: unknown): WireRequest | null {
       return { type: 'hello', heads, ...(isTicket(value.ticket) ? { ticket: value.ticket } : {}), ...(value.changed === true ? { changed: true } : {}) };
     }
     case 'roster':
-      return isGroupIdOnWire(value.groupId) && isCount(value.sinceVersion) ? { type: 'roster', groupId: value.groupId, sinceVersion: value.sinceVersion } : null;
+      if (!isGroupIdOnWire(value.groupId) || !isCount(value.sinceVersion)) return null;
+      if (value.denial !== undefined && !isSha256(value.denial)) return null;
+      return { type: 'roster', groupId: value.groupId, sinceVersion: value.sinceVersion, ...(value.denial !== undefined ? { denial: value.denial } : {}) };
+    case 'joinAnswers':
+      return isGroupIdOnWire(value.groupId) ? { type: 'joinAnswers', groupId: value.groupId } : null;
     case 'join':
       return isGroupIdOnWire(value.groupId) && typeof value.sealed === 'string' && SEALED.test(value.sealed) ? { type: 'join', groupId: value.groupId, sealed: value.sealed } : null;
     case 'joinRelay':
@@ -284,4 +306,12 @@ export function parseRequest(value: unknown): WireRequest | null {
     default:
       return null;
   }
+}
+
+/** The denials of a `joinAnswers` reply that are well formed; anything else in it is dropped */
+export function parseDenials(value: unknown): WireDenial[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((d: unknown): WireDenial[] =>
+    isObject(d) && isEndpointHex(d.from) && isSha256(d.tag) && isTime(d.deniedAt) && isTime(d.expiresAt) ? [{ from: d.from, tag: d.tag, deniedAt: d.deniedAt, expiresAt: d.expiresAt }] : [],
+  );
 }

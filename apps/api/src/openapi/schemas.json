@@ -6854,6 +6854,9 @@
       },
       {
         "$ref": "#/components/schemas/CollaboratorsJoinAnsweredEvent"
+      },
+      {
+        "$ref": "#/components/schemas/CollaboratorsJoinEndedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -12937,6 +12940,124 @@
       "dropped"
     ],
     "description": "How a join request on the owner's install was settled."
+  },
+  "CollaboratorsJoinEndedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "collaborators.join-ended"
+      },
+      "pending": {
+        "$ref": "#/components/schemas/PendingJoin"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "pending",
+      "title",
+      "type"
+    ],
+    "description": "A join this install sent ended without joining: the owner denied it, or its invite expired before the owner answered. Only the joiner's install emits it; the page shows the ended join until dismissed."
+  },
+  "PendingJoin": {
+    "type": "object",
+    "properties": {
+      "groupId": {
+        "type": "string"
+      },
+      "groupName": {
+        "type": "string",
+        "description": "The group's name, as the invite carried it"
+      },
+      "owner": {
+        "type": "object",
+        "properties": {
+          "endpointId": {
+            "$ref": "#/components/schemas/EndpointId"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpointId",
+          "name"
+        ]
+      },
+      "relayedBy": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "endpointId": {
+                "$ref": "#/components/schemas/EndpointId"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "endpointId",
+              "name"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The member holding the request until the owner is back; null while it is still being delivered"
+      },
+      "sentAt": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "description": "The invite's expiry: past it the owner refuses the request"
+      },
+      "state": {
+        "$ref": "#/components/schemas/PendingJoinState"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When this install learnt it was denied or saw the invite expire; null while it waits"
+      }
+    },
+    "required": [
+      "groupId",
+      "groupName",
+      "owner",
+      "relayedBy",
+      "sentAt",
+      "expiresAt",
+      "state",
+      "endedAt"
+    ],
+    "description": "A `join` this install sent: waiting for the owner, or ended without joining until it is dismissed."
+  },
+  "PendingJoinState": {
+    "type": "string",
+    "enum": [
+      "waiting",
+      "denied",
+      "expired"
+    ],
+    "description": "Where a join this install sent stands: `waiting` for the owner, `denied` by the owner, or `expired` because the invite ran out before the owner answered. A join the owner accepted is no longer pending: the group is listed instead."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -33597,7 +33718,7 @@
         "items": {
           "$ref": "#/components/schemas/PendingJoin"
         },
-        "description": "Requests to join that wait for an owner, so the page shows them after a reload"
+        "description": "Requests to join that wait for an owner, or ended unanswered or denied until dismissed, so the page shows them after a reload"
       }
     },
     "required": [
@@ -33605,72 +33726,6 @@
       "pendingJoins"
     ],
     "description": "`GET /collaborators/groups`."
-  },
-  "PendingJoin": {
-    "type": "object",
-    "properties": {
-      "groupId": {
-        "type": "string"
-      },
-      "groupName": {
-        "type": "string",
-        "description": "The group's name, as the invite carried it"
-      },
-      "owner": {
-        "type": "object",
-        "properties": {
-          "endpointId": {
-            "$ref": "#/components/schemas/EndpointId"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "endpointId",
-          "name"
-        ]
-      },
-      "relayedBy": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "endpointId": {
-                "$ref": "#/components/schemas/EndpointId"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "endpointId",
-              "name"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The member holding the request until the owner is back; null while it is still being delivered"
-      },
-      "sentAt": {
-        "type": "string"
-      },
-      "expiresAt": {
-        "type": "string",
-        "description": "The invite's expiry: past it the owner refuses the request"
-      }
-    },
-    "required": [
-      "groupId",
-      "groupName",
-      "owner",
-      "relayedBy",
-      "sentAt",
-      "expiresAt"
-    ],
-    "description": "A `join` this install sent that the owner has not answered yet."
   },
   "CreateGroupRequest": {
     "type": "object",

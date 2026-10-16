@@ -5118,7 +5118,14 @@ export interface Group {
   joinRequestCount: number;
 }
 
-/** A `join` this install sent that the owner has not answered yet. */
+/**
+ * Where a join this install sent stands: `waiting` for the owner, `denied` by the owner, or
+ * `expired` because the invite ran out before the owner answered. A join the owner accepted is no
+ * longer pending: the group is listed instead.
+ */
+export type PendingJoinState = 'waiting' | 'denied' | 'expired';
+
+/** A `join` this install sent: waiting for the owner, or ended without joining until it is dismissed. */
 export interface PendingJoin {
   groupId: string;
   /** The group's name, as the invite carried it */
@@ -5129,12 +5136,15 @@ export interface PendingJoin {
   sentAt: string;
   /** The invite's expiry: past it the owner refuses the request */
   expiresAt: string;
+  state: PendingJoinState;
+  /** When this install learnt it was denied or saw the invite expire; null while it waits */
+  endedAt: string | null;
 }
 
 /** `GET /collaborators/groups`. */
 export interface GroupList {
   groups: Group[];
-  /** Requests to join that wait for an owner, so the page shows them after a reload */
+  /** Requests to join that wait for an owner, or ended unanswered or denied until dismissed, so the page shows them after a reload */
   pendingJoins: PendingJoin[];
 }
 
@@ -5445,6 +5455,15 @@ export interface CollaboratorsJoinAnsweredEvent extends ClaudioEventBase {
   /** The joiner's endpoint id, as in `JoinRequest.from` */
   from: EndpointId;
   answer: JoinAnswer;
+}
+
+/**
+ * A join this install sent ended without joining: the owner denied it, or its invite expired before
+ * the owner answered. Only the joiner's install emits it; the page shows the ended join until dismissed.
+ */
+export interface CollaboratorsJoinEndedEvent extends ClaudioEventBase {
+  type: 'collaborators.join-ended';
+  pending: PendingJoin;
 }
 
 // ---------- Effective environment ----------
@@ -8831,7 +8850,8 @@ export type ClaudioEvent =
   | CollaboratorsPeerEvent
   | CollaboratorsSyncedEvent
   | CollaboratorsJoinRequestEvent
-  | CollaboratorsJoinAnsweredEvent;
+  | CollaboratorsJoinAnsweredEvent
+  | CollaboratorsJoinEndedEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 

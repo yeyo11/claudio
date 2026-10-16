@@ -22,6 +22,7 @@ import {
   type Milestone,
   type PeerPresence,
   type PendingJoin,
+  type PendingJoinState,
   type ProjectSettings,
   type ProjectSharing,
   type ProjectSharingSettings,
@@ -47,7 +48,7 @@ import { agentFile, agentKey, PeerError, relayEntry, SyncClient, type KnownShare
 import { GroupsStore } from './groups-store.ts';
 import { CollabHost, type CollabHostOptions, type HostPeer, type HostStatus, type HostUnavailable } from './host-client.ts';
 import type { HostPreset } from './host/protocol.ts';
-import { checkJoin, createInvite, decodeInvite, encodeInvite, InviteFormatError, isInviteExpired, joinPayloadFor, openJoin, sealJoin, type Invite } from './invite.ts';
+import { checkJoin, createInvite, decodeInvite, denialTag, encodeInvite, InviteFormatError, isInviteExpired, joinPayloadFor, openJoin, sealJoin, secretHash, type Invite } from './invite.ts';
 import { createReaders, type ReaderSources, type SharedPlace } from './readers.ts';
 import {
   addMember,
@@ -144,12 +145,20 @@ export interface CollaboratorsDeps {
   log?(message: string): void;
 }
 
-/** A join this install sent, kept until the chain that lists it arrives: `collaborators/pending-joins.json` */
+/**
+ * A join this install sent, kept until the chain that lists it arrives, or, once the owner denied it
+ * or its invite expired, until the person dismisses it: `collaborators/pending-joins.json`
+ */
 interface OwnPendingJoin {
   invite: Invite;
   sentAt: string;
   relayedBy: string | null;
+  /** Absent in a file written before joins could end: those were all waiting */
+  state?: PendingJoinState;
+  endedAt?: string | null;
 }
+
+const PENDING_STATES: readonly PendingJoinState[] = ['waiting', 'denied', 'expired'];
 
 const now = (): string => new Date().toISOString();
 const short = (id: string): string => id.slice(0, 8);
@@ -739,8 +748,10 @@ export class CollaboratorsService {
         await this.joined(invite.groupId, outcome.chain);
         return { state: 'joined', group: this.getGroup(invite.groupId) };
       }
+      if (outcome.state === 'denied') throw new CollaboratorsError('refused', `${invite.ownerName || 'The owner'} denied the request to join ${invite.groupName} with this invite`);
       relayedBy = outcome.relayedBy;
     } catch (error) {
+      if (error instanceof CollaboratorsError) throw error;
       if (error instanceof PeerError && (error.code === 'refused' || error.code === 'bad-request' || error.code === 'protocol')) {
         throw new CollaboratorsError('refused', `The owner refused the invite${error.message && error.message !== error.code ? `: ${error.message}` : ''}`);
       }
@@ -752,7 +763,7 @@ export class CollaboratorsService {
     return { state: 'pending', pending: this.pendingView(pending) };
   }
 
-  /** `DELETE /collaborators/join/:groupId`: stops waiting; a member may still hold the request */
+  /** `DELETE /collaborators/join/:groupId`: stops waiting, or dismisses a join that ended; a member may still hold the request */
   async cancelJoin(groupId: string): Promise<void> {
     const pending = this.readPending();
     if (!pending.some((p) => p.invite.groupId === groupId)) throw new CollaboratorsError('not-found', 'No request to join that group');
@@ -780,7 +791,9 @@ export class CollaboratorsService {
         if (!isObject(p) || !isObject(p.invite) || typeof p.sentAt !== 'string') return [];
         try {
           const invite = decodeInvite(encodeInvite(p.invite as unknown as Invite));
-          return [{ invite, sentAt: p.sentAt, relayedBy: typeof p.relayedBy === 'string' ? p.relayedBy : null }];
+          const state = PENDING_STATES.find((s) => s === p.state) ?? 'waiting';
+          const endedAt = state !== 'waiting' && typeof p.endedAt === 'string' ? p.endedAt : null;
+          return [{ invite, sentAt: p.sentAt, relayedBy: typeof p.relayedBy === 'string' ? p.relayedBy : null, state, endedAt }];
         } catch {
           return [];
         }
@@ -802,7 +815,29 @@ export class CollaboratorsService {
       relayedBy: p.relayedBy ? { endpointId: p.relayedBy, name: this.memberName(p.relayedBy, { ...p.invite.relayNames, [p.invite.owner]: p.invite.ownerName }) } : null,
       sentAt: p.sentAt,
       expiresAt: p.invite.expiresAt,
+      state: p.state ?? 'waiting',
+      endedAt: p.endedAt ?? null,
     };
+  }
+
+  /**
+   * A join that will not be signed: the owner denied it, or its invite expired first. It stays on the
+   * page, saying which, until the person dismisses it, and nothing asks after it again.
+   */
+  private async endJoin(groupId: string, state: Exclude<PendingJoinState, 'waiting'>): Promise<void> {
+    const all = this.readPending();
+    const found = all.find((q) => q.invite.groupId === groupId);
+    if (!found || (found.state ?? 'waiting') !== 'waiting') return;
+    const ended: OwnPendingJoin = { ...found, state, endedAt: now() };
+    await this.writePending(all.map((q) => (q.invite.groupId === groupId ? ended : q)));
+    const { ownerName, groupName } = found.invite;
+    const owner = ownerName || short(found.invite.owner);
+    this.deps.emit({
+      type: 'collaborators.join-ended',
+      title: state === 'denied' ? `${owner} denied the request to join ${groupName}` : `The invite to ${groupName} expired before ${owner} answered`,
+      pending: this.pendingView(ended),
+    });
+    this.log(`collab: the join of ${short(groupId)} ${state === 'denied' ? 'was denied' : 'expired unanswered'}`);
   }
 
   private schedulePending(): void {
@@ -817,17 +852,27 @@ export class CollaboratorsService {
     const me = this.endpointId();
     if (!me) return;
     for (const p of this.readPending()) {
+      if ((p.state ?? 'waiting') !== 'waiting') continue;
       try {
-        const chain = await this.client.fetchJoinedChain(p.invite, me);
-        if (chain) {
-          await this.joined(p.invite.groupId, chain);
+        const answer = await this.client.fetchJoinAnswer(p.invite, me);
+        if (answer?.state === 'joined') {
+          await this.joined(p.invite.groupId, answer.chain);
           continue;
         }
-        if (isInviteExpired(p.invite)) continue;
+        if (answer?.state === 'denied') {
+          await this.endJoin(p.invite.groupId, 'denied');
+          continue;
+        }
+        // Past its expiry the owner refuses the request, so nobody will ever answer it
+        if (isInviteExpired(p.invite)) {
+          await this.endJoin(p.invite.groupId, 'expired');
+          continue;
+        }
         if (p.relayedBy === null) {
           const sealed = sealJoin(p.invite.owner, joinPayloadFor(p.invite, { endpointId: me, ...this.me() }));
           const outcome = await this.client.sendJoin(p.invite, sealed, me);
           if (outcome.state === 'joined') await this.joined(p.invite.groupId, outcome.chain);
+          else if (outcome.state === 'denied') await this.endJoin(p.invite.groupId, 'denied');
           else {
             await this.writePending(this.readPending().map((q) => (q.invite.groupId === p.invite.groupId ? { ...q, relayedBy: outcome.relayedBy } : q)));
             this.changed('roster', p.invite.groupId);
@@ -859,9 +904,19 @@ export class CollaboratorsService {
         const check = checkJoin({ seed, head, sealed: request.sealed, isUsed: (hash) => this.deps.store.isInviteUsed(group.groupId, hash) });
         if (!check.ok) return check.reason === 'already-member' ? { type: 'ack' } : { type: 'error', code: 'refused', reason: check.reason };
         if (check.request.endpointId !== request.from) return { type: 'error', code: 'refused', reason: 'wrong-endpoint' };
+        // Denied already: taken and not asked again; the member learns the answer from `joinAnswers`
+        if (this.deps.store.joinDenial(group.groupId, request.from, denialTag(check.secretHash), now())) return { type: 'ack' };
         this.deps.store.putJoinRequest({ groupId: group.groupId, fromEndpointId: request.from, sealed: request.sealed, relayedBy, expiresAt: check.request.expiresAt, receivedAt: request.receivedAt });
         this.announceJoinRequest(group.groupId, request.from);
         return { type: 'ack' };
+      },
+      denied: (from, group, tag) => !!this.deps.store.joinDenial(group.groupId, from, tag, now()),
+      joinAnswers: async (_from, group) => {
+        const head = this.chains.get(group.groupId)?.at(-1);
+        if (!head || head.owner !== this.endpointId()) return { type: 'error', code: 'refused' };
+        // Every member hears every denial of the group: a joiner may ask any of them, not only the one that held its request
+        const denied = this.deps.store.joinDenials(group.groupId, now()).map((d) => ({ from: d.endpointId, tag: d.tag, deniedAt: d.deniedAt, expiresAt: d.expiresAt }));
+        return { type: 'joinAnswers', groupId: group.groupId, denied };
       },
       leave: async (from, group) => {
         const head = this.chains.get(group.groupId)?.at(-1);
@@ -884,6 +939,7 @@ export class CollaboratorsService {
       // A joiner asking again after a lost answer gets the chain that lists it
       if (!check.ok && check.reason === 'already-member') return { type: 'roster', groupId, versions: chain };
       if (!check.ok) return { type: 'error', code: 'refused', reason: check.reason };
+      if (this.deps.store.joinDenial(groupId, from, denialTag(check.secretHash), now())) return { type: 'denied', groupId };
       if (!this.deps.store.useInvite(groupId, check.secretHash, now())) return { type: 'error', code: 'refused', reason: 'used' };
       const { endpointId, name, label } = check.request;
       const next = [...chain, addMember(head, seed, endpointId, { name, ...(label !== undefined ? { label } : {}) })];
@@ -954,12 +1010,26 @@ export class CollaboratorsService {
     });
   }
 
-  /** `POST …/join-requests/:from/deny` */
+  /**
+   * `POST …/join-requests/:from/deny`. The denial is remembered until the invite would have expired,
+   * so the joiner learns it when it next asks, and the members learn it to answer the joiner while
+   * this install is away; the member that held the request is told at once.
+   */
   denyJoin(groupId: string, from: string): void {
+    const seed = this.requireOn();
     this.requireOwner(groupId);
-    if (!this.deps.store.joinRequest(groupId, from)) throw new CollaboratorsError('not-found', 'No such join request');
+    const row = this.deps.store.joinRequest(groupId, from);
+    if (!row) throw new CollaboratorsError('not-found', 'No such join request');
+    this.deps.store.pruneJoinDenials(now());
+    const payload = openJoin(seed, groupId, row.sealed);
+    if (payload && payload.endpointId === from) {
+      const hash = secretHash(payload.secret);
+      this.deps.store.putJoinDenial({ groupId, endpointId: from, tag: denialTag(hash), secretHash: hash, deniedAt: now(), expiresAt: payload.expiresAt });
+    }
     this.settleJoinRequest(groupId, from, 'denied');
     this.changed('roster', groupId);
+    // A `changed` hello makes the member sync now, and its sync asks for the denials
+    if (row.relayedBy && row.relayedBy !== this.endpointId() && this.hostStatus) void this.client.announce(row.relayedBy, true);
   }
 
   /** Tells the owner a join waits for them: the event the bell and the push sender turn into a notification */

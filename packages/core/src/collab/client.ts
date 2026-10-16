@@ -8,10 +8,10 @@ import type { CollabShareRef, CollabStore } from '../db.ts';
 import type { GroupsStore } from './groups-store.ts';
 import type { HostReplyPart } from './host-client.ts';
 import type { HostTarget } from './host/protocol.ts';
-import type { Invite } from './invite.ts';
+import { denialTag, secretHash, type Invite } from './invite.ts';
 import { shortEndpoint } from './names.ts';
 import { compareHeads, headOf, isEndpointId, verifyJoinerChain, type RosterHead, type RosterVersion } from './roster.ts';
-import { isAgentFile, isSessionId, isTicket, rawLength, type CatalogEntry, type WireErrorCode, type WireReply } from './wire.ts';
+import { isAgentFile, isSessionId, isTicket, parseDenials, rawLength, type CatalogEntry, type WireErrorCode, type WireReply } from './wire.ts';
 
 /*
  * The receiving side of `claudio/collab/1` (docs/plans/collaborators.md §3.3, §4.1, §4.2): what this
@@ -150,7 +150,13 @@ export function relayTarget(entry: string): HostTarget | null {
   return { endpointId: id, ticket: ticket && isTicket(ticket) ? ticket : null };
 }
 
-export type JoinOutcome = { state: 'joined'; chain: RosterVersion[] } | { state: 'pending'; relayedBy: string };
+export type JoinOutcome = { state: 'joined'; chain: RosterVersion[] } | { state: 'pending'; relayedBy: string } | { state: 'denied'; by: string };
+
+/** What a joiner learns when it asks after its request: in, or denied; null while nobody knows yet */
+export type JoinAnswerOutcome = { state: 'joined'; chain: RosterVersion[] } | { state: 'denied'; by: string } | null;
+
+/** What a joiner asks with to learn it was denied: never the secret, nor the hash the owner spends it by */
+export const inviteDenialTag = (invite: Invite): string => denialTag(secretHash(invite.secret));
 
 // ---------- The catalog kept between runs ----------
 
@@ -538,6 +544,7 @@ export class SyncClient {
     await this.hello(peer.id, false);
     peer.online = true;
     await this.forwardJoins(peer.id);
+    await this.learnDenials(peer.id);
     await this.readCatalog(peer, this.deps.groupsWith(peer.id));
     for (const state of this.sharesOf(peer.id)) {
       for (const kind of state.share.kinds) await this.pullKind(peer.id, state, kind, to);
@@ -619,6 +626,32 @@ export class SyncClient {
       }
     }
     this.deps.store.pruneJoinRequests(new Date().toISOString());
+    this.deps.store.pruneJoinDenials(new Date().toISOString());
+  }
+
+  /**
+   * Asks the owner which joins of the groups it owns it denied, and keeps them, so a joiner asking
+   * this install while the owner is away learns its answer (§3.3, relayed joins). A request still
+   * held from before the denial goes: there is nothing left to deliver. An owner from before
+   * `joinAnswers` refuses the frame, and nothing is learnt.
+   */
+  private async learnDenials(id: string): Promise<void> {
+    for (const group of this.deps.groupsWith(id)) {
+      if (group.chain.at(-1)?.owner !== id) continue;
+      let reply: WireReply;
+      try {
+        reply = (await this.ask(this.to(id), { type: 'joinAnswers', groupId: group.groupId })).reply;
+      } catch (error) {
+        if (error instanceof PeerError && error.code === 'unreachable') throw error;
+        continue;
+      }
+      if (reply.type !== 'joinAnswers' || reply.groupId !== group.groupId) continue;
+      for (const denial of parseDenials(reply.denied)) {
+        this.deps.store.putJoinDenial({ groupId: group.groupId, endpointId: denial.from, tag: denial.tag, secretHash: null, deniedAt: denial.deniedAt, expiresAt: denial.expiresAt });
+        const held = this.deps.store.joinRequest(group.groupId, denial.from);
+        if (held && held.receivedAt <= denial.deniedAt) this.deps.store.deleteJoinRequest(group.groupId, denial.from);
+      }
+    }
   }
 
   /**
@@ -981,6 +1014,7 @@ export class SyncClient {
           return { state: 'joined', chain: reply.versions };
         }
         if (reply.type === 'pending') return { state: 'pending', relayedBy: target.endpointId };
+        if (reply.type === 'denied' && reply.groupId === invite.groupId) return { state: 'denied', by: target.endpointId };
         throw new PeerError('protocol', `join was answered with ${reply.type}`);
       } catch (error) {
         if (error instanceof PeerError && (error.code === 'refused' || error.code === 'bad-request')) throw error;
@@ -990,13 +1024,19 @@ export class SyncClient {
     throw last;
   }
 
-  /** The group's chain once the owner signed this install in, from the owner or a relay; null until then */
-  async fetchJoinedChain(invite: Invite, joiner: string): Promise<RosterVersion[] | null> {
+  /**
+   * Whether the owner answered this install's join: the group's chain once it signed this install
+   * in, or `denied`, from the owner or a member it told; null while nobody knows. An answer this
+   * install does not know (a newer peer's) reads as no answer yet.
+   */
+  async fetchJoinAnswer(invite: Invite, joiner: string): Promise<JoinAnswerOutcome> {
+    const denial = inviteDenialTag(invite);
     for (const target of SyncClient.joinTargets(invite)) {
       try {
-        const { reply } = await this.ask(target, { type: 'roster', groupId: invite.groupId, sinceVersion: 0 });
+        const { reply } = await this.ask(target, { type: 'roster', groupId: invite.groupId, sinceVersion: 0, denial });
+        if (reply.type === 'denied' && reply.groupId === invite.groupId) return { state: 'denied', by: target.endpointId };
         if (reply.type !== 'roster') continue;
-        if (verifyJoinerChain(reply.versions, invite, joiner).ok) return reply.versions;
+        if (verifyJoinerChain(reply.versions, invite, joiner).ok) return { state: 'joined', chain: reply.versions };
       } catch {
         // Not a member there yet, or not reachable: the next one may know
       }

@@ -82,6 +82,15 @@ export function secretHash(secret: string): string {
   return createHash('sha256').update(secret, 'utf8').digest('hex');
 }
 
+/**
+ * What a joiner whose request was denied asks with, and what a member keeps of the denial: derived
+ * from the secret's hash, so the hash the owner spends an invite by never travels, and a joiner
+ * denied with one invite is not taken for denied with the next.
+ */
+export function denialTag(hash: string): string {
+  return createHash('sha256').update(`claudio/collab/denial/1:${hash}`, 'utf8').digest('hex');
+}
+
 export function createInvite(input: {
   seed: Uint8Array;
   head: RosterVersion;

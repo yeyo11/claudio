@@ -24,8 +24,9 @@ import {
  *   3. the kind asked for is one the project shares;
  *   4. a blob's hash is referenced by a shared record of that project: a hash is not a credential.
  *
- * `join` is the one frame taken from a non-member; `leave` and `joinRelay` are taken from a member
- * for its own group. Their effects (signing, storing a pending join) are the service's, through
+ * `join` is the one frame taken from a non-member, and `roster` the one answered to a non-member
+ * otherwise: `denied`, and only to a joiner that names the invite it was denied with. `leave`,
+ * `joinRelay` and `joinAnswers` are taken from a member for its own group. Their effects (signing, storing a pending join) are the service's, through
  * `JoinPort`; this file only decides who may ask.
  */
 
@@ -43,6 +44,10 @@ export interface JoinPort {
   joinRelay(relayedBy: string, group: HeldGroup, request: Extract<WireRequest, { type: 'joinRelay' }>): Promise<WireReply>;
   /** A member telling this install it left */
   leave(from: string, group: HeldGroup): Promise<WireReply>;
+  /** Whether this install holds a denial of `from`'s request to join with the invite `tag` names */
+  denied(from: string, group: HeldGroup, tag: string): boolean;
+  /** A member asking the owner which joins of the group it denied */
+  joinAnswers(from: string, group: HeldGroup): Promise<WireReply>;
 }
 
 export interface ServeDeps {
@@ -152,6 +157,9 @@ export class CollabServer {
       case 'leave':
         await sink.frame(await this.deps.joins.leave(from, this.memberOf(from, request.groupId)));
         return;
+      case 'joinAnswers':
+        await sink.frame(await this.deps.joins.joinAnswers(from, this.memberOf(from, request.groupId)));
+        return;
       case 'hello': {
         const heads: Record<string, RosterHead> = Object.create(null) as Record<string, RosterHead>;
         for (const group of this.member(from)) heads[group.groupId] = headOf(group.chain);
@@ -159,6 +167,15 @@ export class CollabServer {
         return;
       }
       case 'roster': {
+        // A joiner asking whether it is in yet: the answer may be that the owner said no
+        if (request.denial !== undefined) {
+          const held = this.deps.groups().find((g) => g.groupId === request.groupId);
+          const head = held?.chain.at(-1);
+          if (held && head && !isMember(head, from) && this.deps.joins.denied(from, held, request.denial)) {
+            await sink.frame({ type: 'denied', groupId: held.groupId });
+            return;
+          }
+        }
         const group = this.memberOf(from, request.groupId);
         await sink.frame({ type: 'roster', groupId: group.groupId, versions: suffixSince(group.chain, request.sinceVersion) });
         return;

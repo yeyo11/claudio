@@ -1335,6 +1335,18 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      chat_id TEXT PRIMARY KEY,
      scanned_at TEXT NOT NULL
    );`,
+  // The joins an owner denied, kept until the invite would have expired, so the joiner and the
+  // members that held its request can be told (docs/collaborators.md, joins). The owner's row has the
+  // secret's hash; a member's has only the tag the joiner asks with
+  `CREATE TABLE collab_join_denials (
+     group_id TEXT NOT NULL,
+     endpoint_id TEXT NOT NULL,
+     tag TEXT NOT NULL,
+     secret_hash TEXT,
+     denied_at TEXT NOT NULL,
+     expires_at TEXT NOT NULL,
+     PRIMARY KEY (group_id, endpoint_id, tag)
+   );`,
 ];
 
 /**
@@ -1415,6 +1427,8 @@ export const EVALS_V2_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 
 export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
 /** The migration that added the Collaborators tables: a test starts a database from just before it */
 export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_records')) + 1;
+/** The migration that added the denied joins: a test starts a database from just before it */
+export const COLLAB_DENIALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_join_denials')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -3097,6 +3111,38 @@ export interface CollabJoinRequest {
   forwardedAt: string | null;
 }
 
+/**
+ * A join the owner denied. `tag` is `denialTag` of the invite's secret hash (`collab/invite.ts`): what
+ * the joiner asks with, so the hash an owner spends invites by never travels. `secretHash` is kept on
+ * the owner's install only; `expiresAt` is the invite's, after which the row is pruned.
+ */
+export interface CollabJoinDenial {
+  groupId: string;
+  endpointId: EndpointId;
+  tag: string;
+  secretHash: string | null;
+  deniedAt: string;
+  expiresAt: string;
+}
+
+interface CollabDenialRow {
+  group_id: string;
+  endpoint_id: string;
+  tag: string;
+  secret_hash: string | null;
+  denied_at: string;
+  expires_at: string;
+}
+
+const collabDenialOf = (r: CollabDenialRow): CollabJoinDenial => ({
+  groupId: r.group_id,
+  endpointId: r.endpoint_id,
+  tag: r.tag,
+  secretHash: r.secret_hash,
+  deniedAt: r.denied_at,
+  expiresAt: r.expires_at,
+});
+
 interface CollabRecordRow {
   owner_id: string;
   share_key: string;
@@ -3385,10 +3431,44 @@ export class CollabStore {
     return this.sql.prepare('SELECT 1 FROM collab_used_invites WHERE group_id = ? AND secret_hash = ?').get(groupId, secretHash) !== undefined;
   }
 
-  /** Forgets the rows of a group this install left: its relayed joins and spent secrets. */
+  // denied joins
+
+  /** Records a denial; the same joiner denied again with the same invite only refreshes it. */
+  putJoinDenial(denial: CollabJoinDenial): void {
+    this.sql
+      .prepare(
+        `INSERT INTO collab_join_denials (group_id, endpoint_id, tag, secret_hash, denied_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (group_id, endpoint_id, tag) DO UPDATE SET secret_hash = COALESCE(excluded.secret_hash, secret_hash), denied_at = excluded.denied_at, expires_at = excluded.expires_at`,
+      )
+      .run(denial.groupId, denial.endpointId, denial.tag, denial.secretHash, denial.deniedAt, denial.expiresAt);
+  }
+
+  /** The denial of this joiner's request with the invite `tag` names, while that invite is still valid at `now`. */
+  joinDenial(groupId: string, endpointId: EndpointId, tag: string, now: string): CollabJoinDenial | null {
+    const row = this.sql
+      .prepare('SELECT * FROM collab_join_denials WHERE group_id = ? AND endpoint_id = ? AND tag = ? AND expires_at > ?')
+      .get(groupId, endpointId, tag, now) as CollabDenialRow | undefined;
+    return row ? collabDenialOf(row) : null;
+  }
+
+  /** Every denial of a group still within its invite's validity, oldest first. */
+  joinDenials(groupId: string, now: string): CollabJoinDenial[] {
+    const rows = this.sql
+      .prepare('SELECT * FROM collab_join_denials WHERE group_id = ? AND expires_at > ? ORDER BY denied_at, endpoint_id')
+      .all(groupId, now) as unknown as CollabDenialRow[];
+    return rows.map(collabDenialOf);
+  }
+
+  /** Forgets the denials whose invite has expired by `now`: nobody can ask with it any more. */
+  pruneJoinDenials(now: string): number {
+    return Number(this.sql.prepare('DELETE FROM collab_join_denials WHERE expires_at <= ?').run(now).changes);
+  }
+
+  /** Forgets the rows of a group this install left: its relayed joins, denials and spent secrets. */
   dropGroup(groupId: string): void {
     this.tx(() => {
       this.sql.prepare('DELETE FROM collab_join_requests WHERE group_id = ?').run(groupId);
+      this.sql.prepare('DELETE FROM collab_join_denials WHERE group_id = ?').run(groupId);
       this.sql.prepare('DELETE FROM collab_used_invites WHERE group_id = ?').run(groupId);
     });
   }

@@ -189,6 +189,8 @@ const sources: ReaderSources = {
 };
 
 const joinCalls: string[] = [];
+/** The tag of the invite the stranger was denied with */
+const DENIED_TAG = 'd'.repeat(64);
 const joins: JoinPort = {
   join: async (from, g) => {
     joinCalls.push(`join:${from}:${g.groupId}`);
@@ -201,6 +203,11 @@ const joins: JoinPort = {
   leave: async (from, g) => {
     joinCalls.push(`leave:${from}:${g.groupId}`);
     return { type: 'ack' };
+  },
+  denied: (from, g, tag) => from === stranger.id && g.groupId === team.groupId && tag === DENIED_TAG,
+  joinAnswers: async (from, g) => {
+    joinCalls.push(`joinAnswers:${from}:${g.groupId}`);
+    return { type: 'joinAnswers', groupId: g.groupId, denied: [] };
   },
 };
 
@@ -239,6 +246,9 @@ const docHash = sha(`# Plan of shared\n`);
 const everyFrame = (): unknown[] => [
   { type: 'hello', heads: { [team.groupId]: headOf(team.chain) } },
   { type: 'roster', groupId: team.groupId, sinceVersion: 0 },
+  // A tag nobody was denied with is answered as a roster ask is
+  { type: 'roster', groupId: team.groupId, sinceVersion: 0, denial: 'e'.repeat(64) },
+  { type: 'joinAnswers', groupId: team.groupId },
   { type: 'joinRelay', groupId: team.groupId, sealed: 'A'.repeat(80), from: stranger.id, receivedAt: '2026-10-16T10:00:00.000Z', expiresAt: null },
   { type: 'leave', groupId: team.groupId },
   { type: 'catalog', groupId: team.groupId },
@@ -280,6 +290,21 @@ test('join is the one frame taken from a non-member, for a group this install ho
   assert.deepEqual((await ask(member.id, { type: 'leave', groupId: team.groupId })).frames, [{ type: 'ack' }]);
   assert.deepEqual((await ask(member.id, { type: 'joinRelay', groupId: team.groupId, sealed: 'C'.repeat(80), from: stranger.id, receivedAt: '2026-10-16T10:00:00.000Z', expiresAt: null })).frames, [{ type: 'ack' }]);
   assert.deepEqual(joinCalls, [`join:${stranger.id}:${team.groupId}`, `leave:${member.id}:${team.groupId}`, `joinRelay:${member.id}:${team.groupId}`]);
+});
+
+test('a joiner that names the invite it was denied with is told denied; another tag, group or asker is answered as before', async () => {
+  joinCalls.length = 0;
+  assert.deepEqual((await ask(stranger.id, { type: 'roster', groupId: team.groupId, sinceVersion: 0, denial: DENIED_TAG })).frames, [{ type: 'denied', groupId: team.groupId }]);
+  assert.equal(errorOf(await ask(stranger.id, { type: 'roster', groupId: team.groupId, sinceVersion: 0 })), 'forbidden');
+  assert.equal(errorOf(await ask(stranger.id, { type: 'roster', groupId: otherTeam.groupId, sinceVersion: 0, denial: DENIED_TAG })), 'forbidden');
+  assert.equal(errorOf(await ask(otherMember.id, { type: 'roster', groupId: team.groupId, sinceVersion: 0, denial: DENIED_TAG })), 'forbidden');
+  // A member gets its roster whatever it names
+  assert.equal((await ask(member.id, { type: 'roster', groupId: team.groupId, sinceVersion: 0, denial: DENIED_TAG })).frames[0]?.type, 'roster');
+  // A tag that is not one is no request at all
+  assert.equal(errorOf(await ask(stranger.id, { type: 'roster', groupId: team.groupId, sinceVersion: 0, denial: 'nope' })), 'bad-request');
+  // The owner hands its denials to a member of the group only
+  assert.deepEqual((await ask(member.id, { type: 'joinAnswers', groupId: team.groupId })).frames, [{ type: 'joinAnswers', groupId: team.groupId, denied: [] }]);
+  assert.deepEqual(joinCalls, [`joinAnswers:${member.id}:${team.groupId}`]);
 });
 
 test('every frame about a project is refused for an unshared project, and for one shared with another group', async () => {

@@ -6,7 +6,7 @@ import test from 'node:test';
 import type { RosterVersion } from '@claudio/shared';
 import { DEFAULT_COLLABORATORS_SETTINGS, CollaboratorsSettingsStore, parseCollaboratorsUpdate } from '../src/collab/settings.ts';
 import { GroupsStore } from '../src/collab/groups-store.ts';
-import { COLLAB_SCHEMA_VERSION, CollabStore, Db, migrate } from '../src/db.ts';
+import { COLLAB_DENIALS_SCHEMA_VERSION, COLLAB_SCHEMA_VERSION, CollabStore, Db, migrate } from '../src/db.ts';
 import { tempConfig } from './helpers.ts';
 
 const at = '2026-10-16T10:00:00.000Z';
@@ -154,6 +154,47 @@ test('relayed joins are held until forwarded or expired, and a second request fr
     assert.equal(store.pruneJoinRequests('2026-10-16T12:00:00.000Z'), 1, 'the forwarded one goes');
     assert.equal(store.pruneJoinRequests('2026-10-18T00:00:00.000Z'), 1, 'the expired one goes');
     assert.equal(store.joinRequests().length, 0);
+  });
+});
+
+test('the denied joins migration upgrades a database from the version before it, keeping its relayed joins', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
+  migrate(raw, COLLAB_DENIALS_SCHEMA_VERSION - 1);
+  assert.equal(raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'collab_join_denials'").get(), undefined);
+  new CollabStore(raw).putJoinRequest({ groupId, fromEndpointId: owner, sealed: 'x', relayedBy: null, expiresAt: null, receivedAt: at });
+  raw.close();
+  const db = new Db(config);
+  try {
+    const store = new CollabStore(db.connection);
+    assert.equal(store.joinRequests().length, 1, 'the held join survived');
+    store.putJoinDenial({ groupId, endpointId: owner, tag: 't'.repeat(64), secretHash: null, deniedAt: at, expiresAt: later });
+    assert.equal(store.joinDenials(groupId, at).length, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test('a denial is found by its joiner and tag until its invite expires, refreshed rather than doubled, and forgotten with its group', () => {
+  withDb((store) => {
+    const joiner = 'c'.repeat(64);
+    const tag = '1'.repeat(64);
+    store.putJoinDenial({ groupId, endpointId: joiner, tag, secretHash: 'h'.repeat(64), deniedAt: at, expiresAt: later });
+    // A member learning the same denial keeps the owner's hash, and does not add a second row
+    store.putJoinDenial({ groupId, endpointId: joiner, tag, secretHash: null, deniedAt: later, expiresAt: later });
+    assert.deepEqual(store.joinDenials(groupId, at), [{ groupId, endpointId: joiner, tag, secretHash: 'h'.repeat(64), deniedAt: later, expiresAt: later }]);
+    assert.ok(store.joinDenial(groupId, joiner, tag, at));
+    // Another invite of the same joiner, or another joiner, was not denied
+    assert.equal(store.joinDenial(groupId, joiner, '2'.repeat(64), at), null);
+    assert.equal(store.joinDenial(groupId, owner, tag, at), null);
+    // Past the invite's expiry nobody can ask with it, so it is no answer and is pruned
+    assert.equal(store.joinDenial(groupId, joiner, tag, later), null);
+    assert.equal(store.pruneJoinDenials(at), 0);
+    assert.equal(store.pruneJoinDenials(later), 1);
+    store.putJoinDenial({ groupId, endpointId: joiner, tag, secretHash: null, deniedAt: at, expiresAt: later });
+    store.dropGroup(groupId);
+    assert.deepEqual(store.joinDenials(groupId, at), []);
   });
 });
 
