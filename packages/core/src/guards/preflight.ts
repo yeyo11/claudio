@@ -29,6 +29,14 @@ export class GuardUnavailableError extends Error {
   }
 }
 
+/** The first self-test has not finished: a launch that cannot wait tries again shortly, it is not refused */
+export class GuardSelfTestPending extends Error {
+  constructor() {
+    super('the guard self-test is still running');
+    this.name = 'GuardSelfTestPending';
+  }
+}
+
 /** The operator's own guard entry, trusted wherever it is (O4) */
 export const GUARD_ENTRY_ENV = 'CLAUDIO_GUARD_ENTRY';
 /** Where the CLI reads managed settings on Linux */
@@ -197,6 +205,7 @@ export async function runGuardSelfTest(launch: GuardLaunch): Promise<void> {
 export class GuardPreflight {
   private readonly passed = new Map<string, number>();
   private readonly pending = new Map<string, Promise<void>>();
+  private readonly failed = new Map<string, Error>();
 
   constructor(
     private readonly deps: { now?: () => number; selfTest?: (launch: GuardLaunch) => Promise<void>; ttlMs?: number } = {},
@@ -217,8 +226,18 @@ export class GuardPreflight {
     const { launch } = input;
     const key = [launch.execPath, launch.entry, launch.electron, launch.nodeVersion].join('\0');
     const at = this.passed.get(key);
-    if (at === undefined || (this.deps.now ?? Date.now)() - at >= (this.deps.ttlMs ?? SELF_TEST_TTL_MS)) void this.selfTest(launch).catch(() => {});
-    if (at === undefined) throw new GuardUnavailableError('self-test-failed', 'the guard self-test has not passed yet; it runs now, so try again in a moment');
+    const stale = at === undefined || (this.deps.now ?? Date.now)() - at >= (this.deps.ttlMs ?? SELF_TEST_TTL_MS);
+    if (stale && !this.pending.has(key)) {
+      this.selfTest(launch).then(
+        () => this.failed.delete(key),
+        (error: unknown) => void this.failed.set(key, error instanceof Error ? error : new Error(String(error))),
+      );
+    }
+    if (at !== undefined) return;
+    // No pass yet: a failure already seen is the answer; a test still running is a wait, not a refusal
+    const failure = this.failed.get(key);
+    if (failure) throw failure;
+    throw new GuardSelfTestPending();
   }
 
   /** At server start, so a broken guard is known before the first launch */

@@ -92,7 +92,7 @@ import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { parseGuardOverride } from './guards/settings.ts';
 import type { GuardRunKind } from './guards/resolve.ts';
-import { GuardUnavailableError } from './guards/preflight.ts';
+import { GuardSelfTestPending, GuardUnavailableError } from './guards/preflight.ts';
 import type { GuardLauncher } from './guards/launch.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 
@@ -1302,7 +1302,7 @@ export class Orchestrator {
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('Concurrent run limit')) {
+    if (message.includes('Concurrent run limit') || err instanceof GuardSelfTestPending) {
       setTimeout(() => this.schedule(orch), 3000).unref();
       return false;
     }
