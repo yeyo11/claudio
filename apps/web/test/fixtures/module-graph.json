@@ -50,7 +50,7 @@
   "CommandPalette [CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT]",
   "CompactDialog [CompactDialog, CompactForm]",
   "CompactionDivider [CompactionActions, CompactionDivider, compactionLabel]",
-  "Composer [Composer, ComposerKind, KeysHint, OptionsPanel, StartChoices, StatusChips]",
+  "Composer [Composer, ComposerKind, KeysHint, OptionsPanel, StartChoices, StartComposer, StatusChips]",
   "ComposerMenu [ComposerMenu, mcpKey]",
   "Connectors [Connectors]",
   "ConsentDialog [ConsentDialog, ConsentNotice, JEV_HOST, PreviewBody]",

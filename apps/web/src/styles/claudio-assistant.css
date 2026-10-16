@@ -124,14 +124,7 @@
   color: var(--fg-2);
 }
 
-/* The context and the model, under the box */
-.as-composer-foot {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
+/* The context, first in the chat composer's line of chips (`.composer-foot`) */
 .as-context {
   min-width: 0;
   gap: 4px;
