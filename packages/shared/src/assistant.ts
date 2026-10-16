@@ -17,14 +17,14 @@ import { valuesOf } from './work-items.ts';
 // The value lists of the project assistant (orchestration 4), so the core, the API's validation and
 // the web agree on them, and the few rules both ends apply.
 
-export const ASSISTANT_RUN_KINDS = valuesOf<AssistantRunKind>()(['project', 'work-items', 'resources']);
+export const ASSISTANT_RUN_KINDS = valuesOf<AssistantRunKind>()(['project', 'work-items', 'resources', 'evals']);
 
 export const ASSISTANT_RUN_STATUSES = valuesOf<AssistantRunStatus>()(['running', 'completed', 'failed', 'stopped']);
 
 export const ASSISTANT_RUN_ACTIONS = valuesOf<AssistantRunAction>()(['started', 'read', 'ended', 'failed']);
 
 /** In the order a `project` run's page draws them: the team, the resources, the first work items */
-export const ASSISTANT_PROPOSAL_KINDS = valuesOf<AssistantProposalKind>()(['team-member', 'resource', 'work-item']);
+export const ASSISTANT_PROPOSAL_KINDS = valuesOf<AssistantProposalKind>()(['team-member', 'resource', 'work-item', 'eval-case']);
 
 export const ASSISTANT_PROPOSAL_STATUSES = valuesOf<AssistantProposalStatus>()(['pending', 'accepted', 'discarded', 'superseded']);
 
@@ -67,6 +67,7 @@ export const ASSISTANT_PROPOSAL_KINDS_OF_RUN = {
   project: ['team-member', 'resource', 'work-item'],
   'work-items': ['work-item'],
   resources: ['resource'],
+  evals: ['eval-case'],
 } as const satisfies Record<AssistantRunKind, readonly AssistantProposalKind[]>;
 
 /**
