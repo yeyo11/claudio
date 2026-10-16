@@ -184,6 +184,8 @@ export class CollaboratorsService {
   private readonly tickets = new Map<string, string>();
   private readonly presence = new Map<string, { online: boolean; path: CollaboratorsPath | null }>();
   private readonly conflicts = new Map<string, { version: number; hashes: string[] }>();
+  /** The endpoint id this install was a member of each group as (`GroupDoc.heldAs`) */
+  private readonly heldAs = new Map<string, string>();
   private readonly defaultKeys = new Map<string, Promise<string | null>>();
   private seedCache: Buffer | null = null;
   private hostStatus: HostStatus | null = null;
@@ -198,7 +200,11 @@ export class CollaboratorsService {
     this.groups = new GroupsStore(deps.config);
     this.dir = join(deps.config.dataDir, 'collaborators');
     this.pendingFile = join(this.dir, 'pending-joins.json');
-    for (const doc of this.groups.all()) if (doc.chain.length) this.chains.set(doc.groupId, doc.chain);
+    for (const doc of this.groups.all()) {
+      if (!doc.chain.length) continue;
+      this.chains.set(doc.groupId, doc.chain);
+      if (doc.heldAs) this.heldAs.set(doc.groupId, doc.heldAs);
+    }
     this.host = (deps.host ?? ((options) => new CollabHost(options)))({
       serve: (from, frame, sink) => this.incoming(from, frame, sink),
       listener: {
@@ -258,7 +264,36 @@ export class CollaboratorsService {
 
   /** Binds the endpoint when Collaborators is on; with it off, nothing of iroh is loaded */
   async start(): Promise<void> {
+    await this.recordHeldAs();
     if (this.settings.read().enabled) await this.bind();
+  }
+
+  /**
+   * A chain stored before `heldAs` was kept learns it now, from the key held, when that key is a
+   * member of its head. A key that is not a member records nothing: it may be a new one made after
+   * the old was lost, and recording it would hide that the group is frozen.
+   */
+  private async recordHeldAs(): Promise<void> {
+    const me = this.endpointId();
+    for (const [groupId, chain] of this.chains) {
+      const head = chain.at(-1);
+      const held = this.heldAs.get(groupId);
+      if (held && held !== me && head?.owner === held) this.log(`collab: group ${short(groupId)} is frozen: it was owned by ${short(held)}, a key this install no longer holds`);
+      if (held || !me || !head || !isMember(head, me)) continue;
+      await this.groups.setHeldAs(groupId, me);
+      this.heldAs.set(groupId, me);
+    }
+  }
+
+  /**
+   * The group can no longer change (§3.3): this install held it as its owner, and the key it holds
+   * now is another, so nobody has the key that signs the next version. Only the install that lost
+   * the key can tell; to its members the owner just looks offline.
+   */
+  private isFrozen(groupId: string, head: RosterVersion): boolean {
+    const me = this.endpointId();
+    const held = this.heldAs.get(groupId);
+    return !!me && !!held && held !== me && head.owner === held;
   }
 
   private async bind(): Promise<void> {
@@ -490,8 +525,7 @@ export class CollaboratorsService {
       owner: head.owner,
       isOwner,
       members,
-      // Nothing outside the owner's install can tell its key is lost; the page says so when the person does
-      frozen: false,
+      frozen: this.isFrozen(groupId, head),
       conflict: this.conflicts.get(groupId) ?? null,
       joinRequestCount: isOwner ? this.deps.store.joinRequests({ groupId }).length : 0,
     };
@@ -518,8 +552,10 @@ export class CollaboratorsService {
     const trimmed = typeof name === 'string' ? name.trim() : '';
     if (!trimmed || trimmed.length > 100) throw new CollaboratorsError('invalid', 'A group needs a name of at most 100 characters');
     const genesis = createGenesis({ seed, name: trimmed, owner: this.me() });
-    await this.groups.setChain(genesis.groupId, [genesis]);
+    const me = endpointIdFromSeed(seed);
+    await this.groups.setChain(genesis.groupId, [genesis], me);
     this.chains.set(genesis.groupId, [genesis]);
+    this.heldAs.set(genesis.groupId, me);
     this.changed('roster', genesis.groupId);
     return this.getGroup(genesis.groupId);
   }
@@ -533,12 +569,15 @@ export class CollaboratorsService {
   /** Writes a chain that grew, and acts on what changed in its membership */
   private async commit(groupId: string, chain: RosterVersion[]): Promise<void> {
     const prev = this.chains.get(groupId)?.at(-1) ?? null;
-    await this.groups.setChain(groupId, chain);
-    this.chains.set(groupId, chain);
     const head = chain.at(-1) as RosterVersion;
+    const me = this.endpointId();
+    // Only a key the head lists is recorded: a chain that drops this install keeps the id it held
+    const heldAs = me && isMember(head, me) ? me : undefined;
+    await this.groups.setChain(groupId, chain, heldAs);
+    this.chains.set(groupId, chain);
+    if (heldAs) this.heldAs.set(groupId, heldAs);
     const conflict = this.conflicts.get(groupId);
     if (conflict && head.version > conflict.version) this.conflicts.delete(groupId);
-    const me = this.endpointId();
     if (prev) {
       for (const removed of membershipChanges(prev, head).removed) {
         if (removed.endpointId === me || this.peerIds().has(removed.endpointId)) continue;
@@ -629,6 +668,7 @@ export class CollaboratorsService {
     await this.serialized(async () => {
       this.chains.delete(groupId);
       this.conflicts.delete(groupId);
+      this.heldAs.delete(groupId);
       await this.groups.delete(groupId);
       this.deps.store.dropGroup(groupId);
     });

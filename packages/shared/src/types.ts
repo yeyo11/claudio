@@ -5103,7 +5103,11 @@ export interface Group {
   isOwner: boolean;
   /** The head version's members, the owner first */
   members: GroupMember[];
-  /** The owner's install is gone (its key is lost): the group can no longer change */
+  /**
+   * The owner's install is gone (its key is lost): the group can no longer change. Known on the
+   * install that held the group as its owner and holds another key now (a vault lost or restored
+   * apart from the data); to a member, the owner only looks offline.
+   */
   frozen: boolean;
   /**
    * The owner's install found two versions with the same number and different hashes (§3.3). Shown
