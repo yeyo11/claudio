@@ -151,8 +151,12 @@ import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { agentsDefinitionFile } from './agents-file.ts';
+import { EvalConsents, EvalDefinitionStore } from './evals/definition.ts';
+import { EvalRunner } from './evals/runner.ts';
+import { EvalService } from './evals/service.ts';
+import { EvalStore } from './evals/store.ts';
 import { TeamService } from './team.ts';
-import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
+import { FlowError, FlowService, stagePolicy, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
 import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
@@ -227,6 +231,10 @@ export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { ProviderRotation, effectiveOnLimit, openWaitOf } from './rotation.ts';
+export { EvalService } from './evals/service.ts';
+export { EvalStartError } from './evals/runner.ts';
+export { EvalFileError } from './evals/definition.ts';
+export { exportRun, type EvalExportFormat } from './evals/export.ts';
 export { stanceOf } from './decisions/stance.ts';
 
 export {
@@ -455,6 +463,8 @@ export class Core {
   readonly uploads: UploadStore;
   /** What happens when Claude reaches its limit: the account to move to, else the waits and the timers behind them */
   readonly rotation: ProviderRotation;
+  /** The instruction evals: files, runs and their export (docs/plans/instruction-evals.md) */
+  readonly evals: EvalService;
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
@@ -1169,6 +1179,7 @@ export class Core {
     });
     void this.runtime.restore(this.sessions).finally(() => {
       this.orchestrator.recover();
+      void this.evals.load().catch(() => undefined);
       try {
         this.flow.recover();
         // The waits this process owns: its chats are back, so their timers can be armed
@@ -1193,8 +1204,44 @@ export class Core {
       const path = change.scope.projectPath;
       for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
     });
+    const evalStore = new EvalStore(this.db.connection);
+    const evalDefinitions = new EvalDefinitionStore();
+    const evalConsents = new EvalConsents(config);
+    const evalProjectPath = (id: string): string | null => this.projectStore.get(id)?.path ?? null;
+    const evalRunner = new EvalRunner({
+      store: evalStore,
+      runtime: this.runtime,
+      config,
+      consents: evalConsents,
+      definitions: evalDefinitions,
+      emit: (event) => this.events.emit(event),
+      projectPath: evalProjectPath,
+      maxConcurrentRuns: () => this.runtime.defaults.maxConcurrentRuns,
+      memberRun: (projectId, agent, stage) => {
+        const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
+        const member = settings?.team?.members.find((m) => m.agent === agent);
+        if (!member) return null;
+        const { permissionMode, policy } = stagePolicy(stage, member.writes, {
+          documentsPath: settings?.documents?.path ?? DEFAULT_DOCUMENTS_PATH,
+          checks: [],
+          commands: member.commands,
+        });
+        return { permissionMode, policy, model: member.model };
+      },
+      // Null when an account can take a sample; else when the earliest of the ones that could resets
+      availability: (_model, account) => {
+        const now = Date.now();
+        const ready = this.accounts.list().filter((a) => a.enabled && a.signedIn && (account === null || a.id === account));
+        const out = (a: (typeof ready)[number]): boolean => a.limits?.state === 'exhausted' && (a.limits.resetsAt === null || Date.parse(a.limits.resetsAt) > now);
+        if (ready.length === 0 || !ready.every(out)) return null;
+        const resets = ready.flatMap((a) => (a.limits?.resetsAt ? [Date.parse(a.limits.resetsAt)] : []));
+        return { waitUntil: resets.length === ready.length ? Math.min(...resets) : null };
+      },
+    });
+    this.evals = new EvalService({ store: evalStore, runner: evalRunner, definitions: evalDefinitions, consents: evalConsents, projectPath: evalProjectPath });
     this.rotation = new ProviderRotation({
       db: this.db,
+      evalSample: (chatId) => this.evals.isSample(chatId),
       runtime: this.runtime,
       settings: () => this.providersSettings.get(),
       projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
@@ -2826,6 +2873,7 @@ export class Core {
     this.hosts.close();
     this.decisionResolvers.stop();
     this.decisions.stop();
+    void this.evals.close().catch(() => undefined);
     this.orchestrator.close();
     this.spend.close();
     this.schedules.close();
