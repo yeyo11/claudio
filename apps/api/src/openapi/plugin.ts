@@ -30,7 +30,11 @@ export async function registerOpenApi(app: FastifyInstance, version: string): Pr
           'piece of user or project configuration.\n\nErrors are `{ "error": "…" }` with a 4xx status.\n\n' +
           'Authentication is off by default (`mode: none`), which is what a local install wants. With `token` ' +
           'or `oidc` (see the Security tag) every route needs `Authorization: Bearer …` except `GET /api/health`; ' +
-          'Claudio never terminates TLS itself, so put a reverse proxy in front before exposing the port.',
+          'Claudio never terminates TLS itself, so put a reverse proxy in front before exposing the port.\n\n' +
+          'With a daily spend cap set (`dailySpendCapUsd`), the routes that start work on a person\'s say-so answer ' +
+          '`409 { error, code: "spend-cap", spend }` once the day\'s spend reaches it. A request carrying ' +
+          '`X-Claudio-Spend-Override: 1` goes on, and on a route that starts or resumes a graph it gives that graph today\'s pass. ' +
+          'A request authenticated by a chat\'s token cannot override: the header is ignored and the 409 stands.',
       },
       servers: [{ url: '/', description: 'This wrapper' }],
       tags: TAGS,

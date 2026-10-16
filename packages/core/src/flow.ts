@@ -274,6 +274,8 @@ export interface FlowDeps {
   decisions?: Pick<DecisionEngine, 'ask' | 'effective' | 'resolve'>;
   /** The commit subjects and changed paths of what the item's branch did, for the `flow.criteria-precheck` state */
   workDone?: (item: WorkItem) => { commits: string[]; paths: string[] } | null;
+  /** The daily spend cap lets a new run start; without it every run may (docs/plans/agent-run-improvements.md) */
+  spendOpen?: () => boolean;
 }
 
 /** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
@@ -1367,6 +1369,11 @@ export class FlowService {
     this.dispatching = this.dispatching.then(() => this.dispatchNow()).catch(() => undefined);
   }
 
+  /** Runs queued for a first start, the ones the daily spend cap holds back when it is reached. */
+  queuedCount(): number {
+    return (this.sql.prepare("SELECT COUNT(*) AS n FROM flow_runs WHERE state = 'queued' AND chat_id IS NULL").get() as { n: number }).n;
+  }
+
   /** Waits for every dispatch asked for so far; for tests and for shutting down cleanly. */
   async settled(): Promise<void> {
     // A decision that comes back may queue a run, which dispatches again: wait until both are quiet
@@ -1416,6 +1423,9 @@ export class FlowService {
     const now = new Date().toISOString();
     let claimed = false;
     this.write(() => {
+      // Over the daily cap a new run stays queued, in its place; one that already has its chat
+      // (a restart's, a continuation) is in flight and is not asked
+      if (row.chat_id === null && this.deps.spendOpen?.() === false) return;
       const running = this.sql.prepare("SELECT item_id FROM flow_runs WHERE project_id = ? AND state = 'running'").all(row.project_id) as Array<{ item_id: string }>;
       if (running.length >= maxParallel(project.settings)) return;
       // One run at a time on an item: the next waits for the one working on it

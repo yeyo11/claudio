@@ -196,6 +196,7 @@ import type {
   ScheduleRun,
   SendTestPushRequest,
   SetAuthTokenRequest,
+  SpendState,
   SetCredentialsRequest,
   SettingsDoc,
   StartClaudioAssistantChatRequest,
@@ -273,6 +274,7 @@ import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
 import { mergeRefetchMs } from './lib/merge';
+import { askSpendCap, acknowledgeSpend, SPEND_OVERRIDE_HEADER, spendAcknowledged, spendScope } from './lib/spend-cap';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
 export const BASE = '/api';
@@ -284,14 +286,17 @@ export class ApiRequestError extends Error {
   readonly code?: string;
   /** The review post a refusal belongs to: a partly posted review is published or discarded by it */
   readonly postId?: string;
+  /** Today's spend, on a refusal at the daily cap (`code: 'spend-cap'`) */
+  readonly spend?: SpendState;
 
-  constructor(message: string, status: number, detail?: string, code?: string, postId?: string) {
+  constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.detail = detail;
     this.code = code;
     this.postId = postId;
+    this.spend = spend;
   }
 }
 
@@ -336,15 +341,18 @@ export interface ChangeRequestFixResult {
   pullRequest: WorkItemPullRequest | OrchestrationPullRequest | null;
 }
 
-async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
+async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal; spendOverride?: boolean } = {}): Promise<T> {
   const hasBody = init.body !== undefined;
+  // A person who already said "go on" for this chat today is not asked again on its next turn
+  const scope = spendScope(init.method ?? 'GET', path);
+  const override = init.spendOverride === true || (scope !== null && spendAcknowledged(scope));
   const timeout = AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
       // The language the person reads Claudio in, for what the server writes in it (a chat's title)
-      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...authHeaders() },
+      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...(override ? { [SPEND_OVERRIDE_HEADER]: '1' } : {}), ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
       signal: init.signal ? either(init.signal, timeout) : timeout,
     });
@@ -374,7 +382,16 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
     const code = (err as { code?: unknown }).code;
     const postId = (err as { postId?: unknown }).postId;
-    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined);
+    const spend = code === 'spend-cap' ? (err as { spend?: SpendState }).spend : undefined;
+    // The daily cap was reached: the person decides, and a yes sends the same request again with the override
+    if (spend && scope !== null && !override) {
+      if (await askSpendCap(spend)) {
+        acknowledgeSpend(scope);
+        return request<T>(path, { ...init, spendOverride: true });
+      }
+      throw new ApiRequestError(i18n.t('components:spendCap.declined'), res.status, undefined, 'spend-cap', undefined, spend);
+    }
+    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
   }
   return json as T;
 }
@@ -754,6 +771,10 @@ export const api = {
   clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
   /** The settings that change at runtime; a key the environment set is refused, so send only what changed */
   appSettings: (o: ReadOptions = {}) => request<AppSettings>('/settings/app', o),
+  /** Today's spend against the daily cap */
+  spend: (o: ReadOptions = {}) => request<SpendState>('/spend', o),
+  /** Lets a graph run past today's cap; answers the graph */
+  grantSpendPass: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/spend-pass`, { method: 'POST' }),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
   /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
   dashboardLayout: (project: string, o: ReadOptions = {}) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, o),
@@ -1292,6 +1313,8 @@ export const keys = {
   pushSubscriptions: ['push', 'subscriptions'] as const,
   // Both are written whole from their events (lib/events.ts), never refetched for them
   appSettings: ['settings', 'app'] as const,
+  // Read again on `spend.changed` (lib/events.ts)
+  spend: ['spend'] as const,
   tunnel: ['tunnel'] as const,
   // Written whole from `dashboard.layout` (lib/events.ts), never refetched for it
   dashboardLayout: (project: string) => ['dashboard-layout', project] as const,
@@ -1319,6 +1342,9 @@ export function useMergeState(id: string | undefined, enabled = true) {
 /** The accounts, default first; the server reads them again from disk, so one added in a terminal shows up. */
 export const useAccounts = (enabled = true) =>
   useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts({ signal }), refetchInterval: useFallbackInterval(), enabled });
+
+/** Today's spend against the daily cap; `capUsd` is null while no cap is set. */
+export const useSpend = () => useQuery({ queryKey: keys.spend, queryFn: ({ signal }) => api.spend({ signal }), refetchInterval: useFallbackInterval() });
 
 export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: useFallbackInterval() });
 

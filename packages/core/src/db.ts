@@ -32,6 +32,7 @@ import type {
   ProviderMoveState,
   RateLimitWindow,
   RotationEvent,
+  SpendPurpose,
   SupervisorProposal,
   SupervisorProposalStatus,
   UsageHistoryPoint,
@@ -1155,6 +1156,20 @@ function toProviderMove(row: ProviderMoveRow): ProviderMove {
   };
 }
 
+/** One result's row of the daily spend ledger. */
+export interface SpendRow {
+  at: string;
+  chatId: string;
+  executionId: string;
+  usd: number;
+  reported: boolean;
+  purpose: SpendPurpose;
+  account: string | null;
+  accountKind: string | null;
+  projectId: string | null;
+  orchestrationId: string | null;
+}
+
 export class Db {
   private readonly db: DatabaseSync;
   private auditWrites = 0;
@@ -1622,6 +1637,41 @@ export class Db {
 
   loadOrchestrations(): Orchestration[] {
     return this.loadDocs<Orchestration>('orchestrations');
+  }
+
+  // ---------- daily spend ledger ----------
+
+  addSpend(row: SpendRow): void {
+    this.db
+      .prepare(
+        `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId);
+  }
+
+  /** What the ledger holds in `[from, to)`, by purpose and account kind, and how many results carried no cost. */
+  spendBetween(from: string, to: string): { groups: Array<{ purpose: string; accountKind: string | null; usd: number }>; unreported: number } {
+    const groups = (
+      this.db.prepare('SELECT purpose, account_kind, SUM(usd) AS usd FROM spend_ledger WHERE at >= ? AND at < ? GROUP BY purpose, account_kind').all(from, to) as Array<{
+        purpose: string;
+        account_kind: string | null;
+        usd: number;
+      }>
+    ).map((g) => ({ purpose: g.purpose, accountKind: g.account_kind, usd: g.usd }));
+    const { n } = this.db.prepare('SELECT COUNT(*) AS n FROM spend_ledger WHERE at >= ? AND at < ? AND reported = 0').get(from, to) as { n: number };
+    return { groups, unreported: n };
+  }
+
+  /** True only for the process that wrote the row: the alert of that day and level is its to raise. */
+  addSpendAlert(day: string, level: string): boolean {
+    return this.db.prepare('INSERT OR IGNORE INTO spend_alerts (day, level, at) VALUES (?, ?, ?)').run(day, level, new Date().toISOString()).changes === 1;
+  }
+
+  /** Drops what is older than the cutoff: only today's rows decide anything. */
+  pruneSpend(before: string, beforeDay: string): void {
+    this.db.prepare('DELETE FROM spend_ledger WHERE at < ?').run(before);
+    this.db.prepare('DELETE FROM spend_alerts WHERE day < ?').run(beforeDay);
   }
 
   // ---------- model context windows ----------

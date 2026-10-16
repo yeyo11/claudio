@@ -66,7 +66,16 @@
       "unknown": "Su última lectura está desfasada, así que no se conoce su límite",
       "none": "{{provider}} no informa de su límite"
     },
-    "account": "Cuenta en la que empiezan los chats nuevos"
+    "account": "Cuenta en la que empiezan los chats nuevos",
+    "spend": {
+      "label": "tope diario",
+      "near": "cerca del tope",
+      "reached": "tope alcanzado · vuelve a las {{time}}",
+      "tipSpent": "{{spent}} de {{cap}} hoy, según el CLI",
+      "tipUnreported_one": "{{count}} resultado sin coste, no contado",
+      "tipUnreported_other": "{{count}} resultados sin coste, no contados",
+      "tipZone": "Vuelve a empezar a las {{time}}, hora de {{zone}}"
+    }
   },
   "account": {
     "card": "Agentes y límites",

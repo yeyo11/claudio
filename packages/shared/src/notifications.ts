@@ -71,6 +71,10 @@ export interface NotificationText {
    * below stands in for what it lacks.
    */
   limitWaitingBody?(resetsAt: string | null): string;
+  /** The daily spend cap's two alerts; optional for the same reason, with the English below standing in */
+  spendWarnTitle?(): string;
+  spendExhaustedTitle?(): string;
+  spendBody?(spentUsd: number, capUsd: number): string;
   orchestrationFinished(name: string): string;
   orchestrationFailed(name: string): string;
   orchestrationDoneBody(): string;
@@ -88,6 +92,10 @@ export interface NotificationText {
 
 const limitWaitingBodyEnglish = (resetsAt: string | null): string =>
   resetsAt ? `It goes on when the limit resets, at ${resetsAt.slice(0, 16).replace('T', ' ')} UTC.` : 'It goes on when the limit resets; no reset time is known.';
+
+const spendWarnTitleEnglish = (): string => "Today's spend is at 75 % of the cap";
+const spendExhaustedTitleEnglish = (): string => 'Daily spend cap reached: automatic work waits until 00:00';
+const spendBodyEnglish = (spentUsd: number, capUsd: number): string => `$${spentUsd.toFixed(2)} of $${capUsd.toFixed(2)}, as the CLI reported it.`;
 
 /**
  * The English of `apps/web/src/i18n/locales/en/components.json`, for a caller with no translations
@@ -107,6 +115,9 @@ export const englishNotificationText: NotificationText = {
   rateLimited: (name) => `${name} hit a rate limit`,
   rateLimitedBody: () => 'The turn stopped because the account ran out of quota.',
   limitWaitingBody: limitWaitingBodyEnglish,
+  spendWarnTitle: spendWarnTitleEnglish,
+  spendExhaustedTitle: spendExhaustedTitleEnglish,
+  spendBody: spendBodyEnglish,
   orchestrationFinished: (name) => `Orchestration ${name} finished`,
   orchestrationFailed: (name) => `Orchestration ${name} failed`,
   orchestrationDoneBody: () => 'Every task completed.',
@@ -170,6 +181,8 @@ export const PROMPT_PARAM = 'prompt';
 // to that prompt instead of at the end of the transcript.
 export const chatHref = (chatId: string, promptId?: string): string =>
   `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
+/** Where the daily spend cap is set: Settings, where the runtime settings live */
+export const SPEND_CAP_HREF = '/settings?tab=security';
 export const orchestrationHref = (id: string): string => `/orchestration/${encodeURIComponent(id)}`;
 
 /** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
@@ -322,6 +335,22 @@ export function notificationsFor(event: ClaudioEvent, text: NotificationText = e
           orchestrationId: event.orchestrationId,
         }),
       ];
+
+    case 'spend.alert': {
+      const exhausted = event.level === 'exhausted';
+      return [
+        draft(event, {
+          // One per day and level: the server writes each only once, so the day is what tells two apart
+          key: `spend:${event.spend.day}:${event.level}`,
+          kind: 'limit',
+          priority: exhausted ? 'high' : 'normal',
+          tone: exhausted ? 'bad' : 'warn',
+          title: exhausted ? (text.spendExhaustedTitle ?? spendExhaustedTitleEnglish)() : (text.spendWarnTitle ?? spendWarnTitleEnglish)(),
+          body: (text.spendBody ?? spendBodyEnglish)(event.spend.spentUsd, event.spend.capUsd ?? 0),
+          href: SPEND_CAP_HREF,
+        }),
+      ];
+    }
 
     case 'orchestration.updated': {
       if (event.previousStatus === null || event.previousStatus === event.status) return [];

@@ -18,6 +18,7 @@ import type {
   PermissionMode,
   RunEvent,
   RunStatus,
+  SpendPurpose,
 } from '@claudio/shared';
 import { isEffort } from '@claudio/shared';
 import { ChatActivityTracker } from './chat-activity.ts';
@@ -110,6 +111,8 @@ export interface NewChat extends NewChatRequest {
    * that never calls the API back (a decision chat) holds no credential to it.
    */
   api?: false;
+  /** Why the chat spends, for the daily spend ledger; unset reads `other` */
+  purpose?: SpendPurpose;
   toolConfig?: ChatToolConfig | null;
   /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
   confine?: ChatConfinement;
@@ -159,6 +162,8 @@ export interface ExecutionExtras {
    */
   handBack?: boolean;
   confine?: ChatConfinement | null;
+  /** Why this execution spends, for the daily spend ledger; left out, the chat keeps the purpose it had */
+  purpose?: SpendPurpose;
 }
 
 export interface RunMeta {
@@ -270,6 +275,8 @@ export interface ChatHost {
   learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void;
   learnWindows(modelUsage: ModelUsage[]): void;
   maybeLimit(chat: LiveChat): void;
+  /** Writes one row of the daily spend ledger for a result: `usd` is the increase over the process's last report, null when the result carried no cost */
+  recordSpend(chat: LiveChat, execution: Execution, usd: number | null): void;
   /** Ends the chat's execution as failed for a protocol fault and takes the process down */
   failProtocol(chat: LiveChat, message: string): void;
 }
@@ -293,6 +300,8 @@ export class LiveChat {
   proc: ChildProcessWithoutNullStreams | null = null;
   /** When `proc` was spawned: its stream reports every workflow started since, and none before */
   procStartedAt: string | null = null;
+  /** The `total_cost_usd` the current process last reported; it is cumulative over the process, so each result's spend is the increase. Reset at every spawn. */
+  lastReportedCostUsd = 0;
   seq = 0;
   /** `seq` when the current execution began: a stream opened from here replays the whole execution */
   executionSeq = 0;
@@ -443,6 +452,9 @@ export class LiveChat {
         ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
         ...(record.claudioAssistant ? { claudioAssistant: record.claudioAssistant } : {}),
         ...(record.keepAlive === false ? { keepAlive: false } : {}),
+        // The purpose is not stored: what a person sends to a chat after a restart is theirs, and the
+        // starters set their own again when they resume it
+        ...(record.origin === 'orchestration' ? { purpose: 'orchestration' as const } : record.origin === 'claudio' || record.origin === 'external' ? { purpose: 'person' as const } : {}),
         ...(record.accountPinned && record.account ? { account: record.account } : {}),
       },
       { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },

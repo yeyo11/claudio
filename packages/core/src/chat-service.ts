@@ -665,7 +665,7 @@ export class ChatService {
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
   async create(
-    body: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
+    body: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine' | 'purpose'> & { policy?: ToolPolicy },
     onStart?: (chat: ChatRuntime) => void,
     /** Only the core's own entry for the Claudio assistant passes it: a body sent to the API never makes a chat one */
     claudioAssistant?: ClaudioAssistantMarker,
@@ -696,7 +696,7 @@ export class ChatService {
         : undefined;
       // A new chat thinks as hard as the guides recommend for its model; a provider without `effort` is passed none
       const effort = request.effort ?? recommendedEffort(request.model, 'chat') ?? undefined;
-      started = this.deps.runtime.start({ ...request, ...(effort ? { effort } : {}), ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
+      started = this.deps.runtime.start({ purpose: 'person', ...request, ...(effort ? { effort } : {}), ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
       onStart?.(started);
     } catch (err) {
       throw startFailure(err);
@@ -778,6 +778,8 @@ export class ChatService {
         uploads: extras.uploads ?? null,
         confine: extras.confine ?? null,
         ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
+        // A starter says what its execution is for; a person's own turn is theirs
+        purpose: extras.purpose ?? 'person',
         ...(handBack ? { handBack } : {}),
       },
       adoption,
@@ -804,7 +806,7 @@ export class ChatService {
     const chosen = handBack
       ? await this.deps.tools.resolve(picked, adoption.cwd, null)
       : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
-    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, ...(handBack ? { handBack } : {}) }, adoption);
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, purpose: 'person', ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
   }
 

@@ -776,3 +776,19 @@ test("the owner's token is still the owner's when chat tokens exist", async (t) 
   // The owner may still administer the guard, from anywhere the guard lets them in
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { readOnly: false }) })).statusCode, 200);
 });
+
+test("a chat's token cannot give a graph the spend pass or name the daily cap, and the owner can", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+
+  const pass = await app.inject({ method: 'POST', url: '/api/orchestrations/any/spend-pass', ...fromChatWith(token, {}) });
+  assert.equal(pass.statusCode, 403);
+  const cap = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { dailySpendCapUsd: null }) });
+  assert.equal(cap.statusCode, 403);
+  assert.match(cap.json().error, /daily spend cap/);
+  // What else a chat may write to the settings is not this route's business, and the cap is readable
+  assert.equal((await app.inject({ url: '/api/spend', ...fromChat(token) })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...authed(owner, { dailySpendCapUsd: 5 }) })).statusCode, 200);
+});

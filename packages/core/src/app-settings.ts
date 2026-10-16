@@ -173,6 +173,8 @@ export class AppSettingsStore implements RunDefaults {
    * Exact names the tunnel adds and removes; the guard answers them beside `allowedHosts`. A change
    * goes out as `settings.changed`, so the settings page lists the tunnel's host while it is lent.
    */
+  /** Told after a write that names the daily spend cap, so the gate re-dispatches what waited; set by Core */
+  onSpendCapChange: (() => void) | null = null;
   readonly runtimeHosts = new RuntimeHosts(() => this.deps.emit?.({ type: 'settings.changed', title: 'Settings changed', settings: this.get() }));
 
   constructor(
@@ -211,6 +213,11 @@ export class AppSettingsStore implements RunDefaults {
    */
   get allowedHosts(): readonly string[] {
     return this.current.allowedHosts;
+  }
+
+  /** The daily spend cap in USD; null for none. Read by the spend gate on every check. */
+  get dailySpendCapUsd(): number | null {
+    return this.current.dailySpendCapUsd;
   }
 
   get maxConcurrentRuns(): number {
@@ -256,6 +263,7 @@ export class AppSettingsStore implements RunDefaults {
     await write;
     const settings = this.get();
     this.deps.emit?.({ type: 'settings.changed', title: 'Settings changed', settings });
+    if (changes.dailySpendCapUsd !== undefined) this.onSpendCapChange?.();
     return settings;
   }
 

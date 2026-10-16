@@ -1657,3 +1657,68 @@ test('every process an orchestration starts is denied git push, not only told no
     delete process.env.FAKE_CLAUDE_SPAWNS;
   }
 });
+
+// ---------- the daily spend cap ----------
+
+test('over the daily spend cap pending tasks do not start unless the graph holds today\'s pass, and start when the gate opens', async () => {
+  const { db, repo, orchestrator, taskOf } = retryGraph();
+  const day = '2026-10-16';
+  const gate = { open: false };
+  orchestrator.spendOpen = (id) => gate.open || orchestrator.spendPassOf(id) === day;
+  const started = orchestrator.create({ ...graphOf(repo, [{ id: 'a', prompt: 'work' }, { id: 'b', prompt: 'work', dependsOn: ['a'] }, { id: 'c', prompt: 'work' }]), worktree: false, synthesize: false });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(['a', 'b', 'c'].map((id) => taskOf(started.id, id)?.status), ['pending', 'pending', 'pending']);
+  assert.equal(orchestrator.get(started.id)?.status, 'running', 'the graph waits, it does not fail');
+  assert.equal(orchestrator.waitingForSpend(), 2, 'the tasks ready to start; b still waits for a');
+
+  // Another pass of the scheduler changes nothing while the gate is shut
+  orchestrator.spendChanged();
+  assert.equal(taskOf(started.id, 'a')?.status, 'pending');
+
+  // A pass is for one graph: it lets this one through
+  orchestrator.grantSpendPass(started.id, day);
+  orchestrator.spendChanged();
+  const orch = await settle(orchestrator, started.id);
+  assert.equal(orch.status, 'completed');
+  assert.deepEqual(orch.tasks.map((t) => t.status), ['completed', 'completed', 'completed']);
+  assert.equal(orch.spendPass, day);
+  assert.equal(orchestrator.waitingForSpend(), 0);
+  db.close();
+});
+
+test('the first start of a workflow waits for the daily spend cap like a graph\'s first task', async () => {
+  const { db, repo, orchestrator } = retryGraph();
+  const gate = { open: false };
+  orchestrator.spendOpen = () => gate.open;
+  const started = orchestrator.create({ ...graphOf(repo, [{ id: 'a', prompt: 'work' }]), worktree: false, engine: 'workflow' });
+  assert.equal(started.engine, 'workflow');
+  assert.equal(orchestrator.get(started.id)?.workflow ?? null, null, 'no session was started');
+  assert.equal(orchestrator.get(started.id)?.tasks[0]?.status, 'pending');
+  assert.equal(orchestrator.waitingForSpend(), 1);
+  orchestrator.stop(started.id);
+  db.close();
+});
+
+test('a graph whose tasks have all started goes on to its verification and its fixer over the daily spend cap', async () => {
+  const { db, repo, orchestrator } = retryGraph();
+  const gate = { open: true };
+  orchestrator.spendOpen = () => gate.open;
+  const command = "echo 'FAKE-WRITE marker.txt repaired'; test -f marker.txt";
+  const started = orchestrator.create({
+    ...graphOf(repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt server' }]),
+    verification: { commands: [command], fixer: true, maxAttempts: 1, e2eSpecs: false },
+  });
+  // The task started under the cap; the cap is reached while it works
+  gate.open = false;
+  await until(
+    () => orchestrator.get(started.id),
+    (o) => !!o && o.status !== 'running' && o.verification?.status !== 'running',
+    'the graph to finish',
+  );
+  const orch = orchestrator.get(started.id) as Orchestration;
+  assert.equal(orch.verification?.status, 'fixed', orch.verification?.report ?? '');
+  assert.equal(orch.verification?.fixes?.length, 1, 'the fixer ran');
+  assert.equal(orch.tasks[0]?.status, 'completed');
+  assert.ok(orch.synthesisRunId, 'and so did the synthesis');
+  db.close();
+});

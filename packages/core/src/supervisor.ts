@@ -113,6 +113,8 @@ export interface SupervisorDeps {
   charge: (orchestrationId: string, costUsd: number) => void;
   /** The decision engine `supervisor.intervene` asks; absent, the point is off */
   decisions?: DecisionAsker;
+  /** The daily spend cap lets a new call be made; without it every call may. Over the cap health still shows, and nothing is asked. */
+  spendOpen?: () => boolean;
 }
 
 /** Where a proposal is acted on from: the chat, or the task of the graph whose worker it is. */
@@ -247,6 +249,8 @@ export class Supervisor {
     const config = this.config;
     // Housekeeping is not supervised: that would be the supervisor watching itself
     if (!config.enabled || chat.origin === 'internal') return null;
+    // Not recorded as asked either: once the cap lets go, the next announcement of the signal asks
+    if (this.deps.spendOpen?.() === false) return null;
     const answered = new Set(this.deps.db.proposalsOf(chat.id).map((p) => p.signal));
     const signal = signals.find((s) => {
       const key = `${chat.id}:${s.kind}`;

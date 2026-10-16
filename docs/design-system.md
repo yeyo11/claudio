@@ -1273,6 +1273,25 @@ New classes `.wait-line` and `.statusbar .lim`. Nothing here is live: waiting do
 
 Reference screens: `DesktopOrquestacion`, `MobileOrquestacion` and `StatusBar`.
 
+### The daily spend cap
+
+New classes `.statusbar .spend`, `.usage-cap` and `.spend-dialog`; the wait lines reuse `.wait-line`.
+Nothing here moves, and no new gradient surface is added.
+
+- **Status bar (`.spend`).** Beside the limit dots, only with a cap set: a neutral bar and the share
+  below 60 %, warn with "cerca del tope" from 60 %, bad with the percentage from 75 %, and bad with
+  "tope alcanzado · vuelve a las 00:00" once reached. The tooltip gives spent, cap, unreported
+  results and the server's time zone. With no reading nothing is drawn.
+- **Usage page (`.usage-cap`).** One quiet line, like the decisions' line: "Tope diario", the figure,
+  the same bar and words, what was spent past the cap, and the note that on a subscription the figure
+  is the API price. It is where a phone sees the cap.
+- **A wait (`.wait-line`).** A queued board card says "Esperando al tope diario · vuelve a las 00:00".
+  The orchestration page says "N tareas esperan al tope diario · vuelven a las 00:00" with a quiet
+  "Seguir hoy de todos modos", which asks first.
+- **The question (`SpendCapDialog`).** A `Dialog` on a desktop and a `Sheet` on a phone: the figure,
+  "Enviar igualmente" as the zone's one primary, "Cancelar" and "Cambiar el tope". The choice is
+  remembered per chat and local day in `sessionStorage`.
+
 ### Merging an orchestration, and the board card's auto-merge line
 
 Drawn for [code hosts](plans/code-hosts.md), phase 4 (task `m-p3` of P0), by `reference/tools/merge.py`:

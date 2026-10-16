@@ -143,5 +143,10 @@
     "externalTitle_other": "Blocked by {{count}} tasks outside the selection",
     "externalBody_one": "The graph cannot wait for it. Launch it once that task is done, or add it to the selection on the board.",
     "externalBody_other": "The graph cannot wait for them. Launch it once they are done, or add them to the selection on the board."
+  },
+  "spendWait": {
+    "tasks_one": "{{count}} task waits for the daily cap · back at {{time}}",
+    "tasks_other": "{{count}} tasks wait for the daily cap · back at {{time}}",
+    "why": "The cap is a gate for new work: what is running goes on."
   }
 }
