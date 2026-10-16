@@ -74,3 +74,56 @@ status colours carry a word, and motion stays off in a hidden tab.
 - [[resource-control]]
 - [[orchestrations]]
 - [[status]]
+
+## Design of the machine widget (option A)
+
+The owner chose option A. The figures are one widget of the overview, not a new screen, so it is a
+new widget type in the grid. Investigation first: the overview is the widget grid in
+`apps/web/src/pages/dashboard/` (`registry.ts` lists every widget type; `pulse.tsx` holds the
+limits widget, which already draws a ring and usage text). The reference to match is
+`docs/design-system/reference/DSTablero.html`.
+
+**Placement.** A new widget type `machine` in `packages/shared/src/dashboard-layout.ts` and
+`WIDGET_RULES`, area `top` (the strip of figures under the hero), scope `both`, sizes `s` only, default
+`s`. It reads no project module, so it shows on every project and on All projects.
+
+**Content, from `GET /api/system/load` and `GET /api/system/processes`:**
+
+- Memory: the available part in MB over the total, as a usage bar. The bar takes the usage colours of
+  the design system: neutral below 60 %, warn from 60 %, bad from 75 % of memory used.
+- Pressure: a word and a figure. `ok` below 10 % of `some10`, `warn` from 10 % up to the admission
+  threshold, `bad` at the threshold (the point where no chat starts). The word is always shown next
+  to the colour.
+- Admission: "Admite chats" in ok, or the refusal in bad, with the reason from `refusal` shortened to
+  its figure. Always a word, never colour alone.
+- Chats: the count of live chats and their total resident memory in MB, in mono (counts and figures
+  are Geist Mono).
+
+**States.**
+
+- Loading: the card's skeleton, as the limits widget does.
+- No figures (a machine without `/proc`): the card says the machine does not expose them, in the
+  secondary text colour. No bar, no colour, no status word.
+- A figure that is null inside a reading: that figure alone reads as a dash.
+- Refused: the admission line is bad and the card keeps the memory bar visible, so the cause is in view.
+
+**Classes.** The card is `card kpi` with the same heading and figure pattern as the limits widget
+(`kpi-label`, `kpi-sub mono`, `gauge-value`), styled in the file that defines those selectors. No new
+colour, radius or duration: tokens only.
+
+**Motion.** None. Nothing here is a live agent, so it does not carry the energy border, the live rail
+or a spinner. It refetches on the overview's own interval and stops in a hidden tab, like the others.
+
+**Copy.** `home` namespace, `widgets.machine.title`, with `en` and `es` in parity, following
+`apps/web/src/i18n/GLOSSARY.md`. Proposed title: "Machine" / "Máquina". The admission words are
+decided with the glossary, not invented here.
+
+**Phone.** The same card, full width in the top strip. Nothing in it is a control, so there is no
+touch target to size. Its figures wrap, they do not truncate.
+
+**Checks before it is done.** The night-shift UI checklist (tokens, both themes, contrast ≥ 4.5 : 1
+for text, phone width, motion levels, a11y), the layout tests for the new type, and a screenshot in
+dark and light compared against `DSTablero.html`.
+
+**Not decided here.** The implementation goes through the owner's orchestration path (design first,
+then agents on opus or sonnet, never fable), so it is a separate change after this design is merged.
