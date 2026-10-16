@@ -16,11 +16,15 @@ async function scanContextOverlays(page, scan, problems, narrow) {
   const where = narrow ? '420px' : 'desktop';
   await settle(page, `/chats/${SESSION}`);
   if (narrow) {
-    await page.click('main .chat-head button[aria-label="Details"]', undefined, 800);
+    await page.click('main .chat-head button[aria-label="Chat details"]', undefined, 800);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .insp-context-actions')`, { label: 'the details sheet' });
   }
   const breakdown = '[role=dialog] .insp-context-actions .btn, .chat-inspector .insp-context-actions .btn';
-  if (await page.eval(`return [...document.querySelectorAll(${JSON.stringify(breakdown)})].some((b) => b.textContent.includes('Breakdown'))`)) {
+  // The inspector draws the button once the chat's context has loaded, which can come after the page settles
+  const hasBreakdown = await page
+    .waitFor(`return [...document.querySelectorAll(${JSON.stringify(breakdown)})].some((b) => b.textContent.includes('Breakdown'))`, { label: 'the Breakdown button', timeout: 10_000 })
+    .then(() => true, () => false);
+  if (hasBreakdown) {
     await page.click(breakdown, 'Breakdown', 900);
     await page.waitFor(`return !!document.querySelector('.ctx-breakdown')`, { label: 'the context panel' });
     await page.sleep(300);
@@ -32,7 +36,9 @@ async function scanContextOverlays(page, scan, problems, narrow) {
     await page.key('Escape');
     await page.sleep(300);
   }
-  await page.click('main .chat-head .chat-more', undefined, 700);
+  // Opened the way a keyboard does: Radix opens a menu on pointerdown, never on a synthetic click
+  await page.focus('main .chat-head .chat-more');
+  await page.press('Enter');
   await page.waitFor(`return !!document.querySelector('[role=menu], [role=dialog] .sheet-actions')`, { label: 'the header menu' });
   const enabled = await page.eval(`
     const el = [...document.querySelectorAll('[role=menuitem], [role=dialog] .sheet-actions button')].find((e) => e.textContent.includes('Compact the conversation'));
@@ -70,6 +76,8 @@ export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
     await scanBothThemes(page, screen ? [...pages, screen] : pages, scan, (theme) => tokenContrast(page, theme, problems));
     await scanNarrow(page, screen ? ['/terminals', screen] : ['/terminals'], scan, problems);
     // The overlays of context control, in both themes at desktop width and in the dark theme on a phone
+    // scanNarrow leaves the phone's width behind it
+    await page.viewport(1440, 900);
     for (const theme of ['dark', 'light']) {
       await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
       await scanContextOverlays(page, (p, w, o) => scan(p, `${theme} ${w}`, o), problems, false);

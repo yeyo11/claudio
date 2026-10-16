@@ -112,14 +112,12 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
 
     // The assistant at work, one run of each kind: every one reads until it is stopped
     const reading = 'run: sleep 120';
-    writeFileSync(
-      fakeCli.scripts,
-      JSON.stringify({
-        'project "e2e-motion"': reading,
-        'the next work items: what is missing or broken': reading,
-        '`resources`: agents, skills and commands that would help': reading,
-      }),
-    );
+    const readingScripts = {
+      'project "e2e-motion"': reading,
+      'the next work items: what is missing or broken': reading,
+      '`resources`: agents, skills and commands that would help': reading,
+    };
+    writeFileSync(fakeCli.scripts, JSON.stringify(readingScripts));
     for (const kind of ['project', 'work-items', 'resources']) {
       const started = await api.post(`/projects/${projectId}/assistant/runs`, { kind });
       check(started.status === 201 || started.status === 200, `an assistant run of kind ${kind} (${started.status} ${JSON.stringify(started.body)})`);
@@ -199,6 +197,8 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     // ---- a chat compacting: live while the CLI summarises, and still at subtle and off ----
     // The fake holds `/compact` for half a minute with FAKE-COMPACT-SLOW in its focus; the cleanup stops the chat
     await page.viewport(1440, 900);
+    // Compaction is refused to a chat with no history, which the fake leaves only when it writes a transcript
+    writeFileSync(fakeCli.scripts, JSON.stringify({ ...readingScripts, '@transcript': true }));
     const compacting = await api.post('/chats', { prompt: 'a short chat to compact', cwd: dir });
     check(compacting.status === 201, `a chat to compact (${compacting.status})`);
     flowChats.push(compacting.body.id);
