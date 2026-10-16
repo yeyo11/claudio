@@ -12651,6 +12651,572 @@
     ],
     "description": "Switches one server of a live chat on or off. The CLI keeps the choice for the chat's folder."
   },
+  "ChatContextUsage": {
+    "type": "object",
+    "properties": {
+      "live": {
+        "type": "boolean",
+        "description": "A process of this Claudio runs the chat"
+      },
+      "unreported": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextUnreported"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "detail": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextDetail"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "observedAt": {
+        "type": "string"
+      },
+      "snapshot": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContext"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "From the transcript, always: what the meters show"
+      },
+      "breakdown": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextBreakdown"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "live",
+      "unreported",
+      "detail",
+      "observedAt",
+      "snapshot",
+      "breakdown"
+    ],
+    "description": "`GET /chats/:id/context`"
+  },
+  "ContextUnreported": {
+    "type": "string",
+    "enum": [
+      "no-process",
+      "unsupported",
+      "timeout",
+      "refused"
+    ],
+    "description": "Why there is no breakdown; the transcript's snapshot is still there"
+  },
+  "ContextDetail": {
+    "type": "string",
+    "enum": [
+      "summary",
+      "full"
+    ]
+  },
+  "ContextBreakdown": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "totalTokens": {
+        "type": "number"
+      },
+      "rawMaxTokens": {
+        "type": "number",
+        "description": "What the share is measured against: the CLI's compaction window, which can be smaller than the model's"
+      },
+      "maxTokens": {
+        "type": "number"
+      },
+      "percentage": {
+        "type": "number",
+        "description": "As the CLI rounds it; may pass 100"
+      },
+      "autoCompact": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "thresholdTokens": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "enabled",
+          "thresholdTokens"
+        ]
+      },
+      "overBy": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "`totalTokens - rawMaxTokens` when positive, else null"
+      },
+      "categories": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ContextCategory"
+        },
+        "description": "Rows with zero tokens are dropped here, as the CLI's own renderer does"
+      },
+      "mcp": {
+        "type": "object",
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextMcpServerWeight"
+            }
+          },
+          "loadedTools": {
+            "type": "number"
+          },
+          "tokens": {
+            "type": "number"
+          },
+          "share": {
+            "type": "number"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextMcpWarning"
+            }
+          }
+        },
+        "required": [
+          "servers",
+          "loadedTools",
+          "tokens",
+          "share",
+          "warnings"
+        ],
+        "description": "Per server, most tokens first; never per tool, which can be hundreds of rows"
+      },
+      "memoryFiles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "tokens": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "path",
+            "type",
+            "tokens"
+          ]
+        }
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "tokens": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "name",
+            "source",
+            "tokens"
+          ]
+        }
+      },
+      "skills": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "included": {
+                "type": "number"
+              },
+              "tokens": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "total",
+              "included",
+              "tokens"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "slashCommands": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "included": {
+                "type": "number"
+              },
+              "tokens": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "total",
+              "included",
+              "tokens"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "messages": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "toolCalls": {
+                "type": "number"
+              },
+              "toolResults": {
+                "type": "number"
+              },
+              "attachments": {
+                "type": "number"
+              },
+              "assistant": {
+                "type": "number"
+              },
+              "user": {
+                "type": "number"
+              },
+              "other": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "toolCalls",
+              "toolResults",
+              "attachments",
+              "assistant",
+              "user",
+              "other"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "model",
+      "totalTokens",
+      "rawMaxTokens",
+      "maxTokens",
+      "percentage",
+      "autoCompact",
+      "overBy",
+      "categories",
+      "mcp",
+      "memoryFiles",
+      "agents",
+      "skills",
+      "slashCommands",
+      "messages"
+    ]
+  },
+  "ContextCategory": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The CLI's own label"
+      },
+      "key": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ContextCategoryKey"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ContextCategoryKind"
+      },
+      "tokens": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "name",
+      "key",
+      "kind",
+      "tokens"
+    ]
+  },
+  "ContextCategoryKey": {
+    "type": "string",
+    "enum": [
+      "system-prompt",
+      "system-tools",
+      "system-tools-deferred",
+      "mcp-tools",
+      "mcp-tools-deferred",
+      "custom-agents",
+      "memory-files",
+      "skills",
+      "messages",
+      "free-space",
+      "autocompact-buffer"
+    ],
+    "description": "The names Claudio knows how to translate; anything else is shown as the CLI wrote it. The list is the names recorded from Claude Code 2.1.300 (recordings/c0-NOTES.md, F3): there is no row for slash commands, which the CLI reports as an object and not as a category."
+  },
+  "ContextCategoryKind": {
+    "type": "string",
+    "enum": [
+      "used",
+      "free",
+      "buffer",
+      "deferred"
+    ],
+    "description": "How the CLI classifies a row of its breakdown; math uses this, never the row's English name"
+  },
+  "ContextMcpServerWeight": {
+    "type": "object",
+    "properties": {
+      "server": {
+        "type": "string",
+        "description": "`serverName` as the CLI reports it, which is what `PUT /chats/:id/mcp/:name` takes"
+      },
+      "tools": {
+        "type": "number"
+      },
+      "loadedTools": {
+        "type": "number",
+        "description": "Tools whose schema sits in the window now; a deferred tool costs nothing until it is loaded"
+      },
+      "tokens": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "server",
+      "tools",
+      "loadedTools",
+      "tokens"
+    ]
+  },
+  "ContextMcpWarning": {
+    "type": "string",
+    "enum": [
+      "many-tools",
+      "large-share"
+    ]
+  },
+  "CompactChatRequest": {
+    "type": "object",
+    "properties": {
+      "focus": {
+        "type": "string"
+      },
+      "structuredNote": {
+        "type": "boolean",
+        "description": "Defaults to true"
+      }
+    },
+    "description": "`POST /chats/:id/compact`"
+  },
+  "ChatSessionNote": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": "string"
+      },
+      "source": {
+        "$ref": "#/components/schemas/ChatNoteSource",
+        "description": "`compaction`: kept from a structured compaction; `agent`: asked for with no compaction; `summary`: a person saved a summary"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ChatNoteState"
+      },
+      "text": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Markdown, as Claude wrote it; null while pending"
+      },
+      "sections": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "goal": {
+                "type": "string"
+              },
+              "done": {
+                "type": "string"
+              },
+              "failed": {
+                "type": "string"
+              },
+              "not-tried": {
+                "type": "string"
+              },
+              "files": {
+                "type": "string"
+              },
+              "next": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The headings it was asked for, when they were all found; null otherwise"
+      },
+      "compactionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "entryUuid": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The transcript entry it came from"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "readyAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "chatId",
+      "source",
+      "state",
+      "text",
+      "sections",
+      "compactionId",
+      "entryUuid",
+      "error",
+      "createdAt",
+      "readyAt"
+    ]
+  },
+  "ChatNoteSource": {
+    "type": "string",
+    "enum": [
+      "compaction",
+      "agent",
+      "summary"
+    ]
+  },
+  "ChatNoteState": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "ready",
+      "failed"
+    ]
+  },
+  "CreateChatNoteRequest": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "const": "agent"
+          }
+        },
+        "required": [
+          "from"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "const": "summary"
+          },
+          "entryUuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "entryUuid"
+        ]
+      }
+    ],
+    "description": "`POST /chats/:id/notes`"
+  },
   "UsageReport": {
     "type": "object",
     "properties": {

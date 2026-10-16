@@ -765,6 +765,52 @@ test("an open wrapper stays open and labels a chat's writes as the chat, and a t
   assert.deepEqual(entries.map((entry) => entry.actor), ['local', 'chat:chat-42', 'chat:chat-42']);
 });
 
+test("a chat's token reads the context routes but cannot compact, ask for a note or delete one", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  for (const url of ['/api/chats/nope/context', '/api/chats/nope/compactions', '/api/chats/nope/notes']) {
+    // Allowed through the guard: the chat does not exist, which is a 404 and not a 403
+    assert.equal((await app.inject({ url, ...fromChat(token) })).statusCode, 404, url);
+  }
+  for (const [method, url, body] of [
+    ['POST', '/api/chats/nope/compact', {}],
+    ['POST', '/api/chats/nope/notes', { from: 'agent' }],
+    ['DELETE', '/api/chats/nope/notes/n1', undefined],
+  ] as const) {
+    const res = await app.inject({ method, url, ...(body === undefined ? fromChat(token) : fromChatWith(token, body)) });
+    assert.equal(res.statusCode, 403, `${method} ${url}`);
+    assert.match(res.json().error, /cannot compact a chat or ask it for a note/);
+    // The owner's own click is not refused by the guard
+    const owned = await app.inject({ method, url, ...(body === undefined ? bearer(owner) : authed(owner, body)) });
+    assert.equal(owned.statusCode, 404, `${method} ${url}`);
+  }
+});
+
+test('read-only refuses compacting and notes, and the desktop credential cannot write them', async (t) => {
+  const desktop = 'a-per-launch-secret-of-32-random-bytes';
+  const { app } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: desktop });
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const writes = [
+    ['POST', '/api/chats/nope/compact', {}],
+    ['POST', '/api/chats/nope/notes', { from: 'agent' }],
+    ['DELETE', '/api/chats/nope/notes/n1', undefined],
+  ] as const;
+  const desktopHeaders = { remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${desktop}` } };
+  for (const [method, url] of writes) {
+    assert.equal((await app.inject({ method, url, ...desktopHeaders })).statusCode, 403, `desktop ${method} ${url}`);
+  }
+  assert.equal((await app.inject({ url: '/api/chats/nope/notes', ...desktopHeaders })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { readOnly: true }) })).statusCode, 200);
+  for (const [method, url, body] of writes) {
+    const res = await app.inject({ method, url, ...(body === undefined ? bearer(owner) : authed(owner, body)) });
+    assert.equal(res.statusCode, 405, `${method} ${url}`);
+  }
+  assert.equal((await app.inject({ url: '/api/chats/nope/notes', ...bearer(owner) })).statusCode, 404);
+});
+
 test("the owner's token is still the owner's when chat tokens exist", async (t) => {
   const { app, core } = await wrapper();
   t.after(() => app.close());

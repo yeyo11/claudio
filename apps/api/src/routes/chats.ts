@@ -6,6 +6,9 @@ import type {
   ChatInterruptRequest,
   ChatMcpToggle,
   ChatMessageRequest,
+  CompactChatRequest,
+  ContextDetail,
+  CreateChatNoteRequest,
   ChatOrigin,
   ChatSettingsUpdate,
   ChatState,
@@ -80,6 +83,9 @@ function newChatBody(body: unknown): NewChatRequest {
 
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
+  const known = async (id: string): Promise<void> => {
+    if (!(await chats.get(id))) throw new Error('chat not found');
+  };
 
   app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; limit?: string } }>('/chats', (req) => {
     const { project, loose, origin, workers, state, limit } = req.query;
@@ -184,6 +190,47 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     const enabled = req.body?.enabled;
     if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
     return chats.toggleMcpServer(req.params.id, req.params.name, enabled);
+  });
+
+  // What fills the chat's window, asked of the live process; no process or a CLI that cannot answer is a 200 that says so
+  app.get<{ Params: { id: string }; Querystring: { detail?: string } }>('/chats/:id/context', (req) => {
+    const { detail } = req.query;
+    if (detail !== undefined && detail !== 'summary' && detail !== 'full') throw new Error('detail must be summary or full');
+    return core.context.usage(req.params.id, (detail ?? 'summary') satisfies ContextDetail);
+  });
+
+  // A paid turn the person chose: a refusal is a 409 whose `code` says why
+  app.post<{ Params: { id: string }; Body: CompactChatRequest }>('/chats/:id/compact', async (req, reply) =>
+    reply.status(202).send(await core.context.compact(req.params.id, req.body ?? {}, req.actor ?? null)),
+  );
+
+  app.get<{ Params: { id: string } }>('/chats/:id/compactions', async (req) => {
+    await known(req.params.id);
+    return core.context.compactions(req.params.id);
+  });
+
+  app.get<{ Params: { id: string } }>('/chats/:id/notes', async (req) => {
+    await known(req.params.id);
+    return core.notes.list(req.params.id);
+  });
+
+  app.post<{ Params: { id: string }; Body: CreateChatNoteRequest }>('/chats/:id/notes', async (req, reply) => {
+    await known(req.params.id);
+    const body: unknown = req.body;
+    const from = typeof body === 'object' && body !== null ? (body as { from?: unknown }).from : undefined;
+    if (from === 'agent') return reply.status(202).send(await core.notes.requestFromAgent(req.params.id, req.actor ?? null));
+    if (from === 'summary') {
+      const entryUuid = (body as { entryUuid?: unknown }).entryUuid;
+      if (typeof entryUuid !== 'string' || !entryUuid) throw new Error('entryUuid must be a string');
+      return reply.status(201).send(await core.notes.fromSummary(req.params.id, entryUuid));
+    }
+    throw new Error('from must be agent or summary');
+  });
+
+  app.delete<{ Params: { id: string; noteId: string } }>('/chats/:id/notes/:noteId', async (req, reply) => {
+    await known(req.params.id);
+    if (!core.db.deleteNote(req.params.id, req.params.noteId)) throw new Error('note not found');
+    return reply.status(204).send();
   });
 
   app.patch<{ Params: { id: string }; Body: ChatSettingsUpdate }>('/chats/:id', (req) => {

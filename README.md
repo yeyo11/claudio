@@ -201,6 +201,8 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Live CLI sessions | `claude agents --json` |
 | Session history & projects | transcripts in `$CLAUDE_CONFIG_DIR/projects/*/*.jsonl` |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
+| Context breakdown | the `get_context_usage` control request (`detail: summary` unless asked) |
+| Compaction | `/compact` sent as a user turn over stream-json; the `system/status` (`compacting`) and `system/compact_boundary` events; the boundary and `isCompactSummary` lines of the transcript |
 | Orchestration planner | `--json-schema` structured output |
 | Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
 | Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
@@ -1039,6 +1041,12 @@ dismiss.
 | POST | `/chats/:id/supervisor/:proposalId/dismiss` | Mark the proposal `dismissed`; nothing reaches the worker |
 | PATCH | `/chats/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next execution |
 | GET | `/chats/:id/mcp` | The live process's MCP servers, claude.ai connectors included (scope `claudeai`): `{ live, servers: [{ name, status, scope, tools, error }] }`, from the CLI's `mcp_status`. `live: false` without a process of ours |
+| GET | `/chats/:id/context?detail=` | What fills the chat's window: `{ live, unreported, detail, observedAt, snapshot, breakdown }`, the breakdown from the CLI's `get_context_usage` (`detail=summary`, the default, or `full`, honoured only while the chat is idle). No process, or a CLI that does not answer, is a `200` with `live: false` or `unreported`, never an error. `404` unknown chat, `400` bad `detail` |
+| POST | `/chats/:id/compact` | `{ focus?, structuredNote? }` — send `/compact` as a user turn (a paid call over the whole context). `202` with the compaction row; `400` bad body; `409` with a `code` (`busy`, `waiting`, `open`, `read-only`, `housekeeping`, `at-limit`, `run`, `unsupported`, `no-history`). Not open to a chat's token |
+| GET | `/chats/:id/compactions` | The compactions of the chat, Claudio's and the CLI's own, newest first, at most 50 |
+| GET | `/chats/:id/notes` | The session notes of the chat, newest first, at most 50 |
+| POST | `/chats/:id/notes` | `{ from: 'agent' }` asks the chat for a note (`202`, pending), `{ from: 'summary', entryUuid }` keeps a compaction summary (`201`, ready). `400` bad body or an entry that is not a summary of this chat; `409` with a `code` (a compaction refusal, or `saved`). Not open to a chat's token |
+| DELETE | `/chats/:id/notes/:noteId` | Delete a note. `204`; `404` unknown chat or note. Not open to a chat's token |
 | PUT | `/chats/:id/mcp/:name` | `{ enabled }` — switch one server on or off in the running process (the CLI's `mcp_toggle`); the CLI keeps the choice for the chat's folder. `400` without a live process |
 | DELETE | `/chats/:id` | Delete the transcript, its sidecar files and Claudio's record (`409` while something is running on it) |
 | GET | `/chats/:id/logs` | A background session's recent terminal output (`claude logs`) |
