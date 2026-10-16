@@ -79,8 +79,8 @@ export default async ({ page, api, check, dirs }) => {
     check(authEvents.some((e) => e.event === 'switch' && e.from === expired.body.id && e.reason === 'auth'), 'the switch is recorded with the reason auth');
 
     await page.goto('/accounts', 1500);
-    await page.waitFor(`return document.body.innerText.includes('Sign-in expired')`, { label: 'the expired sign-in on the Accounts page' });
-    check(await page.eval(`return [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Sign in again')) || document.body.innerText.includes('Sign in again')`), 'the page offers to sign in again');
+    await page.waitFor(`return document.body.innerText.toLowerCase().includes('sign-in expired')`, { label: 'the expired sign-in on the Accounts page' });
+    check(await page.eval(`return [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Sign in again')) || document.body.innerText.toLowerCase().includes('sign in again')`), 'the page offers to sign in again');
 
     // ---------- an orchestration task after it ----------
     // The expired mark keeps the account out of the choice, so the task's chat runs on another one.
