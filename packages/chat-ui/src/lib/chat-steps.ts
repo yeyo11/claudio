@@ -33,6 +33,14 @@ export type TranscriptRow =
       continued: boolean;
     }
   | {
+      kind: 'compaction';
+      key: string;
+      /** The CLI's marker; null for a summary on a page that starts after it */
+      boundary: TranscriptEntry | null;
+      /** The summary Claude continued from, folded into the divider */
+      summary: TranscriptEntry | null;
+    }
+  | {
       kind: 'step';
       key: string;
       entries: TranscriptEntry[];
@@ -122,6 +130,19 @@ export function transcriptRows(entries: readonly TranscriptEntry[], previous?: r
         continue;
       }
     }
+    // The CLI's marker and the summary it continued from are the system's, never a person's message
+    if (first.compaction) {
+      const next = first.compaction.part === 'boundary' ? entries[i + 1] : undefined;
+      const summary = first.compaction.part === 'summary' ? first : next?.compaction?.part === 'summary' ? next : null;
+      const boundary = first.compaction.part === 'boundary' ? first : null;
+      const row: TranscriptRow = { kind: 'compaction', key: first.uuid || `compaction-${i}`, boundary, summary };
+      const old = before.get(row.key);
+      rows.push(old && old.kind === 'compaction' && old.boundary === boundary && old.summary === summary ? old : row);
+      // What follows a compaction is a new stretch of the conversation: its author line is said again
+      lastAuthor = null;
+      i += boundary && summary ? 2 : 1;
+      continue;
+    }
     // Results on their own (their calls are on a page not read yet) do not change who is speaking
     const who: string | null = onlyResults(first) ? lastAuthor : author(first);
     const row: TranscriptRow = { kind: 'entry', key: first.uuid || `entry-${i}`, entry: first, continued: who === lastAuthor && lastAuthor !== null };
@@ -135,7 +156,11 @@ export function transcriptRows(entries: readonly TranscriptEntry[], previous?: r
 
 /** The row that shows `entry`, for a search hit that points at an entry folded into a step. */
 export function rowOf(rows: readonly TranscriptRow[], entry: TranscriptEntry): TranscriptRow | undefined {
-  return rows.find((row) => (row.kind === 'entry' ? row.entry === entry : row.entries.includes(entry)));
+  return rows.find((row) => {
+    if (row.kind === 'entry') return row.entry === entry;
+    if (row.kind === 'compaction') return row.boundary === entry || row.summary === entry;
+    return row.entries.includes(entry);
+  });
 }
 
 /** "Read ×3 · Edit ×2 · Bash", in the order the tools were first called. */

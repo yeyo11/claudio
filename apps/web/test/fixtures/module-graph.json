@@ -47,6 +47,7 @@
   "Collapsible [Collapsible]",
   "Combobox [Combobox, ComboboxOption]",
   "CommandPalette [CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT]",
+  "CompactionDivider [CompactionActions, CompactionDivider, compactionLabel]",
   "Composer [Composer, ComposerKind, KeysHint, OptionsPanel, StartChoices, StatusChips]",
   "ComposerMenu [ComposerMenu, mcpKey]",
   "Connectors [Connectors]",
