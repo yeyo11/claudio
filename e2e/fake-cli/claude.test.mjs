@@ -579,7 +579,8 @@ test('--settings: SessionStart runs before init, a passing command runs and a ho
   const c = chat({}, { args: guardSetup });
   const start = await c.next(hookResponse('SessionStart'));
   assert.equal(start.exit_code, 0);
-  assert.equal(c.events.findIndex((e) => e.subtype === 'init'), c.events.indexOf(start) + 1);
+  const init = await c.next((e) => e.subtype === 'init');
+  assert.equal(c.events.indexOf(init), c.events.indexOf(start) + 1);
   c.say('run: echo fine');
   await c.next(toolUse);
   const pass = await c.next(hookResponse('PreToolUse'));
