@@ -1393,6 +1393,19 @@ test('an evals run drafts cases: deterministic first, no competing prompt, and a
   assert.deepEqual(s.evalFiles.get('developer-rules')?.definition?.cases.map((c) => c.id), ['tests-first', 'small-commits']);
 });
 
+test('an agent cannot accept a drafted eval case: only the person writes an eval file', async () => {
+  const s = setup();
+  const started = await s.assistant.start('p1', { kind: 'evals', evalName: 'developer-rules' });
+  const detail = s.answer(started, EVAL_RESULT) as AssistantRunDetail;
+  const id = detail.proposals[0]?.id ?? '';
+  await assert.rejects(
+    () => s.assistant.accept(id, { evalCase: { ifMatch: 'sha-1' } }, { kind: 'agent', role: 'developer' }),
+    (e: Error & { statusCode?: number }) => e.statusCode === 403,
+  );
+  assert.equal(s.assistant.proposal(id).status, 'pending');
+  assert.equal(s.evalFiles.get('developer-rules')?.sha, 'sha-1');
+});
+
 test('discarding a drafted case writes nothing', async () => {
   const s = setup();
   const started = await s.assistant.start('p1', { kind: 'evals', evalName: 'developer-rules' });

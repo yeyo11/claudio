@@ -873,6 +873,9 @@ test("a chat's token cannot give a graph the spend pass or name the daily cap, a
   const cap = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { dailySpendCapUsd: null }) });
   assert.equal(cap.statusCode, 403);
   assert.match(cap.json().error, /daily spend cap/);
+  const phase2 = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { evalsPhase2: true }) });
+  assert.equal(phase2.statusCode, 403, "the evals' Phase 2 switch lets a judge spend, so it is the person's");
+  assert.equal((await app.inject({ url: '/api/settings/app', ...bearer(owner) })).json().evalsPhase2, false);
   // What else a chat may write to the settings is not this route's business, and the cap is readable
   assert.equal((await app.inject({ url: '/api/spend', ...fromChat(token) })).statusCode, 200);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...authed(owner, { dailySpendCapUsd: 5 }) })).statusCode, 200);

@@ -1389,7 +1389,8 @@ export class Core {
       emit: (event) => this.events.emit(event),
       projectPath: evalProjectPath,
       maxConcurrentRuns: () => this.runtime.defaults.maxConcurrentRuns,
-      judgeFor: (maxCostUsd) => new EvalJudge({ runtime: this.runtime, maxCostUsd }),
+      // No judge while Phase 2 is off, and none past the daily cap: a judged check then ends `unjudged` and spends nothing
+      judgeFor: (maxCostUsd) => (this.appSettings.evalsPhase2 ? new EvalJudge({ runtime: this.runtime, maxCostUsd, spendOpen: () => this.spend.allows('person') }) : null),
       memberRun: (projectId, agent, stage) => {
         const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name);
         const member = settings?.team?.members.find((m) => m.agent === agent);

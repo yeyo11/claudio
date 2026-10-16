@@ -75,6 +75,8 @@ const GATED: Array<[string, string, unknown]> = [
   ['POST', '/api/orchestrations/nope/tasks/a/rerun', {}],
   ['POST', '/api/projects/nope/assistant/runs', { kind: 'project' }],
   ['POST', '/api/assistant/chats', { prompt: 'hi' }],
+  ['POST', '/api/projects/nope/evals/rules/runs', {}],
+  ['POST', '/api/eval-runs/nope/resume', {}],
 ];
 
 test('GET /spend answers the day against the cap, and the cap is in the settings', async (t) => {

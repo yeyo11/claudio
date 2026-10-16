@@ -369,7 +369,7 @@ function agentRunEnv(env: NodeJS.ProcessEnv, runId: string | undefined): NodeJS.
  * handle to cancel it. `runId` marks the process with `CLAUDIO_AGENT_RUN`: the command runs code an
  * agent wrote, outside any chat's tree, and the terminal must refuse it like a chat's process.
  */
-export function runCommand(command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void, runId?: string): Promise<CommandOutcome> {
+export function runCommand(command: string, cwd: string, timeoutMs: number, onStart?: (handle: CommandHandle) => void, runId?: string, base: NodeJS.ProcessEnv = process.env): Promise<CommandOutcome> {
   const started = Date.now();
   return new Promise((resolve) => {
     let output = '';
@@ -382,7 +382,7 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
       // Its own process group, so what it leaves behind is found from it and a signal never reaches the wrapper
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: agentRunEnv({ ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
+      env: agentRunEnv({ ...base, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
     });
     const finish = (exitCode: number | null) => {
       if (settled) return;
