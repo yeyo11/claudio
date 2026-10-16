@@ -135,6 +135,8 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'dashboard.layout': true,
   'webhook.changed': true,
   'login.updated': true,
+  'spend.changed': true,
+  'spend.alert': true,
 };
 
 /**
@@ -223,6 +225,8 @@ function approvedTarget(event: MemoryProposalEvent): Target[] {
       return [[['config', 'instructions', event.projectId], NOW]];
     case 'journal':
       return [[keys.journal(event.projectId), NOW]];
+    case 'rule':
+      return [[keys.resources({ projectId: event.projectId }, 'rules'), NOW]];
   }
 }
 
@@ -430,6 +434,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'login.updated':
       // The setup state: a sign-in that ended may have made a tool ready
       return event.login.endedAt ? [[keys.setup, NOW]] : [];
+    case 'spend.changed':
+    case 'spend.alert':
+      // Nothing is cached from the daily spend yet; the cap's own card reads it when it opens
+      return [];
   }
 }
 

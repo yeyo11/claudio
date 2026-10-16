@@ -50,7 +50,8 @@
       "max-tokens": "too long",
       "server-error": "server error",
       "network": "network",
-      "invalid-answer": "invalid answer"
+      "invalid-answer": "invalid answer",
+      "spend-cap": "daily spend cap reached"
     },
     "save": "Save",
     "saving": "Saving…",

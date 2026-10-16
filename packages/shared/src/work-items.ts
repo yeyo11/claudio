@@ -230,7 +230,7 @@ export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'deci
 
 export const JOURNAL_CHANGE_ACTIONS = valuesOf<JournalChangeAction>()(['added', 'removed']);
 
-export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal']);
+export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal', 'rule']);
 
 export const MEMORY_PROPOSAL_STATUSES = valuesOf<MemoryProposalStatus>()(['pending', 'approved', 'rejected']);
 

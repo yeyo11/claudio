@@ -99,7 +99,8 @@
     "kind": {
       "agents": "Agente",
       "skills": "Skill",
-      "commands": "Comando"
+      "commands": "Comando",
+      "rules": "Regla"
     },
     "scope": {
       "project": "proyecto",

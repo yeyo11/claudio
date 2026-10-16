@@ -182,6 +182,16 @@ test('removing an entry announces it and unknown ones are refused', () => {
 
 // ---------- memory proposals ----------
 
+test('a rule target is refused with a 400 until path-scoped rules are built', () => {
+  const { proposals } = setup();
+  const origin = { proposedBy: QA, source: { kind: 'chat' as const, chatId: 'qa-chat', orchestrationId: null, taskId: null }, flowRunId: 'run-1' };
+  assert.throws(
+    () => proposals.propose('p1', proposal({ kind: 'rule', file: 'tests.md', section: null, paths: ['src/**'] }), origin),
+    (err: unknown) => err instanceof WorkItemError && err.statusCode === 400 && /rule targets are not supported yet/.test(err.message),
+  );
+  assert.equal(proposals.list('p1', 'pending').length, 0);
+});
+
 test('a proposal writes nothing anywhere until a person approves it', () => {
   const { proposals, journal, projectDir, memoryDir, events } = setup();
   const origin = { proposedBy: QA, source: { kind: 'chat' as const, chatId: 'qa-chat', orchestrationId: null, taskId: null }, flowRunId: 'run-1' };
