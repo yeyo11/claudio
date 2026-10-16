@@ -59,7 +59,8 @@
           "type": "generic",
           "path": "deploy/helm/claudio/values.yaml"
         }
-      ]
+      ],
+      "initial-version": "0.1.0"
     }
   },
   "changelog-sections": [

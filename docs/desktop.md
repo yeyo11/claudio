@@ -375,7 +375,7 @@ only keeps the packages as a run artifact.
 
 **The first release and the release app.** The repository's history starts in Agentry, so
 `release-please-config.json` sets `bootstrap-sha` to the fork point (`d1ee00514`) and the manifest
-starts at `0.0.0`: the first release is `v0.1.0` and its changelog holds Claudio's commits only. The
+starts at `0.0.0`, with `initial-version` `0.1.0` (without it, a repository with no release yet starts at 1.0.0): the first release is `v0.1.0` and its changelog holds Claudio's commits only. The
 release workflow uses a GitHub App token (`vars.RELEASE_APP_ID`, `secrets.RELEASE_APP_PRIVATE_KEY`)
 when the app is configured, so the release pull request runs CI like any other; without it the
 workflow falls back to `GITHUB_TOKEN`, releases still publish, and only that pull request's checks
