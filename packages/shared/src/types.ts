@@ -4901,7 +4901,7 @@ export interface AccountsSettings {
 export type AccountSignInState = 'ok' | 'expired' | 'incomplete' | 'unknown';
 
 /** Why the chosen account changed. */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth';
 
 /**
  * Which accounts the chats of some projects may use, in what order, and when to move on. A project

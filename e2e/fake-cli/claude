@@ -356,6 +356,20 @@ function startTurn(message, uuid = null) {
     if (next !== undefined) setImmediate(() => startTurn(next.text, next.uuid));
     return;
   }
+  // A line `FAKE-AUTH-EXPIRED-ACCOUNT` is the sign-in failure as recorded (packages/core/test/fixtures/replay/auth-expired.jsonl):
+  // an `authentication_failed` assistant line, then an error result with `api_error_status: 401`. Only on the
+  // account whose token starts with `fake-expired`; on any other it is an ordinary prompt
+  if (/^FAKE-AUTH-EXPIRED-ACCOUNT\s*$/m.test(text) && (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-expired')) {
+    const failure = 'Failed to authenticate: OAuth session expired and could not be refreshed';
+    emit({ type: 'assistant', error: 'authentication_failed', parent_tool_use_id: null, message: { role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: failure }] } });
+    turn = null;
+    turns++;
+    emit({ type: 'result', subtype: 'success', is_error: true, api_error_status: 401, num_turns: 1, total_cost_usd: costUsd, result: failure });
+    log('result', { error: true, turns, authFailed: true });
+    const next = inbox.shift();
+    if (next !== undefined) setImmediate(() => startTurn(next.text, next.uuid));
+    return;
+  }
   // A line `FAKE-LIMIT-CLEAR` is the window back to normal: an allowed `rate_limit_event` at no use, so a
   // spec that drove the account to its limit can leave it as it found it for the specs after it
   if (/^FAKE-LIMIT-CLEAR\s*$/m.test(text)) {

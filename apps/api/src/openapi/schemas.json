@@ -6852,7 +6852,8 @@
       "threshold",
       "person",
       "disabled",
-      "signed-out"
+      "signed-out",
+      "auth"
     ],
     "description": "Why the chosen account changed."
   },
