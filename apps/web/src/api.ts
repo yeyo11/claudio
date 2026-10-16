@@ -27,6 +27,11 @@ import type {
   Attachment,
   AuditFilter,
   AuditPage,
+  GuardCheckRequest,
+  GuardCheckResult,
+  GuardEventPage,
+  GuardSettingsView,
+  UpdateGuardSettingsRequest,
   AuthConfig,
   AuthMode,
   AuthStatus,
@@ -801,6 +806,11 @@ export const api = {
   updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
   startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
   stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
+  guardSettings: (o: ReadOptions = {}) => request<GuardSettingsView>('/settings/guards', o),
+  updateGuardSettings: (body: UpdateGuardSettingsRequest) => request<GuardSettingsView>('/settings/guards', { method: 'PUT', body }),
+  guardEvents: (page: { limit?: number; before?: number } = {}, o: ReadOptions = {}) =>
+    request<GuardEventPage>(`/guard-events${qs({ limit: num(page.limit), before: num(page.before) })}`, o),
+  checkGuard: (body: GuardCheckRequest) => request<GuardCheckResult>('/guards/check', { method: 'POST', body }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
@@ -1238,6 +1248,8 @@ export const keys = {
   connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
   securityAuth: ['security', 'auth'] as const,
+  guardSettings: ['security', 'guards'] as const,
+  guardEvents: ['security', 'guard-events'] as const,
   terminalStatus: ['terminal', 'status'] as const,
   terminalOne: (id: string) => ['terminal', 'one', id] as const,
   terminalList: (scope: string) => ['terminal', 'list', scope] as const,

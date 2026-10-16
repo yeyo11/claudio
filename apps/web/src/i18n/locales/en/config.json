@@ -135,6 +135,107 @@
         "body": "Its hash is deleted. Turning token authentication on again needs a new one."
       }
     },
+    "guards": {
+      "title": "Guards",
+      "intro": "Guards are deterministic checks that run before an agent's command or file write. They block the dangerous ones with a reason the agent can read, and nothing else decides: no model is asked.",
+      "loadFailed": "Could not load the guard settings",
+      "retry": "Retry",
+      "saveFailed": "Could not save the guard settings",
+      "forbidden": "Only a person can change guards.",
+      "readOnlyNote": "Claudio is in read-only mode, so guards cannot be changed here.",
+      "rulesLabel": "Rules",
+      "alwaysOn": "Always on",
+      "status": {
+        "active": "active",
+        "observe": "observe",
+        "unavailable": "not available",
+        "activeLine": "Active for automated runs · {{count}} rules on",
+        "chatsOnlyLine": "Off for automated runs, on in the chats that opt in · {{count}} rules on",
+        "observeLine": "Observe mode: nothing is blocked",
+        "notAvailable": "Not available: {{problem}}"
+      },
+      "problems": {
+        "entry-missing": "The guard program is missing from this install. Reinstall Claudio.",
+        "entry-untrusted": "The guard program is not the one Claudio ships. Reinstall Claudio.",
+        "self-test-failed": "The guard program failed its own check. Reinstall Claudio, and report it if it keeps failing.",
+        "cli-unsupported": "Update Claude Code to 2.1.300 or later.",
+        "hooks-disabled": "Claude Code has hooks switched off. Turn them on in its settings.",
+        "managed-hooks-only": "A managed policy lets Claude Code run only its own hooks. Ask whoever manages it to allow Claudio's.",
+        "hooks-conflict": "A setting of Claude Code stops Claudio's hooks from loading. Remove it, or turn guards off.",
+        "bad-path": "The folder where Claudio keeps its data has a path the guard cannot use. Move it to a plain path."
+      },
+      "automated": {
+        "label": "Orchestration workers and flow",
+        "hint": "Guard every worker, fixer, integrator and flow stage. Interactive chats are guarded per project."
+      },
+      "rules": {
+        "integrity": {
+          "name": "Integrity",
+          "description": "Protects the guard itself: Claudio's data, the settings that could switch hooks off, git hooks and config, and nested claude processes."
+        },
+        "no-verify": {
+          "name": "No skipping checks",
+          "description": "Blocks --no-verify and git config that turns hooks off."
+        },
+        "push": {
+          "name": "No pushing",
+          "description": "Blocks any write to a remote: git push, and gh or glab commands that create or merge."
+        },
+        "destructive": {
+          "name": "No destructive commands",
+          "description": "Blocks force pushes, reset --hard and recursive deletes outside the worktree."
+        },
+        "secrets": {
+          "name": "No secrets in files",
+          "description": "Blocks writing a token, key or password into a file."
+        },
+        "protect-configs": {
+          "name": "Protect lint and CI configs",
+          "description": "Blocks edits to existing lint, format and CI config files. Off by default."
+        }
+      },
+      "observe": {
+        "label": "Observe only",
+        "hint": "Records what would be blocked and lets it through. Use it only while a false positive blocks real work."
+      },
+      "configs": {
+        "label": "Protected files",
+        "hint": "One glob per line, relative to the project's root.",
+        "restore": "Restore defaults",
+        "problems": {
+          "tooMany": "At most {{max}} globs.",
+          "tooLong": "{{glob}} is longer than {{length}} characters.",
+          "absolute": "{{glob}} must be relative to a root, not absolute.",
+          "parent": "{{glob}} cannot hold '..'."
+        }
+      },
+      "try": {
+        "title": "Try a command",
+        "intro": "Ask the guard what it would do with a call. Nothing runs.",
+        "toolLabel": "Tool",
+        "commandLabel": "Command",
+        "commandPlaceholder": "git push origin main",
+        "pathLabel": "File path",
+        "pathPlaceholder": "src/config.ts",
+        "contentLabel": "Content",
+        "action": "Try",
+        "pass": "Passes",
+        "block": "Would be blocked"
+      },
+      "recent": {
+        "title": "Recent blocks",
+        "none": "No blocks yet",
+        "chat": "Open chat",
+        "outcome": {
+          "blocked": "Blocked",
+          "observed": "Would block",
+          "missing": "No guard ran",
+          "unarmed": "Not armed",
+          "error": "Guard failed",
+          "allowed-once": "Allowed once"
+        }
+      }
+    },
     "audit": {
       "title": "Audit log",
       "intro": "Every request that changed something, newest first: who, what, and how it ended. The request body is never recorded, since it holds prompts and secrets.",
