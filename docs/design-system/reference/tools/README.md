@@ -26,6 +26,7 @@ Python 3.12 or later (the generators use backslashes inside f-strings) with Pill
 | `tasks.py` | the empty board, the list, the work item, the new task form and the milestones, both sizes |
 | `projects.py` | the project wizard, the project page and its settings, both sizes |
 | `chat.py` | `DesktopChatTarea`, `MobileChatTarea` |
+| `live.py` | the chat with what it delegates in sight and the opened tool rows: `DesktopChatEnMarcha`, `MobileChatEnMarcha`, `MobileChatEnMarchaLista`, `DesktopChatLlamadas`, `DesktopChatLlamadasMas`, `MobileChatLlamadas`, `MobileChatLlamadasMas` (plans/tool-rows-and-live-branches.md). Run after `desktop.py` |
 | `ai.py` | the assistant, suggested tasks and resources with AI, both sizes |
 | `team.py` | the screens the design review added: Team activity (`DesktopEquipoActividad`, `MobileEquipoActividad`), a failed flow run's chat (`DesktopChatFlujo`, `MobileChatFlujo`), the phone board while the team works it (`MobileTableroEquipo`, hand-drawn before) and the board's spec page `DSTablero`. Run after `desktop.py`; it imports it |
 | `decisions.py` | the Decisions tab of Settings: its sections, the consent dialog, History and the provider warning, both sizes. Runs on its own |

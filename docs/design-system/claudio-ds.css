@@ -2372,3 +2372,78 @@ a.cont-from:hover { color: var(--fg); }
 .note-body { padding: 4px 0 8px 20px; }
 @media (max-width: 900px) { .ctx-action, .compaction-fold .btn { min-height: var(--touch); } }
 /* ---------- end of Context control ---------- */
+
+/* ---------- 23. Tool rows and live branches ----------
+   The body of an opened tool call reads as what happened (a lens per tool), and what the chat
+   delegates shows in a folded strip over the composer and as a card under the step that started
+   it. Live colour only on the braille spinner, the rail and the verb; no gradient here.
+   plans/tool-rows-and-live-branches.md §3. */
+.call-row { position: relative; display: flex; flex-direction: column; gap: 0; padding-left: 10px; min-width: 0; }
+.call-row::before { content: ''; position: absolute; top: 5px; bottom: 5px; left: 0; width: 3px; border-radius: 3px; background: var(--line-2); }
+.call-row.is-ok::before { background: var(--ok); }
+.call-row.is-error::before { background: var(--bad); }
+.call-row.is-running::before { background: var(--live); }
+.call-head { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 3px 6px; border-radius: var(--r-xs); font-family: var(--mono); font-size: 12px; color: var(--fg-3); cursor: pointer; }
+.call-head:hover { background: var(--bg-3); }
+.call-head .tool-name { font-weight: 600; color: var(--fg); flex: none; }
+.call-head .tool-hint { color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.call-row.is-error .tool-name, .call-row.is-error .call-outcome { color: var(--bad); }
+.call-outcome { flex: none; font-size: 11.5px; }
+.call-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 6px 10px 8px; }
+.call-zone { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.call-label { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+.call-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-family: var(--mono); font-size: 12px; color: var(--fg-3); }
+.call-term, .call-stderr { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.call-stderr { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); background: var(--bad-soft); }
+.call-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 12px; color: var(--fg-2); }
+.call-files li { padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.call-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 13px; }
+.call-field-key { font-family: var(--mono); font-size: 11px; color: var(--fg-3); padding-top: 3px; }
+.call-field { min-width: 0; color: var(--fg); overflow-wrap: anywhere; }
+.call-tree { margin: 0; padding: 0 0 0 14px; list-style: none; font-family: var(--mono); font-size: 12px; line-height: 1.7; color: var(--fg-2); border-left: 1px solid var(--line); }
+.call-tree > li > .k { color: var(--fg-3); }
+.call-tree .v { color: var(--fg); }
+.call-tree .n { color: var(--sx-num); }
+.call-diff { border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-1); overflow: hidden; max-height: 360px; }
+.call-checklist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.call-checklist li { display: flex; align-items: center; gap: 8px; }
+.call-checklist .word { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.call-more { align-self: flex-start; height: 26px; padding: 0 8px; font-family: var(--mono); font-size: 11.5px; }
+.call-raw { align-self: flex-end; height: 26px; padding: 0 8px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
+
+/* The strip: one block over the composer, only while something runs */
+.chat-branches { display: flex; flex-direction: column; width: 100%; max-width: 780px; margin: 0 auto; border-top: 1px solid var(--line); background: var(--bg-2); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.chat-branches-bar { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 12px; border: 0; background: none; color: var(--fg); font-size: 13px; text-align: left; cursor: pointer; }
+.chat-branches-bar:hover { background: var(--bg-3); }
+.chat-branches-count { flex: none; font-weight: 500; }
+.chat-branches-now { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-branches-now .verb { color: var(--live); }
+.chat-branches-list { display: flex; flex-direction: column; max-height: 168px; overflow-y: auto; padding: 2px 6px 6px; border-top: 1px solid var(--line); }
+.chat-branch-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 28px; padding: 0 6px; border: 0; border-radius: var(--r-xs); background: none; color: var(--fg); font-size: 13px; text-align: left; cursor: pointer; }
+.chat-branch-row:hover { background: var(--bg-3); }
+.chat-branch-row.is-nested { padding-left: 26px; box-shadow: inset 20px 0 0 -19px var(--line-2); }
+.chat-branch-row .state { display: inline-flex; align-items: center; gap: 5px; flex: none; width: 16px; justify-content: center; }
+.chat-branch-row .word { font-family: var(--mono); font-size: 11px; flex: none; }
+.chat-branch-row.is-completed .word { color: var(--ok); } .chat-branch-row.is-failed .word { color: var(--bad); } .chat-branch-row.is-stopped .word { color: var(--warn); }
+.chat-branch-kind { flex: none; }
+.chat-branch-desc { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-branch-act { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-branch-act .verb { color: var(--live); }
+.chat-branch-time { flex: none; font-family: var(--mono); font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.m-screen .chat-branches { border-radius: 0; max-width: none; }
+.m-screen .chat-branches-bar { height: 44px; padding: 0 16px; }
+.m-screen .chat-branch-row { min-height: 48px; padding: 0 10px; }
+
+/* A branch card under the step that started it: the record, with the live rail while it runs */
+.chat-launch { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); }
+.chat-launch.is-running { padding-left: 18px; }
+.chat-launch-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.chat-launch-mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 11px; font-weight: 600; flex: none; }
+.chat-launch-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.chat-launch-name { font-size: 13px; font-weight: 600; }
+.chat-launch-state { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.chat-launch-status { font-family: var(--mono); font-size: 11px; }
+.chat-launch-status.is-running { color: var(--live); } .chat-launch-status.is-completed { color: var(--ok); } .chat-launch-status.is-failed { color: var(--bad); } .chat-launch-status.is-stopped { color: var(--warn); }
+.chat-launch-facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-launch-open { flex: none; }
+/* ---------- end of Tool rows and live branches ---------- */
