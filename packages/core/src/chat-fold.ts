@@ -1,5 +1,6 @@
 import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@claudio/shared';
 import { isClaudioMcpWriteTool } from '@claudio/mcp';
+import { ChatActivityTracker } from './chat-activity.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
@@ -201,6 +202,8 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
     }
 
     case 'task':
+      // The driver has already folded it into the branches: a notification may have ended an agent
+      dropEndedBranches(chat);
       chat.push(event.run);
       return;
 
@@ -302,6 +305,7 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   if (isError && !chat.interruptRequested) chat.error = event.failure;
   chat.interruptRequested = false;
   chat.activity.turnEnded();
+  chat.branchActivity.clear();
   host.persist();
   chat.push({ ...event.run, outcome: { ...(event.run.outcome as RunOutcome), ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) } });
   // Every result, where waitForResult only hands out the first: a chat continued by hand keeps
@@ -419,17 +423,50 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
 }
 
 /**
- * Feeds the ticker the calls of the main agent and their results. A sidechain entry belongs to a
- * subagent: what the chat is doing is the call that started it, which stays open until the
- * subagent reports back.
+ * Feeds the tickers: the main agent's calls and results to the chat's, and a subagent's to its own,
+ * keyed by the call that launched it. To the chat's ticker a subagent is the call that started it,
+ * which stays open until the subagent reports back.
  */
 function trackActivity(chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
-  if (entry.isSidechain) return;
+  if (entry.isSidechain) return trackBranch(chat, entry);
   for (const block of entry.blocks) {
     if (block.type === 'tool_use') {
       chat.activity.called(block.id, block.name, (block.input ?? {}) as Record<string, unknown>, entry.timestamp || now());
     } else if (block.type === 'tool_result') {
       chat.activity.answered(block.toolUseId);
+      // The subagent this call launched reported back. A background one only said it was launched,
+      // and goes on until its task notification
+      const sub = chat.branches.subagents.get(block.toolUseId);
+      if (!(sub?.background && sub.status === 'running')) chat.branchActivity.delete(block.toolUseId);
     }
+  }
+}
+
+/** A subagent's own calls and results, from its sidechain; its text is not on the stream, so only calls tell. */
+function trackBranch(chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
+  const parent = entry.parentToolUseId;
+  if (!parent) return;
+  // A line that arrives after the agent ended must not bring back a ticker nobody would clear
+  const sub = chat.branches.subagents.get(parent);
+  if (sub && sub.status !== 'running') return;
+  let tracker = chat.branchActivity.get(parent);
+  for (const block of entry.blocks) {
+    if (block.type === 'tool_use') {
+      if (!tracker) {
+        tracker = new ChatActivityTracker(chat.workingDir ?? chat.cwd);
+        chat.branchActivity.set(parent, tracker);
+      }
+      tracker.called(block.id, block.name, (block.input ?? {}) as Record<string, unknown>, entry.timestamp || now());
+    } else if (block.type === 'tool_result') {
+      tracker?.answered(block.toolUseId);
+    }
+  }
+}
+
+/** Forgets the tickers of subagents that are over: a task notification ends a background one. */
+function dropEndedBranches(chat: LiveChat): void {
+  for (const toolUseId of chat.branchActivity.keys()) {
+    const sub = chat.branches.subagents.get(toolUseId);
+    if (sub && sub.status !== 'running') chat.branchActivity.delete(toolUseId);
   }
 }

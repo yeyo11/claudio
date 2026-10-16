@@ -23,9 +23,10 @@ import type {
 } from '@claudio/shared';
 import { isEffort } from '@claudio/shared';
 import { ChatActivityTracker } from './chat-activity.ts';
+import type { LiveSubagent } from './chat-branches.ts';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
-import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
+import type { BackgroundTask, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import type { ModelAliasIds } from './models.ts';
 import type { CoreConfig } from './paths.ts';
@@ -242,7 +243,8 @@ export interface ChatRuntime {
   claudioAssistant?: ClaudioAssistantMarker | null;
   executions: Execution[];
   backgroundTasks: BackgroundTask[];
-  subagents: SubagentInfo[];
+  /** With what each running one is doing, from its own sidechain */
+  subagents: LiveSubagent[];
   workflows: WorkflowRun[];
   /** Messages the agent has not taken yet, and those lost since: what the page builds its queued cards from */
   pending?: ChatPendingMessage[];
@@ -371,6 +373,13 @@ export class LiveChat {
   readonly activity: ChatActivityTracker;
   /** The last activity announced on the feed, so a line that changes nothing costs no summary */
   activityKey = '';
+  /**
+   * What each running subagent is doing, by the id of the call that launched it: its sidechain names
+   * it so (`parentToolUseId`), and the agent id may not be known yet when its first call streams.
+   */
+  readonly branchActivity = new Map<string, ChatActivityTracker>();
+  /** The last activity announced per subagent, by the same key; one whose tracker is gone is announced as null once */
+  readonly branchActivityKeys = new Map<string, string>();
   /** The CLI's `tool_progress` heartbeats for the commands still running, by tool call */
   readonly heartbeats = new Map<string, { elapsedSeconds: number; at: string }>();
   /** Foreground commands started and not answered, for the history of how long each kind takes */
@@ -665,7 +674,10 @@ export class LiveChat {
       ...(this.opts.claudioAssistant ? { claudioAssistant: this.opts.claudioAssistant } : {}),
       executions: this.executions,
       backgroundTasks: [...this.branches.tasks.values()],
-      subagents: [...this.branches.subagents.values()],
+      subagents: [...this.branches.subagents.values()].map((sub) => {
+        const tracker = this.alive && sub.status === 'running' ? this.branchActivity.get(sub.toolUseId) : undefined;
+        return tracker ? { ...sub, activity: tracker.current() } : sub;
+      }),
       workflows: [...this.branches.workflows.values()],
       pending: this.pendingList(),
     };

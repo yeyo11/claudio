@@ -1,10 +1,12 @@
-import type { AgentTranscript, ChatBackgroundTask } from '@claudio/shared';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AgentTranscript, ChatActivity, ChatBackgroundTask, ChatDetail, ChatSubagentEntry } from '@claudio/shared';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AgentScope } from '@claudio/chat-ui/lib/agent';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@claudio/chat-ui/lib/chats';
+import { keys } from '../api';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatDuration, formatNumber } from '@claudio/ui/lib/format';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
@@ -143,6 +145,35 @@ function agentDuration(agent: AgentTranscript): string {
 
 type AgentTarget = Extract<DetailRef, { kind: 'subagent' | 'workflow-agent' }>;
 
+/**
+ * What a subagent is doing, as the event feed patches it into whatever already holds the subagent
+ * (its chat's page, a subagents list): read from those caches, never fetched for itself. A running
+ * one with no open call reads as working, from when it started.
+ */
+function useSubagentActivity(chatId: string, agentId: string, startedAt: string | null): ChatActivity {
+  const client = useQueryClient();
+  const find = useCallback((): ChatActivity | null => {
+    for (const sidechains of [false, true]) {
+      const found = client.getQueryData<ChatDetail>(keys.chat(chatId, sidechains))?.chat.children.subagents.find((sub) => sub.id === agentId);
+      if (found) return found.activity ?? null;
+    }
+    for (const [, list] of client.getQueriesData<ChatSubagentEntry[]>({ queryKey: keys.subagents })) {
+      const found = Array.isArray(list) ? list.find((sub) => sub.sessionId === chatId && sub.id === agentId) : undefined;
+      if (found) return found.activity ?? null;
+    }
+    return null;
+  }, [client, chatId, agentId]);
+  const subscribe = useCallback((listener: () => void) => client.getQueryCache().subscribe(listener), [client]);
+  const activity = useSyncExternalStore(subscribe, find, () => null);
+  return useMemo(() => activity ?? { kind: 'tool', since: startedAt ?? '' }, [activity, startedAt]);
+}
+
+/** The panel's first line while a subagent runs: what it is doing now, beside its state. */
+function SubagentNow({ chatId, agentId, startedAt }: { chatId: string; agentId: string; startedAt: string | null }) {
+  const activity = useSubagentActivity(chatId, agentId, startedAt);
+  return <ActivityTicker activity={activity} />;
+}
+
 const agentRef = (target: AgentTarget): AgentRef =>
   target.kind === 'subagent'
     ? { chatId: target.chatId, agentId: target.agentId }
@@ -170,6 +201,12 @@ function AgentBody({ target }: { target: AgentTarget }) {
         <dt>{t('detail.status')}</dt>
         <dd>
           <BranchStatus status={data.status} />
+          {running && target.kind === 'subagent' && (
+            <>
+              {' '}
+              <SubagentNow chatId={target.chatId} agentId={target.agentId} startedAt={data.startedAt} />
+            </>
+          )}
           {data.background && (
             <>
               {' '}

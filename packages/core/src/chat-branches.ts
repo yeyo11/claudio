@@ -1,4 +1,5 @@
 import type {
+  ChatActivity,
   ChatBackgroundTask,
   ChatBranchStatus,
   ChatChildren,
@@ -42,10 +43,16 @@ export function toChatTask(task: BackgroundTask): ChatBackgroundTask {
   };
 }
 
+/**
+ * A subagent with what it is doing right now, which only the live process knows (its sidechain's
+ * open calls); one read from the files on disk has none.
+ */
+export type LiveSubagent = SubagentInfo & { activity?: ChatActivity | null };
+
 /** The id a subagent goes by inside its chat: its transcript's, or its launching call's until it has one. */
 const subagentId = (sub: SubagentInfo): string => sub.agentId ?? sub.toolUseId;
 
-export function toChatSubagent(sub: SubagentInfo, tasks: ChatBackgroundTask[], sessionId: string): ChatSubagent {
+export function toChatSubagent(sub: LiveSubagent, tasks: ChatBackgroundTask[], sessionId: string): ChatSubagent {
   const id = subagentId(sub);
   return {
     id,
@@ -58,6 +65,8 @@ export function toChatSubagent(sub: SubagentInfo, tasks: ChatBackgroundTask[], s
     lastActivityAt: sub.lastActivityAt ?? null,
     cwd: sub.cwd ?? null,
     tasks: tasks.filter((t) => t.ownerId === id),
+    // An ended agent is doing nothing, whatever its last call left open
+    activity: sub.status === 'running' ? (sub.activity ?? null) : null,
   };
 }
 
@@ -99,7 +108,7 @@ export function toChatWorkflow(workflow: WorkflowRun): ChatWorkflow {
 
 /** What the CLI reported delegated, wherever it was read from. */
 export interface BranchFacts {
-  subagents: SubagentInfo[];
+  subagents: LiveSubagent[];
   tasks: BackgroundTask[];
   workflows: WorkflowRun[];
 }
