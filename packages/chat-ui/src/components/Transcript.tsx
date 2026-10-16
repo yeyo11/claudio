@@ -1,5 +1,5 @@
 import type { ChatChildren, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
-import { Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import { Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
 import { toolHint } from '../lib/tool-lens';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
-import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
+import { readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { useStreamFade } from '../lib/smooth-text';
 import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
@@ -113,7 +113,7 @@ function RowTime({ at }: { at: string | null }) {
   );
 }
 
-const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX };
+const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, guard: ShieldAlert };
 
 /**
  * Something the system said, not the person: a strip in the machine's own voice — mono, in the
@@ -122,11 +122,12 @@ const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info
 function NoticeRow({ notice }: { notice: Notice }) {
   const { t } = useTranslation('chat');
   const Icon = NOTICE_ICONS[notice.kind];
-  const failed = notice.kind === 'compaction-failed' || (Boolean(notice.status) && notice.status !== 'completed');
+  const failed = notice.kind === 'compaction-failed' || notice.missing === true || (Boolean(notice.status) && notice.status !== 'completed');
   const line = (
     <>
       <Icon {...ICON_SM} className="notice-icon" />
-      <span className="notice-label">{t(`transcript.notice.${notice.kind}`)}</span>
+      <span className="notice-label">{t(notice.missing ? 'transcript.notice.guardMissing' : `transcript.notice.${notice.kind}`)}</span>
+      {notice.rule && <span className="notice-rule">{notice.rule}</span>}
       {notice.status && <span className={`notice-status ${failed ? 'is-bad' : 'is-ok'}`}>{notice.status}</span>}
       {/* Two lines at most: what the system says is worth a glance, not a screen of the conversation */}
       <span className="notice-detail" title={notice.detail}>
@@ -333,6 +334,9 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const hint = call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') };
   // Scored from the input, so a call still waiting for its result already shows it
   const risk = useToolRisk(call.name, call.input);
+  // A call the guard blocked is the guard's strip, not a failed call: the reason is the fold
+  const blocked = call.result?.isError ? readGuardResult(call.result.content, hint.text) : null;
+  if (blocked) return <NoticeRow notice={blocked} />;
   return (
     <div className={`call-row is-${outcome}`}>
       <Collapsible
