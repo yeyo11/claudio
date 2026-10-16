@@ -1,4 +1,6 @@
-import type { EvalCall, EvalComparison, EvalEstimate, EvalFile, EvalFileDetail, EvalFileListItem, EvalRun, EvalRunRequest, EvalRunSummary, EvalSampleDetail, EvalVariant } from '@claudio/shared';
+import { existsSync } from 'node:fs';
+import { EVAL_DIR, type EvalCall, type EvalComparison, type EvalEstimate, type EvalFile, type EvalFileDetail, type EvalFileListItem, type EvalHead, type EvalRun, type EvalRunRequest, type EvalRunSummary, type EvalSampleDetail, type EvalVariant } from '@claudio/shared';
+import { gitRaw, headCommit, isGitRepo } from '../git.js';
 import { EvalFileError, type EvalConsents, type EvalDefinitionStore } from './definition.ts';
 import { exportRun, loadEvalRun, type EvalExportFormat } from './export.ts';
 import { EvalStartError, type EvalRunner } from './runner.ts';
@@ -35,6 +37,26 @@ export class EvalService {
     if (!this.deps.teamOn(projectId)) throw new EvalStartError('team-off', "the Team module is off in this project: switch it on in the project's settings to use evals");
     const files = await this.deps.definitions.list(path);
     return files.map((file) => ({ ...file, latestRun: this.deps.store.history(projectId, file.name, { limit: 1 }).runs[0] ?? null }));
+  }
+
+  /** The checkout's repository state: what "Pin to HEAD" pins, and which eval files the repository does not have as they are. */
+  head(projectId: string): EvalHead {
+    const path = this.path(projectId);
+    if (!existsSync(path) || !isGitRepo(path)) return { git: false, sha: null, subject: null, uncommitted: [] };
+    let sha: string;
+    try {
+      sha = headCommit(path).trim();
+    } catch {
+      return { git: true, sha: null, subject: null, uncommitted: [] };
+    }
+    const subject = gitRaw(path, ['log', '-1', '--format=%s', sha], { timeout: 10_000 }).trim();
+    // Hooks and the fsmonitor are off, as in every call an eval makes (decision 15)
+    const status = gitRaw(path, ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'status', '--porcelain', '--untracked-files=all', '--', EVAL_DIR], { timeout: 10_000 });
+    const uncommitted = status
+      .split('\n')
+      .map((line) => /^.. "?.*claudio-evals\/([^/"]+)\.json"?$/.exec(line)?.[1])
+      .filter((name): name is string => !!name);
+    return { git: true, sha, subject, uncommitted };
   }
 
   /** One file and whether the person accepted this very content. */

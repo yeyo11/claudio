@@ -28852,6 +28852,39 @@
     ],
     "description": "An eval file in the project's list, with the newest run of that eval (null when it never ran)."
   },
+  "EvalHead": {
+    "type": "object",
+    "properties": {
+      "git": {
+        "type": "boolean"
+      },
+      "sha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "subject": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "uncommitted": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "git",
+      "sha",
+      "subject",
+      "uncommitted"
+    ],
+    "description": "The checkout's repository state, for the evals screens: `git` false is \"not a repository\", and `sha` null with `git` true is \"no commit yet\". `uncommitted` names the eval files the repository does not have as they are on disk (untracked or changed)."
+  },
   "EvalFileDetail": {
     "type": "object",
     "properties": {

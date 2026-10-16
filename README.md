@@ -956,6 +956,7 @@ starting, resuming and deleting; read-only mode refuses every write (405). Error
 | POST | `/projects/:id/evals/:name/estimate` | `EvalRunRequest` → `EvalEstimate` (samples, ceiling, typical cost, commands to consent to, warnings). Starts nothing. 422 `pin-missing`, `target-missing`, `not-git`, `no-commit`, `lanes-root-contaminated`, `user-scope-proposal` |
 | POST | `/projects/:id/evals/:name/consent` | `{ sha }` — record consent for that content. 409 `changed-on-disk` when the SHA is not the file's now |
 | POST | `/projects/:id/evals/:name/runs` | `EvalRunRequest` — start a run (201). 409 `eval-running`, `cost-not-confirmed`; 412 `consent-needed`; 422 as in estimate |
+| GET | `/projects/:id/eval-head` | The checkout's repository state `{ git, sha, subject, uncommitted }`, for "Pin to HEAD" and the "Not committed" mark. 404 |
 | GET | `/projects/:id/eval-runs` | History, newest first: `?eval=&before=&limit=` (≤ 50) → `{ runs, next }`. 404 |
 | GET | `/eval-runs/:runId` | A run with its variants, samples and checks (calls left out). 404 |
 | GET | `/eval-runs/:runId/samples/:sampleId` | A sample with its calls, checks and final text. 404 |
