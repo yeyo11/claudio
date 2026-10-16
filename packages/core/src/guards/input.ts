@@ -35,6 +35,8 @@ export interface GuardRulesFile {
   hooksPathDir: string | null;
   /** The run's own scratch dir, exported as `TMPDIR`; recursive deletes inside it pass (Resolved question 1) */
   tmpDir?: string | null;
+  /** Folder of one-use "Allow once" files (interactive chats only); absent when the run offers none */
+  allowDir?: string | null;
   dataDir: string;
   guardDir: string;
   claudeConfigDirs: string[];
