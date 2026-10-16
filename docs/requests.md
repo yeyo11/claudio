@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:30:00Z
-updated_at: 2026-10-16T12:45:00Z
+updated_at: 2026-10-16T22:45:00Z
 tags:
     - status
     - requests
@@ -30,7 +30,7 @@ that built it) or when the owner drops it.
 | R6 | **Full redesign of the app with Stitch** ("rediseño completo… parece la típica app generada por IA"). Four screens follow the new frame in Stitch (Accounts, Usage, Chats, Settings); Home, Chat, Orchestration and New chat do not yet. Nothing is in code | 2026-10-15 20:37, chat e5fe37cb | Design in progress in Stitch; not implemented |
 | R8 | **WebMCP** in Claudio: researched (what it is and where it could fit); no decision to build | 2026-10-15 17:37, chat ba0064f0 | Researched; waiting for a decision |
 | R9 | **Update the desktop app on this machine once everything is in `main`** | 2026-10-16 09:25, chat 3ef3eec0 | After the ECC orchestration lands |
-| R12 | **Collaborators follow-ups** (what orchestration `623d02f4` left open, [plans/collaborators.md](plans/collaborators.md#outcome)). Missing: the read-only view of a shared project not cloned here (§5.1; today it only offers "Link to a local project"); a run between two real machines (only loopback on the minimal preset was tested; the Docker image reaches n0's relay, checked 2026-10-16). Smaller gaps: subagent transcripts are not pulled; which uploads belong to a chat is known only for chats loaded in the current run; `frozen` is always false; a joiner sees the relaying member's endpoint id instead of their name; the server logs `collab: sync … failed: forbidden` noisily; `collaborators` is missing from `e2e/timings.json`. Two upstream iroh issues are drafted in k5's report and not filed (the `watch*` calls panic in 1.1.0; streams and `sign` reject `Buffer`). Decision open: whether `collaborators.join-request` notifies the owner | 2026-10-16, synthesis of orchestration 623d02f4 | Owner to decide what to build, whether to file the iroh issues, and the notification |
+| R12 | **Collaborators follow-ups** (what orchestration `623d02f4` left open, [plans/collaborators.md](plans/collaborators.md#outcome)). **Built** on `feat/collaborators-gaps` ([plans/collaborators.md](plans/collaborators.md#follow-ups-r12-2026-10-17)): the read-only view of a shared project not cloned here (`13f544e56`); subagent transcripts pulled with their chat (`687dee387`); which uploads belong to a chat kept as rows (`555d1dab5`); `frozen` reported by the install that owned the group (`1f4a31ccd`); members, joins and relays shown by name with the short endpoint id (`a3b05178a`); quiet `forbidden` sync logs (`c9faf0c49`); the owner's decision that `collaborators.join-request` notifies, built (`a969482ae`); browser specs and `e2e/timings.json` entries (`3935df03a`); both iroh issues rechecked against 1.1.0 and drafted in [reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md) (`7e6715ec4`). **Still open:** a run between two real machines (only loopback on the minimal preset was tested; the Docker image reaches n0's relay, checked 2026-10-16), and filing the two iroh issues (the `watch*` calls panic in 1.1.0; streams and `sign` reject `Buffer`) | 2026-10-16, synthesis of orchestration 623d02f4 | Built on `feat/collaborators-gaps`, not yet in `main`; open: the two-machine run, and the owner to file the iroh issues |
 
 ## Closed
 

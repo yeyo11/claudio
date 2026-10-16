@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-16T23:00:00Z
+updated_at: 2026-10-16T22:45:00Z
 tags:
     - design-system
     - web
@@ -2471,6 +2471,15 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   The journal is the person's own journal list without delete or task links, written by the teammate
   (never "you"); artifacts are a master-detail list whose attachment is downloaded, never launched.
 - The invite's QR code comes from the encoder in `packages/ui` (versions 1 to 40, level M).
+- A member, a join request and a waiting join are named by the person's name; the label and the
+  short endpoint id follow in Geist Mono as muted detail, with the full id as the title.
+- A frozen group (only ever on the install that owned it) shows an `alert-warn` line with its icon,
+  "The owner's install is gone: the group can no longer change.", and **Create a new group** as a
+  link button; the owner-only menu entries are gone.
+- A join request waiting for the owner is a notification of the `collaborators` kind, in the `warn`
+  tone, linking to the Collaborators page; once answered the bell shows it as settled.
+- A shared chat's subagent opens from its delegation in the same side panel as a local chat's,
+  read only.
 
 ## Related
 
