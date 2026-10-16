@@ -155,8 +155,8 @@ export class GuardLauncher {
     return this.plan(resolved, request, launch);
   }
 
-  /** Whether a guard can run here, for Settings: the same checks a launch makes, against the data dir */
-  async status(): Promise<{ available: boolean; problem: GuardUnavailableCode | null }> {
+  /** Whether a guard could start here now, for Settings to say why not; the checks a launch makes, with no run */
+  async status(): Promise<{ available: true; problem: null } | { available: false; problem: GuardUnavailableCode }> {
     try {
       await this.preflight.verify(this.input(this.launch(), { kind: 'chat', cwd: this.deps.dataDir }));
       return { available: true, problem: null };

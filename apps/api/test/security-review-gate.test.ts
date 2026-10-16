@@ -47,7 +47,7 @@ async function wrapper(): Promise<{ app: FastifyInstance; core: Core }> {
 
 test("a chat's token cannot accept a review gate or write a reviewer's role, and the owner can", async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => { await app.close(); await core.shutdown(); });
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token: owner } = created.json() as { token: string };
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'token' }) })).statusCode, 200);
@@ -62,7 +62,7 @@ test("a chat's token cannot accept a review gate or write a reviewer's role, and
 
 test('under mode none the chat label refuses the review gate routes and an unlabelled caller passes', async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => { await app.close(); await core.shutdown(); });
   const chat = core.security.chatTokens.mint('chat-42');
   for (const { url, body } of ROUTES) {
     assert.equal((await app.inject({ method: 'POST', url, ...fromChat(chat, body) })).statusCode, 403, url);

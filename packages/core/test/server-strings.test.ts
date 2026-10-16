@@ -20,6 +20,8 @@ const REASON_CODES = [
   'health.lastExecution.failedWithError',
   'health.waiting',
   'health.context',
+  'health.guardBlocked',
+  'health.guardMissing',
   'health.branches',
   'health.repeatStall',
   'health.loop.command',
@@ -47,6 +49,8 @@ const HINT_CODES = [
   'health.hint.silence',
   'health.hint.budget.time',
   'health.hint.budget.cost',
+  'health.hint.guardBlocked',
+  'health.hint.guardMissing',
 ];
 
 const CONNECTOR_CODES = [
@@ -144,9 +148,11 @@ test('every health text has a code, and the code with its params says the same t
   }
   // Every sentence of the catalogue is one a rule really says: a code no rule uses is a dead key
   // (the two the decision engine raises are the exception: no rule says them)
-  const byEngine = ['health.ok', 'health.loop.semantic', 'health.weakenedTest.judged'];
+  // The guard's two come from its own events, not from a chat's transcript: guards-health tests raise them
+  const byGuard = ['health.guardBlocked', 'health.guardMissing', 'health.hint.guardBlocked', 'health.hint.guardMissing'];
+  const byEngine = ['health.ok', 'health.loop.semantic', 'health.weakenedTest.judged', ...byGuard];
   assert.deepEqual([...reasons].sort(), REASON_CODES.filter((c) => !byEngine.includes(c)).sort());
-  assert.deepEqual([...hints].sort(), [...HINT_CODES].sort());
+  assert.deepEqual([...hints].sort(), HINT_CODES.filter((c) => !byGuard.includes(c)).sort());
 });
 
 test('a chat with no signal says so under its own code', () => {

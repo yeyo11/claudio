@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,9 @@ let workspace: string;
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'claudio-api-stuck-'));
+  // Guards are on for automated runs by default and refuse a guard program a checkout under umask 002 leaves group-writable
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'data', 'guards.json'), `${JSON.stringify({ automated: false })}\n`);
   workspace = join(root, 'workspace');
   mkdirSync(workspace, { recursive: true });
   core = new Core(

@@ -330,7 +330,7 @@ lines.on('line', async (line) => {
   }
 
   const schema = flag('--json-schema');
-  if (schema && (JSON.parse(schema).properties?.findings || JSON.parse(schema).properties?.verdicts)) {
+  if (schema && !JSON.parse(schema).properties?.read && (JSON.parse(schema).properties?.findings || JSON.parse(schema).properties?.verdicts)) {
     const reviewing = JSON.parse(schema).properties.findings !== undefined;
     const answer = () => {
       if (reviewing) {

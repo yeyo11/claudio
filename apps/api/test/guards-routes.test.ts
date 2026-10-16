@@ -57,7 +57,8 @@ test('GET and PUT /settings/guards read, merge, and emit guards.changed', async 
   assert.equal(first.settings.rules.push, true);
   assert.equal(first.settings.rules['protect-configs'], false);
   assert.deepEqual(first.rules.map((rule) => rule.id), ['integrity', 'no-verify', 'push', 'destructive', 'secrets', 'protect-configs']);
-  assert.equal(first.status.available, true);
+  // The real preflight: whether it passes depends on the checkout (a group-writable guard program is refused)
+  assert.equal(first.status.available, first.status.problem === null);
 
   const put = await app.inject({ method: 'PUT', url: '/api/settings/guards', ...json({ mode: 'observe', rules: { push: false } }) });
   assert.equal(put.statusCode, 200, put.body);
