@@ -186,5 +186,67 @@
     "linkFailed": "No se ha podido vincular el proyecto",
     "unlinked": "Vínculo eliminado",
     "unlinkFailed": "No se ha podido eliminar el vínculo"
+  },
+  "sharing": {
+    "title": "Compartir",
+    "off": "Activa Colaboradores para compartir este proyecto con tu equipo, en solo lectura.",
+    "unavailable": "Colaboradores no está disponible en esta instalación.",
+    "openCollaborators": "Abrir Colaboradores",
+    "noGroups": "Aún no estás en ningún grupo. Crea uno o únete a uno en Colaboradores para compartir este proyecto.",
+    "shareWith": "Compartir con {{group}}",
+    "warning": "Todo lo que hay en los chats de este proyecto se envía tal cual, incluida la salida de los comandos. El Claudio de cada colaborador borra su copia cuando dejas de compartir, pero lo que una persona ya ha recibido o copiado en otro sitio no se puede recuperar.",
+    "key": "Clave de compartición",
+    "edited": "Editada",
+    "edit": "Editar",
+    "save": "Guardar",
+    "useDefault": "Usar la clave predeterminada",
+    "keyRule": "Usa de 3 a 200 minúsculas, dígitos y . _ / # -",
+    "fromRemote": "Del remoto {{remote}}",
+    "noRemote": "Sin remoto de git: se comparte por su propio id",
+    "remote": "Remoto",
+    "keyInUse": "{{project}} ya comparte esta clave. Edita la clave para compartir también este proyecto.",
+    "included": "Incluido",
+    "seenAs": "Lo que ven los colaboradores",
+    "saveFailed": "No se han podido guardar los ajustes de compartición",
+    "kinds": {
+      "chats": "Chats",
+      "memory": "Memoria",
+      "journal": "Diario",
+      "documents": "Documentos",
+      "artifacts": "Artefactos",
+      "board": "Tablero"
+    }
+  },
+  "shared": {
+    "member": "Colaborador",
+    "sections": "Compartido contigo",
+    "gone": "Ya nadie comparte este proyecto contigo",
+    "nothing": "{{name}} aún no comparte nada que puedas leer aquí",
+    "tabs": {
+      "chats": "Chats",
+      "memory": "Memoria",
+      "documents": "Documentos",
+      "board": "Tablero"
+    },
+    "sync": {
+      "live": "Al día · sincronizando",
+      "synced": "Sincronizado {{ago}}",
+      "offline": "Propietario sin conexión · última sincronización {{ago}}",
+      "offlineNever": "Propietario sin conexión · aún sin sincronizar",
+      "pending": "Aún sin sincronizar",
+      "failed": "La última sincronización ha fallado"
+    },
+    "live": "En directo",
+    "allChats": "Todos los chats",
+    "messages_one": "{{n}} mensaje",
+    "messages_other": "{{n}} mensajes",
+    "index": "Índice",
+    "workingCopy": "Copia de trabajo en la máquina de {{name}} · puede diferir de tu copia",
+    "empty": {
+      "chats": "{{name}} aún no tiene chats en este proyecto",
+      "memory": "Aún no hay archivos de memoria en este proyecto",
+      "documents": "Aún no hay documentos en este proyecto",
+      "board": "Aún no hay tareas en este tablero"
+    }
   }
 }
