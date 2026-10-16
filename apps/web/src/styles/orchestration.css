@@ -2065,3 +2065,37 @@
     align-items: flex-start;
   }
 }
+
+/* What each fixer attempt fixed, and why a fixer's loop stopped (idea 8): static, the stop in warn with its word */
+.vfix-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vfix-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.vfix-row > code {
+  flex: 0 1 auto;
+  color: var(--fg);
+}
+
+.vfix-row > .break {
+  flex: 1 1 12rem;
+  color: var(--fg-2);
+}
+
+@media (max-width: 768px) {
+  /* The path on its own line, the note below it */
+  .vfix-row > code,
+  .vfix-row > .break {
+    flex-basis: 100%;
+  }
+}

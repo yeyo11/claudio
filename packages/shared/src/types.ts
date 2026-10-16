@@ -1918,6 +1918,11 @@ export interface WorkItem {
    * by the flow by column: absent reads as null, waiting for nothing.
    */
   waiting?: WorkItemWaitReason | null;
+  /**
+   * Why it waits for bounces when that was the plateau rule (`flow.plateau`) and not the limit, so
+   * the board can say "no improvement in two rounds"; absent for every other wait.
+   */
+  waitingCause?: 'plateau';
   /** Its newest pull request; absent or null when it never had one */
   pullRequest?: WorkItemPullRequest | null;
   /** The tracker issues it was imported from or linked to; absent reads as none */

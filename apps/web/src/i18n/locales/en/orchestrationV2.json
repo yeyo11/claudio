@@ -40,6 +40,16 @@
     "output": "What it printed",
     "commits_one": "{{count}} commit by the fixer",
     "commits_other": "{{count}} commits by the fixer",
+    "fixes": "Fixes",
+    "fixAttempt": "Attempt {{number}}",
+    "fixRows_one": "{{count}} fix",
+    "fixRows_other": "{{count}} fixes",
+    "stopped": "Stopped",
+    "stop": {
+      "same-error": "the same error after three attempts",
+      "more-errors": "more errors than before",
+      "design": "needs a design decision"
+    },
     "holdsPush": "The branch can be pushed once the checks have finished.",
     "install": "Install step",
     "installMode": {

@@ -437,7 +437,7 @@ export type WorkItemStripState =
   | { kind: 'node'; orchestrationId: string; taskId: string | null }
   | { kind: 'chat-waiting' }
   | { kind: 'approval' }
-  | { kind: 'bounces'; count: number }
+  | { kind: 'bounces'; count: number; plateau?: true }
   | { kind: 'failed'; role: string; step: FlowStep; cause: FlowRunCause | null; error: string | null }
   | { kind: 'rejected'; role: string; quote: string | null }
   | { kind: 'queued'; role: string; step: FlowStep }
@@ -457,7 +457,7 @@ export interface StripRuns {
   ended?: ReadonlyMap<string, FlowRun>;
 }
 
-type StripItem = Pick<WorkItem, 'id' | 'status' | 'activeLink' | 'waiting' | 'bounces' | 'pullRequest'>;
+type StripItem = Pick<WorkItem, 'id' | 'status' | 'activeLink' | 'waiting' | 'waitingCause' | 'bounces' | 'pullRequest'>;
 
 /** The step a flow link names, read by the column the item is in: the Product Owner only checks in Por hacer. */
 function linkStep(role: string | undefined, status: WorkItemStatus): FlowStep {
@@ -520,7 +520,7 @@ export function workItemStrip(item: StripItem, runs: StripRuns = {}): WorkItemSt
   const pullRequest = pullRequestStrip(item);
   if (pullRequest) return pullRequest;
   if (item.waiting === 'approval') return { kind: 'approval' };
-  if (item.waiting === 'bounces') return { kind: 'bounces', count: item.bounces ?? 0 };
+  if (item.waiting === 'bounces') return { kind: 'bounces', count: item.bounces ?? 0, ...(item.waitingCause === 'plateau' ? { plateau: true as const } : {}) };
   const ended = runs.ended?.get(item.id);
   // A later run of the same step answers the failure, and a card that left the run's column moved on
   if (ended && !ended.retriedBy) {
