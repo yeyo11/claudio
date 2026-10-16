@@ -412,7 +412,9 @@
       "command": "Comando",
       "output": "Salida del comando",
       "interrupt": "Interrumpido",
-      "compaction-failed": "No se ha podido compactar"
+      "compaction-failed": "No se ha podido compactar",
+      "guard": "Guardia: bloqueado",
+      "guardMissing": "La guardia no se ha ejecutado en esta llamada"
     }
   },
   "agent": {

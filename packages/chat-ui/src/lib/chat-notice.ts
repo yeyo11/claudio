@@ -1,3 +1,5 @@
+import type { RunGuardEvent } from '@claudio/shared';
+
 /**
  * The messages nobody typed.
  *
@@ -8,7 +10,7 @@
  * page can show them as what they are — something the system said, next to the conversation.
  */
 
-export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed';
+export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed' | 'guard';
 
 export interface Notice {
   kind: NoticeKind;
@@ -18,6 +20,9 @@ export interface Notice {
   body: string;
   /** How a background task ended (`completed`, `failed`, …) */
   status?: string;
+  /** For `guard`: the rule that fired, and the guard never having run for the call (`missing`) */
+  rule?: string;
+  missing?: boolean;
 }
 
 const TAG = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, 'g');
@@ -79,3 +84,22 @@ const rest = (text: string): string => {
   const start = lines.findIndex((line) => line.trim());
   return lines.slice(start + 1).join('\n').trim();
 };
+
+/** What the guard program writes first on a block (docs/plans/guards.md, output contract); the CLI wraps it as `PreToolUse:<tool> hook error: [<command>]: `. */
+const GUARD_BLOCK = /Claudio guard blocked this \(([^)\n]+)\): ([^\n]*)/;
+
+/**
+ * A guard block as the CLI recorded it in a failed `tool_result`, or null for any other text.
+ * `excerpt` is what the call was pointed at, which the result does not carry: the caller has the call.
+ */
+export function readGuardResult(content: string, excerpt: string): Notice | null {
+  const hit = GUARD_BLOCK.exec(content);
+  if (!hit) return null;
+  return { kind: 'guard', rule: (hit[1] ?? '').trim(), detail: excerpt, body: (hit[2] ?? '').trim() };
+}
+
+/** The same strip from the live `guard` event, which already has the masked excerpt. Only a block and a guard that did not run are shown. */
+export function guardEventNotice(guard: RunGuardEvent): Notice | null {
+  if (guard.outcome !== 'blocked' && guard.outcome !== 'error' && guard.outcome !== 'missing') return null;
+  return { kind: 'guard', rule: guard.rule, detail: guard.excerpt, body: guard.reason, ...(guard.outcome === 'missing' ? { missing: true } : {}) };
+}

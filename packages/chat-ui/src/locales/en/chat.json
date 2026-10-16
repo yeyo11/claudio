@@ -412,7 +412,9 @@
       "command": "Command",
       "output": "Command output",
       "interrupt": "Interrupted",
-      "compaction-failed": "Compaction failed"
+      "compaction-failed": "Compaction failed",
+      "guard": "Guard blocked",
+      "guardMissing": "Guard did not run for this call"
     }
   },
   "agent": {
