@@ -211,6 +211,8 @@ interface ServeRecord {
 }
 
 const DEFAULT_SETTINGS: TunnelSettings = { startWithClaudio: false };
+/** `startWithClaudio` as it was called before the rename, read from old settings files and old clients */
+const LEGACY_START_KEY = 'startWithAgentry';
 
 /** What the status says before the CLI was first asked: nothing is known, so nothing is offered. */
 const UNPROBED: TailscaleReadiness = { state: 'missing', version: null, host: null, reason: null };
@@ -409,11 +411,13 @@ export class TunnelManager {
   async updateSettings(input: unknown): Promise<TunnelStatus> {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('tunnel settings must be a JSON object');
     const body = input as Record<string, unknown>;
-    const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithClaudio');
+    const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithClaudio' && key !== LEGACY_START_KEY);
     if (unknownKeys.length) throw new Error(`unknown tunnel settings: ${unknownKeys.join(', ')}; the known one is startWithClaudio`);
-    if (body.startWithClaudio === undefined) return this.refresh();
-    if (typeof body.startWithClaudio !== 'boolean') throw new Error('startWithClaudio must be a boolean');
-    const next = { ...this.settings, startWithClaudio: body.startWithClaudio };
+    // A client built before the rename still sends the old name; the new one wins when both are sent
+    const start = body.startWithClaudio ?? body[LEGACY_START_KEY];
+    if (start === undefined) return this.refresh();
+    if (typeof start !== 'boolean') throw new Error('startWithClaudio must be a boolean');
+    const next = { ...this.settings, startWithClaudio: start };
     await writeAtomic(this.settingsFile, `${JSON.stringify(next, null, 2)}\n`);
     this.settings = next;
     // The event carries the whole status, readiness included, so it is read first
@@ -452,8 +456,9 @@ export class TunnelManager {
   private readSettings(): TunnelSettings {
     if (!existsSync(this.settingsFile)) return { ...DEFAULT_SETTINGS };
     try {
-      const raw = JSON.parse(readFileSync(this.settingsFile, 'utf8')) as Partial<TunnelSettings>;
-      return { startWithClaudio: raw.startWithClaudio === true };
+      const raw = JSON.parse(readFileSync(this.settingsFile, 'utf8')) as Partial<TunnelSettings> & { [LEGACY_START_KEY]?: unknown };
+      // A file written before the rename holds the old key; the next save writes the new one only
+      return { startWithClaudio: (raw.startWithClaudio ?? raw[LEGACY_START_KEY]) === true };
     } catch {
       // Off is the safe reading of a file nobody can read: the tunnel only opens when asked
       return { ...DEFAULT_SETTINGS };

@@ -837,6 +837,16 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      refused      TEXT
    );
    CREATE INDEX terminal_attachments_session ON terminal_attachments (session_id);`,
+  // Claudio's own name in stored values (decision 6 of docs/plans/claude-only-fork.md): a build from
+  // before the rename wrote `agentry` as a chat's origin, the audit's and a merge's actor, and the
+  // assistant marker under `agentryAssistant`. Rewritten once, so no reader has to know both names.
+  // A chat row whose JSON cannot be parsed is left alone: one bad row must not stop the upgrade.
+  `UPDATE chats SET json = json_set(json_remove(json, '$.agentryAssistant'), '$.claudioAssistant', json(json_extract(json, '$.agentryAssistant')))
+   WHERE CASE WHEN json_valid(json) THEN json_type(json, '$.agentryAssistant') IS NOT NULL ELSE 0 END;
+   UPDATE chats SET json = json_set(json, '$.origin', 'claudio')
+   WHERE CASE WHEN json_valid(json) THEN json_extract(json, '$.origin') = 'agentry' ELSE 0 END;
+   UPDATE audit SET actor = 'claudio' WHERE actor = 'agentry';
+   UPDATE change_request_merges SET requested_by = 'claudio' WHERE requested_by = 'agentry';`,
 ];
 
 /**
@@ -888,6 +898,9 @@ export const WEBHOOKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 
 
 /** The version that added the provider limits and moves, for the test that upgrades a database from the one before */
 export const PROVIDER_ROTATION_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE provider_moves')) + 1;
+
+/** The migration that rewrote the values stored under the old product name: a test starts a database from just before it */
+export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes("'$.agentryAssistant'")) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

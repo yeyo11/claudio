@@ -93,7 +93,8 @@ function entryOf(raw: unknown): ProjectDoc | null {
     url: raw.url,
     title: typeof raw.title === 'string' ? raw.title : raw.id,
     kind: 'doc',
-    createdBy: raw.createdBy === 'claudio' ? 'claudio' : 'person',
+    // `agentry`: what this file said before the rename; it is rewritten as `claudio` on the next save
+    createdBy: raw.createdBy === 'claudio' || raw.createdBy === 'agentry' ? 'claudio' : 'person',
     addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : new Date(0).toISOString(),
     status: isStatus(raw.status) ? raw.status : 'unread',
     checkedAt: typeof raw.checkedAt === 'string' ? raw.checkedAt : null,

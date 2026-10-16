@@ -36,6 +36,12 @@ test('an edit that sends the placeholder back keeps the stored secret', () => {
   assert.equal(hasRedacted(merged), false);
 });
 
+test('the placeholder from before the rename, sent back by a page loaded from the old server, still keeps the stored secret', () => {
+  const merged = restoreSecrets({ env: { API_KEY: '__agentry_redacted__' } }, { env: { API_KEY: 'sk-live' } });
+  assert.equal(merged.env.API_KEY, 'sk-live');
+  assert.equal(hasRedacted({ env: { API_KEY: '__agentry_redacted__' } }), true);
+});
+
 test('a placeholder with nothing stored behind it is refused instead of written', () => {
   assert.throws(() => restoreSecrets({ env: { NEW_KEY: REDACTED } }, {}), /no stored value behind the placeholder for env.NEW_KEY/);
 });

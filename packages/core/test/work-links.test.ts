@@ -441,6 +441,20 @@ test('two projects of one repository with the same key do not share an item work
   assert.deepEqual(itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: first.worktree, branch: first.branch }), first);
 });
 
+test('a worktree locked before the rename still tells which project of the repository holds it', () => {
+  const repo = repoWithCommit();
+  const linked = join(mkdtempSync(join(tmpdir(), 'claudio-linked-')), 'feature');
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'feature', linked);
+  const first = itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: null, branch: null });
+  assert.ok(first);
+  gitIn(repo, 'worktree', 'unlock', first.worktree);
+  gitIn(repo, 'worktree', 'lock', '--reason', 'agentry work item AGN-1 of project p1', first.worktree);
+  assert.throws(
+    () => itemWorktree(linked, { key: 'AGN-1', projectId: 'p2', worktree: null, branch: null }),
+    (err: Error & { statusCode?: number }) => err.statusCode === 409 && /another project/.test(err.message),
+  );
+});
+
 // ---------- prompts and drafts ----------
 
 test('the prompt opens with the key and the title, and carries the description and the checklist', () => {

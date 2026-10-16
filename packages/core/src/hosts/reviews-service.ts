@@ -102,7 +102,8 @@ interface Cached {
 const isLimited = (reason: HostReason): boolean => reason === 'rate-limited' || reason === 'slowed-down';
 const failed = (result: HostResult): boolean => result.exitCode !== 0 || Boolean(result.reason);
 
-const MARKER = /\n*<!-- claudio:[0-9a-f-]+ -->/g;
+// `agentry:` is the marker of reviews posted before the rename: they stay on the host and are cleaned too
+const MARKER = /\n*<!-- (?:claudio|agentry):[0-9a-f-]+ -->/g;
 const markerOf = (uuid: string): string => `<!-- claudio:${uuid} -->`;
 
 /**

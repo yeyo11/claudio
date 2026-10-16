@@ -30,8 +30,18 @@ const api = (repo: HostRepo, args: string[], kind: HostCall['kind'], input?: str
  * the same key without asking anyone.
  */
 export function signingTokenOf(secret: string): string {
-  return `whsec_${createHmac('sha256', secret).update('claudio gitlab signing token').digest('base64')}`;
+  return derive(secret, 'claudio gitlab signing token');
 }
+
+/**
+ * Every signing token a hook of this secret may hold: the current one, and the one hooks registered
+ * before the rename were given, which GitLab keeps until the hook is repointed or registered again.
+ */
+export function signingTokensOf(secret: string): string[] {
+  return [signingTokenOf(secret), derive(secret, 'agentry gitlab signing token')];
+}
+
+const derive = (secret: string, label: string): string => `whsec_${createHmac('sha256', secret).update(label).digest('base64')}`;
 
 const body = (hook: { url: string; secret: string }): Record<string, unknown> => ({
   url: hook.url,

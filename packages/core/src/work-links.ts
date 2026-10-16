@@ -179,6 +179,8 @@ export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
 }
 
 const LOCK_REASON = 'claudio work item ';
+/** The lock reason worktrees made before the rename still carry: git keeps it until the worktree goes */
+const LEGACY_LOCK_REASON = 'agentry work item ';
 
 /**
  * The worktree an item already has, or null: unlike {@link itemWorktree} it never makes one. Reading what a
@@ -221,7 +223,8 @@ export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | '
     // would work on the project's own branch, not the item's
     if (!entry) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
     // Two projects in one repository (its main checkout and a linked worktree) can share a key
-    const holder = entry.locked?.startsWith(LOCK_REASON) ? / of project (\S+)$/.exec(entry.locked)?.[1] : undefined;
+    const ours = entry.locked?.startsWith(LOCK_REASON) || entry.locked?.startsWith(LEGACY_LOCK_REASON);
+    const holder = ours ? / of project (\S+)$/.exec(entry.locked ?? '')?.[1] : undefined;
     if (holder && item.projectId && holder !== item.projectId) {
       throw new WorkItemError(`${worktree} is the worktree of ${item.key} in another project of this repository: give this project another key prefix`, 409);
     }

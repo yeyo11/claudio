@@ -17,7 +17,7 @@ import {
   verifyGitlabSignature,
   verifyGitlabToken,
 } from '../src/hosts/webhook-receiver.ts';
-import { signingTokenOf } from '../src/hosts/gitlab/hooks.ts';
+import { signingTokenOf, signingTokensOf } from '../src/hosts/gitlab/hooks.ts';
 import { newWebhookSecret, WebhookSecrets } from '../src/hosts/webhook-secrets.ts';
 import { WebhookStore } from '../src/webhook-store.ts';
 import { loadConfig } from '../src/paths.ts';
@@ -339,8 +339,8 @@ test('the secret is 32 random bytes in a 0600 file', async () => {
 
 // ---------- GitLab's signing token ----------
 
-const glSign = (raw: Buffer, id: string, timestamp: string, secret = SECRET): string => {
-  const key = Buffer.from(signingTokenOf(secret).slice('whsec_'.length), 'base64');
+const glSign = (raw: Buffer, id: string, timestamp: string, secret = SECRET, token = signingTokenOf(secret)): string => {
+  const key = Buffer.from(token.slice('whsec_'.length), 'base64');
   return `v1,${createHmac('sha256', key).update(`${id}.${timestamp}.`).update(raw).digest('base64')}`;
 };
 
@@ -362,6 +362,17 @@ test('GitLab’s signature is HMAC-SHA256 over id.timestamp.body, inside five mi
   assert.equal(check({ id: null }), false);
   assert.equal(check({ timestamp: 'x' }), false);
   assert.equal(verifyGitlabSignature('another-secret', raw, { id: 'abc', timestamp: ts, signature }, now), false);
+});
+
+test('a GitLab hook registered before the rename, with the signing token derived under the old label, is still verified', () => {
+  const raw = Buffer.from('{"object_kind":"push"}');
+  const now = Date.parse('2026-10-02T12:00:00Z');
+  const ts = String(now / 1000);
+  const [current, legacy] = signingTokensOf(SECRET);
+  assert.ok(legacy && legacy !== current, 'the old derivation is a different token');
+  assert.equal(current, signingTokenOf(SECRET), 'a new hook is given the current one');
+  assert.equal(verifyGitlabSignature(SECRET, raw, { id: 'abc', timestamp: ts, signature: glSign(raw, 'abc', ts, SECRET, legacy) }, now), true);
+  assert.equal(verifyGitlabSignature('another-secret', raw, { id: 'abc', timestamp: ts, signature: glSign(raw, 'abc', ts, SECRET, legacy) }, now), false);
 });
 
 test('a GitLab delivery needs the token, and a signature when it carries one', async () => {

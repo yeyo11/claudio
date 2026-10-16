@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
@@ -311,6 +311,20 @@ test('a node renamed while the tunnel is open moves the allowed host with it', a
   assert.deepEqual(r.hosts.list(), [renamed]);
   await r.manager.stop();
   assert.deepEqual(r.node().serve, {});
+});
+
+test('start with Claudio set under its name before the rename is still read, from the file and from a request', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-legacy-'));
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'data', 'tunnel-settings.json'), JSON.stringify({ startWithAgentry: true }));
+  const first = rig(t, { root, attach: false });
+  assert.equal(first.manager.status().settings.startWithClaudio, true);
+  const off = await first.manager.updateSettings({ startWithAgentry: false });
+  assert.equal(off.settings.startWithClaudio, false);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, 'data', 'tunnel-settings.json'), 'utf8')), { startWithClaudio: false }, 'the next save writes only the new name');
+  const both = await first.manager.updateSettings({ startWithClaudio: true, startWithAgentry: false });
+  assert.equal(both.settings.startWithClaudio, true, 'the new name wins when a request sends both');
+  first.manager.shutdown();
 });
 
 test('start with Claudio is off by default, is kept, and opens the tunnel on the next attach', async (t) => {

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution, ProviderMove } from '@claudio/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, JEV_COST_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, RENAME_SCHEMA_VERSION, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -795,4 +795,34 @@ test('decision stats sum the jev cost of a window of priced rows', () => {
   const stats = db.decisionStats(at(0));
   assert.ok(Math.abs(stats.jevCostUsd - 76_403 * price) < 1e-12);
   assert.ok(Math.abs((stats.points[0]?.costUsd ?? 0) - 76_403 * price) < 1e-12);
+});
+
+test('values stored under the old product name are read back under Claudio’s after the upgrade', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
+  migrate(raw, RENAME_SCHEMA_VERSION - 1);
+  const record = (id: string, extra: Record<string, unknown>) =>
+    JSON.stringify({ id, name: id, cwd: '/p', workingDir: null, origin: 'agentry', orchestrationId: null, orchestrationTaskId: null, derivedFrom: null, prompt: 'hi', lastText: null, model: null, permissionMode: 'default', permissionPrompts: 'host', createdAt: at(1), updatedAt: at(1), ...extra });
+  const chat = raw.prepare("INSERT INTO chats (id, created_at, provider, json) VALUES (?, ?, 'claude-code', ?)");
+  chat.run('assistant', at(1), record('assistant', { agentryAssistant: { language: 'es', projectId: null } }));
+  chat.run('external', at(2), record('external', { origin: 'external', agentryAssistant: null }));
+  chat.run('broken', at(3), '{not json');
+  raw.prepare("INSERT INTO audit (at, actor, method, path, status, summary) VALUES (?, 'agentry', 'POST', '/api/tunnel/start', 200, 'Start the tunnel')").run(at(1));
+  raw.prepare("INSERT INTO audit (at, actor, method, path, status, summary) VALUES (?, 'token:t1', 'POST', '/api/projects', 201, 'Create')").run(at(2));
+  raw.prepare("INSERT INTO change_request_merges (id, cr_id, action, requested_at, requested_by, outcome) VALUES ('m1', 'cr1', 'disarm', ?, 'agentry', 'disarmed')").run(at(1));
+  raw.close();
+
+  const db = new Db(config);
+  const chats = new Map(db.loadChats().map((c) => [c.record.id, c.record]));
+  assert.deepEqual(chats.get('assistant')?.claudioAssistant, { language: 'es', projectId: null });
+  assert.equal(chats.get('assistant')?.origin, 'claudio');
+  assert.equal('agentryAssistant' in (chats.get('assistant') ?? {}), false);
+  assert.equal(chats.get('external')?.origin, 'external', 'another origin is left as it was');
+  assert.equal(chats.get('external')?.claudioAssistant, null);
+  assert.equal(chats.has('broken'), false, 'an unreadable row neither stops the upgrade nor is invented');
+  const sql = (db as unknown as { db: DatabaseSync }).db;
+  assert.deepEqual((sql.prepare('SELECT actor FROM audit ORDER BY id').all() as Array<{ actor: string }>).map((r) => r.actor), ['claudio', 'token:t1']);
+  assert.equal((sql.prepare("SELECT requested_by FROM change_request_merges WHERE id = 'm1'").get() as { requested_by: string }).requested_by, 'claudio');
+  db.close();
 });

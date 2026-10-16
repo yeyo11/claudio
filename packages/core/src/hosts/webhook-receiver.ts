@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { CodeHostId, WebhookRegistration } from '@claudio/shared';
 import type { ClaudioEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
-import { signingTokenOf } from './gitlab/hooks.ts';
+import { signingTokensOf } from './gitlab/hooks.ts';
 import type { WebhookSecrets } from './webhook-secrets.ts';
 
 // What a webhook delivery is allowed to do: be believed or not, and then move the next read of the
@@ -53,9 +53,12 @@ export function verifyGitlabSignature(
 ): boolean {
   if (!headers.id || !headers.timestamp || !headers.signature || !/^\d+$/.test(headers.timestamp)) return false;
   if (Math.abs(nowMs / 1000 - Number(headers.timestamp)) > SIGNATURE_WINDOW_S) return false;
-  const key = Buffer.from(signingTokenOf(secret).slice('whsec_'.length), 'base64');
-  const expected = `v1,${createHmac('sha256', key).update(`${headers.id}.${headers.timestamp}.`).update(raw).digest('base64')}`;
-  return headers.signature.split(' ').some((candidate) => sameSecret(expected, candidate));
+  const { id, timestamp, signature } = headers;
+  return signingTokensOf(secret).some((token) => {
+    const key = Buffer.from(token.slice('whsec_'.length), 'base64');
+    const expected = `v1,${createHmac('sha256', key).update(`${id}.${timestamp}.`).update(raw).digest('base64')}`;
+    return signature.split(' ').some((candidate) => sameSecret(expected, candidate));
+  });
 }
 
 /** What a verified delivery says about which change requests moved. Everything in it is untrusted text. */

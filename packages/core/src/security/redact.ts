@@ -7,6 +7,13 @@ import { REDACTED } from '@claudio/shared';
  */
 export const SECRET_MAPS = ['env', 'headers'] as const;
 
+/**
+ * The placeholder before the rename: a page loaded from the old server and saved after the upgrade
+ * sends it back, and it must still mean "keep what is stored", never be written as the secret.
+ */
+const LEGACY_REDACTED = '__agentry_redacted__';
+const isPlaceholder = (value: unknown): boolean => value === REDACTED || value === LEGACY_REDACTED;
+
 const isMap = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -44,7 +51,7 @@ export function restoreSecrets<T>(next: T, stored: unknown, keys: readonly strin
     const before = isMap(previous[key]) ? (previous[key] as Record<string, unknown>) : {};
     const restored: Record<string, unknown> = {};
     for (const [name, value] of Object.entries(map)) {
-      if (value !== REDACTED) {
+      if (!isPlaceholder(value)) {
         restored[name] = value;
         continue;
       }
@@ -62,7 +69,7 @@ export function hasRedacted(document: unknown, keys: readonly string[] = SECRET_
   if (!isMap(document)) return false;
   for (const key of keys) {
     const map = document[key];
-    if (isMap(map) && Object.values(map).includes(REDACTED)) return true;
+    if (isMap(map) && Object.values(map).some(isPlaceholder)) return true;
   }
   return false;
 }

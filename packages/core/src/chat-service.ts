@@ -670,7 +670,8 @@ export class ChatService {
     /** Only the core's own entry for the Claudio assistant passes it: a body sent to the API never makes a chat one */
     claudioAssistant?: ClaudioAssistantMarker,
   ): Promise<ChatSummary> {
-    const { claudioAssistant: _sent, ...rest } = body as typeof body & { claudioAssistant?: unknown };
+    // The name before the rename is dropped too, so a stored or replayed old body cannot carry it in
+    const { claudioAssistant: _sent, agentryAssistant: _legacy, ...rest } = body as typeof body & { claudioAssistant?: unknown; agentryAssistant?: unknown };
     const request = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
