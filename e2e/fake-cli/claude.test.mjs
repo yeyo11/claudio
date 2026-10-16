@@ -563,3 +563,33 @@ test('a transcript records toolUseResult, the subagent in its own file, and the 
     rmSync(config, { recursive: true, force: true });
   }
 });
+
+test('edit:, write: and skill: emit the Edit, Write and Skill shapes and touch the disk', async () => {
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'a.txt'), 'one\n') });
+  c.say('edit: a.txt\nwrite: sub/b.txt hello there\nskill: review\nedit: missing.txt');
+  const call = async (name) => {
+    const e = await c.next((x) => x.type === 'assistant' && x.message.content.some((b) => b.type === 'tool_use' && b.name === name));
+    return e.message.content.find((b) => b.type === 'tool_use');
+  };
+  const edit = await call('Edit');
+  assert.match(edit.input.file_path, /\/a\.txt$/);
+  assert.deepEqual([edit.input.old_string, edit.input.new_string, edit.input.replace_all], ['one\n', 'one\nedited by the fake CLI\n', false]);
+  const edited = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(edited.tool_use_result.originalFile, 'one\n');
+  assert.equal(edited.tool_use_result.userModified, false);
+  const write = await call('Write');
+  assert.deepEqual([write.input.content, /\/sub\/b\.txt$/.test(write.input.file_path)], ['hello there', true]);
+  const written = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(written.tool_use_result.type, 'create');
+  assert.equal(readFileSync(write.input.file_path, 'utf8'), 'hello there');
+  assert.equal(readFileSync(edit.input.file_path, 'utf8'), 'one\nedited by the fake CLI\n');
+  const skill = await call('Skill');
+  assert.deepEqual(skill.input, { skill: 'review' });
+  const launched = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.deepEqual(launched.tool_use_result, { success: true, commandName: 'review' });
+  await call('Edit');
+  const failed = await c.next((e) => toolResultOf(e) !== undefined);
+  assert.equal(toolResultOf(failed).is_error, true);
+  await c.next((e) => e.type === 'result');
+  await c.done();
+});
