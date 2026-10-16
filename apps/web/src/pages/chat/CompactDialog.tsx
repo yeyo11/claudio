@@ -58,7 +58,7 @@ export function CompactDialog({ chat, onClose }: { chat: Chat; onClose: () => vo
   );
   if (narrow) {
     return (
-      <Sheet open onOpenChange={(open) => !open && onClose()} title={t('context.compactDialog.title')} footer={<div className="ctx-foot">{actions}</div>}>
+      <Sheet open onOpenChange={(open) => !open && onClose()} title={t('context.compactDialog.title')} className="ctx-sheet" footer={<div className="ctx-foot">{actions}</div>}>
         {form}
       </Sheet>
     );

@@ -49,7 +49,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return document.querySelector('[role=dialog]') === null`, { label: 'the dialog closed' });
   };
   const openMenu = async () => {
-    await page.click('main .chat-head .chat-more', undefined, 700);
+    // Opened the way a keyboard does: Radix opens a menu on pointerdown, never on a synthetic click
+    await page.focus('main .chat-head .chat-more');
+    await page.press('Enter');
     await page.waitFor(`return !!document.querySelector('[role=menu], [role=dialog] .sheet-actions')`, { label: 'the header menu' });
   };
   // The compact entry of the header's menu (a menu on a desktop, a sheet's buttons on a phone)
@@ -82,7 +84,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     const panel = await dialogText();
     for (const category of ['System prompt', 'System tools', 'MCP tools', 'Skills', 'Messages', 'Free space']) check(panel.includes(category), `the panel lists "${category}"`);
     check(panel.includes('Outside the window'), 'the deferred categories are a group of their own, outside the window');
-    check(panel.includes('Many MCP tools (93)'), 'the panel warns of the 93 MCP tools, in words');
+    // A badge is set in capitals by the design system, so the words are read from its text, not innerText
+    const warnings = await page.eval(`return document.querySelector('[role=dialog] .ctx-warnings')?.textContent ?? ''`);
+    check(warnings.includes('Many MCP tools (93)'), `the panel warns of the 93 MCP tools, in words (${warnings})`);
     const warned = await page.eval(`return !!document.querySelector('[role=dialog] .ctx-warnings svg')`);
     check(warned, 'the warning carries an icon beside its words');
     check((await page.eval(`return document.querySelectorAll('[role=dialog] .ctx-server').length`)) === 2, 'the two MCP servers are listed');
@@ -107,8 +111,12 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(/Compacted/.test(label) && /by hand/.test(label) && /→/.test(label), `the divider says what happened and from what to what (${label})`);
     const after = (await detail(id)).chat.context;
     check(after?.compactedSince?.postTokens === 1655, `the meter reads the boundary’s figure, not the old response (${JSON.stringify(after?.compactedSince)})`);
-    check(after.used !== undefined && 1655 / after.window < CONTEXT_TOKENS / after.window, 'the share fell');
-    check(await page.eval(`return /1\\.7k|1,655|1\\.6k/.test(document.querySelector('.chat-inspector .insp-context-note')?.innerText ?? '')`), 'the inspector says what the compaction left');
+    // `used` stays the last response's figure until the next one; the meter reads `compactedSince`, and
+    // the fake reports no model window, so the share is compared as the tokens it is a share of
+    check(after.used === CONTEXT_TOKENS && (after.compactedSince?.postTokens ?? Infinity) < after.used, `the share fell (${after.compactedSince?.postTokens} from ${after.used})`);
+    // The inspector redraws from the chat's next event, which can land after the API already answers
+    await page.waitFor(`return /1\\.7k|1,655|1\\.6k/.test(document.querySelector('.chat-inspector .insp-context-note')?.innerText ?? '')`, { label: 'the inspector says what the compaction left', timeout: 15_000 });
+    check(true, 'the inspector says what the compaction left');
     check(!(await page.eval(`return [...document.querySelectorAll('.transcript .msg-user')].some((m) => m.innerText.includes(${JSON.stringify(SUMMARY_START)}))`)), 'the summary is not a message of the person’s');
     // The fold: closed by default, the summary inside
     check(!(await page.text('.transcript')).includes(SUMMARY_START), 'the summary is folded');
@@ -116,7 +124,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return (document.querySelector('.transcript .compaction-summary')?.innerText ?? '').includes(${JSON.stringify(SUMMARY_START)})`, { label: 'the summary in the fold' });
     // The note the switch asked for, in the inspector
     await page.waitFor(`return document.querySelectorAll('.chat-inspector .insp-notes .note-item').length > 0`, { label: 'the session note in the inspector', timeout: 30_000 });
-    check((await page.text('.chat-inspector .insp-notes')).includes('Session notes'), 'the inspector has a Session notes section with the note');
+    // Section titles are set in capitals by the design system: read the words, not the rendered case
+    check((await page.eval(`return document.querySelector('.chat-inspector .insp-notes')?.textContent ?? ''`)).includes('Session notes'), 'the inspector has a Session notes section with the note');
 
     // ---------- a compaction that fails: the notice, and the button comes back ----------
     await openCompactDialog();
@@ -160,7 +169,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // ---------- phone width: sheets and 44 px targets ----------
     await page.viewport(420, 900);
     await open(id);
-    await page.click('main .chat-head button[aria-label="Details"]', undefined, 800);
+    await page.click('main .chat-head button[aria-label="Chat details"]', undefined, 800);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .insp-context-actions')`, { label: 'the details sheet' });
     await page.click('[role=dialog] .insp-context-actions .btn', 'Breakdown', 900);
     await page.waitFor(`return document.querySelectorAll('[role=dialog]').length > 0 && /MCP tools/.test(document.body.innerText)`, { label: 'the panel as a sheet' });

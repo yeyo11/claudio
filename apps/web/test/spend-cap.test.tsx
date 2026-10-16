@@ -151,6 +151,11 @@ test('the settings card shows off, on, set by the environment and invalid', () =
   assert.match(text(invalid), /Enter an amount above 0 and up to \$100,000\.00/);
 });
 
+test('a whole amount is a valid cap: the browser never refuses the form for its step', () => {
+  const on = wrap(<SpendCard saved={settings(20, 'file')} />, state(8));
+  assert.match(on, /type="number"[^>]*step="any"/);
+});
+
 test('the cap is sent only when it moved, never when the environment set it', () => {
   assert.equal(validCap(20), 20);
   assert.equal(validCap(0.004), null, 'rounds to 0 cents');

@@ -100,7 +100,8 @@ function render({ request = pr(), merge, drafts, posts, threads, checks }: Scene
   const qc = new QueryClient();
   if (merge) qc.setQueryData(keys.changeRequestMerge('cr1'), merge);
   if (drafts) qc.setQueryData(keys.reviewDrafts('cr1'), drafts);
-  if (posts) qc.setQueryData(keys.reviewPosts('cr1'), posts);
+  // The posts are read before Submit is offered (Review.tsx); a scene that names none has read an empty list
+  qc.setQueryData(keys.reviewPosts('cr1'), posts ?? { posts: [], savedOnHost: {} });
   if (threads) qc.setQueryData(keys.changeRequestThreads('cr1'), { headSha: 'h2', threads, checkedAt: '2026-10-01T10:00:00Z' } as ChangeRequestThreads);
   if (checks) qc.setQueryData(keys.changeRequestChecks('cr1'), checks);
   return renderToStaticMarkup(
