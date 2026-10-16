@@ -593,8 +593,7 @@ merging keys, never by hand-picking a side.
 
 ### 7.2 C0 facts (2026-10-16)
 
-Run by the owner's session on this machine (Linux x64, Node 22.21.1), with the spike in
-`/tmp/c0-iroh/spike` and its copy `~/Escritorio/claudio-c0-spike.tar.gz`. Everything below was
+Run by the owner's session on this machine (Linux x64, Node 22.21.1), with the spike now kept in [reports/collaborators-c0/](../reports/collaborators-c0/README.md). Everything below was
 measured, not read.
 
 **The binding.** `@number0/iroh` **1.1.0**, `engines.node >= 20.3.0`, 168 KiB of JS plus one
