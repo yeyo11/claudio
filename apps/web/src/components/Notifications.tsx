@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { useAgentryEvents } from '../lib/events';
+import { useClaudioEvents } from '../lib/events';
 import {
   getPrefs,
   hasUrgent,
@@ -120,7 +120,7 @@ export function NotificationHost() {
   };
   const seen = (draft: NotificationDraft) => isRedundant(draft, where.current, document.visibilityState === 'visible');
 
-  useAgentryEvents((event) => {
+  useClaudioEvents((event) => {
     const { added, settled } = ingest(event, seen);
     for (const n of settled) toast.dismissKey(n.key);
     announce(added);

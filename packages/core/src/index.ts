@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type {
-  AgentryLanguage,
+  ClaudioLanguage,
   AuthVerification,
-  AgentryReleaseInfo,
+  ClaudioReleaseInfo,
   TrackerId,
   CliVersionInfo,
   StorageReport,
@@ -68,7 +68,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, agentryLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type AgentryAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type LimitWait, type ProjectCodeHost, type ProviderId, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -123,8 +123,8 @@ import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
-import { agentryMcp, agentryMcpSync, assistantChatOptions, type AgentryMcpLaunch, type AssistantChatOptions } from './agentry-mcp.ts';
-import { agentryAssistantPrompt } from './agentry-assistant-prompt.ts';
+import { claudioMcp, claudioMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions } from './claudio-mcp.ts';
+import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
@@ -201,7 +201,7 @@ import { TerminalStore } from './terminals/store.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
-export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
+export { MCP_ENTRY_ENV, type ClaudioMcpLaunch } from './claudio-mcp.ts';
 export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
 export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
 export type { PeerVerdict } from './terminals/peer.ts';
@@ -318,7 +318,7 @@ export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
-export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
+export { EventBus, type ClaudioEventInput, type Replay } from './events.ts';
 export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading, type ProviderDetectorDeps } from './providers/detector.ts';
 export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
 export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
@@ -497,7 +497,7 @@ export class Core {
    * The person's language, as their panel last said it (`noteLanguage`): what the chats Claudio
    * starts on its own, with no request of the person's behind them, are titled in.
    */
-  private language: AgentryLanguage = 'en';
+  private language: ClaudioLanguage = 'en';
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
@@ -1381,12 +1381,12 @@ export class Core {
   }
 
   /** This Claudio against the newest release, as the last check left it: no network here. */
-  releaseInfo(): AgentryReleaseInfo {
+  releaseInfo(): ClaudioReleaseInfo {
     return this.release.info();
   }
 
   /** Asks GitHub now, for the Check for updates button. */
-  async checkRelease(): Promise<AgentryReleaseInfo> {
+  async checkRelease(): Promise<ClaudioReleaseInfo> {
     await this.release.check();
     return this.release.info();
   }
@@ -1397,8 +1397,8 @@ export class Core {
   }
 
   /** Claudio's own MCP server for a chat, and the flags that confine the chat to its read tools. */
-  agentryMcp(): Promise<AgentryMcpLaunch> {
-    return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
+  claudioMcp(): Promise<ClaudioMcpLaunch> {
+    return claudioMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
   }
 
   /**
@@ -1407,7 +1407,7 @@ export class Core {
    * It runs in the project's directory when that exists, else in the workspace. Its confinement is
    * `assistantChatLaunch`, applied again at every process of the chat.
    */
-  async startAgentryAssistantChat(input: unknown, language: AgentryLanguage = 'en'): Promise<ChatSummary> {
+  async startClaudioAssistantChat(input: unknown, language: ClaudioLanguage = 'en'): Promise<ChatSummary> {
     const body = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
     if (!prompt) throw new AssistantError('prompt is required', 400);
@@ -1426,11 +1426,11 @@ export class Core {
   }
 
   /** What the assistant chat of this marker runs with: `assistantChatOptions`, with the guide for its project and language. */
-  private assistantChatLaunch(marker: AgentryAssistantMarker): AssistantChatOptions {
+  private assistantChatLaunch(marker: ClaudioAssistantMarker): AssistantChatOptions {
     const project = marker.projectId ? this.projectStore.get(marker.projectId) : null;
     const scope = project ? { id: project.id, name: project.name, key: this.projectSettingsStore.stored(project.id, project.name)?.keyPrefix ?? '', path: project.path } : null;
-    const launch = agentryMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
-    return assistantChatOptions(launch, agentryAssistantPrompt(scope, marker.language));
+    const launch = claudioMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
+    return assistantChatOptions(launch, claudioAssistantPrompt(scope, marker.language));
   }
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
@@ -1793,7 +1793,7 @@ export class Core {
    * prompt, so the person drives any change in a chat they can watch. The Docs connector reaches it
    * through the account's own claude.ai connectors; nothing is pre-approved.
    */
-  async askAboutProjectDoc(projectId: string, docId: string, language: AgentryLanguage = 'en'): Promise<ChatSummary> {
+  async askAboutProjectDoc(projectId: string, docId: string, language: ClaudioLanguage = 'en'): Promise<ChatSummary> {
     this.assertProjectDocsProject(projectId);
     const record = this.requireProject(projectId);
     const doc = this.projectDocs.find(projectId, docId);
@@ -1874,7 +1874,7 @@ export class Core {
   noteLanguage(header: unknown): void {
     if (typeof header !== 'string') return;
     const named = header.split(',').some((tag) => (CLAUDIO_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
-    if (named) this.language = agentryLanguage(header);
+    if (named) this.language = claudioLanguage(header);
   }
 
   /**
@@ -1898,7 +1898,7 @@ export class Core {
   }
 
   /** The person's language as the panel last said it. */
-  personLanguage(): AgentryLanguage {
+  personLanguage(): ClaudioLanguage {
     return this.language;
   }
 
@@ -2469,7 +2469,7 @@ export class Core {
    * The graph a selection of one project's items becomes, for the person to review: nothing is
    * launched. The existing launch route takes it as it is and links each node to its item.
    */
-  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest, language: AgentryLanguage = 'en'): Promise<WorkItemOrchestrationDraft> {
+  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest, language: ClaudioLanguage = 'en'): Promise<WorkItemOrchestrationDraft> {
     await this.workItemProject(projectId, 'write');
     const record = this.requireProject(projectId);
     const ids: unknown = request?.itemIds;

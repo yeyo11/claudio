@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Illustrations (design system §4, agentry-ds.css §14).
+   Illustrations (design system §4, claudio-ds.css §14).
 
    SVG presentation attributes don't resolve var(), so every colour is set here, by class. The
    classes are short and generic (.c1, .txt …), so every rule is scoped under `.il` and none of

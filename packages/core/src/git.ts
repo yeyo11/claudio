@@ -194,7 +194,7 @@ export function identity(dir: string): string[] {
   } catch {
     /* unset */
   }
-  return ['-c', 'user.name=Claudio', '-c', 'user.email=agentry@localhost'];
+  return ['-c', 'user.name=Claudio', '-c', 'user.email=claudio@localhost'];
 }
 
 /**

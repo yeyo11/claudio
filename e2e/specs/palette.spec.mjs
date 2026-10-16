@@ -22,5 +22,5 @@ export default async ({ page, check }) => {
   check((await page.eval(`return document.querySelector('.palette-group')?.textContent`)) === 'Recent', 'recent commands listed first');
   await page.key('Escape');
   await page.waitFor(`return !document.querySelector('.palette')`, { label: 'Esc closes the palette' });
-  await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('agentry-palette-recent'); return true`);
+  await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('claudio-palette-recent'); return true`);
 };

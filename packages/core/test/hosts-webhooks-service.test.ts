@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, TunnelStatus } from '@claudio/shared';
+import type { ClaudioEvent, TunnelStatus } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { migrate } from '../src/db.ts';
 import type { HostCall } from '../src/hosts/code-host.ts';
@@ -60,7 +60,7 @@ interface Fixture {
   secrets: WebhookSecrets;
   dataDir: string;
   calls: HostCall[];
-  events: AgentryEvent[];
+  events: ClaudioEvent[];
   state: { origin: string | null; target: WebhookTarget | null; clock: number };
   answer: (handler: (call: HostCall) => HostResult | undefined) => void;
 }
@@ -73,7 +73,7 @@ function fixture(host: 'github' | 'gitlab' = 'github'): Fixture {
   const store = new WebhookStore(raw);
   const secrets = new WebhookSecrets(config);
   const calls: HostCall[] = [];
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const state = { origin: ORIGIN as string | null, target: (host === 'github' ? { host: 'github', hostname: 'github.com', repoPath: REPO.path } : { host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path }) as WebhookTarget | null, clock: NOW };
   let handler: (call: HostCall) => HostResult | undefined = () => undefined;
   const access: WebhookAccess = {
@@ -93,7 +93,7 @@ function fixture(host: 'github' | 'gitlab' = 'github'): Fixture {
     target: async () => state.target,
     access: async () => access,
     publicUrl: () => state.origin,
-    emit: (event) => events.push({ ...event, id: events.length + 1, at: new Date(NOW).toISOString() } as AgentryEvent),
+    emit: (event) => events.push({ ...event, id: events.length + 1, at: new Date(NOW).toISOString() } as ClaudioEvent),
     now: () => state.clock,
     sleep: async () => undefined,
   });
@@ -145,7 +145,7 @@ test('the hook calls are the recorded ones, with the secret on stdin and never i
 test('the recorded hook answers parse, and a failing last response is told from a good one', () => {
   const created = githubHooks.parseHook(recorded('hook_create').stdout);
   assert.equal(created.id, HOOK);
-  assert.equal(created.url, 'https://agentry.example.net/github/1');
+  assert.equal(created.url, 'https://claudio.example.net/github/1');
   assert.deepEqual(created.lastResponse, { code: null, status: 'unused' });
   const after = githubHooks.parseHook(recorded('hook_get_after').stdout);
   assert.deepEqual(after.lastResponse, { code: 204, status: 'active' });
@@ -477,7 +477,7 @@ test("only an active tunnel's address is followed", async () => {
   const f = fixture();
   f.store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
   f.answer(() => undefined);
-  const tunnel = (state: TunnelStatus['state'], url: string | null): AgentryEvent => ({ id: 1, at: '', type: 'tunnel.changed', title: '', tunnel: { state, url } as TunnelStatus }) as AgentryEvent;
+  const tunnel = (state: TunnelStatus['state'], url: string | null): ClaudioEvent => ({ id: 1, at: '', type: 'tunnel.changed', title: '', tunnel: { state, url } as TunnelStatus }) as ClaudioEvent;
   f.service.observe(tunnel('starting', null));
   f.service.observe(tunnel('verifying', 'https://new.lhr.life'));
   await f.service.follow('not a url');
@@ -494,7 +494,7 @@ test("the core never moves a hook to the tunnel's tailnet address, and still han
   assert.ok(core.webhookService instanceof WebhooksService);
   const reg = core.webhooks.create({ id: 'r1', projectId: 'no-such-project', host: 'github', hostname: 'github.com', repoPath: 'a/b', remoteHookId: '1', url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
   assert.equal(core.webhookSecrets.get(reg.id), null, 'no secret was ever stored for it');
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
 
   // An active tunnel is reachable only from the tailnet: a code host on the internet cannot deliver there
@@ -576,7 +576,7 @@ test('the GitLab hook calls are the recorded ones, with the token and signing to
 
 test('the recorded GitLab answers parse: the hook, its newest delivery and the failed ones', () => {
   const created = gitlabHooks.parseHook([glRecorded('w0_hook_create').stdout]);
-  assert.deepEqual([created.id, created.url, created.disabled, created.lastResponse], [GL_HOOK, 'https://agentry.example.net/gitlab/1', false, null]);
+  assert.deepEqual([created.id, created.url, created.disabled, created.lastResponse], [GL_HOOK, 'https://claudio.example.net/gitlab/1', false, null]);
   const events = gitlabHooks.parseHook([glRecorded('w0_hook_get').stdout, glRecorded('w0_hook_events').stdout]);
   assert.deepEqual(events.lastResponse, { code: 204, status: 'active' });
   assert.equal(events.deliveryKey, '27604479645');

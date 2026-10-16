@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { AgentryEvent, AppSettings, LoginSession, SetupState, SignOutResult } from '@claudio/shared';
+import type { ClaudioEvent, AppSettings, LoginSession, SetupState, SignOutResult } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The setup routes over HTTP, on a real core with scratch dirs. No agent CLI is found (the test
@@ -19,10 +19,10 @@ const FAKE_TAILSCALE = fileURLToPath(new URL('../../../packages/core/test/fixtur
 let app: FastifyInstance;
 let core: Core;
 let root: string;
-const events: AgentryEvent[] = [];
+const events: ClaudioEvent[] = [];
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-setup-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-setup-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -53,7 +53,7 @@ test('the setup state says what is done: access, agents, hosts, YouTrack, the me
   assert.equal(state.youtrack.configured, false);
   assert.deepEqual(state.methods.map((m) => m.tool), ['claude-code', 'gh', 'glab', 'youtrack', 'tailscale']);
   // A source install's Tailscale is the machine's: its state shows, and it is not Claudio's to sign in
-  assert.deepEqual(state.tailscale, { enabled: true, managed: false, state: 'ready', host: 'agentry-test.tail0000.ts.net' });
+  assert.deepEqual(state.tailscale, { enabled: true, managed: false, state: 'ready', host: 'claudio-test.tail0000.ts.net' });
   // A source install without CLAUDIO_SECRET_KEY keeps plain values, as before
   assert.deepEqual(state.secrets, { sealed: false, keyBeside: false });
 });
@@ -141,7 +141,7 @@ test("the machine's own Tailscale is never signed in or out through the setup ro
 });
 
 test('the Tailscale the image runs signs in with an auth key that no answer or event carries, and signs out', async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-tailscale-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-tailscale-'));
   const node = join(dir, 'node.json');
   const key = 'fake-ts-auth-key-api-never-echoed';
   writeFileSync(node, JSON.stringify({ backendState: 'NeedsLogin', authKey: key }));
@@ -159,7 +159,7 @@ test('the Tailscale the image runs signs in with an auth key that no answer or e
       TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
   );
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   managed.events.subscribe((event) => seen.push(event));
   const api = await buildApp(managed, { logLevel: 'silent', webDist: join(dir, 'no-ui') });
   t.after(async () => {

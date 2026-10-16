@@ -21,7 +21,7 @@ let projectId: string;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -445,7 +445,7 @@ test('the event feed streams what happens, replays what a reconnecting client mi
 });
 
 test('projects are imported by hand, renamed and removed without touching anything else', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-import-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-import-'));
 
   const listed = (await app.inject('/api/projects')).json();
   assert.deepEqual(listed.map((p: { id: string }) => p.id), [projectId]);
@@ -556,7 +556,7 @@ test('a pending permission request is answered only through the chat it belongs 
 });
 
 test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps its text', async () => {
-  const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
+  const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'claudio-no-ui') });
   const logged: string[] = [];
   probe.log.error = ((payload: { url?: string }) => void logged.push(payload.url ?? '')) as unknown as typeof probe.log.error;
   // Outside /api, so the guard leaves them alone: what is under test is the error handler
@@ -597,7 +597,7 @@ test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps
 });
 
 test('the UI bundle is served unframeable, unsniffable and under a policy that names its inline script', async () => {
-  const dist = mkdtempSync(join(tmpdir(), 'agentry-dist-'));
+  const dist = mkdtempSync(join(tmpdir(), 'claudio-dist-'));
   const inline = "\n      document.documentElement.dataset.theme = 'dark';\n    ";
   writeFileSync(
     join(dist, 'index.html'),
@@ -654,7 +654,7 @@ test('who may read this API from a browser is decided in one place', async () =>
 
     // The plugin answers from the same decision, and only for the origin it was told about
     process.env.CLAUDIO_CORS_ORIGIN = 'https://panel.example.com';
-    const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
+    const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'claudio-no-ui') });
     const allowed = await probe.inject({ url: '/api/health', headers: { origin: 'https://panel.example.com' } });
     assert.equal(allowed.headers['access-control-allow-origin'], 'https://panel.example.com');
     const refused = await probe.inject({ url: '/api/health', headers: { origin: 'https://evil.example.com' } });

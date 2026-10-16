@@ -36,9 +36,9 @@ export interface CliVersionInfo {
  * How this Claudio was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it
  * a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name.
  */
-export type AgentryDistribution = 'docker' | 'appimage' | 'deb' | 'source';
+export type ClaudioDistribution = 'docker' | 'appimage' | 'deb' | 'source';
 
-export interface AgentryReleaseInfo {
+export interface ClaudioReleaseInfo {
   /** The version this server runs */
   current: string;
   /** Newest published release, without the tag's `v`; null when the check has never succeeded */
@@ -49,7 +49,7 @@ export interface AgentryReleaseInfo {
   checkedAt: string | null;
   /** `latest` is newer than `current`; false while `latest` is unknown */
   updateAvailable: boolean;
-  distribution: AgentryDistribution;
+  distribution: ClaudioDistribution;
   /** Why the last check failed (GitHub unreachable, unexpected answer); the previous `latest` is kept */
   error?: string;
 }
@@ -72,7 +72,7 @@ export interface StorageLocation {
 }
 
 export interface StorageReport {
-  distribution: AgentryDistribution;
+  distribution: ClaudioDistribution;
   /** Only a container can lose its folders to a recreate; elsewhere the list is empty */
   checked: boolean;
   locations: StorageLocation[];
@@ -936,22 +936,22 @@ export interface Chat {
    */
   pending?: ChatPendingMessage[];
   /** Set on a chat of the Claudio assistant: it keeps its confinement whenever it is continued, resumed or forked */
-  agentryAssistant?: AgentryAssistantMarker | null;
+  claudioAssistant?: ClaudioAssistantMarker | null;
 }
 
 /**
- * What an Claudio assistant chat remembers about what it is, so the core re-applies its confinement
+ * What a Claudio assistant chat remembers about what it is, so the core re-applies its confinement
  * and its guide on every process, whatever a request asks.
  */
-export interface AgentryAssistantMarker {
+export interface ClaudioAssistantMarker {
   /** The project in scope when the chat started: context, not a requirement */
   projectId: string | null;
   /** The language the assistant answers in, read from `Accept-Language` when the chat started */
-  language: AgentryLanguage;
+  language: ClaudioLanguage;
 }
 
 /** Starts a chat with the Claudio assistant; nothing else about the chat can be chosen. */
-export interface StartAgentryAssistantChatRequest {
+export interface StartClaudioAssistantChatRequest {
   prompt: string;
   /** The project to take as context; the chat starts with none when absent or null */
   projectId?: string | null;
@@ -2466,7 +2466,7 @@ export interface FlowRun {
    * chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored
    * before it was kept, which reads as `en`.
    */
-  language?: AgentryLanguage;
+  language?: ClaudioLanguage;
   queuedAt: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -2914,7 +2914,7 @@ export interface AssistantRun {
    * started again after a restart words it the same. Absent on a run stored before it was kept,
    * which reads as `en`.
    */
-  language?: AgentryLanguage;
+  language?: ClaudioLanguage;
   /** For a `resources` run from a description, the kind of the one resource it builds; null otherwise */
   resourceKind: AssistantResourceKind | null;
   /**
@@ -3267,10 +3267,10 @@ export interface Localized {
 /**
  * The languages Claudio speaks. A chat Claudio starts on its own is listed by the first line of its
  * prompt, so that line is written in the person's language, read from the request's
- * `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a
+ * `Accept-Language` (`claudioLanguage`) and kept on what runs later or again (an assistant run, a
  * flow run); the instructions for Claude after it may stay in English.
  */
-export type AgentryLanguage = 'en' | 'es';
+export type ClaudioLanguage = 'en' | 'es';
 
 // ---------- Orchestration ----------
 
@@ -4030,7 +4030,7 @@ export interface AuthTokenResult {
  * back unchanged on a write it means "keep what is stored": that is how a configuration is edited
  * in the panel without the secret ever leaving the process.
  */
-export const REDACTED = '__agentry_redacted__';
+export const REDACTED = '__claudio_redacted__';
 
 /** One mutating request. Never the body: prompts and secrets live there. */
 export interface AuditEntry {
@@ -4038,7 +4038,7 @@ export interface AuditEntry {
   at: string;
   /**
    * `token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own
-   * token (`CLAUDIO_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no
+   * token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself; `local` when no
    * authentication is configured
    */
   actor: string;
@@ -4186,7 +4186,7 @@ export interface TailscaleReadiness {
 /** What the tunnel may be told to do beside starting and stopping it. */
 export interface TunnelSettings {
   /** Open the tunnel whenever Claudio starts; off unless the person turns it on */
-  startWithAgentry: boolean;
+  startWithClaudio: boolean;
 }
 
 /** `PUT /tunnel/settings`: the settings to change, and only those. */
@@ -4887,7 +4887,7 @@ export interface PushPayload {
 export type RunWaitingReason = 'permission' | 'question' | 'plan';
 
 /** Fields every event on the feed carries. */
-export interface AgentryEventBase {
+export interface ClaudioEventBase {
   /** Monotonic per server process; what `Last-Event-ID` resumes from */
   id: number;
   at: string;
@@ -4916,7 +4916,7 @@ export interface ActivityEventRef {
   sessionId: string | null;
 }
 
-export interface RunCreatedEvent extends AgentryEventBase, RunEventRef {
+export interface RunCreatedEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.created';
   status: RunStatus;
 }
@@ -4926,7 +4926,7 @@ export interface RunCreatedEvent extends AgentryEventBase, RunEventRef {
  * it happens (`previousStatus` says from what: busy → idle is a finished turn); other changes are
  * coalesced to one event every ~250 ms per run.
  */
-export interface RunUpdatedEvent extends AgentryEventBase, RunEventRef {
+export interface RunUpdatedEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.updated';
   status: RunStatus;
   previousStatus: RunStatus | null;
@@ -4936,7 +4936,7 @@ export interface RunUpdatedEvent extends AgentryEventBase, RunEventRef {
 }
 
 /** The process ended for good (until a message resumes it). */
-export interface RunEndedEvent extends AgentryEventBase, RunEventRef {
+export interface RunEndedEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.ended';
   status: RunEndStatus;
   error: string | null;
@@ -4944,20 +4944,20 @@ export interface RunEndedEvent extends AgentryEventBase, RunEventRef {
   costUsd: number;
 }
 
-export interface RunRemovedEvent extends AgentryEventBase {
+export interface RunRemovedEvent extends ClaudioEventBase {
   type: 'run.removed';
   runId: string;
 }
 
 /** The run cannot go on until a person answers; `permissionId` is the request to answer. */
-export interface RunWaitingEvent extends AgentryEventBase, RunEventRef {
+export interface RunWaitingEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.waiting';
   reason: RunWaitingReason;
   permissionId: string;
   toolName: string;
 }
 
-export interface PermissionRequestedEvent extends AgentryEventBase, RunEventRef {
+export interface PermissionRequestedEvent extends ClaudioEventBase, RunEventRef {
   type: 'permission.requested';
   permissionId: string;
   toolName: string;
@@ -4965,7 +4965,7 @@ export interface PermissionRequestedEvent extends AgentryEventBase, RunEventRef 
   description: string | null;
 }
 
-export interface PermissionResolvedEvent extends AgentryEventBase, RunEventRef {
+export interface PermissionResolvedEvent extends ClaudioEventBase, RunEventRef {
   type: 'permission.resolved';
   permissionId: string;
   toolName: string;
@@ -4974,7 +4974,7 @@ export interface PermissionResolvedEvent extends AgentryEventBase, RunEventRef {
 }
 
 /** A turn died against the account's rate limit. */
-export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
+export interface RunRateLimitedEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.rateLimited';
   /** The provider that hit its limit; absent on an event from before limits were per provider */
   provider?: ProviderId;
@@ -4983,7 +4983,7 @@ export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
 }
 
 /** A run hit its account's limit and its process was started again on another account. */
-export interface RunAccountRotatedEvent extends AgentryEventBase, RunEventRef {
+export interface RunAccountRotatedEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.accountRotated';
   /** Account ids; null when the run was on the CLI's own default login */
   from: string | null;
@@ -4993,7 +4993,7 @@ export interface RunAccountRotatedEvent extends AgentryEventBase, RunEventRef {
 }
 
 /** New work will start on another account: the rotation chose it, or a person did. */
-export interface AccountSwitchedEvent extends AgentryEventBase {
+export interface AccountSwitchedEvent extends ClaudioEventBase {
   type: 'account.switched';
   /** Account ids; null when there was no previous choice */
   from: string | null;
@@ -5002,13 +5002,13 @@ export interface AccountSwitchedEvent extends AgentryEventBase {
 }
 
 /** Work stopped to wait for its provider's limit to reset. */
-export interface RunLimitWaitingEvent extends AgentryEventBase, RunEventRef {
+export interface RunLimitWaitingEvent extends ClaudioEventBase, RunEventRef {
   type: 'run.limitWaiting';
   provider: ProviderId;
   resetsAt: string | null;
 }
 
-export interface TaskStartedEvent extends AgentryEventBase, ActivityEventRef {
+export interface TaskStartedEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'task.started';
   taskId: string;
   taskType: string;
@@ -5018,7 +5018,7 @@ export interface TaskStartedEvent extends AgentryEventBase, ActivityEventRef {
   fromSubagent: boolean;
 }
 
-export interface TaskEndedEvent extends AgentryEventBase, ActivityEventRef {
+export interface TaskEndedEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'task.ended';
   taskId: string;
   taskType: string;
@@ -5029,7 +5029,7 @@ export interface TaskEndedEvent extends AgentryEventBase, ActivityEventRef {
   fromSubagent: boolean;
 }
 
-export interface SubagentStartedEvent extends AgentryEventBase, ActivityEventRef {
+export interface SubagentStartedEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'subagent.started';
   toolUseId: string;
   /** The CLI's id for the agent; may only arrive with `subagent.updated` */
@@ -5040,7 +5040,7 @@ export interface SubagentStartedEvent extends AgentryEventBase, ActivityEventRef
 }
 
 /** The agent got its CLI id (which names its transcript) or was sent to the background. */
-export interface SubagentUpdatedEvent extends AgentryEventBase, ActivityEventRef {
+export interface SubagentUpdatedEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'subagent.updated';
   toolUseId: string;
   agentId: string | null;
@@ -5048,7 +5048,7 @@ export interface SubagentUpdatedEvent extends AgentryEventBase, ActivityEventRef
   background: boolean;
 }
 
-export interface SubagentEndedEvent extends AgentryEventBase, ActivityEventRef {
+export interface SubagentEndedEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'subagent.ended';
   toolUseId: string;
   agentId: string | null;
@@ -5058,7 +5058,7 @@ export interface SubagentEndedEvent extends AgentryEventBase, ActivityEventRef {
 }
 
 /** A workflow's phases, agents or token count moved while it runs. */
-export interface WorkflowProgressEvent extends AgentryEventBase, ActivityEventRef {
+export interface WorkflowProgressEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'workflow.progress';
   /** The CLI's workflow run id (`wf_…`) when known, the task id otherwise */
   workflowId: string;
@@ -5070,7 +5070,7 @@ export interface WorkflowProgressEvent extends AgentryEventBase, ActivityEventRe
   totalTokens: number | null;
 }
 
-export interface WorkflowEndedEvent extends AgentryEventBase, ActivityEventRef {
+export interface WorkflowEndedEvent extends ClaudioEventBase, ActivityEventRef {
   type: 'workflow.ended';
   workflowId: string;
   taskId: string | null;
@@ -5087,7 +5087,7 @@ export interface WorkflowEndedEvent extends AgentryEventBase, ActivityEventRef {
 }
 
 /** An orchestration was created, changed status, or its integration moved. */
-export interface OrchestrationUpdatedEvent extends AgentryEventBase {
+export interface OrchestrationUpdatedEvent extends ClaudioEventBase {
   type: 'orchestration.updated';
   orchestrationId: string;
   orchestrationName: string;
@@ -5099,12 +5099,12 @@ export interface OrchestrationUpdatedEvent extends AgentryEventBase {
   costUsd: number;
 }
 
-export interface OrchestrationRemovedEvent extends AgentryEventBase {
+export interface OrchestrationRemovedEvent extends ClaudioEventBase {
   type: 'orchestration.removed';
   orchestrationId: string;
 }
 
-export interface OrchestrationTaskEvent extends AgentryEventBase {
+export interface OrchestrationTaskEvent extends ClaudioEventBase {
   type: 'orchestration.task';
   orchestrationId: string;
   orchestrationName: string;
@@ -5117,7 +5117,7 @@ export interface OrchestrationTaskEvent extends AgentryEventBase {
 }
 
 /** Merging the tasks' branches conflicted; `paths` are what could not be merged. */
-export interface OrchestrationConflictEvent extends AgentryEventBase {
+export interface OrchestrationConflictEvent extends ClaudioEventBase {
   type: 'orchestration.conflict';
   orchestrationId: string;
   orchestrationName: string;
@@ -5133,7 +5133,7 @@ export interface OrchestrationConflictEvent extends AgentryEventBase {
  * a running task and for the integration branch while it is built, at most once per few seconds each,
  * so a commit is one event and a burst of edits is not many.
  */
-export interface ChangesUpdatedEvent extends AgentryEventBase {
+export interface ChangesUpdatedEvent extends ClaudioEventBase {
   type: 'changes.updated';
   orchestrationId: string;
   orchestrationName: string;
@@ -5151,7 +5151,7 @@ export interface ChangesUpdatedEvent extends AgentryEventBase {
  * stayed at one. Sent when a worker starts to look stuck and again when it recovers, never once per
  * check: the notification centre shows each of them as news.
  */
-export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
+export interface HealthChangedEvent extends ClaudioEventBase, RunEventRef {
   type: 'health.changed';
   /** Set for a worker of an orchestration */
   taskId: string | null;
@@ -5174,7 +5174,7 @@ export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
  * instead of reading every chat again. `activity` is null when the chat stopped doing anything
  * nameable: its turn ended, or its process is gone.
  */
-export interface ChatActivityEvent extends AgentryEventBase, RunEventRef {
+export interface ChatActivityEvent extends ClaudioEventBase, RunEventRef {
   type: 'chat.activity';
   /** Set for a worker of an orchestration, so its board patches the task too */
   taskId: string | null;
@@ -5182,7 +5182,7 @@ export interface ChatActivityEvent extends AgentryEventBase, RunEventRef {
 }
 
 /** Files under the CLI's projects directory changed: a session was created, grew or ended. */
-export interface SessionsChangedEvent extends AgentryEventBase {
+export interface SessionsChangedEvent extends ClaudioEventBase {
   type: 'sessions.changed';
 }
 
@@ -5386,7 +5386,7 @@ export type HostReason =
  * A code host's detected status changed: its CLI was installed, signed in, updated or removed, or
  * the settings turned it on or off. Sent only when a status actually differs.
  */
-export interface HostsChangedEvent extends AgentryEventBase {
+export interface HostsChangedEvent extends ClaudioEventBase {
   type: 'hosts.changed';
   hosts: CodeHostStatus[];
 }
@@ -5583,7 +5583,7 @@ export interface OrchestrationPullRequest {
 }
 
 /** An orchestration's change request was opened, or moved to another phase or CI state. */
-export interface OrchestrationPullRequestEvent extends AgentryEventBase {
+export interface OrchestrationPullRequestEvent extends ClaudioEventBase {
   type: 'orchestration.pull-request';
   orchestrationId: string;
   pullRequest: OrchestrationPullRequest;
@@ -5709,7 +5709,7 @@ export interface ChecksRerunRequest {
 }
 
 /** The head commit's checks changed rollup, or the list was read again after a write. */
-export interface ChangeRequestChecksEvent extends AgentryEventBase {
+export interface ChangeRequestChecksEvent extends ClaudioEventBase {
   type: 'change-request.checks';
   /** The change request's row id; `id` is the feed's sequence number */
   changeRequestId: string;
@@ -5917,7 +5917,7 @@ export interface AddressReviewRequest {
 }
 
 /** The threads or the review decision of a change request changed. */
-export interface ChangeRequestReviewEvent extends AgentryEventBase {
+export interface ChangeRequestReviewEvent extends ClaudioEventBase {
   type: 'change-request.review';
   /** The change request's row id; `id` is the feed's sequence number */
   changeRequestId: string;
@@ -5928,7 +5928,7 @@ export interface ChangeRequestReviewEvent extends AgentryEventBase {
 // ---------- Merging (code hosts, phase 4) ----------
 
 /** Claudio turned a change request's auto-merge off before a push of its own: the person arms it again afterwards. */
-export interface ChangeRequestAutoMergeOffEvent extends AgentryEventBase {
+export interface ChangeRequestAutoMergeOffEvent extends ClaudioEventBase {
   type: 'change-request.auto-merge-off';
   /** The change request's row id; `id` is the feed's sequence number */
   changeRequestId: string;
@@ -5966,7 +5966,7 @@ export type MergeBlockerCode =
   | 'blocked-by-policy';
 
 /**
- * The one thing the person can do about a blocker. Each is an Claudio action or a link, never a
+ * The one thing the person can do about a blocker. Each is a Claudio action or a link, never a
  * command to copy: `update-from-base` is Claudio's own merge of the base into the branch,
  * `rebase-on-host` a host-side rebase (GitLab `ff` projects only).
  */
@@ -6013,7 +6013,7 @@ export type AutoMergeOffWhy = 'push' | 'update';
 
 /** The fact that Claudio turned auto-merge off, until the person arms it again */
 export interface AutoMergeOff {
-  /** Who: `agentry` for its own push, the person who clicked for Update from base */
+  /** Who: `claudio` for its own push, the person who clicked for Update from base */
   by: string;
   at: string;
   why: AutoMergeOffWhy;
@@ -6112,7 +6112,7 @@ export interface ChangeRequestMerge {
   expectedHead: string | null;
   deleteBranch: boolean;
   requestedAt: string;
-  /** The person who clicked; `agentry` for the disarm Claudio does before it pushes */
+  /** The person who clicked; `claudio` for the disarm Claudio does before it pushes */
   requestedBy: string;
   outcome: ChangeRequestMergeOutcome;
   /** Why it failed: a reason code, and the host's first line */
@@ -6255,7 +6255,7 @@ export interface ProviderMove {
  * settings turned it on or off. Sent only when a status actually differs, so one listener keeps
  * every page in step without polling.
  */
-export interface ProvidersChangedEvent extends AgentryEventBase {
+export interface ProvidersChangedEvent extends ClaudioEventBase {
   type: 'providers.changed';
   providers: ProviderStatus[];
 }
@@ -6264,16 +6264,16 @@ export interface ProvidersChangedEvent extends AgentryEventBase {
  * A release check found a newer Claudio than the last one it announced. Sent once per version, and
  * never a notification: a release is not worth waking a phone for.
  */
-export interface SystemReleaseEvent extends AgentryEventBase {
+export interface SystemReleaseEvent extends ClaudioEventBase {
   type: 'system.release';
-  release: AgentryReleaseInfo;
+  release: ClaudioReleaseInfo;
 }
 
 /** `rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot). */
 export type ScheduleChangeAction = 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled' | 'rescheduled';
 
 /** A schedule was created, edited, deleted, switched, or had its next fire recomputed: the list is stale. */
-export interface ScheduleChangedEvent extends AgentryEventBase {
+export interface ScheduleChangedEvent extends ClaudioEventBase {
   type: 'schedule.changed';
   scheduleId: string;
   scheduleName: string;
@@ -6283,7 +6283,7 @@ export interface ScheduleChangedEvent extends AgentryEventBase {
 }
 
 /** A run row was written for a schedule: it started something, failed to, or recorded a slot it did not take. */
-export interface ScheduleFiredEvent extends AgentryEventBase {
+export interface ScheduleFiredEvent extends ClaudioEventBase {
   type: 'schedule.fired';
   scheduleId: string;
   scheduleName: string;
@@ -6294,7 +6294,7 @@ export interface ScheduleFiredEvent extends AgentryEventBase {
 }
 
 /** The supervisor answered a bad signal with a hint; the same `proposal` hangs on the chat's health. */
-export interface SupervisorProposedEvent extends AgentryEventBase, RunEventRef {
+export interface SupervisorProposedEvent extends ClaudioEventBase, RunEventRef {
   type: 'supervisor.proposed';
   /** Set for a worker of an orchestration */
   taskId: string | null;
@@ -6309,7 +6309,7 @@ export interface WorkItemEventRef {
   key: string;
 }
 
-export interface WorkItemCreatedEvent extends AgentryEventBase, WorkItemEventRef {
+export interface WorkItemCreatedEvent extends ClaudioEventBase, WorkItemEventRef {
   type: 'workitem.created';
   itemType: WorkItemType;
   status: WorkItemStatus;
@@ -6318,7 +6318,7 @@ export interface WorkItemCreatedEvent extends AgentryEventBase, WorkItemEventRef
 }
 
 /** An item's fields, criteria, relations, links or comments changed; its column and place did not. */
-export interface WorkItemUpdatedEvent extends AgentryEventBase, WorkItemEventRef {
+export interface WorkItemUpdatedEvent extends ClaudioEventBase, WorkItemEventRef {
   type: 'workitem.updated';
   changes: WorkItemChange[];
   actor: WorkItemActor;
@@ -6326,7 +6326,7 @@ export interface WorkItemUpdatedEvent extends AgentryEventBase, WorkItemEventRef
 }
 
 /** An item changed column or place: a person dragged it, or it moved on its own and `cause` says why. */
-export interface WorkItemMovedEvent extends AgentryEventBase, WorkItemEventRef {
+export interface WorkItemMovedEvent extends ClaudioEventBase, WorkItemEventRef {
   type: 'workitem.moved';
   status: WorkItemStatus;
   /** Equal to `status` when only its place in the column changed */
@@ -6337,7 +6337,7 @@ export interface WorkItemMovedEvent extends AgentryEventBase, WorkItemEventRef {
   cause: WorkItemCause | null;
 }
 
-export interface WorkItemRemovedEvent extends AgentryEventBase, WorkItemEventRef {
+export interface WorkItemRemovedEvent extends ClaudioEventBase, WorkItemEventRef {
   type: 'workitem.removed';
 }
 
@@ -6347,7 +6347,7 @@ export type MilestoneChangeAction = 'created' | 'updated' | 'closed' | 'reopened
  * A milestone was created, edited, closed, reopened or deleted. Its progress moving because an item
  * did is not announced here: that item's own event already makes it stale.
  */
-export interface MilestoneChangedEvent extends AgentryEventBase {
+export interface MilestoneChangedEvent extends ClaudioEventBase {
   type: 'milestone.changed';
   projectId: string;
   milestoneId: string;
@@ -6359,14 +6359,14 @@ export interface MilestoneChangedEvent extends AgentryEventBase {
  * A directory was imported as a project, or a new one created in the workspace. A directory imported
  * again after it was removed takes its old id back, and is announced as created all the same.
  */
-export interface ProjectCreatedEvent extends AgentryEventBase {
+export interface ProjectCreatedEvent extends ClaudioEventBase {
   type: 'project.created';
   projectId: string;
   projectName: string;
 }
 
 /** A project was removed from Claudio. Its directory, settings and work items are left where they are. */
-export interface ProjectRemovedEvent extends AgentryEventBase {
+export interface ProjectRemovedEvent extends ClaudioEventBase {
   type: 'project.removed';
   projectId: string;
   projectName: string;
@@ -6376,7 +6376,7 @@ export interface ProjectRemovedEvent extends AgentryEventBase {
 export type ProjectChange = 'name' | 'key' | 'modules' | 'settings';
 
 /** A project was renamed, its key prefix or its modules changed, or its settings document was replaced. */
-export interface ProjectUpdatedEvent extends AgentryEventBase {
+export interface ProjectUpdatedEvent extends ClaudioEventBase {
   type: 'project.updated';
   projectId: string;
   projectName: string;
@@ -6395,7 +6395,7 @@ export interface ProjectUpdatedEvent extends AgentryEventBase {
 export type TeamChangeAction = 'created' | 'updated' | 'removed' | 'template' | 'file';
 
 /** A project's team changed. */
-export interface TeamChangedEvent extends AgentryEventBase {
+export interface TeamChangedEvent extends ClaudioEventBase {
   type: 'team.changed';
   projectId: string;
   action: TeamChangeAction;
@@ -6406,7 +6406,7 @@ export interface TeamChangedEvent extends AgentryEventBase {
 export type JournalChangeAction = 'added' | 'removed';
 
 /** An entry was added to a project's journal, or removed from it. */
-export interface JournalChangedEvent extends AgentryEventBase {
+export interface JournalChangedEvent extends ClaudioEventBase {
   type: 'journal.changed';
   projectId: string;
   entryId: string;
@@ -6421,7 +6421,7 @@ export type MemoryProposalAction = 'created' | 'approved' | 'rejected';
  * A memory proposal was made, approved or rejected. An approval also wrote its target: the journal
  * announces its entry on its own, the CLI's memory and `CLAUDE.md` are read again from `target`.
  */
-export interface MemoryProposalEvent extends AgentryEventBase {
+export interface MemoryProposalEvent extends ClaudioEventBase {
   type: 'memory.proposal';
   projectId: string;
   proposalId: string;
@@ -6436,7 +6436,7 @@ export interface MemoryProposalEvent extends AgentryEventBase {
 export type DocumentChangeAction = 'written' | 'removed' | 'tied' | 'untied';
 
 /** A document of a project's documents folder changed, or was tied to or untied from an item. */
-export interface DocumentChangedEvent extends AgentryEventBase {
+export interface DocumentChangedEvent extends ClaudioEventBase {
   type: 'document.changed';
   projectId: string;
   /** Relative to the project */
@@ -6453,7 +6453,7 @@ export type FlowRunAction = 'queued' | 'started' | 'ended' | 'moved' | 'waiting'
  * began waiting for the limit to reset. What it did to the item (a comment, a move, the waiting
  * state) comes as that item's own `workitem.*` events.
  */
-export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
+export interface FlowRunEvent extends ClaudioEventBase, WorkItemEventRef {
   type: 'flow.run';
   runId: string;
   action: FlowRunAction;
@@ -6486,7 +6486,7 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
 export type AssistantRunAction = 'started' | 'read' | 'ended' | 'failed';
 
 /** An assistant run started, read something, ended or failed. */
-export interface AssistantRunEvent extends AgentryEventBase {
+export interface AssistantRunEvent extends ClaudioEventBase {
   type: 'assistant.run';
   projectId: string;
   runId: string;
@@ -6505,7 +6505,7 @@ export type AssistantProposalAction = 'accepted' | 'discarded' | 'restored';
  * A proposal was accepted, discarded or restored. What an accept wrote announces itself too where
  * it has an event (`workitem.created`, `team.changed`); a saved resource has none, so this names it.
  */
-export interface AssistantProposalEvent extends AgentryEventBase {
+export interface AssistantProposalEvent extends ClaudioEventBase {
   type: 'assistant.proposal';
   projectId: string;
   runId: string;
@@ -6521,7 +6521,7 @@ export interface AssistantProposalEvent extends AgentryEventBase {
 }
 
 /** A layered setting changed, from the UI or the file: the whole document as it now stands. */
-export interface SettingsChangedEvent extends AgentryEventBase {
+export interface SettingsChangedEvent extends ClaudioEventBase {
   type: 'settings.changed';
   settings: AppSettings;
 }
@@ -6534,7 +6534,7 @@ export interface StoredDashboardLayout {
 }
 
 /** A Home's layout was saved or reset, from any tab: every other tab redraws from it. */
-export interface DashboardLayoutChangedEvent extends AgentryEventBase {
+export interface DashboardLayoutChangedEvent extends ClaudioEventBase {
   type: 'dashboard.layout';
   project: string;
   layout: DashboardLayout | null;
@@ -6544,7 +6544,7 @@ export interface DashboardLayoutChangedEvent extends AgentryEventBase {
  * The tunnel moved to another state, got a new address, or had its settings changed. Carries the
  * whole status, so a client that follows the feed never has to refetch it.
  */
-export interface TunnelChangedEvent extends AgentryEventBase {
+export interface TunnelChangedEvent extends ClaudioEventBase {
   type: 'tunnel.changed';
   tunnel: TunnelStatus;
 }
@@ -6657,7 +6657,7 @@ export interface TerminalHistoryPage {
 }
 
 /** A terminal opened, ended or changed, or the settings changed. Carries the summary, never output. */
-export interface TerminalChangedEvent extends AgentryEventBase {
+export interface TerminalChangedEvent extends ClaudioEventBase {
   type: 'terminal.changed';
   terminals: Terminal[];
   status: TerminalStatus;
@@ -6744,7 +6744,7 @@ export interface ChangeRequestFreshness {
 }
 
 /** A registration was created, adopted, tested, re-pointed, changed state or was removed. Carries the whole registration. */
-export interface WebhookChangedEvent extends AgentryEventBase {
+export interface WebhookChangedEvent extends ClaudioEventBase {
   type: 'webhook.changed';
   projectId: string;
   registration: WebhookRegistration;
@@ -6923,13 +6923,13 @@ export interface SetupState {
  * A sign-in moved: it started, showed its code, or ended. Carries the URL and the code and never
  * anything else the CLI printed.
  */
-export interface LoginUpdatedEvent extends AgentryEventBase {
+export interface LoginUpdatedEvent extends ClaudioEventBase {
   type: 'login.updated';
   login: LoginSession;
 }
 
 /** Everything the buffered feed carries, discriminated by `type`. */
-export type AgentryEvent =
+export type ClaudioEvent =
   | RunCreatedEvent
   | RunUpdatedEvent
   | RunEndedEvent
@@ -6988,7 +6988,7 @@ export type AgentryEvent =
   | WebhookChangedEvent
   | LoginUpdatedEvent;
 
-export type AgentryEventType = AgentryEvent['type'];
+export type ClaudioEventType = ClaudioEvent['type'];
 
 /** Sent first on every connection, without an SSE id: it is not part of the replay buffer. */
 export interface StreamHelloEvent {
@@ -7013,7 +7013,7 @@ export interface StreamResyncEvent {
   reason: 'buffer-overflow' | 'server-restarted';
 }
 
-/** Names of the SSE `event:` lines the feed uses besides the ones of {@link AgentryEventType}. */
+/** Names of the SSE `event:` lines the feed uses besides the ones of {@link ClaudioEventType}. */
 export type StreamControlEventType = StreamHelloEvent['type'] | StreamResyncEvent['type'];
 
 // ---------- Decision engine ----------

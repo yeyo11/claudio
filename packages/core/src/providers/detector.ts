@@ -15,7 +15,7 @@ import type {
   ProvidersSettings,
 } from '@claudio/shared';
 import { detectCli, getAuthStatus } from '../cli.ts';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
 import { compareVersions } from '../version-check.ts';
 import { ClaudeCodeDriver } from './claude-code/driver.ts';
@@ -47,7 +47,7 @@ export interface ProviderDetectorDeps {
   registry?: ProviderRegistry;
   /** What the person chose; null (or a missing entry) means every provider is on, searching for its binary */
   settings?: () => ProvidersSettings | null;
-  emit?: (event: AgentryEventInput) => unknown;
+  emit?: (event: ClaudioEventInput) => unknown;
   /**
    * Where Claude Code's reading comes from. Core passes its shared system read, so the CLI is not
    * spawned twice for the same question; without it the probes run `detectCli` and `getAuthStatus`.

@@ -14,7 +14,7 @@ let bin: string;
 let n = 0;
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agentry-readiness-'));
+  root = await mkdtemp(join(tmpdir(), 'claudio-readiness-'));
 });
 after(() => rm(root, { recursive: true, force: true }));
 beforeEach(async () => {

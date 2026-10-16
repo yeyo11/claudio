@@ -69,7 +69,7 @@ async function reviewed(projectId: string, path: string): Promise<WorkItem> {
 const approve = (itemId: string) => app.inject({ method: 'POST', url: `/api/work-items/${itemId}/pull-request` });
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-pr-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-pr-'));
   state = join(root, 'gh-state');
   const bin = join(root, 'bin');
   mkdirSync(state);

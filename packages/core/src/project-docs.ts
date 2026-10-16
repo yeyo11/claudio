@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AddProjectDocRequest, AgentryLanguage, ConnectorsOverview, ProjectDoc, ProjectDocsOverview, ProjectDocStatus, ToolPolicy } from '@claudio/shared';
+import type { AddProjectDocRequest, ClaudioLanguage, ConnectorsOverview, ProjectDoc, ProjectDocsOverview, ProjectDocStatus, ToolPolicy } from '@claudio/shared';
 import type { ChatRuntime, NewChat, RunResult } from './chats.ts';
 import { writeAtomic } from './config/files.ts';
 import { stoppedOnMaxTokens } from './open-items.ts';
@@ -142,7 +142,7 @@ export class ProjectDocsStore {
 
 const READ_RULES = 'Only read: do not create, change, comment on or delete anything.';
 
-function languageName(language: AgentryLanguage): string {
+function languageName(language: ClaudioLanguage): string {
   return language === 'es' ? 'Spanish (Spain)' : 'English';
 }
 
@@ -189,7 +189,7 @@ export function readPrompt(refs: ReadonlyArray<{ ref: string }>): string {
 }
 
 /** The prompt that creates a document. The title and body are the person's words, kept as written. */
-export function createPrompt(create: { title: string; body: string }, language: AgentryLanguage): string {
+export function createPrompt(create: { title: string; body: string }, language: ClaudioLanguage): string {
   const body = create.body.trim()
     ? ['Use exactly this body as the first content of the document:', pasted(create.body)]
     : [`The person gave no body: write a short first outline that fits the title, in ${languageName(language)}.`];
@@ -214,7 +214,7 @@ export class ProjectDocsService {
   }
 
   /** Adds a document by link, or creates one through the connector. Returns the entry. */
-  async add(projectId: string, request: AddProjectDocRequest, language: AgentryLanguage = 'en'): Promise<ProjectDoc> {
+  async add(projectId: string, request: AddProjectDocRequest, language: ClaudioLanguage = 'en'): Promise<ProjectDoc> {
     const hasUrl = request.url !== undefined;
     const hasCreate = request.create !== undefined;
     if (hasUrl === hasCreate) throw new ProjectDocsError('send either url or create', 400);

@@ -9,7 +9,7 @@ export const LANGUAGES: ReadonlyArray<{ code: Language; name: string }> = [
   { code: 'es', name: 'Español' },
 ];
 
-const STORAGE_KEY = 'agentry-language';
+const STORAGE_KEY = 'claudio-language';
 
 // POSIX tags (`es_ES.UTF-8`) separate the region with an underscore
 const primary = (tag: string) => tag.toLowerCase().split(/[-_.@]/)[0];

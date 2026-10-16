@@ -6,11 +6,11 @@ import { test, type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AuthMode, TunnelStatus } from '@claudio/shared';
 import { RuntimeHosts } from '../src/app-settings.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { parseTailscaleVersion, readinessFromStatus, servePortUse, TunnelManager, TunnelRefusedError, type TunnelDeps } from '../src/tunnel.ts';
 
 const FAKE_TAILSCALE = fileURLToPath(new URL('./fixtures/fake-tailscale.mjs', import.meta.url));
-const NODE = 'agentry-test.tail0000.ts.net';
+const NODE = 'claudio-test.tail0000.ts.net';
 const TARGET = 'http://127.0.0.1:8787';
 
 async function until(check: () => boolean, what: string, ms = 5_000): Promise<void> {
@@ -48,7 +48,7 @@ interface Rig {
 }
 
 function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; managed?: boolean; tailscaleBin?: string; node?: FakeNode; root?: string; timing?: TunnelDeps['timing']; attach?: boolean } = {}): Rig {
-  const root = options.root ?? mkdtempSync(join(tmpdir(), 'agentry-tunnel-'));
+  const root = options.root ?? mkdtempSync(join(tmpdir(), 'claudio-tunnel-'));
   const log = join(root, 'tailscale.log');
   const stateFile = join(root, 'node.json');
   if (options.node || !existsSync(stateFile)) writeFileSync(stateFile, JSON.stringify({ serve: {}, ...options.node }));
@@ -67,7 +67,7 @@ function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; mana
     ...(options.managed === undefined ? {} : { managed: options.managed }),
     security,
     hosts,
-    emit: (event: AgentryEventInput) => {
+    emit: (event: ClaudioEventInput) => {
       if (event.type === 'tunnel.changed') events.push(event.tunnel);
     },
     audit: (row) => audit.push(row.summary),
@@ -138,13 +138,13 @@ test('where the deploy does not offer the tunnel, start is refused and the CLI i
 });
 
 test('start with Claudio, saved before the operator turned the tunnel off, does not open it', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-'));
   const first = rig(t, { root, attach: false });
-  await first.manager.updateSettings({ startWithAgentry: true });
+  await first.manager.updateSettings({ startWithClaudio: true });
   first.manager.shutdown();
 
   const second = rig(t, { root, enabled: false });
-  assert.equal(second.manager.status().settings.startWithAgentry, true);
+  assert.equal(second.manager.status().settings.startWithClaudio, true);
   await new Promise((resolve) => setTimeout(resolve, 100));
   // Stopped, not failed: nothing went wrong, the deploy simply does not offer it
   assert.equal(second.manager.status().state, 'stopped');
@@ -253,7 +253,7 @@ test('a user who is not the node operator gets the command that fixes it, and no
 });
 
 test('a rule a crash left behind is taken away on the next start, and one someone else replaced is not', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-crash-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-crash-'));
   const crashed = rig(t, { root, attach: false });
   crashed.manager.attach(8787);
   await openTunnel(crashed);
@@ -314,20 +314,20 @@ test('a node renamed while the tunnel is open moves the allowed host with it', a
 });
 
 test('start with Claudio is off by default, is kept, and opens the tunnel on the next attach', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-settings-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-settings-'));
   const first = rig(t, { root });
-  assert.equal(first.manager.status().settings.startWithAgentry, false);
+  assert.equal(first.manager.status().settings.startWithClaudio, false);
   assert.equal(first.manager.status().state, 'stopped');
-  await assert.rejects(first.manager.updateSettings({ startWithAgentry: 'yes' }), /must be a boolean/);
+  await assert.rejects(first.manager.updateSettings({ startWithClaudio: 'yes' }), /must be a boolean/);
   await assert.rejects(first.manager.updateSettings({ provider: 'ngrok' }), /unknown tunnel settings/);
-  const updated = await first.manager.updateSettings({ startWithAgentry: true });
-  assert.equal(updated.settings.startWithAgentry, true);
-  assert.equal(first.events.at(-1)?.settings.startWithAgentry, true);
+  const updated = await first.manager.updateSettings({ startWithClaudio: true });
+  assert.equal(updated.settings.startWithClaudio, true);
+  assert.equal(first.events.at(-1)?.settings.startWithClaudio, true);
   assert.equal(first.events.at(-1)?.tailscale.state, 'ready', 'the event carries a readiness that was read');
   first.manager.shutdown();
 
   const second = rig(t, { root });
-  assert.equal(second.manager.status().settings.startWithAgentry, true);
+  assert.equal(second.manager.status().settings.startWithClaudio, true);
   await until(() => second.manager.status().state === 'active', 'active');
   second.manager.shutdown();
   assert.deepEqual(second.node().serve, {});
@@ -340,7 +340,7 @@ test('start with Claudio is off by default, is kept, and opens the tunnel on the
 });
 
 test('another port can be chosen, and the address carries it', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-port-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-port-'));
   writeFileSync(join(root, 'node.json'), JSON.stringify({ serve: {} }));
   process.env.FAKE_TAILSCALE_STATE = join(root, 'node.json');
   const hosts = new RuntimeHosts();

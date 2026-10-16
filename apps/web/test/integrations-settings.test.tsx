@@ -96,8 +96,8 @@ const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' 
 
 test('Integrations is a tab of the Claudio group, right after Providers', () => {
   assert.ok(isTab('integrations'));
-  const agentry = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
-  assert.equal(agentry.indexOf('integrations'), agentry.indexOf('providers') + 1);
+  const claudio = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
+  assert.equal(claudio.indexOf('integrations'), claudio.indexOf('providers') + 1);
   assert.equal(TAB_LABELS.integrations, 'integrations:tab');
 });
 

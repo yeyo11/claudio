@@ -46,7 +46,7 @@ function withoutDir(list: string, dir: string | undefined): string {
 /**
  * The environment of one shell. It is the server's, minus every `CLAUDIO_*` variable and Claude's
  * credentials, plus the vault's credentials for the person's own tools (GitHub, GitLab, YouTrack),
- * with the terminal's own variables set. `CLAUDIO_CHAT_ID` is never set: `agentryChildren()` finds a
+ * with the terminal's own variables set. `CLAUDIO_CHAT_ID` is never set: `claudioChildren()` finds a
  * chat's processes by it, and a terminal's must never be mistaken for one (the peer check relies on it).
  */
 export function buildTerminalEnv(options: TerminalEnvOptions): Record<string, string> {

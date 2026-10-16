@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, CodeHostStatus, OrchestrationPullRequest } from '@claudio/shared';
+import type { ClaudioEvent, CodeHostStatus, OrchestrationPullRequest } from '@claudio/shared';
 import { changeRequestRef, changeRequestWords } from '../src/lib/code-hosts';
 import { targetsFor } from '../src/lib/events';
 
@@ -24,12 +24,12 @@ test('a number is written as its host writes it, and the server\'s own ref wins'
 
 test('the host events make the host and orchestration queries stale', () => {
   const base = { id: 1, at: '2026-10-01T00:00:00.000Z' };
-  const hosts = { ...base, type: 'hosts.changed', hosts: [] as CodeHostStatus[] } as unknown as AgentryEvent;
+  const hosts = { ...base, type: 'hosts.changed', hosts: [] as CodeHostStatus[] } as unknown as ClaudioEvent;
   const keys = targetsFor(hosts).map(([key]) => key[0]);
   assert.ok(keys.includes('hosts'));
   assert.ok(keys.includes('project-code-host'));
 
-  const pr = { ...base, type: 'orchestration.pull-request', orchestrationId: 'o1', pullRequest: {} as OrchestrationPullRequest } as unknown as AgentryEvent;
+  const pr = { ...base, type: 'orchestration.pull-request', orchestrationId: 'o1', pullRequest: {} as OrchestrationPullRequest } as unknown as ClaudioEvent;
   const targets = targetsFor(pr).map(([key]) => key.join('/'));
   assert.ok(targets.includes('orchestration/o1'));
 });

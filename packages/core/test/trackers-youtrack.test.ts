@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, CodeHostStatus, ProjectTrackerSettings } from '@claudio/shared';
+import type { ClaudioEvent, CodeHostStatus, ProjectTrackerSettings } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { classifyCall, reasonOf } from '../src/hosts/classify.ts';
 import { HostParseError, type HostCall, type HostRepo } from '../src/hosts/code-host.ts';
@@ -211,7 +211,7 @@ test('on a server the token is a plain 0600 file, and the status says it is not 
 const result = (exitCode: number | null, stdout = '', reason?: HostResult['reason']): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1, ...(reason ? { reason } : {}) });
 
 /** A program the detector can find; what it answers is the stub's */
-const program = join(tmpdir(), `agentry-youtrack-app-${String(process.pid)}`);
+const program = join(tmpdir(), `claudio-youtrack-app-${String(process.pid)}`);
 writeFileSync(program, '#!/bin/sh\nexit 0\n');
 chmodSync(program, 0o755);
 after(() => rmSync(program, { force: true }));
@@ -304,8 +304,8 @@ function syncSetup(reads: HostResult[], write: HostResult, statusMap: ProjectTra
   return { items, service, item, calls, issue: () => items.get(item.id).issues?.[0] };
 }
 
-const moved = (itemId: string, status: 'in_progress' | 'in_review'): AgentryEvent =>
-  ({ type: 'workitem.moved', id: 1, at: '', title: '', projectId: 'p1', itemId, key: 'AGN-1', status, previousStatus: 'todo', overLimit: false, actor: { kind: 'person' }, cause: null }) as unknown as AgentryEvent;
+const moved = (itemId: string, status: 'in_progress' | 'in_review'): ClaudioEvent =>
+  ({ type: 'workitem.moved', id: 1, at: '', title: '', projectId: 'p1', itemId, key: 'AGN-1', status, previousStatus: 'todo', overLimit: false, actor: { kind: 'person' }, cause: null }) as unknown as ClaudioEvent;
 
 const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
 

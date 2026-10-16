@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 import { ChatConflictError } from '../src/chat-service.ts';
 import { HealthMonitor } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
@@ -228,7 +228,7 @@ test('a hint reaches a chat that is working as its next message, and is refused 
 
 test('the feed hears of a chat that looks stuck once, of a change in how it looks, and of its recovery', async () => {
   const { core, started } = setup();
-  const events: Extract<AgentryEvent, { type: 'health.changed' }>[] = [];
+  const events: Extract<ClaudioEvent, { type: 'health.changed' }>[] = [];
   const monitor = new HealthMonitor(
     {
       runtime: core.runtime,

@@ -1,5 +1,5 @@
 /* The in-app setup (docs/plans/in-app-setup.md): the assistant, the sign-in panel and the secrets line.
-   Ported from agentry-ds.css, "Setup", under the app's own names where the reference's collide with the
+   Ported from claudio-ds.css, "Setup", under the app's own names where the reference's collide with the
    sign-in screen (.signin, .signin-head) or the stepper (.steps, .step): see design-system.md, "Setup".
    The assistant is the first run's page (.prov-first) with a step bar on top; its gradient surfaces are
    the logo and Continue. While a device-code sign-in waits, its box (.signin-device) is the screen's one

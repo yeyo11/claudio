@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { parseChangeScope, WorkItemError, type Core, type WorkItemCommentContext } from '@claudio/core';
-import { agentryLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
+import { claudioLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import type {
   CheckAcceptanceCriterionRequest,
   CreateMilestoneRequest,
@@ -50,14 +50,14 @@ interface BoardQueryString extends FilterQuery {
 /**
  * Who a write is recorded as. A request made with a chat's token (`chat:<id>`) is an agent acting
  * through that chat, and says so in the item's history; the person's own request is recorded as the
- * person, with no cause, as it always was. The role is the assistant's only for an Claudio assistant chat.
+ * person, with no cause, as it always was. The role is the assistant's only for a Claudio assistant chat.
  */
 export async function chatWriteContext(core: Core, actor: string | null): Promise<WorkItemCommentContext | undefined> {
   if (!actor?.startsWith('chat:')) return undefined;
   const chatId = actor.slice('chat:'.length);
   const chat = await core.chats.get(chatId);
   const source = { kind: 'chat' as const, chatId, orchestrationId: null, taskId: null };
-  return { actor: { kind: 'agent', role: chat?.agentryAssistant ? 'assistant' : null }, cause: { ...source, event: 'chat.api-write' }, source };
+  return { actor: { kind: 'agent', role: chat?.claudioAssistant ? 'assistant' : null }, cause: { ...source, event: 'chat.api-write' }, source };
 }
 
 const csv = (value: Param): string[] | undefined => {
@@ -183,7 +183,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   // A draft to review, not a launched graph: `POST /orchestrations` launches it. Its objective is
   // written in the language the person reads Claudio in, which the web sends
   app.post<{ Params: { id: string }; Body: OrchestrateWorkItemsRequest }>('/projects/:id/work-items/orchestrate', (req) =>
-    core.orchestrateWorkItems(req.params.id, bodyOf(req.body), agentryLanguage(req.headers['accept-language'])),
+    core.orchestrateWorkItems(req.params.id, bodyOf(req.body), claudioLanguage(req.headers['accept-language'])),
   );
 
   app.get<{ Params: { id: string } }>('/projects/:id/milestones', async (req) => {

@@ -34,7 +34,7 @@ export class ControlChannel {
 
   /** Sends a control request down stdin and resolves with the CLI's response. */
   request(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const requestId = `agentry-${String(++this.seq)}`;
+    const requestId = `claudio-${String(++this.seq)}`;
     return new Promise((resolvePromise, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { displayTitle, englishNotificationText, interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
+import { displayTitle, englishNotificationText, interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type ClaudioEvent, type NotificationDraft } from '../src/index.ts';
 
 /*
  * The mapping the web's toasts and the server's push sender share. The web covers it through its
@@ -22,7 +22,7 @@ const only = (drafts: NotificationDraft[]): NotificationDraft => {
   return draft;
 };
 
-const waiting = (permissionId = 'p1', reason: 'permission' | 'question' | 'plan' = 'permission'): AgentryEvent => ({
+const waiting = (permissionId = 'p1', reason: 'permission' | 'question' | 'plan' = 'permission'): ClaudioEvent => ({
   type: 'run.waiting',
   ...base('fix the build needs your approval to use Bash'),
   ...run,
@@ -45,11 +45,11 @@ test('a chat waiting for a person is the news worth waking someone for', () => {
   assert.equal(only(notificationsFor(waiting('q', 'question'))).body, 'It is waiting for your answer.');
   assert.equal(only(notificationsFor(waiting('pl', 'plan'))).permissionId, null);
   // Housekeeping runs never wait for a person
-  assert.deepEqual(notificationsFor({ ...(waiting() as Extract<AgentryEvent, { type: 'run.waiting' }>), internal: true }), []);
+  assert.deepEqual(notificationsFor({ ...(waiting() as Extract<ClaudioEvent, { type: 'run.waiting' }>), internal: true }), []);
 });
 
 test('a run that ended says how it went, and one the person stopped is not news', () => {
-  const ended = (status: 'completed' | 'failed' | 'stopped', extra: Partial<Extract<AgentryEvent, { type: 'run.ended' }>> = {}): AgentryEvent => ({
+  const ended = (status: 'completed' | 'failed' | 'stopped', extra: Partial<Extract<ClaudioEvent, { type: 'run.ended' }>> = {}): ClaudioEvent => ({
     type: 'run.ended',
     ...base(`fix the build ${status}`),
     ...run,
@@ -73,7 +73,7 @@ test('a run that ended says how it went, and one the person stopped is not news'
 });
 
 test('an orchestration tells its own ending, whichever way it went', () => {
-  const done = (status: 'completed' | 'failed', previousStatus: 'running' | null): AgentryEvent => ({
+  const done = (status: 'completed' | 'failed', previousStatus: 'running' | null): ClaudioEvent => ({
     type: 'orchestration.updated',
     ...base('o'),
     orchestrationId: 'o1',
@@ -97,25 +97,25 @@ test('an orchestration tells its own ending, whichever way it went', () => {
 });
 
 test('a conflict counts the files it is about', () => {
-  const conflict = (paths: string[], resolving = false): AgentryEvent => ({
+  const conflict = (paths: string[], resolving = false): ClaudioEvent => ({
     type: 'orchestration.conflict',
     ...base('Merge conflict in refactor'),
     orchestrationId: 'o1',
     orchestrationName: 'refactor',
     integrationStatus: 'conflicted',
-    branch: 'agentry/o1',
+    branch: 'claudio/o1',
     paths,
     resolving,
   });
   const two = only(notificationsFor(conflict(['a.ts', 'b.ts'])));
   assert.equal(two.kind, 'conflict');
-  assert.equal(two.body, '2 files in agentry/o1 need your attention.');
-  assert.equal(only(notificationsFor(conflict(['a.ts']))).body, '1 file in agentry/o1 need your attention.');
-  assert.equal(only(notificationsFor(conflict(['a.ts', 'b.ts'], true))).body, '2 files in agentry/o1.');
+  assert.equal(two.body, '2 files in claudio/o1 need your attention.');
+  assert.equal(only(notificationsFor(conflict(['a.ts']))).body, '1 file in claudio/o1 need your attention.');
+  assert.equal(only(notificationsFor(conflict(['a.ts', 'b.ts'], true))).body, '2 files in claudio/o1.');
 });
 
 test('a rate limit and the account it moved to are one kind', () => {
-  const limited: AgentryEvent = { type: 'run.rateLimited', ...base('limited'), ...run };
+  const limited: ClaudioEvent = { type: 'run.rateLimited', ...base('limited'), ...run };
   const draft = only(notificationsFor(limited));
   assert.equal(draft.kind, 'limit');
   assert.equal(draft.title, 'fix the build hit a rate limit');
@@ -123,17 +123,17 @@ test('a rate limit and the account it moved to are one kind', () => {
 });
 
 test('a wait for a reset is limit news', () => {
-  const waiting = (resetsAt: string | null): AgentryEvent => ({ type: 'run.limitWaiting', ...base("fix the build waits for Claude Code's limit to reset"), ...run, provider: 'claude-code', resetsAt });
+  const waiting = (resetsAt: string | null): ClaudioEvent => ({ type: 'run.limitWaiting', ...base("fix the build waits for Claude Code's limit to reset"), ...run, provider: 'claude-code', resetsAt });
   assert.equal(only(notificationsFor(waiting('2026-01-01T17:30:00Z'))).body, 'It goes on when the limit resets, at 2026-01-01 17:30 UTC.');
   assert.equal(only(notificationsFor(waiting(null))).body, 'It goes on when the limit resets; no reset time is known.');
-  assert.deepEqual(notificationsFor({ ...(waiting(null) as Extract<AgentryEvent, { type: 'run.limitWaiting' }>), internal: true }), []);
+  assert.deepEqual(notificationsFor({ ...(waiting(null) as Extract<ClaudioEvent, { type: 'run.limitWaiting' }>), internal: true }), []);
   // A client with its own words says them, and one without falls back to the English
   const spanish = { ...englishNotificationText, limitWaitingBody: () => 'Continúa al reiniciarse el límite.' };
   assert.equal(only(notificationsFor(waiting(null), spanish)).body, 'Continúa al reiniciarse el límite.');
 });
 
 test('finished work inside a chat stays low unless it failed, and opens the panel that shows it', () => {
-  const task = (status: string): AgentryEvent => ({
+  const task = (status: string): ClaudioEvent => ({
     type: 'task.ended',
     ...base('npm test'),
     runId: 'run1',
@@ -155,7 +155,7 @@ test('finished work inside a chat stays low unless it failed, and opens the pane
 });
 
 test('a chat that looks stuck carries the reason the server wrote, and a recovery is not news', () => {
-  const health = (level: 'ok' | 'warn' | 'bad'): AgentryEvent => ({
+  const health = (level: 'ok' | 'warn' | 'bad'): ClaudioEvent => ({
     type: 'health.changed',
     ...base('fix the build: `pnpm e2e` has been running for 5 min'),
     ...run,
@@ -178,7 +178,7 @@ test('a chat that looks stuck carries the reason the server wrote, and a recover
 });
 
 test('every kind the preferences list can be produced by some event', () => {
-  const events: AgentryEvent[] = [
+  const events: ClaudioEvent[] = [
     waiting(),
     { type: 'run.ended', ...base('done'), ...run, status: 'completed', error: null, turns: 1, costUsd: 0 },
     { type: 'orchestration.updated', ...base('o'), orchestrationId: 'o1', orchestrationName: 'refactor', status: 'completed', previousStatus: 'running', integrationStatus: null, costUsd: 0 },
@@ -202,7 +202,7 @@ test('the mapping is the same news for a prompt heard live and one found on a re
 });
 
 test('answering or ending settles what was waiting, and nothing else does', () => {
-  const resolved: AgentryEvent = { type: 'permission.resolved', ...base('resolved'), ...run, permissionId: 'p1', toolName: 'Bash', outcome: 'allow' };
+  const resolved: ClaudioEvent = { type: 'permission.resolved', ...base('resolved'), ...run, permissionId: 'p1', toolName: 'Bash', outcome: 'allow' };
   const open = only(notificationsFor(waiting('p1')));
   const other = only(notificationsFor(waiting('p2')));
   const matches = settlesWaiting(resolved);
@@ -255,7 +255,7 @@ test('a chat named by Claudio is told by its first prompt, a name someone chose 
 test('a setting or the tunnel changing refreshes the page but never wakes anyone', () => {
   // A tunnel's address is a way into the machine: it has no place on a lock screen or in a push
   // service Claudio does not run, and a setting someone just changed is not news to them
-  const settings: AgentryEvent = {
+  const settings: ClaudioEvent = {
     ...base('Settings changed'),
     type: 'settings.changed',
     settings: {
@@ -267,19 +267,19 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
       allowedHostLayers: { env: [], file: [], runtime: [] },
     },
   };
-  const tunnel: AgentryEvent = {
+  const tunnel: ClaudioEvent = {
     ...base('Tunnel active'),
     type: 'tunnel.changed',
     tunnel: {
       state: 'active',
-      url: 'https://agentry-test.tail0000.ts.net:8443',
+      url: 'https://claudio-test.tail0000.ts.net:8443',
       since: AT,
       reason: null,
       enabled: true,
       managed: false,
-      tailscale: { state: 'ready', version: '1.102.4', host: 'agentry-test.tail0000.ts.net', reason: null },
+      tailscale: { state: 'ready', version: '1.102.4', host: 'claudio-test.tail0000.ts.net', reason: null },
       port: 8443,
-      settings: { startWithAgentry: false },
+      settings: { startWithClaudio: false },
     },
   };
   assert.deepEqual(notificationsFor(settings), []);

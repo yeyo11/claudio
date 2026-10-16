@@ -23,7 +23,7 @@ interface Wrapper {
 }
 
 async function wrapper(t: { after: (fn: () => Promise<void> | void) => void }): Promise<Wrapper> {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-webhooks-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-webhooks-'));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

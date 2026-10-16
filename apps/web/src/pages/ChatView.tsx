@@ -30,7 +30,7 @@ import { taskPath } from '../lib/work-items';
 import { AgentScope } from '@claudio/chat-ui/lib/agent';
 import { useChatUi } from '@claudio/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@claudio/chat-ui/composer/Composer';
-import { AssistantGreeting } from './agentry-assistant/Greeting';
+import { AssistantGreeting } from './claudio-assistant/Greeting';
 import { ChatLoading } from './chat/ChatLoading';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { LimitStopped } from './chat/LimitStopped';
@@ -396,7 +396,7 @@ export function ChatView() {
               </div>
             )}
             {/* The first message of the assistant's chats, so only where the transcript starts */}
-            {chat.agentryAssistant && !transcript.more && <AssistantGreeting />}
+            {chat.claudioAssistant && !transcript.more && <AssistantGreeting />}
             {items.length === 0 ? (
               !working && <Empty icon={MessageSquare} title={t('view.nothingWritten')} />
             ) : (

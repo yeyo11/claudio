@@ -16,7 +16,7 @@ import { buildApp } from '../src/app.ts';
 // name and the Serve port in `Host`, so a request made that way stands for it. Nothing here touches
 // a real tailnet.
 const FAKE_TAILSCALE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-tailscale.mjs', import.meta.url));
-const NODE = 'agentry-test.tail0000.ts.net';
+const NODE = 'claudio-test.tail0000.ts.net';
 
 const json = (body: unknown, headers: Record<string, string> = {}) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json', ...headers } });
 
@@ -38,7 +38,7 @@ async function until(check: () => boolean | Promise<boolean>, what: string, ms =
 }
 
 async function wrapper(t: TestContext): Promise<Wrapper> {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-api-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-api-'));
   const node = join(root, 'node.json');
   writeFileSync(node, JSON.stringify({ serve: {} }));
   const saved = process.env.FAKE_TAILSCALE_STATE;
@@ -104,7 +104,7 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     managed: false,
     tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
     port: 8444,
-    settings: { startWithAgentry: false },
+    settings: { startWithClaudio: false },
   });
 });
 
@@ -189,16 +189,16 @@ test('every move of the tunnel is a tunnel.changed on the feed, with the address
   });
   t.after(stop);
   await openTunnel(w, token);
-  const settings = await w.app.inject({ method: 'PUT', url: '/api/tunnel/settings', ...json({ startWithAgentry: true }, { authorization: `Bearer ${token}` }) });
-  assert.equal((settings.json() as TunnelStatus).settings.startWithAgentry, true);
-  assert.equal((await w.app.inject({ method: 'PUT', url: '/api/tunnel/settings', ...json({ startWithAgentry: 1 }, { authorization: `Bearer ${token}` }) })).statusCode, 400);
+  const settings = await w.app.inject({ method: 'PUT', url: '/api/tunnel/settings', ...json({ startWithClaudio: true }, { authorization: `Bearer ${token}` }) });
+  assert.equal((settings.json() as TunnelStatus).settings.startWithClaudio, true);
+  assert.equal((await w.app.inject({ method: 'PUT', url: '/api/tunnel/settings', ...json({ startWithClaudio: 1 }, { authorization: `Bearer ${token}` }) })).statusCode, 400);
   await w.app.inject({ method: 'POST', url: '/api/tunnel/stop', headers: { authorization: `Bearer ${token}` } });
   assert.deepEqual(
     seen.map((s) => s.state),
     ['starting', 'verifying', 'active', 'active', 'stopping', 'stopped'],
   );
   assert.ok(seen.every((s) => (s.state === 'active') === (s.url !== null)));
-  assert.equal(seen.at(-1)?.settings.startWithAgentry, true);
+  assert.equal(seen.at(-1)?.settings.startWithClaudio, true);
 });
 
 test('a Tailscale that is not signed in is said before anything is offered, and start fails with it', async (t) => {

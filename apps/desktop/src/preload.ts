@@ -11,7 +11,7 @@ const version = process.argv.find((arg) => arg.startsWith(VERSION_ARG))?.slice(V
  * (`UpdateState` and `InstallAnswer` in src/updater.ts). No ipcRenderer, no Node.
  * Mirrored by `DesktopBridge` in apps/web/src/lib/desktop.ts.
  */
-contextBridge.exposeInMainWorld('agentryDesktop', {
+contextBridge.exposeInMainWorld('claudioDesktop', {
   platform: process.platform,
   version,
   setTitleBarTheme: (theme: { color: string; symbolColor: string }) => {

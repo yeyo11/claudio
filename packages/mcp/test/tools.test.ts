@@ -117,10 +117,10 @@ test('the token and the chat id are sent when set, and not otherwise', async () 
   const fetch = injectFetch(s.app, seen);
   await createClient({ baseUrl: 'http://x/api', fetch }).get('/projects');
   assert.equal(seen[0]?.headers.authorization, undefined);
-  assert.equal(seen[0]?.headers['x-agentry-chat'], undefined);
+  assert.equal(seen[0]?.headers['x-claudio-chat'], undefined);
   await createClient({ baseUrl: 'http://x/api', token: 'tok', chatId: 'chat-1', fetch }).get('/projects', { a: 'b' });
   assert.equal(seen[1]?.headers.authorization, 'Bearer tok');
-  assert.equal(seen[1]?.headers['x-agentry-chat'], 'chat-1');
+  assert.equal(seen[1]?.headers['x-claudio-chat'], 'chat-1');
   assert.equal(seen[1]?.url, 'http://x/api/projects?a=b');
 });
 

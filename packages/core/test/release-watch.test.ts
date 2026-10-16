@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mock, test } from 'node:test';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { ReleaseWatch } from '../src/release-watch.ts';
 import { tempConfig } from './helpers.ts';
@@ -26,7 +26,7 @@ function github(initial: unknown, status = 200) {
 }
 
 const releases = (events: EventBus) => {
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   events.observe((event) => {
     if (event.type === 'system.release') seen.push(event);
   });

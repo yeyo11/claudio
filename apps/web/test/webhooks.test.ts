@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, ChangeRequestFreshness, WebhookRegistration } from '@claudio/shared';
+import type { ClaudioEvent, ChangeRequestFreshness, WebhookRegistration } from '@claudio/shared';
 import { api, keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
 import { freshnessLine, isHealthy, lastHeardAt, liveRegistration, publicOrigin, responseWord, rowKind, spanWords, webhookActions, webhookTone } from '../src/lib/webhooks';
@@ -72,7 +72,7 @@ test('the freshness line says instant only for a webhook read with a healthy hoo
 });
 
 test('webhook.changed refreshes that project\'s registrations', () => {
-  const event = { type: 'webhook.changed', projectId: 'p1', registration: reg() } as AgentryEvent;
+  const event = { type: 'webhook.changed', projectId: 'p1', registration: reg() } as ClaudioEvent;
   const targets = targetsFor(event);
   assert.deepEqual(targets.map((t) => t[0]), [keys.projectWebhooks('p1')]);
   assert.equal(typeof api.projectWebhooks, 'function');

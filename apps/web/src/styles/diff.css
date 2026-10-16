@@ -1,4 +1,4 @@
-/* The diff comparator (docs/design-system.md §5; §15 of agentry-ds.css under the app's names).
+/* The diff comparator (docs/design-system.md §5; §15 of claudio-ds.css under the app's names).
    Three rules keep it quiet: only what changed carries colour (muted syntax, dimmed context), what
    was removed folds into a pill in Reading, and a changed line gets one 3 px rail instead of a
    flooded row. Rows are 20 px, so the numbers line up. */

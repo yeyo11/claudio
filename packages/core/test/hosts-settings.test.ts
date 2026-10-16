@@ -9,7 +9,7 @@ let root: string;
 let n = 0;
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agentry-hosts-settings-'));
+  root = await mkdtemp(join(tmpdir(), 'claudio-hosts-settings-'));
 });
 after(() => rm(root, { recursive: true, force: true }));
 

@@ -18,7 +18,7 @@ let app: FastifyInstance;
 let core: Core;
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-supervisor-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-supervisor-'));
   const workspace = join(root, 'workspace');
   mkdirSync(workspace, { recursive: true });
   core = new Core(

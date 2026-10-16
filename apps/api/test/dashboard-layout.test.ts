@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { AgentryEvent, StoredDashboardLayout } from '@claudio/shared';
+import type { ClaudioEvent, StoredDashboardLayout } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
@@ -17,7 +17,7 @@ let root: string;
 let projectId: string;
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-layout-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-layout-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -39,7 +39,7 @@ after(async () => {
 const url = (project: string) => `/api/dashboard/layout?project=${encodeURIComponent(project)}`;
 
 test('a Home layout is saved, read, announced and reset per project', async () => {
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => seen.push(e));
   assert.deepEqual((await app.inject(url(projectId))).json(), { project: projectId, layout: null });
 

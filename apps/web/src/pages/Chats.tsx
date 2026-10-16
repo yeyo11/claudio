@@ -271,7 +271,7 @@ const ChatRow = memo(function ChatRow({
           {place}
         </span>
         <span className="crow-cell crow-origin">
-          <span className={`badge ${chat.origin === 'claudio' ? 'is-agentry' : ''}`.trim()}>{ORIGIN_LABEL[chat.origin]}</span>
+          <span className={`badge ${chat.origin === 'claudio' ? 'is-claudio' : ''}`.trim()}>{ORIGIN_LABEL[chat.origin]}</span>
         </span>
         <span className="crow-cell crow-context">
           <ContextBar chat={chat} />

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 import { AppSettingsStore, RuntimeHosts } from '../src/app-settings.ts';
 import { Core } from '../src/index.ts';
 import { loadConfig, type CoreConfig } from '../src/paths.ts';
@@ -12,7 +12,7 @@ import { loadConfig, type CoreConfig } from '../src/paths.ts';
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', import.meta.url));
 
 /** A wrapper's config in a scratch directory, with whatever the environment says on top. */
-function config(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'agentry-app-settings-'))): CoreConfig {
+function config(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'claudio-app-settings-'))): CoreConfig {
   return loadConfig({
     CLAUDE_BIN: '/nonexistent/claude',
     CSWAP_BIN: '/nonexistent/cswap',
@@ -100,8 +100,8 @@ test("hosts added in the UI add to the environment's, which stay fixed", async (
 });
 
 test("the tunnel's host is listed apart, and coming or going is announced", async () => {
-  const events: AgentryEvent[] = [];
-  const store = new AppSettingsStore(config(), { emit: (event) => events.push({ ...event, id: events.length + 1, at: '' } as AgentryEvent) });
+  const events: ClaudioEvent[] = [];
+  const store = new AppSettingsStore(config(), { emit: (event) => events.push({ ...event, id: events.length + 1, at: '' } as ClaudioEvent) });
   const guardList = store.allowedHosts;
 
   store.runtimeHosts.add('abc123.lhr.life');
@@ -120,8 +120,8 @@ test("the tunnel's host is listed apart, and coming or going is announced", asyn
 
 test('a change is written to the file, survives a restart, and goes out on the event feed', async () => {
   const c = config();
-  const events: AgentryEvent[] = [];
-  const store = new AppSettingsStore(c, { emit: (event) => events.push({ ...event, id: events.length + 1, at: '' } as AgentryEvent) });
+  const events: ClaudioEvent[] = [];
+  const store = new AppSettingsStore(c, { emit: (event) => events.push({ ...event, id: events.length + 1, at: '' } as ClaudioEvent) });
 
   const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Claudio.Example.com ', '*.preview.example.com', 'claudio.example.com'] });
   assert.deepEqual(changed.allowedHosts, ['claudio.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
@@ -205,7 +205,7 @@ test('two wrappers in one process keep settings of their own', async () => {
 test('the run limit and the default mode apply to the next run, without a restart', async (t) => {
   const core = new Core({ ...config(), claudeBin: FAKE_CLAUDE });
   t.after(() => core.shutdown());
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
 
   await core.appSettings.update({ maxConcurrentRuns: 1, defaultPermissionMode: 'plan' });
@@ -229,7 +229,7 @@ test('a new orchestration takes the default mode and the run limit as they stand
   t.after(() => core.shutdown());
   await core.appSettings.update({ maxConcurrentRuns: 2, defaultPermissionMode: 'dontAsk' });
   // Not a repository and no worktrees: nothing but the settings decides what the graph is given
-  const graph = core.orchestrator.create({ name: 'graph', cwd: mkdtempSync(join(tmpdir(), 'agentry-graph-')), worktree: false, concurrency: 5, tasks: [{ id: 'a', name: 'A', prompt: 'p' }] });
+  const graph = core.orchestrator.create({ name: 'graph', cwd: mkdtempSync(join(tmpdir(), 'claudio-graph-')), worktree: false, concurrency: 5, tasks: [{ id: 'a', name: 'A', prompt: 'p' }] });
   assert.equal(graph.permissionMode, 'dontAsk');
   assert.equal(graph.concurrency, 2);
   core.orchestrator.stop(graph.id);

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, DocumentFile, Project, ProjectDocuments, WorkItem, WorkItemDetail, WorkItemLink } from '@claudio/shared';
+import type { ClaudioEvent, DocumentFile, Project, ProjectDocuments, WorkItem, WorkItemDetail, WorkItemLink } from '@claudio/shared';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
@@ -15,7 +15,7 @@ let core: Core;
 let root: string;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const scratch = () => mkdtempSync(join(tmpdir(), 'agentry-api-docs-'));
+const scratch = () => mkdtempSync(join(tmpdir(), 'claudio-api-docs-'));
 const q = (path: string) => `?path=${encodeURIComponent(path)}`;
 
 async function importProject(name: string, modules: string[] = ['board', 'documents']): Promise<{ project: Project; dir: string }> {
@@ -32,8 +32,8 @@ async function createItem(projectId: string, title: string): Promise<WorkItem> {
   return res.json<WorkItem>();
 }
 
-async function feed(fn: () => Promise<void>): Promise<AgentryEvent[]> {
-  const events: AgentryEvent[] = [];
+async function feed(fn: () => Promise<void>): Promise<ClaudioEvent[]> {
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   try {
     await fn();
@@ -44,7 +44,7 @@ async function feed(fn: () => Promise<void>): Promise<AgentryEvent[]> {
 }
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-documents-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-documents-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

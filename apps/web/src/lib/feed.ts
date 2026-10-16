@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 
 /*
  * The state of the app-wide event connection and who listens to it. Kept apart from the connection
@@ -7,14 +7,14 @@ import type { AgentryEvent } from '@claudio/shared';
  */
 
 export type FeedState = 'connecting' | 'open' | 'closed';
-export type AgentryEventListener = (event: AgentryEvent) => void;
+export type ClaudioEventListener = (event: ClaudioEvent) => void;
 
 /** How often a query polls while the stream is down: only there to notice the server came back. */
 export const FALLBACK_POLL_MS = 30_000;
 
 let state: FeedState = 'connecting';
 const stateListeners = new Set<() => void>();
-const listeners = new Set<AgentryEventListener>();
+const listeners = new Set<ClaudioEventListener>();
 
 export function setFeedState(next: FeedState): void {
   if (state === next) return;
@@ -23,7 +23,7 @@ export function setFeedState(next: FeedState): void {
 }
 
 /** Hands an event to everyone subscribed; one listener throwing must not deafen the rest. */
-export function dispatchEvent(event: AgentryEvent): void {
+export function dispatchEvent(event: ClaudioEvent): void {
   for (const listener of [...listeners]) {
     try {
       listener(event);
@@ -34,13 +34,13 @@ export function dispatchEvent(event: AgentryEvent): void {
 }
 
 /** Hears every event as it arrives, once; replays after a reconnection are not repeated. */
-export function subscribeEvents(listener: AgentryEventListener): () => void {
+export function subscribeEvents(listener: ClaudioEventListener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
 /** `subscribeEvents` for a component: the latest `listener` runs, without resubscribing on each render. */
-export function useAgentryEvents(listener: AgentryEventListener): void {
+export function useClaudioEvents(listener: ClaudioEventListener): void {
   const latest = useRef(listener);
   latest.current = listener;
   useEffect(() => subscribeEvents((event) => latest.current(event)), []);

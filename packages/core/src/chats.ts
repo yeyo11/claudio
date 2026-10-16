@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   type AccountSwitchReason,
-  type AgentryAssistantMarker,
+  type ClaudioAssistantMarker,
   type Attachment,
   type ChatMcpServers,
   type ChatMessageReceipt,
@@ -31,7 +31,7 @@ import {
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
-import type { AssistantChatOptions } from './agentry-mcp.ts';
+import type { AssistantChatOptions } from './claudio-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
 import { RunEventPublisher } from './event-sources.ts';
@@ -162,10 +162,10 @@ export class ChatManager extends EventEmitter {
    */
   chatTokens = new ChatTokenStore();
   /**
-   * What an Claudio assistant chat runs with, from the marker it stores. Core sets it; without it
+   * What a Claudio assistant chat runs with, from the marker it stores. Core sets it; without it
    * such a chat is refused rather than started unconfined.
    */
-  assistantLaunch: ((marker: AgentryAssistantMarker) => AssistantChatOptions) | null = null;
+  assistantLaunch: ((marker: ClaudioAssistantMarker) => AssistantChatOptions) | null = null;
   /** Where chats with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every chat may read them */
@@ -644,7 +644,7 @@ export class ChatManager extends EventEmitter {
     chat.forkFrom = driver.sessionIds === 'assigned' ? (known?.nativeId ?? sourceId) : sourceId;
     chat.workingDir = source.cwd;
     // A fork of an assistant chat is an assistant chat: the marker comes from the source, never from the request
-    if (known?.opts.agentryAssistant) chat.opts.agentryAssistant = known.opts.agentryAssistant;
+    if (known?.opts.claudioAssistant) chat.opts.claudioAssistant = known.opts.claudioAssistant;
     if (known) chat.permissionMode = known.permissionMode;
     this.applyStartOptions(chat, request);
     return this.begin(chat, request.prompt, attachments);
@@ -1052,12 +1052,12 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * An Claudio assistant chat gets its tools, mode, prompt and confinement set again before every
+   * A Claudio assistant chat gets its tools, mode, prompt and confinement set again before every
    * process, over what the request or an earlier execution put in its options: nothing a request can
    * say widens it, and a restart, a resume or a fork cannot lose it.
    */
   private confineAssistant(chat: LiveChat): void {
-    const marker = chat.opts.agentryAssistant;
+    const marker = chat.opts.claudioAssistant;
     if (!marker) return;
     if (!this.assistantLaunch) throw new ChatRefusal('the Claudio assistant is not available here');
     if (chat.provider !== LEGACY_PROVIDER) throw new ChatRefusal('the Claudio assistant runs on Claude Code only');

@@ -18,7 +18,7 @@ import { isRetryable } from '../src/hosts/retry.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 const recorded = (path: string): string => readFileSync(join(here, 'fixtures/recordings', path), 'utf8');
 
-const scratch = mkdtempSync(join(tmpdir(), 'agentry-hosts-exec-'));
+const scratch = mkdtempSync(join(tmpdir(), 'claudio-hosts-exec-'));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
 // A stand-in for a host CLI: node runs this script, so the "binary" is node and the script is argv[0]

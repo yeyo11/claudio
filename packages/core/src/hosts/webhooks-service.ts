@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentryEvent, CodeHostId, HostReason, ProjectWebhooks, WebhookRegistration, WebhookUnavailableReason } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEvent, CodeHostId, HostReason, ProjectWebhooks, WebhookRegistration, WebhookUnavailableReason } from '@claudio/shared';
+import type { ClaudioEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
 import { reasonOf } from './classify.ts';
 import { HostParseError, type HostCall, type HostRepo } from './code-host.ts';
@@ -95,7 +95,7 @@ export interface WebhooksServiceDeps {
   access: (projectId: string) => Promise<WebhookAccess>;
   /** The public origin a code host can deliver to; null without one (the tailnet-only tunnel is not one) */
   publicUrl: () => string | null;
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   now?: () => number;
   /** Waits between the reads that follow a ping; replaced in tests */
   sleep?: (ms: number) => Promise<void>;
@@ -274,7 +274,7 @@ export class WebhooksService {
   // ---------- the tunnel's new address ----------
 
   /** Hangs off the bus: a tunnel that came up on an address re-points the hooks that are not on it. */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     if (event.type !== 'tunnel.changed' || event.tunnel.state !== 'active' || !event.tunnel.url) return;
     void this.follow(event.tunnel.url);
   }
@@ -474,10 +474,10 @@ function unavailable(target: WebhookTarget | null, publicUrl: string | null): We
   return publicUrl ? null : 'no-public-url';
 }
 
-/** What the person is told when the repository already holds an Claudio hook that is not this install's. */
+/** What the person is told when the repository already holds a Claudio hook that is not this install's. */
 function foreignNotice(foreign: RemoteHook[]): string {
   const origins = [...new Set(foreign.map((h) => (h.url ? originOf(h.url) : null)).filter((o): o is string => o !== null))];
-  return `This repository already has an Claudio webhook made by another Claudio install${origins.length > 0 ? ` (${origins.join(', ')})` : ''}. Claudio left it alone and registered its own.`;
+  return `This repository already has a Claudio webhook made by another Claudio install${origins.length > 0 ? ` (${origins.join(', ')})` : ''}. Claudio left it alone and registered its own.`;
 }
 
 function describe(hook: RemoteHook): string | null {

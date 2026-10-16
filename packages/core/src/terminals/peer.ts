@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, readlinkSync } from 'node:fs';
-import { agentRunProcesses, agentryChildren, descendantsOf, processTable, type ProcessEntry } from '../processes.ts';
+import { agentRunProcesses, claudioChildren, descendantsOf, processTable, type ProcessEntry } from '../processes.ts';
 
 /** `agent`: the connection belongs to a chat's process or one of its descendants. `unknown` is not "not an agent". */
 export type PeerVerdict = 'agent' | 'not-agent' | 'unknown';
@@ -53,7 +53,7 @@ export class PeerCheck {
     private readonly sources: { table(): ProcessEntry[]; chatPids(): number[] } = {
       table: processTable,
       // A verification command is not a chat's child, but it runs what an agent wrote (T8-2)
-      chatPids: () => [...agentryChildren().map((chat) => chat.pid), ...agentRunProcesses()],
+      chatPids: () => [...claudioChildren().map((chat) => chat.pid), ...agentRunProcesses()],
     },
   ) {}
 

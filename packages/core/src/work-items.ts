@@ -60,7 +60,7 @@ import {
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, isMarkdown, pathSegments } from './document-paths.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { doneLimitOf, newestDone, pageOf } from './work-item-pages.ts';
 import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-rank.ts';
 import {
@@ -150,7 +150,7 @@ export interface WorkItemServiceDeps {
    */
   project: (projectId: string) => WorkItemProject | null;
   /** Told of every change once it is committed, never before */
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   /** Fills in a link's name and state when read; without it links carry only their ids and no item is live */
   linkState?: (link: WorkItemLink) => WorkItemLinkState | null;
   /** The decision engine, for `board.triage`; without it nothing is suggested */
@@ -1269,7 +1269,7 @@ export class WorkItemService {
     }
   }
 
-  private emit(event: AgentryEventInput): void {
+  private emit(event: ClaudioEventInput): void {
     try {
       this.deps.emit?.(event);
     } catch {

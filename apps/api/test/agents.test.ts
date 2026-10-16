@@ -25,7 +25,7 @@ let core: Core;
 let tasksRoot: string;
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-agents-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-agents-'));
   const config = loadConfig({
     CLAUDE_BIN: '/nonexistent/claude',
     CLAUDE_CONFIG_DIR: join(root, 'claude'),

@@ -3,7 +3,7 @@
    (pages/tasks/WorkItem.tsx, NewTask.tsx, item/**). Reference: DesktopTarea,
    MobileTarea, MobileTareaActividad, MobileTareaCambios, DesktopNuevaTarea and
    MobileNuevaTarea, and `.prop-row`, `.ac-row`, `.rel-row`, `.link-row`,
-   `.diff-file`, `.activity`, `.hist` and `.comment` in agentry-ds.css §15. The
+   `.diff-file`, `.activity`, `.hist` and `.comment` in claudio-ds.css §15. The
    marks it shares with the board are in work-item-marks.css.
    ========================================================================== */
 

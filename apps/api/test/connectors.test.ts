@@ -32,7 +32,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 const json = { payload: '{}', headers: { 'content-type': 'application/json' } };
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-connectors-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-connectors-'));
   const bin = join(root, 'claude-stub.mjs');
   writeFileSync(bin, STUB);
   chmodSync(bin, 0o755);
@@ -59,7 +59,7 @@ test('an unknown connector is 404 and a connected one is 409', async () => {
 });
 
 test("a chat's token cannot authorise a connector", async () => {
-  const secured = mkdtempSync(join(tmpdir(), 'agentry-api-conn-sec-'));
+  const secured = mkdtempSync(join(tmpdir(), 'claudio-api-conn-sec-'));
   const c = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(secured, 'claude'), CLAUDIO_WORKSPACE_DIR: join(secured, 'workspace'), CLAUDIO_DATA_DIR: join(secured, 'data') }));
   const a = await buildApp(c, { logLevel: 'silent', webDist: join(secured, 'no-ui') });
   try {

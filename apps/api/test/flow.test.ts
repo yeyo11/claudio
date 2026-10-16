@@ -35,7 +35,7 @@ async function until<T>(read: () => Promise<T> | T, done: (value: T) => boolean,
 }
 
 function repoWithCommit(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-flow-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-flow-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', dir, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -63,7 +63,7 @@ async function settings(change: (s: ProjectSettings) => ProjectSettings): Promis
 }
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-flow-data-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-flow-data-'));
   spawns = join(root, 'spawns.log');
   process.env.FAKE_CLAUDE_SPAWNS = spawns;
   core = new Core(

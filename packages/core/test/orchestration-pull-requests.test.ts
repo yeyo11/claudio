@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration } from '@claudio/shared';
+import type { ClaudioEvent, Orchestration } from '@claudio/shared';
 import { runHostCall } from '../src/hosts/exec.ts';
 import { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';
 import { HostRateLimiter } from '../src/hosts/rate-limit.ts';
@@ -14,7 +14,7 @@ import { cleanup, setup, sh, view, viewMr, write, type HostKind, type Setup } fr
 // recordings): readiness before any push, one row for two calls, an empty branch refused, and a
 // merge or a close read back by the watcher source.
 
-const BRANCH = 'agentry/graph-integration';
+const BRANCH = 'claudio/graph-integration';
 
 function orchestration(s: Setup, opts: { commits: boolean }): Orchestration {
   sh(s.r.project, 'branch', '-f', BRANCH, 'main');
@@ -39,13 +39,13 @@ function orchestration(s: Setup, opts: { commits: boolean }): Orchestration {
   return orch;
 }
 
-function serviceOf(s: Setup, noGh = false): { service: OrchestrationPullRequestService; events: AgentryEvent[] } {
-  const events: AgentryEvent[] = [];
+function serviceOf(s: Setup, noGh = false): { service: OrchestrationPullRequestService; events: ClaudioEvent[] } {
+  const events: ClaudioEvent[] = [];
   const path = noGh ? s.r.binNoGh : `${s.r.bin}:${process.env.PATH ?? ''}`;
   const service = new OrchestrationPullRequestService({
     db: s.db,
     codeHost: (p) => s.service.codeHost(p),
-    emit: (e) => events.push({ ...e, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent),
+    emit: (e) => events.push({ ...e, id: events.length + 1, at: new Date().toISOString() } as ClaudioEvent),
     env: { PATH: path, FAKE_GH_STATE: s.r.state, FAKE_GLAB_STATE: s.r.glabState },
     searchPath: async () => path,
     run: (call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, retry: { sleep: async () => undefined, ...(call.class === 'probe' ? { delaysMs: [] } : {}) } }),

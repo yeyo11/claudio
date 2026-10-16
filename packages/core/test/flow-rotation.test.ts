@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, FlowRun, FlowRunEvent, ProjectSettings } from '@claudio/shared';
+import type { ClaudioEvent, FlowRun, FlowRunEvent, ProjectSettings } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -17,7 +17,7 @@ process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-rotation-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-flow-rotation-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'README.md'), '# Shop\n');
@@ -54,7 +54,7 @@ async function flowProject(core: Core, dir: string, change: (s: ProjectSettings)
 
 /** The `flow.run` events of an action, as they reach a client */
 function flowEvents(core: Core, action: FlowRunEvent['action']): () => FlowRunEvent[] {
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   core.events.subscribe((e) => seen.push(e));
   return () => seen.filter((e): e is FlowRunEvent => e.type === 'flow.run' && e.action === action);
 }

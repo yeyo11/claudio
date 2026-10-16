@@ -911,7 +911,7 @@
     "workflowIntro": "Cada tarea se ejecuta como subagente de una sola sesión de Claude Code, dirigida por un script generado a partir de este grafo.",
     "workflowRun": " Ejecución de Claude Code {{id}}: al reanudar se reproduce desde su caché lo que ya había terminado.",
     "script": "Script",
-    "workflowNamePlaceholder": "Nombre (predeterminado: agentry-…)",
+    "workflowNamePlaceholder": "Nombre (predeterminado: claudio-…)",
     "workflowName": "Nombre del workflow",
     "saveWorkflow": "Guardar como workflow del proyecto",
     "saveWorkflowHint": "Lo copia en .claude/workflows/ del proyecto, donde Claude Code lo ejecuta por su nombre.",
@@ -1175,7 +1175,7 @@
       "intro": "Los nombres a los que responde este wrapper además de localhost. Una petición para cualquier otro host se rechaza, lo que impide que una página web llegue a Claudio por un nombre que controla. La dirección de un túnel se añade sola mientras el túnel está abierto.",
       "label": "Hosts",
       "hint": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos.",
-      "placeholder": "agentry.example.com",
+      "placeholder": "claudio.example.com",
       "saved": "Hosts permitidos guardados",
       "fromTunnel": "túnel, mientras está abierto",
       "hintBesideEnv": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos. Responden junto a los del entorno, al momento."

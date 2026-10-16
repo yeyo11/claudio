@@ -6,8 +6,8 @@ import {
   PERMISSION_MODES,
   WORK_ITEM_STATUSES,
   workItemBranch,
-  type AgentryEvent,
-  type AgentryLanguage,
+  type ClaudioEvent,
+  type ClaudioLanguage,
   type ChatStartOptions,
   type Orchestration,
   type OrchestrationTaskSpec,
@@ -178,7 +178,7 @@ export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
   return !!item.branch?.startsWith('claudio-task/');
 }
 
-const LOCK_REASON = 'agentry work item ';
+const LOCK_REASON = 'claudio work item ';
 
 /**
  * The worktree an item already has, or null: unlike {@link itemWorktree} it never makes one. Reading what a
@@ -266,7 +266,7 @@ export function orchestrationDraft(
   project: { name: string; path: string },
   selected: readonly WorkItem[],
   git: boolean,
-  language: AgentryLanguage = 'en',
+  language: ClaudioLanguage = 'en',
 ): WorkItemOrchestrationDraft {
   const inSelection = new Set(selected.map((i) => i.id));
   const nodeOf = new Map(selected.map((i) => [i.id, nodeId(i)]));
@@ -345,7 +345,7 @@ export class WorkItemAutomation {
   constructor(private readonly deps: WorkItemAutomationDeps) {}
 
   /** Everything on the feed goes through here; what is not about a chat or a node is ignored. */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     try {
       switch (event.type) {
         case 'run.updated':

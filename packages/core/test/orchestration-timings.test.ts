@@ -139,7 +139,7 @@ test('the phases after the tasks come from the recorded times, and the verificat
   const orch = graph([task('a', { endedAt: t(20) })], {
     endedAt: t(80),
     synthesize: true,
-    integration: { branch: 'agentry/x', worktree: null, status: 'merged', merged: ['a'], conflicts: [], commit: 'c', error: null, integratorRunId: null, startedAt: t(20), endedAt: t(21) },
+    integration: { branch: 'claudio/x', worktree: null, status: 'merged', merged: ['a'], conflicts: [], commit: 'c', error: null, integratorRunId: null, startedAt: t(20), endedAt: t(21) },
     verification: {
       status: 'fixed',
       startedAt: t(21),
@@ -174,7 +174,7 @@ test('the phases after the tasks come from the recorded times, and the verificat
 test('a graph stored before the times were recorded falls back to its role chats, and names what it cannot give', () => {
   const orch = graph([task('a', { startedAt: t(0), endedAt: t(20) })], {
     synthesize: true,
-    integration: { branch: 'agentry/x', worktree: null, status: 'merged', merged: ['a'], conflicts: [], commit: 'c', error: null, integratorRunId: null },
+    integration: { branch: 'claudio/x', worktree: null, status: 'merged', merged: ['a'], conflicts: [], commit: 'c', error: null, integratorRunId: null },
     verification: { status: 'passed', attempts: 0, commits: [], report: '', costUsd: 0, commands: [{ command: 'pnpm test', status: 'passed', output: '', durationMs: 3 * MIN }] },
     synthesisRunId: 'synth',
   });

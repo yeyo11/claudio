@@ -28,7 +28,7 @@ let core: Core;
 let root: string;
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-decisions-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-decisions-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

@@ -18,7 +18,7 @@ const apiRoot = resolve(here, '..');
 const dockerfile = readFileSync(resolve(here, '../../../docker/Dockerfile'), 'utf8');
 
 async function wrapper() {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-pkg-'));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -113,8 +113,8 @@ test('closing the server does not wait for a browser tab that is still listening
 // The script is what turns "unhealthy" into a restart, so it is tested with a real process: the one
 // this test started, found through the pid file, never by matching a command line.
 test('the healthcheck ends the server only after the configured run of failed probes', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-hc-'));
-  const pidfile = join(dir, 'agentry.pid');
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-hc-'));
+  const pidfile = join(dir, 'claudio.pid');
   const victim = spawn('sleep', ['300'], { stdio: 'ignore' });
   const exited = new Promise<string | null>((resolve) => victim.once('exit', (_code, signal) => resolve(signal)));
   writeFileSync(pidfile, String(victim.pid));
@@ -158,8 +158,8 @@ test('the compiled API serves and stops on its own, with no source tree, node_mo
   assert.deepEqual(await once(bundler, 'exit'), [0, null], 'the bundle script must build both entrypoints');
 
   // A directory of its own, outside the monorepo: nothing can be resolved from a node_modules above it
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-bundle-'));
-  const pidFile = join(dir, 'agentry.pid');
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-bundle-'));
+  const pidFile = join(dir, 'claudio.pid');
   copyFileSync(join(apiRoot, 'dist/api.mjs'), join(dir, 'api.mjs'));
 
   const server = spawn(process.execPath, ['api.mjs'], {
@@ -247,7 +247,7 @@ test('a listen that failed for any other reason is not retried away', async (t) 
 // In the image the container sees neither the host's tailscale CLI nor its daemon, so the tunnel is
 // offered only once the entrypoint started a tailscaled of the image's own and said so.
 test('the image offers the tunnel only with a tailscaled of its own, and CLAUDIO_TUNNEL=off still wins', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-tunnel-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-pkg-tunnel-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const build = (extra: Record<string, string>) =>
     new Core(

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, ReviewDraft, ReviewThread } from '@claudio/shared';
+import type { ClaudioEvent, ReviewDraft, ReviewThread } from '@claudio/shared';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {
@@ -85,7 +85,7 @@ test('a triage mark only preselects the threads marked agent', () => {
 });
 
 test('change-request.review refreshes the threads, drafts, reviewers and approval of that request only', () => {
-  const event = { id: 1, type: 'change-request.review', title: 'Review', changeRequestId: 'cr-1', unresolvedThreads: 2, decision: null } as unknown as AgentryEvent;
+  const event = { id: 1, type: 'change-request.review', title: 'Review', changeRequestId: 'cr-1', unresolvedThreads: 2, decision: null } as unknown as ClaudioEvent;
   const target = targetsFor(event)[0]!;
   for (const key of [keys.changeRequestThreads('cr-1'), keys.reviewDrafts('cr-1'), keys.changeRequestReviewers('cr-1'), keys.changeRequestApproval('cr-1')]) {
     assert.ok(targetMatches(target, key));

@@ -14,7 +14,7 @@ const vault = (available = true): KeyVault => ({
 });
 
 test('the key is made once, kept sealed at 0600, and the same on the next launch', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-secret-key-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-secret-key-'));
   try {
     const file = join(dir, 'secret-key.bin');
     const key = secretKeyFor(file, vault());
@@ -28,7 +28,7 @@ test('the key is made once, kept sealed at 0600, and the same on the next launch
 });
 
 test('without a keyring there is no key, and the server keeps its secrets plain', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-secret-key-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-secret-key-'));
   try {
     assert.equal(secretKeyFor(join(dir, 'secret-key.bin'), vault(false)), null);
   } finally {

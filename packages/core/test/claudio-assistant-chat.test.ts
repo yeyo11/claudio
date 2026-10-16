@@ -66,7 +66,7 @@ function assertConfined(argv: string, language: 'English' | 'Spanish' = 'English
   const args = argv.split(' ');
   assert.ok(args.includes('--tools='), 'no built-in tool');
   assert.ok(args.includes('--setting-sources='), 'no settings file');
-  assert.ok(args.includes('--strict-mcp-config'), 'only the agentry server');
+  assert.ok(args.includes('--strict-mcp-config'), 'only the claudio server');
   assert.equal(args.filter((a) => a.startsWith('--mcp-config=')).length, 1);
   assert.ok(args.includes(`--allowedTools=${CLAUDIO_MCP_READ_TOOLS.join(',')}`), 'the read tools and nothing else');
   assert.ok(!args.includes('--add-dir'), 'no uploads directory');
@@ -92,12 +92,12 @@ const widening = {
 test('an assistant chat starts confined, on sonnet, in the project in scope, with a token for its own MCP server', async () => {
   const { config, spawns, envs } = setup();
   const core = new Core(config);
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-assistant-chat-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-assistant-chat-'));
   try {
     core.runtime.apiUrl = API;
     const project = await core.importProject({ path: dir, name: 'pagos-api', template: 'software', modules: ['board'] });
-    const chat = await core.startAgentryAssistantChat({ prompt: 'how is AGN-1 going?', projectId: project.id }, 'es');
-    assert.deepEqual(chat.agentryAssistant, { projectId: project.id, language: 'es' });
+    const chat = await core.startClaudioAssistantChat({ prompt: 'how is AGN-1 going?', projectId: project.id }, 'es');
+    assert.deepEqual(chat.claudioAssistant, { projectId: project.id, language: 'es' });
     assert.equal(chat.cwd, dir);
     const argv = await spawned(spawns, (l) => l.includes(chat.id), 'the chat to spawn');
     assertConfined(argv, 'Spanish');
@@ -110,7 +110,7 @@ test('an assistant chat starts confined, on sonnet, in the project in scope, wit
     const env = readFileSync(envs, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { url: string | null; token: string | null }).find((e) => e.url !== null);
     assert.equal(env?.url, API);
     assert.ok(env?.token, 'the per-chat API token the MCP server calls the API with');
-    assert.deepEqual((await core.chats.get(chat.id))?.agentryAssistant, { projectId: project.id, language: 'es' });
+    assert.deepEqual((await core.chats.get(chat.id))?.claudioAssistant, { projectId: project.id, language: 'es' });
     assert.equal(core.runtime.get(chat.id)?.tools?.allowedTools.length, CLAUDIO_MCP_READ_TOOLS.length);
   } finally {
     cleanup(core);
@@ -123,8 +123,8 @@ test('with no project it runs in the workspace, and a request cannot widen it, n
   const core = new Core(config);
   try {
     core.runtime.apiUrl = API;
-    const chat = await core.startAgentryAssistantChat({ prompt: 'hi', ...widening });
-    assert.deepEqual(chat.agentryAssistant, { projectId: null, language: 'en' });
+    const chat = await core.startClaudioAssistantChat({ prompt: 'hi', ...widening });
+    assert.deepEqual(chat.claudioAssistant, { projectId: null, language: 'en' });
     assert.equal(chat.cwd, config.workspaceDir);
     assertConfined(await spawned(spawns, (l) => l.includes(chat.id), 'the chat to spawn'));
     await idle(core, chat.id);
@@ -136,12 +136,12 @@ test('with no project it runs in the workspace, and a request cannot widen it, n
     // A fork of an assistant chat is an assistant chat
     await idle(core, chat.id);
     const copy = await core.chats.fork(chat.id, { prompt: 'another way', ...widening });
-    assert.deepEqual(copy.agentryAssistant, { projectId: null, language: 'en' });
+    assert.deepEqual(copy.claudioAssistant, { projectId: null, language: 'en' });
     assertConfined(await spawned(spawns, (l) => l.includes(`--fork-session --session-id ${copy.id}`), 'the fork to spawn'));
 
     // The marker is not something POST /chats can set
-    const plain = await core.chats.create({ prompt: 'hello', agentryAssistant: { projectId: null, language: 'en' } } as never);
-    assert.equal(plain.agentryAssistant, undefined);
+    const plain = await core.chats.create({ prompt: 'hello', claudioAssistant: { projectId: null, language: 'en' } } as never);
+    assert.equal(plain.claudioAssistant, undefined);
     const plainArgv = await spawned(spawns, (l) => l.includes(plain.id), 'the plain chat to spawn');
     assert.ok(!plainArgv.includes('--strict-mcp-config'));
   } finally {
@@ -155,7 +155,7 @@ test('a restart picks the chat up confined again, in the language it started wit
   let id = '';
   try {
     core.runtime.apiUrl = API;
-    id = (await core.startAgentryAssistantChat({ prompt: 'hola' }, 'es')).id;
+    id = (await core.startClaudioAssistantChat({ prompt: 'hola' }, 'es')).id;
     await idle(core, id);
   } finally {
     core.shutdown();
@@ -165,7 +165,7 @@ test('a restart picks the chat up confined again, in the language it started wit
     // The address may differ after a restart: the config is written for the one this wrapper has now
     core.runtime.apiUrl = 'http://127.0.0.1:34332/api';
     for (let i = 0; i < 400 && !core.runtime.get(id); i++) await new Promise((r) => setTimeout(r, 25));
-    assert.deepEqual(core.runtime.get(id)?.agentryAssistant, { projectId: null, language: 'es' });
+    assert.deepEqual(core.runtime.get(id)?.claudioAssistant, { projectId: null, language: 'es' });
     core.runtime.send(id, 'sigues ahí?');
     const picked = await spawned(spawns, (l) => l.includes(`--resume ${id}`), 'the chat to be picked up');
     assertConfined(picked, 'Spanish');
@@ -183,9 +183,9 @@ test('an empty prompt is a 400 and an unknown project a 404; nothing is started'
   const status = (code: number) => (err: Error & { statusCode?: number }) => err.statusCode === code;
   try {
     core.runtime.apiUrl = API;
-    await assert.rejects(core.startAgentryAssistantChat({ prompt: '   ' }), status(400));
-    await assert.rejects(core.startAgentryAssistantChat(null), status(400));
-    await assert.rejects(core.startAgentryAssistantChat({ prompt: 'hi', projectId: 'nope' }), status(404));
+    await assert.rejects(core.startClaudioAssistantChat({ prompt: '   ' }), status(400));
+    await assert.rejects(core.startClaudioAssistantChat(null), status(400));
+    await assert.rejects(core.startClaudioAssistantChat({ prompt: 'hi', projectId: 'nope' }), status(404));
     assert.deepEqual(spawnsOf(spawns), []);
   } finally {
     cleanup(core);
@@ -196,7 +196,7 @@ test('it will not start without the API address', async () => {
   const { config } = setup();
   const core = new Core(config);
   try {
-    await assert.rejects(core.startAgentryAssistantChat({ prompt: 'hi' }), /not listening/);
+    await assert.rejects(core.startClaudioAssistantChat({ prompt: 'hi' }), /not listening/);
     assert.equal(core.runtime.list().length, 0, 'no unconfined chat is left behind');
   } finally {
     cleanup(core);
@@ -208,11 +208,11 @@ test('an assistant chat thinks at the effort recommended for an assistant, or at
   const core = new Core(config);
   try {
     core.runtime.apiUrl = API;
-    const recommended = await core.startAgentryAssistantChat({ prompt: 'hi' });
+    const recommended = await core.startClaudioAssistantChat({ prompt: 'hi' });
     assert.match(await spawned(spawns, (l) => l.includes(recommended.id), 'the chat to spawn'), /--effort medium/);
-    const chosen = await core.startAgentryAssistantChat({ prompt: 'hi', effort: 'low' });
+    const chosen = await core.startClaudioAssistantChat({ prompt: 'hi', effort: 'low' });
     assert.match(await spawned(spawns, (l) => l.includes(chosen.id), 'the chat to spawn'), /--effort low/);
-    await assert.rejects(core.startAgentryAssistantChat({ prompt: 'hi', effort: 'extreme' }), /effort must be one of/);
+    await assert.rejects(core.startClaudioAssistantChat({ prompt: 'hi', effort: 'extreme' }), /effort must be one of/);
   } finally {
     cleanup(core);
   }

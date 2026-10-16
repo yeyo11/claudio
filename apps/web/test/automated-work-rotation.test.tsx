@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, FlowRun, ProviderStatus } from '@claudio/shared';
+import type { ClaudioEvent, FlowRun, ProviderStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { keys } from '../src/api';
@@ -66,7 +66,7 @@ test('the strip words the wait: who is waited for and when it resumes', () => {
 });
 
 test('a wait refreshes the waits and the runs of every item that is open', () => {
-  const events = [{ type: 'run.limitWaiting', runId: 'c1' }] as unknown as AgentryEvent[];
+  const events = [{ type: 'run.limitWaiting', runId: 'c1' }] as unknown as ClaudioEvent[];
   for (const event of events) {
     const targets = targetsFor(event);
     assert.ok(targets.some((t) => targetMatches(t, keys.limitWaits('project:p1'))), `${event.type} waits`);

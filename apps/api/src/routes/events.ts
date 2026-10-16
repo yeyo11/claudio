@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import type { AgentryEvent, StreamHelloEvent, StreamResyncEvent } from '@claudio/shared';
+import type { ClaudioEvent, StreamHelloEvent, StreamResyncEvent } from '@claudio/shared';
 import { openStream } from '../sse.ts';
 
 export const eventRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -10,7 +10,7 @@ export const eventRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { cor
     const lastEventId = Number(req.headers['last-event-id'] ?? req.query.since ?? 0) || 0;
 
     const stream = openStream(req, reply);
-    const write = (event: AgentryEvent) => stream.send(event, { event: event.type, id: event.id });
+    const write = (event: ClaudioEvent) => stream.send(event, { event: event.type, id: event.id });
 
     // Nothing awaits between subscribing and replaying, so no event can slip in between them
     stream.onClose(core.events.subscribe(write));

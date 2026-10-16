@@ -11,7 +11,7 @@ import {
   LEVELS,
   notificationsFor,
   TEST_PUSH_KEY_PREFIX,
-  type AgentryEvent,
+  type ClaudioEvent,
   type NotificationDraft,
   type NotificationKind,
   type NotificationLevel,
@@ -373,7 +373,7 @@ export class PushService {
   }
 
   /** Every event on the bus, read through the same function the browser reads it through. */
-  private onEvent(event: AgentryEvent): void {
+  private onEvent(event: ClaudioEvent): void {
     // Null while reconnecting too: the address being replaced is the one that stopped answering
     if (event.type === 'tunnel.changed') this.publicUrl = event.tunnel.state === 'active' ? event.tunnel.url : null;
     const drafts = notificationsFor(event);

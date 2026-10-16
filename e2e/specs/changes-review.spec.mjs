@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 const SESSION = 'e2e-review-session';
 const SEEN_KEY = `claudio-review-seen:v1:chat:${SESSION}`;
-const MODE_KEY = 'agentry-diff-mode';
+const MODE_KEY = 'claudio-diff-mode';
 
 const line = (o) => JSON.stringify(o);
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, stdio: 'pipe' }).toString();
@@ -70,7 +70,7 @@ function seedTranscript(configDir, { main, tree }) {
 }
 
 export default async ({ page, api, check }) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-e2e-review-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-e2e-review-'));
   let seeded = null;
   const review = `/chats/${SESSION}/changes`;
   const current = () => page.eval(`return document.querySelector('.changes-file[aria-current=page], .changes-rail-file[aria-current=page]')?.getAttribute('aria-label')?.split(' · ')[0] ?? null`);

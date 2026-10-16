@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 
 /** What a source hands the bus: the bus stamps `id` and `at`. */
-export type AgentryEventInput = AgentryEvent extends infer E ? (E extends AgentryEvent ? Omit<E, 'id' | 'at'> : never) : never;
+export type ClaudioEventInput = ClaudioEvent extends infer E ? (E extends ClaudioEvent ? Omit<E, 'id' | 'at'> : never) : never;
 
 /** Enough for a browser tab that slept for a while; past it the client refetches instead. */
 const DEFAULT_CAPACITY = 1000;
 
-export type Replay = { events: AgentryEvent[] } | { resync: 'buffer-overflow' | 'server-restarted' };
+export type Replay = { events: ClaudioEvent[] } | { resync: 'buffer-overflow' | 'server-restarted' };
 
 /**
  * The one place every change in the app is announced, so a UI never has to poll for it.
@@ -19,12 +19,12 @@ export type Replay = { events: AgentryEvent[] } | { resync: 'buffer-overflow' | 
  */
 export class EventBus {
   readonly bootId = randomUUID();
-  private readonly buffer: AgentryEvent[] = [];
-  private readonly listeners = new Set<(event: AgentryEvent) => void>();
-  private readonly observers = new Set<(event: AgentryEvent) => void>();
+  private readonly buffer: ClaudioEvent[] = [];
+  private readonly listeners = new Set<(event: ClaudioEvent) => void>();
+  private readonly observers = new Set<(event: ClaudioEvent) => void>();
   private lastId = 0;
   /** Events emitted while another is being delivered, held so every listener hears them in id order */
-  private readonly pending: AgentryEvent[] = [];
+  private readonly pending: ClaudioEvent[] = [];
   private delivering = false;
   /** Told when the first listener arrives and when the last one leaves, so idle watchers can sleep */
   onDemand: ((wanted: boolean) => void) | null = null;
@@ -39,8 +39,8 @@ export class EventBus {
     return this.listeners.size;
   }
 
-  emit(input: AgentryEventInput): AgentryEvent {
-    const event = { ...input, id: ++this.lastId, at: new Date().toISOString() } as AgentryEvent;
+  emit(input: ClaudioEventInput): ClaudioEvent {
+    const event = { ...input, id: ++this.lastId, at: new Date().toISOString() } as ClaudioEvent;
     this.buffer.push(event);
     if (this.buffer.length > this.capacity) this.buffer.splice(0, this.buffer.length - this.capacity);
     // A listener that emits (core reacting to its own events) would otherwise have its event reach
@@ -67,7 +67,7 @@ export class EventBus {
     }
   }
 
-  subscribe(listener: (event: AgentryEvent) => void): () => void {
+  subscribe(listener: (event: ClaudioEvent) => void): () => void {
     this.listeners.add(listener);
     if (this.listeners.size === 1) this.onDemand?.(true);
     return () => {
@@ -80,7 +80,7 @@ export class EventBus {
    * Hears every event like a subscriber, but is not one: core reacting to its own events must not
    * keep the watchers awake that only run while a client is listening.
    */
-  observe(listener: (event: AgentryEvent) => void): () => void {
+  observe(listener: (event: ClaudioEvent) => void): () => void {
     this.observers.add(listener);
     return () => void this.observers.delete(listener);
   }

@@ -1,5 +1,5 @@
 /* The project pages: the wizard, the settings and the tab strip (web-projects). Imported by
-   styles.css in cascade order. Reference: section 15 of docs/design-system/agentry-ds.css
+   styles.css in cascade order. Reference: section 15 of docs/design-system/claudio-ds.css
    (.module-card, .tpl-card, .steps, .proj-head, .proj-tabs), on the NuevoProyecto, Proyecto and
    ProyectoAjustes screens. */
 
@@ -1116,7 +1116,7 @@
   text-align: center;
 }
 
-/* ---- Host line: where a project's code lives, detected and never chosen. Reference: section "Host line" of agentry-ds.css, on ProyectoAjustes ---- */
+/* ---- Host line: where a project's code lives, detected and never chosen. Reference: section "Host line" of claudio-ds.css, on ProyectoAjustes ---- */
 .host-line { display: flex; flex-direction: column; gap: 10px; }
 .host-line-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .host-line .monogram { flex-shrink: 0; }
@@ -1130,7 +1130,7 @@
 .host-line.stacked .badge { align-self: flex-start; }
 .project-host-card { padding: 14px; }
 
-/* ---- Project tracker: the chooser, the scope and query, and the status map. Reference: `.trk-*` of agentry-ds.css, on ProyectoTracker ---- */
+/* ---- Project tracker: the chooser, the scope and query, and the status map. Reference: `.trk-*` of claudio-ds.css, on ProyectoTracker ---- */
 .project-tracker-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
 .project-tracker-card > .card-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 .project-tracker-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

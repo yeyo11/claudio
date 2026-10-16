@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
-  AgentryLanguage,
+  ClaudioLanguage,
   FlowRun,
   ProjectFlowSettings,
   ProjectSettings,
@@ -21,7 +21,7 @@ import type {
 } from '@claudio/shared';
 import { EFFORT_LEVELS, isEffort, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
 
 /*
@@ -114,7 +114,7 @@ export interface TeamDeps {
   project(projectId: string): Promise<TeamProject>;
   /** Replaces the project's settings document, validated, emitting `project.updated` */
   saveSettings(projectId: string, settings: ProjectSettings): Promise<ProjectSettings>;
-  emit(event: AgentryEventInput): void;
+  emit(event: ClaudioEventInput): void;
 }
 
 /**
@@ -151,7 +151,7 @@ const ROLE_TITLES_ES: Readonly<Record<string, string>> = {
  * A role as the person reads it, for the first line of a chat Claudio starts for a member: a
  * built-in role in their language, a role of their own as they wrote it.
  */
-export function roleTitleIn(role: string, language: AgentryLanguage): string {
+export function roleTitleIn(role: string, language: ClaudioLanguage): string {
   return (language === 'es' ? ROLE_TITLES_ES[role] : undefined) ?? roleTitle(role);
 }
 

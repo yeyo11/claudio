@@ -1,5 +1,5 @@
 /** Scheme of the links on the error page; the main process intercepts them instead of navigating */
-export const ACTION_SCHEME = 'agentry-action:';
+export const ACTION_SCHEME = 'claudio-action:';
 
 /*
  * These pages load before the web UI and cannot read its tokens, so they carry the Night Shift dark

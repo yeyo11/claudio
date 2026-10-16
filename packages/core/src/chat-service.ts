@@ -8,7 +8,7 @@ import {
   TranscriptSearch,
   TRANSCRIPT_PAGE_MAX,
   type AgentTranscript,
-  type AgentryAssistantMarker,
+  type ClaudioAssistantMarker,
   type BackgroundTaskOutput,
   type CancelCommandRequest,
   type CancelCommandResult,
@@ -405,7 +405,7 @@ export class ChatService {
       origin,
       orchestration: orchestration ? { id: orchestration.id, name: orchestration.name, role: orchestration.role, taskId: orchestration.taskId, taskName: orchestration.taskName } : null,
       derivedFrom: runtime?.derivedFrom ?? null,
-      ...(runtime?.agentryAssistant ? { agentryAssistant: runtime.agentryAssistant } : {}),
+      ...(runtime?.claudioAssistant ? { claudioAssistant: runtime.claudioAssistant } : {}),
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
       state,
@@ -668,10 +668,10 @@ export class ChatService {
     body: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
     onStart?: (chat: ChatRuntime) => void,
     /** Only the core's own entry for the Claudio assistant passes it: a body sent to the API never makes a chat one */
-    agentryAssistant?: AgentryAssistantMarker,
+    claudioAssistant?: ClaudioAssistantMarker,
   ): Promise<ChatSummary> {
-    const { agentryAssistant: _sent, ...rest } = body as typeof body & { agentryAssistant?: unknown };
-    const request = agentryAssistant ? { ...rest, agentryAssistant } : rest;
+    const { claudioAssistant: _sent, ...rest } = body as typeof body & { claudioAssistant?: unknown };
+    const request = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a

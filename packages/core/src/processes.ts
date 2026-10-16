@@ -55,7 +55,7 @@ export function streamJsonProcesses(): CliProcess[] {
  * argv, so this is how a chat's process is told from a stranger's. Linux only; `[]` elsewhere, and
  * for a process whose environment cannot be read (another user's).
  */
-export function agentryChildren(): Array<{ pid: number; chatId: string; argv: string[] }> {
+export function claudioChildren(): Array<{ pid: number; chatId: string; argv: string[] }> {
   let names: string[];
   try {
     names = readdirSync('/proc');
@@ -88,7 +88,7 @@ export const AGENT_RUN_ENV = 'CLAUDIO_AGENT_RUN';
 
 /**
  * Pids of the processes that carry {@link AGENT_RUN_ENV}. A process whose environment cannot be read
- * (another user's) is not listed; neither is a chat's CLI, which {@link agentryChildren} finds.
+ * (another user's) is not listed; neither is a chat's CLI, which {@link claudioChildren} finds.
  */
 export function agentRunProcesses(): number[] {
   let names: string[];

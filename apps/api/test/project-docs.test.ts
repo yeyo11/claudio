@@ -19,7 +19,7 @@ const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'co
 const doc = (id: string): ProjectDoc => ({ id, url: `https://claude.ai/docs/${id}`, title: `Doc ${id}`, kind: 'doc', createdBy: 'person', addedAt: '2026-01-01T00:00:00.000Z', status: 'unread', checkedAt: null });
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-project-docs-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-project-docs-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -29,7 +29,7 @@ before(async () => {
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
-  const res = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: mkdtempSync(join(tmpdir(), 'agentry-api-pd-proj-')), name: 'Docs' }) });
+  const res = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: mkdtempSync(join(tmpdir(), 'claudio-api-pd-proj-')), name: 'Docs' }) });
   assert.equal(res.statusCode, 201, res.body);
   project = res.json<Project>();
 });
@@ -77,7 +77,7 @@ test('ask on a document that is not in the project is 404', async () => {
 });
 
 test("a chat's token can read the registry but not change it or ask", async () => {
-  const secured = mkdtempSync(join(tmpdir(), 'agentry-api-pd-sec-'));
+  const secured = mkdtempSync(join(tmpdir(), 'claudio-api-pd-sec-'));
   const c = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(secured, 'claude'), CLAUDIO_WORKSPACE_DIR: join(secured, 'workspace'), CLAUDIO_DATA_DIR: join(secured, 'data') }));
   const a = await buildApp(c, { logLevel: 'silent', webDist: join(secured, 'no-ui') });
   try {

@@ -10,7 +10,7 @@ import { forgetModelOptions, ModelAliasIds, modelDisplayName, modelOptions } fro
 // CLI's, written whenever it likes, so every shape it could hand back has to be survivable.
 
 const file = (contents: string): string => {
-  const path = join(mkdtempSync(join(tmpdir(), 'agentry-models-')), '.claude.json');
+  const path = join(mkdtempSync(join(tmpdir(), 'claudio-models-')), '.claude.json');
   writeFileSync(path, contents);
   forgetModelOptions();
   return path;
@@ -21,7 +21,7 @@ const aliases = ['fable', 'opus', 'sonnet', 'haiku'];
 test('the aliases stand alone when the CLI has written nothing to read', () => {
   forgetModelOptions();
   assert.deepEqual(
-    modelOptions(join(tmpdir(), 'agentry-models-missing', '.claude.json')).map((m) => m.value),
+    modelOptions(join(tmpdir(), 'claudio-models-missing', '.claude.json')).map((m) => m.value),
     aliases,
   );
   assert.deepEqual(
@@ -95,7 +95,7 @@ test('a model id reads as its family and version: `claude-`, a release date and 
 });
 
 test('an alias is named after the model a chat reported it as, and stands alone until one has', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-model-ids-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-model-ids-'));
   const ids = new ModelAliasIds(dir);
   const cli = join(dir, 'missing', '.claude.json');
   forgetModelOptions();
@@ -135,7 +135,7 @@ test('an alias is named after the model a chat reported it as, and stands alone 
 });
 
 test("a label the CLI gives wins over the derived one, and a broken document of ours is only names lost", () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-model-ids-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-model-ids-'));
   writeFileSync(join(dir, 'model-aliases.json'), 'not json');
   const broken = new ModelAliasIds(dir);
   assert.deepEqual(broken.get(), {});
@@ -149,13 +149,13 @@ test("a label the CLI gives wins over the derived one, and a broken document of 
 
 test('the aliases carry the tier of their line, and fable has none', () => {
   forgetModelOptions();
-  const tiers = Object.fromEntries(modelOptions(join(tmpdir(), 'agentry-models-missing', '.claude.json')).map((m) => [m.value, m.tier]));
+  const tiers = Object.fromEntries(modelOptions(join(tmpdir(), 'claudio-models-missing', '.claude.json')).map((m) => [m.value, m.tier]));
   assert.deepEqual(tiers, { fable: undefined, opus: 'strong', sonnet: 'balanced', haiku: 'fast' });
 });
 
 test('the CLI initialize list, when there is one, is the whole answer', () => {
   forgetModelOptions();
-  const missing = join(tmpdir(), 'agentry-models-missing', '.claude.json');
+  const missing = join(tmpdir(), 'claudio-models-missing', '.claude.json');
   const listed = [
     { value: 'opus', label: 'Opus', resolvedModel: 'claude-opus-5-5', supportedEffortLevels: ['low', 'max'] },
     { value: 'haiku', label: 'Haiku', resolvedModel: 'claude-haiku-5-5' },

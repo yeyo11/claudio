@@ -27,7 +27,7 @@ interface Grab {
 }
 
 const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
-const DRAG_TYPE = 'application/x-agentry-work-item';
+const DRAG_TYPE = 'application/x-claudio-work-item';
 
 /**
  * The five columns of a board, side by side. A card moves by pointer (drag it between or inside

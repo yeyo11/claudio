@@ -47,7 +47,7 @@ test('transcript image and document blocks keep what they are and drop the bytes
 test('a turn with attachments sends images and PDFs as blocks and names every file by path', async () => {
   const config = tempConfig();
   // Reports what it was given: its arguments and the content of the first message
-  const fake = join(mkdtempSync(join(tmpdir(), 'agentry-fake-')), 'claude');
+  const fake = join(mkdtempSync(join(tmpdir(), 'claudio-fake-')), 'claude');
   writeFileSync(
     fake,
     `#!/usr/bin/env node

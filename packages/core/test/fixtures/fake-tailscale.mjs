@@ -38,9 +38,9 @@ const DEFAULTS = {
   version: '1.102.4',
   daemon: true,
   backendState: 'Running',
-  dnsName: 'agentry-test.tail0000.ts.net.',
+  dnsName: 'claudio-test.tail0000.ts.net.',
   magicDNS: true,
-  certDomains: ['agentry-test.tail0000.ts.net'],
+  certDomains: ['claudio-test.tail0000.ts.net'],
   operator: true,
   serve: {},
 };

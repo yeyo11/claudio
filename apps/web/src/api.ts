@@ -13,7 +13,7 @@ import type {
   UsageHistoryPoint,
   AcceptAssistantProposalRequest,
   AddressReviewRequest,
-  AgentryReleaseInfo,
+  ClaudioReleaseInfo,
   StorageReport,
   AgentTranscript,
   ApiError,
@@ -198,7 +198,7 @@ import type {
   SetAuthTokenRequest,
   SetCredentialsRequest,
   SettingsDoc,
-  StartAgentryAssistantChatRequest,
+  StartClaudioAssistantChatRequest,
   StartAssistantRunRequest,
   SupervisorConfig,
   SupervisorProposal,
@@ -490,8 +490,8 @@ export const api = {
   clearCredentials: () => request<AuthStatus>('/auth/credentials', { method: 'DELETE' }),
   cliVersion: (o: ReadOptions = {}) => request<CliVersionInfo>('/system/cli-version', o),
   checkCliVersion: () => request<CliVersionInfo>('/system/cli-version/check', { method: 'POST' }),
-  release: (o: ReadOptions = {}) => request<AgentryReleaseInfo>('/system/release', o),
-  checkRelease: () => request<AgentryReleaseInfo>('/system/release/check', { method: 'POST' }),
+  release: (o: ReadOptions = {}) => request<ClaudioReleaseInfo>('/system/release', o),
+  checkRelease: () => request<ClaudioReleaseInfo>('/system/release/check', { method: 'POST' }),
   storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: (o: ReadOptions = {}) => request<Project[]>('/projects', o),
@@ -962,8 +962,8 @@ export const api = {
     request<{ ok: true }>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'DELETE' }),
   tieDocument: (itemId: string, req: TieDocumentRequest) =>
     request<WorkItemLink>(`/work-items/${enc(itemId)}/documents`, { method: 'POST', body: req }),
-  // ---- the Claudio assistant: a confined global chat (docs/plans/agentry-assistant-entry.md)
-  startAgentryAssistantChat: (req: StartAgentryAssistantChatRequest) => request<ChatSummary>('/assistant/chats', { method: 'POST', body: req }),
+  // ---- the Claudio assistant: a confined global chat (docs/plans/claudio-assistant-entry.md)
+  startClaudioAssistantChat: (req: StartClaudioAssistantChatRequest) => request<ChatSummary>('/assistant/chats', { method: 'POST', body: req }),
   // ---- the project assistant (docs/plans/project-ecosystem.md, orchestration 4)
   /** Refused with 409 while a run of the same kind runs in the project */
   startAssistantRun: (projectId: string, req: StartAssistantRunRequest) =>

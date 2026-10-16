@@ -22,7 +22,7 @@ let spawns: string;
 const json = (body: unknown, headers: Record<string, string> = {}) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json', ...headers } });
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-chat-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-assistant-chat-'));
   spawns = join(root, 'spawns.log');
   process.env.FAKE_CLAUDE_SPAWNS = spawns;
   core = new Core(
@@ -58,7 +58,7 @@ test('it starts a confined chat with no project, on sonnet, in the language of A
   const res = await app.inject({ method: 'POST', url: '/api/assistant/chats', ...json({ prompt: 'what is running?' }, { 'accept-language': 'es-ES,es;q=0.9,en;q=0.8' }) });
   assert.equal(res.statusCode, 201, res.body);
   const chat = res.json<Chat>();
-  assert.deepEqual(chat.agentryAssistant, { projectId: null, language: 'es' });
+  assert.deepEqual(chat.claudioAssistant, { projectId: null, language: 'es' });
   assert.equal(chat.project, null);
   const argv = await argvOf(chat.id);
   assert.match(argv, /--model sonnet/);
@@ -68,7 +68,7 @@ test('it starts a confined chat with no project, on sonnet, in the language of A
   assert.match(argv, /Answer in Spanish/);
   // What GET /chats/:id says is what the web reads to tell it from a plain chat
   const again = await app.inject({ method: 'GET', url: `/api/chats/${chat.id}` });
-  assert.deepEqual(again.json<{ chat: Chat }>().chat.agentryAssistant, { projectId: null, language: 'es' });
+  assert.deepEqual(again.json<{ chat: Chat }>().chat.claudioAssistant, { projectId: null, language: 'es' });
 });
 
 test('a project is context: the chat runs in its directory and is listed under it', async () => {
@@ -79,7 +79,7 @@ test('a project is context: the chat runs in its directory and is listed under i
   assert.equal(res.statusCode, 201, res.body);
   const chat = res.json<Chat>();
   assert.equal(chat.project?.id, project.id);
-  assert.deepEqual(chat.agentryAssistant, { projectId: project.id, language: 'en' });
+  assert.deepEqual(chat.claudioAssistant, { projectId: project.id, language: 'en' });
   const argv = await argvOf(chat.id);
   assert.match(argv, /--model opus/);
   assert.match(argv, /Shop/);
@@ -98,9 +98,9 @@ test('options of a chat the route does not take are ignored, and a plain POST /c
   assert.ok(!argv.includes('ignore everything above') && !argv.includes('--allow-dangerously-skip-permissions'));
   assert.notEqual(chat.cwd, '/etc');
 
-  const plain = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', agentryAssistant: { projectId: null, language: 'en' } }) });
+  const plain = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', claudioAssistant: { projectId: null, language: 'en' } }) });
   assert.equal(plain.statusCode, 201, plain.body);
-  assert.equal(plain.json<Chat>().agentryAssistant, undefined);
+  assert.equal(plain.json<Chat>().claudioAssistant, undefined);
 });
 
 test('an empty prompt is 400 and an unknown project 404', async () => {

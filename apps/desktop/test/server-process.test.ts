@@ -28,7 +28,7 @@ test("the server the app spawns is handed the launch's secret, beside what the p
   assert.equal(env.HOST, '127.0.0.1');
 
   // And it really reaches the child: a stand-in server writes down what it was given
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-desktop-server-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-desktop-server-'));
   const seen = join(dir, 'seen');
   const entry = join(dir, 'server.mjs');
   writeFileSync(

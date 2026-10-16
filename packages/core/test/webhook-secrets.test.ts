@@ -11,7 +11,7 @@ import { SecretBox } from '../src/secret-box.ts';
 const KEY = randomBytes(32).toString('hex');
 
 const withDir = async (fn: (dir: string, file: string) => Promise<void>) => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-webhook-secrets-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-webhook-secrets-'));
   try {
     await fn(dir, join(dir, 'webhook-secrets.json'));
   } finally {

@@ -595,10 +595,10 @@
         },
         "description": "Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way since; only while Claudio has a record of the chat (docs/chat-delivery.md)"
       },
-      "agentryAssistant": {
+      "claudioAssistant": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/AgentryAssistantMarker"
+            "$ref": "#/components/schemas/ClaudioAssistantMarker"
           },
           {
             "type": "null"
@@ -1460,7 +1460,7 @@
     ],
     "description": "A file sent with a message, as the page shows it: no path on the server's disk."
   },
-  "AgentryAssistantMarker": {
+  "ClaudioAssistantMarker": {
     "type": "object",
     "properties": {
       "projectId": {
@@ -1471,7 +1471,7 @@
         "description": "The project in scope when the chat started: context, not a requirement"
       },
       "language": {
-        "$ref": "#/components/schemas/AgentryLanguage",
+        "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The language the assistant answers in, read from `Accept-Language` when the chat started"
       }
     },
@@ -1479,15 +1479,15 @@
       "projectId",
       "language"
     ],
-    "description": "What an Claudio assistant chat remembers about what it is, so the core re-applies its confinement and its guide on every process, whatever a request asks."
+    "description": "What a Claudio assistant chat remembers about what it is, so the core re-applies its confinement and its guide on every process, whatever a request asks."
   },
-  "AgentryLanguage": {
+  "ClaudioLanguage": {
     "type": "string",
     "enum": [
       "en",
       "es"
     ],
-    "description": "The languages Claudio speaks. A chat Claudio starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
+    "description": "The languages Claudio speaks. A chat Claudio starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`claudioLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
   },
   "AuthVerification": {
     "type": "object",
@@ -5556,7 +5556,7 @@
     ],
     "description": "A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other file by its path, which every run can read."
   },
-  "AgentryEvent": {
+  "ClaudioEvent": {
     "anyOf": [
       {
         "$ref": "#/components/schemas/RunCreatedEvent"
@@ -7486,7 +7486,7 @@
         "const": "system.release"
       },
       "release": {
-        "$ref": "#/components/schemas/AgentryReleaseInfo"
+        "$ref": "#/components/schemas/ClaudioReleaseInfo"
       }
     },
     "required": [
@@ -7498,7 +7498,7 @@
     ],
     "description": "A release check found a newer Claudio than the last one it announced. Sent once per version, and never a notification: a release is not worth waking a phone for."
   },
-  "AgentryReleaseInfo": {
+  "ClaudioReleaseInfo": {
     "type": "object",
     "properties": {
       "current": {
@@ -7536,7 +7536,7 @@
         "description": "`latest` is newer than `current`; false while `latest` is unknown"
       },
       "distribution": {
-        "$ref": "#/components/schemas/AgentryDistribution"
+        "$ref": "#/components/schemas/ClaudioDistribution"
       },
       "error": {
         "type": "string",
@@ -7553,7 +7553,7 @@
       "distribution"
     ]
   },
-  "AgentryDistribution": {
+  "ClaudioDistribution": {
     "type": "string",
     "enum": [
       "docker",
@@ -9992,13 +9992,13 @@
   "TunnelSettings": {
     "type": "object",
     "properties": {
-      "startWithAgentry": {
+      "startWithClaudio": {
         "type": "boolean",
         "description": "Open the tunnel whenever Claudio starts; off unless the person turns it on"
       }
     },
     "required": [
-      "startWithAgentry"
+      "startWithClaudio"
     ],
     "description": "What the tunnel may be told to do beside starting and stopping it."
   },
@@ -10889,10 +10889,10 @@
         },
         "description": "Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way since; only while Claudio has a record of the chat (docs/chat-delivery.md)"
       },
-      "agentryAssistant": {
+      "claudioAssistant": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/AgentryAssistantMarker"
+            "$ref": "#/components/schemas/ClaudioAssistantMarker"
           },
           {
             "type": "null"
@@ -12148,10 +12148,10 @@
         },
         "description": "Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way since; only while Claudio has a record of the chat (docs/chat-delivery.md)"
       },
-      "agentryAssistant": {
+      "claudioAssistant": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/AgentryAssistantMarker"
+            "$ref": "#/components/schemas/ClaudioAssistantMarker"
           },
           {
             "type": "null"
@@ -13528,7 +13528,7 @@
       },
       "actor": {
         "type": "string",
-        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no authentication is configured"
+        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself; `local` when no authentication is configured"
       },
       "method": {
         "type": "string"
@@ -14577,7 +14577,7 @@
     "type": "object",
     "properties": {
       "distribution": {
-        "$ref": "#/components/schemas/AgentryDistribution"
+        "$ref": "#/components/schemas/ClaudioDistribution"
       },
       "checked": {
         "type": "boolean",
@@ -18069,7 +18069,7 @@
         "description": "Times the flow sent it back to its chat because its turn ended with work still owed (no structured result, uncommitted changes, or a last message that offers, asks or announces instead of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is"
       },
       "language": {
-        "$ref": "#/components/schemas/AgentryLanguage",
+        "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
       },
       "queuedAt": {
@@ -19165,7 +19165,7 @@
         "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
       },
       "language": {
-        "$ref": "#/components/schemas/AgentryLanguage",
+        "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
       },
       "resourceKind": {
@@ -19512,7 +19512,7 @@
         "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
       },
       "language": {
-        "$ref": "#/components/schemas/AgentryLanguage",
+        "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
       },
       "resourceKind": {
@@ -20205,7 +20205,7 @@
     ],
     "description": "`POST /projects/:id/assistant/runs`. One run at a time per project and kind: a second one while one runs is refused with 409. A new run leaves the previous one's pending proposals as they are, unless `supersede` says to set them aside (\"Suggest again\")."
   },
-  "StartAgentryAssistantChatRequest": {
+  "StartClaudioAssistantChatRequest": {
     "type": "object",
     "properties": {
       "prompt": {
@@ -20395,7 +20395,7 @@
   "UpdateTunnelSettingsRequest": {
     "type": "object",
     "properties": {
-      "startWithAgentry": {
+      "startWithClaudio": {
         "type": "boolean",
         "description": "Open the tunnel whenever Claudio starts; off unless the person turns it on"
       }
@@ -23792,7 +23792,7 @@
       "open-on-host",
       "refresh"
     ],
-    "description": "The one thing the person can do about a blocker. Each is an Claudio action or a link, never a command to copy: `update-from-base` is Claudio's own merge of the base into the branch, `rebase-on-host` a host-side rebase (GitLab `ff` projects only)."
+    "description": "The one thing the person can do about a blocker. Each is a Claudio action or a link, never a command to copy: `update-from-base` is Claudio's own merge of the base into the branch, `rebase-on-host` a host-side rebase (GitLab `ff` projects only)."
   },
   "AutoMergeState": {
     "type": "object",
@@ -23856,7 +23856,7 @@
     "properties": {
       "by": {
         "type": "string",
-        "description": "Who: `agentry` for its own push, the person who clicked for Update from base"
+        "description": "Who: `claudio` for its own push, the person who clicked for Update from base"
       },
       "at": {
         "type": "string"
@@ -24024,7 +24024,7 @@
       },
       "requestedBy": {
         "type": "string",
-        "description": "The person who clicked; `agentry` for the disarm Claudio does before it pushes"
+        "description": "The person who clicked; `claudio` for the disarm Claudio does before it pushes"
       },
       "outcome": {
         "$ref": "#/components/schemas/ChangeRequestMergeOutcome"

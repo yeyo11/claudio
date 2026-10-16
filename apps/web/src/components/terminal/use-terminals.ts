@@ -3,7 +3,7 @@ import type { CreateTerminalRequest, Terminal, TerminalStatus } from '@claudio/s
 import { useToast } from '@claudio/ui/components/Toast';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { useAgentryEvents, useFallbackInterval } from '../../lib/feed';
+import { useClaudioEvents, useFallbackInterval } from '../../lib/feed';
 import { orderTerminals } from './terminal-model';
 
 /** Which terminals a list is of: a project's (any of its directories), one chat's, or all of them. */
@@ -20,7 +20,7 @@ const filterOf = (scope: TerminalScopeKey): { project?: string; chat?: string } 
  */
 function useTerminalFeed(): void {
   const queryClient = useQueryClient();
-  useAgentryEvents((event) => {
+  useClaudioEvents((event) => {
     if (event.type !== 'terminal.changed') return;
     queryClient.setQueryData<TerminalStatus>(keys.terminalStatus, event.status);
     void queryClient.invalidateQueries({ queryKey: ['terminal', 'list'] });

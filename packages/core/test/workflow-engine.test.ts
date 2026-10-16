@@ -115,7 +115,7 @@ const resultText = (runs: ChatManager, id: string) => runs.events(id).filter((e)
 
 function setup() {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
-  const records = mkdtempSync(join(tmpdir(), 'agentry-wf-records-'));
+  const records = mkdtempSync(join(tmpdir(), 'claudio-wf-records-'));
   process.env.FAKE_WORKFLOW_DIR = records;
   const db = new Db(config);
   const runs = new ChatManager(config, db);

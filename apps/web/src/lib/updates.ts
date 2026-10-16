@@ -1,4 +1,4 @@
-import type { AgentryDistribution } from '@claudio/shared';
+import type { ClaudioDistribution } from '@claudio/shared';
 
 /**
  * What the Updates card offers, decided from what kind of install the server is and from where the
@@ -92,8 +92,8 @@ export function updateRoute({
   desktopUpdates,
   hostname,
 }: {
-  distribution: AgentryDistribution;
-  /** window.agentryDesktop.updates is there: this page is the desktop app's own window */
+  distribution: ClaudioDistribution;
+  /** window.claudioDesktop.updates is there: this page is the desktop app's own window */
   desktopUpdates: boolean;
   hostname: string;
 }): UpdateRoute {

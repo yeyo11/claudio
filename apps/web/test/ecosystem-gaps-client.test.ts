@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
-import type { AgentryEvent, ChatActivityEvent, FlowRunEvent, FlowRunPage, ProjectFlow, TeamChangedEvent, WorkItemMovedEvent } from '@claudio/shared';
+import type { ClaudioEvent, ChatActivityEvent, FlowRunEvent, FlowRunPage, ProjectFlow, TeamChangedEvent, WorkItemMovedEvent } from '@claudio/shared';
 import { api, ApiRequestError, keys } from '../src/api';
 import { patchActivity, targetMatches, targetsFor } from '../src/lib/events';
 
@@ -103,7 +103,7 @@ const CACHE: Record<string, QueryKey> = {
   developerFileP1: [...keys.resources({ projectId: 'p1' }, 'agents'), 'developer'],
 };
 
-function refetched(event: AgentryEvent): string[] {
+function refetched(event: ClaudioEvent): string[] {
   const targets = targetsFor(event);
   return Object.entries(CACHE)
     .filter(([, key]) => targets.some((target) => targetMatches(target, key)))

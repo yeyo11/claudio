@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, AssistantRunDetail } from '@claudio/shared';
+import type { ClaudioEvent, AssistantRunDetail } from '@claudio/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { DENIED_TOOLS } from '../src/assistant.ts';
@@ -22,7 +22,7 @@ const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.m
 process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-assistant-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-assistant-cli-'));
   writeFileSync(join(dir, 'README.md'), '# Pagos\n');
   mkdirSync(join(dir, 'src'));
   writeFileSync(join(dir, 'src', 'index.ts'), 'export {};\n');
@@ -91,7 +91,7 @@ test('a run through the CLI reads only, answers with proposals, and each accept 
   const spawns = join(config.dataDir, 'spawns.log');
   process.env.FAKE_CLAUDE_SPAWNS = spawns;
   const core = new Core(config);
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   core.events.observe((e) => events.push(e));
   try {
     const dir = repo();
@@ -335,7 +335,7 @@ test('"Create with AI" shows the file while the chat writes it, from the result 
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   mkdirSync(config.dataDir, { recursive: true });
   const core = new Core(config);
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   core.events.observe((e) => events.push(e));
   try {
     const dir = repo();

@@ -55,7 +55,7 @@ test('time and money count from when the allowance began, which a person can sta
 function graph() {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-limits-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-limits-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -104,7 +104,7 @@ test('limits are validated on create and kept on the graph and the task', () => 
 
 test('the cost limit of a task is handed to the CLI as its own ceiling, and a retry gets only what is left', async () => {
   const { orchestrator, spec, taskOf, close } = graph();
-  const log = join(mkdtempSync(join(tmpdir(), 'agentry-spawns-')), 'spawns');
+  const log = join(mkdtempSync(join(tmpdir(), 'claudio-spawns-')), 'spawns');
   process.env.FAKE_CLAUDE_SPAWNS = log;
   try {
     // Fails once, at a cost of $0.01, and is retried in the same chat
@@ -124,7 +124,7 @@ test('the cost limit of a task is handed to the CLI as its own ceiling, and a re
 
 test('a task with no cost limit is started without a ceiling', async () => {
   const { orchestrator, spec, close } = graph();
-  const log = join(mkdtempSync(join(tmpdir(), 'agentry-spawns-')), 'spawns');
+  const log = join(mkdtempSync(join(tmpdir(), 'claudio-spawns-')), 'spawns');
   process.env.FAKE_CLAUDE_SPAWNS = log;
   try {
     const started = orchestrator.create(spec([{ id: 'plain', prompt: 'FAKE-WRITE a.txt x' }], { limits: { maxMinutes: 30 } }));

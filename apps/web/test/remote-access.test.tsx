@@ -23,7 +23,7 @@ import { reachedThrough, TAILSCALE_DNS_ADMIN_URL, TAILSCALE_DOWNLOAD_URL, TUNNEL
 // readiness and the guard standing in for the button when either is missing, and settings the
 // environment owns shown but never sent.
 
-const NODE = 'agentry-test.tail0000.ts.net';
+const NODE = 'claudio-test.tail0000.ts.net';
 const URL_ = `https://${NODE}:8443`;
 const READY: TailscaleReadiness = { state: 'ready', version: '1.102.4', host: NODE, reason: null };
 const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelStatus => ({
@@ -35,7 +35,7 @@ const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelSt
   managed: false,
   tailscale: READY,
   port: 8443,
-  settings: { startWithAgentry: false },
+  settings: { startWithClaudio: false },
   ...extra,
 });
 
@@ -163,7 +163,7 @@ test('an open tunnel shows its address in mono with copy and a QR code, and the 
   assert.match(html, /class="tunnel-address grad-border"/);
   assert.match(html, new RegExp(`<a class="mono break" href="${URL_}"`));
   assert.match(html, /aria-label="Copy address"/);
-  assert.match(html, /<svg class="qr"[^>]*role="img"[^>]*aria-label="QR code of https:\/\/agentry-test\.tail0000\.ts\.net:8443"/);
+  assert.match(html, /<svg class="qr"[^>]*role="img"[^>]*aria-label="QR code of https:\/\/claudio-test\.tail0000\.ts\.net:8443"/);
   assert.match(html, /data-testid="tunnel-stop"/);
   assert.doesNotMatch(html, /tunnel-start|btn-primary/);
 });

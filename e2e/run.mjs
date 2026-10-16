@@ -121,7 +121,7 @@ await once(releaseFixture, 'listening');
 releaseFixture.unref();
 const releasesUrl = `http://127.0.0.1:${releaseFixture.address().port}/repos/yeyo11/claudio/releases/latest`;
 
-const sandbox = mkdtempSync(join(tmpdir(), 'agentry-e2e-'));
+const sandbox = mkdtempSync(join(tmpdir(), 'claudio-e2e-'));
 // Specs seed transcripts and files straight into these directories
 const dirs = {
   configDir: live ? null : join(sandbox, 'claude'),

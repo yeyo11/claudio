@@ -98,7 +98,7 @@ test('an entry recorded under an environment variable answers only when it is se
 });
 
 test('the fake knows which CLI it is from the name it was started through', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-fake-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-'));
   const gh = join(dir, 'gh');
   symlinkSync(FAKE, gh);
   const result = spawnSync(process.execPath, [gh, '--version'], { env: { PATH: process.env.PATH ?? '' } });

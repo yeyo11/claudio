@@ -19,7 +19,7 @@ interface Wrapper {
   core: Core;
 }
 
-async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'agentry-security-'))): Promise<Wrapper> {
+async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'claudio-security-'))): Promise<Wrapper> {
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -303,7 +303,7 @@ test('the environment can hand a fresh install a closed door', async (t) => {
 });
 
 test('CLAUDIO_AUTH_TOKEN_RESET lets someone who lost the token back in, once, and says so in the log', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-security-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-security-'));
   const first = await wrapper({}, root);
   const lost = await withToken(first.app);
   await first.app.close();
@@ -356,27 +356,27 @@ test('a host nobody configured is refused, which is what stops DNS rebinding', a
 });
 
 test('CLAUDIO_ALLOWED_HOSTS names the hosts a deployment answers to, port and case aside', async (t) => {
-  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'agentry.example.com, agentry.internal' });
+  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'claudio.example.com, claudio.internal' });
   t.after(() => app.close());
 
-  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.example.com' } })).statusCode, 200);
-  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'AGENTRY.Example.COM:8787' } })).statusCode, 200);
-  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.internal:443' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'claudio.example.com' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'CLAUDIO.Example.COM:8787' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'claudio.internal:443' } })).statusCode, 200);
   // A name that merely contains one of them is a different name
-  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.example.com.evil.test' } })).statusCode, 421);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'claudio.example.com.evil.test' } })).statusCode, 421);
   assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'other.example.com' } })).statusCode, 421);
 });
 
 test('a pattern answers to the subdomains of a domain, and to nothing that merely looks like one', async (t) => {
   // What a tunnel needs: its host changes on every start, and only the domain under it is fixed
-  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: '*.tunnel.example, agentry.internal' });
+  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: '*.tunnel.example, claudio.internal' });
   t.after(() => app.close());
 
   for (const host of ['a.tunnel.example', 'a-1234.region.tunnel.example', 'A.Tunnel.Example:8787']) {
     assert.equal((await app.inject({ url: '/api/overview', headers: { host } })).statusCode, 200, host);
   }
   // A name alongside the pattern still answers, and the apex is a host of its own
-  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.internal' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'claudio.internal' } })).statusCode, 200);
   for (const host of ['tunnel.example', 'eviltunnel.example', 'tunnel.example.evil.test']) {
     assert.equal((await app.inject({ url: '/api/overview', headers: { host } })).statusCode, 421, host);
   }
@@ -575,7 +575,7 @@ test("the desktop app's own secret lets its tray read from loopback, whatever to
 });
 
 test("the desktop app's secret is refused from anywhere but this machine, and a wrong one is a guess", async (t) => {
-  const { app } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET, CLAUDIO_ALLOWED_HOSTS: 'agentry.example' });
+  const { app } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET, CLAUDIO_ALLOWED_HOSTS: 'claudio.example' });
   t.after(() => app.close());
   await withToken(app);
   const withSecret = (secret: string) => ({ authorization: `Bearer ${secret}` });
@@ -583,7 +583,7 @@ test("the desktop app's secret is refused from anywhere but this machine, and a 
   // From another address
   assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:43123', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
   // From loopback, but relayed: a proxy or a tunnel carries the name it was reached on
-  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: 'agentry.example', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: 'claudio.example', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
   // A secret that is not the one this launch was given
   assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:43123', ...withSecret(`${DESKTOP_SECRET}x`) } })).statusCode, 401);
 });
@@ -626,7 +626,7 @@ test("a chat's token opens a guarded read and a write from loopback, and the wri
 });
 
 test("a chat's token is refused, like a wrong token, from anywhere that is not a chat on this machine", async (t) => {
-  const { app, core } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'agentry.example' });
+  const { app, core } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'claudio.example' });
   t.after(() => app.close());
   await withToken(app);
   core.appSettings.runtimeHosts.add('abc123.lhr.life', { clientIpHeader: 'X-Client-Ip' });
@@ -637,7 +637,7 @@ test("a chat's token is refused, like a wrong token, from anywhere that is not a
     ['a peer that is not loopback', { url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}` } }],
     // The tunnel dials 127.0.0.1 too: only the name it carries tells it apart
     ['the tunnel host', { url: '/api/overview', ...fromChat(token, { host: 'abc123.lhr.life' }) }],
-    ['an allowed host', { url: '/api/overview', ...fromChat(token, { host: 'agentry.example' }) }],
+    ['an allowed host', { url: '/api/overview', ...fromChat(token, { host: 'claudio.example' }) }],
     ['X-Forwarded-For', { url: '/api/overview', ...fromChat(token, { 'x-forwarded-for': '203.0.113.9' }) }],
     ['Forwarded', { url: '/api/overview', ...fromChat(token, { forwarded: 'for=203.0.113.9' }) }],
     ["a runtime host's client-IP header", { url: '/api/overview', ...fromChat(token, { 'x-client-ip': '203.0.113.9' }) }],
@@ -661,7 +661,7 @@ test("a chat's token used from the wrong place is a guess, and counts toward the
 });
 
 test("a chat's token is refused once revoked, and by a wrapper started afresh", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-security-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-security-'));
   const first = await wrapper({}, root);
   await withToken(first.app);
   const token = first.core.security.chatTokens.mint('chat-42');
@@ -688,7 +688,7 @@ test("a chat's token cannot administer the guard or open the tunnel, but can clo
     ['POST', '/api/security/token', {}],
     ['DELETE', '/api/security/token', undefined],
     ['POST', '/api/tunnel/start', undefined],
-    ['PUT', '/api/tunnel/settings', { startWithAgentry: true }],
+    ['PUT', '/api/tunnel/settings', { startWithClaudio: true }],
   ];
   for (const [method, url, body] of forbidden) {
     const request = body === undefined ? { method, url, ...fromChat(token) } : { method, url, ...fromChatWith(token, body) };
@@ -704,7 +704,7 @@ test("a chat's token cannot change a project's tracker through the general setti
   const { app, core } = await wrapper();
   t.after(() => app.close());
   const owner = await withToken(app);
-  const root = mkdtempSync(join(tmpdir(), 'agentry-security-project-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-security-project-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...authed(owner, { path: root, name: 'Tracked', modules: ['board'] }) });
   assert.equal(imported.statusCode, 201, imported.body);
@@ -760,7 +760,7 @@ test("an open wrapper stays open and labels a chat's writes as the chat, and a t
   // Nothing guards it, so the chat's token administers nothing either way
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...fromChatWith(token, { readOnly: false }) })).statusCode, 200);
   // The label is all the token does here: a wrong one is not refused, it is `local`
-  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith('agentry_chat_wrong', { name: 'wrong' }) })).statusCode, 201);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith('claudio_chat_wrong', { name: 'wrong' }) })).statusCode, 201);
   const entries = (await app.inject('/api/audit')).json().entries as Array<{ actor: string }>;
   assert.deepEqual(entries.map((entry) => entry.actor), ['local', 'chat:chat-42', 'chat:chat-42']);
 });

@@ -227,7 +227,7 @@
     "push": "Claudio desactivó la fusión automática {{when}} porque subió cambios a la rama. Vuelve a activarla si aún la quieres.",
     "update": "{{who}} desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres.",
     "updateYou": "Desactivaste la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres.",
-    "updateAgentry": "Claudio desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres."
+    "updateClaudio": "Claudio desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres."
   },
   "rebaseOnHostWhy": {
     "uncommitted-changes": "No se ofrece rebase en {{host}}: la copia local tiene cambios sin confirmar y el rebase la dejaría atrasada.",

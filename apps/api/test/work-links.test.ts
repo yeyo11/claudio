@@ -8,7 +8,7 @@ import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type {
-  AgentryEvent,
+  ClaudioEvent,
   ChatSummary,
   Orchestration,
   Project,
@@ -45,7 +45,7 @@ async function until<T>(read: () => Promise<T> | T, done: (value: T) => boolean,
 }
 
 function repoWithCommit(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-links-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-links-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', dir, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -75,7 +75,7 @@ async function workOn(id: string, body: Record<string, unknown> = {}): Promise<W
 const turnOver = (chatId: string) => until(() => core.runtime.get(chatId)?.status, (s) => s !== 'busy' && s !== 'starting', 'the turn to end');
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-links-data-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-links-data-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
@@ -99,7 +99,7 @@ after(async () => {
 // ---------- work on it ----------
 
 test('working on an item starts a chat in its own worktree, and the item follows the chat to in_review', async () => {
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   const bug = await createItem({
     title: 'Cart loses items',
@@ -136,7 +136,7 @@ test('working on an item starts a chat in its own worktree, and the item follows
     reviewed.history.filter((e) => e.change === 'link').map((e) => (e.to && typeof e.to === 'object' && 'label' in e.to ? e.to.label : null)),
     [`${bug.key} · Cart loses items`],
   );
-  const moved = events.filter((e): e is Extract<AgentryEvent, { type: 'workitem.moved' }> => e.type === 'workitem.moved' && e.itemId === bug.id);
+  const moved = events.filter((e): e is Extract<ClaudioEvent, { type: 'workitem.moved' }> => e.type === 'workitem.moved' && e.itemId === bug.id);
   assert.deepEqual(moved.map((e) => [e.status, e.cause?.event]), [['in_progress', 'chat.started'], ['in_review', 'chat.turn-completed']]);
 
   // What the chat wrote is on the item's branch, uncommitted
@@ -457,7 +457,7 @@ test('a message of a chat becomes a task in backlog, linked to the chat it came 
   assert.equal(titled.json<WorkItem>().title, 'Own title');
   assert.equal((await app.inject({ method: 'POST', url: `/api/chats/${chatId}/work-items`, ...json({ text: '  ' }) })).statusCode, 400);
 
-  const loose = mkdtempSync(join(tmpdir(), 'agentry-api-loose-'));
+  const loose = mkdtempSync(join(tmpdir(), 'claudio-api-loose-'));
   const looseChat = (await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', cwd: loose }) })).json<ChatSummary>();
   await turnOver(looseChat.id);
   assert.equal((await app.inject({ method: 'POST', url: `/api/chats/${looseChat.id}/work-items`, ...json({ text: 'x' }) })).statusCode, 409);

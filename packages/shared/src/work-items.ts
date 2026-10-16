@@ -1,5 +1,5 @@
 import type {
-  AgentryLanguage,
+  ClaudioLanguage,
   DocumentChangeAction,
   DocumentKind,
   FlowRunAction,
@@ -249,14 +249,14 @@ export const WORK_ITEMS_PAGE_MAX = 500;
 /** Items of the Done column a board holds when the request does not say, and each "and N more" adds */
 export const BOARD_DONE_PAGE = 20;
 
-export const CLAUDIO_LANGUAGES = valuesOf<AgentryLanguage>()(['en', 'es']);
+export const CLAUDIO_LANGUAGES = valuesOf<ClaudioLanguage>()(['en', 'es']);
 
 /**
  * The language of an `Accept-Language` header, or of a stored choice: the first of Claudio's
  * languages it names, English when it names none. Weights are not read: browsers list the
  * preferred language first.
  */
-export function agentryLanguage(value: unknown): AgentryLanguage {
+export function claudioLanguage(value: unknown): ClaudioLanguage {
   if (typeof value !== 'string') return 'en';
   for (const tag of value.split(',')) {
     const code = tag.trim().toLowerCase().split(/[-_;.@]/)[0];

@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, ProjectTrackerSettings } from '@claudio/shared';
+import type { ClaudioEvent, ProjectTrackerSettings } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import type { HostCall, HostResult } from '../src/hosts/code-host.ts';
 import { TrackerError, type TrackerAccess } from '../src/trackers/import.ts';
@@ -73,8 +73,8 @@ function setup(opts: Opts = {}) {
   return { items, service, item, calls, writes, reading, issue };
 }
 
-const moved = (itemId: string, status: 'in_progress' | 'in_review' | 'done', previousStatus: 'backlog' | 'in_progress'): AgentryEvent =>
-  ({ type: 'workitem.moved', id: 1, at: '', title: '', projectId: 'p1', itemId, key: 'AGN-1', status, previousStatus, overLimit: false, actor: { kind: 'person' }, cause: null }) as unknown as AgentryEvent;
+const moved = (itemId: string, status: 'in_progress' | 'in_review' | 'done', previousStatus: 'backlog' | 'in_progress'): ClaudioEvent =>
+  ({ type: 'workitem.moved', id: 1, at: '', title: '', projectId: 'p1', itemId, key: 'AGN-1', status, previousStatus, overLimit: false, actor: { kind: 'person' }, cause: null }) as unknown as ClaudioEvent;
 
 test('a merge into a non-default base closes the issue once, reading before and after', async () => {
   const s = setup({ reads: [ok(OPEN), ok(CLOSED)] });

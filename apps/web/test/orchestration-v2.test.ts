@@ -101,7 +101,7 @@ test('the spec of a task leaves its chat, result and cost behind', () => {
 
 test('a graph read back as a spec keeps what it ran with and leaves its state behind', () => {
   const graph = orch(
-    [task('a', { branch: 'agentry/a', costUsd: 1.2 }), task('b', { dependsOn: ['a'], limits: { maxMinutes: 5 }, model: 'haiku' })],
+    [task('a', { branch: 'claudio/a', costUsd: 1.2 }), task('b', { dependsOn: ['a'], limits: { maxMinutes: 5 }, model: 'haiku' })],
     { objective: 'ship it', model: 'opus', allowedTools: ['Read'], verificationSpec: { commands: ['pnpm test'], fixer: false, maxAttempts: 1 } },
   );
   assert.deepEqual(specOfOrchestration(graph), {
@@ -137,7 +137,7 @@ test('a finished graph re-runs a task; a running, waiting or workflow graph does
 
 test('a graph being integrated, or already pushed for a pull request, does not re-run', () => {
   const tasks = [task('a')];
-  const integration = { branch: 'agentry/o1', worktree: null, status: 'merged' as const, merged: [], conflicts: [], commit: null, error: null, integratorRunId: null };
+  const integration = { branch: 'claudio/o1', worktree: null, status: 'merged' as const, merged: [], conflicts: [], commit: null, error: null, integratorRunId: null };
   assert.equal(canRerun(orch(tasks, { integration: { ...integration, status: 'merging' } })), false);
   const pushed = orch(tasks, { integration: { ...integration, pullRequestUrl: 'https://example.com/pr/1' } });
   assert.equal(canRerun(pushed), false);

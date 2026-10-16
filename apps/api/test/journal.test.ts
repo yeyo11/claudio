@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, JournalEntry, JournalPage, MemoryFile, MemoryProposal, Project, WorkItem } from '@claudio/shared';
+import type { ClaudioEvent, JournalEntry, JournalPage, MemoryFile, MemoryProposal, Project, WorkItem } from '@claudio/shared';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
@@ -17,14 +17,14 @@ let root: string;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 async function importProject(name: string, modules: string[]): Promise<Project & { dir: string }> {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-journal-project-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-journal-project-'));
   const res = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir, name, modules }) });
   assert.equal(res.statusCode, 201, res.body);
   return { ...res.json<Project>(), dir };
 }
 
-async function feed(fn: () => Promise<void>): Promise<AgentryEvent[]> {
-  const events: AgentryEvent[] = [];
+async function feed(fn: () => Promise<void>): Promise<ClaudioEvent[]> {
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   try {
     await fn();
@@ -37,7 +37,7 @@ async function feed(fn: () => Promise<void>): Promise<AgentryEvent[]> {
 const qa = { proposedBy: { kind: 'agent' as const, role: 'qa' } };
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-journal-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-journal-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -144,7 +144,7 @@ test('approving writes each proposal to its target, and nothing is written befor
 });
 
 test("a chat's token cannot approve or reject a memory proposal, and the person's token can", async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-journal-sec-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-journal-sec-'));
   const secured = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(dir, 'claude'), CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'), CLAUDIO_DATA_DIR: join(dir, 'data') }));
   const guarded = await buildApp(secured, { logLevel: 'silent', webDist: join(dir, 'no-ui') });
   try {
@@ -153,7 +153,7 @@ test("a chat's token cannot approve or reject a memory proposal, and the person'
     const chat = secured.security.chatTokens.mint('chat-42');
     const as = (token: string) => ({ method: 'POST' as const, remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}`, 'content-type': 'application/json' }, payload: '{}' });
 
-    const projectDir = mkdtempSync(join(tmpdir(), 'agentry-api-journal-sec-project-'));
+    const projectDir = mkdtempSync(join(tmpdir(), 'claudio-api-journal-sec-project-'));
     const imported = await guarded.inject({ url: '/api/projects/import', ...as(owner), payload: JSON.stringify({ path: projectDir, name: 'Secured', modules: ['memory'] }) });
     assert.equal(imported.statusCode, 201, imported.body);
     const project = imported.json<Project>();

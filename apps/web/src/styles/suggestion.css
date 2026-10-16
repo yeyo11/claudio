@@ -1,6 +1,6 @@
 /*
  * A suggestion run and its proposals, shared by the project assistant (pages/assistant), "Suggest
- * tasks" on the board and the resources with AI: section 17 of docs/design-system/agentry-ds.css
+ * tasks" on the board and the resources with AI: section 17 of docs/design-system/claudio-ds.css
  * (`.ai-*` and `.sug-*` there, mapped in §2 of docs/design-system.md). Every run is a CLI chat, so
  * it always says its model, its time, its cost and its chat. A run in progress is live: the braille
  * spinner beside its verb and the energy border on its one surface. A finished run, and every

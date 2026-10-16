@@ -1,4 +1,4 @@
-import type { AgentryAssistantMarker, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@claudio/shared';
+import type { ClaudioAssistantMarker, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@claudio/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -46,7 +46,7 @@ export interface ChatRecord {
    */
   keepAlive?: false;
   /** Set on a chat of the Claudio assistant: every process of it, after a restart too, is confined again */
-  agentryAssistant?: AgentryAssistantMarker | null;
+  claudioAssistant?: ClaudioAssistantMarker | null;
   /** Messages the agent had not taken when this was written, and those lost before: a restart loses them, and says so */
   pending?: ChatPendingMessage[];
   createdAt: string;

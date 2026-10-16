@@ -120,7 +120,7 @@ async function harness(): Promise<Harness> {
   const raw = new DatabaseSync(':memory:');
   migrate(raw);
   raw.exec('PRAGMA foreign_keys = OFF');
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-webhook-receiver-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-webhook-receiver-'));
   const secrets = new WebhookSecrets(loadConfig({ CLAUDIO_DATA_DIR: dir }));
   const store = new WebhookStore(raw);
   store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO, remoteHookId: '1', url: 'https://x.lhr.life/api/webhooks/github/r1', events: ['pull_request'] });

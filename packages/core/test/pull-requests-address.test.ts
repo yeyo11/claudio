@@ -280,7 +280,7 @@ test("a work run's prompt gains the review section", () => {
 test("an orchestration's address runs the fixer on the chosen threads and waits for Push the fix", async () => {
   const s = setup();
   try {
-    const branch = 'agentry/graph-integration';
+    const branch = 'claudio/graph-integration';
     sh(s.r.project, 'branch', '-f', branch, 'main');
     sh(s.r.project, 'checkout', '-q', branch);
     write(s.r.project, 'graph.ts', 'export const graph = 1;\n');

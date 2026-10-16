@@ -8,7 +8,7 @@ import type { ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
 import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
-import { EventBus, type AgentryEventInput } from '../src/events.ts';
+import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { defaultProvidersSettings, defaultRotationSettings } from '../src/providers/settings.ts';
 import { ProviderRotation } from '../src/rotation.ts';
@@ -55,7 +55,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
   chats.accounts = store;
   const settings = defaultProvidersSettings(['claude-code']);
   settings.rotation = defaultRotationSettings();
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const bus = new EventBus();
   bus.subscribe((event) => events.push(event));
   chats.bus = bus;

@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SESSION = 'e2e-chat-page-0000-0000-000000000000';
-const INSPECTOR_KEY = 'agentry-chat-inspector';
+const INSPECTOR_KEY = 'claudio-chat-inspector';
 const line = (o) => JSON.stringify(o);
 const at = (s) => `2026-01-03T10:00:${String(s).padStart(2, '0')}.000Z`;
 

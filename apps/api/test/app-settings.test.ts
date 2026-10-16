@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, AppSettings } from '@claudio/shared';
+import type { ClaudioEvent, AppSettings } from '@claudio/shared';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
@@ -18,7 +18,7 @@ interface Wrapper {
 }
 
 async function wrapper(env: NodeJS.ProcessEnv = {}): Promise<Wrapper> {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-app-settings-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-app-settings-'));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -80,16 +80,16 @@ test('a host added in the settings is answered at once, and refused again once i
     core.shutdown();
   });
 
-  assert.equal(await status(app, 'agentry.example.com'), 421);
-  const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['agentry.example.com', '*.preview.example.com'] }) });
+  assert.equal(await status(app, 'claudio.example.com'), 421);
+  const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['claudio.example.com', '*.preview.example.com'] }) });
   assert.equal(put.statusCode, 200);
   assert.deepEqual(put.json<AppSettings>().sources.allowedHosts, 'file');
-  assert.equal(await status(app, 'agentry.example.com'), 200);
+  assert.equal(await status(app, 'claudio.example.com'), 200);
   assert.equal(await status(app, 'pr-1.preview.example.com'), 200);
   assert.equal(await status(app, 'preview.example.com'), 421);
 
   assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: [] }) })).statusCode, 200);
-  assert.equal(await status(app, 'agentry.example.com'), 421);
+  assert.equal(await status(app, 'claudio.example.com'), 421);
 });
 
 test('a change to the settings goes out on the event feed with the whole document', async (t) => {
@@ -98,7 +98,7 @@ test('a change to the settings goes out on the event feed with the whole documen
     await app.close();
     core.shutdown();
   });
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
 
   const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ maxConcurrentRuns: 3, defaultPermissionMode: 'plan' }) });
@@ -133,20 +133,20 @@ test("a host added in the UI is answered beside the environment's, which cannot 
     await app.close();
     core.shutdown();
   });
-  assert.equal(await status(app, 'agentry.example.com'), 421);
+  assert.equal(await status(app, 'claudio.example.com'), 421);
 
-  const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['agentry.example.com'] }) });
+  const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['claudio.example.com'] }) });
   assert.equal(put.statusCode, 200);
   const saved = put.json<AppSettings>();
-  assert.deepEqual(saved.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'agentry.example.com']);
-  assert.deepEqual(saved.allowedHostLayers, { env: ['*.devtunnels.ms', '192.168.1.184'], file: ['agentry.example.com'], runtime: [] });
+  assert.deepEqual(saved.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'claudio.example.com']);
+  assert.deepEqual(saved.allowedHostLayers, { env: ['*.devtunnels.ms', '192.168.1.184'], file: ['claudio.example.com'], runtime: [] });
   assert.equal(saved.sources.allowedHosts, 'env');
   // Applied to the next request, without a restart, and the environment's hosts keep answering
-  assert.equal(await status(app, 'agentry.example.com'), 200);
+  assert.equal(await status(app, 'claudio.example.com'), 200);
   assert.equal(await status(app, 'abc.devtunnels.ms'), 200);
 
   assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: [] }) })).statusCode, 200);
-  assert.equal(await status(app, 'agentry.example.com'), 421);
+  assert.equal(await status(app, 'claudio.example.com'), 421);
   assert.equal(await status(app, '192.168.1.184'), 200);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['*.com'] }) })).statusCode, 400);
 });

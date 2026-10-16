@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import { agentryLanguage, type AddProjectDocRequest, type ChatSummary, type ProjectDoc, type ProjectDocsOverview } from '@claudio/shared';
+import { claudioLanguage, type AddProjectDocRequest, type ChatSummary, type ProjectDoc, type ProjectDocsOverview } from '@claudio/shared';
 
 /**
  * A project's Claude Docs: a registry of ids and links, read, created and refreshed through a
@@ -21,7 +21,7 @@ export const projectDocsRoutes: FastifyPluginAsync<{ core: Core }> = async (app,
 
   app.post<{ Params: { id: string }; Body: AddProjectDocRequest }>('/projects/:id/docs', async (req, reply): Promise<ProjectDoc> => {
     core.assertProjectDocsProject(req.params.id);
-    const doc = await core.projectDocs.add(req.params.id, req.body ?? {}, agentryLanguage(req.headers['accept-language']));
+    const doc = await core.projectDocs.add(req.params.id, req.body ?? {}, claudioLanguage(req.headers['accept-language']));
     return reply.status(201).send(doc);
   });
 
@@ -32,6 +32,6 @@ export const projectDocsRoutes: FastifyPluginAsync<{ core: Core }> = async (app,
   });
 
   app.post<{ Params: { id: string; docId: string } }>('/projects/:id/docs/:docId/ask', async (req, reply): Promise<ChatSummary> =>
-    reply.status(201).send(await core.askAboutProjectDoc(req.params.id, req.params.docId, agentryLanguage(req.headers['accept-language']))),
+    reply.status(201).send(await core.askAboutProjectDoc(req.params.id, req.params.docId, claudioLanguage(req.headers['accept-language']))),
   );
 };

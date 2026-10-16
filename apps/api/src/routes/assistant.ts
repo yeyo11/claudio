@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { assistantLanguage, type Core } from '@claudio/core';
-import type { AcceptAssistantProposalRequest, StartAgentryAssistantChatRequest, StartAssistantRunRequest } from '@claudio/shared';
+import type { AcceptAssistantProposalRequest, StartClaudioAssistantChatRequest, StartAssistantRunRequest } from '@claudio/shared';
 import { chatWriteContext } from './work-items.ts';
 
 /**
@@ -17,8 +17,8 @@ export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, {
 
   // The Claudio assistant: a global, confined chat that reads Claudio through its MCP server. The body
   // carries a prompt, a project for context and a model and no other option of a chat
-  app.post<{ Body: StartAgentryAssistantChatRequest }>('/assistant/chats', async (req, reply) =>
-    reply.code(201).send(await core.startAgentryAssistantChat(req.body, assistantLanguage(req.headers['accept-language']))),
+  app.post<{ Body: StartClaudioAssistantChatRequest }>('/assistant/chats', async (req, reply) =>
+    reply.code(201).send(await core.startClaudioAssistantChat(req.body, assistantLanguage(req.headers['accept-language']))),
   );
 
   app.get<{ Params: { id: string }; Querystring: { kind?: string } }>('/projects/:id/assistant/runs', (req) => {

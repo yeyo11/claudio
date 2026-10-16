@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Check, ChangeRequestChecks, ChangeRequestKind, CheckLog, CheckAnnotation, ChecksRerunRequest, HostReason, WorkItemPullRequestCi } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import type { ChangeRequestSnapshotRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';
 import { HostParseError, HostRequestError, MAX_CHECKS, type ChangeRequestRead, type ChecksCodeHostAdapter, type ChecksFollowUp, type HeadPipeline, type HostCall, type HostRepo } from './code-host.ts';
@@ -54,7 +54,7 @@ export interface ChecksServiceDeps {
   db: DatabaseSync;
   /** The target of a row id from either table; null when no change request has it or it has no number */
   resolve: (id: string) => Promise<ChecksTarget | null>;
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   now?: () => number;
 }
 

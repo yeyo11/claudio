@@ -1,9 +1,9 @@
 import {
   ASSISTANT_RESOURCE_KINDS,
   WORK_ITEM_PRIORITIES,
-  agentryLanguage,
+  claudioLanguage,
   effortRecommendation,
-  type AgentryLanguage,
+  type ClaudioLanguage,
   WORK_ITEM_TYPES,
   assistantResourcePath,
   type AssistantFinding,
@@ -71,7 +71,7 @@ export interface AssistantBrief {
 }
 
 /** The languages Claudio speaks; a chat's title is written in the person's. */
-export type AssistantLanguage = AgentryLanguage;
+export type AssistantLanguage = ClaudioLanguage;
 
 /** The history and state of a project's repository, as a run is handed them instead of a shell. */
 export interface AssistantGit {
@@ -253,7 +253,7 @@ export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName
 }
 
 /** The language of an `Accept-Language` header or a stored choice: Spanish when it comes first, English otherwise. */
-export const assistantLanguage: (value: unknown) => AssistantLanguage = agentryLanguage;
+export const assistantLanguage: (value: unknown) => AssistantLanguage = claudioLanguage;
 
 /** The prompt of a run: who it is, that it writes nothing, what Claudio already knows, what to propose. */
 export function assistantPrompt(brief: AssistantBrief, model: string | null = null): string {

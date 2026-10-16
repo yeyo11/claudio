@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@claudio/shared';
+import type { ClaudioEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@claudio/shared';
 import { TTL_SECONDS } from '../push.ts';
 
 /*
@@ -528,7 +528,7 @@ export class DecisionResolvers {
     return resolved;
   }
 
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     if (EVENTS.test(event.type)) this.soon();
   }
 

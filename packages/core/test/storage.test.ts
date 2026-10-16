@@ -9,15 +9,15 @@ const line = (root: string, point: string, fs = 'ext4') => `1 0 8:1 ${root} ${po
 
 const NAMED = [
   line('/', '/', 'overlay'),
-  line('/var/lib/docker/volumes/agentry-config/_data', '/home/node/.claude'),
-  line('/var/lib/docker/volumes/agentry-data/_data', '/data'),
+  line('/var/lib/docker/volumes/claudio-config/_data', '/home/node/.claude'),
+  line('/var/lib/docker/volumes/claudio-data/_data', '/data'),
   line('/home/me/workspace', '/workspace'),
 ].join('\n');
 
 const ONLY_DATA_NAMED = [
   line('/', '/', 'overlay'),
   line(`/var/lib/docker/volumes/${HASH}/_data`, '/home/node/.claude'),
-  line('/var/lib/docker/volumes/agentry-data/_data', '/data'),
+  line('/var/lib/docker/volumes/claudio-data/_data', '/data'),
   line(`/var/lib/docker/volumes/${HASH}/_data`, '/workspace'),
 ].join('\n');
 
@@ -37,7 +37,7 @@ test('the README one-liner (only /data named) leaves config and workspace on ano
 });
 
 test('a folder with no mount of its own is the container layer', () => {
-  const table = [line('/', '/', 'overlay'), line('/var/lib/docker/volumes/agentry-data/_data', '/data')].join('\n');
+  const table = [line('/', '/', 'overlay'), line('/var/lib/docker/volumes/claudio-data/_data', '/data')].join('\n');
   const report = storageReport('docker', FOLDERS, () => table);
   assert.deepEqual(report.locations.map((l) => l.kind), ['container', 'persistent', 'container']);
   assert.equal(report.atRisk, true);
@@ -61,7 +61,7 @@ test('a sub path of one claim, as the Helm chart mounts it, is persistent', () =
 });
 
 test('a folder under a mount takes that mount, and escaped spaces are read back', () => {
-  const table = [line('/', '/', 'overlay'), line('/var/lib/docker/volumes/agentry-data/_data', '/my\\040data')].join('\n');
+  const table = [line('/', '/', 'overlay'), line('/var/lib/docker/volumes/claudio-data/_data', '/my\\040data')].join('\n');
   assert.equal(classify('/my data/provider-homes/codex', parseMountInfo(table)), 'persistent');
   assert.equal(classify('/my database', parseMountInfo(table)), 'container');
 });

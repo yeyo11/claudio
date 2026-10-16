@@ -44,7 +44,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
-import { CLAUDIO_ASSISTANT_PATH } from '../pages/agentry-assistant/model';
+import { CLAUDIO_ASSISTANT_PATH } from '../pages/claudio-assistant/model';
 import { assistantPath } from '../pages/assistant/model';
 import { setMotionPreference } from '@claudio/ui/lib/motion';
 import { useProjectScope } from '../lib/project-scope';
@@ -151,7 +151,7 @@ export function CommandPalette() {
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
       { id: 'act:new-task', group: 'actions', title: t('shell:tasks.newTask'), hint: selected ? t('shell:tasks.newTaskIn', { name: selected.name }) : t('shell:tasks.newTaskHint'), keywords: 'work item board backlog issue ticket bug story epic', icon: SquarePlus, run: go(NEW_TASK_PATH) },
       // Always there, with or without a project: the project one below is another assistant, told apart by its title
-      { id: 'act:agentry-assistant', group: 'actions', title: t('palette.agentryAssistant'), hint: selected ? t('palette.agentryAssistantOf', { name: selected.name }) : t('palette.agentryAssistantHint'), keywords: 'assistant agentry ask help mcp asistente', icon: Sparkle, run: go(CLAUDIO_ASSISTANT_PATH) },
+      { id: 'act:claudio-assistant', group: 'actions', title: t('palette.claudioAssistant'), hint: selected ? t('palette.claudioAssistantOf', { name: selected.name }) : t('palette.claudioAssistantHint'), keywords: 'assistant claudio ask help mcp asistente', icon: Sparkle, run: go(CLAUDIO_ASSISTANT_PATH) },
       ...(selected
         ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: Sparkle, run: go(assistantPath(selected.id)) }]
         : []),

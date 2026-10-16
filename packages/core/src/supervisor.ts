@@ -7,7 +7,7 @@ import type { ChatRuntime } from './chats.ts';
 import { writeAtomic } from './config/files.ts';
 import type { Db } from './db.ts';
 import { runRef } from './event-sources.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import type { TaskContext } from './health-service.ts';
 import type { CoreConfig } from './paths.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
@@ -108,7 +108,7 @@ export interface SupervisorDeps {
   steps: (chatId: string) => Promise<TranscriptEntry[]>;
   /** Delivers a proposal's hint to its worker through the hint route of the chat or the task */
   hint: (proposal: SupervisorProposal) => Promise<void>;
-  emit: (event: AgentryEventInput) => void;
+  emit: (event: ClaudioEventInput) => void;
   /** Adds what the supervisor spent on a task's worker to its graph */
   charge: (orchestrationId: string, costUsd: number) => void;
   /** The decision engine `supervisor.intervene` asks; absent, the point is off */

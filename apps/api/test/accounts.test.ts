@@ -18,7 +18,7 @@ let core: Core;
 let root: string;
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-accounts-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-accounts-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
@@ -209,7 +209,7 @@ test('usage history and events are read from their tables, oldest first, with fi
 });
 
 test("a chat's token reads the accounts but changes none, and cannot read a sign-in", async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-accounts-sec-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-accounts-sec-'));
   mkdirSync(join(dir, 'claude')); // the fake CLI writes its probe counter there
   const secured = new Core(
     loadConfig({ CLAUDE_BIN: FAKE_CLAUDE, CLAUDE_CONFIG_DIR: join(dir, 'claude'), CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'), CLAUDIO_DATA_DIR: join(dir, 'data') }),

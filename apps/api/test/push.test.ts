@@ -19,7 +19,7 @@ const keys = { p256dh: 'BExampleP256dhKeyForTests', auth: 'exampleAuthSecret' };
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-push-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-push-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

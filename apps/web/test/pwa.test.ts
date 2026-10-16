@@ -13,7 +13,7 @@ import { TEST_PUSH_KEY_PREFIX } from '@claudio/shared';
 import { PUSH_STATE_CACHE, PUSH_STATE_KEY } from '../src/lib/push-model.ts';
 
 const WEB = path.join(import.meta.dirname, '..');
-const ORIGIN = 'https://agentry.test';
+const ORIGIN = 'https://claudio.test';
 const SOURCE = readFileSync(path.join(WEB, 'public', 'sw.js'), 'utf8');
 
 const SHELL = [
@@ -613,7 +613,7 @@ test('the worker and the page name the same cache for the state they share', () 
 // every push; these are the rules the old worker follows with it.
 
 const OLD = 'https://old-node.tail0000.ts.net:8443';
-const NEW = 'https://agentry-test.tail0000.ts.net:8443';
+const NEW = 'https://claudio-test.tail0000.ts.net:8443';
 const MOVED = { ...WAITING, url: `${NEW}/chats/run1?prompt=p1` };
 
 test('a notification sent after the domain changed opens the new address', async () => {
@@ -654,7 +654,7 @@ test('an install on the current address, or with no tunnel open, opens its own o
 });
 
 test('an install at the desk or on the LAN is never sent through the tunnel', async () => {
-  for (const origin of [ORIGIN, 'http://localhost:8787', 'https://agentry.lan']) {
+  for (const origin of [ORIGIN, 'http://localhost:8787', 'https://claudio.lan']) {
     const worker = await ready(SHELL, { origin });
     await worker.click({ href: MOVED.href, url: MOVED.url });
     assert.deepEqual(worker.opened, [`${origin}/chats/run1?prompt=p1`], origin);
@@ -663,7 +663,7 @@ test('an install at the desk or on the LAN is never sent through the tunnel', as
 
 test('an address that is not another tunnel over https is not followed', async () => {
   for (const url of [
-    'http://agentry-test.tail0000.ts.net:8443/chats/run1',
+    'http://claudio-test.tail0000.ts.net:8443/chats/run1',
     'https://evil.example/chats/run1',
     'https://ts.net.evil.example/chats/run1',
     'https://.ts.net/chats/run1',

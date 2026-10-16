@@ -61,7 +61,7 @@ function seedTranscript(configDir, { main, tree }) {
 }
 
 export default async ({ page, api, check }) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-e2e-steps-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-e2e-steps-'));
   let seeded = null;
   try {
     const repo = seedRepo(root);

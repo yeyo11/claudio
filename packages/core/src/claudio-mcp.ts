@@ -11,8 +11,8 @@ import type { ChatConfinement } from './live-chat.ts';
 export const MCP_ENTRY_ENV = 'CLAUDIO_MCP_ENTRY';
 
 /** What a caller spreads into the options of a chat to hand it Claudio's own MCP server and nothing else. */
-export interface AgentryMcpLaunch {
-  /** `--mcp-config` (with `--strict-mcp-config`): a file holding only the `agentry` server */
+export interface ClaudioMcpLaunch {
+  /** `--mcp-config` (with `--strict-mcp-config`): a file holding only the `claudio` server */
   mcp: McpSelection & { config: string };
   /** `--allowedTools`: the read tools, by the names the CLI gives them */
   allowedTools: string[];
@@ -22,7 +22,7 @@ export interface AgentryMcpLaunch {
   permissionMode: PermissionMode;
 }
 
-export interface AgentryMcpOptions {
+export interface ClaudioMcpOptions {
   dataDir: string;
   /** `CLAUDIO_API_URL` of the wrapper that runs the chat; null while the API is not listening */
   apiUrl: string | null;
@@ -67,12 +67,12 @@ export function mcpCommand(env: NodeJS.ProcessEnv, execPath: string): { command:
  * process), and referring to them keeps the secret out of the file. Checked against the real CLI:
  * it expands them, and passes the rest of its environment through as well.
  */
-export async function agentryMcp(opts: AgentryMcpOptions): Promise<AgentryMcpLaunch> {
-  return agentryMcpSync(opts);
+export async function claudioMcp(opts: ClaudioMcpOptions): Promise<ClaudioMcpLaunch> {
+  return claudioMcpSync(opts);
 }
 
-/** `agentryMcp` for a caller that cannot wait: a process about to spawn. */
-export function agentryMcpSync(opts: AgentryMcpOptions): AgentryMcpLaunch {
+/** `claudioMcp` for a caller that cannot wait: a process about to spawn. */
+export function claudioMcpSync(opts: ClaudioMcpOptions): ClaudioMcpLaunch {
   if (!opts.apiUrl) throw new Error("Claudio's MCP server needs the API's address, and the API is not listening yet");
   const env = opts.env ?? process.env;
   const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
@@ -99,7 +99,7 @@ export function agentryMcpSync(opts: AgentryMcpOptions): AgentryMcpLaunch {
 }
 
 /**
- * What an Claudio assistant chat runs with, whoever asked for what. This is the one place its argv
+ * What a Claudio assistant chat runs with, whoever asked for what. This is the one place its argv
  * is decided: the core applies it again at every process of the chat (start, resume, fork, a turn
  * after a restart), over whatever the request or the stored record held. The write tools extend
  * this function, and nothing else.
@@ -109,7 +109,7 @@ export interface AssistantChatOptions {
   allowedTools: string[];
   disallowedTools: string[];
   toolConfig: ChatToolConfig;
-  mcp: AgentryMcpLaunch['mcp'];
+  mcp: ClaudioMcpLaunch['mcp'];
   confine: ChatConfinement;
   permissionMode: PermissionMode;
   permissionPrompts: 'none' | 'host';
@@ -118,7 +118,7 @@ export interface AssistantChatOptions {
   keepAlive: true;
 }
 
-export function assistantChatOptions(launch: AgentryMcpLaunch, guide: string): AssistantChatOptions {
+export function assistantChatOptions(launch: ClaudioMcpLaunch, guide: string): AssistantChatOptions {
   return {
     appendSystemPrompt: guide,
     allowedTools: launch.allowedTools,

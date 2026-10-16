@@ -113,8 +113,8 @@ test('a .deb with no graphical password prompt cannot update', () => {
 });
 
 test('debCanElevate looks for pkexec and its peers on PATH, and needs none as root', () => {
-  const empty = mkdtempSync(join(tmpdir(), 'agentry-path-'));
-  const withTool = mkdtempSync(join(tmpdir(), 'agentry-path-'));
+  const empty = mkdtempSync(join(tmpdir(), 'claudio-path-'));
+  const withTool = mkdtempSync(join(tmpdir(), 'claudio-path-'));
   writeFileSync(join(withTool, 'pkexec'), '#!/bin/sh\n');
   chmodSync(join(withTool, 'pkexec'), 0o755);
   assert.equal(debCanElevate({ PATH: empty }, 1000), false);
@@ -247,7 +247,7 @@ test('the tray offers the restart above Quit once a download is ready', () => {
 });
 
 test('the AppImage relaunch waits for the old process to exit, then runs the new file with its arguments and no inherited descriptors', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-relaunch-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-relaunch-'));
   const appImage = join(dir, 'Claudio.AppImage');
   const ran = join(dir, 'ran');
   const fds = join(dir, 'fds');

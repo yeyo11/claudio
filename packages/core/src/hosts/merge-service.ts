@@ -16,7 +16,7 @@ import type {
   MergeRequestBody,
   MergeState,
 } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import { changeRequestMergeOf, type ChangeRequestMergeRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';
 import {
@@ -57,7 +57,7 @@ const SETTLE_ROUNDS = 3;
 const REBASE_WAIT = 5_000;
 const REBASE_ROUNDS = 12;
 /** Who the disarm that precedes Claudio's own push is recorded as */
-const AGENTRY = 'claudio';
+const CLAUDIO = 'claudio';
 /** What the audit row of a disarm Claudio did on its own account says, which is also how the state finds it again */
 const OFF_DETAIL: Record<AutoMergeOffWhy, string> = {
   push: 'turned off before Claudio pushed: arm it again afterwards',
@@ -130,7 +130,7 @@ export interface MergeServiceDeps {
   /** The host merged it: lets the owner of the row see that now, instead of at its next poll */
   merged?: (id: string) => Promise<void>;
   /** The feed: Claudio turned auto-merge off, and the person is told */
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   uuid?: () => string;
@@ -729,7 +729,7 @@ export class MergeService {
       this.writing.delete(id);
     };
     try {
-      const disarmed = await this.disarmNow(target, AGENTRY, 'push');
+      const disarmed = await this.disarmNow(target, CLAUDIO, 'push');
       // The head is about to move: a pipeline that appears after it is the one the guard waits for
       this.pushes.set(id, { sha: null, at: this.now() });
       this.lastState.delete(id);

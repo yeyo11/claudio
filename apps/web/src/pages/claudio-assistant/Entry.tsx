@@ -25,7 +25,7 @@ const DEFAULT_MODEL = 'sonnet';
  * The project in scope is context and not a requirement: the chip clears it before the first
  * prompt. Starting creates the chat in the core, confined there, and opens it.
  */
-export function AgentryAssistant() {
+export function ClaudioAssistant() {
   const { t } = useTranslation('assistant');
   const navigate = useNavigate();
   const narrow = useMediaQuery(NARROW);
@@ -36,10 +36,10 @@ export function AgentryAssistant() {
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [effort, setEffort] = useState<Effort | ''>('');
   const box = useRef<HTMLTextAreaElement>(null);
-  usePageTitle(t('agentry.title'));
+  usePageTitle(t('claudio.title'));
 
   const start = useMutation({
-    mutationFn: () => api.startAgentryAssistantChat({ prompt: prompt.trim(), projectId: context?.id ?? null, model, ...(effort ? { effort } : {}) }),
+    mutationFn: () => api.startClaudioAssistantChat({ prompt: prompt.trim(), projectId: context?.id ?? null, model, ...(effort ? { effort } : {}) }),
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
   });
   const ready = prompt.trim().length > 0 && !start.isPending;
@@ -61,15 +61,15 @@ export function AgentryAssistant() {
 
   return (
     <div className="run-layout as-entry">
-      <section className="run-main" aria-label={t('agentry.title')}>
-        {narrow && <PhoneHeader title={t('agentry.title')} back={{ fallback: '/' }} />}
+      <section className="run-main" aria-label={t('claudio.title')}>
+        {narrow && <PhoneHeader title={t('claudio.title')} back={{ fallback: '/' }} />}
         <div className="run-stage">
           <div className="run-scroll as-scroll glow-top" data-scroll-root>
             <div className="as-body">
               <Hello />
               <section className="as-starters-section" aria-labelledby="as-starters-label">
                 <h2 id="as-starters-label" className="section-label">
-                  {t('agentry.starters')}
+                  {t('claudio.starters')}
                 </h2>
                 <div className="as-starters">
                   {STARTERS.map(({ key, icon: Icon }) => (
@@ -78,14 +78,14 @@ export function AgentryAssistant() {
                       type="button"
                       className="as-starter"
                       onClick={() => {
-                        setPrompt(t(`agentry.starter.${key}.ask`));
+                        setPrompt(t(`claudio.starter.${key}.ask`));
                         box.current?.focus();
                       }}
                     >
                       <Icon {...ICON} aria-hidden />
                       <span className="as-starter-body">
-                        <span className="as-starter-title">{t(`agentry.starter.${key}.title`)}</span>
-                        <span className="as-starter-ask">{t(`agentry.starter.${key}.ask`)}</span>
+                        <span className="as-starter-title">{t(`claudio.starter.${key}.title`)}</span>
+                        <span className="as-starter-ask">{t(`claudio.starter.${key}.ask`)}</span>
                       </span>
                     </button>
                   ))}
@@ -95,14 +95,14 @@ export function AgentryAssistant() {
           </div>
         </div>
         <div className="composer-wrap as-composer">
-          <ErrorBox error={start.error} title={t('agentry.startError')} />
-          <form className="composer" aria-label={t('agentry.message')} onSubmit={submit}>
+          <ErrorBox error={start.error} title={t('claudio.startError')} />
+          <form className="composer" aria-label={t('claudio.message')} onSubmit={submit}>
             <textarea
               ref={box}
               autoFocus={!narrow}
               rows={1}
-              aria-label={t('agentry.message')}
-              placeholder={narrow ? t('agentry.placeholderShort') : t('agentry.placeholder')}
+              aria-label={t('claudio.message')}
+              placeholder={narrow ? t('claudio.placeholderShort') : t('claudio.placeholder')}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => {
@@ -112,7 +112,7 @@ export function AgentryAssistant() {
                 }
               }}
             />
-            <button type="submit" className="composer-send" aria-label={start.isPending ? t('agentry.starting') : t('agentry.send')} disabled={!ready}>
+            <button type="submit" className="composer-send" aria-label={start.isPending ? t('claudio.starting') : t('claudio.send')} disabled={!ready}>
               <ArrowUp {...ICON_SM} />
             </button>
           </form>
@@ -120,14 +120,14 @@ export function AgentryAssistant() {
             {context && (
               <span className="chip as-context">
                 <FolderGit2 {...ICON_SM} aria-hidden />
-                <span className="ellipsis">{t('agentry.context', { name: context.name })}</span>
-                <button type="button" className="x" aria-label={t('agentry.clearContext')} onClick={() => setDropped(true)}>
+                <span className="ellipsis">{t('claudio.context', { name: context.name })}</span>
+                <button type="button" className="x" aria-label={t('claudio.clearContext')} onClick={() => setDropped(true)}>
                   <X {...ICON_SM} aria-hidden />
                 </button>
               </span>
             )}
-            <ModelPicker value={model} onChange={setModel} aria-label={t('agentry.model')} />
-            <EffortPicker value={effort} onChange={setEffort} model={model} use="assistant" aria-label={t('agentry.effort')} />
+            <ModelPicker value={model} onChange={setModel} aria-label={t('claudio.model')} />
+            <EffortPicker value={effort} onChange={setEffort} model={model} use="assistant" aria-label={t('claudio.effort')} />
           </div>
         </div>
       </section>
@@ -143,16 +143,16 @@ function Hello() {
   const chats = counts?.chatsWorking ?? 0;
   const orchestrations = counts?.orchestrationsRunning ?? 0;
   const figures: Array<{ live: boolean; text: string }> = [];
-  if (chats > 0) figures.push({ live: true, text: t('agentry.chatsWorking', { count: chats, n: chats }) });
-  if (orchestrations > 0) figures.push({ live: true, text: t('agentry.orchestrations', { count: orchestrations, n: orchestrations }) });
-  if (todayCost != null) figures.push({ live: false, text: t('agentry.today', { cost: formatCost(todayCost) }) });
+  if (chats > 0) figures.push({ live: true, text: t('claudio.chatsWorking', { count: chats, n: chats }) });
+  if (orchestrations > 0) figures.push({ live: true, text: t('claudio.orchestrations', { count: orchestrations, n: orchestrations }) });
+  if (todayCost != null) figures.push({ live: false, text: t('claudio.today', { cost: formatCost(todayCost) }) });
   return (
     <div className="as-hello">
       <AssistantMark />
-      <h1 className="as-hello-title">{t('agentry.hello')}</h1>
-      <p className="as-hello-sub">{t('agentry.sub')}</p>
+      <h1 className="as-hello-title">{t('claudio.hello')}</h1>
+      <p className="as-hello-sub">{t('claudio.sub')}</p>
       {figures.length > 0 && (
-        <p className="as-figures" aria-label={t('agentry.figures')}>
+        <p className="as-figures" aria-label={t('claudio.figures')}>
           {figures.map((figure) => (
             <span key={figure.text} className={figure.live ? 'live' : undefined}>
               {figure.text}

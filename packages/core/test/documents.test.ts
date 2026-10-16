@@ -8,7 +8,7 @@ import type { DocumentNode, WorkItemLink } from '@claudio/shared';
 import { DOCUMENT_LINKS_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { documentPath, DocumentPathError } from '../src/document-paths.ts';
 import { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, titleOf } from '../src/documents.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { isLive, linkOf } from '../src/work-item-rows.ts';
 import { WorkItemError, WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
@@ -21,7 +21,7 @@ interface Setup {
   outside: string;
   items: WorkItemService;
   docs: DocumentService;
-  events: AgentryEventInput[];
+  events: ClaudioEventInput[];
   modules: Set<string>;
   root: { path: string };
   board: { on: boolean };
@@ -30,13 +30,13 @@ interface Setup {
 function setup(): Setup {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
-  const base = mkdtempSync(join(tmpdir(), 'agentry-docs-'));
+  const base = mkdtempSync(join(tmpdir(), 'claudio-docs-'));
   const project = join(base, 'project');
   const outside = join(base, 'outside');
   mkdirSync(join(project, 'docs', 'specs'), { recursive: true });
   mkdirSync(outside, { recursive: true });
   writeFileSync(join(outside, 'secret.md'), '# Secret\nnot yours\n');
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const items = new WorkItemService({ db: new Db(config), project: () => ({ keyPrefix: 'AGN', columnLimits: {} }), emit: (e) => events.push(e) });
   const modules = new Set(['board', 'documents']);
   const root = { path: DEFAULT_DOCUMENTS_PATH };
@@ -297,7 +297,7 @@ test('deleting a file unties it from every item, each in its history', async () 
     s.items.history(one.id).filter((h) => h.change === 'link').map((h) => [h.from ? 'removed' : 'added']),
     [['added'], ['removed']],
   );
-  const docEvents = s.events.filter((e): e is Extract<AgentryEventInput, { type: 'document.changed' }> => e.type === 'document.changed');
+  const docEvents = s.events.filter((e): e is Extract<ClaudioEventInput, { type: 'document.changed' }> => e.type === 'document.changed');
   assert.deepEqual(docEvents.map((e) => [e.action, e.itemId]), [['untied', one.id], ['untied', two.id], ['removed', null]]);
   await assert.rejects(s.docs.remove('p1', 'docs/a.md'), refused(404));
 });

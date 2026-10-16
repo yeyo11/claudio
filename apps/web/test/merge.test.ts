@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, MergeBlockerCode, MergeState } from '@claudio/shared';
+import type { ClaudioEvent, MergeBlockerCode, MergeState } from '@claudio/shared';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {
@@ -35,7 +35,7 @@ test('a blocker this version does not know reads as the policy block', () => {
   assert.deepEqual(blockerMark('something-new'), blockerMark('blocked-by-policy'));
 });
 
-test('a remedy is an Claudio call, a link to the host or a move in the page, never a command', () => {
+test('a remedy is a Claudio call, a link to the host or a move in the page, never a command', () => {
   assert.equal(blockerActionKind('open-on-host'), 'link');
   assert.equal(blockerActionKind('update-from-base'), 'call');
   assert.equal(blockerActionKind('edit-title'), 'page');
@@ -112,7 +112,7 @@ test('Update from base tells conflicts from the other 409 refusals', () => {
 
 test('who turned auto-merge off for an update: a person, Claudio, or you when authentication is off', () => {
   assert.equal(autoMergeOffKey('update', 'local'), 'autoMergeOff.updateYou');
-  assert.equal(autoMergeOffKey('update', 'claudio'), 'autoMergeOff.updateAgentry');
+  assert.equal(autoMergeOffKey('update', 'claudio'), 'autoMergeOff.updateClaudio');
   assert.equal(autoMergeOffKey('update', 'marta'), 'autoMergeOff.update');
   assert.equal(autoMergeOffKey('push', 'local'), 'autoMergeOff.push');
 });
@@ -146,10 +146,10 @@ test('a refusal is worded by its reason, and any other is a failed merge that ke
 });
 
 test('the checks and review events refresh the merge state, an orchestration\'s pull request too, and no other request\'s', () => {
-  const checks = { id: 1, type: 'change-request.checks', title: 'x', changeRequestId: 'cr-1', rollup: 'failing', headSha: 'a' } as unknown as AgentryEvent;
+  const checks = { id: 1, type: 'change-request.checks', title: 'x', changeRequestId: 'cr-1', rollup: 'failing', headSha: 'a' } as unknown as ClaudioEvent;
   const target = targetsFor(checks)[0]!;
   assert.ok(targetMatches(target, keys.changeRequestMerge('cr-1')));
   assert.ok(!targetMatches(target, keys.changeRequestMerge('cr-2')));
-  const pr = { id: 2, type: 'orchestration.pull-request', title: 'x', orchestrationId: 'o-1', pullRequest: { id: 'cr-9' } } as unknown as AgentryEvent;
+  const pr = { id: 2, type: 'orchestration.pull-request', title: 'x', orchestrationId: 'o-1', pullRequest: { id: 'cr-9' } } as unknown as ClaudioEvent;
   assert.ok(targetsFor(pr).some((t) => targetMatches(t, keys.changeRequestMerge('cr-9'))));
 });

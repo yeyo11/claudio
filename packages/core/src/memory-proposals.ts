@@ -20,7 +20,7 @@ import {
 import { writeAtomic } from './config/files.ts';
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import type { JournalService } from './journal.ts';
 import { JOURNAL_ENTRY_MAX } from './journal.ts';
 import { MemoryStore } from './memory.ts';
@@ -55,7 +55,7 @@ export interface MemoryProposalServiceDeps {
   memory: MemoryStore;
   /** Null for an id that names no imported project */
   project: (projectId: string) => ProposalProject | null;
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   item?: (itemId: string) => WorkItemRef | null;
   /** The decision engine, for `memory.triage`; without it the list stays in arrival order */
   decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;

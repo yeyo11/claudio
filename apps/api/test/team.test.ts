@@ -16,14 +16,14 @@ let core: Core;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 async function importProject(modules: string[]): Promise<Project> {
-  const path = mkdtempSync(join(tmpdir(), 'agentry-api-team-'));
+  const path = mkdtempSync(join(tmpdir(), 'claudio-api-team-'));
   const res = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Crew', template: 'software', modules }) });
   assert.equal(res.statusCode, 201, res.body);
   return res.json<Project>();
 }
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-team-root-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-team-root-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

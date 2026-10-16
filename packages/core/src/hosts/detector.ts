@@ -2,7 +2,7 @@ import { statSync, watch, type FSWatcher } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname } from 'node:path';
 import type { CodeHostHostEntry, CodeHostId, CodeHostReason, CodeHostState, CodeHostStatus, CodeHostsSettings } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import { installDirs, resolveCommand } from '../providers/path.ts';
 import { compareVersions } from '../version-check.ts';
 import type { CodeHostAdapter } from './code-host.ts';
@@ -75,7 +75,7 @@ export interface CodeHostDetectorDeps {
   adapter: (id: CodeHostId) => CodeHostAdapter | undefined;
   /** What the person chose; null (or a missing entry) means every host is on, searching for its binary */
   settings?: () => CodeHostsSettings | null;
-  emit?: (event: AgentryEventInput) => unknown;
+  emit?: (event: ClaudioEventInput) => unknown;
   run?: HostRun;
   /** The hosts glab's own configuration lists; defaults to reading its `config.yml` */
   glabHosts?: () => Promise<GlabKnownHost[]>;

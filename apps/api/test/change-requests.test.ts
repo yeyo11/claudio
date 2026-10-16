@@ -18,7 +18,7 @@ let root: string;
 const ORCH_ROW = '6f1d6c0e-0000-4000-8000-00000000c0de';
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-change-requests-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-change-requests-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -195,7 +195,7 @@ const fromChat = (token: string, body?: unknown) => ({
 });
 
 test("a chat's token reads the checks but cannot re-run, cancel, play or fix", async () => {
-  const secured = mkdtempSync(join(tmpdir(), 'agentry-api-change-requests-sec-'));
+  const secured = mkdtempSync(join(tmpdir(), 'claudio-api-change-requests-sec-'));
   const guardedCore = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

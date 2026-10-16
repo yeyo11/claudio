@@ -18,7 +18,7 @@ const labels = (history: WorkItemHistoryEntry[]) =>
 
 test("a chat Claudio does not run is named in an item's history by its title, not its id", async () => {
   const config = tempConfig();
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-history-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-history-'));
   const transcripts = join(config.projectsDir, encodeProjectId(dir));
   mkdirSync(transcripts, { recursive: true });
   const at = '2026-09-28T10:00:00Z';

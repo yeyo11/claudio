@@ -102,7 +102,7 @@ test('a run lists each kind of delegated work where it belongs', async () => {
 
 /** The fixture laid out as the CLI keeps it: `<session>.jsonl` with its directory beside it. */
 function sessionOnDisk(): { transcript: string; dir: string } {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-wf-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-wf-'));
   const transcript = join(root, 'session-1.jsonl');
   writeFileSync(transcript, '');
   const dir = join(root, 'session-1');
@@ -240,7 +240,7 @@ test('a workflow without a record that the stream does not report is running onl
 });
 
 test('saved workflows come from the project and the user, the project winning a clash', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-saved-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-saved-'));
   const project = join(root, 'project');
   const user = join(root, 'claude');
   mkdirSync(join(project, '.claude', 'workflows'), { recursive: true });

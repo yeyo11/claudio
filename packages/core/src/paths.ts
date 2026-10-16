@@ -39,7 +39,7 @@ export interface CoreConfig {
    * a machine's own Tailscale belongs to the person, and Claudio never runs `up` or `logout` on it.
    */
   tailscaleManaged: boolean;
-  /** The node name a managed `tailscaled` signs in with, from `CLAUDIO_TAILSCALE_HOSTNAME`; `agentry` by default */
+  /** The node name a managed `tailscaled` signs in with, from `CLAUDIO_TAILSCALE_HOSTNAME`; `claudio` by default */
   tailscaleHostname: string;
   /** The HTTPS port of Claudio's `tailscale serve` rule, from `CLAUDIO_TUNNEL_PORT`; 8444 by default */
   tunnelPort: number;
@@ -55,7 +55,7 @@ export interface CoreConfig {
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
    * complain to. It has to name a real domain — Apple refuses the whole JWT with `403 BadJwtToken`
-   * for something like `mailto:agentry@localhost`, and every iPhone goes quiet with it.
+   * for something like `mailto:claudio@localhost`, and every iPhone goes quiet with it.
    */
   pushSubject: string;
   /**

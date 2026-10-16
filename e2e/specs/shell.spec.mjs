@@ -350,7 +350,7 @@ export default async ({ page, api, check, dirs }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('claudio-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('claudio:project'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('claudio-theme'); localStorage.removeItem('claudio-motion'); localStorage.removeItem('claudio-language'); localStorage.removeItem('claudio-palette-recent'); localStorage.removeItem('claudio:project'); return true`).catch(() => {});
     // schedules.spec starts from none. By name as well as by id: a create that failed after it was
     // saved left one behind whose id this spec never learned
     if (scheduleId) await api.del(`/schedules/${scheduleId}`).catch(() => {});

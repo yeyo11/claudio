@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, CodeHostStatus, TrackerIssue, TrackerStatus } from '@claudio/shared';
+import type { ClaudioEvent, CodeHostStatus, TrackerIssue, TrackerStatus } from '@claudio/shared';
 import { api, keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
 import {
@@ -79,15 +79,15 @@ test('the tracker routes are reachable through the client', () => {
 });
 
 test('a host change makes the trackers and every project\'s issue search stale', () => {
-  const event = { id: 1, at: '2026-10-02T00:00:00.000Z', type: 'hosts.changed', hosts: [] as CodeHostStatus[] } as unknown as AgentryEvent;
+  const event = { id: 1, at: '2026-10-02T00:00:00.000Z', type: 'hosts.changed', hosts: [] as CodeHostStatus[] } as unknown as ClaudioEvent;
   const names = targetsFor(event).map(([key]) => key[0]);
   assert.ok(names.includes('trackers'));
   assert.ok(names.includes('project-tracker'));
 });
 
 test('an imported item and a saved tracker refresh the project\'s issue search', () => {
-  const created = { id: 2, at: '2026-10-02T00:00:00.000Z', type: 'workitem.created', projectId: 'p1', itemId: 'i1' } as unknown as AgentryEvent;
+  const created = { id: 2, at: '2026-10-02T00:00:00.000Z', type: 'workitem.created', projectId: 'p1', itemId: 'i1' } as unknown as ClaudioEvent;
   assert.ok(targetsFor(created).some(([key]) => key[0] === 'project-tracker' && key[1] === 'p1'));
-  const updated = { id: 3, at: '2026-10-02T00:00:00.000Z', type: 'project.updated', projectId: 'p1', changes: ['settings'] } as unknown as AgentryEvent;
+  const updated = { id: 3, at: '2026-10-02T00:00:00.000Z', type: 'project.updated', projectId: 'p1', changes: ['settings'] } as unknown as ClaudioEvent;
   assert.ok(targetsFor(updated).some(([key]) => key[0] === 'project-tracker' && key[1] === 'p1'));
 });

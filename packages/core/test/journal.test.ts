@@ -3,9 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, FlowMemoryProposal, WorkItemActor } from '@claudio/shared';
+import type { ClaudioEvent, FlowMemoryProposal, WorkItemActor } from '@claudio/shared';
 import { Db } from '../src/db.ts';
-import { EventBus, type AgentryEventInput } from '../src/events.ts';
+import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { JOURNAL_HANDOFF_BYTES, JournalService } from '../src/journal.ts';
 import { MemoryProposalService, withText } from '../src/memory-proposals.ts';
 import { MemoryStore } from '../src/memory.ts';
@@ -20,8 +20,8 @@ function setup() {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = new Db(config);
-  const events: AgentryEventInput[] = [];
-  const emit = (event: AgentryEventInput) => void events.push(event);
+  const events: ClaudioEventInput[] = [];
+  const emit = (event: ClaudioEventInput) => void events.push(event);
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null), emit });
   const ref = (id: string) => {
     const item = items.find(id);
@@ -34,7 +34,7 @@ function setup() {
     sources: (id) => items.links(id).map((l) => ({ kind: 'chat' as const, chatId: l.chatId, orchestrationId: null, taskId: null })),
   });
   const memory = new MemoryStore(config);
-  const projectDir = mkdtempSync(join(tmpdir(), 'agentry-journal-project-'));
+  const projectDir = mkdtempSync(join(tmpdir(), 'claudio-journal-project-'));
   const projects = new Map([['p1', { path: projectDir, memoryKey: 'p1-key' }]]);
   const proposals = new MemoryProposalService({ db, journal, memory, project: (id) => projects.get(id) ?? null, emit, item: ref });
   const memoryDir = join(config.projectsDir, 'p1-key', 'memory');
@@ -99,7 +99,7 @@ test('an item reaching done is journalled once, with who approved it and the cha
   const item = items.create('p1', { title: 'Board drag and drop' });
   items.link(item.id, { kind: 'chat', role: 'work', chatId: 'chat-1' });
   const hear = () => {
-    for (const event of events.splice(0)) journal.observe({ ...event, id: 0, at: '' } as AgentryEvent);
+    for (const event of events.splice(0)) journal.observe({ ...event, id: 0, at: '' } as ClaudioEvent);
   };
 
   items.move(item.id, { status: 'in_review' });
@@ -129,11 +129,11 @@ test('a client hears the move to done before the journal entry it causes, as cor
   mkdirSync(config.dataDir, { recursive: true });
   const db = new Db(config);
   const bus = new EventBus();
-  const emit = (event: AgentryEventInput) => void bus.emit(event);
+  const emit = (event: ClaudioEventInput) => void bus.emit(event);
   const items = new WorkItemService({ db, project: () => ({ keyPrefix: 'AGN', columnLimits: {} }), emit });
   const journal = new JournalService({ db, emit, item: () => null, sources: () => [] });
   bus.observe((event) => journal.observe(event));
-  const heard: AgentryEvent[] = [];
+  const heard: ClaudioEvent[] = [];
   bus.subscribe((event) => heard.push(event));
 
   const item = items.create('p1', { title: 'Close me' });

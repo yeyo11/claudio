@@ -1,4 +1,4 @@
-import type { AgentryReleaseInfo, StorageKind, StorageLocation } from '@claudio/shared';
+import type { ClaudioReleaseInfo, StorageKind, StorageLocation } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ExternalLink, Info, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -34,7 +34,7 @@ export function UpdatesCard() {
     mutationFn: api.checkRelease,
     onSuccess: (fresh) => queryClient.setQueryData(keys.release, fresh),
   });
-  const bridge = typeof window !== 'undefined' ? window.agentryDesktop?.updates : undefined;
+  const bridge = typeof window !== 'undefined' ? window.claudioDesktop?.updates : undefined;
   const route = info && updateRoute({ distribution: info.distribution, desktopUpdates: Boolean(bridge), hostname: window.location.hostname });
 
   return (
@@ -204,7 +204,7 @@ function useLiveSentence(): (live: LiveWork) => string {
 }
 
 /** The desktop window: download with its progress, then a restart that asks first when work is live */
-function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: AgentryReleaseInfo }) {
+function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: ClaudioReleaseInfo }) {
   const { t } = useTranslation('config');
   const state = useDesktopUpdateState(bridge);
   const liveSentence = useLiveSentence();

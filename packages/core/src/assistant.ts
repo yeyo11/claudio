@@ -11,7 +11,7 @@ import {
   isEffort,
   recommendedEffort,
   type AcceptAssistantProposalRequest,
-  type AgentryEvent,
+  type ClaudioEvent,
   type AssistantFinding,
   type AssistantProposal,
   type AssistantProposalAction,
@@ -67,7 +67,7 @@ import { resourceDraft } from './assistant-draft.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { addReads, initialSources, NO_READS, projectIsEmpty, projectPath, sameReads, sourcesOf, topFiles, type AssistantFacts, type AssistantReads, type ReadingNow } from './assistant-sources.ts';
 import type { Db } from './db.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
 import { agentFileContent, MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, MAX_WRITES as MEMBER_WRITES_MAX, roleTitle, templateTeam } from './team.ts';
 import type { WorkItemService } from './work-items.ts';
@@ -171,7 +171,7 @@ export interface AssistantDeps {
   addMember(project: AssistantProject, member: ProjectTeamMember, content: string | null): Promise<void>;
   resourceExists(project: AssistantProject, scope: ConfigScopeKind, kind: AssistantResourceKind, name: string): Promise<boolean>;
   saveResource(project: AssistantProject, scope: ConfigScopeKind, kind: AssistantResourceKind, name: string, content: string): Promise<void>;
-  emit(event: AgentryEventInput): void;
+  emit(event: ClaudioEventInput): void;
   /** The decision engine, for `assistant.sources` and `assistant.rerank`; without it both are today's behaviour */
   decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
 }
@@ -654,7 +654,7 @@ export class AssistantService {
   // ---------- what its chat does ----------
 
   /** Everything on the feed goes through here; failures are swallowed, as they run inside someone else's event. */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     try {
       switch (event.type) {
         case 'chat.activity':

@@ -45,7 +45,7 @@ const orch = (tasks: OrchestrationTaskState[], extra: Partial<Orchestration> = {
 const verification = (status: VerificationState['status']): VerificationState => ({ status, attempts: 0, commands: [], commits: [], report: '', costUsd: 0 });
 
 const integration = (status: NonNullable<Orchestration['integration']>['status'], extra: Partial<NonNullable<Orchestration['integration']>> = {}) => ({
-  branch: 'agentry/graph',
+  branch: 'claudio/graph',
   worktree: '/wt/integration',
   status,
   merged: [],

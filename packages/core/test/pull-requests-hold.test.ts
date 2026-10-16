@@ -13,7 +13,7 @@ import { cleanup, expectGolden, note, opened, record, reviewed, setup, sh, write
 // armed: they hold it the way a fix's push does, find the request first (the `pr list` call in the
 // golden logs), and let go when the push is over, whatever came of it.
 
-const BRANCH = 'agentry/graph-integration';
+const BRANCH = 'claudio/graph-integration';
 
 interface Hold {
   held: string[];
@@ -141,7 +141,7 @@ test('an orchestration opening onto a branch that has a request holds it across 
     assert.deepEqual(hold.released, hold.held);
 
     // The same with a request that cannot be disarmed: the push does not happen
-    const refusing = holding(s, 'agentry/other', true);
+    const refusing = holding(s, 'claudio/other', true);
     s.db.connection.prepare('DELETE FROM orchestration_pull_requests').run();
     sh(s.r.remote, 'branch', '-D', BRANCH);
     const again = new OrchestrationPullRequestService({

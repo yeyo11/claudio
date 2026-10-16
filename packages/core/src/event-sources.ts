@@ -13,7 +13,7 @@ import { displayTitle } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import type { ChatRuntime } from './chats.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
-import type { AgentryEventInput, EventBus } from './events.ts';
+import type { ClaudioEventInput, EventBus } from './events.ts';
 
 /*
  * Turns the state the core already keeps into events for the bus. Sources are diff-based on
@@ -75,7 +75,7 @@ export function waitingTitle(runName: string, reason: RunWaitingReason, toolName
 export function permissionEvents(
   request: PermissionRequest,
   run: ChatRuntime | null,
-): Array<Extract<AgentryEventInput, { type: 'run.waiting' | 'permission.requested' }>> {
+): Array<Extract<ClaudioEventInput, { type: 'run.waiting' | 'permission.requested' }>> {
   const reason = waitingReason(request.toolName);
   const ref = runRefOr(request.runId, run);
   const title = waitingTitle(ref.runName, reason, request.toolName);
@@ -142,7 +142,7 @@ export class RunEventPublisher {
   private readonly activities = new Map<string, ActivityState>();
 
   constructor(
-    private readonly emit: (event: AgentryEventInput) => void,
+    private readonly emit: (event: ClaudioEventInput) => void,
     private readonly windowMs = RUN_UPDATE_COALESCE_MS,
     private readonly activityWindowMs = ACTIVITY_THROTTLE_MS,
   ) {}
@@ -270,7 +270,7 @@ export class RunEventPublisher {
     }
   }
 
-  private updated(run: ChatRuntime, previousStatus: ChatRuntime['status'] | null): AgentryEventInput {
+  private updated(run: ChatRuntime, previousStatus: ChatRuntime['status'] | null): ClaudioEventInput {
     return {
       type: 'run.updated',
       title: `${run.name} is ${run.status}`,
@@ -419,7 +419,7 @@ export class RunEventPublisher {
     }
   }
 
-  private progress(run: ChatRuntime, wf: WorkflowRun): AgentryEventInput {
+  private progress(run: ChatRuntime, wf: WorkflowRun): ClaudioEventInput {
     const counts = workflowCounts(wf);
     return {
       type: 'workflow.progress',
@@ -465,8 +465,8 @@ export class OrchestrationEventTracker {
     for (const o of all) this.snapshots.set(o.id, OrchestrationEventTracker.snapshot(o));
   }
 
-  observe(all: Orchestration[]): AgentryEventInput[] {
-    const events: AgentryEventInput[] = [];
+  observe(all: Orchestration[]): ClaudioEventInput[] {
+    const events: ClaudioEventInput[] = [];
     const seen = new Set<string>();
     for (const o of all) {
       seen.add(o.id);

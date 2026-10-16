@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueryKey } from '@tanstack/react-query';
 import type {
-  AgentryEvent,
+  ClaudioEvent,
   MilestoneChangedEvent,
   ProjectUpdatedEvent,
   WorkItemMovedEvent,
@@ -40,7 +40,7 @@ const CACHE: Record<string, QueryKey> = {
 };
 
 /** The names of the cached reads an event refetches */
-function refetched(event: AgentryEvent): string[] {
+function refetched(event: ClaudioEvent): string[] {
   const targets = targetsFor(event);
   return Object.entries(CACHE)
     .filter(([, key]) => targets.some((target) => targetMatches(target, key)))
@@ -103,7 +103,7 @@ test('a project renamed reads its settings again; a new key prefix renames every
 });
 
 test('a chat that stops refreshes the boards, where its card was live', () => {
-  const ended = { id: 4, at: base.at, type: 'run.ended', runId: 'c1', sessionId: 'c1', status: 'failed' } as AgentryEvent;
+  const ended = { id: 4, at: base.at, type: 'run.ended', runId: 'c1', sessionId: 'c1', status: 'failed' } as ClaudioEvent;
   const names = refetched(ended);
   for (const name of ['boardP1', 'boardP2', 'boardAll', 'item1']) assert.ok(names.includes(name), name);
 });

@@ -7,7 +7,7 @@
 /** A draft not touched for this long is let go: whatever it was for is over. */
 export const DRAFT_TTL_MS = 7 * 24 * 3_600_000;
 
-const PREFIX = 'agentry-composer-draft:';
+const PREFIX = 'claudio-composer-draft:';
 
 /** The part of `Storage` a draft needs, so tests hand in a map. */
 export type DraftStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;

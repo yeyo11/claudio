@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, IssueRef, WorkItem, WorkItemHistoryPullRequest } from '@claudio/shared';
+import type { ClaudioEvent, FlowCriterionResult, IssueRef, WorkItem, WorkItemHistoryPullRequest } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { flowPrompt, stageRules } from '../src/flow.ts';
 import { branchExists, mergeInProgress } from '../src/git.ts';
@@ -132,7 +132,7 @@ test('a project with no remote, no gh, gh not logged in, a host gh does not know
     s.service.forgetReadiness();
     assert.equal((await s.service.readiness(s.r.project)).status, 'no-remote');
 
-    const plain = mkdtempSync(join(tmpdir(), 'agentry-plain-'));
+    const plain = mkdtempSync(join(tmpdir(), 'claudio-plain-'));
     assert.equal((await s.service.readiness(plain)).status, 'not-git');
     rmSync(plain, { recursive: true, force: true });
   } finally {

@@ -31,7 +31,7 @@ const post = (url: string, body: unknown, token?: string) => ({
 });
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-writes-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-assistant-writes-'));
   process.env.FAKE_CLAUDE_LOGGED_IN = '1';
   core = new Core(
     loadConfig({
@@ -73,7 +73,7 @@ async function newItem(token?: string): Promise<WorkItem> {
 test('the open mode labels a request by its chat token, and an invalid token is still local and accepted', async () => {
   await newItem(assistantToken);
   assert.equal((await audit())[0]?.actor, `chat:${assistantChat}`);
-  const wrong = await app.inject(post(`/api/projects/${project.id}/work-items`, { title: 'Wrong' }, 'agentry_chat_nope'));
+  const wrong = await app.inject(post(`/api/projects/${project.id}/work-items`, { title: 'Wrong' }, 'claudio_chat_nope'));
   assert.equal(wrong.statusCode, 201);
   assert.equal((await audit())[0]?.actor, 'local');
   await newItem();

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { CodeHostsSettings } from '@claudio/shared';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { CodeHostDetector, hostnamesOfAuthJson, type CodeHostDetectorDeps } from '../src/hosts/detector.ts';
 import { defaultCodeHostsSettings } from '../src/hosts/settings.ts';
 import { adapterOf, answer, ghHosts, scripted, type Script } from './hosts/stub-adapters.ts';
@@ -14,7 +14,7 @@ let bin: string;
 let n = 0;
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agentry-hosts-detector-'));
+  root = await mkdtemp(join(tmpdir(), 'claudio-hosts-detector-'));
 });
 after(() => rm(root, { recursive: true, force: true }));
 beforeEach(async () => {
@@ -31,7 +31,7 @@ async function fake(name: string, body = 'exit 0'): Promise<string> {
 }
 
 function detector(script: Script, extra: Partial<CodeHostDetectorDeps> = {}) {
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const instance = new CodeHostDetector({
     adapter: adapterOf,
     run: scripted(script),

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, LoginSession, SetupTool } from '@claudio/shared';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEvent, LoginSession, SetupTool } from '@claudio/shared';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { SecretVault } from '../src/secret-vault.ts';
 import { DEVICE_PATTERNS, readDeviceLine } from '../src/setup/device-patterns.ts';
 import { LoginInputError, LoginRefusedError, LoginService, type LoginServiceDeps } from '../src/setup/logins.ts';
@@ -18,7 +18,7 @@ const fixture = (name: string): string => join(here, 'fixtures', 'logins', name)
 
 /** A binary that runs the fake CLI: a shell shim, so the test never changes a tracked file's mode */
 function fakeBinary(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-login-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-login-'));
   const bin = join(dir, 'fake-login');
   writeFileSync(bin, `#!/bin/sh\nexec "${process.execPath}" "${join(here, 'fixtures', 'fake-login-cli.mjs')}" "$@"\n`);
   chmodSync(bin, 0o755);
@@ -27,7 +27,7 @@ function fakeBinary(): string {
 
 interface Rig {
   logins: LoginService;
-  events: AgentryEvent[];
+  events: ClaudioEvent[];
   record: string;
   vault: SecretVault;
   readinessCalls: Array<{ tool: SetupTool; host: string | null }>;
@@ -37,13 +37,13 @@ function rig(options: { fake?: Record<string, string>; ready?: boolean | null; b
   const config = tempConfig();
   const vault = new SecretVault(config);
   const record = join(config.dataDir, 'record.json');
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const readinessCalls: Rig['readinessCalls'] = [];
   const bin = options.binary === undefined ? fakeBinary() : options.binary;
   const deps: LoginServiceDeps = {
     vault,
     youtrack: new YoutrackCredentialStore(config, vault),
-    emit: (event: AgentryEventInput) => events.push({ ...event, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent),
+    emit: (event: ClaudioEventInput) => events.push({ ...event, id: events.length + 1, at: new Date().toISOString() } as ClaudioEvent),
     binary: async () => bin,
     readiness: async (tool, host) => {
       readinessCalls.push({ tool, host });
@@ -273,7 +273,7 @@ const FAKE_TAILSCALE = join(here, 'fixtures', 'fake-tailscale.mjs');
 
 interface TailscaleRig {
   logins: LoginService;
-  events: AgentryEvent[];
+  events: ClaudioEvent[];
   /** The fake node's state file: `approved`, `authKey`, `backendState`, `keyFiles` */
   node: () => { backendState: string; hostname?: string; keyFiles?: Array<{ mode: number; key: string }> };
   approve: () => void;
@@ -288,13 +288,13 @@ function tailscaleRig(options: { authKey?: string; refusal?: string | null } = {
   const stateFile = join(config.dataDir, 'node.json');
   const log = join(config.dataDir, 'tailscale.log');
   writeFileSync(stateFile, JSON.stringify({ backendState: 'NeedsLogin', ...(options.authKey ? { authKey: options.authKey } : {}) }));
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const signOuts: string[] = [];
   const node = () => JSON.parse(readFileSync(stateFile, 'utf8')) as ReturnType<TailscaleRig['node']>;
   const logins = new LoginService({
     vault,
     youtrack: new YoutrackCredentialStore(config, vault),
-    emit: (event: AgentryEventInput) => events.push({ ...event, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent),
+    emit: (event: ClaudioEventInput) => events.push({ ...event, id: events.length + 1, at: new Date().toISOString() } as ClaudioEvent),
     binary: async () => FAKE_TAILSCALE,
     // What Core reads: the node's state through the CLI; here, the fake's own file
     readiness: async () => node().backendState === 'Running',

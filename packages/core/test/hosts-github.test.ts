@@ -192,7 +192,7 @@ test('github adapter: parseAuth never carries a token source or scope into its a
 });
 
 // The fake gh answers the calls the adapter builds, through the execution layer's own spawn.
-const scratch = mkdtempSync(join(tmpdir(), 'agentry-hosts-github-'));
+const scratch = mkdtempSync(join(tmpdir(), 'claudio-hosts-github-'));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 const fakeGh = join(here, 'fixtures/fake-gh.sh');
 

@@ -15,7 +15,7 @@ const ITEM = { key: 'AGN-7' };
 const MESSAGE = documentSyncMessage(ITEM);
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-item-docs-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-item-docs-'));
   gitIn(dir, 'init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'README.md'), 'project\n');
   gitIn(dir, 'add', '-A');
@@ -131,7 +131,7 @@ test('a refused path is not copied, and the documents beside it still are', asyn
   write(dir, 'docs/.hidden/note.md', '# Hidden\n');
   write(dir, 'docs/notes.txt', 'not markdown\n');
   // A link in the documents folder that leads out of it
-  const outside = mkdtempSync(join(tmpdir(), 'agentry-outside-'));
+  const outside = mkdtempSync(join(tmpdir(), 'claudio-outside-'));
   writeFileSync(join(outside, 'loot.md'), '# Loot\n');
   symlinkSync(join(outside, 'loot.md'), join(dir, 'docs', 'loot.md'));
   // An untied spec in the folder, and one tied only to another item, are never read here

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Db } from '../src/db.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts/code-host.ts';
 import type { HostResult } from '../src/hosts/exec.ts';
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
@@ -48,7 +48,7 @@ interface Harness {
   service: ReviewsService;
   /** Every call: argv, and the body of a write */
   calls: string[];
-  events: AgentryEventInput[];
+  events: ClaudioEventInput[];
   clock: { now: number };
   /** The most recent rule whose pattern matches the call's line wins */
   answer: (pattern: RegExp, result: Answer) => void;
@@ -60,7 +60,7 @@ function harness(adapter: ReviewsTarget['adapter'], repo: HostRepo, diff?: strin
   const db = database();
   const rules: Array<{ pattern: RegExp; result: Answer }> = [];
   const calls: string[] = [];
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const clock = { now: Date.parse('2026-10-01T12:00:00Z') };
   const run = async (call: HostCall): Promise<HostResult> => {
     const line = `${call.cli} ${call.args.join(' ')}`;
@@ -607,7 +607,7 @@ test('GitLab discard saved deletes only the draft notes Claudio saved, never the
   assert.deepEqual(partly?.detail?.draftIds, ['83394153'], 'the id of the note saved is recorded with the post');
 
   // The viewer also has a draft note of their own, written on GitLab in the meantime
-  h.answer(/draft_notes$/, ok(JSON.stringify([draftNote(83394153, 'saved by agentry'), draftNote(777, 'my own thought')])));
+  h.answer(/draft_notes$/, ok(JSON.stringify([draftNote(83394153, 'saved by claudio'), draftNote(777, 'my own thought')])));
   h.answer(/-X DELETE/, ok(''));
   const discarded = await h.service.discardSaved('cr-1', partly?.id ?? '');
   assert.equal(discarded.state, 'failed');
@@ -625,7 +625,7 @@ test('review posts: a partly posted review is read back from the store, with wha
   await h.service.submit('cr-1', { event: 'comment', body: 'x' }).catch(() => undefined);
   const id = h.service.posts('cr-1')[0]?.id ?? '';
 
-  h.answer(/draft_notes$/, ok(JSON.stringify([draftNote(83394153, 'saved by agentry'), draftNote(777, 'not ours')])));
+  h.answer(/draft_notes$/, ok(JSON.stringify([draftNote(83394153, 'saved by claudio'), draftNote(777, 'not ours')])));
   const read = await h.service.reviewPosts('cr-1');
   assert.equal(read.posts[0]?.state, 'partly');
   assert.deepEqual(read.savedOnHost, { [id]: 1 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { notificationsFor as englishDraftsFor, waitingDrafts as englishWaitingDrafts, type AgentryEvent } from '@claudio/shared';
+import { notificationsFor as englishDraftsFor, waitingDrafts as englishWaitingDrafts, type ClaudioEvent } from '@claudio/shared';
 
 /*
  * The words a notification is born with come from two places: i18next in the browser, and the
@@ -17,8 +17,8 @@ let nextId = 1;
 const AT = '2026-01-01T12:00:00Z';
 const base = (title: string) => ({ id: nextId++, at: AT, title });
 const run = { runId: 'run1', runName: 'fix the build', sessionId: null, orchestrationId: null, internal: false };
-const ended = (turns: number, error: string | null): AgentryEvent => ({ type: 'run.ended', ...base('done'), ...run, status: error ? 'failed' : 'completed', error, turns, costUsd: 0.1 });
-const orchestration = (status: 'completed' | 'failed'): AgentryEvent => ({
+const ended = (turns: number, error: string | null): ClaudioEvent => ({ type: 'run.ended', ...base('done'), ...run, status: error ? 'failed' : 'completed', error, turns, costUsd: 0.1 });
+const orchestration = (status: 'completed' | 'failed'): ClaudioEvent => ({
   type: 'orchestration.updated',
   ...base('o'),
   orchestrationId: 'o1',
@@ -28,20 +28,20 @@ const orchestration = (status: 'completed' | 'failed'): AgentryEvent => ({
   integrationStatus: null,
   costUsd: 1,
 });
-const conflict = (paths: string[], resolving: boolean): AgentryEvent => ({
+const conflict = (paths: string[], resolving: boolean): ClaudioEvent => ({
   type: 'orchestration.conflict',
   ...base('Merge conflict in refactor'),
   orchestrationId: 'o1',
   orchestrationName: 'refactor',
   integrationStatus: 'conflicted',
-  branch: 'agentry/o1',
+  branch: 'claudio/o1',
   paths,
   resolving,
 });
 
 // One event per sentence, including both halves of every plural and the fallbacks for an account
 // or an error Claudio cannot name.
-const EVENTS: AgentryEvent[] = [
+const EVENTS: ClaudioEvent[] = [
   { type: 'run.waiting', ...base('waiting'), ...run, reason: 'permission', permissionId: 'p1', toolName: 'Bash' },
   { type: 'run.waiting', ...base('waiting'), ...run, reason: 'question', permissionId: 'p2', toolName: 'AskUserQuestion' },
   { type: 'run.waiting', ...base('waiting'), ...run, reason: 'plan', permissionId: 'p3', toolName: 'ExitPlanMode' },
@@ -50,7 +50,7 @@ const EVENTS: AgentryEvent[] = [
   ended(3, null),
   ended(3, 'boom'),
   // A run that failed without saying why is the one case that needs a sentence of ours
-  { ...(ended(3, 'boom') as Extract<AgentryEvent, { type: 'run.ended' }>), error: null },
+  { ...(ended(3, 'boom') as Extract<ClaudioEvent, { type: 'run.ended' }>), error: null },
   { type: 'run.rateLimited', ...base('limited'), ...run },
   orchestration('completed'),
   orchestration('failed'),
@@ -81,7 +81,7 @@ test('the web and the push sender say the same thing about a prompt found on a r
 });
 
 test('a sentence the server wrote is left alone when this build has no key for its code', () => {
-  const unknown: AgentryEvent = {
+  const unknown: ClaudioEvent = {
     type: 'health.changed',
     ...base('stuck'),
     ...run,

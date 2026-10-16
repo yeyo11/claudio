@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Db } from '../src/db.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { ChecksError, ChecksService, SNAPSHOT_TTL, type ChecksTarget } from '../src/hosts/checks-service.ts';
 import type { HostCall, HostRepo } from '../src/hosts/code-host.ts';
 import type { HostResult } from '../src/hosts/exec.ts';
@@ -35,7 +35,7 @@ after(() => {
 interface Harness {
   service: ChecksService;
   calls: string[];
-  events: AgentryEventInput[];
+  events: ClaudioEventInput[];
   clock: { now: number };
   /** Answers by the end of a call's argv; the first rule whose pattern matches, most recent first */
   answer: (pattern: RegExp, result: HostResult | (() => HostResult | Promise<HostResult>)) => void;
@@ -45,7 +45,7 @@ function harness(adapter: ChecksTarget['adapter'], repo: HostRepo, version: stri
   const db = database();
   const rules: Array<{ pattern: RegExp; result: HostResult | (() => HostResult | Promise<HostResult>) }> = [];
   const calls: string[] = [];
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const clock = { now: Date.parse('2026-10-01T12:00:00Z') };
   const run = async (call: HostCall): Promise<HostResult> => {
     const line = `${call.cli} ${call.args.join(' ')}`;

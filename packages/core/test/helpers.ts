@@ -7,7 +7,7 @@ import { loadConfig, type CoreConfig } from '../src/paths.ts';
  * Isolated config/workspace/data dirs so tests never touch the real ~/.claude.
  */
 export function tempConfig(): CoreConfig {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-test-'));
   const config = loadConfig({
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
     CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'),

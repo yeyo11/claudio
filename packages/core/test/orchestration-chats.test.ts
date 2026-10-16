@@ -11,7 +11,7 @@ import { tempConfig } from './helpers.ts';
 const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
 
 function repoWithCommit(): string {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-roles-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-roles-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');

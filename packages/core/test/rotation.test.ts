@@ -6,7 +6,7 @@ import type { ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
 import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { defaultProvidersSettings, defaultRotationSettings } from '../src/providers/settings.ts';
 import { ProviderRotation, effectiveOnLimit, openWaitOf, type WaitEnd } from '../src/rotation.ts';
@@ -34,7 +34,7 @@ function rig(o: Options = {}) {
   const db = new Db(config);
   const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
   const settings = settingsOf();
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const ended: Array<{ move: ProviderMove; end: WaitEnd; reason: string | null }> = [];
   let offset = 0;
   const rotation = new ProviderRotation({

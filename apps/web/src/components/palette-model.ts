@@ -6,7 +6,7 @@ import type { MotionLevel } from '@claudio/ui/lib/motion';
  * kept between visits. The palette itself (CommandPalette.tsx) builds the list and draws it.
  */
 
-export const RECENT_KEY = 'agentry-palette-recent';
+export const RECENT_KEY = 'claudio-palette-recent';
 export const MAX_RECENT = 5;
 export const MAX_RESULTS = 40;
 

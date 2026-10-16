@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { rememberedPort, rememberPort } from '../src/server-port.ts';
 
-const userData = () => mkdtempSync(join(tmpdir(), 'agentry-port-'));
+const userData = () => mkdtempSync(join(tmpdir(), 'claudio-port-'));
 
 test('a desktop install keeps the port it bound, so its address survives a restart', () => {
   const dir = userData();

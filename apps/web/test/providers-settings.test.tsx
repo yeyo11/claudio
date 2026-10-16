@@ -65,8 +65,8 @@ test('the newest detection is the one that is shown', () => {
 
 test('Providers is a tab of the Claudio group, right after Account', () => {
   assert.ok(isTab('providers'));
-  const agentry = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
-  assert.equal(agentry.indexOf('providers'), agentry.indexOf('account') + 1);
+  const claudio = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
+  assert.equal(claudio.indexOf('providers'), claudio.indexOf('account') + 1);
   assert.equal(TAB_LABELS.providers, 'providers:tab');
 });
 

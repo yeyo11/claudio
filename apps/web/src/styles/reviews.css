@@ -3,7 +3,7 @@
    with the person's draft review and its submit sheet, and the note composer on a line of the diff
    (components/changes/ReviewComposer.tsx). Reference: DesktopTareaRevision, DesktopTareaRevisionEnvio,
    DesktopTareaRevisionEstados, DesktopRevisionHilosNota, their phone versions, and `.rv-*` in
-   agentry-ds.css.
+   claudio-ds.css.
 
    A status is a badge with its word. Nothing here is live except the ring of a send in progress.
    The draft's "Submit review" is the zone's one gradient action; the composer's border is the

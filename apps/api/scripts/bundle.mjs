@@ -17,7 +17,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 await build({
   // Both outputs repeat the code they share on purpose: splitting would emit a chunk beside them,
   // and each one ships alone (electron-builder copies server.mjs, the image copies api.mjs).
-  // mcp.mjs is Agentry's own MCP server (packages/mcp): the CLI starts it as a child of a chat, so it is a
+  // mcp.mjs is Claudio's own MCP server (packages/mcp): the CLI starts it as a child of a chat, so it is a
   // file of its own and not part of the API.
   entryPoints: {
     server: `${root}src/standalone.ts`,

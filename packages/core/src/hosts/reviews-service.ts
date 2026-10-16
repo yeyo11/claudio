@@ -16,7 +16,7 @@ import type {
   ReviewThread,
   ReviewersRequest,
 } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import { reviewDraftOf, reviewPostOf, type ReviewDraftRow, type ReviewPostRow } from '../work-item-rows.ts';
 import { hostErrorFields, reasonOf } from './classify.ts';
 import {
@@ -88,7 +88,7 @@ export interface ReviewsServiceDeps {
   db: DatabaseSync;
   /** The target of a row id from either table; null when no change request has it or it has no number */
   resolve: (id: string) => Promise<ReviewsTarget | null>;
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   now?: () => number;
   /** For tests: the marker's uuid */
   uuid?: () => string;

@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, ReviewThread, WorkItemPullRequestCi } from '@claudio/shared';
 import type { Db } from './db.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
@@ -43,7 +43,7 @@ export interface OrchestrationPullRequestDeps {
   db: Db;
   /** The project's readiness and remote; `PullRequestService.codeHost` */
   codeHost: (path: string) => Promise<ProjectCodeHost>;
-  emit: (event: AgentryEventInput) => void;
+  emit: (event: ClaudioEventInput) => void;
   /** Merged over the process's environment for git and the host CLIs: where a test puts its fakes */
   env?: NodeJS.ProcessEnv;
   now?: () => number;

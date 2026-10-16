@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@claudio/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type ClaudioEvent, type ClaudioLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@claudio/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';
@@ -43,9 +43,9 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
   const bus = new EventBus();
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   bus.observe((e) => events.push(e));
-  const state: { settings: ProjectSettings; language: AgentryLanguage } = { settings: opts.settings ?? settingsWith(), language: 'en' };
+  const state: { settings: ProjectSettings; language: ClaudioLanguage } = { settings: opts.settings ?? settingsWith(), language: 'en' };
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null), emit: (e) => bus.emit(e) });
   const launches: FlowLaunch[] = [];
   const proposals: FlowMemoryProposal[] = [];
@@ -690,7 +690,7 @@ test("a member's commands reach the work run it is launched with", async () => {
 
 /** A project with the check scripts of CW-26's fixture, and the lockfile of one package manager. */
 function scriptsProject(lockfile: string | null, extra: Record<string, string> = {}): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-tests-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-flow-tests-'));
   const scripts = { test: 'node --test', 'test:unit': 'x', typecheck: 'tsc', lint: 'eslint', build: 'tsc', deploy: 'rm -rf /', 'bad name': 'x', ...extra };
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts }));
   if (lockfile) writeFileSync(join(dir, lockfile), '');
@@ -1772,9 +1772,9 @@ test("a work run that leaves changes uncommitted in the item's worktree is sent 
   const asked: string[] = [];
   const s = setup({ uncommitted: (dir) => (asked.push(dir), dirty.paths) });
   const it = await item(s, 'in_progress');
-  s.items.setWorktree(it.id, { worktree: '/tmp/agentry-wt-agn-1', branch: 'claudio-task/agn-1' });
+  s.items.setWorktree(it.id, { worktree: '/tmp/claudio-wt-agn-1', branch: 'claudio-task/agn-1' });
   await s.answer(it.id, ok('Implemented'));
-  assert.deepEqual(asked, ['/tmp/agentry-wt-agn-1']);
+  assert.deepEqual(asked, ['/tmp/claudio-wt-agn-1']);
   s.flow.chatEnded(s.chatOf(it.id), null);
   await s.flow.settled();
   assert.match(s.launches.at(-1)?.prompt ?? '', /not committed: `src\/cart\.ts`, `docs\/cart\.md`/);

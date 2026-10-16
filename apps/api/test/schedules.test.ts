@@ -17,7 +17,7 @@ const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'co
 const body = { name: 'nightly', cron: '0 3 * * *', timezone: 'UTC', target: { kind: 'chat', chat: { prompt: 'tidy up' } } };
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-schedules-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-schedules-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

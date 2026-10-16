@@ -282,8 +282,8 @@ test('Tailscale is signed in and out only where Claudio runs it, and Sign in als
 
 test('the summary lists Tailscale where the tunnel is offered and there is a Tailscale, under the Access step', () => {
   const base = { access: { mode: 'token' as const, tokenSet: true, readOnly: false }, providers: [], hosts: [], youtrack: null };
-  const signed = summaryRows({ ...base, tailscale: { enabled: true, managed: true, state: 'ready', host: 'agentry.tail0000.ts.net' }, skipped: [] });
-  assert.deepEqual(signed.find((r) => r.id === 'tailscale'), { id: 'tailscale', kind: 'tailscale', label: 'Tailscale', detail: 'agentry.tail0000.ts.net', badge: 'ready', where: 'remote' });
+  const signed = summaryRows({ ...base, tailscale: { enabled: true, managed: true, state: 'ready', host: 'claudio.tail0000.ts.net' }, skipped: [] });
+  assert.deepEqual(signed.find((r) => r.id === 'tailscale'), { id: 'tailscale', kind: 'tailscale', label: 'Tailscale', detail: 'claudio.tail0000.ts.net', badge: 'ready', where: 'remote' });
   const skipped = summaryRows({ ...base, tailscale: { enabled: true, managed: true, state: 'loggedOut', host: null }, skipped: ['access'] });
   assert.equal(skipped.find((r) => r.id === 'tailscale')?.badge, 'skipped');
   assert.equal(summaryRows({ ...base, tailscale: { enabled: false, managed: true, state: 'loggedOut', host: null }, skipped: [] }).length, 1, 'no tunnel, no row');

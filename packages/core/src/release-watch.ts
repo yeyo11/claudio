@@ -1,11 +1,11 @@
-import type { AgentryDistribution, AgentryReleaseInfo } from '@claudio/shared';
+import type { ClaudioDistribution, ClaudioReleaseInfo } from '@claudio/shared';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import { VERSION, VersionCheck, compareVersions, type VersionCheckOptions } from './version-check.ts';
 
 // `latest` never answers with a draft or a pre-release, so an edge build is never offered
 const RELEASES_URL = 'https://api.github.com/repos/yeyo11/claudio/releases/latest';
-const DISTRIBUTIONS: readonly AgentryDistribution[] = ['docker', 'appimage', 'deb'];
+const DISTRIBUTIONS: readonly ClaudioDistribution[] = ['docker', 'appimage', 'deb'];
 
 interface Stored {
   latest: string | null;
@@ -55,13 +55,13 @@ export class ReleaseWatch extends VersionCheck<Stored> {
     this.announced = this.stored.latest;
   }
 
-  get distribution(): AgentryDistribution {
+  get distribution(): ClaudioDistribution {
     const value = this.env.CLAUDIO_DISTRIBUTION?.trim().toLowerCase();
     return DISTRIBUTIONS.find((d) => d === value) ?? 'source';
   }
 
   /** What the last check learned. Never touches the network. */
-  info(): AgentryReleaseInfo {
+  info(): ClaudioReleaseInfo {
     const { latest, publishedAt, url, checkedAt } = this.stored;
     return {
       current: this.current,

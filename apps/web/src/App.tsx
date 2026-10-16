@@ -54,7 +54,7 @@ import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Accounts } from './pages/Accounts';
 import { Home } from './pages/Home';
-import { CLAUDIO_ASSISTANT_PATH } from './pages/agentry-assistant/model';
+import { CLAUDIO_ASSISTANT_PATH } from './pages/claudio-assistant/model';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
@@ -76,7 +76,7 @@ const TerminalWindow = lazyPage(() => import('./pages/TerminalWindow').then((m) 
 const TerminalScreen = lazyPage(() => import('./pages/Terminals').then((m) => m.TerminalScreen));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
-const AgentryAssistant = lazyPage(() => import('./pages/agentry-assistant/Entry').then((m) => m.AgentryAssistant));
+const ClaudioAssistant = lazyPage(() => import('./pages/claudio-assistant/Entry').then((m) => m.ClaudioAssistant));
 const AssistantPage = lazyPage(() => import('./pages/assistant/Assistant').then((m) => m.AssistantPage));
 const TasksBoard = lazyPage(() => import('./pages/tasks/Board').then((m) => m.Board));
 const Milestones = lazyPage(() => import('./pages/tasks/Milestones').then((m) => m.Milestones));
@@ -381,7 +381,7 @@ function Shell() {
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/assistant" element={<AgentryAssistant />} />
+              <Route path="/assistant" element={<ClaudioAssistant />} />
               <Route path="/chats" element={<Chats />} />
               <Route path="/chats/new" element={<NewChat />} />
               <Route path="/chats/:id" element={<ChatView />} />

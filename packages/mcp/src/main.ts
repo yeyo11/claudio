@@ -6,7 +6,7 @@ import { createServer } from './server.ts';
 
 const baseUrl = apiUrlFrom(process.env.CLAUDIO_API_URL);
 if (!baseUrl) {
-  process.stderr.write('agentry-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat\n');
+  process.stderr.write('claudio-mcp: CLAUDIO_API_URL is not set; this server only talks to the Claudio that started the chat\n');
   process.exit(1);
 }
 

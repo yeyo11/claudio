@@ -154,7 +154,7 @@ function AccessCard({ auth }: { auth: AuthConfig }) {
                 <input
                   type="url"
                   autoComplete="off"
-                  placeholder="https://login.example.com/realms/agentry"
+                  placeholder="https://login.example.com/realms/claudio"
                   value={oidc.issuer}
                   onChange={(e) => setOidc({ ...oidc, issuer: e.target.value })}
                 />

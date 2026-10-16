@@ -1,6 +1,6 @@
 import { displayTitle } from './chat-title.ts';
 import { detailHref } from './detail.ts';
-import type { AgentryEvent, ChatSummary, LocalizedParams, PermissionRequest, RunWaitingReason } from './types.ts';
+import type { ClaudioEvent, ChatSummary, LocalizedParams, PermissionRequest, RunWaitingReason } from './types.ts';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no storage,
@@ -179,7 +179,7 @@ type DraftFields = Omit<NotificationDraft, 'id' | 'at' | 'dedupeMs' | 'runId' | 
   Partial<Pick<NotificationDraft, 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'>>;
 
 // The event id alone would collide after a server restart, which restarts the ids
-const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => ({
+const draft = (event: ClaudioEvent, fields: DraftFields): NotificationDraft => ({
   id: `${event.at}#${event.id}`,
   at: event.at,
   dedupeMs: DEDUPE_MS,
@@ -232,7 +232,7 @@ export function waitingDrafts(
 }
 
 /** The notifications an event calls for; empty for nearly all of them. */
-export function notificationsFor(event: AgentryEvent, text: NotificationText = englishNotificationText): NotificationDraft[] {
+export function notificationsFor(event: ClaudioEvent, text: NotificationText = englishNotificationText): NotificationDraft[] {
   switch (event.type) {
     case 'run.waiting': {
       // Housekeeping runs (planner, auth check) never wait for a person
@@ -459,7 +459,7 @@ export function notificationsFor(event: AgentryEvent, text: NotificationText = e
  * Which existing notifications an event settles. A `waiting` one is over when its question is
  * answered, withdrawn, or its run is gone: the person no longer has anything to do about it.
  */
-export function settlesWaiting(event: AgentryEvent): ((notification: NotificationMatch) => boolean) | null {
+export function settlesWaiting(event: ClaudioEvent): ((notification: NotificationMatch) => boolean) | null {
   switch (event.type) {
     case 'permission.resolved':
       return (n) => n.key === `wait:${event.runId}:${event.permissionId}`;

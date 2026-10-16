@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { AgentryEvent, ChangeSummary, ChatChanges, Checklist, EditStep, FileDiff, Orchestration } from '@claudio/shared';
+import type { ClaudioEvent, ChangeSummary, ChatChanges, Checklist, EditStep, FileDiff, Orchestration } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // What a worker did on disk, over HTTP: real git worktrees made by real orchestrations, driven by
@@ -34,7 +34,7 @@ async function settle(id: string): Promise<Orchestration> {
 }
 
 function repoWithCommit(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-changes-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-changes-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', dir, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -46,7 +46,7 @@ function repoWithCommit(): string {
 }
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-changes-data-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-changes-data-'));
   const config = loadConfig({
     CLAUDE_BIN: FAKE_CLAUDE,
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
@@ -233,7 +233,7 @@ test('while a worker runs, the global feed announces its commits and uncommitted
     ...json({ name: 'Live', cwd: repo, worktree: true, synthesize: false, tasks: [{ id: 'busy', name: 'Busy', prompt: 'FAKE-WRITE busy.txt working\nFAKE-HANG' }] }),
   });
   const id = started.json().id as string;
-  const heard: AgentryEvent[] = [];
+  const heard: ClaudioEvent[] = [];
   const unsubscribe = core.events.subscribe((e) => {
     if (e.type === 'changes.updated') heard.push(e);
   });

@@ -57,7 +57,7 @@ const tail = (text) => (text.trim() ? `. Chrome printed:\n${text.trim().split('\
  */
 export async function launch({ baseUrl, port = 0, shotsDir }) {
   if (shotsDir) mkdirSync(shotsDir, { recursive: true });
-  const profile = mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'));
+  const profile = mkdtempSync(join(tmpdir(), 'claudio-e2e-chrome-'));
   // Its own process group, so the renderers and helpers go down with it and none outlives the run
   const chrome = spawn(
     findChrome(),

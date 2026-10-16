@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@claudio/shared';
+import type { ClaudioEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { agentFileContent, RECORDS_IN_ENGLISH, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
 import { SCOPE_AND_COMPLETION } from '../src/prompt-rules.ts';
@@ -21,14 +21,14 @@ async function withCore(fn: (core: Core) => Promise<void>): Promise<void> {
 }
 
 async function project(core: Core, template: ProjectTemplateId | null = 'software', modules?: ProjectModule[]): Promise<Project> {
-  const path = mkdtempSync(join(tmpdir(), 'agentry-team-'));
+  const path = mkdtempSync(join(tmpdir(), 'claudio-team-'));
   return core.importProject({ path, name: 'Shop', ...(template ? { template } : {}), ...(modules ? { modules } : {}) });
 }
 
 const agentFile = (p: Project, agent: string) => join(p.path, '.claude', 'agents', `${agent}.md`);
 
-async function feed(core: Core, fn: () => Promise<unknown>): Promise<AgentryEvent[]> {
-  const events: AgentryEvent[] = [];
+async function feed(core: Core, fn: () => Promise<unknown>): Promise<ClaudioEvent[]> {
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   try {
     await fn();
@@ -125,7 +125,7 @@ test("an agent file saved or deleted through the resources is announced as the t
     await core.team.fromTemplate(p.id, { roles: ['qa'] });
     const scope = await core.resolveScope(p.id);
     const settle = () => new Promise((r) => setTimeout(r, 50));
-    const fileEvents = (events: AgentryEvent[]) => events.filter((e) => e.type === 'team.changed' && e.action === 'file');
+    const fileEvents = (events: ClaudioEvent[]) => events.filter((e) => e.type === 'team.changed' && e.action === 'file');
 
     const saved = await feed(core, async () => {
       await core.resources.save(scope, 'agents', 'qa', '---\nname: qa\ndescription: Mine\n---\nMine.\n');

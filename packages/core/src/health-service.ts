@@ -4,7 +4,7 @@ import type { ChatManager, ChatRuntime } from './chats.ts';
 import { commandKind, usualDuration, type UsualDuration } from './commands.ts';
 import type { Db } from './db.ts';
 import { runRef } from './event-sources.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { git, headCommit, isGitRepo } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
@@ -239,7 +239,7 @@ export interface TaskContext {
 export interface HealthMonitorDeps {
   runtime: ChatManager;
   health: HealthService;
-  emit: (event: AgentryEventInput) => void;
+  emit: (event: ClaudioEventInput) => void;
   /** The task a chat works for, when it is a worker of a graph */
   taskOf: (chat: ChatRuntime) => TaskContext | null;
   /** Told when an announced change leaves a chat `bad`, with its stuck signals worst first: what wakes the supervisor */

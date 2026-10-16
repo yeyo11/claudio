@@ -11,7 +11,7 @@ import type {
   TerminalUnavailableReason,
   UpdateTerminalSettingsRequest,
 } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import { processEntry, processTable, terminateTree } from '../processes.ts';
 import type { SecretVault } from '../secret-vault.ts';
 import { resolveTerminalCwd, type CwdLookup } from './cwd.ts';
@@ -76,7 +76,7 @@ export interface TerminalServiceDeps {
   store: TerminalStore;
   settings: TerminalSettingsStore;
   lookup: CwdLookup;
-  emit: (event: AgentryEventInput) => void;
+  emit: (event: ClaudioEventInput) => void;
   vault?: Pick<SecretVault, 'get'> | null;
   version?: string;
   /** The server's environment, the base of every shell's; `process.env` by default */

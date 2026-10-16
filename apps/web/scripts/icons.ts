@@ -62,7 +62,7 @@ function chrome(): string {
 
 const bin = chrome();
 const source = readFileSync(join(publicDir, 'favicon.svg'), 'utf8');
-const work = mkdtempSync(join(tmpdir(), 'agentry-icons-'));
+const work = mkdtempSync(join(tmpdir(), 'claudio-icons-'));
 mkdirSync(iconsDir, { recursive: true });
 
 try {

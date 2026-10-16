@@ -132,7 +132,7 @@
     "body": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol, su modelo y lo que puede escribir, así que también trabaja desde la terminal. El asistente lee el proyecto y te propone un equipo; tú lo aceptas miembro a miembro.",
     "foot": "Proponer abre un chat del CLI que solo lee el proyecto"
   },
-  "agentry": {
+  "claudio": {
     "title": "Asistente",
     "hello": "Hola, soy el asistente de Claudio",
     "sub": "Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso.",

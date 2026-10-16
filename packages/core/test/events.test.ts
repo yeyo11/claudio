@@ -4,16 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration } from '@claudio/shared';
+import type { ClaudioEvent, Orchestration } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
 import { OrchestrationEventTracker, RunEventPublisher, SessionsWatcher } from '../src/event-sources.ts';
-import { EventBus, type AgentryEventInput } from '../src/events.ts';
+import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { ChatManager, type ChatRuntime } from '../src/chats.ts';
 import { tempConfig } from './helpers.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', import.meta.url));
-const ping = (title: string): AgentryEventInput => ({ type: 'sessions.changed', title });
+const ping = (title: string): ClaudioEventInput => ({ type: 'sessions.changed', title });
 
 async function until<T>(read: () => T | undefined | null | false, what: string, ms = 4000): Promise<T> {
   for (let i = 0; i < ms / 20; i++) {
@@ -30,8 +30,8 @@ const types = (events: Array<{ type: string }>) => events.map((e) => e.type);
 
 test('events get increasing ids and a timestamp, and reach every subscriber until it leaves', () => {
   const bus = new EventBus();
-  const a: AgentryEvent[] = [];
-  const b: AgentryEvent[] = [];
+  const a: ClaudioEvent[] = [];
+  const b: ClaudioEvent[] = [];
   const stopA = bus.subscribe((e) => a.push(e));
   bus.subscribe((e) => b.push(e));
 
@@ -188,7 +188,7 @@ function summary(over: Partial<ChatRuntime> = {}): ChatRuntime {
 }
 
 test('a chatty run costs its clients one update per window, but a status change is not delayed', async () => {
-  const seen: AgentryEventInput[] = [];
+  const seen: ClaudioEventInput[] = [];
   const publisher = new RunEventPublisher((e) => seen.push(e), 40);
   publisher.baseline(summary());
 
@@ -207,7 +207,7 @@ test('a chatty run costs its clients one update per window, but a status change 
 });
 
 test('a run ending is announced once, with why', () => {
-  const seen: AgentryEventInput[] = [];
+  const seen: ClaudioEventInput[] = [];
   const publisher = new RunEventPublisher((e) => seen.push(e));
   publisher.baseline(summary());
   publisher.observe(summary({ status: 'failed', error: 'exit code 1', pid: null }));
@@ -232,7 +232,7 @@ test('a run ending is announced once, with why', () => {
 });
 
 test('delegated work is announced when it starts and when it ends, however it got there', () => {
-  const seen: AgentryEventInput[] = [];
+  const seen: ClaudioEventInput[] = [];
   const publisher = new RunEventPublisher((e) => seen.push(e), 5);
   publisher.baseline(summary());
   const task = { id: 't1', type: 'local_bash', description: 'tail -f log', status: 'running', toolUseId: null, startedAt: '', endedAt: null, summary: null };
@@ -253,7 +253,7 @@ test('delegated work is announced when it starts and when it ends, however it go
 });
 
 test('a workflow ending names the agent that ended it, so a link can open that agent', () => {
-  const seen: AgentryEventInput[] = [];
+  const seen: ClaudioEventInput[] = [];
   const publisher = new RunEventPublisher((e) => seen.push(e), 5);
   publisher.baseline(summary());
   const agent = (index: number, state: string, agentId: string | null) => ({
@@ -283,7 +283,7 @@ test('a run announces itself, its work and its end through the manager', async (
   const runs = new ChatManager(config, db);
   const bus = new EventBus();
   runs.bus = bus;
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   bus.subscribe((e) => seen.push(e));
 
   const line = (o: unknown) => JSON.stringify(o);
@@ -329,7 +329,7 @@ test('a run announces itself, its work and its end through the manager', async (
 test('a question, a plan and a tool call each say what the run is waiting for, and how it was settled', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const core = new Core(config);
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   core.events.subscribe((e) => seen.push(e));
 
   for (const [tool, reason] of [['AskUserQuestion', 'question'], ['ExitPlanMode', 'plan'], ['Bash', 'permission']] as const) {
@@ -372,7 +372,7 @@ test('an orchestration announces its status, each task, and a merge conflict onc
   const conflicted = orchestration({
     status: 'completed',
     tasks: base.tasks.map((t) => ({ ...t, status: 'completed' as const })),
-    integration: { branch: 'agentry/graph', worktree: null, status: 'conflicted', merged: [], conflicts: [{ taskId: 'a', paths: ['x.ts'] }], commit: null, error: null, integratorRunId: null },
+    integration: { branch: 'claudio/graph', worktree: null, status: 'conflicted', merged: [], conflicts: [{ taskId: 'a', paths: ['x.ts'] }], commit: null, error: null, integratorRunId: null },
   });
   const events = tracker.observe([conflicted]);
   assert.deepEqual(types(events), ['orchestration.updated', 'orchestration.task', 'orchestration.conflict']);
@@ -387,11 +387,11 @@ test('an orchestration announces its status, each task, and a merge conflict onc
 // ---------- sessions on disk ----------
 
 test('a write under the projects directory becomes one sessions.changed, and only while someone listens', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-watch-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-watch-'));
   mkdirSync(join(dir, '-proj'));
   const bus = new EventBus();
   const watcher = new SessionsWatcher(dir, bus, 40);
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
 
   writeFileSync(join(dir, '-proj', 'before.jsonl'), '{}\n');
   await new Promise((r) => setTimeout(r, 150));

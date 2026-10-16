@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import {
-  type AgentryEvent,
+  type ClaudioEvent,
   type CreateJournalEntryRequest,
   type JournalEntry,
   type JournalEntryKind,
@@ -13,7 +13,7 @@ import {
 import type { Db } from './db.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, pathSegments } from './document-paths.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 import { actorOf } from './work-item-rows.ts';
 import { PERSON, WorkItemError } from './work-item-validation.ts';
@@ -43,7 +43,7 @@ export const JOURNAL_PAGE_MAX = 200;
 export interface JournalServiceDeps {
   db: Db;
   /** Told of every change once it is committed */
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   /** An item as an entry's chip shows it; null once it is gone */
   item?: (itemId: string) => WorkItemRef | null;
   /** The chats and orchestration tasks that worked on an item, for its `closed` entry */
@@ -203,7 +203,7 @@ export class JournalService {
    */
   private hand(rows: readonly EntryRow[], order = 'newest first'): JournalHandoff {
     const header =
-      `# Project journal\n\nAgentry's record of this project: decisions taken and work items closed, ${order}. The whole team shares it. Do not edit it: propose what the team should remember in your result's \`memoryProposals\`.\n`;
+      `# Project journal\n\nClaudio's record of this project: decisions taken and work items closed, ${order}. The whole team shares it. Do not edit it: propose what the team should remember in your result's \`memoryProposals\`.\n`;
     const lines: string[] = [];
     // The block that marks the entries, and its note, count against the cap as well
     let bytes = Buffer.byteLength(header) + Buffer.byteLength(`${pasted('', '00000000')}\n\n${PASTED_NOTE}\n`);
@@ -279,7 +279,7 @@ export class JournalService {
    * Hears the feed for items reaching `done`. Whoever moved it is who approved it: under the flow
    * only a person does (decision 29); an orchestration node that completes can too, and says so.
    */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     if (event.type !== 'workitem.moved' || event.status !== 'done' || event.previousStatus === 'done') return;
     try {
       this.recordClosed(event.itemId, event.actor);

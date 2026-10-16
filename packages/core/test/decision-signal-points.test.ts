@@ -327,7 +327,7 @@ test('notification.urgency: on the CLI an active point only records, and the pus
 // ---------- flow.scope-drift ----------
 
 function branchRepo(): { repo: string; place: { worktree: null; branch: string } } {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-drift-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-drift-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');

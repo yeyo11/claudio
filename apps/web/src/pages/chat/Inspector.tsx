@@ -26,7 +26,7 @@ const TAB_ICONS: Record<InspectorTab, LucideIcon> = { summary: FileText, activit
 
 // ---------- open or closed, remembered ----------
 
-const STORAGE_KEY = 'agentry-chat-inspector';
+const STORAGE_KEY = 'claudio-chat-inspector';
 const listeners = new Set<() => void>();
 
 function storedOpen(): boolean {

@@ -34,7 +34,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function claudeRig() {
   const config = tempConfig();
   const root = join(config.dataDir, '..');
-  const scratch = mkdtempSync(join(tmpdir(), 'agentry-delivery-'));
+  const scratch = mkdtempSync(join(tmpdir(), 'claudio-delivery-'));
   const queueLog = join(scratch, 'queue.jsonl');
   const db = new Db(config);
   const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_QUEUE)]);

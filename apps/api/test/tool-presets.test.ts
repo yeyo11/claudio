@@ -14,7 +14,7 @@ let core: Core;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-presets-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-presets-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

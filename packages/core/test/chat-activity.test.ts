@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, ChatActivity } from '@claudio/shared';
+import type { ClaudioEvent, ChatActivity } from '@claudio/shared';
 import { activityKey, activityTarget, ChatActivityTracker } from '../src/chat-activity.ts';
 import { ChatManager, type ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
@@ -129,7 +129,7 @@ function runtime(activity: ChatActivity | null): ChatRuntime {
 }
 
 test('what a chat is doing goes out at most once per window, and the window ends with the newest of them', async () => {
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   const bus = new EventBus();
   bus.observe((e) => seen.push(e));
   const publisher = new RunEventPublisher((e) => bus.emit(e), 250, 60);
@@ -178,7 +178,7 @@ test('a command the CLI has not answered is what the chat reports doing, on its 
   const runs = new ChatManager(config, db);
   const bus = new EventBus();
   runs.bus = bus;
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   bus.observe((e) => seen.push(e));
 
   const chat = runs.start({ prompt: 'BASH pnpm build' });
@@ -203,7 +203,7 @@ test('a text block being streamed is reported as writing, from the partial event
   const runs = new ChatManager(config, db);
   const bus = new EventBus();
   runs.bus = bus;
-  const seen: AgentryEvent[] = [];
+  const seen: ClaudioEvent[] = [];
   bus.observe((e) => seen.push(e));
 
   const turn = join(config.dataDir, 'writing.jsonl');

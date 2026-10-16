@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   CONVENTIONAL_TYPES,
   WORK_ITEM_PR_CAUSE,
-  type AgentryEvent,
+  type ClaudioEvent,
   type BoardCheckout,
   type ChangeRequestFixOrigin,
   type ChangeRequestThreads,
@@ -938,7 +938,7 @@ export class PullRequestService {
   }
 
   /** Everything on the feed goes through here: a person's move drops a remembered approval. */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     try {
       if (event.type !== 'workitem.moved' || event.status === event.previousStatus) return;
       if (event.actor.kind !== 'person' || event.cause?.event.startsWith('pr.')) return;

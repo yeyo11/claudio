@@ -58,7 +58,7 @@ test('explorer refuses traversal, symlink escapes, secrets and binaries', async 
 
 test('a project scope on the config dir hides the credentials as the user scope does', async () => {
   // A home-shaped layout, because the bypass is importing $HOME: there `<project>/.claude` *is* the config dir
-  const home = mkdtempSync(join(tmpdir(), 'agentry-home-'));
+  const home = mkdtempSync(join(tmpdir(), 'claudio-home-'));
   const config = loadConfig({
     CLAUDE_CONFIG_DIR: join(home, '.claude'),
     CLAUDIO_WORKSPACE_DIR: join(home, 'workspace'),

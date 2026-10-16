@@ -20,7 +20,7 @@ let core: Core;
 let workspace: string;
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-stuck-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-stuck-'));
   workspace = join(root, 'workspace');
   mkdirSync(workspace, { recursive: true });
   core = new Core(

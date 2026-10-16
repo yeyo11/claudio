@@ -1,7 +1,7 @@
 // The Updates card inside the desktop window: download with progress, restart, the question when
 // work is live, and the explanation when the app cannot update itself. Electron is not in the
 // harness, so a script that runs before the app stands in for the preload's
-// `window.agentryDesktop.updates`, answering the way apps/desktop/src/updater.ts does; the card,
+// `window.claudioDesktop.updates`, answering the way apps/desktop/src/updater.ts does; the card,
 // its parsers and its dialog are the real ones.
 
 const CARD = '[data-testid=updates-card]';
@@ -17,7 +17,7 @@ const fakeShell = (initial) => `(() => {
     for (const listener of listeners) listener(state);
   };
   window.__updates = updates;
-  window.agentryDesktop = {
+  window.claudioDesktop = {
     platform: 'linux',
     version: '0.0.0',
     updates: {

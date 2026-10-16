@@ -17,7 +17,7 @@ const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'co
 const task = { id: 'a', name: 'a', prompt: 'do it' };
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-effort-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-effort-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -71,7 +71,7 @@ test('a schedule refuses an unknown effort in its target and keeps a valid one',
 });
 
 test('a team member keeps its effort, and one with an unknown level is refused', async () => {
-  const path = mkdtempSync(join(tmpdir(), 'agentry-api-effort-project-'));
+  const path = mkdtempSync(join(tmpdir(), 'claudio-api-effort-project-'));
   const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Crew', template: 'software', modules: ['board', 'team'] }) });
   assert.equal(imported.statusCode, 201, imported.body);
   const project = imported.json<Project>();
@@ -85,7 +85,7 @@ test('a team member keeps its effort, and one with an unknown level is refused',
 });
 
 test('an assistant run refuses an unknown effort', async () => {
-  const path = mkdtempSync(join(tmpdir(), 'agentry-api-effort-assistant-'));
+  const path = mkdtempSync(join(tmpdir(), 'claudio-api-effort-assistant-'));
   const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Helper', modules: ['board'] }) });
   const project = imported.json<Project>();
   const res = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/assistant/runs`, ...json({ kind: 'work-items', effort: 'turbo' }) });

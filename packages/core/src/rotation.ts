@@ -4,7 +4,7 @@ import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { Db } from './db.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
 import { defaultRotationSettings } from './providers/settings.ts';
 
@@ -50,7 +50,7 @@ export interface RotationDeps {
   projectProviders: (projectId: string) => ProjectProvidersSettings | null;
   /** The project a directory belongs to */
   projectOf: (dir: string) => string | null;
-  emit: (event: AgentryEventInput) => void;
+  emit: (event: ClaudioEventInput) => void;
   /** The run, task or item a chat works for; null for a person's chat */
   work?: (chatId: string) => ChatWork | null;
   /** A run held to a schema is waited on only when whoever started it waits for the chat (a flow run) */

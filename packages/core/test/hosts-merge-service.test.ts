@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { Check, MergeMethod } from '@claudio/shared';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { Db } from '../src/db.ts';
 import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts/code-host.ts';
 import type { HostResult } from '../src/hosts/exec.ts';
@@ -77,7 +77,7 @@ interface Harness {
   sleeps: number[];
   clock: { now: number };
   merged: string[];
-  events: AgentryEventInput[];
+  events: ClaudioEventInput[];
   /** The detail of the first audit row */
   detail: () => string | null;
   /** The most recent rule whose pattern matches the call's line wins */
@@ -103,7 +103,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
   const calls: string[] = [];
   const sleeps: number[] = [];
   const merged: string[] = [];
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const clock = { now: Date.parse('2026-10-01T12:00:00Z') };
   const run = async (call: HostCall): Promise<HostResult> => {
     const line = `${call.cli} ${call.args.join(' ')}`;
@@ -801,7 +801,7 @@ test('the person turning auto-merge off themselves is not Claudio\'s doing', asy
   assert.equal((await h.service.disarm('cr-1', PERSON)).autoMergeOff, null);
 });
 
-test('arming what is already armed writes no row; Update from base records the person who clicked, not agentry', async () => {
+test('arming what is already armed writes no row; Update from base records the person who clicked, not claudio', async () => {
   const h = harness('github', { updateFromBase: async () => ({ conflicts: [] }) });
   let armed = true;
   h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', autoMergeRequest: armed ? armedOn : null })));

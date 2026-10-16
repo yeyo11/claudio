@@ -37,7 +37,7 @@ const alive = (pid) => {
 
 /** A chat with the fake: `send` writes a line, `next(match)` waits for the first event after the last one read that matches. */
 function chat(env = {}, { args = [], setup } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-fake-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-'));
   const logFile = join(dir, 'log.jsonl');
   setup?.(dir);
   const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...args], {
@@ -256,7 +256,7 @@ test('an interrupt during a read ends the turn at once', async () => {
 });
 
 test('a message holding a key of the scripts file is played as its script', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-fake-cli-scripts-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-scripts-'));
   const scripts = join(dir, 'scripts.json');
   writeFileSync(scripts, JSON.stringify({ 'Tidy the imports': 'say: Sorted them.\nrun: echo sorted' }));
   const c = chat({ CLAUDIO_FAKE_CLI_SCRIPTS: scripts });

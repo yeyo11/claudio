@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@claudio/shared';
+import type { ClaudioEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { previewCron, Scheduler, type ScheduleLauncher } from '../src/schedules.ts';
 import { tempConfig } from './helpers.ts';
@@ -33,7 +33,7 @@ function rig(config = tempConfig(), start = '2026-09-20T08:00:00Z') {
     running: ({ chatId, orchestrationId }) => state.live.has(chatId ?? orchestrationId ?? ''),
   };
   const bus = new EventBus();
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   bus.subscribe((e) => events.push(e));
   const open = () => {
     const scheduler = new Scheduler(config, launcher, () => state.now);
@@ -43,8 +43,8 @@ function rig(config = tempConfig(), start = '2026-09-20T08:00:00Z') {
   return { config, state, bus, events, scheduler: open(), open };
 }
 
-const changes = (events: AgentryEvent[]) => events.filter((e): e is ScheduleChangedEvent => e.type === 'schedule.changed');
-const fires = (events: AgentryEvent[]) => events.filter((e): e is ScheduleFiredEvent => e.type === 'schedule.fired');
+const changes = (events: ClaudioEvent[]) => events.filter((e): e is ScheduleChangedEvent => e.type === 'schedule.changed');
+const fires = (events: ClaudioEvent[]) => events.filter((e): e is ScheduleFiredEvent => e.type === 'schedule.fired');
 
 const daily = { name: 'daily', cron: '0 9 * * *', timezone: 'UTC', target: chatTarget };
 

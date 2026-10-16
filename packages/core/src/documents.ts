@@ -15,7 +15,7 @@ import type {
 import { DOCUMENT_KINDS } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { DocumentPathError, documentPath, isMarkdown, rootSegments } from './document-paths.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import type { WorkItemContext, WorkItemService } from './work-items.ts';
 
 /**
@@ -78,7 +78,7 @@ export interface DocumentServiceDeps {
   place: (projectId: string, access: 'read' | 'write') => Promise<DocumentsPlace>;
   /** The item's project, after checking the item may be changed (its project's Board module is on) */
   itemProject: (itemId: string) => Promise<string>;
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
 }
 
 /** How a tie is made. A person ties by hand in `reference`; the flow ties what a run wrote. */
@@ -201,7 +201,7 @@ export class DocumentService {
     return this.deps.items.documentTies(projectId, rel).map((t) => t.tie);
   }
 
-  private emit(event: AgentryEventInput): void {
+  private emit(event: ClaudioEventInput): void {
     try {
       this.deps.emit?.(event);
     } catch {

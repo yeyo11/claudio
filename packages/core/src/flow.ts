@@ -16,8 +16,8 @@ import {
   MAX_CONTINUATIONS,
   MAX_FLOW_RESTARTS,
   WORK_ITEM_STATUSES,
-  type AgentryEvent,
-  type AgentryLanguage,
+  type ClaudioEvent,
+  type ClaudioLanguage,
   type ChatActivity,
   type DecisionPointId,
   type DocumentKind,
@@ -62,7 +62,7 @@ import {
 import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { RECORDS_IN_ENGLISH, roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { openWaitOf } from './rotation.ts';
@@ -259,8 +259,8 @@ export interface FlowDeps {
    */
   uncommitted?: (dir: string) => string[];
   /** The person's language, which the first line of a run's chat is written in; English without it */
-  language?: () => AgentryLanguage;
-  emit: (event: AgentryEventInput) => void;
+  language?: () => ClaudioLanguage;
+  emit: (event: ClaudioEventInput) => void;
   /** The item's pull request, when approving one updated its branch into a conflict (docs/plans/work-item-pull-requests.md) */
   pullRequests?: FlowPullRequests;
   /** The decision engine; without it every decision point is off and the flow behaves as it always did */
@@ -597,7 +597,7 @@ function checkCommandText(c: CheckCommand): string {
 }
 
 /** The language a run's chat is titled in, as it was stored; English for a run stored before it was kept. */
-function runLanguage(row: Pick<RunRow, 'language'>): AgentryLanguage {
+function runLanguage(row: Pick<RunRow, 'language'>): ClaudioLanguage {
   return CLAUDIO_LANGUAGES.find((language) => language === row.language) ?? 'en';
 }
 
@@ -606,7 +606,7 @@ function runLanguage(row: Pick<RunRow, 'language'>): AgentryLanguage {
  * language: the member's role, the item's key and its title (`Desarrollador · AGN-12 · Fix the cart`).
  * The instructions for Claude after it stay in English.
  */
-export function flowTitle(item: Pick<WorkItem, 'key' | 'title'>, role: string, language: AgentryLanguage): string {
+export function flowTitle(item: Pick<WorkItem, 'key' | 'title'>, role: string, language: ClaudioLanguage): string {
   const title = item.title.replace(/\s+/g, ' ').trim();
   return [roleTitleIn(role, language), item.key, ...(title ? [title] : [])].join(' · ');
 }
@@ -705,7 +705,7 @@ export function flowPrompt(
   extra: {
     documentsPath: string;
     rejection: string | null;
-    language?: AgentryLanguage;
+    language?: ClaudioLanguage;
     design?: DesignSources | null;
     conflict?: { base: string; paths: readonly string[] } | null;
     /** A fix of failing checks: the section {@link checksFixPrompt} wrote */
@@ -1074,7 +1074,7 @@ export class FlowService {
   // ---------- what starts it ----------
 
   /** Everything on the feed goes through here; handlers swallow their failures, as they run inside someone else's event. */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     try {
       switch (event.type) {
         case 'run.limitWaiting':

@@ -1,5 +1,5 @@
 /* Providers (docs/plans/multi-provider.md, P2): readiness rows, first run, order and binary. Ported
-   from the validated prototype (agentry-ds.css, "Providers"). Nothing here is live and nothing takes
+   from the validated prototype (claudio-ds.css, "Providers"). Nothing here is live and nothing takes
    a gradient: the state is a badge with its word, the remedy a neutral button, and the only gradient
    on a screen is the one the screen already had. */
 .prov-row {

@@ -21,7 +21,7 @@ process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-flow-cli-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'README.md'), '# Shop\n');

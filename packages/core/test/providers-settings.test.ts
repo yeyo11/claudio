@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { ProvidersSettingsStore } from '../src/providers/settings.ts';
 
 const store = (ids = ['a', 'b', 'c']) => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'agentry-providers-settings-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'claudio-providers-settings-'));
   return { dataDir, store: new ProvidersSettingsStore({ dataDir }, ids) };
 };
 

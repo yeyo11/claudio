@@ -19,7 +19,7 @@ let root: string;
 let project: Project;
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-project-webhooks-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-project-webhooks-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

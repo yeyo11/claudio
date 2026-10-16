@@ -1,4 +1,4 @@
-import type { AgentryEvent, HostReason, IssueRef, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, WorkItem } from '@claudio/shared';
+import type { ClaudioEvent, HostReason, IssueRef, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, WorkItem } from '@claudio/shared';
 import { reasonOf } from '../hosts/classify.ts';
 import type { HostCall, HostRepo } from '../hosts/code-host.ts';
 import type { HostResult } from '../hosts/exec.ts';
@@ -76,7 +76,7 @@ export class TrackerSyncService {
   constructor(private readonly deps: TrackerSyncDeps) {}
 
   /** Everything on the feed goes through here: an item that moved to a mapped column is synced. */
-  observe(event: AgentryEvent): void {
+  observe(event: ClaudioEvent): void {
     if (event.type !== 'workitem.moved' || event.status === event.previousStatus) return;
     const { status, itemId } = event;
     if (status !== 'in_progress' && status !== 'in_review') return;

@@ -1,11 +1,11 @@
 import type { ApiClient, Query } from './client.ts';
 import { ApiError } from './client.ts';
-import type { AgentryMcpToolName } from './names.ts';
+import type { ClaudioMcpToolName } from './names.ts';
 import { accountRows, boardRows, chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, projectRows, providerRows, teamRows } from './fields.ts';
 import type { Property, Schema } from './schema.ts';
 
 export interface Tool {
-  name: AgentryMcpToolName;
+  name: ClaudioMcpToolName;
   description: string;
   inputSchema: Schema;
   run(args: Record<string, unknown>, api: ApiClient): Promise<unknown>;

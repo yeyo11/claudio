@@ -8,7 +8,7 @@ import { installDirs, nvmBinDirs, probeLoginShellPath, resolveCommand, resolveUs
 let root: string;
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agentry-path-'));
+  root = await mkdtemp(join(tmpdir(), 'claudio-path-'));
 });
 after(() => rm(root, { recursive: true, force: true }));
 

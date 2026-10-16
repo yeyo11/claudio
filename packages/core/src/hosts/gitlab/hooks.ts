@@ -30,7 +30,7 @@ const api = (repo: HostRepo, args: string[], kind: HostCall['kind'], input?: str
  * the same key without asking anyone.
  */
 export function signingTokenOf(secret: string): string {
-  return `whsec_${createHmac('sha256', secret).update('agentry gitlab signing token').digest('base64')}`;
+  return `whsec_${createHmac('sha256', secret).update('claudio gitlab signing token').digest('base64')}`;
 }
 
 const body = (hook: { url: string; secret: string }): Record<string, unknown> => ({

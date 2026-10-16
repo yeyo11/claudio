@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import type {
-  AgentryEvent,
+  ClaudioEvent,
   AuditPage,
   Board,
   Milestone,
@@ -29,7 +29,7 @@ let core: Core;
 let root: string;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const scratch = () => mkdtempSync(join(tmpdir(), 'agentry-api-wi-'));
+const scratch = () => mkdtempSync(join(tmpdir(), 'claudio-api-wi-'));
 
 async function importProject(name: string, modules: string[] = ['board']): Promise<Project> {
   const res = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name, modules }) });
@@ -44,8 +44,8 @@ async function createItem(projectId: string, body: Record<string, unknown>): Pro
 }
 
 /** Collects what reaches the feed while `fn` runs. */
-async function feed(fn: () => Promise<void>): Promise<AgentryEvent[]> {
-  const events: AgentryEvent[] = [];
+async function feed(fn: () => Promise<void>): Promise<ClaudioEvent[]> {
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   try {
     await fn();
@@ -56,7 +56,7 @@ async function feed(fn: () => Promise<void>): Promise<AgentryEvent[]> {
 }
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-work-items-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-work-items-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

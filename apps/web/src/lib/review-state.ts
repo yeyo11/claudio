@@ -5,7 +5,7 @@ import type { ChangedFile } from '@claudio/shared';
 
 export type ReviewMode = 'reading' | 'unified' | 'split';
 
-export const MODE_KEY = 'agentry-diff-mode';
+export const MODE_KEY = 'claudio-diff-mode';
 const SEEN_PREFIX = 'claudio-review-seen:v1:';
 /** Sources whose seen files are kept; the oldest are forgotten past this */
 const SEEN_SOURCES = 60;

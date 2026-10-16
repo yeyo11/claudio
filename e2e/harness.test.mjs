@@ -50,7 +50,7 @@ let nextPort = 8900 + (process.pid % 25) * PORTS_PER_RUN * 2;
  * called once the spec says it started (a file it writes), while the browser is up.
  */
 async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}, beforeEnd }) {
-  const dir = mkdtempSync(join(resolve(tmpdir()), 'agentry-harness-test-'));
+  const dir = mkdtempSync(join(resolve(tmpdir()), 'claudio-harness-test-'));
   const tmp = join(dir, 'tmp');
   const specs = join(dir, 'specs');
   mkdirSync(tmp);
@@ -68,7 +68,7 @@ async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}
   child.stdout.on('data', (d) => (output += d));
   child.stderr.on('data', (d) => (output += d));
   const exited = new Promise((r) => child.on('exit', (code, signal) => r({ code, signal })));
-  const profiles = () => processesMatching(join(tmp, 'agentry-e2e-chrome-'));
+  const profiles = () => processesMatching(join(tmp, 'claudio-e2e-chrome-'));
   let during = [];
   if (beforeEnd) {
     // Booting a whole wrapper and a browser takes well over 30 s when CI runs the other suites beside
@@ -89,7 +89,7 @@ async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}
   }
   const answering = await Promise.all(Array.from({ length: PORTS_PER_RUN }, (_, i) => fetch(`http://127.0.0.1:${port + i}/api/system`).then(() => true, () => false)));
   const survivors = { chrome: alive(profiles()), server: answering.some(Boolean) };
-  const sandboxLeft = readdirSync(tmp).filter((e) => e.startsWith('agentry-e2e-') && !e.startsWith('agentry-e2e-chrome-'));
+  const sandboxLeft = readdirSync(tmp).filter((e) => e.startsWith('claudio-e2e-') && !e.startsWith('claudio-e2e-chrome-'));
   rmSync(dir, { recursive: true, force: true });
   return { ...result, output, during, survivors, sandboxLeft };
 }

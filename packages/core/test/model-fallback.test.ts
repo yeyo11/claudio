@@ -13,7 +13,7 @@ import { loadConfig } from '../src/paths.ts';
 import { tempConfig } from './helpers.ts';
 
 function store() {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-fallbacks-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-fallbacks-'));
   const config = loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(root, 'claude'), CLAUDIO_WORKSPACE_DIR: join(root, 'ws'), CLAUDIO_DATA_DIR: join(root, 'data') });
   return { fallbacks: new ModelFallbackStore(config), dir: config.dataDir };
 }

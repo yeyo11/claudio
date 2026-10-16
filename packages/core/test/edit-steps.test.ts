@@ -21,7 +21,7 @@ const result = (uuid: string, id: string, toolUseResult: unknown, isError = fals
 
 /** A checkout the chat works in a subdirectory of, so a step's path is measured from its top level. */
 function checkout(): { root: string; cwd: string } {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'agentry-steps-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'claudio-steps-')));
   execFileSync('git', ['-C', root, 'init', '-q', '-b', 'main']);
   const cwd = join(root, 'sub');
   mkdirSync(cwd);

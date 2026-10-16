@@ -43,7 +43,7 @@ function seed(root, configDir) {
 }
 
 export default async ({ page, api, check }) => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-e2e-large-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-e2e-large-'));
   let seeded = null;
   const rows = () => page.eval(`return document.querySelectorAll('.changes-review .diff-row:not(.diff-split-head)').length`);
   try {

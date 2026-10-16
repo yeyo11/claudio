@@ -21,7 +21,7 @@ test('parseCount takes a whole number of 1 or more', () => {
 });
 
 test('loadTimings treats a missing or broken table as empty and drops bad entries', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-shards-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-shards-test-'));
   try {
     assert.deepEqual(loadTimings(join(dir, 'missing.json')), {});
     writeFileSync(join(dir, 'broken.json'), '{');

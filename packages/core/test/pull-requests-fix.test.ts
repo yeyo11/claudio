@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, ChangeRequestChecks, Check, Orchestration, WorkItem } from '@claudio/shared';
+import type { ClaudioEvent, ChangeRequestChecks, Check, Orchestration, WorkItem } from '@claudio/shared';
 import { checksFixPrompt, flowPrompt, flowResultSchema, parseResult } from '../src/flow.ts';
 import type { ChecksService } from '../src/hosts/checks-service.ts';
 import type { ChangeRequestRead } from '../src/hosts/code-host.ts';
@@ -332,7 +332,7 @@ test("a work run's prompt gains the fix section, and its result schema and parse
 test("an orchestration's fix runs the fixer in the integration worktree and always waits for Push the fix", async () => {
   const s = setup();
   try {
-    const branch = 'agentry/graph-integration';
+    const branch = 'claudio/graph-integration';
     sh(s.r.project, 'branch', '-f', branch, 'main');
     sh(s.r.project, 'checkout', '-q', branch);
     write(s.r.project, 'graph.ts', 'export const graph = 1;\n');
@@ -353,7 +353,7 @@ test("an orchestration's fix runs the fixer in the integration worktree and alwa
     } as unknown as Orchestration;
     s.db.saveOrchestrations([orch]);
     const st = stub();
-    const events: AgentryEvent[] = [];
+    const events: ClaudioEvent[] = [];
     const started: Array<{ cwd: string; prompt: string }> = [];
     const disarmed: string[] = [];
     let finish: (v: { ok: boolean }) => void = () => undefined;
@@ -361,7 +361,7 @@ test("an orchestration's fix runs the fixer in the integration worktree and alwa
     const service = new OrchestrationPullRequestService({
       db: s.db,
       codeHost: (p) => s.service.codeHost(p),
-      emit: (e) => events.push({ ...e, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent),
+      emit: (e) => events.push({ ...e, id: events.length + 1, at: new Date().toISOString() } as ClaudioEvent),
       env: { PATH: path, FAKE_GH_STATE: s.r.state, FAKE_GLAB_STATE: s.r.glabState },
       searchPath: async () => path,
       run: (call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, retry: { sleep: async () => undefined, ...(call.class === 'probe' ? { delaysMs: [] } : {}) } }),

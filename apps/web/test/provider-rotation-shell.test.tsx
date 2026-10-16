@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, ProviderLimit, ProviderStatus } from '@claudio/shared';
+import type { ClaudioEvent, ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -169,7 +169,7 @@ test('a wait is worded in the notifications, in the active language', async () =
   const { notificationsFor } = await import('../src/lib/notifications-model.ts');
   await i18n.changeLanguage('en');
   const base = { id: 1, at: '2026-10-02T12:00:00Z', runId: 'r', runName: 'copy', sessionId: null, orchestrationId: null, internal: false };
-  const waiting = notificationsFor({ type: 'run.limitWaiting', ...base, title: 'copy waits', provider: 'claude-code', resetsAt: null } as AgentryEvent);
+  const waiting = notificationsFor({ type: 'run.limitWaiting', ...base, title: 'copy waits', provider: 'claude-code', resetsAt: null } as ClaudioEvent);
   assert.equal(waiting[0]?.body, 'It goes on when the limit resets; no reset time is known.');
   await i18n.changeLanguage('en');
 });

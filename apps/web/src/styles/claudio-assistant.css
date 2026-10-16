@@ -1,6 +1,6 @@
 /*
- * The Claudio assistant (pages/agentry-assistant): the references `DesktopAsistenteAgentry` and
- * `MobileAsistenteAgentry`. The composer and the transcript are the chat's own; this lays out the
+ * The Claudio assistant (pages/claudio-assistant): the references `DesktopAsistenteClaudio` and
+ * `MobileAsistenteClaudio`. The composer and the transcript are the chat's own; this lays out the
  * greeting, the starters and the context chip.
  */
 

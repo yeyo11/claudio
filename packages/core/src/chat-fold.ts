@@ -1,5 +1,5 @@
 import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@claudio/shared';
-import { isAgentryMcpWriteTool } from '@claudio/mcp';
+import { isClaudioMcpWriteTool } from '@claudio/mcp';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
@@ -349,7 +349,7 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
     session?.answerPermission(question.id, { behavior: 'deny', message: 'Nobody is answering permission prompts for this chat' });
     return;
   }
-  const isWrite = isAgentryMcpWriteTool(question.toolName);
+  const isWrite = isClaudioMcpWriteTool(question.toolName);
   chat.pendingPrompts++;
   chat.activity.setPendingPrompts(chat.pendingPrompts, now());
   void broker

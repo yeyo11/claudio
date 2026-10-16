@@ -30,7 +30,7 @@ const TEXT = 'one\ntwo\nthree\nfour\nfive\nsix\n';
 
 /** A repository with a few files, an identity, and one commit: what a user's project looks like. */
 function repoWithFiles(): { repo: string; base: string; git: (...args: string[]) => string } {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-changes-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-changes-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -460,7 +460,7 @@ test('a binary file is marked, committed or not, and its diff is the line git pr
 
 test("a work item's changes in a project that is a linked worktree leave out the project's own commits", () => {
   const { repo, base, git } = repoWithFiles();
-  const project = join(mkdtempSync(join(tmpdir(), 'agentry-linked-')), 'feature');
+  const project = join(mkdtempSync(join(tmpdir(), 'claudio-linked-')), 'feature');
   git('worktree', 'add', '-q', '-b', 'feature', project);
   writeFileSync(join(project, 'feature.txt'), 'the project was already here\n');
   commitAll(project, 'feature');

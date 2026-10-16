@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
-import type { AgentryEvent, AssistantProposalEvent, AssistantRun, AssistantRunDetail, AssistantRunEvent } from '@claudio/shared';
+import type { ClaudioEvent, AssistantProposalEvent, AssistantRun, AssistantRunDetail, AssistantRunEvent } from '@claudio/shared';
 import { keys } from '../src/api';
 import { patchActivity, targetsFor } from '../src/lib/events';
 
@@ -27,7 +27,7 @@ const CACHE: Record<string, QueryKey> = {
 
 const startsWith = (key: QueryKey, prefix: QueryKey) => prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]));
 
-function refetched(event: AgentryEvent): string[] {
+function refetched(event: ClaudioEvent): string[] {
   const targets = targetsFor(event).map(([key]) => key);
   return Object.entries(CACHE)
     .filter(([, key]) => targets.some((prefix) => startsWith(key, prefix)))

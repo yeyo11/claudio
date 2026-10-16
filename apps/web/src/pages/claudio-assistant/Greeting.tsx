@@ -10,7 +10,7 @@ export function AssistantGreeting() {
   return (
     <div className="as-greeting">
       <AssistantMark small />
-      <p>{t('agentry.greeting')}</p>
+      <p>{t('claudio.greeting')}</p>
     </div>
   );
 }

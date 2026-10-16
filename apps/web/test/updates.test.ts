@@ -19,12 +19,12 @@ test('a browser on the same machine gets the steps addressed to its reader', () 
 
 test('a phone or another computer gets the same steps, addressed to whoever runs the server', () => {
   assert.deepEqual(updateRoute({ distribution: 'docker', desktopUpdates: false, hostname: '192.168.1.20' }), { kind: 'steps', how: 'docker', remote: true });
-  assert.deepEqual(updateRoute({ distribution: 'deb', desktopUpdates: false, hostname: 'agentry.example.com' }), { kind: 'steps', how: 'desktop-app', remote: true });
+  assert.deepEqual(updateRoute({ distribution: 'deb', desktopUpdates: false, hostname: 'claudio.example.com' }), { kind: 'steps', how: 'desktop-app', remote: true });
 });
 
 test('loopback names and addresses count as this machine, and nothing else does', () => {
   for (const host of ['localhost', 'app.localhost', '127.0.0.1', '127.1.2.3', '::1', '[::1]']) assert.equal(isLoopback(host), true, host);
-  for (const host of ['192.168.1.2', '10.0.0.1', 'agentry.lan', 'localhost.example.com', '1127.0.0.1']) assert.equal(isLoopback(host), false, host);
+  for (const host of ['192.168.1.2', '10.0.0.1', 'claudio.lan', 'localhost.example.com', '1127.0.0.1']) assert.equal(isLoopback(host), false, host);
 });
 
 test('the shell state is read as the desktop updater sends it', () => {

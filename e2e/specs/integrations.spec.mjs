@@ -21,7 +21,7 @@ const row = (id) => `.prov-row[data-host="${id}"], .prov-cell[data-host="${id}"]
 const stateOf = (id) => `return document.querySelector(${JSON.stringify(row(id))})?.getAttribute('data-state') ?? null`;
 const stateIs = (id, wanted) => `return (() => { ${stateOf(id)} })() === ${JSON.stringify(wanted)}`;
 const overflow = `return document.documentElement.scrollWidth - innerWidth`;
-const NOWHERE = '/nonexistent/agentry-e2e/gh';
+const NOWHERE = '/nonexistent/claudio-e2e/gh';
 
 async function scan(page, check, label) {
   await page.reduceMotion(true);

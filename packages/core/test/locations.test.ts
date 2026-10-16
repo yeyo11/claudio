@@ -13,7 +13,7 @@ import { tempConfig } from './helpers.ts';
 const line = (o: object) => JSON.stringify(o);
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-loc-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-loc-'));
   const git = (...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=a', '-c', 'user.email=a@b', ...a], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'f'), 'x');

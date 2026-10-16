@@ -18,7 +18,7 @@ void i18n.changeLanguage('en');
 const file = (path: string, status: 'modified' | 'added' | 'deleted' | 'renamed', additions: number, deletions: number) => ({ path, status, additions, deletions });
 
 const SUMMARY: ChangeSummary = {
-  branch: 'agentry/b67aa3',
+  branch: 'claudio/b67aa3',
   base: 'abcdef0123456789',
   ahead: 3,
   commits: [],
@@ -124,7 +124,7 @@ test('the summary draws the totals, the files, the latest step and the way into 
   const steps = [step(1, 'packages/core/src/changes.ts'), step(2, 'apps/web/src/components/observe/Changes.tsx', { intent: 'Now I drop the editor links.' })];
   const html = render(<ChangesSummary summary={SUMMARY} steps={steps} base="/chats/c1/changes" />);
   assert.match(html, /^<section class="obs-changes">/);
-  assert.match(html, /agentry\/b67aa3 · 3 commits · 3 files/);
+  assert.match(html, /claudio\/b67aa3 · 3 commits · 3 files/);
   assert.match(html, /class="changes-print"/);
   assert.equal((html.match(/class="obs-file"/g) ?? []).length, 3);
   assert.match(html, /<span class="obs-file-name mono">changes.ts<\/span>/, 'a row names the file, the path is its title');

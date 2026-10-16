@@ -54,7 +54,7 @@ export function createClient(options: ClientOptions): ApiClient {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (options.token) headers.authorization = `Bearer ${options.token}`;
   // Informational: it grants nothing, it lets a later audit attribute the call
-  if (options.chatId) headers['x-agentry-chat'] = options.chatId;
+  if (options.chatId) headers['x-claudio-chat'] = options.chatId;
 
   async function perform(method: string, path: string, query: Query = {}, body?: unknown): Promise<unknown> {
     const search = new URLSearchParams();

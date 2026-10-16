@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 
 // The wording of a notification follows navigator.languages; pin it so these texts are the English
 // ones whatever the machine's locale is.
@@ -27,7 +27,7 @@ const at = (offsetMs = 0) => new Date(Date.parse('2026-01-01T12:00:00Z') + offse
 const base = (title: string, offsetMs = 0) => ({ id: nextId++, at: at(offsetMs), title });
 const run = { runId: 'run1', runName: 'fix the build', sessionId: null, orchestrationId: null, internal: false };
 
-const waiting = (permissionId = 'p1', reason: 'permission' | 'question' | 'plan' = 'permission'): AgentryEvent => ({
+const waiting = (permissionId = 'p1', reason: 'permission' | 'question' | 'plan' = 'permission'): ClaudioEvent => ({
   type: 'run.waiting',
   ...base('fix the build needs your approval to use Bash'),
   ...run,
@@ -36,7 +36,7 @@ const waiting = (permissionId = 'p1', reason: 'permission' | 'question' | 'plan'
   toolName: 'Bash',
 });
 
-const ended = (status: 'completed' | 'failed' | 'stopped', extra: Partial<Extract<AgentryEvent, { type: 'run.ended' }>> = {}): AgentryEvent => ({
+const ended = (status: 'completed' | 'failed' | 'stopped', extra: Partial<Extract<ClaudioEvent, { type: 'run.ended' }>> = {}): ClaudioEvent => ({
   type: 'run.ended',
   ...base(`fix the build ${status}`),
   ...run,
@@ -47,7 +47,7 @@ const ended = (status: 'completed' | 'failed' | 'stopped', extra: Partial<Extrac
   ...extra,
 });
 
-const apply = (items: AppNotification[], events: AgentryEvent[], prefs = defaultPrefs(), now = Date.parse(at(1000))) => {
+const apply = (items: AppNotification[], events: ClaudioEvent[], prefs = defaultPrefs(), now = Date.parse(at(1000))) => {
   let list = items;
   const added: AppNotification[] = [];
   for (const event of events) {
@@ -81,7 +81,7 @@ test('two prompts of one run are two notifications, and the same prompt is never
 });
 
 test('answering, withdrawing or ending a run settles its waiting notifications and marks them read', () => {
-  const resolved: AgentryEvent = { type: 'permission.resolved', ...base('resolved'), ...run, permissionId: 'a', toolName: 'Bash', outcome: 'allow' };
+  const resolved: ClaudioEvent = { type: 'permission.resolved', ...base('resolved'), ...run, permissionId: 'a', toolName: 'Bash', outcome: 'allow' };
   const { items } = apply([], [waiting('a'), waiting('b'), resolved]);
   const byKey = new Map(items.map((n) => [n.key, n]));
   assert.equal(byKey.get('wait:run1:a')?.resolved, true);
@@ -96,12 +96,12 @@ test('answering, withdrawing or ending a run settles its waiting notifications a
 
 test('housekeeping runs never notify', () => {
   const internal = { ...run, internal: true };
-  assert.deepEqual(notificationsFor({ ...(waiting() as Extract<AgentryEvent, { type: 'run.waiting' }>), ...internal }), []);
+  assert.deepEqual(notificationsFor({ ...(waiting() as Extract<ClaudioEvent, { type: 'run.waiting' }>), ...internal }), []);
   assert.deepEqual(notificationsFor(ended('failed', internal)), []);
 });
 
 test('a finished turn and the process ending after it are told once', () => {
-  const turn: AgentryEvent = {
+  const turn: ClaudioEvent = {
     type: 'run.updated',
     ...base('idle'),
     ...run,
@@ -125,7 +125,7 @@ test('a failed run says why, and a run the person stopped is not news', () => {
 
 test('workers of an orchestration report through the orchestration, not one by one', () => {
   assert.deepEqual(notificationsFor(ended('completed', { orchestrationId: 'o1' })), []);
-  const done = (status: 'completed' | 'failed', previousStatus: 'running' | null): AgentryEvent => ({
+  const done = (status: 'completed' | 'failed', previousStatus: 'running' | null): ClaudioEvent => ({
     type: 'orchestration.updated',
     ...base('o'),
     orchestrationId: 'o1',
@@ -142,13 +142,13 @@ test('workers of an orchestration report through the orchestration, not one by o
 });
 
 test('an integration conflict links to the orchestration and counts the files', () => {
-  const conflict: AgentryEvent = {
+  const conflict: ClaudioEvent = {
     type: 'orchestration.conflict',
     ...base('Merge conflict in refactor'),
     orchestrationId: 'o1',
     orchestrationName: 'refactor',
     integrationStatus: 'conflicted',
-    branch: 'agentry/o1',
+    branch: 'claudio/o1',
     paths: ['a.ts', 'b.ts'],
     resolving: false,
   };
@@ -158,13 +158,13 @@ test('an integration conflict links to the orchestration and counts the files', 
 });
 
 test('a rate limit is notified with the run it stopped', () => {
-  const limited: AgentryEvent = { type: 'run.rateLimited', ...base('limited'), ...run };
+  const limited: ClaudioEvent = { type: 'run.rateLimited', ...base('limited'), ...run };
   const { items } = apply([], [limited]);
   assert.deepEqual(items.map((n) => n.kind), ['limit']);
 });
 
 test('finished tasks and subagents stay low priority unless they failed', () => {
-  const task = (status: string): AgentryEvent => ({
+  const task = (status: string): ClaudioEvent => ({
     type: 'task.ended',
     ...base('task'),
     runId: 'run1',
@@ -179,7 +179,7 @@ test('finished tasks and subagents stay low priority unless they failed', () => 
   });
   assert.equal(notificationsFor(task('completed'))[0]?.priority, 'low');
   assert.equal(notificationsFor(task('failed'))[0]?.priority, 'normal');
-  const sub: AgentryEvent = {
+  const sub: ClaudioEvent = {
     type: 'subagent.ended',
     ...base('sub'),
     runId: '',
@@ -198,7 +198,7 @@ test('finished tasks and subagents stay low priority unless they failed', () => 
 });
 
 test('a finished workflow opens the agent that ended it, and the chat when it names none', () => {
-  const workflow: AgentryEvent = {
+  const workflow: ClaudioEvent = {
     type: 'workflow.ended',
     ...base('wf'),
     runId: 'run1',
@@ -219,7 +219,7 @@ test('a finished workflow opens the agent that ended it, and the chat when it na
 });
 
 test('the same news inside the window is dropped, and comes back once the window has passed', () => {
-  const limited = (offsetMs: number): AgentryEvent => ({ type: 'run.rateLimited', ...base('limited', offsetMs), ...run });
+  const limited = (offsetMs: number): ClaudioEvent => ({ type: 'run.rateLimited', ...base('limited', offsetMs), ...run });
   const first = apply([], [limited(0)], defaultPrefs(), Date.parse(at(0)));
   const soon = apply(first.items, [limited(5_000)], defaultPrefs(), Date.parse(at(5_000)));
   assert.equal(soon.items.length, 1);
@@ -362,8 +362,8 @@ test('only a plain tool permission can be answered from the list; questions and 
 const health = (
   level: 'ok' | 'warn' | 'bad',
   signals: Array<'hung-command' | 'loop' | 'weakened-test'>,
-  extra: Partial<Extract<AgentryEvent, { type: 'health.changed' }>> = {},
-): AgentryEvent => ({
+  extra: Partial<Extract<ClaudioEvent, { type: 'health.changed' }>> = {},
+): ClaudioEvent => ({
   type: 'health.changed',
   ...base(`fix the build: ${level === 'ok' ? 'working normally again' : '`pnpm e2e` has been running for 5 min'}`),
   ...run,
@@ -399,7 +399,7 @@ test('the same signals within a minute are one notification, and new signals are
 
 // ---------- a hint the supervisor proposes ----------
 
-const proposed = (extra: { taskId?: string; orchestrationId?: string } = {}): AgentryEvent => ({
+const proposed = (extra: { taskId?: string; orchestrationId?: string } = {}): ClaudioEvent => ({
   type: 'supervisor.proposed',
   ...base('fix the build: the supervisor proposes a hint'),
   ...run,

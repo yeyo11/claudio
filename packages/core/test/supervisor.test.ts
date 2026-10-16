@@ -3,10 +3,10 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@claudio/shared';
+import type { ClaudioEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@claudio/shared';
 import type { ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { HealthMonitor, type TaskContext } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
 import {
@@ -59,7 +59,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
   const db = new Db(config);
   const settings = new SupervisorSettings(config);
   const asked: SupervisorQuestion[] = [];
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const hints: SupervisorProposal[] = [];
   const charged: Array<[string, number]> = [];
   let steps: TranscriptEntry[] = [];
@@ -293,7 +293,7 @@ test('a worker that turns bad gets a proposal from a read-only housekeeping chat
   const log = join(config.dataDir, 'spawns.log');
   process.env.FAKE_CLAUDE_SPAWNS = log;
   const core = new Core(config);
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   core.events.subscribe((e) => events.push(e));
   const monitor = new HealthMonitor(
     {

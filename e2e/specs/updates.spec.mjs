@@ -45,7 +45,7 @@ export default async ({ page, api, check, releases }) => {
   // Read from the stored list rather than the bell's label, which a notification from an earlier
   // spec landing now would change without this one being wrong
   const inBell = await page.eval(
-    `return (localStorage.getItem('agentry-notifications:v1') ?? '').includes('999.0.0')`,
+    `return (localStorage.getItem('claudio-notifications:v1') ?? '').includes('999.0.0')`,
   );
   check(!inBell, 'the bell stays out of it: no notification names the release');
 

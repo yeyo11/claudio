@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { ProviderLimit, ProvidersSettings } from '@claudio/shared';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
 import { ProviderLimits, type ProviderLimitStore } from '../src/providers/limits.ts';
 import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
@@ -21,7 +21,7 @@ let home: string;
 let n = 0;
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agentry-detector-'));
+  root = await mkdtemp(join(tmpdir(), 'claudio-detector-'));
 });
 after(() => rm(root, { recursive: true, force: true }));
 beforeEach(async () => {
@@ -39,7 +39,7 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => boolean; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
+function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => boolean; settings?: ProvidersSettings | null; events?: ClaudioEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
   const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDIO_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
@@ -144,7 +144,7 @@ describe('ProviderDetector', () => {
   });
 
   it('emits providers.changed only when a status changes', async () => {
-    const events: AgentryEventInput[] = [];
+    const events: ClaudioEventInput[] = [];
     const d = detector({ events });
     await d.refresh();
     assert.equal(events.length, 0, 'the first reading is not a change');
@@ -194,7 +194,7 @@ describe('ProviderDetector', () => {
   });
 
   it('re-detects on its own when a binary lands on the PATH', async () => {
-    const events: AgentryEventInput[] = [];
+    const events: ClaudioEventInput[] = [];
     const d = detector({ events });
     await d.refresh();
     await d.startWatching();
@@ -209,7 +209,7 @@ describe('ProviderDetector', () => {
   });
 
   it('re-detects when a config home appears', async () => {
-    const events: AgentryEventInput[] = [];
+    const events: ClaudioEventInput[] = [];
     const d = detector({ events });
     await d.refresh();
     await d.startWatching();
@@ -269,7 +269,7 @@ describe('capabilities confirmed by a session', () => {
 
   it('records it on the status and emits providers.changed only when that changes', async () => {
     await fake('claude', CLAUDE('2.1.285', true));
-    const events: AgentryEventInput[] = [];
+    const events: ClaudioEventInput[] = [];
     const d = detector({ events });
     assert.equal((await statusOf(d, 'claude-code')).confirmed, null);
 
@@ -321,7 +321,7 @@ describe('provider limits in the status', () => {
   it('serves a limit a chat reported without a detection, and announces it', async () => {
     await fake('claude', CLAUDE('2.1.285', true));
     const limits = new ProviderLimits(memory());
-    const events: AgentryEventInput[] = [];
+    const events: ClaudioEventInput[] = [];
     const d = detector({ limits, events });
     await d.refresh();
     events.length = 0;

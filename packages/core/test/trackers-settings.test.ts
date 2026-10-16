@@ -11,7 +11,7 @@ let root: string;
 let n = 0;
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agentry-trackers-settings-'));
+  root = await mkdtemp(join(tmpdir(), 'claudio-trackers-settings-'));
 });
 after(() => rm(root, { recursive: true, force: true }));
 

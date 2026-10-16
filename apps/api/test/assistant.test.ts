@@ -18,7 +18,7 @@ let core: Core;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 async function importEmpty(modules: string[]): Promise<Project> {
-  const path = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-'));
+  const path = mkdtempSync(join(tmpdir(), 'claudio-api-assistant-'));
   const res = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Notas', template: 'software', modules }) });
   assert.equal(res.statusCode, 201, res.body);
   return res.json<Project>();
@@ -29,7 +29,7 @@ process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-root-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-assistant-root-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
@@ -105,7 +105,7 @@ test('the routes answer 400, 404 and 409 where they should', async () => {
 test("a run's chat is titled in the language the request says the person reads", async () => {
   const titles: string[] = [];
   for (const language of ['es-ES,es;q=0.9,en;q=0.8', 'en-GB', undefined]) {
-    const path = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-lang-'));
+    const path = mkdtempSync(join(tmpdir(), 'claudio-api-assistant-lang-'));
     // Something to read, so the run starts a chat (the fake CLI answers it)
     writeFileSync(join(path, 'README.md'), '# Notas\n');
     const p = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Notas', template: 'software', modules: ['board'] }) })).json<Project>();

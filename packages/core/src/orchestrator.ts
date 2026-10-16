@@ -1085,7 +1085,7 @@ export class Orchestrator {
     if (!prepared.adopt) {
       // A directory holding only untracked files in the checkout does not exist in the worktree
       mkdirSync(prepared.cwd, { recursive: true });
-      lockWorktree(root, path, `agentry orchestration ${orch.id.slice(0, 8)}`);
+      lockWorktree(root, path, `claudio orchestration ${orch.id.slice(0, 8)}`);
     }
     return prepared;
   }

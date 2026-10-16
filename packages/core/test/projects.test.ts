@@ -107,7 +107,7 @@ test('candidates are the busiest directories not imported, worktrees counted for
 
 test('the store keeps imported projects in a JSON document, across restarts', async () => {
   const config = tempConfig();
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-proj-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-proj-'));
   const store = new ProjectStore(config);
   assert.deepEqual(store.list(), []);
 
@@ -132,7 +132,7 @@ test('the store keeps imported projects in a JSON document, across restarts', as
 
 test('a git worktree cannot be imported: it belongs to its repository', async () => {
   const store = new ProjectStore(tempConfig());
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-proj-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-proj-'));
   const wt: WorktreeFacts = { path: dir, name: 'wt', branch: 'b', parentPath: '/work/app' };
   await assert.rejects(store.add({ path: dir }, knowing(wt)), /git worktree of \/work\/app; import that instead/);
   assert.deepEqual(store.list(), []);
@@ -150,7 +150,7 @@ test('a directory that is or holds the Claude config dir cannot be imported', as
 });
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-repo-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-repo-'));
   const git = (...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=a', '-c', 'user.email=a@b', ...a], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'f'), 'x');
@@ -164,7 +164,7 @@ test('importing adopts the chats already there, worktrees included; removing let
   const root = repo();
   const wt = `${root}-feature`;
   execFileSync('git', ['-C', root, 'worktree', 'add', '-q', '-b', 'feature', wt]);
-  const stray = mkdtempSync(join(tmpdir(), 'agentry-stray-'));
+  const stray = mkdtempSync(join(tmpdir(), 'claudio-stray-'));
 
   const write = (cwd: string, id: string, at: string) => {
     const dir = join(config.projectsDir, encodeProjectId(cwd));
@@ -223,7 +223,7 @@ test('importing adopts the chats already there, worktrees included; removing let
 
 test('a project renamed or removed is remembered by the next start', async () => {
   const config = tempConfig();
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-proj-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-proj-'));
   const first = new Core(config);
   const { id } = await first.importProject({ path: dir });
   await first.updateProject(id, { name: 'Renamed' });

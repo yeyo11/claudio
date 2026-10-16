@@ -130,9 +130,9 @@ test('the Claude credential reaches claude processes only, wins over the contain
 });
 
 test('an allowed-hosts pattern that guards nothing stops the wrapper instead of opening it', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-hosts', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-hosts', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-hosts', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-hosts', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-hosts', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-hosts', 'workspace') };
 
-  assert.deepEqual(loadConfig({ ...base, CLAUDIO_ALLOWED_HOSTS: ' *.Example.com , agentry.internal ' }).allowedHosts, ['*.example.com', 'agentry.internal']);
+  assert.deepEqual(loadConfig({ ...base, CLAUDIO_ALLOWED_HOSTS: ' *.Example.com , claudio.internal ' }).allowedHosts, ['*.example.com', 'claudio.internal']);
   assert.deepEqual(loadConfig({ ...base }).allowedHosts, []);
 
   // A wildcard over a public suffix, or anywhere but the front, is a typo worth failing on
@@ -142,7 +142,7 @@ test('an allowed-hosts pattern that guards nothing stops the wrapper instead of 
 });
 
 test('the tunnel is offered by default, and in the Docker image only once its entrypoint started a tailscaled of its own', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-switch', 'workspace') };
   const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
 
   assert.equal(loadConfig(base).tunnelEnabled, true);
@@ -160,7 +160,7 @@ test('the tunnel is offered by default, and in the Docker image only once its en
 });
 
 test('only the tailscaled the image started is Claudio\'s to sign in, and its node name is a host name', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-managed', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-managed', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-managed', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-managed', 'workspace') };
   const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
   const managed = { ...docker, CLAUDIO_TAILSCALE_MANAGED: '1' };
 
@@ -181,7 +181,7 @@ test('only the tailscaled the image started is Claudio\'s to sign in, and its no
 });
 
 test("the tunnel's Serve port is 8444 unless set, and a value that is not a port stops the start", () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-switch', 'workspace') };
   assert.equal(loadConfig(base).tunnelPort, 8444);
   assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '' }).tunnelPort, 8444);
   assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
@@ -193,7 +193,7 @@ test("the tunnel's Serve port is 8444 unless set, and a value that is not a port
 });
 
 test('two panels asking for MCP health at once share one connection check', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-mcp-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-mcp-'));
   const log = join(root, 'invocations');
   const bin = join(root, 'claude');
   // Slow enough that the second caller arrives while the first check is still dialling
@@ -233,7 +233,7 @@ test('workspace projects', async () => {
 });
 
 test('the provider homes inside the data directory are created, and no other', () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-homes-'));
   const data = join(root, 'data');
   const elsewhere = join(root, 'elsewhere', 'glab');
   const homes = ensureProviderHomes({ GH_CONFIG_DIR: join(data, 'provider-homes', 'gh'), GLAB_CONFIG_DIR: join(data, 'provider-homes', 'glab') }, data);
@@ -249,7 +249,7 @@ test('the provider homes inside the data directory are created, and no other', (
 });
 
 test('loadConfig makes the provider homes the image points under the data directory', () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-homes-'));
   const data = join(root, 'data');
   loadConfig({ CLAUDIO_DATA_DIR: data, CLAUDIO_WORKSPACE_DIR: join(root, 'ws'), GH_CONFIG_DIR: join(data, 'provider-homes', 'gh') });
   assert.ok(statSync(join(data, 'provider-homes', 'gh')).isDirectory());

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AgentryEvent } from '@claudio/shared';
+import type { ClaudioEvent } from '@claudio/shared';
 import {
   addNotifications,
   notificationsFor,
@@ -82,7 +82,7 @@ export interface Ingested {
  * Turns an event into notifications, and settles the waiting ones it answers. `seen` says whether
  * the person is already looking at what a draft is about.
  */
-export function ingest(event: AgentryEvent, seen: (draft: NotificationDraft) => boolean): Ingested {
+export function ingest(event: ClaudioEvent, seen: (draft: NotificationDraft) => boolean): Ingested {
   const current = load();
   let items = current.items;
   let settled: AppNotification[] = [];

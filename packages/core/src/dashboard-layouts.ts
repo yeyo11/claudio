@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ALL_PROJECTS_LAYOUT, WIDGET_RULES, layoutProblem, validateLayout, type DashboardLayout, type DashboardScope, type StoredDashboardLayout } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 
 /*
@@ -21,7 +21,7 @@ const scopeOf = (key: string): DashboardScope => (key === ALL_PROJECTS_LAYOUT ? 
 export interface DashboardLayoutDeps {
   /** Whether a project id is one Claudio knows; an unknown one is refused with `project not found` */
   hasProject: (id: string) => Promise<boolean>;
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
 }
 
 export class DashboardLayoutStore {

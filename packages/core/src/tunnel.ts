@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import type { RuntimeHostOptions } from './app-settings.ts';
 
 /*
@@ -70,7 +70,7 @@ export interface TunnelDeps {
   security: { readonly mode: AuthMode };
   /** Where the node's name is registered for the guard, and removed from again */
   hosts: { add(host: string, options?: RuntimeHostOptions): void; remove(host: string): void };
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
   /** One row in the security history; the routes' own requests are audited by the API already */
   audit?: (row: { method: string; path: string; summary: string }) => void;
   timing?: Partial<TunnelTiming>;
@@ -210,7 +210,7 @@ interface ServeRecord {
   target: string;
 }
 
-const DEFAULT_SETTINGS: TunnelSettings = { startWithAgentry: false };
+const DEFAULT_SETTINGS: TunnelSettings = { startWithClaudio: false };
 
 /** What the status says before the CLI was first asked: nothing is known, so nothing is offered. */
 const UNPROBED: TailscaleReadiness = { state: 'missing', version: null, host: null, reason: null };
@@ -347,7 +347,7 @@ export class TunnelManager {
     this.target = { host, port };
     if (existsSync(this.recordFile)) this.cleaning = this.removeRule().catch(() => undefined);
     // A setting saved before the operator turned the tunnel off is not a reason to open it
-    if (!this.settings.startWithAgentry || !this.enabled) return;
+    if (!this.settings.startWithClaudio || !this.enabled) return;
     this.start('claudio').catch((error: unknown) => {
       // Not thrown at startup: a tunnel that cannot open must not keep Claudio from starting
       if (error instanceof TunnelRefusedError) this.fail(error.reason);
@@ -409,11 +409,11 @@ export class TunnelManager {
   async updateSettings(input: unknown): Promise<TunnelStatus> {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('tunnel settings must be a JSON object');
     const body = input as Record<string, unknown>;
-    const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithAgentry');
-    if (unknownKeys.length) throw new Error(`unknown tunnel settings: ${unknownKeys.join(', ')}; the known one is startWithAgentry`);
-    if (body.startWithAgentry === undefined) return this.refresh();
-    if (typeof body.startWithAgentry !== 'boolean') throw new Error('startWithAgentry must be a boolean');
-    const next = { ...this.settings, startWithAgentry: body.startWithAgentry };
+    const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithClaudio');
+    if (unknownKeys.length) throw new Error(`unknown tunnel settings: ${unknownKeys.join(', ')}; the known one is startWithClaudio`);
+    if (body.startWithClaudio === undefined) return this.refresh();
+    if (typeof body.startWithClaudio !== 'boolean') throw new Error('startWithClaudio must be a boolean');
+    const next = { ...this.settings, startWithClaudio: body.startWithClaudio };
     await writeAtomic(this.settingsFile, `${JSON.stringify(next, null, 2)}\n`);
     this.settings = next;
     // The event carries the whole status, readiness included, so it is read first
@@ -453,7 +453,7 @@ export class TunnelManager {
     if (!existsSync(this.settingsFile)) return { ...DEFAULT_SETTINGS };
     try {
       const raw = JSON.parse(readFileSync(this.settingsFile, 'utf8')) as Partial<TunnelSettings>;
-      return { startWithAgentry: raw.startWithAgentry === true };
+      return { startWithClaudio: raw.startWithClaudio === true };
     } catch {
       // Off is the safe reading of a file nobody can read: the tunnel only opens when asked
       return { ...DEFAULT_SETTINGS };

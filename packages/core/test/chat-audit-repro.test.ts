@@ -30,7 +30,7 @@ type Op = { op: string; prompt?: string; text?: string; uuid?: string | null; su
 
 test('S-5: the id the page knows a queued message by reaches the CLI, so a merged prompt can be told apart', async () => {
   const config = tempConfig();
-  const scratch = mkdtempSync(join(tmpdir(), 'agentry-repro-'));
+  const scratch = mkdtempSync(join(tmpdir(), 'claudio-repro-'));
   const queueLog = join(scratch, 'queue.jsonl');
   const saved = { log: process.env.FAKE_QUEUE_LOG, ids: process.env.FAKE_QUEUE_LOG_IDS };
   process.env.FAKE_QUEUE_LOG = queueLog;
@@ -81,7 +81,7 @@ class HeldSessionDriver extends ClaudeCodeDriver {
 
 test('C-8: a message held for a replacement process that cannot start is reported as not delivered', async () => {
   const config = tempConfig();
-  const scratch = mkdtempSync(join(tmpdir(), 'agentry-repro-'));
+  const scratch = mkdtempSync(join(tmpdir(), 'claudio-repro-'));
   const queueLog = join(scratch, 'queue.jsonl');
   const saved = { log: process.env.FAKE_QUEUE_LOG, linger: process.env.FAKE_LINGER_MS };
   process.env.FAKE_QUEUE_LOG = queueLog;

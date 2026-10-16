@@ -24,7 +24,7 @@ export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'list_accounts',
 ] as const;
 
-export type AgentryMcpReadToolName = (typeof CLAUDIO_MCP_READ_TOOL_NAMES)[number];
+export type ClaudioMcpReadToolName = (typeof CLAUDIO_MCP_READ_TOOL_NAMES)[number];
 
 /** The names as the CLI sees them, which is what `--allowedTools` takes */
 export const CLAUDIO_MCP_READ_TOOLS: readonly string[] = CLAUDIO_MCP_READ_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
@@ -45,10 +45,10 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'discard_assistant_proposal',
 ] as const;
 
-export type AgentryMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];
-export type AgentryMcpToolName = AgentryMcpReadToolName | AgentryMcpWriteToolName;
+export type ClaudioMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];
+export type ClaudioMcpToolName = ClaudioMcpReadToolName | ClaudioMcpWriteToolName;
 
 export const CLAUDIO_MCP_WRITE_TOOLS: readonly string[] = CLAUDIO_MCP_WRITE_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 
 /** Whether the CLI's name for a tool is one of Claudio's write tools */
-export const isAgentryMcpWriteTool = (toolName: string): boolean => CLAUDIO_MCP_WRITE_TOOLS.includes(toolName);
+export const isClaudioMcpWriteTool = (toolName: string): boolean => CLAUDIO_MCP_WRITE_TOOLS.includes(toolName);

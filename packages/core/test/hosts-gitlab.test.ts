@@ -171,7 +171,7 @@ test('the calls are the recorded arguments, pinned by URL', () => {
 
 // --- the adapter against fake-glab.sh, through the real process runner ---
 
-const root = mkdtempSync(join(tmpdir(), 'agentry-hosts-gitlab-'));
+const root = mkdtempSync(join(tmpdir(), 'claudio-hosts-gitlab-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 let scenarios = 0;
 

@@ -17,7 +17,7 @@ let app: FastifyInstance;
 let core: Core;
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-wire-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-wire-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

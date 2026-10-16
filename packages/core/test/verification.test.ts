@@ -16,7 +16,7 @@ import { tempConfig } from './helpers.ts';
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
 
 function repoWithCommit(): string {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-verify-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-verify-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -103,7 +103,7 @@ test('a verification spec gets its defaults, and what could not run is refused i
 test('the fixer is told Claudio’s rules, the failure and what its earlier attempts said', () => {
   const prompt = fixerPrompt({
     objective: 'add notifications',
-    branch: 'agentry/x',
+    branch: 'claudio/x',
     worktree: '/tmp/wt',
     commands: ['pnpm build', 'pnpm e2e'],
     failed: [{ command: 'pnpm e2e', failure: 'It timed out after 20 min and was killed.', output: 'spec a failed' }],
@@ -139,7 +139,7 @@ test('a parallel group in a verification spec is kept, a group of one is its com
 });
 
 test('a detected install already in a parallel group of the checks is not added twice', () => {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-install-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-install-'));
   writeFileSync(join(repo, 'pnpm-lock.yaml'), '');
   const spec: VerificationSpec = { commands: [['pnpm install --frozen-lockfile', 'pnpm lint'], 'pnpm test'], fixer: false, maxAttempts: 1 };
   assert.equal(installStep(spec, repo, repo), null);
@@ -175,7 +175,7 @@ test('the spec files a runner reports as failed are read in order, once each, fr
 });
 
 test('a command reports the failed specs of all its output, not only of the tail it keeps', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
   const outcome = await runCommand("printf '✗ early.spec.mjs\\n'; head -c 60000 /dev/zero | tr '\\0' x; printf '\\n✗ late.spec.mjs\\n'; exit 1", dir, 30_000);
   assert.equal(outcome.ok, false);
   assert.doesNotMatch(outcome.output, /early\.spec/);
@@ -300,7 +300,7 @@ test('output is cut to its end, at a line, without colour codes', () => {
 // ---------- running a command ----------
 
 test('a command that passes or fails reports its exit code and the end of its output', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
   const passed = await runCommand('echo fine', dir, 10_000);
   assert.equal(passed.ok, true);
   assert.equal(passed.output, 'fine');
@@ -313,7 +313,7 @@ test('a command that passes or fails reports its exit code and the end of its ou
 });
 
 test('a command started for an orchestration carries CLAUDIO_AGENT_RUN, and one that is not never inherits it', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
   const marked = await runCommand('echo "[$CLAUDIO_AGENT_RUN]"', dir, 10_000, undefined, 'orch-7');
   assert.equal(marked.output, '[orch-7]');
   const before = process.env.CLAUDIO_AGENT_RUN;
@@ -327,7 +327,7 @@ test('a command started for an orchestration carries CLAUDIO_AGENT_RUN, and one 
 });
 
 test('a command past its time limit is killed with everything it started, and counts as failed', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
   const pids = join(dir, 'pids');
   // A shell, its child, and a grandchild that would keep running on its own if only the shell were killed
   const outcome = await runCommand(`sh -c 'sleep 60 & echo $! >> ${pids}; wait' & echo $! >> ${pids}; wait`, dir, 700);
@@ -339,7 +339,7 @@ test('a command past its time limit is killed with everything it started, and co
 });
 
 test('a running command can be cancelled', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
   let cancel: () => void = () => undefined;
   const pending = runCommand('sleep 60', dir, 60_000, (handle) => {
     cancel = () => handle.cancel();
@@ -489,7 +489,7 @@ test('one fixer attempt covers every failed command of a group, and the checks a
 
 test('stopping the orchestration stops every command of the group that is running', async () => {
   const { db, repo, orchestrator } = fixture();
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-pid-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-pid-'));
   const one = join(dir, 'one');
   const two = join(dir, 'two');
   const started = launch(orchestrator, repo, {
@@ -532,7 +532,7 @@ test('a graph that did not merge is not checked, and says why', async () => {
 
 test('stopping the orchestration stops its checks and what they started', async () => {
   const { db, repo, orchestrator } = fixture();
-  const pidFile = join(mkdtempSync(join(tmpdir(), 'agentry-pid-')), 'pid');
+  const pidFile = join(mkdtempSync(join(tmpdir(), 'claudio-pid-')), 'pid');
   const started = launch(orchestrator, repo, { commands: [`sleep 120 & echo $! > ${pidFile}; wait`], fixer: true, maxAttempts: 2 });
   // The shell creates the file empty before `echo` writes into it, so existing is not enough: an empty
   // read became pid 0, which alive() reports as gone
@@ -697,7 +697,7 @@ test('a spec keeps its cost limit, install step and failGraph, and refuses what 
 });
 
 test('the install step comes from the nearest lockfile inside the worktree, or from the spec', () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-install-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-install-'));
   const sub = join(root, 'packages', 'app');
   mkdirSync(sub, { recursive: true });
   const spec: VerificationSpec = { commands: ['pnpm test'], fixer: false, maxAttempts: 1 };
@@ -727,7 +727,7 @@ test('a detected install runs first, as its own row, where the lockfile is', asy
   const { db, repo, orchestrator } = fixture();
   commitFile(repo, 'pnpm-lock.yaml', 'lockfileVersion: 9.0\n');
   // A stand-in for pnpm, so the test proves what ran without installing anything
-  const bin = mkdtempSync(join(tmpdir(), 'agentry-bin-'));
+  const bin = mkdtempSync(join(tmpdir(), 'claudio-bin-'));
   writeFileSync(join(bin, 'pnpm'), '#!/bin/sh\necho "installed with $*" | tee installed.txt\n');
   chmodSync(join(bin, 'pnpm'), 0o755);
   const path = process.env.PATH;
@@ -771,7 +771,7 @@ test('install: null runs no install step, and a given one replaces the detected 
 
 test('the fixer gets what is left of its cost limit on each attempt, and stops when it is spent', async () => {
   const { db, repo, orchestrator } = fixture();
-  const spawns = join(mkdtempSync(join(tmpdir(), 'agentry-spawns-')), 'spawns');
+  const spawns = join(mkdtempSync(join(tmpdir(), 'claudio-spawns-')), 'spawns');
   process.env.FAKE_CLAUDE_SPAWNS = spawns;
   try {
     // The stand-in for the CLI reports $0.01 a run: two attempts spend the limit, a third is not started
@@ -941,7 +941,7 @@ test('a graph stored before the timings were recorded still loads, with none of 
     costUsd: 0,
     tasks: [],
     synthesisRunId: 'synth-1',
-    integration: { branch: 'agentry/old', worktree: null, status: 'merged', merged: [], conflicts: [], commit: 'abc', error: null, integratorRunId: null },
+    integration: { branch: 'claudio/old', worktree: null, status: 'merged', merged: [], conflicts: [], commit: 'abc', error: null, integratorRunId: null },
     verification: { status: 'passed', attempts: 0, commands: [{ command: 'true', status: 'passed', output: '', durationMs: 5 }], commits: [], report: '', costUsd: 0 },
   };
   db.saveOrchestrations([graph]);

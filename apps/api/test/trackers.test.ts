@@ -26,7 +26,7 @@ async function importProject(name: string, modules: string[] = ['board']): Promi
 const githubTracker: ProjectTrackerSettings = { id: 'github-issues', scope: 'acme/widgets', query: 'is:open', statusMap: { done: 'completed' } };
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-trackers-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-trackers-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

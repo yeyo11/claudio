@@ -3,7 +3,7 @@
    that works on one all draw the same way (components/icons.tsx). The screens'
    own layouts are in board.css and work-item.css. Reference: `.wi-key`,
    `.wi-type`, `.wi-prio`, `.wi-epic`, `.wi-label` and `.wi-status` in
-   docs/design-system/agentry-ds.css §15.
+   docs/design-system/claudio-ds.css §15.
    ========================================================================== */
 
 /* AGN-12: mono, tabular, never wrapped */

@@ -50,7 +50,7 @@ export function blockerMark(code: MergeBlockerCode | string): BlockerMark {
   return { tone: TONE[known], word: `blocker.${known}.word`, text: `blocker.${known}.text` };
 }
 
-/** What a blocker's remedy does: an Claudio call, a link to the host, or a move inside the page. */
+/** What a blocker's remedy does: a Claudio call, a link to the host, or a move inside the page. */
 export type BlockerActionKind = 'call' | 'link' | 'page';
 
 const ACTION_KIND: Readonly<Record<MergeBlockerAction, BlockerActionKind>> = {
@@ -127,9 +127,9 @@ export function blockerSentence(blocker: Pick<MergeBlocker, 'code' | 'detail'>, 
 }
 
 /** Who turned auto-merge off for an update: a person by name, Claudio, or the one person there is when authentication is off (`local`). */
-export function autoMergeOffKey(why: 'push' | 'update', by: string): `autoMergeOff.${'push' | 'update' | 'updateYou' | 'updateAgentry'}` {
+export function autoMergeOffKey(why: 'push' | 'update', by: string): `autoMergeOff.${'push' | 'update' | 'updateYou' | 'updateClaudio'}` {
   if (why === 'update' && by === 'local') return 'autoMergeOff.updateYou';
-  if (why === 'update' && by === 'claudio') return 'autoMergeOff.updateAgentry';
+  if (why === 'update' && by === 'claudio') return 'autoMergeOff.updateClaudio';
   return `autoMergeOff.${why}`;
 }
 

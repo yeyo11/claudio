@@ -41,7 +41,7 @@ async function chatAtLimit(): Promise<string> {
 }
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-rotation-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-rotation-'));
   repo = join(root, 'repo');
   mkdirSync(repo);
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe', encoding: 'utf8' });

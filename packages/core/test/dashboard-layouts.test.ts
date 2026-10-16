@@ -3,14 +3,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { DashboardLayoutStore } from '../src/dashboard-layouts.ts';
 
 const layout = (...types: string[]) => ({ version: 1, widgets: types.map((type) => ({ id: type, type, size: 'm' })) });
 
 function setup() {
-  const dataDir = mkdtempSync(join(tmpdir(), 'agentry-layouts-'));
-  const events: AgentryEventInput[] = [];
+  const dataDir = mkdtempSync(join(tmpdir(), 'claudio-layouts-'));
+  const events: ClaudioEventInput[] = [];
   const open = () => new DashboardLayoutStore({ dataDir }, { hasProject: async (id) => id === 'p1' || id === 'p2', emit: (e) => events.push(e) });
   return { events, open, file: join(dataDir, 'dashboard-layouts.json'), done: () => rmSync(dataDir, { recursive: true, force: true }) };
 }

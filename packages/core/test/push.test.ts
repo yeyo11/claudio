@@ -3,9 +3,9 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import webpush from 'web-push';
-import type { AgentryEvent, PushPayload, TunnelState } from '@claudio/shared';
+import type { ClaudioEvent, PushPayload, TunnelState } from '@claudio/shared';
 import { Db } from '../src/db.ts';
-import { EventBus, type AgentryEventInput } from '../src/events.ts';
+import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { PushService, absoluteOn, idOfEndpoint, truncateEndpoint, type PushTransport } from '../src/push.ts';
 import { readinessFromStatus } from '../src/tunnel.ts';
 import { tempConfig } from './helpers.ts';
@@ -44,7 +44,7 @@ function harness(transport?: PushTransport) {
   return { config, db, events, push, logged };
 }
 
-const waitingEvent: AgentryEventInput = {
+const waitingEvent: ClaudioEventInput = {
   type: 'run.waiting',
   title: 'chat-1 needs your approval to use Bash',
   runId: 'chat-1',
@@ -57,7 +57,7 @@ const waitingEvent: AgentryEventInput = {
   toolName: 'Bash',
 };
 
-const endedEvent: AgentryEventInput = {
+const endedEvent: ClaudioEventInput = {
   type: 'run.ended',
   title: 'chat-2 finished',
   runId: 'chat-2',
@@ -228,7 +228,7 @@ test('a failing endpoint is a log line, never an exception in the event path', a
   push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
   push.register({ endpoint: OTHER, keys, label: 'flaky' });
 
-  const heard: AgentryEvent[] = [];
+  const heard: ClaudioEvent[] = [];
   events.subscribe((event) => heard.push(event));
   assert.doesNotThrow(() => events.emit(waitingEvent));
   await push.idle();
@@ -247,7 +247,7 @@ test('the configured subject replaces the one stored beside the keypair, keypair
 
   // What an install made before the default named a real domain looks like on disk. Apple refuses
   // this claim outright (403 BadJwtToken), so it has to be replaceable without a new keypair.
-  const stale = { ...(JSON.parse(readFileSync(file, 'utf8')) as object), subject: 'mailto:agentry@localhost' };
+  const stale = { ...(JSON.parse(readFileSync(file, 'utf8')) as object), subject: 'mailto:claudio@localhost' };
   writeFileSync(file, JSON.stringify(stale));
 
   const reopened = new PushService({ config, db, events, transport });
@@ -317,13 +317,13 @@ test('a closed service stops hearing the bus', async () => {
 
 // ---------- The tunnel's current address ----------
 
-const TUNNEL = 'https://agentry-test.tail0000.ts.net:8443';
+const TUNNEL = 'https://claudio-test.tail0000.ts.net:8443';
 
-function tunnelEvent(state: TunnelState, url: string | null): AgentryEventInput {
+function tunnelEvent(state: TunnelState, url: string | null): ClaudioEventInput {
   return {
     type: 'tunnel.changed',
     title: `Tunnel ${state}`,
-    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, enabled: true, managed: false, tailscale: { state: 'ready', version: '1.102.4', host: 'agentry-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithAgentry: false } },
+    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, enabled: true, managed: false, tailscale: { state: 'ready', version: '1.102.4', host: 'claudio-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithClaudio: false } },
   };
 }
 
@@ -368,7 +368,7 @@ test('only a path of ours on an https address becomes an absolute URL', () => {
   assert.equal(absoluteOn(TUNNEL, '/chats/a?prompt=b'), `${TUNNEL}/chats/a?prompt=b`);
   assert.equal(absoluteOn(`${TUNNEL}/`, null), `${TUNNEL}/`);
   assert.equal(absoluteOn(null, '/chats/a'), null);
-  assert.equal(absoluteOn('http://agentry-test.tail0000.ts.net:8443', '/chats/a'), null);
+  assert.equal(absoluteOn('http://claudio-test.tail0000.ts.net:8443', '/chats/a'), null);
   assert.equal(absoluteOn(TUNNEL, '//evil.example/x'), null);
   assert.equal(absoluteOn(TUNNEL, 'https://evil.example/x'), null);
   assert.equal(absoluteOn('not a url', '/x'), null);
@@ -380,7 +380,7 @@ test('the worker follows only the kind of address the tunnel hands out', () => {
   const suffix = /const TUNNEL_SUFFIX = '([^']+)';/.exec(worker)?.[1];
   assert.ok(suffix, 'sw.js names the suffix it follows');
   const { host } = readinessFromStatus(
-    { BackendState: 'Running', Self: { DNSName: 'agentry-test.tail0000.ts.net.' }, CurrentTailnet: { MagicDNSEnabled: true }, CertDomains: ['agentry-test.tail0000.ts.net'] },
+    { BackendState: 'Running', Self: { DNSName: 'claudio-test.tail0000.ts.net.' }, CurrentTailnet: { MagicDNSEnabled: true }, CertDomains: ['claudio-test.tail0000.ts.net'] },
     '1.102.4',
   );
   assert.ok(host?.endsWith(suffix), `${String(host)} ends with ${suffix}`);

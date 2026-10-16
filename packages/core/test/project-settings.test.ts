@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { AgentryEvent, ProjectSettings } from '@claudio/shared';
+import type { ClaudioEvent, ProjectSettings } from '@claudio/shared';
 import { MAX_FLOW_PARALLEL, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { defaultProjectSettings, deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
@@ -11,7 +11,7 @@ import { PROJECT_TEMPLATES, projectTemplate } from '../src/project-templates.ts'
 import { tempConfig } from './helpers.ts';
 
 const none = new Set<string>();
-const dir = () => mkdtempSync(join(tmpdir(), 'agentry-proj-'));
+const dir = () => mkdtempSync(join(tmpdir(), 'claudio-proj-'));
 
 /** A Core over scratch directories, closed however the test ends. */
 async function withCore(fn: (core: Core, config: ReturnType<typeof tempConfig>) => Promise<void>, config = tempConfig()): Promise<void> {
@@ -250,7 +250,7 @@ test('a module switched off and on again finds its configuration intact', async 
 
 test('updating a project renames it, changes its key or modules, and emits what changed', async () => {
   await withCore(async (core) => {
-    const events: AgentryEvent[] = [];
+    const events: ClaudioEvent[] = [];
     core.events.subscribe((e) => events.push(e));
     const a = await core.importProject({ path: dir(), name: 'Alpha' });
     const b = await core.importProject({ path: dir(), name: 'Beta' });
@@ -287,7 +287,7 @@ test('updating a project renames it, changes its key or modules, and emits what 
 
 test('replacing the settings validates the document and emits project.updated', async () => {
   await withCore(async (core) => {
-    const events: AgentryEvent[] = [];
+    const events: ClaudioEvent[] = [];
     core.events.subscribe((e) => events.push(e));
     const { id } = await core.importProject({ path: dir(), name: 'Alpha' });
     const other = await core.importProject({ path: dir(), name: 'Beta' });
@@ -429,7 +429,7 @@ test('a document whose prefix another project now holds is given a new one, and 
 
 test('a project imported again with other modules emits project.updated and records the template it named', async () => {
   await withCore(async (core) => {
-    const events: AgentryEvent[] = [];
+    const events: ClaudioEvent[] = [];
     core.events.subscribe((e) => events.push(e));
     const path = dir();
     const first = await core.importProject({ path, name: 'Claudio', template: 'software' });

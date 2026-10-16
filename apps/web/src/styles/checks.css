@@ -2,7 +2,7 @@
    The checks of a change request on a work item's page (pages/tasks/item/Checks.tsx,
    CheckLog.tsx). Reference: DesktopTareaChecks, DesktopTareaChecksEstados,
    MobileTareaChecks, MobileTareaChecksRegistro and MobileTareaChecksMenu, and
-   `.check-*` in agentry-ds.css.
+   `.check-*` in claudio-ds.css.
 
    One row per check: status mark, name with its stage, the status as a word, the duration in
    mono, and a "⋯" that is its own button beside the row's main button, never inside it. Only a

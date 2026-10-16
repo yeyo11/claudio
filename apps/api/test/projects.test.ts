@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, Board, Project, ProjectSettings, ProjectTemplate, WorkItem } from '@claudio/shared';
+import type { ClaudioEvent, Board, Project, ProjectSettings, ProjectTemplate, WorkItem } from '@claudio/shared';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
@@ -15,10 +15,10 @@ let core: Core;
 let root: string;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const scratch = () => mkdtempSync(join(tmpdir(), 'agentry-api-proj-'));
+const scratch = () => mkdtempSync(join(tmpdir(), 'claudio-api-proj-'));
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-api-projects-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-api-projects-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -73,7 +73,7 @@ test('a project is created or imported from a template, and a bad one is refused
 });
 
 test('settings are read and replaced whole, validated, and each change reaches the event feed', async () => {
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   const { id } = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name: 'Claudio' }) })).json<Project>();
   const other = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name: 'Other' }) })).json<Project>();
@@ -134,7 +134,7 @@ test('PATCH renames a project, or changes its key and modules, keeping what a mo
 
 test('removing a project keeps its settings, and importing the directory again brings them back', async () => {
   const path = scratch();
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const stop = core.events.subscribe((e) => events.push(e));
   const first = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Lib', template: 'library' }) })).json<Project>();
   await app.inject({ method: 'DELETE', url: `/api/projects/${first.id}` });

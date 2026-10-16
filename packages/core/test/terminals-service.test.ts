@@ -3,9 +3,9 @@ import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, Terminal, TerminalServerFrame } from '@claudio/shared';
+import type { ClaudioEvent, Terminal, TerminalServerFrame } from '@claudio/shared';
 import { Db } from '../src/db.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
 import { inProcessHost } from '../src/terminals/host-client.ts';
 import { PtyMissingError, type Pty, type PtyBackend, type PtySpawn } from '../src/terminals/host/pty.ts';
@@ -135,7 +135,7 @@ function setup(options: { env?: NodeJS.ProcessEnv; loader?: () => PtyBackend } =
   mkdirSync(config.dataDir, { recursive: true });
   const db = new Db(config);
   const backend = new Backend();
-  const events: AgentryEventInput[] = [];
+  const events: ClaudioEventInput[] = [];
   const time = manualClock();
   const env = { HOME: '/home/person', PATH: '/usr/bin', CLAUDIO_API_TOKEN: 'secret', CLAUDIO_AUTH_TOKEN: 'owner', ...(options.env ?? {}) };
   const service = new TerminalService({
@@ -165,8 +165,8 @@ async function stop(ctx: ReturnType<typeof setup>): Promise<void> {
 }
 
 const who = { actor: 'local', client: 'local' };
-const changes = (events: AgentryEventInput[]): Extract<AgentryEvent, { type: 'terminal.changed' }>[] =>
-  events.filter((e): e is Extract<AgentryEvent, { type: 'terminal.changed' }> => e.type === ('terminal.changed' as const)) as never;
+const changes = (events: ClaudioEventInput[]): Extract<ClaudioEvent, { type: 'terminal.changed' }>[] =>
+  events.filter((e): e is Extract<ClaudioEvent, { type: 'terminal.changed' }> => e.type === ('terminal.changed' as const)) as never;
 
 async function opened(ctx: ReturnType<typeof setup>): Promise<Terminal> {
   await ctx.service.updateSettings({ enabled: true });

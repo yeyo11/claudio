@@ -165,7 +165,7 @@ test('github reviews: an outdated thread has no line, only where it was left', (
 test('github reviews: a comment review is one request with the head, an event and every note', () => {
   const plan = githubAdapter.submit(ghRepo, 31, {
     headSha: GH_HEAD,
-    body: 'a review [agentry-review:abc]',
+    body: 'a review [claudio-review:abc]',
     notes: [
       { path: 'probe-r0.txt', side: 'right', line: 2, suggestion: false, body: 'one' },
       { path: 'probe-r0.txt', side: 'right', line: 5, startLine: 4, suggestion: false, body: 'two' },
@@ -180,7 +180,7 @@ test('github reviews: a comment review is one request with the head, an event an
   assert.deepEqual(JSON.parse(call?.input ?? ''), {
     commit_id: GH_HEAD,
     event: 'COMMENT',
-    body: 'a review [agentry-review:abc]',
+    body: 'a review [claudio-review:abc]',
     comments: [
       { path: 'probe-r0.txt', line: 2, side: 'RIGHT', body: 'one' },
       { path: 'probe-r0.txt', start_line: 4, start_side: 'RIGHT', line: 5, side: 'RIGHT', body: 'two' },
@@ -219,7 +219,7 @@ test('github reviews: pending reviews are paged and only PENDING ones are pendin
   assert.equal(entries.length, 2);
   assert.ok(entries.every((e) => !e.pending));
   assert.equal(entries[0]?.author, 'yeyo11');
-  assert.equal(entries[0]?.body.includes('[agentry-review:r0probe]'), true);
+  assert.equal(entries[0]?.body.includes('[claudio-review:r0probe]'), true);
   const pending = githubAdapter.parsePendingReviews(result('[[{"id":9,"state":"PENDING","body":"","user":{"login":"me"}}]]'));
   assert.deepEqual(pending, [{ id: '9', pending: true, body: '', author: 'me' }]);
 });
@@ -290,7 +290,7 @@ test('gitlab reviews: a review is a draft per note with the content type, then o
   const refs = { baseSha: '1af4427008da39d223f59e4ce18dc137940b966c', startSha: '1af4427008da39d223f59e4ce18dc137940b966c', headSha: GL_HEAD };
   const plan = gitlabAdapter.submit(glRepo, 13, {
     headSha: GL_HEAD,
-    body: 'a review [agentry-review:abc]',
+    body: 'a review [claudio-review:abc]',
     diffRefs: refs,
     notes: [
       { path: 'probe-r0.txt', side: 'right', line: 7, suggestion: false, body: 'seven' },
@@ -302,7 +302,7 @@ test('gitlab reviews: a review is a draft per note with the content type, then o
     assert.equal(argv(call), 'api --hostname gitlab.com -X POST projects/87089091/merge_requests/13/draft_notes -H Content-Type: application/json --input -');
     assert.equal(classifyCall(call), 'write');
   }
-  assert.deepEqual(JSON.parse(plan.calls[0]?.input ?? ''), { note: 'a review [agentry-review:abc]' });
+  assert.deepEqual(JSON.parse(plan.calls[0]?.input ?? ''), { note: 'a review [claudio-review:abc]' });
   assert.deepEqual(JSON.parse(plan.calls[1]?.input ?? ''), {
     note: 'seven',
     position: { position_type: 'text', base_sha: refs.baseSha, start_sha: refs.startSha, head_sha: GL_HEAD, old_path: 'probe-r0.txt', new_path: 'probe-r0.txt', new_line: 7 },

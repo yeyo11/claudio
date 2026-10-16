@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES, isAgentryMcpWriteTool } from '../src/names.ts';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES, isClaudioMcpWriteTool } from '../src/names.ts';
 import { createClient, type FetchLike } from '../src/client.ts';
 import { createServer } from '../src/server.ts';
 
@@ -35,7 +35,7 @@ const item = { id: 'item_one', key: 'AGN-7', title: 'Cart', status: 'todo', desc
 test('the write tools are named and never pre-allowed', () => {
   assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 9);
   for (const tool of CLAUDIO_MCP_WRITE_TOOLS) {
-    assert.ok(isAgentryMcpWriteTool(tool));
+    assert.ok(isClaudioMcpWriteTool(tool));
     assert.ok(!CLAUDIO_MCP_READ_TOOLS.includes(tool));
   }
 });

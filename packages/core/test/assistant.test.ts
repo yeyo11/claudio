@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import type {
-  AgentryEvent,
+  ClaudioEvent,
   AssistantProposal,
   AssistantResourceKind,
   DecisionAnswer,
@@ -44,7 +44,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team'], members: Pro
 
 /** A small repository: a README, two sources and a document. */
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-assistant-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-assistant-'));
   writeFileSync(join(dir, 'README.md'), '# Pagos\n\nPayments API.\n');
   mkdirSync(join(dir, 'src'));
   writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n');
@@ -76,7 +76,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
   const bus = new EventBus();
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   bus.observe((e) => events.push(e));
   const dir = opts.dir ?? repo();
   const state = {
@@ -471,7 +471,7 @@ test('a run that fails, answers nothing readable or loses its chat ends failed, 
   assert.equal(unreadable.error?.code, ASSISTANT_ERRORS.unreadable);
 
   const lost = await projectRun(s);
-  s.bus.emit({ type: 'run.ended', title: '', runId: lost.chatId ?? '', runName: 'x', sessionId: null, orchestrationId: null, internal: false, status: 'failed', error: 'killed', costUsd: 0, durationMs: 1 } as unknown as AgentryEvent);
+  s.bus.emit({ type: 'run.ended', title: '', runId: lost.chatId ?? '', runName: 'x', sessionId: null, orchestrationId: null, internal: false, status: 'failed', error: 'killed', costUsd: 0, durationMs: 1 } as unknown as ClaudioEvent);
   const read = s.assistant.run(lost.id);
   assert.equal(read.status, 'failed');
   assert.equal(read.error?.code, ASSISTANT_ERRORS.ended);
@@ -590,7 +590,7 @@ test('suggesting again sets the pending proposals of the latest run aside; a new
 });
 
 test('a project with nothing to read starts no chat and is offered its template team', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-assistant-empty-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-assistant-empty-'));
   mkdirSync(join(dir, '.claude'));
   const s = setup({ dir, commits: null, chats: 0 });
   const run = await projectRun(s);
@@ -964,7 +964,7 @@ test("Suggest tasks' focus is its own field, worded as where to look and not as 
   assert.equal('focus' in project, false);
 
   // On an empty project a focus is something to work from, as a description is
-  const empty = setup({ dir: mkdtempSync(join(tmpdir(), 'agentry-assistant-empty-')), commits: null, chats: 0 });
+  const empty = setup({ dir: mkdtempSync(join(tmpdir(), 'claudio-assistant-empty-')), commits: null, chats: 0 });
   const focused = await empty.assistant.start('p1', { kind: 'work-items', focus: 'a payments API' });
   await empty.assistant.settled();
   assert.equal(focused.status, 'running');
@@ -1223,7 +1223,7 @@ test('a run whose chat hit the usage limit stays running while the rotation hold
   s.held.add(run.chatId as string);
   // Neither the limit's result nor the process it took down ends the run
   s.assistant.chatResult(run.chatId as string, { isError: true, result: 'limit', structuredOutput: null, cause: 'rate-limit' });
-  s.bus.emit({ type: 'run.ended', title: '', runId: run.chatId ?? '', runName: 'x', sessionId: null, orchestrationId: null, internal: false, status: 'failed', error: 'exit 1', costUsd: 0, durationMs: 1 } as unknown as AgentryEvent);
+  s.bus.emit({ type: 'run.ended', title: '', runId: run.chatId ?? '', runName: 'x', sessionId: null, orchestrationId: null, internal: false, status: 'failed', error: 'exit 1', costUsd: 0, durationMs: 1 } as unknown as ClaudioEvent);
   assert.equal(s.assistant.run(run.id).status, 'running');
   // The replayed turn answers in the same chat
   s.held.delete(run.chatId as string);

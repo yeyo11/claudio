@@ -118,9 +118,9 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
       {status.enabled && status.tailscale.state === 'ready' && (
         <Card title={t('remote.startWith.title')}>
           <Switch
-            checked={status.settings.startWithAgentry}
+            checked={status.settings.startWithClaudio}
             disabled={settings.isPending}
-            onChange={(startWithAgentry) => settings.mutate({ startWithAgentry })}
+            onChange={(startWithClaudio) => settings.mutate({ startWithClaudio })}
           >
             {t('remote.startWith.label')}
           </Switch>

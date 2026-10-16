@@ -4,7 +4,7 @@ import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFi
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, ProjectTrackerSettings, WorkItem } from '@claudio/shared';
+import type { ClaudioEvent, FlowCriterionResult, ProjectTrackerSettings, WorkItem } from '@claudio/shared';
 import { Db } from '../../src/db.ts';
 import { runHostCall } from '../../src/hosts/exec.ts';
 import type { MergeService } from '../../src/hosts/merge-service.ts';
@@ -59,7 +59,7 @@ export interface Repo {
 
 export function repo(): Repo {
   // Resolved, so that the root is the same string in every path the service builds from it
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'agentry-golden-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'claudio-golden-')));
   const remote = join(root, 'remote.git');
   const project = join(root, 'project');
   const other = join(root, 'other');
@@ -107,13 +107,13 @@ export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: bool
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
-  const events: AgentryEvent[] = [];
+  const events: ClaudioEvent[] = [];
   const services: PullRequestService[] = [];
   const items = new WorkItemService({
     db,
     project: (id) => (id === 'p1' ? { keyPrefix: 'CW', columnLimits: {} } : null),
     emit: (e) => {
-      const event = { ...e, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent;
+      const event = { ...e, id: events.length + 1, at: new Date().toISOString() } as ClaudioEvent;
       events.push(event);
       for (const s of services) s.observe(event);
     },

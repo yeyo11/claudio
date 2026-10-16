@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 /**
  * The desktop shell (apps/desktop) loads this same UI in an Electron window whose title bar is
  * drawn by the page: the top bar becomes the window's drag region and leaves room for the window
- * controls. The preload exposes `window.agentryDesktop`; when it is there, `<html>` gets
+ * controls. The preload exposes `window.claudioDesktop`; when it is there, `<html>` gets
  * `is-desktop` and `desktop-<platform>` before the first paint, and the CSS in `styles/shell.css`
  * does the rest. In a browser nothing is stamped and nothing changes.
  */
@@ -45,7 +45,7 @@ export interface DesktopUpdatesBridge {
 
 declare global {
   interface Window {
-    agentryDesktop?: DesktopBridge;
+    claudioDesktop?: DesktopBridge;
   }
 }
 
@@ -59,7 +59,7 @@ export function desktopClasses(bridge: unknown): string[] {
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  const classes = desktopClasses(window.agentryDesktop);
+  const classes = desktopClasses(window.claudioDesktop);
   if (classes.length) document.documentElement.classList.add(...classes);
 }
 
@@ -77,7 +77,7 @@ export function titleBarTheme(style: Pick<CSSStyleDeclaration, 'getPropertyValue
 
 /** Tells the desktop shell which colours the theme now shows; nothing in a browser. */
 export function syncDesktopTitleBar(): void {
-  const bridge = typeof window !== 'undefined' ? window.agentryDesktop : undefined;
+  const bridge = typeof window !== 'undefined' ? window.claudioDesktop : undefined;
   if (!bridge?.setTitleBarTheme) return;
   // A frame later: the theme attribute has applied and, on first load, the stylesheets have too
   requestAnimationFrame(() => {
@@ -90,7 +90,7 @@ export function syncDesktopTitleBar(): void {
 export function useDesktopNavigation(): void {
   const navigate = useNavigate();
   useEffect(() => {
-    const subscribe = typeof window !== 'undefined' ? window.agentryDesktop?.onNavigate : undefined;
+    const subscribe = typeof window !== 'undefined' ? window.claudioDesktop?.onNavigate : undefined;
     return subscribe?.((path) => {
       if (path.startsWith('/') && !path.startsWith('//')) navigate(path);
     });

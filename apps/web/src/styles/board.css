@@ -2,7 +2,7 @@
    Tasks: the board, the list, the All projects view and the milestones
    (pages/tasks). Reference: `.wi-board`, `.wi-col*`, `.wi-card*`, `.select-bar`,
    `.wi-group`, `.wi-row`, `.wi-jump`, `.wi-mrow` and `.ms-*` in
-   docs/design-system/agentry-ds.css §15, drawn on DesktopTablero, DesktopTareasLista,
+   docs/design-system/claudio-ds.css §15, drawn on DesktopTablero, DesktopTareasLista,
    DesktopTareasTodos, DesktopHitos and their Mobile* screens. The marks shared with
    a work item's page (key, type, priority, epic, label, column glyph) are in
    work-item-marks.css.

@@ -19,7 +19,7 @@ let project: Project;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-chat-start-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-chat-start-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -29,7 +29,7 @@ before(async () => {
     }),
   );
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-chat-start-repo-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-api-chat-start-repo-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'README.md'), '# Shop\n');

@@ -62,7 +62,7 @@ async function deciding(point: DecisionPointId, mode: 'off' | 'shadow' | 'active
 }
 
 function repoWithCommit(): string {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-decisions-repo-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-decisions-repo-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'ignore' });
   git('init', '-b', 'main');
   git('config', 'user.email', 't@example.com');

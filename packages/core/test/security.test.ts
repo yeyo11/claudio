@@ -309,7 +309,7 @@ async function startIssuer(): Promise<Issuer> {
 test('an OIDC token is accepted only when its signature, audience and expiry all hold', async (t) => {
   const issuer = await startIssuer();
   t.after(() => issuer.close());
-  const config: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: 'agentry-ui' };
+  const config: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: 'claudio-ui' };
   const verifier = new OidcVerifier();
   const now = Math.floor(Date.now() / 1000);
   const good = { iss: issuer.url, aud: 'claudio', sub: 'user@example.test', exp: now + 600 };
@@ -340,9 +340,9 @@ test('a configured client id rejects a token issued to another client', async (t
   const verifier = new OidcVerifier();
   const now = Math.floor(Date.now() / 1000);
   const claims = { iss: issuer.url, aud: 'claudio', sub: 'user@example.test', exp: now + 600 };
-  const configured: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: 'agentry-ui' };
+  const configured: OidcConfig = { issuer: issuer.url, audience: 'claudio', clientId: 'claudio-ui' };
 
-  assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'agentry-ui' }), configured), 'user@example.test');
+  assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'claudio-ui' }), configured), 'user@example.test');
   await assert.rejects(verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), configured), /issued to another client/);
   // Issuers that leave `azp` out are not locked out by a client id being set
   assert.equal(await verifier.verify(issuer.jwt(claims), configured), 'user@example.test');

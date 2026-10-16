@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@claudio/shared';
+import type { ClaudioEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { mainCheckout } from '../src/git.ts';
 import { ISSUE_TEXT_MARK } from '../src/trackers/links.ts';
@@ -32,7 +32,7 @@ type Setup = ReturnType<typeof setup>;
 let seq = 0;
 const iso = (offsetMs = 0) => new Date(Date.now() + offsetMs).toISOString();
 
-function runUpdated(runId: string, status: RunStatus, previousStatus: RunStatus | null, at = iso()): AgentryEvent {
+function runUpdated(runId: string, status: RunStatus, previousStatus: RunStatus | null, at = iso()): ClaudioEvent {
   return {
     id: ++seq,
     at,
@@ -51,11 +51,11 @@ function runUpdated(runId: string, status: RunStatus, previousStatus: RunStatus 
   };
 }
 
-function taskEvent(orchestrationId: string, taskId: string, status: OrchestrationTaskStatus, runId: string | null, at = iso()): AgentryEvent {
+function taskEvent(orchestrationId: string, taskId: string, status: OrchestrationTaskStatus, runId: string | null, at = iso()): ClaudioEvent {
   return { id: ++seq, at, title: '', type: 'orchestration.task', orchestrationId, orchestrationName: 'g', taskId, taskName: taskId, status, previousStatus: null, runId, error: null };
 }
 
-function created(orchestrationId: string): AgentryEvent {
+function created(orchestrationId: string): ClaudioEvent {
   return {
     id: ++seq,
     at: iso(),
@@ -113,8 +113,8 @@ test('a failed or stopped turn moves nothing', () => {
   assert.equal(statusOf(s, item.id), 'in_progress');
 });
 
-function runEnded(runId: string, status: 'completed' | 'failed' | 'stopped'): AgentryEvent {
-  return { id: ++seq, at: iso(), title: '', type: 'run.ended', runId, runName: runId, sessionId: runId, orchestrationId: null, internal: false, status, error: null, turns: 0, costUsd: 0 } as AgentryEvent;
+function runEnded(runId: string, status: 'completed' | 'failed' | 'stopped'): ClaudioEvent {
+  return { id: ++seq, at: iso(), title: '', type: 'run.ended', runId, runName: runId, sessionId: runId, orchestrationId: null, internal: false, status, error: null, turns: 0, costUsd: 0 } as ClaudioEvent;
 }
 
 test('a chat that fails before its turn gives any result puts the item back where it was', () => {
@@ -180,7 +180,7 @@ test("a person's move wins over the coalesced updates a busy chat keeps sending"
 test('a chat announced already busy starts its turn: it has no transition to report', () => {
   const s = setup();
   const item = workedBy(s, 'chat-1');
-  s.automation.observe({ id: ++seq, at: iso(-60_000), title: '', type: 'run.created', runId: 'chat-1', runName: 'chat-1', sessionId: 'chat-1', orchestrationId: null, internal: false, status: 'busy' } as AgentryEvent);
+  s.automation.observe({ id: ++seq, at: iso(-60_000), title: '', type: 'run.created', runId: 'chat-1', runName: 'chat-1', sessionId: 'chat-1', orchestrationId: null, internal: false, status: 'busy' } as ClaudioEvent);
   assert.equal(statusOf(s, item.id), 'in_progress');
   s.automation.chatResult('chat-1', { isError: false });
   assert.equal(statusOf(s, item.id), 'in_review');
@@ -269,7 +269,7 @@ test('the nodes of a new graph are linked to their items, which follow the node 
 test("an item worked by a node records the node's worktree and branch, where its changes are", () => {
   const s = setup();
   const a = s.items.create('p1', { title: 'API' });
-  const node = { id: 'agn-1', workItemId: a.id, worktree: '/repo/.claude/worktrees/o1-agn-1', branch: 'agentry/o1/agn-1' };
+  const node = { id: 'agn-1', workItemId: a.id, worktree: '/repo/.claude/worktrees/o1-agn-1', branch: 'claudio/o1/agn-1' };
   s.orchestrations.set('o1', graph('o1', [node]));
   s.automation.observe(created('o1'));
   s.automation.observe(taskEvent('o1', 'agn-1', 'running', 'worker-1'));
@@ -304,7 +304,7 @@ const gitIn = (dir: string, ...args: string[]) =>
   execFileSync('git', ['-C', dir, '-c', 'user.name=Someone', '-c', 'user.email=s@example.com', ...args], { stdio: 'pipe', encoding: 'utf8' }).trim();
 
 function repoWithCommit(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agentry-links-repo-'));
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-links-repo-'));
   gitIn(dir, 'init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'README.md'), 'project\n');
   gitIn(dir, 'add', '-A');
@@ -340,7 +340,7 @@ test('looking for an item\'s worktree makes none: no branch, no checkout, until 
 
 test("recovering an item's worktree leaves git's record of every other worktree alone", () => {
   const repo = repoWithCommit();
-  const other = join(mkdtempSync(join(tmpdir(), 'agentry-other-')), 'elsewhere');
+  const other = join(mkdtempSync(join(tmpdir(), 'claudio-other-')), 'elsewhere');
   gitIn(repo, 'worktree', 'add', '-q', '-b', 'elsewhere', other);
   rmSync(other, { recursive: true, force: true });
   const first = itemWorktree(repo, { key: 'AGN-1', worktree: null, branch: null });
@@ -363,7 +363,7 @@ test("a plain directory where the item's worktree should be is refused, not work
 
 test('"Work on it" in a linked worktree branches from that worktree\'s HEAD, not the main checkout\'s', () => {
   const repo = repoWithCommit();
-  const linked = join(mkdtempSync(join(tmpdir(), 'agentry-linked-')), 'feature');
+  const linked = join(mkdtempSync(join(tmpdir(), 'claudio-linked-')), 'feature');
   gitIn(repo, 'worktree', 'add', '-q', '-b', 'feature', linked);
   writeFileSync(join(linked, 'feature.txt'), 'only on the feature branch\n');
   gitIn(linked, 'add', '-A');
@@ -420,7 +420,7 @@ test("a node that works on an item with a worktree of its own does not take the 
 
 test("an item's branch checked out in another checkout is a 409 that says where, not git's error", () => {
   const repo = repoWithCommit();
-  const other = join(mkdtempSync(join(tmpdir(), 'agentry-other-')), 'elsewhere');
+  const other = join(mkdtempSync(join(tmpdir(), 'claudio-other-')), 'elsewhere');
   gitIn(repo, 'worktree', 'add', '-q', '-b', 'claudio-task/agn-3', other);
   assert.throws(
     () => itemWorktree(repo, { key: 'AGN-3', worktree: null, branch: null }),
@@ -430,7 +430,7 @@ test("an item's branch checked out in another checkout is a 409 that says where,
 
 test('two projects of one repository with the same key do not share an item worktree', () => {
   const repo = repoWithCommit();
-  const linked = join(mkdtempSync(join(tmpdir(), 'agentry-linked-')), 'feature');
+  const linked = join(mkdtempSync(join(tmpdir(), 'claudio-linked-')), 'feature');
   gitIn(repo, 'worktree', 'add', '-q', '-b', 'feature', linked);
   const first = itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: null, branch: null });
   assert.ok(first);

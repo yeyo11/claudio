@@ -18,7 +18,7 @@ let app: FastifyInstance;
 let core: Core;
 
 before(async () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-api-model-fallbacks-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-api-model-fallbacks-'));
   // The fake CLI writes its probe counter into the config dir, which a real one creates itself
   mkdirSync(join(root, 'claude'));
   core = new Core(

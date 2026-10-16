@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { basename, join, resolve } from 'node:path';
 import type {
-  AgentryAssistantMarker,
+  ClaudioAssistantMarker,
   Attachment,
   ChatActivity,
   ChatFork,
@@ -117,7 +117,7 @@ export interface NewChat extends NewChatRequest {
    * Makes the chat one of the Claudio assistant: whatever the request asked for its tools, mode and
    * prompt, the core sets them again at every process (`ChatManager.assistantLaunch`).
    */
-  agentryAssistant?: AgentryAssistantMarker;
+  claudioAssistant?: ClaudioAssistantMarker;
 }
 
 /**
@@ -219,7 +219,7 @@ export interface ChatRuntime {
   activity: ChatActivity | null;
   /** The tool preset and MCP servers Claudio started it with; null when it picked none */
   tools?: ChatToolConfig | null;
-  agentryAssistant?: AgentryAssistantMarker | null;
+  claudioAssistant?: ClaudioAssistantMarker | null;
   executions: Execution[];
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
@@ -441,7 +441,7 @@ export class LiveChat {
         // A resumed chat keeps the tools and servers it was given, not the ones the CLI would pick
         ...(record.tools ? { toolConfig: record.tools, allowedTools: record.tools.allowedTools, disallowedTools: record.tools.disallowedTools } : {}),
         ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
-        ...(record.agentryAssistant ? { agentryAssistant: record.agentryAssistant } : {}),
+        ...(record.claudioAssistant ? { claudioAssistant: record.claudioAssistant } : {}),
         ...(record.keepAlive === false ? { keepAlive: false } : {}),
         ...(record.accountPinned && record.account ? { account: record.account } : {}),
       },
@@ -622,7 +622,7 @@ export class LiveChat {
       // A chat with no process of ours is doing nothing, whatever the last stream left behind
       activity: this.alive ? this.activity.current() : null,
       tools: this.tools,
-      ...(this.opts.agentryAssistant ? { agentryAssistant: this.opts.agentryAssistant } : {}),
+      ...(this.opts.claudioAssistant ? { claudioAssistant: this.opts.claudioAssistant } : {}),
       executions: this.executions,
       backgroundTasks: [...this.branches.tasks.values()],
       subagents: [...this.branches.subagents.values()],
@@ -659,7 +659,7 @@ export class LiveChat {
       ...(this.opts.account ? { accountPinned: true as const } : {}),
       ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       tools: this.tools,
-      ...(this.opts.agentryAssistant ? { agentryAssistant: this.opts.agentryAssistant } : {}),
+      ...(this.opts.claudioAssistant ? { claudioAssistant: this.opts.claudioAssistant } : {}),
       ...(this.opts.keepAlive === false ? { keepAlive: false as const } : {}),
       ...(this.pending.size || this.undelivered.length ? { pending: this.pendingList() } : {}),
       createdAt: this.createdAt,

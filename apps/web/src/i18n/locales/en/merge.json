@@ -227,7 +227,7 @@
     "push": "Claudio turned auto-merge off {{when}} because it pushed to the branch. Turn it on again if you still want it.",
     "update": "Auto-merge was turned off {{when}} by {{who}} for Update from base. Turn it on again if you still want it.",
     "updateYou": "You turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it.",
-    "updateAgentry": "Claudio turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it."
+    "updateClaudio": "Claudio turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it."
   },
   "rebaseOnHostWhy": {
     "uncommitted-changes": "Rebase on {{host}} is not offered: the checkout has changes that are not committed, and the rebase would leave it behind.",

@@ -34,7 +34,7 @@ export function injectFetch(app: FastifyInstance, seen: Array<{ url: string; hea
 
 /** A wrapper on a temporary data dir with project Shop (AGN), item AGN-1, an orchestration and a flow run */
 export async function seed(): Promise<Seeded> {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-mcp-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'claudio-mcp-test-'));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

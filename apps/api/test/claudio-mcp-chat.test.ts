@@ -24,7 +24,7 @@ let item: WorkItem;
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
-  root = mkdtempSync(join(tmpdir(), 'agentry-mcp-chat-'));
+  root = mkdtempSync(join(tmpdir(), 'claudio-mcp-chat-'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
@@ -50,7 +50,7 @@ after(async () => {
 });
 
 async function ask(prompt: string) {
-  const launch = await core.agentryMcp();
+  const launch = await core.claudioMcp();
   const chat = core.runtime.start({ prompt, cwd: join(root, 'shop'), ...launch });
   const result = await core.runtime.waitForResult(chat.id);
   const blocks = (core.runtime.messages(chat.id) ?? []).flatMap((entry) => entry.blocks ?? []);

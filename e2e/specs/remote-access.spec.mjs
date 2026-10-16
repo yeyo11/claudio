@@ -7,7 +7,7 @@
 // is on) the way the server does; the tab, its QR code and its buttons are the real ones.
 
 const TAB = '[role=tabpanel]';
-const NODE = 'agentry-test.tail0000.ts.net';
+const NODE = 'claudio-test.tail0000.ts.net';
 const FAKE_URL = `https://${NODE}:8444`;
 const READY = { state: 'ready', version: '1.102.4', host: NODE, reason: null };
 
@@ -43,7 +43,7 @@ const status = (state, extra = {}) => ({
   managed: false,
   tailscale: READY,
   port: 8444,
-  settings: { startWithAgentry: false },
+  settings: { startWithClaudio: false },
   ...extra,
 });
 
@@ -64,17 +64,17 @@ export default async ({ page, api, check }) => {
   check((await page.eval('return location.search')) === '?tab=security', 'the warning leads to Security');
 
   // "Start with Claudio" is saved, and a change made elsewhere reaches the page through the feed
-  const before = (await api.get('/tunnel')).body.settings.startWithAgentry;
+  const before = (await api.get('/tunnel')).body.settings.startWithClaudio;
   try {
     await page.goto('/settings?tab=remote', 1500);
     await page.click(`${TAB} [role=switch]`, undefined, 800);
-    check((await api.get('/tunnel')).body.settings.startWithAgentry === !before, 'the switch saved the setting');
-    await api.put('/tunnel/settings', { startWithAgentry: before });
+    check((await api.get('/tunnel')).body.settings.startWithClaudio === !before, 'the switch saved the setting');
+    await api.put('/tunnel/settings', { startWithClaudio: before });
     await page.waitFor(`return document.querySelector('${TAB} [role=switch]')?.getAttribute('aria-checked') === ${JSON.stringify(String(before))}`, {
       label: 'the switch following tunnel.changed',
     });
   } finally {
-    await api.put('/tunnel/settings', { startWithAgentry: before });
+    await api.put('/tunnel/settings', { startWithClaudio: before });
   }
 
   // ---- A fake open tunnel ----

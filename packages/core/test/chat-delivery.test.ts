@@ -46,7 +46,7 @@ function withEnv(vars: Record<string, string>): () => void {
 function rig(env: Record<string, string> = {}, setup?: (config: ReturnType<typeof tempConfig>) => void) {
   const config = tempConfig();
   setup?.(config);
-  const scratch = mkdtempSync(join(tmpdir(), 'agentry-delivery-'));
+  const scratch = mkdtempSync(join(tmpdir(), 'claudio-delivery-'));
   const queueLog = join(scratch, 'queue.jsonl');
   const restore = withEnv({ FAKE_QUEUE_LOG: queueLog, FAKE_QUEUE_LOG_IDS: '1', ...env });
   const db = new Db(config);
@@ -219,7 +219,7 @@ test('S-9: a limit replay sends the turn that died again, and what was written d
 
 test('S-10: two messages sent close together reach the agent in the order they were sent', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_QUEUE };
-  const scratch = mkdtempSync(join(tmpdir(), 'agentry-delivery-'));
+  const scratch = mkdtempSync(join(tmpdir(), 'claudio-delivery-'));
   const queueLog = join(scratch, 'queue.jsonl');
   const restore = withEnv({ FAKE_QUEUE_LOG: queueLog });
   const core = new Core(config);

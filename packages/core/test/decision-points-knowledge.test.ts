@@ -25,7 +25,7 @@ function setup() {
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null), decisions: rig.engine });
   const journal = new JournalService({ db, decisions: rig.engine });
   const memory = new MemoryStore(config);
-  const projectDir = mkdtempSync(join(tmpdir(), 'agentry-points-'));
+  const projectDir = mkdtempSync(join(tmpdir(), 'claudio-points-'));
   const proposals = new MemoryProposalService({ db, journal, memory, project: (id) => (id === 'p1' ? { path: projectDir, memoryKey: 'p1-key' } : null), decisions: rig.engine });
   return { db, rig, items, journal, proposals };
 }

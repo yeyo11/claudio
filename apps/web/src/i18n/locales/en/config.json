@@ -911,7 +911,7 @@
     "workflowIntro": "Every task runs as a subagent of one Claude Code session, driven by a script generated from this graph.",
     "workflowRun": " Claude Code run {{id}}: a resume replays what had finished from its cache.",
     "script": "Script",
-    "workflowNamePlaceholder": "Name (defaults to agentry-…)",
+    "workflowNamePlaceholder": "Name (defaults to claudio-…)",
     "workflowName": "Workflow name",
     "saveWorkflow": "Save as project workflow",
     "saveWorkflowHint": "Copies it into the project's .claude/workflows/, where Claude Code runs it by name.",
@@ -1175,7 +1175,7 @@
       "intro": "Names this wrapper answers to besides localhost. A request for any other host is refused, which keeps a web page from reaching Claudio through a name it controls. A tunnel's address is added by itself while the tunnel is open.",
       "label": "Hosts",
       "hint": "One per line: a name, or *.example.com for the names under it. No ports.",
-      "placeholder": "agentry.example.com",
+      "placeholder": "claudio.example.com",
       "saved": "Allowed hosts saved",
       "fromTunnel": "tunnel, while it is open",
       "hintBesideEnv": "One per line: a name, or *.example.com for the names under it. No ports. They answer beside the ones from the environment, at once."

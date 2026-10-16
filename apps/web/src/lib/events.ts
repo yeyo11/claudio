@@ -1,8 +1,8 @@
 import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import type {
-  AgentryEvent,
-  AgentryEventType,
+  ClaudioEvent,
+  ClaudioEventType,
   AssistantProposalEvent,
   AssistantRun,
   AssistantRunDetail,
@@ -41,10 +41,10 @@ import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 export {
   FALLBACK_POLL_MS,
   subscribeEvents,
-  useAgentryEvents,
+  useClaudioEvents,
   useFallbackInterval,
   useFeedState,
-  type AgentryEventListener,
+  type ClaudioEventListener,
   type FeedState,
 } from './feed';
 
@@ -55,7 +55,7 @@ export {
  * events without opening a second connection:
  *
  *   subscribeEvents(listener)      plain subscription; returns the unsubscribe function
- *   useAgentryEvents(listener)     the same inside a component, always calling its latest closure
+ *   useClaudioEvents(listener)     the same inside a component, always calling its latest closure
  *   useFeedState()                 'connecting' | 'open' | 'closed'
  *   useFallbackInterval(ms)        a refetchInterval that is `false` while the stream is open
  *
@@ -77,7 +77,7 @@ const LISTS = 1000;
 const CHATS = 2500;
 
 /** Every event name the server sends; typed as a record so a new event type cannot be forgotten. */
-const EVENT_TYPES: Record<AgentryEventType, true> = {
+const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'run.created': true,
   'run.updated': true,
   'run.ended': true,
@@ -237,7 +237,7 @@ function savedResource(event: AssistantProposalEvent): Target[] {
 }
 
 /** The cached queries an event makes stale, and how soon each should be refetched. */
-export function targetsFor(event: AgentryEvent): Target[] {
+export function targetsFor(event: ClaudioEvent): Target[] {
   switch (event.type) {
     // A run is an execution of a chat, and its id is the chat's: what it changes is that chat
     case 'run.created':
@@ -592,9 +592,9 @@ function startEventFeed(client: QueryClient): () => void {
   };
 
   const onEvent = (raw: MessageEvent) => {
-    let event: AgentryEvent;
+    let event: ClaudioEvent;
     try {
-      event = JSON.parse(String(raw.data)) as AgentryEvent;
+      event = JSON.parse(String(raw.data)) as ClaudioEvent;
     } catch {
       return;
     }

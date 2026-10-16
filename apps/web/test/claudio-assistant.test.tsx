@@ -9,9 +9,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { api } from '../src/api';
 import { phoneHeaderOf } from '../src/components/shell/phone-header';
 import i18n from '../src/i18n';
-import { AgentryAssistant } from '../src/pages/agentry-assistant/Entry';
-import { AssistantGreeting } from '../src/pages/agentry-assistant/Greeting';
-import { CLAUDIO_ASSISTANT_PATH, STARTERS } from '../src/pages/agentry-assistant/model';
+import { ClaudioAssistant } from '../src/pages/claudio-assistant/Entry';
+import { AssistantGreeting } from '../src/pages/claudio-assistant/Greeting';
+import { CLAUDIO_ASSISTANT_PATH, STARTERS } from '../src/pages/claudio-assistant/model';
 import { ProjectScopeProvider } from '../src/lib/project-scope';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 
@@ -40,13 +40,13 @@ test('the entry is a route of its own, headed by its page on a phone, apart from
 for (const language of ['en', 'es'] as const) {
   test(`the entry greets, offers its starters as buttons that fill the box, and has no project required (${language})`, async () => {
     await i18n.changeLanguage(language);
-    const html = wrap(<AgentryAssistant />);
+    const html = wrap(<ClaudioAssistant />);
     const words = text(html);
     assert.match(words, language === 'es' ? /Hola, soy el asistente de Claudio/ : /Hi, I'm the Claudio assistant/);
     assert.equal((html.match(/class="as-starter"/g) ?? []).length, STARTERS.length);
     for (const { key } of STARTERS) {
-      assert.ok(words.includes(i18n.t(`assistant:agentry.starter.${key}.title`)), key);
-      assert.ok(words.includes(i18n.t(`assistant:agentry.starter.${key}.ask`)), key);
+      assert.ok(words.includes(i18n.t(`assistant:claudio.starter.${key}.title`)), key);
+      assert.ok(words.includes(i18n.t(`assistant:claudio.starter.${key}.ask`)), key);
     }
     // A starter only fills the composer: the one send button is disabled until there is text
     assert.match(html, /<button type="submit" class="composer-send"[^>]*disabled/);
@@ -59,7 +59,7 @@ for (const language of ['en', 'es'] as const) {
     await i18n.changeLanguage(language);
     const html = wrap(<AssistantGreeting />);
     assert.match(html, /class="as-greeting"/);
-    assert.ok(text(html).includes(i18n.t('assistant:agentry.greeting')));
+    assert.ok(text(html).includes(i18n.t('assistant:claudio.greeting')));
   });
 }
 
@@ -77,7 +77,7 @@ test('starting posts the prompt, the project and the model to /assistant/chats',
   }) as typeof fetch;
   try {
     await i18n.changeLanguage('es');
-    const chat = await api.startAgentryAssistantChat({ prompt: '¿Cuánto he gastado hoy?', projectId: 'p1', model: 'sonnet' });
+    const chat = await api.startClaudioAssistantChat({ prompt: '¿Cuánto he gastado hoy?', projectId: 'p1', model: 'sonnet' });
     assert.equal(chat.id, 'c1');
     assert.ok(seen?.url.endsWith('/assistant/chats'));
     assert.equal(seen?.method, 'POST');

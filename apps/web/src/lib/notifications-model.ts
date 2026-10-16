@@ -6,7 +6,7 @@ import {
   notificationsFor as draftsFor,
   orchestrationHref,
   waitingDrafts as waitingDraftsFor,
-  type AgentryEvent,
+  type ClaudioEvent,
   type ChatSummary,
   type NotificationDraft,
   type NotificationKind,
@@ -86,7 +86,7 @@ const text: NotificationText = {
 };
 
 /** The notifications an event calls for, in the active language; empty for nearly all of them. */
-export const notificationsFor = (event: AgentryEvent): NotificationDraft[] => draftsFor(event, text);
+export const notificationsFor = (event: ClaudioEvent): NotificationDraft[] => draftsFor(event, text);
 
 /** The `waiting` notifications for the prompts a chat is holding right now, in the active language. */
 export const waitingDrafts = (chat: Pick<ChatSummary, 'id' | 'title' | 'firstPrompt' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] =>
@@ -159,7 +159,7 @@ export function hasUrgent(items: readonly AppNotification[]): boolean {
 
 // ---------- persistence ----------
 
-export const STORAGE_KEY = 'agentry-notifications:v1';
+export const STORAGE_KEY = 'claudio-notifications:v1';
 const STORAGE_VERSION = 1;
 
 export interface StoredNotifications {

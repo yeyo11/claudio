@@ -2,7 +2,7 @@
 // link, and the state and preferences persist per browser. The list is seeded into localStorage
 // because the sandbox has no login, so no run can reach a state that needs the person.
 
-const KEY = 'agentry-notifications:v1';
+const KEY = 'claudio-notifications:v1';
 const item = (id, patch) => ({
   id,
   key: id,

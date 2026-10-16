@@ -630,7 +630,7 @@ function JevKey({ saved }: { saved: DecisionSettings }) {
   );
 }
 
-const OPEN_GROUPS_KEY = 'agentry-decision-groups-open';
+const OPEN_GROUPS_KEY = 'claudio-decision-groups-open';
 
 function readOpenGroups(): ReadonlySet<string> {
   try {

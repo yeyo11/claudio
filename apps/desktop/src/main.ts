@@ -481,7 +481,7 @@ if (!app.requestSingleInstanceLock()) {
     if (theme) paintTitleBar(theme);
   });
 
-  // window.agentryDesktop.updates: the same local-page rule as the title bar
+  // window.claudioDesktop.updates: the same local-page rule as the title bar
   const denied = () => Promise.reject(new Error('not allowed from this page'));
   ipcMain.handle(IPC.updateState, (event) => (fromLocalPage(event) ? updater.state : denied()));
   ipcMain.handle(IPC.updateDownload, (event) => (fromLocalPage(event) ? updater.download() : denied()));

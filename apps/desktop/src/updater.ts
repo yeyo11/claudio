@@ -319,7 +319,7 @@ export function appImageRelaunch(pid: number, appImage: string, args: readonly s
     'shift',
     'exec "$@"',
   ].join('\n');
-  return { command: '/bin/bash', args: ['-c', script, 'agentry-relaunch', String(pid), appImage, ...args] };
+  return { command: '/bin/bash', args: ['-c', script, 'claudio-relaunch', String(pid), appImage, ...args] };
 }
 
 /** What is live that a restart would stop */

@@ -7,12 +7,12 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@claudio/shared';
 import { Db, WORK_ITEMS_SCHEMA_VERSION, migrate } from '../src/db.ts';
-import type { AgentryEventInput } from '../src/events.ts';
+import type { ClaudioEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';
 import { CRITERION_MAX, DESCRIPTION_MAX, MILESTONE_DESCRIPTION_MAX } from '../src/work-item-validation.ts';
 import { tempConfig } from './helpers.ts';
 
-type Emitted = AgentryEventInput;
+type Emitted = ClaudioEventInput;
 
 function setup(opts: { limits?: Partial<Record<WorkItemStatus, number>>; linkState?: (id: string) => WorkItemLinkState | null } = {}) {
   const config = tempConfig();

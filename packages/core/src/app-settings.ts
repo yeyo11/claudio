@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PERMISSION_MODES, type AllowedHostLayers, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import type { AgentryEventInput } from './events.ts';
+import type { ClaudioEventInput } from './events.ts';
 import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, type CoreConfig } from './paths.ts';
 
 /*
@@ -146,7 +146,7 @@ export class RuntimeHosts {
 type Resolved = Omit<AppSettings, 'allowedHostLayers'> & { hostLayers: Omit<AllowedHostLayers, 'runtime'> };
 
 export interface AppSettingsDeps {
-  emit?: (event: AgentryEventInput) => void;
+  emit?: (event: ClaudioEventInput) => void;
 }
 
 /**

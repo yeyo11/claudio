@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import type {
-  AgentryEvent,
+  ClaudioEvent,
   DocumentChangedEvent,
   FlowRun,
   FlowRunEvent,
@@ -49,7 +49,7 @@ const CACHE: Record<string, QueryKey> = {
   projects: keys.projects,
 };
 
-function refetched(event: AgentryEvent): string[] {
+function refetched(event: ClaudioEvent): string[] {
   const targets = targetsFor(event);
   return Object.entries(CACHE)
     .filter(([, key]) => targets.some((target) => targetMatches(target, key)))
@@ -205,8 +205,8 @@ test("a flow run or a chat moving reads its item again, but not the git diff of 
   const names = refetched(queued);
   assert.ok(names.includes('item1'));
   assert.ok(!names.includes('item1Changes') && !names.includes('item1Diff'), names.join());
-  const moving = { id: 5, at: base.at, type: 'run.updated', runId: 'c1', sessionId: 'c1', status: 'running', previousStatus: 'queued' } as unknown as AgentryEvent;
+  const moving = { id: 5, at: base.at, type: 'run.updated', runId: 'c1', sessionId: 'c1', status: 'running', previousStatus: 'queued' } as unknown as ClaudioEvent;
   assert.ok(refetched(moving).includes('item1') && !refetched(moving).includes('item1Changes'));
-  const ended = { id: 6, at: base.at, type: 'run.ended', runId: 'c1', sessionId: 'c1', status: 'completed' } as AgentryEvent;
+  const ended = { id: 6, at: base.at, type: 'run.ended', runId: 'c1', sessionId: 'c1', status: 'completed' } as ClaudioEvent;
   assert.ok(refetched(ended).includes('item1Changes'), 'a turn that ended may have changed files');
 });

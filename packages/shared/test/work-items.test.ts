@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { WorkItemLinkRole } from '../src/index.ts';
 import {
   CLAUDIO_LANGUAGES,
-  agentryLanguage,
+  claudioLanguage,
   BOARD_DONE_PAGE,
   DEFAULT_FLOW_MAX_PARALLEL,
   FLOW_RUN_OUTCOMES,
@@ -112,13 +112,13 @@ test('a comma is refused in a member command pattern, with its own reason: the C
 });
 
 test('the language of a request is the first of ours it names, English otherwise', () => {
-  assert.equal(agentryLanguage('es-ES,es;q=0.9,en;q=0.8'), 'es');
-  assert.equal(agentryLanguage('fr-FR,es;q=0.8,en;q=0.5'), 'es');
-  assert.equal(agentryLanguage('en-GB,es;q=0.9'), 'en');
-  assert.equal(agentryLanguage('es'), 'es');
-  assert.equal(agentryLanguage('de-DE'), 'en');
-  assert.equal(agentryLanguage(undefined), 'en');
-  assert.equal(agentryLanguage(['es']), 'en');
+  assert.equal(claudioLanguage('es-ES,es;q=0.9,en;q=0.8'), 'es');
+  assert.equal(claudioLanguage('fr-FR,es;q=0.8,en;q=0.5'), 'es');
+  assert.equal(claudioLanguage('en-GB,es;q=0.9'), 'en');
+  assert.equal(claudioLanguage('es'), 'es');
+  assert.equal(claudioLanguage('de-DE'), 'en');
+  assert.equal(claudioLanguage(undefined), 'en');
+  assert.equal(claudioLanguage(['es']), 'en');
   assert.deepEqual([...CLAUDIO_LANGUAGES], ['en', 'es']);
 });
 

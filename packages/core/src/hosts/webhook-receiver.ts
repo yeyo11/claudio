@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CodeHostId, WebhookRegistration } from '@claudio/shared';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
 import { signingTokenOf } from './gitlab/hooks.ts';
 import type { WebhookSecrets } from './webhook-secrets.ts';
@@ -174,7 +174,7 @@ export interface WebhookReceiverDeps {
   sql: DatabaseSync;
   /** Moves each row's next read to now; nothing else */
   nudge: (ids: readonly string[]) => void;
-  emit: (event: AgentryEventInput) => void;
+  emit: (event: ClaudioEventInput) => void;
   now?: () => number;
 }
 

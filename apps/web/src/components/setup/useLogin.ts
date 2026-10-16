@@ -2,7 +2,7 @@ import type { LoginSession, StartLoginRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api, keys } from '../../api';
-import { useAgentryEvents, useFeedState } from '../../lib/events';
+import { useClaudioEvents, useFeedState } from '../../lib/events';
 import { isLive, newerSession, READINESS_KEYS } from '../../lib/setup';
 
 /** How often a live sign-in is read while the event stream is down. */
@@ -31,7 +31,7 @@ export function useLogin({ onSucceeded, onCancelled }: { onSucceeded: () => void
 
   const take = (incoming: LoginSession) => setSession((current) => (current && current.id !== incoming.id ? current : newerSession(current, incoming)));
 
-  useAgentryEvents((event) => {
+  useClaudioEvents((event) => {
     if (event.type === 'login.updated' && session && event.login.id === session.id) take(event.login);
   });
 

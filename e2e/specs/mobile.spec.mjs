@@ -87,7 +87,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return [...document.querySelectorAll('.tabbar-tab')].some((t) => t.getAttribute('href') === '/tasks')`)) === false, 'Tasks is not one of the four tabs');
     await page.click('.tabbar-more', undefined, 600);
     await page.waitFor(`return !!document.querySelector('.more-sheet .more-nav a.more-cell')`, { label: 'the More sheet opens' });
-    // The Claudio assistant opens the sheet (MobileAsistenteAgentryMas), and Tasks is the first section after it
+    // The Claudio assistant opens the sheet (MobileAsistenteClaudioMas), and Tasks is the first section after it
     const firsts = await page.eval(`return [...document.querySelectorAll('.more-sheet .more-nav a.more-cell')].slice(0, 2).map((a) => a.getAttribute('href'))`);
     check(JSON.stringify(firsts) === JSON.stringify(['/assistant', '/tasks']), `the assistant, then Tasks, open the sheet (${JSON.stringify(firsts)})`);
     await page.waitFor(`return document.querySelector('.more-sheet a[href="/tasks"] .more-cell-note')?.textContent.trim() === '2 open'`, {

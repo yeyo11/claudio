@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
-import type { AgentryDistribution, StorageKind, StorageLocation, StorageReport } from '@claudio/shared';
+import type { ClaudioDistribution, StorageKind, StorageLocation, StorageReport } from '@claudio/shared';
 
 /**
  * Whether the folders that hold the wrapper's state would survive replacing the container, read from
@@ -64,7 +64,7 @@ export function classify(path: string, mounts: readonly Mount[]): StorageKind {
 const SURVIVES: ReadonlySet<StorageKind> = new Set(['persistent', 'unknown']);
 
 export function storageReport(
-  distribution: AgentryDistribution,
+  distribution: ClaudioDistribution,
   folders: { config: string; data: string; workspace: string },
   mountTable: () => string = () => readFileSync('/proc/self/mountinfo', 'utf8'),
 ): StorageReport {

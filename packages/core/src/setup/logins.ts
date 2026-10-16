@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResult, StartLoginRequest } from '@claudio/shared';
 import { childEnv } from '../child-env.ts';
-import type { AgentryEventInput } from '../events.ts';
+import type { ClaudioEventInput } from '../events.ts';
 import { buildHostEnv } from '../hosts/env.ts';
 import { runHostCall, type HostCall, type HostResult, type RunOptions } from '../hosts/exec.ts';
 import { killGroup } from '../processes.ts';
@@ -41,7 +41,7 @@ const DEFAULT_TAILSCALE_NAME = 'claudio';
 export interface LoginServiceDeps {
   vault: Pick<SecretVault, 'set' | 'clear'>;
   youtrack: Pick<YoutrackCredentialStore, 'set' | 'clear'>;
-  emit: (event: AgentryEventInput) => unknown;
+  emit: (event: ClaudioEventInput) => unknown;
   /** The tool's binary as its detector resolved it (an override included); null when it is not there */
   binary: (tool: SetupTool) => Promise<string | null>;
   /**
@@ -300,7 +300,7 @@ export class LoginService {
     let outcome: Outcome;
     let dir: string | null = null;
     try {
-      dir = await mkdtemp(join(tmpdir(), 'agentry-key-'));
+      dir = await mkdtemp(join(tmpdir(), 'claudio-key-'));
       const file = join(dir, 'key');
       await writeFile(file, secret, { mode: 0o600, flag: 'wx' });
       outcome = await this.command(tool, host, [...args, `--auth-key=file:${file}`], null);

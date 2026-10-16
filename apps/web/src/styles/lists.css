@@ -817,7 +817,7 @@ a.list-row:hover {
 }
 
 /* Where a chat was born: Claudio's own in the accent, the rest neutral */
-.crow-origin .badge.is-agentry {
+.crow-origin .badge.is-claudio {
   --tone: var(--accent);
   --tone-soft: var(--accent-soft);
   border-color: transparent;

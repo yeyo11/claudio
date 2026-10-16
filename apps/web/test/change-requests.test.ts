@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentryEvent, Check } from '@claudio/shared';
+import type { ClaudioEvent, Check } from '@claudio/shared';
 import { checkDurationMs, checkMark, checksActions, clockOf, countChecks, fixStage, groupChecks } from '../src/lib/change-requests';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
@@ -59,7 +59,7 @@ test('a fix is fixing, verifying or waiting for its push', () => {
 });
 
 test('change-request.checks refreshes the request, its list and its logs, and nothing of another', () => {
-  const event = { id: 1, type: 'change-request.checks', title: 'Checks failing', changeRequestId: 'cr-1', rollup: 'failing', headSha: 'abc' } as unknown as AgentryEvent;
+  const event = { id: 1, type: 'change-request.checks', title: 'Checks failing', changeRequestId: 'cr-1', rollup: 'failing', headSha: 'abc' } as unknown as ClaudioEvent;
   const targets = targetsFor(event);
   assert.equal(targets.length, 1);
   const target = targets[0]!;

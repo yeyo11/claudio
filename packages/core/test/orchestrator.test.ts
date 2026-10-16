@@ -151,7 +151,7 @@ test('resuming corrects the settings that stopped a graph and keeps the finished
 
 test('resuming with worktrees refuses a directory that is not a git repository', () => {
   const config = offlineConfig();
-  const plain = mkdtempSync(join(tmpdir(), 'agentry-plain-'));
+  const plain = mkdtempSync(join(tmpdir(), 'claudio-plain-'));
   const db = new Db(config);
   db.saveOrchestrations([stoppedGraph(plain)]);
   const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
@@ -208,7 +208,7 @@ const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.m
 
 /** A repository with one commit and an identity, as a user's project would have. */
 function repoWithCommit(): string {
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-graph-'));
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-graph-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Someone');
@@ -856,7 +856,7 @@ function seedRestart(cwd: string, tasks: Array<{ id: string; status: Orchestrati
 }
 
 test('a task a restart cut off is interrupted when its chat was last heard from and goes on in its chat; one someone stopped stays stopped', async () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'claudio-restart-'));
   const { config, db } = seedRestart(cwd, [
     { id: 'cut', status: 'running', attempts: 1 },
     { id: 'after', status: 'pending', attempts: 0, dependsOn: ['cut'] },
@@ -898,7 +898,7 @@ test('a task a restart cut off is interrupted when its chat was last heard from 
 });
 
 test('an interrupted task that has used its attempts is failed for a person to decide, not retried again', async () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'claudio-restart-'));
   const { config, db } = seedRestart(cwd, [
     { id: 'cut', status: 'running', attempts: 2 },
     { id: 'after', status: 'pending', attempts: 0, dependsOn: ['cut'] },
@@ -920,7 +920,7 @@ test('an interrupted task that has used its attempts is failed for a person to d
 });
 
 test('stopping a graph in the moment after a restart is a decision: the interrupted task is stopped and stays so', async () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'claudio-restart-'));
   const { config, db } = seedRestart(cwd, [{ id: 'cut', status: 'running', attempts: 1 }]);
   const runs = new ChatManager(config, db);
   const orchestrator = new Orchestrator(config, runs, db);
@@ -934,7 +934,7 @@ test('stopping a graph in the moment after a restart is a decision: the interrup
 });
 
 test('a graph that had finished its tasks when the wrapper went away waits for a person instead of starting over', () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'claudio-restart-'));
   const { config, db } = seedRestart(cwd, [{ id: 'done', status: 'completed', attempts: 1 }]);
   const finishing = { ...(db.loadOrchestrations()[0] as Orchestration), endedAt: '2026-01-01T10:25:00.000Z' };
   db.saveOrchestrations([finishing]);

@@ -50,9 +50,9 @@ export default async ({ page, api, check }) => {
     check(violations.length === 0, `the banner has accessibility violations: ${JSON.stringify(violations)}`);
 
     // Left alone, the page stays: whatever is in the composer survives
-    await page.eval(`window.__agentryStay = true; return true`);
+    await page.eval(`window.__claudioStay = true; return true`);
     await page.sleep(2500);
-    const stayed = await page.eval(`return window.__agentryStay === true`);
+    const stayed = await page.eval(`return window.__claudioStay === true`);
     check(stayed, 'the page never reloads on its own');
 
     // Dismissed, it stays away for that version
@@ -63,9 +63,9 @@ export default async ({ page, api, check }) => {
     // Pressed, it reloads (through the service worker when one controls the page)
     await page.goto('/', 1500);
     await page.waitFor(`return !!document.querySelector(${JSON.stringify(BANNER)})`, { label: 'the reload banner again' });
-    await page.eval(`window.__agentryStay = true; return true`);
+    await page.eval(`window.__claudioStay = true; return true`);
     await page.click(`${BANNER} .btn-primary`);
-    const reloaded = await page.waitFor(`return window.__agentryStay === undefined && document.readyState === 'complete'`, { label: 'the page to reload' });
+    const reloaded = await page.waitFor(`return window.__claudioStay === undefined && document.readyState === 'complete'`, { label: 'the page to reload' });
     check(reloaded, 'Reload reloads the page');
   } finally {
     await remove();

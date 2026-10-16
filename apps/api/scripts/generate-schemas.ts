@@ -19,8 +19,8 @@ const ROOT_TYPES = [
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
   'Attachment',
-  'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
-  // Agentry's own model: chats, executions, projects
+  'ClaudioEvent', 'StreamHelloEvent', 'StreamResyncEvent',
+  // Claudio's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatMessageResponse', 'ChatInterruptRequest', 'ChatSettingsUpdate', 'ChatMcpServers', 'ChatMcpToggle',
   'UsageReport',
   // Models per account
@@ -51,7 +51,7 @@ const ROOT_TYPES = [
   // Web Push
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
-  'CliVersionInfo', 'AgentryReleaseInfo', 'StorageReport',
+  'CliVersionInfo', 'ClaudioReleaseInfo', 'StorageReport',
   // Project ecosystem: modules and templates, work items, milestones and the board
   'ProjectSettings', 'ProjectTemplate', 'WorkItem', 'WorkItemDetail', 'WorkItemComment', 'WorkItemHistoryEntry', 'WorkItemLink', 'WorkItemFilter',
   'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',
@@ -68,7 +68,7 @@ const ROOT_TYPES = [
   'ProjectDoc', 'ProjectDocsOverview', 'AddProjectDocRequest',
   'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',
   // The project assistant: runs and their proposals
-  'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartAgentryAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
+  'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartClaudioAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
   // Settings that change at runtime, and the tunnel
   'AppSettings', 'UpdateAppSettingsRequest', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
   // The person's own terminal
