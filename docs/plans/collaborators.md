@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T19:30:00Z
+updated_at: 2026-10-16T21:00:00Z
 tags:
     - plan
     - collaborators
@@ -21,8 +21,9 @@ our own**: the Claudios connect directly over [iroh](https://iroh.computer).
 
 Status: **settled** on 2026-10-16. Proposed by the owner that morning, revised the same day after an
 adversarial review (§10), and **§5 validated by the owner as written** that evening, together with
-the decisions listed at the top of §8. The agent table is in §7. What remains before code is **C0**,
-the spike the owner's session runs on the owner's two machines. Branch `docs/collaborators-plan`
+the decisions listed at the top of §8. The agent table is in §7.1. **C0 ran the same evening** (§7.2): everything
+proved on this machine, in Electron and in the Docker image; the test across two NATs is the one
+item still pending, on the owner's work PC from another network. Branch `docs/collaborators-plan`
 from `main` at `a13525b3c`.
 
 Facts about the code were verified on 2026-10-16 against `a13525b3c`. Facts about iroh were checked
@@ -117,7 +118,20 @@ The person sets a **display name** that travels with every roster entry.
   reason "Not available on this platform" (§2, soft).
 - **Loading:** the module is a lazy `import()` behind the on/off switch, never a top-level import of
   `@claudio/core`. A load failure is caught, logged once, and reported in `GET /collaborators` as
-  `unavailable: { reason }`.
+  `unavailable: { reason }`. C0 proved the failure is catchable (§7.2).
+- **Its own process.** The endpoint runs in a **child process**, `collab-host.mjs`, forked by the core
+  the way `terminal-host.mjs` is for node-pty (`packages/core/src/terminals/host-client.ts`, `fork`
+  with `serialization: 'advanced'`), with a small IPC protocol: the API process never loads the native
+  module. The reason is a C0 fact: in `@number0/iroh` 1.1.0 every `watch*` method **aborts the whole
+  process** with a Rust panic that no `try/catch` sees. A panic in the host loses the connections and
+  nothing else; the core restarts it and reports it. The host **polls** (`addr()`, `paths()`,
+  `rtt()`, `stats()`) and never calls a `watch*` method, and every promise from the binding is awaited
+  inside a `try/catch`, because an unhandled rejection from it (`LocallyClosed`) also ends the process.
+- **Bytes cross the binding as `Array<number>`**, never as `Buffer` (rejected with "Failed to get
+  Array length"). Converting 4 MiB costs ~0.6 s and caps a loopback stream at 10–42 Mbps (C0). So the
+  host writes blobs and transcripts in 1 MiB pieces, keeps frames small, fetches blobs only when
+  opened and reports progress; a 50 MB upload takes on the order of ten seconds, which the UI shows.
+  An upstream request for `Buffer` support is filed in C1.
 - **Packaging** follows node-pty, the one native module Claudio ships today: `external` in the API's
   esbuild bundle (`apps/api/scripts/bundle.mjs:28`), staged beside the bundles by the same script
   (`bundle.mjs:40-45`), and carried into the Electron build through `extraResources`
@@ -128,14 +142,17 @@ The person sets a **display name** that travels with every roster entry.
 - **One endpoint per install**, bound when Collaborators is on. Claudio's own protocol is registered
   under the ALPN `claudio/collab/1`, through `EndpointOptions.alpns` (verified in the binding's
   typings, §9).
-- **Relays:** n0's public relays by default. They are rate-limited, and only used while the direct
-  hole punch fails. A **custom relay URL** setting points the endpoint at a self-hosted `iroh-relay`
-  (binary or Docker image `n0computer/iroh-relay`), through `RelayMode` / `RelayMap` / `RelayConfig`,
-  which the typings expose as the second argument of `Endpoint.bind` (verified, §9); how a custom map
-  combines with the `n0` preset is a C0 check.
+- **Relays:** n0's public relays by default (`aps1`, `euc1`, `use1`, `usw1`). They are rate-limited,
+  and only used while the direct hole punch fails. A **custom relay URL** setting points the endpoint
+  at a self-hosted `iroh-relay` (binary or Docker image `n0computer/iroh-relay`), through
+  `EndpointBuilder.relayMode(RelayMode.customFromUrls([...]))` on top of `presetN0`; C0 verified that
+  the custom map replaces the default one (§7.2). `online()` never resolves with an unreachable relay
+  or with relays disabled, so the host always races it against a timeout and shows "No relay
+  reachable" instead of hanging.
 - **Discovery:** iroh's default (signed records published to n0's pkarr server, resolved through
-  DNS). The binding's typings expose **no discovery configuration**: no mDNS, no custom pkarr or DNS
-  server. So for v1, **n0's discovery service is a fixed dependency** of the feature and the Settings
+  DNS). C0 verified that dialling by **id alone** works through it (§7.2). The binding exposes **no
+  discovery configuration**: no mDNS, no custom pkarr or DNS server, neither in the typings nor on
+  `EndpointBuilder`. So for v1, **n0's discovery service is a fixed dependency** of the feature and the Settings
   copy says so. Self-hosted discovery and local-network discovery are **C0 questions**, not features
   of this plan; if C0 finds them reachable (through a preset or a newer binding), they become a setting
   in a later stage.
@@ -333,8 +350,9 @@ apply to every one of them:
 - `catalog {groupId}` → shared projects `{shareKey, name, remote?, subpath?, kinds, counts, versions}`
 - `pull {shareKey, kind, since}` → batches of records, ending with the new cursor
 - `transcript {shareKey, session, offset}` → the bytes appended since the offset
-- `blob {shareKey, sha256}` → the bytes of an upload, document or artifact that a shared record of
-  that project references; `404` otherwise, the same answer whether the hash exists or not
+- `blob {shareKey, sha256}` → a `blob {bytes}` header, then the bytes in 1 MiB writes (§3.2), of an
+  upload, document or artifact that a shared record of that project references; `404` otherwise, the
+  same answer whether the hash exists or not
 - `watch {shareKeys}` → a long-lived stream of `changed {shareKey, kind}` notices, fed by the existing
   events (`workitem.*`, `journal.changed`, `memory.proposal`, `document.changed`, `sessions.changed`,
   `orchestration.*`, `run.*`; all of them exist in `packages/shared/src/types.ts`)
@@ -526,7 +544,7 @@ There are new events: `collaborators.changed` (settings, roster, links), `collab
 
 | Stage | What | Checks |
 | --- | --- | --- |
-| **C0 — spike** | Prove `@number0/iroh` in our stack. Bind with a custom ALPN; connect by ticket across two NATs (two machines on different networks) and through a relay; measure direct vs relay. Confirm in the binding: a custom `RelayMap` with and without the `n0` preset; whether any preset or option reaches discovery (self-hosted pkarr, mDNS) — record the answer either way; `presetMinimal` with loopback addresses in a ticket, with no network, for C4. Package it the node-pty way: `external` in `apps/api/scripts/bundle.mjs`, staged beside the bundles, carried by `extraResources` in the Electron build; start the AppImage and the Docker image and load it. Make the import lazy and prove Claudio starts with the module absent or failing (rename the `.node` file). Record the facts in a C0 section of this document. **Run by the owner's session, not by an agent**: the two-NAT test needs the owner's two machines on different networks (the owner confirmed they are available; which ones is recorded in the C0 section when it runs). | a written C0 section with the `@number0/iroh` version pinned, the platform list, the relay and discovery answers and the packaging proof; spike branch not merged |
+| **C0 — spike** | **Done 2026-10-16** but for the two-NAT run (§7.2). Proved on this machine: bind with the custom ALPN, direct and relay paths, discovery by id, custom relay map, soft loading, the bundle and staging, loading in Electron 44 and in `node:26-bookworm-slim`. Found the `watch*` abort and the `Array<number>` ceiling, which changed §3.2. Pending: the client on the owner's work PC from another network, with the tarball and tickets §7.2 names. | §7.2 written; spike kept outside the repo (`/tmp/c0-iroh`, tarball on the Desktop) |
 | **C1 — core** | identity and lazy loading; roster chain (genesis, verify, suffix fetch, transfer, equivocation report); invites, direct and relayed joins, one-time secrets; `shareKeyFor` with the remote preference, alias resolution, host table and subpath; `serve.ts` with read-only ports, the lint rule and the four checks; pull/watch client; SQLite tables; catalog reconcile; manual links | unit tests: chain verification against every forged variant (wrong signer, broken `prevHash`, equal version, second genesis); a peer offline across five versions converges; joiner rejects a chain whose owner is not the invite's; transfer; invite expiry and one-time use across a restart; relayed join sealed end to end; removal; `shareKeyFor` for fork, alias, case, subpath, two clones and no remote; blob refused by hash alone; the "serve imports no run service" test and lint; cursors per kind; two in-process endpoints syncing a fixture project offline |
 | **C2 — API** | routes, events, OpenAPI, README, `CHAT_FORBIDDEN_COLLABORATORS`, `ProjectSettings.sharing` and schema regeneration | `pnpm --filter @claudio/api openapi:schemas`, route tests, 403 for chat tokens on every route including reads |
 | **C3 — web** | §5 after the owner validates it, the `collaborators` illustration with its reference SVG and its design-system row, the QR encoder, the glossary rows | Night Shift check skill, `en`/`es` parity, both themes, phone, motion levels, the tokens test, at most two gradient surfaces on the Collaborators page |
@@ -556,7 +574,7 @@ between the web tasks and `a1`; `e1` is where the two meet.
 | `k2` | **Roster chain and invites** (§3.3), pure, no iroh: `canonical.ts` (RFC 8785), `roster.ts` (genesis, hash, sign, verify a chain and a suffix, transfer, equivocation detection, membership queries), `invite.ts` (encode/decode text, one-time secret, expiry, sealing of `join` to the owner's key with X25519 derived from the Ed25519 seed), with `node:crypto` over the 32-byte seed the endpoint shares | — | `packages/core/src/collab/canonical.ts`, `collab/roster.ts`, `collab/invite.ts`, `packages/core/test/collab-roster.test.ts`, `collab-invite.test.ts` | every forged variant rejected (wrong signer, broken `prevHash`, equal version, second genesis, joiner with another owner); offline-across-five-versions converges; transfer; expiry and one-time use |
 | `k3` | **Share key** (§3.4): `share-key.ts` with `shareKeyFor` (remote preference `upstream` → `origin` → the only remote, `resolveSshHost`, the case-insensitive host table, `--show-prefix` subpath, `local/<hex>`), `isValidShareKey`, `shareIdOf` | — | `packages/core/src/collab/share-key.ts`, `packages/core/test/collab-share-key.test.ts` | fork, alias, case on both kinds of host, subpath, two clones, no remote, invalid keys |
 | `k4` | **Storage** (§4.3): the migration with `collab_records`, `collab_transcript_lines`, `collab_peers`, `collab_join_requests`, `collab_used_invites` and a `CollabStore` beside the other stores in `db.ts`; `groups-store.ts` (the chain, links and cursors as JSON per group); `settings.ts` (`collaborators/settings.json`); `sharing` in `project-settings.ts` with the key-uniqueness check | `k1` | `packages/core/src/db.ts` (the new migration and `CollabStore` only), `collab/groups-store.ts`, `collab/settings.ts`, `project-settings.ts` (`sharing` only), `packages/core/test/collab-store.test.ts`, `project-settings.test.ts` (additions) | migration on an old database; cursors per kind; uniqueness 409 case; JSON documents atomic |
-| `k5` | **Transport and serving side** (§3.2, §3.5, §4.2): `endpoint.ts` (lazy `import()` of `@number0/iroh` as C0 recorded, bind with the ALPN and the relay mode, `unavailable` reasons), `wire.ts` (frames, length prefix, limits), `readers.ts` (the seven read-only ports over the existing services), `serve.ts` (the four checks, `join` and `leave` from non-members as §3.5 allows), the `no-restricted-imports` block for `collab/**`, the import test, the dependency and its staging in `bundle.mjs` and `electron-builder.yml` the way C0 proved | `k2`, `k3`, `k4` | `packages/core/src/collab/endpoint.ts`, `wire.ts`, `readers.ts`, `serve.ts`, `packages/core/package.json` (the dependency), `eslint.config.*` (one block), `apps/api/scripts/bundle.mjs` (staging), `apps/desktop/electron-builder.yml` (one `extraResources` entry), `packages/core/test/collab-serve.test.ts`, `collab-isolation.test.ts` | blob refused by hash alone; every frame refused for a non-member and for an unshared project; lint and import test; Claudio starts with the module absent |
+| `k5` | **Transport host and serving side** (§3.2, §3.5, §4.2): `collab/host/` as a child process after `terminals/host/` (`main.ts` entry, `protocol.ts` IPC messages, `host.ts` with the lazy `import()` of `@number0/iroh`, bind with the ALPN and relay mode, polling, `unavailable` reasons, every binding promise in `try/catch`), `host-client.ts` in the core (fork, restart, `unavailable`), `wire.ts` (frames, length prefix, 1 MiB pieces, limits), `readers.ts` (the seven read-only ports over the existing services), `serve.ts` (the four checks, `join` and `leave` from non-members as §3.5 allows), the `no-restricted-imports` block for `collab/**`, the import test, the dependency pinned at `1.1.0`, the `collab-host` entry and the staging of `@number0/iroh` plus `@number0/iroh-linux-x64-gnu` in `bundle.mjs`, the `extraResources` entry, the upstream issues for `watch*` and `Buffer` | `k2`, `k3`, `k4` | `packages/core/src/collab/host/**`, `collab/host-client.ts`, `collab/wire.ts`, `collab/readers.ts`, `collab/serve.ts`, `packages/core/package.json` (the dependency), `eslint.config.*` (one block), `apps/api/scripts/bundle.mjs` (entry and staging), `apps/desktop/electron-builder.yml` (one `extraResources` entry), `packages/core/test/collab-host.test.ts`, `collab-serve.test.ts`, `collab-isolation.test.ts` | blob refused by hash alone; every frame refused for a non-member and for an unshared project; lint and import test; Claudio starts with the module absent; a killed host is restarted and reported; no `watch*` call anywhere (a grep test) |
 | `k6` | **Sync client and service** (§3.3, §4.1, §4.2): `client.ts` (hello and suffix, direct and relayed join, catalog, pull per kind with the cursors of §4.1, transcript offsets, blob on open, watch, reconcile every 10 min, chats attached with `attachProject`), `service.ts` (`CollaboratorsService`: on/off, groups, invites, joins and pending joins, removal, transfer, leave, links, the `collaborators.*` events), wiring in `index.ts` | `k5` | `packages/core/src/collab/client.ts`, `collab/service.ts`, `collab/index.ts`, `packages/core/src/index.ts` (wiring lines only), `packages/core/test/collab-sync.test.ts` | two in-process endpoints on `presetMinimal` syncing a fixture project offline, all four kinds, a removal, an unshare, a relayed join, a transfer |
 | `a1` | **API** (§6): `routes/collaborators.ts`, the two `projects/:id/sharing` routes, `CHAT_FORBIDDEN_COLLABORATORS` with its message, every summary and the `collaborators` tag in `routes.ts`, the README REST rows, the events on `/events` | `k6` | `apps/api/src/routes/collaborators.ts` (new), `apps/api/src/security.ts` (the set and its check only), `apps/api/src/openapi/routes.ts` (the new entries), `README.md` (REST tables), `apps/api/test/collaborators.test.ts` | route tests; 403 for a chat token on every route including reads; schema drift |
 | `w1` | **Collaborators page** (§5.1, §5.4): `pages/Collaborators.tsx` and its sub-components, the `NavItem` after Projects and the phone **More** entry, the API client `lib/api/collaborators.ts` written against §6, the `collaborators` illustration with its reference SVG, the QR encoder in `packages/ui` with tests, the design-system CSS variants, i18n en/es and the glossary rows | `k1` | `apps/web/src/pages/Collaborators.tsx`, `apps/web/src/pages/collaborators/**` (new), `apps/web/src/lib/api/collaborators.ts` (new), `apps/web/src/App.tsx` (the nav item only), `apps/web/src/components/shell/**` (the More entry only), `apps/web/src/styles/collaborators.css` (new), `packages/ui/src/components/illustrations/collaborators.tsx`, `illustrations/index.ts`, `packages/ui/src/lib/qr.ts` (new) and its test, `docs/design-system/illustrations/collaborators.svg`, `docs/design-system/agentry-ds.css` (the new variants), `apps/web/src/i18n/locales/*/collaborators.json` (new), `apps/web/src/i18n/GLOSSARY.md` (the four rows), `apps/web/test/collaborators-page.test.tsx`, `apps/web/test/fixtures/class-names.json` (regenerated) | `pnpm typecheck`, ui + web tests, the tokens test, `night-shift-ui-check`, at most two gradient surfaces |
@@ -567,6 +585,97 @@ between the web tasks and `a1`; `e1` is where the two meet.
 Two tasks regenerate the schemas (`k1` and `a1`) and two edit `collaborators.json` by key prefix
 (`w1`, `w2`): the integrator resolves generated files by regenerating them and locale files by
 merging keys, never by hand-picking a side.
+
+
+### 7.2 C0 facts (2026-10-16)
+
+Run by the owner's session on this machine (Linux x64, Node 22.21.1), with the spike in
+`/tmp/c0-iroh/spike` and its copy `~/Escritorio/claudio-c0-spike.tar.gz`. Everything below was
+measured, not read.
+
+**The binding.** `@number0/iroh` **1.1.0**, `engines.node >= 20.3.0`, 168 KiB of JS plus one
+platform package per target as an optional dependency (eleven: Linux x64 and arm64 in glibc and musl,
+Linux armv7 in both, macOS arm64, Windows x64 and arm64, Android arm64 and armv7). The Linux x64 glibc
+file is **20 MiB**. The API is `Endpoint.builder()` with `presetN0`, `presetMinimal`,
+`presetN0DisableRelay`, then `alpns`, `relayMode`, `secretKey`, `bindAddr`, `bind()`; `Endpoint.bind(options,
+relayMode)` is the n0 shortcut. Connections: `acceptNext()` → `Incoming.accept()` → `Accepting.connect()`;
+`Incoming.remoteAddr()` says `ip` or `relay`, which is what `collab_peers.path` records.
+
+**Loading.** Plain Node: 70 ms. **Electron 44.5.1** (Node 24.21.0, ABI 149) through
+`ELECTRON_RUN_AS_NODE`: loads. **`node:26-bookworm-slim`** (the Docker base): loads. With the
+platform package removed, `import()` rejects with "Cannot find native binding…" and the process goes
+on: the soft load the plan requires holds.
+
+**Packaging.** esbuild with `external: ['@number0/iroh']` and the two packages copied, symlinks
+dereferenced, into `dist/node_modules/@number0/` (exactly what `bundle.mjs` does for node-pty): the
+bundle loads from another cwd in Node, in Electron and in the Docker image. Cost: 20 MiB more in the
+AppImage, the `.deb` and the image.
+
+**Custom ALPN.** `claudio/collab/1` set on both sides; the server reads it back from `Accepting.alpn()`.
+
+**`watch*` aborts the process.** `Endpoint.watchAddr`, `watchHomeRelay`, `watchNetworkChange`,
+`Connection.watchPaths` and `watchPathEvents` all panic in `iroh-js/src/watch.rs` ("there is no
+reactor running, must be called from the context of a Tokio 1.x runtime"), exit code 134, not
+catchable from JS. Polling works: `addr()`, `paths()`, `rtt()`, `stats()`. This is why the endpoint
+lives in `collab-host.mjs` (§3.2) and why `k5` greps for `watch` in its tests. To be filed upstream.
+
+**Bytes.** `Array<number>` only; `Buffer` and `Uint8Array` are rejected ("Failed to get Array
+length"), for streams and for `SecretKey.sign`. `Array.from` of 4 MiB: 586 ms; `Uint8Array.from`
+back: 32 ms. Loopback stream of 4 MiB, minimal preset:
+
+| write × read | Mbps |
+|---|---|
+| 64 KiB × 64 KiB | 10 |
+| 1 MiB × 1 MiB | 12 |
+| 1 MiB × 64 KiB | 20 |
+| 4 MiB × 4 MiB | 42 |
+| `readToEnd` | 37 |
+| TCP loopback, for scale | 3954 |
+
+Hence 1 MiB writes, small frames, blobs on demand with progress (§3.2), and an upstream request for
+`Buffer`. An unhandled rejection from the binding (`LocallyClosed` after a failed write) ended the
+test process: the host wraps every binding call.
+
+**Minimal preset, loopback.** Bind 68–115 ms; first handshake 386 ms; twenty pings on one stream each
+(the plan's one-stream-per-request): median 7.9 ms, min 1.4 ms; `rtt()` 1 ms.
+
+**n0 preset.** `online()` in 2.8–2.95 s, home relay `euc1-1.relay.n0.iroh.link` (Frankfurt).
+- **Relay-only ticket** (id + relay URL, no direct addresses): handshake **81 ms** through the relay;
+  a direct path was selected **~110 ms** later; afterwards relay rtt 77 ms against direct 3 ms. Blob
+  of 1 MiB in 0.54 s once direct.
+- **Id-only ticket** (dial by key, discovery through n0): handshake **94 ms**; the first path was the
+  relay, direct followed. The plan's "dial by public key" works.
+- Both runs were on one host and one LAN. **The two-NAT run is pending** (below).
+
+**Relay configuration.** `RelayMode.customFromUrls(['https://use1-1.relay.n0.iroh.link./'])` on top
+of `presetN0`: home relay became `use1-1`, so a custom map replaces the default. Unreachable relay:
+`online()` never resolves (12 s timeout), direct addresses still present. `RelayMode.disabled()`:
+`online()` never resolves. Default map: `aps1-1`, `euc1-1`, `use1-1`, `usw1-1`; a staging map exists.
+Discovery has no configuration surface.
+
+**What a ticket reveals.** `EndpointAddr.directAddresses()` lists every local interface: here nine,
+the LAN address, a Tailscale `100.x` address and six Docker bridges. A roster member learns a
+teammate's local topology through discovery anyway; the Collaborators page shows the endpoint id,
+never the addresses, and the invite text carries the owner's ticket, which the plan already says.
+
+**Signing.** `SecretKey.sign(Array)` and `EndpointId.verify(Array, Signature)` work; `k2` signs with
+`node:crypto` over the same 32-byte seed and C1 checks both verify each other's signatures.
+
+**Pending: the two-NAT run.** A server with the n0 preset is running on this machine
+(`/tmp/c0-iroh/spike/serve.mjs n0`, log `serve-nat.log`, tickets in `/tmp/c0-iroh/tickets.txt`).
+On the work PC, connected to another network (phone hotspot), with Node ≥ 20.3:
+
+```
+tar -xzf claudio-c0-spike.tar.gz && cd spike
+npm install
+node load-check.mjs
+node client.mjs <id-only ticket>        # dial by key through discovery, the Collaborators case
+node client.mjs <relay-only ticket>     # the relay path, then the hole punch
+```
+
+Each prints a JSON report; `pathsAtConnect`, `pathsAfterWait` and `pathEvents` say whether the
+connection went direct, how long it stayed on the relay, and the ping and blob figures across the
+internet. Those numbers close C0 and go here.
 
 ## 8. Decisions taken and rejected
 
@@ -609,6 +718,12 @@ Taken on 2026-10-16:
   chats, which would spend quota.
 - **Every rule on a receiver is cooperative**, and the copy says so, over wording that implies
   enforcement.
+- **The iroh endpoint in a child process, polling, never watching** (C0): the binding's `watch*`
+  methods abort the process and its promises can reject unhandled; a host process after
+  `terminal-host.mjs` keeps that away from the API, and polling at 250–1000 ms is enough for presence
+  and paths.
+- **`@number0/iroh` pinned at 1.1.0** until the `watch*` and `Buffer` issues are answered upstream;
+  the wire stays 1.x-compatible either way.
 - **A QR encoder of our own** in `packages/ui`, over a dependency: the encoder is small, has tests,
   and the design system already keeps third-party art out.
 
