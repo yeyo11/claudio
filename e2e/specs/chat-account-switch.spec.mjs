@@ -81,8 +81,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       return chat?.account && chat.account !== start && chat.account !== limited.body.id;
     }, 'the chat to move to the chosen account');
     const moved = (await detail(first.body.id)).account;
-    const sent = await api.post(`/chats/${first.body.id}/messages`, { text: 'after the switch' });
-    check(sent.status < 300, `the next message is sent (${sent.status})`);
+    const sent = await api.post(`/chats/${first.body.id}/resume`, { prompt: 'after the switch' });
+    check(sent.status < 300, `the next message is sent (${sent.status} ${JSON.stringify(sent.body)})`);
     await until(async () => (await lastAccount(first.body.id)) === moved, 'the next execution to run on the chosen account');
     check(true, 'the next message ran on the chosen account');
 
