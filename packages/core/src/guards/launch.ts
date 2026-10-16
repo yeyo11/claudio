@@ -13,7 +13,7 @@ import type { ChatGuardPlan } from '../live-chat.ts';
 import type { GuardLaunch } from './command.ts';
 import { writeGuardFiles } from './files.ts';
 import { DEFAULT_LIMITS, type GuardRulesFile } from './input.ts';
-import { GUARD_ENTRY_ENV, GuardPreflight, GuardUnavailableError, type PreflightInput } from './preflight.ts';
+import { GUARD_ENTRY_ENV, GuardPreflight, GuardUnavailableError, type GuardUnavailableCode, type PreflightInput } from './preflight.ts';
 import { type GuardRunKind, type ResolvedGuards, resolveGuards } from './resolve.ts';
 import type { GuardSettingsStore } from './settings.ts';
 
@@ -153,6 +153,17 @@ export class GuardLauncher {
     const launch = this.launch();
     this.preflight.verifyNow(this.input(launch, request));
     return this.plan(resolved, request, launch);
+  }
+
+  /** Whether a guard could start here now, for Settings to say why not; the checks a launch makes, with no run */
+  async status(): Promise<{ available: true; problem: null } | { available: false; problem: GuardUnavailableCode }> {
+    try {
+      await this.preflight.verify(this.input(this.launch(), { kind: 'chat', cwd: this.deps.dataDir }));
+      return { available: true, problem: null };
+    } catch (error) {
+      if (error instanceof GuardUnavailableError) return { available: false, problem: error.code };
+      throw error;
+    }
   }
 
   /** At server start, so a broken guard is known before the first launch */

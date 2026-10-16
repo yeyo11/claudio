@@ -1725,7 +1725,8 @@ export class Core {
    */
   async guardStatus(): Promise<GuardStatus> {
     const version = (await this.system()).cli.version;
-    return { available: true, problem: null, cliVersion: version ?? null };
+    const status = await this.guardLauncher.status();
+    return { ...status, cliVersion: version ?? null };
   }
 
   async cliVersionInfo(): Promise<CliVersionInfo> {
