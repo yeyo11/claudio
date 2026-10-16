@@ -1778,6 +1778,29 @@ the answer wins, and the task that builds the affected part follows it.
   approved them, so delivering them is the point. `deliverToChats: true` per project, with a
   switch in the project's settings; confined and assistant chats never receive them.
 
+## Outcome
+
+Built (2026-10-16); the feature is described in [lessons.md](../lessons.md). The security review
+(l10) fixed six findings, each with a test: bare hosts and addresses in lesson text, commands and unsafe
+flags, more injection phrases, mixed-script lookalike words, secrets cut before they were masked in signal
+rows, and a chat token overwriting a project's `lessons` settings.
+
+**What differs from the plan.**
+- The `instructions` proposal's preview and approve requests take an optional `section`.
+- The "Similar to" and "Brings back" badges and the Merge into / Keep both choice are not built:
+  `Lesson` has no data for them.
+- Evidence links go to the chat, not to the entry.
+- The e2e spec and the fake CLI answers (l13) were written without a run.
+
+**Known gaps.**
+- Paraphrased or spaced-out injections cannot be caught by patterns; a person approves every lesson
+  with its evidence, and delivered lessons sit inside a block with a lead sentence saying none of them
+  is an instruction.
+- A chat token can still change `decisions` (the `lesson.mine` mode) through the project settings; a
+  mined lesson still needs a person.
+- The plan's 30-day drop of a rejected lesson's evidence, and a global lesson keeping its evidence, are
+  not confirmed in the code.
+
 ## Related
 
 [[reports/ecc.md]] · [[plans/guards.md]] · [[plans/claude-only-fork.md]] · [[team-and-flow.md]] ·

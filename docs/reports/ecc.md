@@ -13,9 +13,21 @@ tags:
 ---
 # Research: ideas from ECC worth bringing into Claudio
 
-Status: **research** (2026-10-15). Nothing here is built or planned yet. This page studies ECC and
-weighs each of its ideas against Claudio as it is on `feat/claude-only` (stage-A checkout,
-`~/Escritorio/claudio-stage-a`). The owner picks what becomes a plan.
+Status: **every ranked idea is built** (2026-10-16). The research was written 2026-10-15; the table
+below says where each idea landed. The page studies ECC and weighs each of its ideas against Claudio as it
+was on `feat/claude-only` (stage-A checkout, `~/Escritorio/claudio-stage-a`).
+
+| Idea | Built by | Outcome |
+| --- | --- | --- |
+| ★1 Review gate | [plans/review-gate.md](../plans/review-gate.md) | built; opt-in per graph |
+| ★2 Lessons | [plans/lessons.md](../plans/lessons.md) | built; project scope, a person approves each |
+| ★3 Guards | [plans/guards.md](../plans/guards.md) | built; on for automated runs, with known bypasses in [guards-audit.md](guards-audit.md) |
+| ★4 Context control | [plans/context-control.md](../plans/context-control.md) | built |
+| ★5 Instruction evals | [plans/instruction-evals.md](../plans/instruction-evals.md) | built, phases 1 and 2 |
+| 6–10, 12–15 | [plans/agent-run-improvements.md](../plans/agent-run-improvements.md) | built |
+| 11 Session note | covered by ★4's handoff | built there, no separate feature |
+
+What was refused stays in section 4 ("Ideas rejected"), with its reasons.
 
 ECC is by Affaan Mustafa and is MIT-licensed (`~/Escritorio/ECC`, v2.2.3, `b92f181b`). Ideas are
 credited to it here. Claudio re-implements them in its own words and code; no ECC prompt, script or
@@ -124,6 +136,8 @@ Ideas 6–10 and 12–15 are built by [plans/agent-run-improvements.md](../plans
 
 ### ★1 The review gate that fails closed
 
+**Status (2026-10-16): built.** See [plans/review-gate.md](../plans/review-gate.md#outcome).
+
 **Goal.** After an orchestration integrates its branches, and in a flow before the verify stage, the
 diff is reviewed by several independent reviewers. Only confirmed blocking findings stop the work.
 
@@ -191,6 +205,8 @@ diff is reviewed by several independent reviewers. Only confirmed blocking findi
 - Large diffs are split by file group, with one reviewer per group.
 
 ### ★2 Lessons from corrections
+
+**Status (2026-10-16): built.** See [plans/lessons.md](../plans/lessons.md#outcome) and [lessons.md](../lessons.md).
 
 **Goal.** When a person corrects an agent ("no, use pnpm", "don't touch the changelog"), reverts its
 change, or rejects a permission, Claudio proposes a *lesson*. The person approves or discards it.
@@ -327,6 +343,8 @@ runs compact at a boundary instead of in the middle of a task.
      in the handoff. This covers idea 11.
 
 ### ★5 Instruction-compliance evals
+
+**Status (2026-10-16): built**, phases 1 and 2. See [plans/instruction-evals.md](../plans/instruction-evals.md#outcome) and [evals.md](../evals.md).
 
 **Goal.** Before changing a team's agent file, a skill or `CLAUDE.md`, know whether the change makes
 agents follow it more often, and whether anything regressed.

@@ -2069,6 +2069,35 @@ the answer wins, and the task that builds the affected part follows it.
    `guard_events` row with outcome `allowed-once`. No respawn and no rule switched off. Tasks g3
    (allowance check), g8 (outcome), g10 (route), g12 (action in the transcript line).
 
+## Outcome
+
+Built (2026-10-16) in one orchestration; the feature is described in [guards.md](../guards.md) and
+audited in [reports/guards-audit.md](../reports/guards-audit.md).
+
+**What was built.** The hook contract recorded from the real CLI (g0), the pure guard engine and the
+guard program bundled as `guard.mjs` (read-only, root-owned in the image), the settings store and
+resolution, the preflight and self-test, the driver wiring (`--settings`, `--include-hook-events`,
+arming, liveness), the launch paths (orchestrator, flow, opted-in chats), the `guard_events` store, the
+health signals, the routes, Settings → Security → Guards, the transcript notice, the fake CLI's hooks and
+the e2e spec.
+
+**What differs from the plan.**
+- The "Allow once" action was never built: no route, no transcript action, no `allowed-once` outcome.
+- The `workflow` engine is guarded, not refused at launch (g0 showed its tool calls are hooked).
+- `core.guardStatus()` was a stub until the release task wired the launcher's preflight into it.
+- The e2e spec was written without a run; the integrator's run is in [reports/release-e2e.md](../reports/release-e2e.md).
+
+**Known gaps.**
+- The audit left 120 known bypasses as `todo` rows in `packages/core/test/guards-corpus.ts` (26 high,
+  68 medium, 26 low). They go green by themselves once fixed. The "not guaranteed" list in
+  [guards.md](../guards.md) was widened by three items (signals against the CLI or hook, MCP tool shapes
+  the heuristics do not know, home dotfiles).
+- `.guard-rules` and `.guard-rule` are styled in both the Settings card and the rules Sheet with
+  different rules; they need one definition.
+- A checkout under umask 002 leaves the guard program group-writable and preflight refuses it: guards
+  report `entry-untrusted` there until the files are made 0644 or the bundle is used.
+- The Helm chart README has no line about the read-only `guard.mjs`.
+
 ## Related
 
 [[reports/ecc.md]] · [[security-model.md]] · [[layered-settings.md]] · [[orchestrations.md]] ·

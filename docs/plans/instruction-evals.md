@@ -1188,6 +1188,27 @@ the answer wins, and the task that builds the affected part follows it.
 4. **Judge: `sonnet` by default**, editable per eval (`haiku` allowed). A judge must be at least as
    capable as what it grades; the cost is bounded by the eval's cap.
 
+## Outcome
+
+Phases 1 and 2 built (2026-10-16); the feature is described in [evals.md](../evals.md). Phase 2 sits
+behind its own switch (`evalsPhase2`, off by default, refused to a chat's token). The Phase 2 security
+review ([reports/instruction-evals-security.md](../reports/instruction-evals-security.md)) fixed three
+findings: a chat token turning the switch on, a chat token accepting a drafted case, and judge spending
+that ignored the daily cap or Phase 2 being off.
+
+**What differs from the plan.**
+- The judge model defaults to `sonnet`, not `haiku`; the docs follow the code.
+- The e2e specs for both phases were written without a run.
+- The fake CLI ignores the agent file, so the specs cannot produce a real regression; the gate's verdict
+  paths are covered by core's tests only.
+
+**Known gaps.**
+- CLI facts F2–F11 were never recorded (`e0` was cut short by a usage limit).
+- No raw-JSON view of an invalid file and no web button to delete a run.
+- The `evals-rate`, `evals-gate`, `evals-trend` and `evals-draft` classes are not in
+  `docs/design-system.md`; the a11y and motion specs have no Phase 2 additions.
+- A re-judge spends up to one judge cap per unjudged check outside the run's reserved ceiling.
+
 ## Related
 
 [[reports/ecc.md]] · [[plans/claude-only-fork.md]] · [[team-and-flow.md]] · [[decision-engine.md]] ·

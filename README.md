@@ -130,6 +130,16 @@ says how, and Settings → Account warns when a container was started that way.
   reports, over any range you pick from a calendar; any transcript, or a whole project's chats,
   exported as Markdown or JSON.
 - **Spending limits** — cap any run with a budget the CLI enforces from inside.
+- **Guards on tool calls** — deterministic hooks that hold even in `bypassPermissions`: no `--no-verify`, no
+  push from a worker, no `rm -rf` outside the worktree, no secrets in a command. On for orchestration
+  workers and the flow, opt-in for chats. Defence in depth, not a sandbox: see [docs/guards.md](docs/guards.md).
+- **A review that fails closed** — an orchestration can have reviewers per dimension and a verifier look at
+  the integrated diff before it is done; only a confirmed blocking finding stops it, and only a person can
+  accept it anyway. See [docs/orchestrations.md](docs/orchestrations.md#the-review-gate).
+- **Lessons from corrections** — "no, use pnpm" becomes a proposed lesson with its evidence; a person
+  approves it, and then the project's chats and workers are handed it. See [docs/lessons.md](docs/lessons.md).
+- **Instruction evals** — measure whether an agent file, a skill, a rule or `CLAUDE.md` is followed, before
+  and after a change, at several levels of pressure. See [docs/evals.md](docs/evals.md).
 - **A limit does not stop the work** — each provider shows how much of its usage limit is spent; at
   a limit a chat offers to continue on another provider with a handoff, to restart there, or to wait
   for the reset, and automated work does what the settings allow (by default, it waits).
