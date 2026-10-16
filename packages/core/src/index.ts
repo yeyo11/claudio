@@ -1719,13 +1719,10 @@ export class Core {
   }
 
   /** The CLI in use against the newest published one, as the last check left it: no network here. */
-  /**
-   * Whether guards can run here, for Settings. The pre-launch checks (`guards/preflight.ts`) fill
-   * the problem once they exist; until then only the CLI's version is known.
-   */
+  /** Whether guards can run here, for Settings: the pre-launch checks (`guards/preflight.ts`) say why not */
   async guardStatus(): Promise<GuardStatus> {
     const version = (await this.system()).cli.version;
-    return { available: true, problem: null, cliVersion: version ?? null };
+    return { ...(await this.guardLauncher.status()), cliVersion: version ?? null };
   }
 
   async cliVersionInfo(): Promise<CliVersionInfo> {
