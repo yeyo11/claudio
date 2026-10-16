@@ -420,6 +420,7 @@ export class ChatService {
       ...(runtime?.claudioAssistant ? { claudioAssistant: runtime.claudioAssistant } : {}),
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
+      ...(runtime?.guards ? { guards: runtime.guards } : {}),
       state,
       control,
       execution: live,

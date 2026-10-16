@@ -1,7 +1,8 @@
 import { normalizeMessage, type PermissionMode, type PermissionUpdate, type RateLimitInfo, type RunOutcome, type RunTaskChange } from '@claudio/shared';
 import { now } from '../../live-chat.ts';
-import type { BranchTracker, DriverEvent, EnvironmentDetails, ModelUsage } from '../driver.ts';
+import type { AttachedGuard, BranchTracker, DriverEvent, EnvironmentDetails, ModelUsage } from '../driver.ts';
 import type { ControlChannel } from './control.ts';
+import { GuardWatch } from './guard-watch.ts';
 
 // High-frequency events that add nothing to the UI
 const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
@@ -94,12 +95,17 @@ export class ClaudeStream {
   /** A `compacting` status is open: the one that closes it says `compacting` is over, and no other status does */
   private compacting = false;
   private readonly taskKinds = new Map<string, RunTaskChange['taskKind']>();
+  /** Reads the guard's markers; absent for a process launched without one, whose hook events are all the person's own */
+  private readonly guard: GuardWatch | null;
 
   constructor(
     private readonly sink: (event: DriverEvent) => void,
     private readonly branches: BranchTracker,
     private readonly control: ControlChannel,
-  ) {}
+    guard?: AttachedGuard,
+  ) {
+    this.guard = guard ? new GuardWatch(sink, guard.rulesSha256) : null;
+  }
 
   /** One line of stderr. */
   error(line: string): void {
@@ -120,6 +126,8 @@ export class ClaudeStream {
     }
     const type = String(raw.type ?? 'unknown');
     const subtype = typeof raw.subtype === 'string' ? raw.subtype : undefined;
+    // The guard's markers ride on hook events; every other hook event is the person's own and is dropped below
+    if (type === 'system' && subtype === 'hook_response') this.guard?.hookResponse(raw);
     if (subtype && IGNORED_SUBTYPES.has(subtype)) return;
 
     if (type === 'control_request') {
@@ -187,6 +195,8 @@ export class ClaudeStream {
       if (!entry) return;
       this.branches.message(entry);
       for (const block of entry.blocks) {
+        if (block.type === 'tool_use') this.guard?.toolUse(block.id, block.name, block.input);
+        else if (block.type === 'tool_result') this.guard?.toolResult(block.toolUseId);
         if (block.type === 'tool_use' && block.name === 'Bash') {
           const input = (block.input ?? {}) as Record<string, unknown>;
           if (typeof input.command === 'string' && input.run_in_background !== true) sink({ kind: 'command-started', toolUseId: block.id, command: input.command });

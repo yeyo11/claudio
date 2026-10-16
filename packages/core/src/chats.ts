@@ -26,6 +26,7 @@ import {
   type ProvidersSettings,
   type ResumeChatRequest,
   type RunEvent,
+  type RunGuardEvent,
   type RunStatus,
   type TranscriptEntry,
   type UsageHistoryPoint,
@@ -105,6 +106,10 @@ export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'sett
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
+/** How long a guarded process may take to arm before the run fails (F9: the marker comes about 0.7 s after launch); read when used so a test can shorten it */
+const guardArmMs = (): number => Number(process.env.CLAUDIO_GUARD_ARM_MS ?? 20_000);
+/** How long the interrupt of a run with an unguarded call is given to be read before the process is taken down */
+const GUARD_INTERRUPT_WAIT_MS = 1500;
 const STOPPED = 'the chat was stopped before the agent read it';
 /** ...and when its process ended for another reason, with nothing better to say */
 const ENDED = 'the process ended before the agent read it';
@@ -249,6 +254,8 @@ export class ChatManager extends EventEmitter {
       maybeLimit: (chat) => this.maybeLimit(chat),
       recordSpend: (chat, execution, usd) => this.recordSpend(chat, execution, usd),
       failProtocol: (chat, message) => this.failProtocol(chat, message),
+      guardArmed: (chat) => this.guardArmed(chat),
+      guardMissing: (chat) => this.guardMissing(chat),
     };
   }
 
@@ -1220,6 +1227,7 @@ export class ChatManager extends EventEmitter {
       ...(opts.internal ? { internal: true } : {}),
       ...(opts.agent ? { agent: opts.agent } : {}),
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
+      ...(opts.guards ? { guard: { settingsPath: opts.guards.settingsPath } } : {}),
       policy: opts.toolConfig?.policy ?? null,
     };
   }
@@ -1366,6 +1374,11 @@ export class ChatManager extends EventEmitter {
     chat.reportsDelivery = null;
     chat.carrying = false;
     chat.beginExecution();
+    // Each process arms on its own: the guard's hooks are read at its start, and a resume registers them again
+    if (chat.armingTimer) clearTimeout(chat.armingTimer);
+    chat.armingTimer = null;
+    chat.armingQueue = [];
+    chat.guardState = chat.opts.guards ? 'arming' : null;
     // Whatever the last process was doing went with it
     chat.activity.clear();
     chat.branchActivity.clear();
@@ -1407,8 +1420,15 @@ export class ChatManager extends EventEmitter {
       { write: (text) => proc.stdin.write(text), end: () => proc.stdin.end(), up: () => processUp(proc) },
       (event) => foldEvent(this.host, chat, event),
       chat.branches,
+      chat.opts.guards ? { rulesSha256: chat.opts.guards.rulesSha256 } : undefined,
     );
     chat.session = session;
+    if (chat.opts.guards) {
+      chat.armingTimer = setTimeout(() => {
+        if (current() && chat.guardState === 'arming') this.guardUnarmed(chat, `the guard did not start within ${Math.round(guardArmMs() / 1000)} s`);
+      }, guardArmMs());
+      chat.armingTimer.unref();
+    }
     createInterface({ input: proc.stdout }).on('line', (line) => {
       if (!current()) return;
       session.readLine(line);
@@ -1434,7 +1454,8 @@ export class ChatManager extends EventEmitter {
       revokeToken();
       if (!current()) return;
       chat.procClosed = true;
-      if (chat.stopRequested) this.finalize(chat, 'stopped');
+      if (chat.guardState === 'arming' && !chat.stopRequested) this.guardUnarmed(chat, 'the process ended before the guard started');
+      else if (chat.stopRequested) this.finalize(chat, 'stopped');
       else if (code === 0) this.finalize(chat, 'completed');
       else {
         chat.error ??= chat.events.filter((e) => e.kind === 'stderr').slice(-3).map((e) => e.text).join('\n') || `exit code ${code}`;
@@ -1464,6 +1485,16 @@ export class ChatManager extends EventEmitter {
     chat.idleSince = null;
     // Before the write: a driver that starts the turn at once reports it taken from inside `send`
     if (chat.reportsDelivery !== false) chat.pending.set(message.id, { ...message, state: 'written' });
+    // The agent must not read a word before its guard is live: the message goes out when `armed` arrives
+    if (chat.guardState === 'arming') {
+      chat.armingQueue.push({ message, announce });
+      return;
+    }
+    this.deliver(chat, message, announce);
+  }
+
+  private deliver(chat: LiveChat, message: SentMessage, announce: boolean): void {
+    const { text, attachments } = message;
     const uploads = this.uploads;
     const shown = chat.session?.send({ id: message.id, text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
     const entry = userEntry(message, shown);
@@ -1471,6 +1502,52 @@ export class ChatManager extends EventEmitter {
     recordEntry(this.host, chat, entry);
     if (announce) chat.push({ kind: 'message', entry });
     chat.setStatus('busy');
+  }
+
+  /** The guard is live: the messages that waited for it go out, in order */
+  private guardArmed(chat: LiveChat): void {
+    if (chat.guardState !== 'arming') return;
+    chat.guardState = 'armed';
+    if (chat.armingTimer) clearTimeout(chat.armingTimer);
+    chat.armingTimer = null;
+    const queue = chat.armingQueue;
+    chat.armingQueue = [];
+    for (const { message, announce } of queue) this.deliver(chat, message, announce);
+  }
+
+  /** The process never armed: nothing was written to it, so the run ends before it spends anything */
+  private guardUnarmed(chat: LiveChat, why: string): void {
+    // Said once: the exit that follows the kill finds the chat no longer arming
+    chat.guardState = null;
+    const guard: RunGuardEvent = { outcome: 'unarmed', toolUseId: null, toolName: '', rule: 'integrity', matcher: 'integrity.unarmed', reason: why, excerpt: '' };
+    chat.push({ kind: 'guard', guard });
+    this.emit('chat-guard', chat.id, guard);
+    this.failProtocol(chat, `guard-unarmed: ${why}`);
+  }
+
+  /**
+   * A tool call ran with no guard marker (D6). The turn is interrupted. A run that nobody watches
+   * ends failed, `guard-missing`. A person's chat is stopped without an error and shows the tag: its
+   * next message starts a process that must arm again, and nothing is sent on its own.
+   */
+  private guardMissing(chat: LiveChat): void {
+    chat.guardState = 'missing';
+    const why = 'a tool call ran without a guard marker, so the guards are not running';
+    // The interrupt is asked for first and given a moment to be read: a process taken down in the same
+    // breath may never see it. A CLI that does not answer is taken down all the same.
+    const settled = chat.session ? chat.session.interrupt().catch(() => {}) : Promise.resolve();
+    let timer: NodeJS.Timeout | undefined;
+    const patience = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, GUARD_INTERRUPT_WAIT_MS);
+    });
+    void Promise.race([settled, patience]).then(() => {
+      clearTimeout(timer);
+      if (chat.endedAt) return;
+      if (chat.opts.guards?.interactive) {
+        chat.push({ kind: 'notice', text: `Guards not running: ${why}. The chat was stopped; send your next message again to continue.` });
+        this.stop(chat.id);
+      } else this.failProtocol(chat, `guard-missing: ${why}`);
+    });
   }
 
   /** A fault in what the agent said about itself: the execution fails with the reason, and nothing carries on beside it. */
@@ -1483,6 +1560,8 @@ export class ChatManager extends EventEmitter {
   private finalize(chat: LiveChat, status: RunStatus): void {
     if (chat.endedAt) return;
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    if (chat.armingTimer) clearTimeout(chat.armingTimer);
+    chat.armingTimer = null;
     chat.idleSince = null;
     chat.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.

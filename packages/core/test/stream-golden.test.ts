@@ -207,3 +207,54 @@ test('an automatic attempt that failed reports its error and carries on', () => 
   assert.equal(kinds.filter((k) => k === 'compacted').length, 1);
   assert.equal(kinds.filter((k) => k === 'result').length, 2);
 });
+
+// The guard's markers and the person's own hooks, read from g0's recordings of the CLI (2.1.300). The
+// recorded hooks were probes, so the stderr of the guarded cases is rewritten into the guard's own lines.
+const RULES_SHA = 'a'.repeat(64);
+const hookRecording = (scenario: string) => readFileSync(fixture('recordings', 'claude-hooks', '2.1.300', scenario, 'stdout.jsonl'), 'utf8').split('\n').filter((l) => l.trim());
+const withStderr = (lines: string[], event: string, stderr: string) =>
+  lines.map((line) => {
+    const raw = JSON.parse(line) as Record<string, unknown>;
+    return raw.subtype === 'hook_response' && raw.hook_event === event ? JSON.stringify({ ...raw, stderr, output: stderr }) : line;
+  });
+const guardEvents = (lines: string[], guarded: boolean): DriverEvent[] => {
+  const events: DriverEvent[] = [];
+  const io = { write: () => {}, end: () => {}, up: () => true };
+  const session = new ClaudeCodeDriver('claude').attach(io, (e) => events.push(e), new ClaudeBranches(), guarded ? { rulesSha256: RULES_SHA } : undefined);
+  for (const line of lines) session.readLine(line);
+  return events.filter((e) => e.kind.startsWith('guard') || e.kind === 'unreadable' || e.kind === 'stderr');
+};
+const matchGolden = (name: string, actual: unknown) => {
+  const file = fixture('golden', `stream-guard-${name}.json`);
+  const value = stable(actual, '/no/root/in/a/stream');
+  if (process.env.UPDATE_GOLDEN || !existsSync(file)) writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+  assert.deepEqual(value, JSON.parse(readFileSync(file, 'utf8')));
+};
+
+test('the guard markers of a recorded blocked call, an arming and a pass are read into guard events', () => {
+  const marker = (...words: string[]) => `claudio-guard/1 ${words.join(' ')}\n`;
+  const blockId = 'toolu_019JunvYp41jvbBmUBxPXSJp';
+  const blocked = guardEvents(withStderr(hookRecording('a-block'), 'PreToolUse', `Claudio guard blocked this (push): Pushing is not allowed in this run.\n${marker('block', blockId, 'push', 'push.git-verb')}`), true);
+  assert.deepEqual(blocked.map((e) => e.kind), ['guard']);
+  const armedOf = (hash: string) => guardEvents(withStderr(hookRecording('s-idle'), 'SessionStart', marker('armed', 'sess', hash, 'integrity,push')), true).filter((e) => e.kind === 'guard-armed');
+  const armed = armedOf(RULES_SHA.slice(0, 16));
+  assert.deepEqual(armed, [{ kind: 'guard-armed' }]);
+  // An `armed` that names other rules than this process was given arms nothing
+  assert.deepEqual(armedOf('b'.repeat(16)), []);
+  const passId = /"tool_use","id":"(toolu_\w+)"/.exec(hookRecording('a-pass').join('\n'))?.[1] ?? '';
+  assert.deepEqual(guardEvents(withStderr(hookRecording('a-pass'), 'PreToolUse', marker('pass', passId)), true), []);
+  matchGolden('block', { blocked, armed });
+});
+
+test('hook events with no guard marker produce nothing, and a call answered without a marker is missing', () => {
+  // The recorded hooks were the probe's own: no marker in any of them
+  for (const scenario of ['a-pass', 'a-err', 'a-block']) {
+    assert.deepEqual(guardEvents(hookRecording(scenario), true).filter((e) => e.kind !== 'guard-missing'), [], scenario);
+  }
+  // Not guarded, a marker means nothing at all: every hook event is the person's
+  const forged = withStderr(hookRecording('a-block'), 'PreToolUse', 'claudio-guard/1 pass toolu_019JunvYp41jvbBmUBxPXSJp\n');
+  assert.deepEqual(guardEvents(forged, false), []);
+  const missing = guardEvents(hookRecording('a-block'), true);
+  assert.deepEqual(missing.map((e) => e.kind), ['guard-missing']);
+  matchGolden('foreign', { missing });
+});
