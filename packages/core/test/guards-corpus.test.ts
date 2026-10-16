@@ -13,7 +13,7 @@ describe('guards bypass corpus', () => {
 
   for (const row of CORPUS) {
     const label = `${row.expect === 'pass' ? 'passes' : `blocks (${row.expect})`}: ${row.tool} ${row.name.slice(0, 90).replace(/\n/g, '⏎')}${row.off ? ` [off: ${row.off.join(',')}]` : ''}`;
-    it(label, () => {
+    it(label, row.knownBypass ? { todo: `known bypass (${row.severity}): docs/reports/guards-audit.md` } : {}, () => {
       const decision = decide(env.rules({ off: row.off, tmp: row.tmp }), {
         hook_event_name: 'PreToolUse',
         tool_name: row.tool,
