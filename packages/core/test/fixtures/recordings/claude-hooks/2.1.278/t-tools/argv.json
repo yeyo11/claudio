@@ -1,0 +1,31 @@
+{
+  "bin": "claude 2.1.278",
+  "args": [
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--model",
+    "haiku",
+    "--max-budget-usd",
+    "0.6",
+    "--max-turns",
+    "60",
+    "--include-hook-events",
+    "--settings",
+    "/tmp/g0/t-tools/settings.json",
+    "--mcp-config",
+    "/tmp/g0/t-tools/mcp.json",
+    "--strict-mcp-config",
+    "--permission-mode",
+    "bypassPermissions"
+  ],
+  "cwd": "repo",
+  "env": [
+    "CLAUDE_CONFIG_DIR",
+    "HOME"
+  ],
+  "note": ""
+}

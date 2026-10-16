@@ -1,0 +1,15 @@
+{"ms":2,"dir":"in","kind":"user"}
+{"ms":985,"dir":"out","kind":"system/hook_started:SessionStart:SessionStart:startup"}
+{"ms":1053,"dir":"out","kind":"system/hook_response:SessionStart:SessionStart:startup"}
+{"ms":1141,"dir":"out","kind":"system/init"}
+{"ms":2425,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":2570,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":2572,"dir":"out","kind":"assistant"}
+{"ms":2726,"dir":"out","kind":"assistant"}
+{"ms":2743,"dir":"out","kind":"rate_limit_event"}
+{"ms":2772,"dir":"out","kind":"user"}
+{"ms":4101,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":5126,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":5127,"dir":"out","kind":"assistant"}
+{"ms":5722,"dir":"out","kind":"assistant"}
+{"ms":5737,"dir":"out","kind":"result/success"}

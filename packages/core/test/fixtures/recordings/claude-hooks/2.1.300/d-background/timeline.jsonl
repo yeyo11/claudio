@@ -1,0 +1,17 @@
+{"ms":1,"dir":"in","kind":"user"}
+{"ms":1036,"dir":"out","kind":"system/init"}
+{"ms":2365,"dir":"out","kind":"assistant"}
+{"ms":2371,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":2381,"dir":"out","kind":"rate_limit_event"}
+{"ms":2405,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":2562,"dir":"out","kind":"system/background_tasks_changed"}
+{"ms":2563,"dir":"out","kind":"system/task_started"}
+{"ms":2572,"dir":"out","kind":"user"}
+{"ms":3367,"dir":"out","kind":"assistant"}
+{"ms":3385,"dir":"out","kind":"result/success"}
+{"ms":3571,"dir":"out","kind":"system/task_updated"}
+{"ms":3571,"dir":"out","kind":"system/task_notification"}
+{"ms":3571,"dir":"out","kind":"system/background_tasks_changed"}
+{"ms":3601,"dir":"out","kind":"system/init"}
+{"ms":4666,"dir":"out","kind":"assistant"}
+{"ms":4690,"dir":"out","kind":"result/success"}

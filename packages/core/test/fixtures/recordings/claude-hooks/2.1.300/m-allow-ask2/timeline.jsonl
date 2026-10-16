@@ -1,0 +1,17 @@
+{"ms":1,"dir":"in","kind":"user"}
+{"ms":1132,"dir":"out","kind":"system/init"}
+{"ms":2938,"dir":"out","kind":"assistant"}
+{"ms":2945,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":2945,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":2945,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":2945,"dir":"out","kind":"system/hook_started:PreToolUse:PreToolUse:Bash"}
+{"ms":2956,"dir":"out","kind":"rate_limit_event"}
+{"ms":2983,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":2983,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":2991,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":2994,"dir":"out","kind":"system/hook_response:PreToolUse:PreToolUse:Bash"}
+{"ms":3022,"dir":"out","kind":"control_request"}
+{"ms":3022,"dir":"in","kind":"control_response"}
+{"ms":3210,"dir":"out","kind":"user"}
+{"ms":4298,"dir":"out","kind":"assistant"}
+{"ms":4318,"dir":"out","kind":"result/success"}

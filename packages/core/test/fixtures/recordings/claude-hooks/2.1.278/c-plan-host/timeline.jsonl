@@ -1,0 +1,14 @@
+{"ms":1,"dir":"in","kind":"user"}
+{"ms":1026,"dir":"out","kind":"system/init"}
+{"ms":3333,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":4425,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":5562,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":7017,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":8245,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":9290,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":10341,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":10746,"dir":"out","kind":"system/thinking_tokens"}
+{"ms":10747,"dir":"out","kind":"assistant"}
+{"ms":12740,"dir":"out","kind":"assistant"}
+{"ms":12745,"dir":"out","kind":"rate_limit_event"}
+{"ms":12757,"dir":"out","kind":"result/success"}

@@ -1,0 +1,9 @@
+{"ms":1390,"dir":"out","kind":"system/hook_started:SessionStart:SessionStart:startup"}
+{"ms":1613,"dir":"out","kind":"system/hook_response:SessionStart:SessionStart:startup"}
+{"ms":3017,"dir":"in","kind":"user"}
+{"ms":3221,"dir":"out","kind":"system/init"}
+{"ms":4617,"dir":"out","kind":"assistant"}
+{"ms":4675,"dir":"out","kind":"rate_limit_event"}
+{"ms":5161,"dir":"out","kind":"user"}
+{"ms":6018,"dir":"out","kind":"assistant"}
+{"ms":6041,"dir":"out","kind":"result/success"}
