@@ -92,6 +92,10 @@ import { usageBreakdown, usageSeries } from './usage-series.ts';
  * background; past `CLI_STALE_MS` a caller waits for the new one. Our own chats starting and ending
  * drop it at once.
  */
+/** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
+export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
+export const CANCEL_NOTICE_PREFIX = 'A person cancelled the command';
+
 const CLI_FRESH_MS = 1_500;
 const CLI_STALE_MS = 10_000;
 /** Ended chats whose delegated work is still listed; each costs a stat per poll. */
@@ -215,6 +219,8 @@ export interface ChatServiceDeps {
   typedCompact?: (id: string, request: ChatMessageRequest) => Promise<ChatMessageReceipt | null>;
   /** Told of every page of a transcript read, so a summary that was not streamed is noticed when it is read (E34) */
   transcriptRead?: (id: string, entries: TranscriptEntry[]) => void;
+  /** A person continued a chat from an earlier message (`resumeSessionAt`): the lessons' S-rewound */
+  rewound?: (chat: ChatSummary, resumeSessionAt: string) => void;
 }
 
 /** The run, task or item a chat works for: what makes its limit the rotation's rather than a person's. */
@@ -749,7 +755,7 @@ export class ChatService {
     const runtime = this.deps.runtime.get(id);
     if (!runtime) throw new Error('chat not found');
     if (runtime.pid === null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
-    this.deps.runtime.send(id, `A hint from the person following this chat:\n\n${text}`);
+    this.deps.runtime.send(id, `${CHAT_HINT_PREFIX}\n\n${text}`);
     return this.require(id);
   }
 
@@ -767,11 +773,11 @@ export class ChatService {
       throw new ChatConflictError(err instanceof Error ? err.message : String(err), null);
     }
     const reason = request?.reason?.trim();
-    this.deps.runtime.notice(id, `A person cancelled the command \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
+    this.deps.runtime.notice(id, `${CANCEL_NOTICE_PREFIX} \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
     try {
       this.deps.runtime.send(
         id,
-        `A person cancelled the command \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
+        `${CANCEL_NOTICE_PREFIX} \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
       );
     } catch {
       // the process went with it: there is nobody left to tell
@@ -819,6 +825,7 @@ export class ChatService {
       },
       adoption,
     );
+    if (request.resumeSessionAt && !extras.agent) this.deps.rewound?.(chat, request.resumeSessionAt);
     return this.require(id);
   }
 

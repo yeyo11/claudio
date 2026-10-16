@@ -168,6 +168,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { SignalRecorder } from './lessons/signals.ts';
 import { ChecksFix } from './decisions/checks-fix.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
@@ -418,6 +419,8 @@ export class Core {
   readonly decisionCredentials: DecisionCredentialStore;
   /** The one door every decision point asks through; providers register themselves on it */
   readonly decisions: DecisionEngine;
+  /** The `lesson_signals` rows a transcript cannot tell: a person's deny, a rewind, a rejected proposal */
+  readonly lessonSignals: SignalRecorder;
   private readonly decisionResolvers: DecisionResolvers;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
@@ -649,6 +652,13 @@ export class Core {
         toolName: request.toolName,
         outcome,
       });
+      // S-denied: a deny a person wrote, kept for the lessons' pre-filter when the project allows it
+      if (decision?.behavior === 'deny') {
+        void this.chats
+          .get(request.runId)
+          .then((chat) => this.lessonSignals.denied(request, decision, { chatId: request.runId, projectId: chat?.project?.id ?? null }))
+          .catch(() => undefined);
+      }
     });
     // Hangs off the bus as an observer, so it hears every event without counting as a client
     this.push = new PushService({ config, db: this.db, events: this.events });
@@ -731,6 +741,7 @@ export class Core {
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
+    this.lessonSignals = new SignalRecorder({ db: this.db, mode: (projectId) => this.decisions.effective('lesson.mine', projectId).mode });
     this.decisionResolvers = new DecisionResolvers({
       sql: this.db.connection,
       db: this.db,
@@ -775,6 +786,7 @@ export class Core {
       compact: (chat) => this.context.availability(chat),
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
+      rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),
     });
     this.notes = new ChatNotes({
       db: this.db,
@@ -873,6 +885,13 @@ export class Core {
       decisions: this.decisions,
       // Built further down; read when a rule is approved
       resources: () => this.resources,
+    });
+    // S-rejected-proposal: a rejection that says why, for the chat the proposal came from
+    this.events.observe((event) => {
+      if (event.type !== 'memory.proposal' || event.action !== 'rejected') return;
+      const proposal = this.memoryProposals.find(event.proposalId);
+      if (!proposal?.rejectReason || !proposal.source?.chatId) return;
+      this.lessonSignals.rejectedProposal({ chatId: proposal.source.chatId, projectId: proposal.projectId }, proposal.rejectReason, `Proposal: ${proposal.text.slice(0, 200)}`);
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);

@@ -851,6 +851,9 @@ export function flowPrompt(
 /** Refining starts from an item that may say little: what it touches is found by reading, not guessed. */
 const EXPLORE = 'Before you write anything, read the documents and the code the item concerns, including the parts it does not name, so what you add fits what is there.';
 
+/** How the nudge to a run continued after a restart begins; it is Claudio's, not the person's */
+export const FLOW_RESTART_PREFIX = 'Claudio restarted while you were on this run.';
+
 /** What the run is told when the flow sends it back to its chat with work still owed. */
 export function flowContinuation(items: readonly string[], count: number): string {
   return continuationPrompt(items, count, ['End with the structured result.']);
@@ -1516,7 +1519,7 @@ export class FlowService {
       prompt:
         nudge ??
         (continuing
-          ? 'Claudio restarted while you were on this run. Carry on from where you were, and end with the structured result.'
+          ? `${FLOW_RESTART_PREFIX} Carry on from where you were, and end with the structured result.`
           : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
               documentsPath,
               rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,

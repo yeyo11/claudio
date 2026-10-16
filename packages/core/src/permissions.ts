@@ -4,6 +4,12 @@ import type { PermissionDecision, PermissionRequest } from '@claudio/shared';
 /** Long enough for someone to read the request and decide; a browser tab is not always in front. */
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 
+/** The deny messages Claudio writes itself: a timeout, a run that ended, a shutdown. None is a person's answer. */
+export const PERMISSION_TIMEOUT_MESSAGE = 'nobody answered the permission request in time';
+export const PERMISSION_RUN_ENDED_MESSAGE = 'the run ended';
+export const PERMISSION_SHUTDOWN_MESSAGE = 'the wrapper is shutting down';
+export const AUTOMATIC_DENY_MESSAGES: ReadonlySet<string> = new Set([PERMISSION_TIMEOUT_MESSAGE, PERMISSION_RUN_ENDED_MESSAGE, PERMISSION_SHUTDOWN_MESSAGE]);
+
 interface Pending {
   request: PermissionRequest;
   settle: (decision: PermissionDecision | null) => void;
@@ -40,7 +46,7 @@ export class PermissionBroker extends EventEmitter {
         resolve(decision);
       };
       const timer = setTimeout(() => {
-        settle({ behavior: 'deny', message: 'nobody answered the permission request in time' });
+        settle({ behavior: 'deny', message: PERMISSION_TIMEOUT_MESSAGE });
       }, this.timeoutMs);
       timer.unref();
       this.pending.set(request.id, { request, settle, timer });
@@ -75,13 +81,13 @@ export class PermissionBroker extends EventEmitter {
   }
 
   /** Denies everything still waiting for a run that is going away. */
-  denyAllFor(runId: string, message = 'the run ended'): void {
+  denyAllFor(runId: string, message = PERMISSION_RUN_ENDED_MESSAGE): void {
     for (const entry of [...this.pending.values()]) {
       if (entry.request.runId === runId) entry.settle({ behavior: 'deny', message });
     }
   }
 
   close(): void {
-    for (const entry of [...this.pending.values()]) entry.settle({ behavior: 'deny', message: 'the wrapper is shutting down' });
+    for (const entry of [...this.pending.values()]) entry.settle({ behavior: 'deny', message: PERMISSION_SHUTDOWN_MESSAGE });
   }
 }
