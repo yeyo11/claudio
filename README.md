@@ -945,7 +945,7 @@ the final text and the resulting files, and a run measures an agent file, skill,
 in up to three variants (`pinned` at a commit, `current` on disk, `proposed` as sent). Only a
 person's click starts a run, and the start must repeat the cost ceiling the estimate showed
 (`confirmMaxCostUsd`). A chat's token may read and cancel but is refused (403) on writing, consent,
-starting, resuming and deleting; read-only mode refuses every write (405). Errors carry `code`.
+starting, resuming, re-judging, drafting cases and deleting; Phase 2 answers 409 `evals-phase2-off` until `evalsPhase2` is on in the app settings; read-only mode refuses every write (405). Errors carry `code`.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -963,6 +963,10 @@ starting, resuming and deleting; read-only mode refuses every write (405). Error
 | GET | `/eval-runs/:runId/compare?base=&other=` | `EvalComparison` of two variants of the run (`current` and `proposed` by default). 400 when a variant is not in the run; 404 |
 | POST | `/eval-runs/:runId/cancel` | Cancel a live run; idempotent. 404 |
 | POST | `/eval-runs/:runId/resume` | `{ confirmMaxCostUsd }` — re-queue the unscored samples of an `interrupted` or `capped` run under a new ceiling (spent plus what is left). 409 `not-resumable`, `cost-not-confirmed`, `eval-running`; 412 `consent-needed` |
+| GET | `/eval-runs/:runId/gate` | Phase 2: the promotion gate of a run with `current` and `proposed` (`EvalGate`: `may-promote`, `regressed` or `incomplete`). 404; 409 `evals-phase2-off` |
+| POST | `/eval-runs/:runId/rejudge` | Phase 2: judge again the `unjudged` samples from their stored calls, without re-running them → `{ rejudged, unjudged }`. 409 `eval-running`, `evals-phase2-off` |
+| POST | `/eval-runs/:runId/accept-judge` | Phase 2: `{ caseId, idx }` — accept a judge that disagreed with its calibration examples → the recomputed `EvalGate`. 400; 404; 409 `evals-phase2-off` |
+| POST | `/projects/:id/evals/:name/draft-cases` | Phase 2: start an assistant run (`kind: evals`) that proposes up to five cases; `{ model?, effort? }` → `AssistantRun`. 404; 409 `evals-phase2-off`, `spend-cap` |
 | DELETE | `/eval-runs/:runId` | Remove an ended run's rows. 404; 409 while it is live |
 | GET | `/eval-runs/:runId/export?format=json\|markdown` | Download the run (`content-disposition: attachment`); accepts `?token=`. 400 format; 404 |
 
