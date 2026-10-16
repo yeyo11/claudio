@@ -285,6 +285,26 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     return verdict(yes(again) === passed, passed ? 'The checks passed after more attempts' : 'The checks still failed', { verification: task.verification });
   },
 
+  // Judged by what a full review found: a blocking finding from a dimension a light review skips is what a full one earns its cost for
+  'review.depth': (row, sql) => {
+    const depth = choiceOf(row, 'depth');
+    const orchestrationId = row.subjectId?.split(':')[0];
+    if (!depth || !orchestrationId) return null;
+    const round = sql
+      .prepare("SELECT id FROM review_rounds WHERE orchestration_id = ? AND depth = 'full' AND state IN ('passed', 'blocked', 'incomplete', 'accepted') AND started_at >= ? ORDER BY started_at LIMIT 1")
+      .get(orchestrationId, row.at) as { id: string } | undefined;
+    // A light review gives no evidence about what a full one would have found
+    if (!round) return null;
+    const found = sql.prepare('SELECT dimensions FROM review_findings WHERE round_id = ? AND blocking = 1').all(round.id) as unknown as Array<{ dimensions: string }>;
+    const securityHit = row.state.securityHit === true;
+    const skipped = found.some((f) => {
+      const dims = (parse(f.dimensions) as unknown as string[] | null) ?? [];
+      return dims.includes('tests') || dims.includes('conventions') || (!securityHit && dims.includes('security'));
+    });
+    const light = depth === 'light';
+    return verdict(light !== skipped, skipped ? 'A full review confirmed a blocking finding a light one skips' : 'A full review found nothing a light one would have missed', { depth });
+  },
+
   'supervisor.intervene': (row, sql) => {
     const intervene = row.answers?.intervene;
     const signal = typeof row.state.signal === 'string' ? row.state.signal : null;

@@ -1383,3 +1383,38 @@
     font-size: 16px;
   }
 }
+
+/* The review gate's finding card: a variant of .rt (design system §5). Nothing in it is live. */
+   (.rt-sev: critical and high bad, medium warn, low neutral). Nothing in a finding is live. The section (.rg) takes .energy only while
+   reviewers run; every other state stands still, and a running row borrows .live-rail and .spin-ring from §11. */
+.rt.finding .rt-head { gap: 6px 8px; }
+.rt-sev { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.rt-sev.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.rt-sev.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.rt-dim { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--bg-3); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+.rt-verdict { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); white-space: nowrap; }
+.rt-verdict.warn { color: var(--warn); }
+.rt-finding-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.rt-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
+.rt-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rt-fact > .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); }
+.rt-fact > p { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
+.rt-evidence { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); font-family: var(--mono); font-size: 12px; line-height: 20px; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rt-verifier { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.rt.finding.refuted .rt-title, .rt.finding.refuted .rt-fact > p { color: var(--fg-2); }
+
+@media (max-width: 900px) {
+  .rt.finding .rt-title { font-size: 15px; }
+}
+
+.changes-findings-chip {
+  height: 28px;
+  cursor: default;
+}
+
+.changes-findings-count {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+}

@@ -77,7 +77,8 @@
     "failedGraphBody": "Todas las tareas terminaron, pero las comprobaciones sobre la rama fusionada fallaron y el grafo se lanzó para fallar en ese caso. La tarjeta de verificación de abajo dice qué falló; si pasan en una ejecución posterior, el grafo se recupera.",
     "pullRequestHeld": "No se ofrece pull request: las comprobaciones fallaron y este grafo se lanzó para fallar en ese caso.",
     "e2eSpecs": "Ejecutar las specs del navegador que tocan los cambios antes de fusionar",
-    "e2eSpecsHint": "Una tarea añadida al final del grafo ejecuta solo las specs del navegador que toca el trabajo de las demás, cada una sola en su propio puerto, y arregla una spec que el trabajo haya dejado desfasada. Los workers no ejecutan ninguna."
+    "e2eSpecsHint": "Una tarea añadida al final del grafo ejecuta solo las specs del navegador que toca el trabajo de las demás, cada una sola en su propio puerto, y arregla una spec que el trabajo haya dejado desfasada. Los workers no ejecutan ninguna.",
+    "summaryReview": "Las comprobaciones han pasado, pero la revisión de la rama integrada no. Lee sus hallazgos antes de abrir una pull request."
   },
   "templates": {
     "none": "Aún no hay plantillas",
@@ -259,5 +260,160 @@
     "noRuns": "Sus ejecuciones no se registraron.",
     "missing": "Grafo antiguo: algunas fases no se registraron.",
     "error": "No se han podido leer las cifras."
+  },
+  "review": {
+    "enable": "Revisar la rama integrada antes de que pueda pasar",
+    "enableHint": "Los revisores leen la rama de integración cuando pasan las comprobaciones. Un hallazgo bloqueante va a un agente de arreglo, y una revisión que no pasa retiene la pull request.",
+    "dimensions": "Qué buscan los revisores",
+    "always": "siempre",
+    "dimension": {
+      "correctness": "corrección",
+      "tests": "pruebas",
+      "security": "seguridad",
+      "conventions": "convenciones"
+    },
+    "security": "Revisión de seguridad",
+    "securityMode": {
+      "auto": "Automática",
+      "always": "Siempre",
+      "off": "Desactivada"
+    },
+    "securityHint": {
+      "auto": "Se ejecuta cuando el diff toca código que maneja secretos, autenticación o entradas.",
+      "always": "Se ejecuta en todos los diffs.",
+      "off": "No se ejecuta nunca. Un secreto confirmado en el repositorio sigue bloqueado por la comprobación propia de Claudio."
+    },
+    "depth": "Profundidad",
+    "depthFull": "Completa",
+    "depthLight": "Ligera",
+    "depthHint": {
+      "full": "Todas las dimensiones marcadas, en bloques de tamaño normal.",
+      "light": "Corrección, y seguridad cuando se activa, en bloques el doble de grandes. Más barata y menos minuciosa."
+    },
+    "fixer": "Lanzar un agente que arregle los hallazgos bloqueantes",
+    "fixRounds": "Rondas de arreglo",
+    "fixRoundsHint": "La puerta revisa como mucho este número de veces más una",
+    "maxCost": "Presupuesto de la revisión (US$)",
+    "maxCostHint": "Entre todos los revisores, verificadores y agentes de arreglo. Un diff estimado por encima se detiene antes de gastar.",
+    "maxRunCost": "Presupuesto por ejecución (US$)",
+    "maxRunCostHint": "El tope de un revisor o un verificador",
+    "reviewerModel": "Modelo del revisor",
+    "verifierModel": "Modelo del verificador",
+    "modelDefault": "Predeterminado: {{model}}",
+    "exclude": "Exclusiones adicionales",
+    "excludeHint": "Un patrón glob por línea, además de los integrados. Los archivos excluidos nunca se revisan ni bloquean.",
+    "excludePlaceholder": "docs/generated/**",
+    "cost": "Una revisión cuesta dinero en cada grafo. Los revisores usan tu cuenta, y una revisión bloqueada retiene la pull request hasta que una persona la acepte.",
+    "title": "Revisión",
+    "status": {
+      "pending": "pendiente",
+      "running": "revisando",
+      "passed": "superada",
+      "blocked": "bloqueada",
+      "incomplete": "incompleta",
+      "accepted": "aceptada",
+      "skipped": "omitida"
+    },
+    "phase": {
+      "preparing": "Preparando",
+      "reviewing": "Revisando",
+      "verifying": "Verificando hallazgos",
+      "fixing": "Arreglando",
+      "rechecking": "Repitiendo las comprobaciones"
+    },
+    "facts": "ronda {{round}} de {{max}}",
+    "costOf": "{{cost}} de {{limit}}",
+    "waiting": "Esperando a que se restablezca un límite de uso el",
+    "runsUnit": "ejecuciones de revisión",
+    "runsOf": "{{done}} de {{total}} ejecuciones",
+    "runState": {
+      "pending": "en cola",
+      "running": "en marcha",
+      "waiting": "esperando",
+      "done": "hecha",
+      "invalid": "respuesta no válida",
+      "budget": "sin presupuesto",
+      "failed": "fallida",
+      "timed-out": "agotó el tiempo",
+      "cancelled": "cancelada",
+      "interrupted": "interrumpida",
+      "incomplete-coverage": "parcial"
+    },
+    "kind": {
+      "reviewer": "revisor",
+      "verifier": "verificador",
+      "fixer": "agente de arreglo"
+    },
+    "runChat": "Abrir el chat de la ejecución de {{name}}",
+    "noFindings": "Sin hallazgos",
+    "pendingNote": "La revisión empieza cuando pasan las comprobaciones.",
+    "group": {
+      "blocking": "Bloqueantes",
+      "advisory": "Informativos",
+      "refuted": "Refutados",
+      "outside": "Fuera del diff",
+      "skipped": "Sin revisar"
+    },
+    "skipReason": {
+      "excluded": "excluido",
+      "binary": "archivo binario",
+      "submodule": "submódulo",
+      "renamed": "renombrado, sin cambios",
+      "not-reviewable": "demasiado grande o sin presupuesto"
+    },
+    "moreFindings": "Mostrando {{shown}} de {{total}} hallazgos.",
+    "retry": "Reintentar la revisión",
+    "retryFailed": "No se ha podido reintentar la revisión",
+    "acceptAnyway": "Aceptar de todos modos",
+    "acceptAfterRetry": "Una revisión que no ha podido terminar solo se puede aceptar tras un reintento que también acabe incompleto.",
+    "verifyAgain": "Verificar de nuevo",
+    "verifyFailed": "No se ha podido verificar de nuevo",
+    "holdsPullRequest": "Una revisión que no ha pasado retiene la pull request.",
+    "meta": "Revisión · ronda {{round}} de {{rounds}} · {{done}} de {{total}} revisores",
+    "reason": {
+      "accepted": "Aceptada por {{by}}, que escribió:"
+    },
+    "accept": {
+      "title": "Aceptar la revisión",
+      "warning": "La verificación pasará sin la revisión. Se registra con tu nombre, y un nuevo commit la anula.",
+      "reason": "Por qué es seguro seguir",
+      "placeholder": "Qué has comprobado, o por qué los hallazgos no importan aquí",
+      "required": "Escribe un motivo para aceptar.",
+      "cancel": "Cancelar",
+      "confirm": "Aceptar sin la revisión",
+      "failed": "No se ha podido aceptar la revisión"
+    },
+    "severity": {
+      "critical": "crítica",
+      "high": "alta",
+      "medium": "media",
+      "low": "baja"
+    },
+    "verdict": {
+      "not-asked": "sin verificar",
+      "confirmed": "confirmado",
+      "refuted": "refutado",
+      "uncertain": "incierto",
+      "unverified": "sin verificar",
+      "deterministic": "comprobación de Claudio"
+    },
+    "finding": {
+      "label": "Hallazgo de la revisión en {{where}}",
+      "noPlace": "el diff",
+      "claudio": "comprobación de Claudio",
+      "failure": "Qué falla",
+      "evidence": "Evidencia",
+      "suggestion": "Sugerencia",
+      "verifier": "Verificador",
+      "show": "Mostrar",
+      "hide": "Ocultar",
+      "foldOutdated_one": "{{count}} hallazgo obsoleto · de un commit anterior",
+      "foldOutdated_other": "{{count}} hallazgos obsoletos · de un commit anterior",
+      "chip_one": "{{count}} hallazgo",
+      "chip_other": "{{count}} hallazgos",
+      "chipTitle": "Hallazgos de la revisión en este archivo",
+      "pill_one": "{{count}} hallazgo",
+      "pill_other": "{{count}} hallazgos"
+    }
   }
 }

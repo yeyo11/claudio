@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ClaudioLanguage,
@@ -51,6 +50,9 @@ import type {
   Orchestration,
   OrchestrationSpec,
   OrchestrationTimings,
+  ReviewGateDetail,
+  ReviewRoleInfo,
+  ReviewRound,
   RelaunchOrchestrationRequest,
   WorkflowDefinition,
   WorkItem,
@@ -143,6 +145,8 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
+import { ReviewStore } from './review-store.ts';
+import { DEFAULT_ROLE_BODIES, readRole, REVIEW_ROLES, roleFileName, type ReviewRole } from './review-roles.ts';
 import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
@@ -155,6 +159,7 @@ import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
+import { agentsFileFor } from './agents-file.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
@@ -242,6 +247,8 @@ export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptio
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatRefusal } from './chats.ts';
+export { ReviewStoreError } from './review-store.ts';
+export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
@@ -390,6 +397,7 @@ const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ??
 export class Core {
   readonly config: CoreConfig;
   readonly db: Db;
+  private readonly reviewStore: ReviewStore;
   /** Every change worth telling a client about; what `GET /api/events` streams */
   readonly events = new EventBus();
   /**
@@ -590,6 +598,7 @@ export class Core {
       youtrackCredentials: () => this.youtrackCredentials.get(),
     });
     this.db = new Db(config);
+    this.reviewStore = new ReviewStore(this.db.connection);
     this.permissions = new PermissionBroker();
     this.credentials = new CredentialStore(config, this.vault);
     this.security = new AuthStore(config);
@@ -2360,21 +2369,13 @@ export class Core {
     const prompt = content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
     const tools = readFrontmatterList(content, 'tools');
     const disallowedTools = readFrontmatterList(content, 'disallowedTools');
-    const definition = {
-      [agent]: {
-        description: fields.description || agent,
-        prompt: prompt || fields.description || agent,
-        model: member.model,
-        ...(tools?.length ? { tools } : {}),
-        ...(disallowedTools?.length ? { disallowedTools } : {}),
-      },
-    };
-    const body = `${JSON.stringify(definition, null, 2)}\n`;
-    const dir = join(this.config.dataDir, 'flow-agents');
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
-    await writeFile(file, body, { mode: 0o600 });
-    return file;
+    return agentsFileFor(this.config.dataDir, agent, {
+      description: fields.description || agent,
+      prompt: prompt || fields.description || agent,
+      model: member.model,
+      ...(tools?.length ? { tools } : {}),
+      ...(disallowedTools?.length ? { disallowedTools } : {}),
+    });
   }
 
   // ---------- work items ----------
@@ -2782,7 +2783,68 @@ export class Core {
   orchestrationTimings(id: string): OrchestrationTimings | null {
     const orch = this.orchestrator.get(id);
     if (!orch) return null;
-    return orchestrationTimings(orch, this.runtime.list().filter((c) => c.orchestrationId === id));
+    return orchestrationTimings(orch, this.runtime.list().filter((c) => c.orchestrationId === id), new Date(), this.reviewRounds(id));
+  }
+
+  // ---------- review gate ----------
+
+  /** The rounds a graph's review ran, oldest first; none for a graph without a review */
+  reviewRounds(id: string): ReviewRound[] {
+    return this.reviewStore.rounds(id);
+  }
+
+  /**
+   * The review gate of a graph: its summary, every round, and one page of the findings of a round (the
+   * latest unless `round` names another). Null for an unknown id.
+   */
+  reviewDetail(id: string, query: { round?: number; blocking?: boolean; limit?: number; offset?: number } = {}): ReviewGateDetail | null {
+    const orch = this.orchestrator.get(id);
+    if (!orch) return null;
+    const rounds = this.reviewStore.rounds(id);
+    const chosen = query.round === undefined ? rounds.at(-1) : rounds.filter((r) => r.round === query.round).at(-1);
+    const page = chosen
+      ? this.reviewStore.findings(chosen.id, { limit: query.limit ?? 50, offset: query.offset ?? 0, ...(query.blocking !== undefined ? { blocking: query.blocking } : {}) })
+      : { findings: [], total: 0 };
+    return { state: orch.verification?.review ?? null, rounds, findings: page.findings, totalFindings: page.total };
+  }
+
+  acceptReview(id: string, reason: string, actor: string): Orchestration {
+    return this.orchestrator.acceptReview(id, reason, actor);
+  }
+
+  retryReview(id: string): Orchestration {
+    return this.orchestrator.retryReview(id);
+  }
+
+  /** Which text each reviewer role runs with in a project: its own file or Claudio's built-in */
+  async reviewRoles(projectId: string): Promise<ReviewRoleInfo[] | null> {
+    const project = this.projectStore.get(projectId);
+    if (!project) return null;
+    return Promise.all(
+      REVIEW_ROLES.map(async (role): Promise<ReviewRoleInfo> => {
+        const r = await readRole(project.path, role);
+        return { role, file: `.claude/agents/${roleFileName(role)}`, source: r.source, sha: r.sha, bytes: Buffer.byteLength(r.body), problem: r.problem };
+      }),
+    );
+  }
+
+  /**
+   * Writes the built-in text of a role into the project's checkout, only where no file exists (`wx`),
+   * as the team's agent files are written: a person's file is never overwritten. Null for an unknown project.
+   */
+  async writeReviewRole(projectId: string, role: ReviewRole): Promise<{ written: boolean; file: string } | null> {
+    const project = this.projectStore.get(projectId);
+    if (!project) return null;
+    const file = `.claude/agents/${roleFileName(role)}`;
+    const full = join(project.path, file);
+    await mkdir(dirname(full), { recursive: true });
+    try {
+      await writeFile(full, `${DEFAULT_ROLE_BODIES[role]}\n`, { flag: 'wx' });
+      return { written: true, file };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') return { written: false, file };
+      throw err;
+    }
   }
 
   /** The items a chat worked on or created, for its header. Those of projects no longer imported are left out. */

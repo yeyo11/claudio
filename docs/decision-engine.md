@@ -105,6 +105,7 @@ Twenty-nine points. **Suggest** points never change what happens by themselves.
 | Orchestrations | `orchestration.retry` | act | P | Retry a failed task in the same chat, or not |
 | | `orchestration.model` | suggest | P | A model per task in the draft plan |
 | | `orchestration.fixer` | act | P | Stop asking the fixer when more attempts will not help |
+| | `review.depth` | act | P | How deep the review gate goes on a branch: `light` or `full` (never skip) |
 | | `run.continuation` | act | P | Whether a run that ended on a report owes more work (the phrase part of `openItems`; the structural part stays code) |
 | Health | `supervisor.intervene` | act | G | Whether a stuck worker needs a hint |
 | | `health.semantic-loop` | suggest | G | Loops that are not exact repeats |
@@ -142,6 +143,24 @@ at project scope, `off` by default like every point, with a 0.85 threshold.
   hook.
 - **Its resolver** (shadow accuracy) records whether the fix's pushed head turned the rollup
   `passing`; a person's word on the "decided" mark or the History row still outranks it.
+
+### `review.depth`
+
+Added with the review gate ([plans/review-gate.md](plans/review-gate.md), [orchestrations.md](orchestrations.md#the-review-gate)).
+An act point at project scope, `off` by default like every point.
+
+- **When it is asked.** Only when the graph's `verification.review` has no `depth`. `off` means
+  `full`; `shadow` records the answer and runs `full`; `active` acts above the threshold.
+- **What it is told.** The number of files, lines added and deleted, the first changed paths,
+  whether the security trigger matched, the dimensions that would run and the estimated cost in USD
+  of a full round. It sees no code.
+- **The question** is a choice: `light` (correctness, plus security when triggered, with chunks twice
+  as large) or `full` (every dimension). There is no `skip`: a model deciding to skip the gate would
+  be a fail-open path, and a diff with nothing to review already passes deterministically.
+- **Resolver.** A `light` answer is judged wrong when a later full review confirmed a blocking
+  finding from `tests` or `conventions`, or from `security` when the trigger did not match; a `full`
+  answer is judged right in that case. A light review gives no evidence about a full one, so with
+  no full round the answer stays unjudged.
 
 ### `review.triage`
 
@@ -360,6 +379,7 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 - [[code-hosts.md]]: the checks and the fix that `checks.fix` starts, and the review threads that `review.triage` sorts.
 - [[trackers.md]]: the issues that `issue.triage` marks before they are imported.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
+- [[plans/review-gate.md]] · [[orchestrations.md]]: the review gate that `review.depth` sizes.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.
 - [[plans/agent-observability.md]]: the health signals and the supervisor.

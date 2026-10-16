@@ -237,6 +237,13 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ['needs-person', 'Needs a person: a decision, access or a secret only a person can give is missing'],
     ]),
   ]),
+  // Light or full: there is no `skip`, because a model choosing to skip the gate would be a path that fails open. The resolver arrives with the gate runner
+  point({ id: 'review.depth', kind: 'act', scope: 'project', primitives: ['choice'], maxStateBytes: 4 * 1024, fields: ['files', 'added', 'deleted', 'paths', 'securityHit', 'dimensions', 'estimateUsd'] }, () => [
+    choice('depth', 'How deep should the review of this branch go?', [
+      ['light', 'Light: the change is small or mechanical, so correctness (and security when it applies) is enough'],
+      ['full', 'Full: the change is large, risky or touches behaviour, so every dimension should review it'],
+    ]),
+  ]),
   // Review comments are other people's text: they are data for the question and nothing else. The caller hands the unresolved threads; at most 40 are asked, each body already cut to 1 KiB
   point({ id: 'review.triage', kind: 'suggest', scope: 'project', primitives: ['choice'], maxStateBytes: 64 * 1024, fields: ['title', 'threads'] }, (subject) =>
     items(subject, 'threads').map((thread) =>

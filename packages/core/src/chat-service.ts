@@ -176,6 +176,8 @@ export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
       return 'synthesis';
     case '__workflow__':
       return 'workflow';
+    case '__review__':
+      return 'review';
     default:
       return 'task';
   }

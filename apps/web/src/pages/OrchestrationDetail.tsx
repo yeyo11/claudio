@@ -28,10 +28,10 @@ import { elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useClockTick } from '@claudio/ui/lib/motion';
 import { costSplit } from '../lib/orchestration-board';
-import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
+import { followedStep, layerTasks, orchestrationSteps, reviewProgress, type OrchestrationStep } from '../lib/orchestration-steps';
 import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
-import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest, reviewHolds } from '../lib/orchestration-v2';
 import { ChangeRequestFreshness } from '../components/ChangeRequestFreshness';
 import { OrchestrationChecks } from '../components/OrchestrationChecks';
 import { OrchestrationMerge, headGradients, useOrchestrationLead } from '../components/OrchestrationMerge';
@@ -195,7 +195,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             </div>
           )}
           {checking && <p className="muted small">{tv('verification.holdsPush')}</p>}
-          {prHeld && !integration.pullRequestUrl && <p className="muted small">{tv('verification.pullRequestHeld')}</p>}
+          {prHeld && !integration.pullRequestUrl && <p className="muted small">{reviewHolds(orch.verification?.review) ? tv('review.holdsPullRequest') : tv('verification.pullRequestHeld')}</p>}
           {integration.status === 'resolving' && <p className="muted small">{t('config:detail.resolving')}</p>}
           {integration.conflicts.length > 0 && (
             <ul className="small">
@@ -439,7 +439,7 @@ function useStepLabel(): (step: OrchestrationStep) => string {
   };
 }
 
-function stepMeta(step: OrchestrationStep, orch: Orchestration): string | undefined {
+function stepMeta(step: OrchestrationStep, orch: Orchestration, reviewMeta: (progress: NonNullable<ReturnType<typeof reviewProgress>>) => string): string | undefined {
   switch (step.kind) {
     case 'stage':
       return `${step.completed}/${step.tasks.length}`;
@@ -448,6 +448,8 @@ function stepMeta(step: OrchestrationStep, orch: Orchestration): string | undefi
     case 'integration':
       return orch.integration ? `${orch.integration.merged.length}/${orch.tasks.filter((t) => t.branch && t.status === 'completed').length}` : undefined;
     case 'verification': {
+      const review = reviewProgress(orch);
+      if (review) return reviewMeta(review);
       const commands = orch.verification?.commands.filter((c) => !c.install) ?? [];
       return commands.length ? `${commands.filter((c) => c.status === 'passed' || c.status === 'fixed').length}/${commands.length}` : undefined;
     }
@@ -457,8 +459,12 @@ function stepMeta(step: OrchestrationStep, orch: Orchestration): string | undefi
 }
 
 /** How far along a step in flight is, for its bar in the pipeline. */
-function stepProgress(step: OrchestrationStep): number | undefined {
+function stepProgress(step: OrchestrationStep, orch: Orchestration): number | undefined {
   switch (step.kind) {
+    case 'verification': {
+      const review = reviewProgress(orch);
+      return review && review.total > 0 ? review.done / review.total : undefined;
+    }
     case 'stage':
       return step.tasks.length ? step.tasks.filter((t) => t.status === 'completed' || t.status === 'failed' || t.status === 'skipped').length / step.tasks.length : undefined;
     case 'phase':
@@ -825,7 +831,7 @@ export function OrchestrationDetail() {
     skipped: t('pipelineState.skipped'),
     pending: t('pipelineState.pending'),
   };
-  const stepItems: StepItem[] = steps.map((step) => ({ id: step.id, label: stepLabel(step), state: step.state, meta: stepMeta(step, orch), progress: stepProgress(step) }));
+  const stepItems: StepItem[] = steps.map((step) => ({ id: step.id, label: stepLabel(step), state: step.state, meta: stepMeta(step, orch, (progress) => tv('review.meta', progress)), progress: stepProgress(step, orch) }));
 
   const tree = worktreeTarget(orch);
   const openWorktree = () => {

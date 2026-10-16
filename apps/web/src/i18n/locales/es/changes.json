@@ -57,7 +57,9 @@
     "uncommitted": "Sin commit todavía",
     "seen": "visto",
     "live": "{{agent}} lo está editando ahora",
-    "renamedFrom": "renombrado desde {{path}}"
+    "renamedFrom": "renombrado desde {{path}}",
+    "findings_one": "{{count}} hallazgo de la revisión",
+    "findings_other": "{{count}} hallazgos de la revisión"
   },
   "mode": {
     "label": "Cómo comparar",

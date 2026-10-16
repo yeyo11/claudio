@@ -27,6 +27,8 @@ export interface ReviewSource {
    * person's notes go to its draft review. Null where there is none (a chat, a task, a branch with no PR).
    */
   changeRequestId: string | null;
+  /** The orchestration whose review gate is on: its findings are drawn on the diff. Absent where there is none */
+  reviewGate?: { orchestrationId: string };
   /** What the agent is running now, to find the file it is editing */
   activity: { target: string | null; cwd: string | null; top: string | null } | null;
 }

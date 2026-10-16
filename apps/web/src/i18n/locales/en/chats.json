@@ -5,7 +5,8 @@
       "integration": "integration",
       "verification": "verification",
       "synthesis": "synthesis",
-      "workflow": "workflow"
+      "workflow": "workflow",
+      "review": "review"
     },
     "fork": "fork",
     "noProject": "no project",

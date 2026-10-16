@@ -6,6 +6,7 @@ import { CodeBlock } from '@claudio/ui/components/CodeBlock';
 import { Collapsible } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, StatusBadge, Tag } from '@claudio/ui/components/ui';
+import { ReviewGateSection } from './ReviewGateSection';
 
 /** Passed and fixed are both good news but not the same news, so each says its own word. */
 function VerificationBadge({ status }: { status: VerificationStatus }) {
@@ -110,7 +111,7 @@ export function VerificationCard({ orch }: { orch: Orchestration }) {
       actions={<VerificationBadge status={state.status} />}
     >
       <p className="small" role="status">
-        {t(`verification.summary.${state.status}`)}
+        {state.status === 'failed' && state.gate === 'review' ? t('verification.summaryReview') : t(`verification.summary.${state.status}`)}
         {state.attempts > 0 && ` ${t('verification.attemptsSpent', { count: state.attempts })}`}
       </p>
       {(cost > 0 || spec?.maxCostUsd !== undefined) && (
@@ -142,6 +143,8 @@ export function VerificationCard({ orch }: { orch: Orchestration }) {
       </ul>
 
       <VerificationFixes fixes={state.fixes ?? []} />
+
+      {state.review && <ReviewGateSection orch={orch} />}
 
       {state.commits.length > 0 && (
         <div className="stack-tight">

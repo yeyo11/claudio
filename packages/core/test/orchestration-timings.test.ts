@@ -231,3 +231,44 @@ test('a workflow graph, whose tasks are subagents of one session, answers from t
   assert.equal(timings.verification, null);
   assert.deepEqual(timings.missing, []);
 });
+
+test('the review sub-span splits each round into review, verify and fix time, with the chats under the review role', () => {
+  const orch = graph([task('a', { endedAt: t(20) })], {
+    integration: { branch: 'claudio/x', worktree: null, status: 'merged', merged: ['a'], conflicts: [], commit: 'c', error: null, integratorRunId: null, startedAt: t(20), endedAt: t(21) },
+    verification: {
+      status: 'passed',
+      startedAt: t(21),
+      endedAt: t(70),
+      attempts: 0,
+      commits: [],
+      report: '',
+      costUsd: 0,
+      commands: [],
+      fixes: [{ runId: 'rf', command: 'review round 1', attempt: 1, startedAt: t(40), endedAt: t(50), costUsd: 0.5 }],
+      review: {
+        status: 'passed', phase: null, round: 2, maxFixRounds: 2, head: 'c', startedAt: t(25), endedAt: t(69), costUsd: 1, reason: null,
+        counts: { blocking: 0, advisory: 0, refuted: 0, outside: 0 }, runs: { total: 3, done: 3, running: 0, failed: 0 }, depth: 'full',
+      },
+    },
+  });
+  const run = (kind: 'reviewer' | 'verifier', start: number, end: number) => ({
+    id: `${kind}${String(start)}`, kind, dimension: null, chunk: null, chunks: null, chatId: null, model: null, effort: null, account: null, roleSource: null,
+    state: 'done' as const, failure: null, dropped: 0, costUsd: 0.1, startedAt: t(start), endedAt: t(end),
+  });
+  const rounds = [
+    { id: 'r1', round: 1, pass: 1, base: 'b', head: 'c', depth: 'full' as const, state: 'blocked' as const, reason: null, files: 1, added: 1, deleted: 0, chunks: 1, skippedFiles: [], estimateUsd: null, costUsd: 0.6, startedAt: t(25), endedAt: t(38), accepted: null, runs: [run('reviewer', 25, 31), run('reviewer', 26, 33), run('verifier', 33, 38)] },
+    { id: 'r2', round: 2, pass: 1, base: 'b', head: 'c', depth: 'full' as const, state: 'passed' as const, reason: null, files: 1, added: 1, deleted: 0, chunks: 1, skippedFiles: [], estimateUsd: null, costUsd: 0.4, startedAt: t(55), endedAt: t(69), accepted: null, runs: [run('reviewer', 55, 60)] },
+  ];
+  const timings = orchestrationTimings(orch, [chat('__review__', [exec(25, 31)], 'rev')], new Date(t(90)), rounds);
+  assert.deepEqual(timings.verification?.review, {
+    startedAt: t(25),
+    endedAt: t(69),
+    rounds: [
+      { round: 1, reviewMs: 8 * MIN, verifyMs: 5 * MIN, fixMs: 10 * MIN, costUsd: 0.6 },
+      { round: 2, reviewMs: 5 * MIN, verifyMs: 0, fixMs: 0, costUsd: 0.4 },
+    ],
+  });
+  // No review, no sub-span
+  const plain = orchestrationTimings(graph([task('a', { endedAt: t(20) })], { verification: { status: 'passed', startedAt: t(21), endedAt: t(30), attempts: 0, commits: [], report: '', costUsd: 0, commands: [], fixes: [] } }), [], new Date(t(90)));
+  assert.equal(plain.verification?.review, undefined);
+});
