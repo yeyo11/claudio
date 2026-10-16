@@ -19,20 +19,19 @@ work Claude delegates — subagents, background commands, workflows — is invis
 conversation: a background agent's row turns green the moment it is launched, the inspector's
 "Branches" card is off screen, and nothing says what a subagent is doing right now.
 
-Status: **proposed** on 2026-10-16 by the owner, with the design settled in this document before any
-code. **Launch blocked until two orchestrations merge**: `claudio-context-control` and
-`claudio-agent-run-improvements` (both started 2026-10-16 03:15 from `claudio-stage-a`) own
-`normalize.ts`, `Transcript.tsx`, `chat-fold.ts`, `chats.ts`, `types.ts`, `Side.tsx`, the fake CLI and the
-design system files this plan touches. A first launch (`bdab32b6`, 03:22) was stopped after seven
-minutes for that reason. Relaunch from `main` once both are in, after re-verifying section 2's line
-anchors and section 6's file lists against the merged code (the context-control plan adds a
-`CompactionDivider` to the transcript and a context panel beside `Side.tsx`; the agent-run plan adds a
-risk score to transcript rows). Branch `feat/tool-rows-live-branches` from `main` at `9cedb3142` (which already holds the
+Status: **launched** on 2026-10-16 (orchestration `claudio-live-branches`, second launch), with the design
+settled in this document and drawn before any code. Base: `feat/claude-only` at `cb38b5cfb`, the staging
+branch that already holds `claudio-context-control` and `claudio-agent-run-improvements` (both completed
+that morning; `main` was 69 commits behind it). A first launch from `main` (`bdab32b6`, 03:22) was stopped
+after seven minutes because those two were still running on the same files. Since then `ChatActivity.kind`
+gained `compacting`, `TranscriptEntry` gained `compaction`, and the transcript draws a `CompactionDivider`:
+none of it changes what is specified here, and `normalizeMessage` is still the one place both the stream
+line and the file line pass through. Branch `feat/tool-rows-live-branches` from `main` at `9cedb3142` (which already holds the
 chat-experience work, the terminal, the brand kit and the rename to Claudio; nothing else of the chat
 is unmerged). Orchestration `claudio-live-branches`, section 6.
 
 This document is written to be implemented **without any other context**. Every file and line was
-verified on 2026-10-16 against `9cedb3142`; line numbers drift, so search for the quoted code when a
+verified on 2026-10-16 against `9cedb3142` and re-checked on `cb38b5cfb`; line numbers drift, so search for the quoted code when a
 number no longer matches. Where a task prompt and this plan disagree, the plan wins.
 
 ## Contents
@@ -102,7 +101,7 @@ refetches the chat detail on `subagent.*` and `task.*` events. But:
   and then they are mixed into the conversation.
 - The only live list is the "Branches" card of the inspector (`apps/web/src/pages/chat/Side.tsx`,
   `BranchesCard`), a side panel that is closed on narrow screens and far from the composer.
-- Nothing says what a subagent is doing: `feedActivity` in `packages/core/src/chat-fold.ts` returns
+- Nothing says what a subagent is doing: `trackActivity` in `packages/core/src/chat-fold.ts` returns
   on `entry.isSidechain`, so `ChatActivityTracker` (`packages/core/src/chat-activity.ts`) only knows
   the main agent; `ChatSubagent` has `lastActivityAt` and no activity.
 - A `Task`/`Agent` call is matched to its subagent by description and type (`subagentFor`,
@@ -184,7 +183,7 @@ swaps the lens for the JSON of the input and the raw text of the result, for who
 
 **3.2.1 The diff slot.** `ChatUiConfig.slots` (`packages/chat-ui/src/lib/context.tsx`) gains
 `Diff: ComponentType<{ path: string; patch: string }>`. `apps/web` provides it where it builds
-the config (`apps/web/src/lib/chat-ui.tsx`): a thin wrapper that parses the unified text with
+the config (the `slots` constant in `apps/web/src/lib/chat-ui.tsx`): a thin wrapper that parses the unified text with
 `apps/web/src/lib/diff.ts` and draws `DiffView` in `mode="unified"` with `trimEdges` and `wrap` on a
 phone, inside `.call-diff` (max height 360 px, inner scroll, "Show all" past it). The change-review
 rules of design system §5 apply: only what changed carries colour.
@@ -421,7 +420,7 @@ Core:
 - `packages/core/src/live-chat.ts`: `LiveChat` gets `branchActivity: Map<string, ChatActivityTracker>`
   keyed by the sidechain's `parentToolUseId` (the launching call's id), and
   `branchActivityKeys: Map<string, string>` for the announce.
-- `packages/core/src/chat-fold.ts`, `feedActivity`: a sidechain entry with `parentToolUseId` feeds
+- `packages/core/src/chat-fold.ts`, `trackActivity`: a sidechain entry with `parentToolUseId` feeds
   (creating on first use, with the chat's working dir as `cwd`) its own tracker's `called` and
   `answered`, exactly as the main agent's. The main agent's `tool_result` for that
   `parentToolUseId`, and a `task_notification` that ends the agent (`branches.ts`,
