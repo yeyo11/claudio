@@ -547,6 +547,52 @@ the integrator resolves the generated files by regenerating them, never by hand.
 
 ---
 
+## Outcome
+
+Built on the integration branch in tasks c1, c2, w1, w2 and x1 (2026-10-16). The feature as built is
+[chat-tool-rows-and-branches.md](../chat-tool-rows-and-branches.md). e1 (the fake CLI and the specs)
+is reported by its own task; the browser suite runs once on the merged branch.
+
+What landed:
+
+- **c1** the structured result: `ToolResultDetail`, `detail` on `tool_result`, `toolResultDetail`,
+  and `unifiedOf`/`addedDiff` moved to `packages/shared/src/patch.ts`.
+- **c2** a subagent's activity: `ChatSubagent.activity`, the `subagent.activity` event, one tracker
+  per running sidechain.
+- **w1** the lenses: `tool-lens.ts`, `ToolBody.tsx`, the `Diff` slot over `DiffView`, the
+  `transcript.call.*` copy.
+- **w2** the strip, the branch cards, `patchSubagentActivity` and a line per running subagent.
+
+What was settled differently from the plan, and why:
+
+- **A Read draws its own numbered code, not a `CodeBlock`** (w1). `CodeBlock` has no line numbers and
+  lives in `packages/ui`, outside the task's row. The numbers come from a CSS counter so a copy leaves
+  them out, and the highlighter is imported lazily.
+- **Paths are relative through `useRiskContext().cwd`** (w1), with no new prop.
+- **An `Edit` with no recorded patch uses the generic lens** (w1), for transcripts written before the
+  CLI recorded one; the plan allowed a guess, a guessed diff would be wrong for `MultiEdit`
+  (decision 7.1).
+- **A failed call keeps its Call zone** and shows the error as the Result (w1).
+- **A Bash timeout reads as the literal key with a duration** (`timeout 2 min`) (w1).
+- **Exact card matching depends on `detail`** (w2). Until `partsOf` carried it (w1), a card matched by
+  call id or description; the code reads `detail` loosely and the recorded ids take over after the
+  merge.
+- **A workflow's "Open" leads to the inspector**, as the old card did (w2).
+- **The phone's `Sheet` does not remember being open**; only the desktop fold does (w2).
+- **Two copy keys beyond the table**: `openButton` ("Open" / "Abrir") for the card's button and
+  `workflowAgents` for a workflow with no phase yet (w2).
+- **`ActivityTicker`'s 5 s throttle is not exported**, so `LiveBranches.tsx` holds a small copy
+  (w2).
+- **Files outside a task's row**: both web tasks added entries to `packages/chat-ui/package.json`
+  exports; w2 restyled `.chat-launch` in `chat.css` because its base lives in `transcript.css`;
+  both regenerated `strings.json`, `class-names.json` and `module-graph.json`, which the plan said
+  to expect. The integrator regenerated them after the merge instead of resolving them by hand.
+- **Classes the app added that the reference does not draw** are listed under Landed in
+  [design-system.md](../design-system.md#tool-rows-and-live-branches-as-built).
+
+Not done: the screens were not compared with the reference in a browser by the web tasks, and no
+`pnpm e2e` was run by any task; both are left to the verification phase.
+
 ## Related
 
 [[plans/chat-experience.md]] · [[plans/ui-redesign.md]] · [[plans/changes-review.md]] ·

@@ -65,6 +65,7 @@ says how, and Settings → Account warns when a container was started that way.
   tree, send a hint, interrupt. An optional supervisor — Haiku, off by default — wakes once per
   signal when a worker turns `bad`, reads its last steps and proposes the hint, for you to send,
   edit or dismiss.
+- **Tool calls that read as what happened, and what is running at a glance** — an opened `Edit`, `Read` or `Bash` shows its diff, numbered file or output instead of JSON, and a folded strip above the composer lists every running subagent, background command and workflow with what each is doing.
 - **Review the changes without leaving Claudio** — one screen for a chat, a task or the integration
   branch, drawn by a diff comparator of its own (no editor, no diff library). **Reading**, the
   default, shows each file as it is now with a 3 px rail on what is new and what was removed folded

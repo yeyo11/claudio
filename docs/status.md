@@ -133,6 +133,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/project-docs.md`](plans/project-docs.md) | Built (2026-10-15) |
 | [`plans/context-control.md`](plans/context-control.md) | Built (2026-10-16): the context breakdown panel, **Compact now**, compactions as dividers, session notes and the `context.compact` point (ships `off`). See [context-control.md](context-control.md) and the plan's [Outcome](plans/context-control.md#outcome) |
 | [`plans/agent-run-improvements.md`](plans/agent-run-improvements.md) | Built (2026-10-16), ECC ideas 6–10 and 12–15: pattern grounding, the graph's objective and retrieval rounds, fixer stop rules and plateau detection, a risk score on tool calls, optional template roles, the delegation contract, the daily spend cap and path-scoped rules. Verified on the merged branch by the integrator; see its [Outcome](plans/agent-run-improvements.md#outcome) |
+| [`plans/tool-rows-and-live-branches.md`](plans/tool-rows-and-live-branches.md) | Built (2026-10-16): opened tool calls read as what happened (lenses fed by the CLI's `tool_use_result`), a folded strip above the composer with every running subagent, background command and workflow and a line per subagent, and branch cards under the launching step. See [chat-tool-rows-and-branches.md](chat-tool-rows-and-branches.md) and the plan's [Outcome](plans/tool-rows-and-live-branches.md#outcome) |
 | [`plans/guards.md`](plans/guards.md), [`plans/review-gate.md`](plans/review-gate.md), [`plans/lessons.md`](plans/lessons.md), [`plans/instruction-evals.md`](plans/instruction-evals.md) | Planned (2026-10-15), from [reports/ecc.md](reports/ecc.md); open questions resolved. Launch order: guards, review gate, lessons, evals phase 1 |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
@@ -222,7 +223,7 @@ possible to keep honest.
 
 ## Related
 
-[[context-control.md]] · [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
+[[context-control.md]] · [[chat-tool-rows-and-branches.md]] · [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
 [[plans/app-updates.md]] · [[plans/verify-roadmap-plans.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·

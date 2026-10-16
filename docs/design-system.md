@@ -2307,6 +2307,25 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   where the reference draws no "⋯", it holds "Asistente" alone, since Ajustes has its own Save and
   Recursos its "+" in the toolbar.
 
+### Tool rows and live branches, as built
+
+> **Landed** in the `claudio-live-branches` orchestration (2026-10-16). The feature is described in
+> [chat-tool-rows-and-branches.md](chat-tool-rows-and-branches.md). Where the app differs from the
+> reference and §2 above:
+
+- `.call-lines`: a Read's numbered code. The numbers come from a CSS counter, so copying leaves them
+  out; the reference draws `CodeBlock`, which has no line numbers.
+- `.tool-hint-aside`: the muted mono path after a Grep pattern in the folded hint.
+- `.call-diff.is-all`: the diff once "Show all" lifted its 360 px cap.
+- `.call-checklist .word`: the status word beside a checklist item's icon, so a status is never colour
+  alone.
+- `.chat-branches.is-phone` and `.chat-branches-sheet`: the reference draws the phone as
+  `.m-screen .chat-branches`; the app draws the bar at 44 px and the list in a `Sheet` with 48 px rows.
+- `.chat-branch-icon.is-*`: the state icon of a finished row (`is-completed`, `is-failed`, `is-stopped`), beside its word.
+- `.chat-launch` keeps the name of the workflow card; its `.is-agent`, `.is-task` and `.is-workflow`
+  variants lose the old `grad-border`, and its look is restated in `chat.css`.
+- Paths inside a lens are relative to the chat's folder.
+- An `Edit` with no recorded patch uses the generic lens, not a diff.
 
 ## Related
 
