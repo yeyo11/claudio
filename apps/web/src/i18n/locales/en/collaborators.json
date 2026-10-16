@@ -1,0 +1,190 @@
+{
+  "nav": "Collaborators",
+  "page": {
+    "title": "Collaborators",
+    "subtitle": "Teammates' Claudios, connected directly, read only",
+    "groupCount_one": "{{count}} group",
+    "groupCount_other": "{{count}} groups",
+    "sharedCount_one": "{{count}} project shared with you",
+    "sharedCount_other": "{{count}} projects shared with you"
+  },
+  "off": {
+    "title": "Work with your team",
+    "body": "Your teammates' Claudios connect directly to yours and see, read only, the projects you choose to share: chats, memory and journal, documents and the board. Nobody can start work on another person's machine, so nobody spends anyone else's quota.",
+    "turnOn": "Turn on"
+  },
+  "unavailable": {
+    "platform": "Not available on this platform",
+    "load": "The native module did not load",
+    "host": "The connection process keeps stopping",
+    "body": "Claudio works as before; Collaborators stays off on this install."
+  },
+  "you": {
+    "title": "You",
+    "name": "Display name",
+    "nameHint": "How your teammates see you",
+    "label": "Install label",
+    "labelHint": "Which of your installs this is, such as desktop or laptop",
+    "noLabel": "No label",
+    "relay": "Relay URL",
+    "relayHint": "A self-hosted iroh-relay, in place of n0's public relays. Leave it empty for the default ones.",
+    "endpoint": "Endpoint id",
+    "copyEndpoint": "Copy the endpoint id",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "turnOff": "Turn off",
+    "byN0": "Discovery and relays are run by n0",
+    "byN0Relay": "Discovery is run by n0 · relay"
+  },
+  "connection": {
+    "online": "Connected",
+    "relay": "Connected through a relay",
+    "starting": "Connecting…",
+    "noRelay": "No relay answered: only direct connections work",
+    "offline": "No network",
+    "off": "Off"
+  },
+  "groups": {
+    "title": "Groups",
+    "none": "You are in no group yet",
+    "noneHint": "Create a group and invite your teammates, or paste an invite someone sent you.",
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "owner": "Owner",
+    "you": "You",
+    "memberActions": "Actions for {{name}}",
+    "groupActions": "Actions for {{name}}",
+    "remove": "Remove",
+    "makeOwner": "Make owner",
+    "leave": "Leave the group",
+    "frozen": "The owner's install is gone: the group can no longer change.",
+    "createNew": "Create a new group",
+    "conflict": "Two versions {{version}} of the member list disagree. The owner's install settles it by signing the next one.",
+    "removeTitle": "Remove {{name}} from {{group}}?",
+    "removeWarn": "Copies {{name}} already has stay on their machine.",
+    "removeBody": "Their Claudio stops receiving what this group shares.",
+    "makeOwnerTitle": "Make {{name}} the owner of {{group}}?",
+    "makeOwnerBody": "{{name}} will sign every change to the group from now on, and you lose the right to change it: inviting, accepting, removing and transferring.",
+    "leaveTitle": "Leave {{group}}?",
+    "leaveBody": "Every copy synced through this group is deleted from this install, and your projects stop being shared with it."
+  },
+  "presence": {
+    "direct": "Online · direct",
+    "relay": "Online · relay",
+    "lastSeen": "Last seen {{ago}}",
+    "never": "Not seen yet"
+  },
+  "joinRequests": {
+    "title": "Join requests",
+    "relayedBy": "relayed by {{name}}",
+    "direct": "sent to you",
+    "accept": "Accept",
+    "deny": "Deny"
+  },
+  "pending": {
+    "connecting": "Connecting to {{owner}}…",
+    "waiting": "{{owner}} is offline. Your request has been left with {{member}} and will be accepted when {{owner}} is back.",
+    "cancel": "Cancel request",
+    "expires": "The invite expires {{when}}"
+  },
+  "actions": {
+    "invite": "Invite",
+    "join": "Join a group",
+    "create": "Create a group"
+  },
+  "invite": {
+    "title": "Invite to {{group}}",
+    "group": "Group",
+    "make": "Make the invite",
+    "text": "Invite",
+    "copy": "Copy the invite",
+    "qr": "QR code of the invite to {{group}}",
+    "expires": "Valid once, until {{when}}",
+    "presence": "If you are offline when they join, they wait until you are back.",
+    "standing": "Keep a copy of this group on another install, or transfer ownership before changing machines: if this install is lost, the group can no longer change.",
+    "tooLong": "This invite is too long for a QR code. Copy the text instead."
+  },
+  "join": {
+    "title": "Join a group",
+    "paste": "Invite",
+    "pasteHint": "Paste the invite a group's owner sent you.",
+    "submit": "Join",
+    "connecting": "Connecting to the group's owner…",
+    "joined": "You joined {{group}}"
+  },
+  "create": {
+    "title": "Create a group",
+    "name": "Name",
+    "namePlaceholder": "Backend team",
+    "hint": "You become its owner: you invite, accept and remove members.",
+    "submit": "Create",
+    "created": "{{group}} created"
+  },
+  "sharedWithYou": {
+    "title": "Shared with you",
+    "none": "Nothing shared with you yet",
+    "noneHint": "When a teammate shares a project with one of your groups, it shows here.",
+    "install": "Install: {{label}}",
+    "noInstallLabel": "Install without a label",
+    "open": "Open",
+    "openIn": "Open in {{project}}",
+    "notCloned": "Not cloned here",
+    "linkedTo": "Linked to {{project}}",
+    "link": "Link to a local project",
+    "unlink": "Unlink",
+    "linkTitle": "Link {{project}} to a local project",
+    "linkHint": "The shared project then shows in the Shared tab of the project you choose.",
+    "linkProject": "Local project",
+    "linkSubmit": "Link"
+  },
+  "sync": {
+    "live": "Up to date · syncing",
+    "synced": "Synced {{ago}}",
+    "offline": "Owner offline · last synced {{ago}}",
+    "offlineNever": "Owner offline · not synced yet",
+    "pending": "Waiting for the first sync",
+    "failed": "The last sync failed: {{reason}}"
+  },
+  "kinds": {
+    "chats_one": "{{count}} chat",
+    "chats_other": "{{count}} chats",
+    "memory_one": "{{count}} memory file",
+    "memory_other": "{{count}} memory files",
+    "journal_one": "{{count}} journal entry",
+    "journal_other": "{{count}} journal entries",
+    "documents_one": "{{count}} document",
+    "documents_other": "{{count}} documents",
+    "artifacts_one": "{{count}} artifact",
+    "artifacts_other": "{{count}} artifacts",
+    "board_one": "{{count}} work item",
+    "board_other": "{{count}} work items"
+  },
+  "toast": {
+    "on": "Collaborators is on",
+    "onFailed": "Could not turn Collaborators on",
+    "off": "Collaborators is off",
+    "offFailed": "Could not turn Collaborators off",
+    "saved": "Saved",
+    "saveFailed": "Could not save",
+    "inviteFailed": "Could not make the invite",
+    "joinFailed": "Could not join the group",
+    "createFailed": "Could not create the group",
+    "removed": "{{name}} removed",
+    "removeFailed": "Could not remove {{name}}",
+    "transferred": "{{name}} is now the owner",
+    "transferFailed": "Could not transfer ownership",
+    "left": "You left {{group}}",
+    "leaveFailed": "Could not leave {{group}}",
+    "accepted": "{{name}} joined",
+    "acceptFailed": "Could not accept {{name}}",
+    "denied": "Request from {{name}} denied",
+    "denyFailed": "Could not deny {{name}}",
+    "cancelled": "Request cancelled",
+    "cancelFailed": "Could not cancel the request",
+    "linked": "Linked to {{project}}",
+    "linkFailed": "Could not link the project",
+    "unlinked": "Link removed",
+    "unlinkFailed": "Could not remove the link"
+  }
+}

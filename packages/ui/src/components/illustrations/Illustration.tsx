@@ -2,6 +2,7 @@ import { type CSSProperties, type FunctionComponent, useId } from 'react';
 import { Board } from './board';
 import { Chats } from './chats';
 import { CliMissing } from './cli-missing';
+import { Collaborators } from './collaborators';
 import { Connector } from './connector';
 import { Evals } from './evals';
 import { Install } from './install';
@@ -33,6 +34,7 @@ const ILLUSTRATIONS = {
   projects: [Projects, 'accent'],
   board: [Board, 'accent'],
   team: [Team, 'accent'],
+  collaborators: [Collaborators, 'accent'],
   evals: [Evals, 'accent'],
   'no-results': [NoResults, 'accent'],
   'not-found': [NotFound, 'accent'],
