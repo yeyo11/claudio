@@ -46,6 +46,8 @@ test("a chat Claudio does not run is named in an item's history by its title, no
     assert.deepEqual(labels((await core.workItemDetail(item.id)).history), expected);
     await assert.rejects(core.workItemHistory('nope'), /not found/);
   } finally {
-    core.db.close();
+    // The whole Core: with only its database closed, its timers go on querying it while the file runs
+    core.shutdown();
+    await core.restored;
   }
 });

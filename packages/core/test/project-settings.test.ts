@@ -28,7 +28,9 @@ async function withCore(fn: (core: Core, config: ReturnType<typeof tempConfig>) 
   try {
     await fn(core, config);
   } finally {
-    core.db.close();
+    // The whole Core: with only its database closed, its timers go on querying it while the file runs
+    core.shutdown();
+    await core.restored;
   }
 }
 
