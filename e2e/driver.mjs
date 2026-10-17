@@ -303,6 +303,12 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
       // Blank first: the page being left would otherwise write its state back, and its event stream would go on
       await send('Page.navigate', { url: 'about:blank' });
       await send('Storage.clearDataForOrigin', { origin: new URL(baseUrl).origin, storageTypes: 'local_storage,session_storage,indexeddb,cookies' });
+      // What a spec emulates lives on the tab, which every spec of a shard shares: a reduced motion
+      // left on by one turned the next one's animations off. Each spec starts at the defaults, the
+      // 1440 × 900 window included, whatever the one before it forgot to undo
+      await send('Emulation.setEmulatedMedia', { features: [] });
+      await send('Emulation.setFocusEmulationEnabled', { enabled: false });
+      await send('Emulation.clearDeviceMetricsOverride', {});
     },
     /**
      * Runs `source` in every document loaded from now on, before any of the page's own scripts,
