@@ -371,6 +371,8 @@ test('a member pasting an invite again is still a member: a member answers with 
   const { ana, ben, groupId } = await team(net);
   const dan = await install(net, 'Dan');
   assert.equal((await dan.service.join(ana.service.createInvite(groupId).text)).state, 'joined');
+  // Ben answers with the chain only once Ana's announcement reached him; asked before it, he rightly holds a request
+  await until('Ben holds the version that lists Dan', () => ben.service.getGroup(groupId).members.some((m) => m.endpointId === dan.id));
   const invite = ana.service.createInvite(groupId).text;
   await off(ana);
   const viaBen = await dan.service.join(invite);
