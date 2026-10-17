@@ -63,7 +63,7 @@ async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}
   nextPort += PORTS_PER_RUN;
   const child = spawn(process.execPath, [runner], {
     // A shard set for the job that runs this test (CI's matrix) is not the test's to inherit
-    env: { ...process.env, E2E_SHARD: '', E2E_SHARDS: '', TMPDIR: tmp, E2E_SPECS_DIR: specs, E2E_PORT: String(port), ...env },
+    env: { ...process.env, E2E_ALLOW_LOCAL: '1', E2E_SHARD: '', E2E_SHARDS: '', TMPDIR: tmp, E2E_SPECS_DIR: specs, E2E_PORT: String(port), ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -441,4 +441,18 @@ test('the run limit of a sharded run closes every shard’s browser and server',
   assert.ok(r.during.length > 0);
   assert.deepEqual(r.survivors, { chrome: [], server: false });
   assert.deepEqual(r.sandboxLeft, []);
+});
+
+test('outside CI the runner refuses to start unless E2E_ALLOW_LOCAL=1, and starts nothing', { skip }, async () => {
+  const spec = probes['a.spec.mjs'];
+  for (const env of [{ CI: '', E2E_ALLOW_LOCAL: '' }, { CI: 'false', E2E_ALLOW_LOCAL: '0' }]) {
+    const r = await run({ specs: { 'a.spec.mjs': spec }, env });
+    assert.equal(r.code, 2, r.output);
+    assert.match(r.output, /runs on GitHub Actions/);
+    assert.match(r.output, /pnpm e2e:remote/);
+    assert.deepEqual(ran(r.output), []);
+    assert.deepEqual(r.survivors, { chrome: [], server: false });
+  }
+  const allowed = await run({ specs: { 'a.spec.mjs': spec }, env: { CI: '', E2E_ALLOW_LOCAL: '1' } });
+  assert.equal(allowed.code, 0, allowed.output);
 });

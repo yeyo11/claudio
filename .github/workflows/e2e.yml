@@ -1,0 +1,120 @@
+name: e2e
+
+# The browser suite runs here and only here: e2e/run.mjs refuses to start outside CI
+# (docs/decisions/e2e-on-github.md). Two ways in:
+# - CI calls it for every pull request that needs it, with the whole suite on 4 shards.
+# - `pnpm e2e:remote [spec prefixes]` dispatches it on a pushed branch, for the whole suite or for the
+#   few specs a change touches, and waits for it. That is how an agent runs a spec.
+on:
+  workflow_call:
+    inputs:
+      specs:
+        description: Spec prefixes, as `pnpm e2e` takes them; empty runs the whole suite
+        type: string
+        default: ''
+      shards:
+        description: How many shards, 1 to 4
+        type: number
+        default: 4
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: Spec prefixes, as `pnpm e2e` takes them (space or comma separated); empty runs the whole suite
+        type: string
+        default: ''
+      shards:
+        description: How many shards, 1 to 4
+        type: number
+        default: 4
+
+# A newer dispatch on the same branch makes the older one pointless. CI's own call runs inside CI's
+# concurrency group, which already cancels a superseded run.
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && format('e2e-dispatch-{0}', github.ref) || format('e2e-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+      count: ${{ steps.plan.outputs.count }}
+      specs: ${{ steps.plan.outputs.specs }}
+    steps:
+      # Inputs reach the shell through the environment, never through the script text, and only
+      # spec-name characters pass
+      - id: plan
+        env:
+          SPECS: ${{ inputs.specs }}
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          specs=$(printf '%s' "$SPECS" | tr ',' ' ' | xargs)
+          if [ -n "$specs" ] && ! printf '%s' "$specs" | grep -Eq '^[A-Za-z0-9._-]+( [A-Za-z0-9._-]+)*$'; then
+            echo "::error::specs must be spec prefixes made of letters, digits, '.', '_' and '-', got: $SPECS"
+            exit 1
+          fi
+          case "$SHARDS" in 1|2|3|4) ;; *) echo "::error::shards must be 1 to 4, got: $SHARDS"; exit 1 ;; esac
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          echo "count=$SHARDS" >> "$GITHUB_OUTPUT"
+          echo "shards=$(seq -s, 1 "$SHARDS" | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+          echo "### e2e: ${specs:-the whole suite} on $SHARDS shard(s)" >> "$GITHUB_STEP_SUMMARY"
+
+  # e2e/shards.mjs balances the shards over e2e/timings.json; at 4 each takes about 4.5 of the
+  # suite's 17-18 minutes. 4 is where a shard's suite stops being the longest part of the job:
+  # install, build and the CLI take about 2 minutes of it.
+  shard:
+    needs: plan
+    name: e2e (${{ matrix.shard }}/${{ needs.plan.outputs.count }})
+    runs-on: ubuntu-latest
+    # About 6.5 minutes a shard (2 to set up, 4.5 of specs). About 2.5x that, rounded up to 5 minutes
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs.
+      # The installer is checked against the digest the Dockerfile pins rather than a second copy of
+      # it, so rotating the pin is one edit and the two can never disagree about which script is
+      # trusted. The `docker` job builds the same pinned step, so this adds no new way to fail.
+      - name: Install Claude Code
+        run: |
+          sha=$(sed -n 's/^ARG CLAUDE_CODE_INSTALLER_SHA256=//p' docker/Dockerfile)
+          test -n "$sha"
+          curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh
+          echo "$sha  /tmp/claude-install.sh" | sha256sum -c -
+          bash /tmp/claude-install.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # The output also goes to a file, so `pnpm e2e:remote` can hand an agent the whole log of a
+      # failed shard rather than the tail GitHub's log view keeps
+      - name: End-to-end (headless Chrome), shard ${{ matrix.shard }} of ${{ needs.plan.outputs.count }}
+        env:
+          E2E_SHARD: ${{ matrix.shard }}/${{ needs.plan.outputs.count }}
+          E2E_SHOTS: e2e-shots
+          SPECS: ${{ needs.plan.outputs.specs }}
+        run: |
+          mkdir -p e2e-shots
+          set -o pipefail
+          # word splitting is the point: SPECS is a checked list of prefixes
+          # shellcheck disable=SC2086
+          pnpm e2e $SPECS 2>&1 | tee e2e-shots/e2e.log
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-screenshots-${{ matrix.shard }}
+          path: e2e-shots

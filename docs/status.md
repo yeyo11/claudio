@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-17T15:30:00Z
+updated_at: 2026-10-17T16:00:00Z
 tags:
     - status
     - project-state
@@ -182,8 +182,13 @@ plan disagree, the plan wins.
 ```bash
 pnpm typecheck
 pnpm test
-pnpm build && pnpm e2e
+pnpm build
+pnpm e2e:remote   # the browser suite, on GitHub Actions
 ```
+
+Since 2026-10-17 the browser suite runs only on GitHub ([decisions/e2e-on-github.md](decisions/e2e-on-github.md)):
+every pull request runs it on four shards, and `pnpm e2e:remote` runs it, or a few specs, on a pushed
+branch. The local runs below are from before that.
 
 Last run on 2026-10-07 by the final verification of the two roadmap plans
 ([the checks](plans/roadmap-completion.md#the-checks-2026-10-07)), on `main` at `a0d6f2967`
