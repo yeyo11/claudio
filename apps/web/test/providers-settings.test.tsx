@@ -82,12 +82,11 @@ test('the copy of the tab exists in both languages with the same placeholders', 
   assert.equal(spanish.size, flat(en.providers).length);
 });
 
-test('the page shows Claude Code with its state, when it was checked and the way to read it again', async () => {
-  await i18n.changeLanguage('en');
+function renderProvider(list: ProviderStatus[]): string {
   const client = new QueryClient();
-  client.setQueryData(keys.providers, LIST);
+  client.setQueryData(keys.providers, list);
   client.setQueryData(keys.providerSettings, settings());
-  const html = renderToStaticMarkup(
+  return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <RouterProvider
         router={createMemoryRouter([
@@ -109,14 +108,37 @@ test('the page shows Claude Code with its state, when it was checked and the way
       />
     </QueryClientProvider>,
   );
+}
+
+test('the section shows Claude Code with its state, when it was checked and the way to read it again', async () => {
+  await i18n.changeLanguage('en');
+  const html = renderProvider(LIST);
   const words = text(html);
   assert.match(words, /Claude Code/);
   assert.match(words, /Ready/);
   assert.match(words, /Checked/);
   assert.match(words, /Check again/);
-  // One agent: no order to change, no default to choose, no switch
+  // One agent: no order to change, no default to choose, no switch, and no card around it
   assert.equal((html.match(/class="prov-grip"/g) ?? []).length, 0);
   assert.equal((html.match(/role="switch"/g) ?? []).length, 0);
   assert.doesNotMatch(words, /Default provider/);
+  assert.doesNotMatch(html, /class="card/);
   assert.match(html, /data-provider="claude-code"[^>]*data-state="ready"/);
+  // Search lands on the row, its limits and its own Check again
+  for (const id of ['provider.binary', 'provider.limits', 'provider.check']) assert.match(html, new RegExp(`data-setting="${id.replace('.', '\\.')}"`), id);
+});
+
+test('signing in is the Sign-in section’s: the row links there and opens no panel of its own', async () => {
+  await i18n.changeLanguage('en');
+  const html = renderProvider([status('claude-code', { state: 'signed-out', reason: null })]);
+  assert.match(html, /<a[^>]*data-action="sign-in"[^>]*href="\/settings\/claude-code#sign-in"/);
+  assert.doesNotMatch(html, /aria-pressed/);
+  assert.doesNotMatch(html, /signin-/);
+});
+
+test('a state that offers Retry does not offer Check again beside it', async () => {
+  await i18n.changeLanguage('en');
+  const words = text(renderProvider([status('claude-code', { state: 'unknown', reason: null })]));
+  assert.match(words, /Retry/);
+  assert.doesNotMatch(words, /Check again/);
 });

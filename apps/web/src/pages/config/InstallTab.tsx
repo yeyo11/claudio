@@ -20,7 +20,7 @@ export function InstallTab() {
   const phone = useMediaQuery(NARROW);
 
   return (
-    <div className="install" data-testid="install-card">
+    <div className="install" data-testid="install-card" data-setting="install.app">
       <Empty
         illustration="install"
         size={phone ? 'sm' : 'md'}

@@ -147,6 +147,15 @@ export function SettingsTab({ scope, scopeKey, filesHref }: { scope: Scope; scop
   const guard = useLeaveGuard();
   const effective: ConfigFileVariant = scope.projectId ? variant : 'shared';
 
+  // The user's file is a detail screen of Settings → Claude Code, whose header already names it
+  if (!scope.projectId) {
+    return (
+      <div className="settings-detail-body" data-setting="behaviour.settings-json">
+        <SettingsEditor key={`${scopeKey}:${effective}`} scope={scope} variant={effective} filesHref={filesHref} />
+      </div>
+    );
+  }
+
   return (
     <Card
       title={scope.projectId ? t('settings.projectTitle') : t('settings.userTitle')}

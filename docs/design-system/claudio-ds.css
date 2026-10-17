@@ -2684,3 +2684,25 @@ a.cont-from:hover { color: var(--fg); }
   .settings-result, .settings-detail-row { min-height: 44px; }
 }
 /* ---------- end of Settings: eight groups ---------- */
+
+/* ---------- Settings: the setting row (General, Claude Code) ---------- */
+/* Label and consequence, the control beside them; space between rows, never a border; a narrow container stacks them */
+.pref-rows { display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size; }
+.pref-row { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); gap: 8px 24px; align-items: baseline; min-width: 0; padding: 8px 0; }
+.pref-row.is-stacked { grid-template-columns: minmax(0, 1fr); }
+.pref-row.is-stacked > .pref-row-control { align-items: stretch; }
+@container (max-width: 560px) { .pref-row { grid-template-columns: minmax(0, 1fr); } }
+.pref-row-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pref-row-hint { color: var(--fg-2); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.pref-row-control { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.pref-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+/* A button's states in one cell: it keeps the width of the longest (AP10) */
+.reserved-label { display: inline-grid; }
+.reserved-label > span { grid-area: 1 / 1; text-align: center; }
+.reserved-label > .is-off { visibility: hidden; }
+/* A detail's content (Behaviour, Files): no card, the header names it */
+.settings-detail-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.settings-detail-tools { display: flex; justify-content: flex-end; }
+/* Claude Code → Provider: the one row on the screen, its padding hanging outside the column */
+.prov-bare > .prov-item { margin-inline: -18px; overflow: hidden; border-radius: var(--r-lg); }
+/* ---------- end of Settings: the setting row ---------- */

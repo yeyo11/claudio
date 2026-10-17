@@ -283,15 +283,13 @@
     "version": "En uso",
     "notInstalled": "no instalado",
     "pinned": "Fijada por la imagen",
-    "notPinned": "sin fijar (la imagen instala la versión vigente cuando se construyó)",
     "latest": "Última publicada",
     "never": "aún sin comprobar",
     "checked": "Última comprobación {{when}}",
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
     "updateHow": "Claudio no actualiza el CLI dentro de un contenedor en marcha, así que un reinicio siempre da la misma versión. Reconstruye la imagen con CLAUDE_CODE_VERSION={{latest}} (Docker Compose: defínela en .env y ejecuta docker compose build) o descarga una imagen más reciente de Claudio. En una instalación normal, ejecuta claude update.",
-    "checkFailed": "No se ha podido buscar actualizaciones",
-    "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta el registro de npm, no claude.ai."
+    "checkFailed": "No se ha podido buscar actualizaciones"
   },
   "updates": {
     "title": "Claudio",
@@ -304,7 +302,6 @@
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
     "checkFailed": "No se ha podido buscar actualizaciones",
-    "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta la última versión de Claudio en GitHub.",
     "copyCommand": "Copiar el comando",
     "remote": "Esta página está conectada al Claudio de {{host}}, que funciona en otra máquina. Quien lo gestione puede actualizarlo:",
     "docker": {
@@ -371,22 +368,18 @@
     "worksDetail": "Una petición real se ha completado correctamente.",
     "verifyFailed": "La comprobación ha fallado",
     "inUse": "Cuenta en uso",
-    "status": "Estado",
-    "loggedIn": "sesión iniciada",
-    "loggedOut": "sesión cerrada",
-    "account": "Cuenta",
-    "subscription": "Suscripción",
-    "credential": "Credencial",
+    "loggedIn": "Con sesión",
+    "loggedOut": "Sin sesión",
+    "noAccount": "Sin cuenta",
     "verifying": "Comprobando…",
     "verify": "Comprobar con una petición real",
     "remove": "Quitar la credencial guardada",
     "working": "Funciona",
     "failed": "Error: {{detail}}",
-    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte.",
+    "loggedInNote": "«Sesión iniciada» solo indica que hay una credencial.",
     "accounts": "Cuentas",
-    "accountsOne": "Claude Code usa su propio inicio de sesión. Añade más cuentas para pasar a otra cuando se alcance un límite.",
-    "accountsMany": "Cuentas: {{names}}. El trabajo nuevo empieza en la primera con margen.",
-    "manageAccounts": "Gestionar cuentas"
+    "rotationOn": "rotación activada",
+    "rotationOff": "rotación desactivada"
   },
   "instructions": {
     "variants": {
@@ -1499,11 +1492,10 @@
     }
   },
   "notifications": {
-    "title": "Notificaciones",
-    "intro": "Qué te llega y por dónde. Estos interruptores son de este navegador; las notificaciones push se registran en el servidor, y son las que hacen que un aviso llegue con Claudio cerrado.",
+    "intro": "Se eligen por navegador; push avisa con Claudio cerrado.",
     "devices": {
       "title": "Dispositivos registrados para push",
-      "intro": "Cada instalación que activó las notificaciones push. Una suscripción pertenece a una instalación y no a una persona, así que todas reciben las mismas notificaciones, y quitar una silencia ese dispositivo para todo el mundo.",
+      "intro": "Quitar un dispositivo lo silencia para todo el mundo.",
       "none": "No hay ningún dispositivo registrado",
       "noneHint": "Activa el interruptor de arriba desde el móvil o el ordenador en el que quieras enterarte.",
       "thisDevice": "Este dispositivo",

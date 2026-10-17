@@ -1,16 +1,20 @@
 import { useTranslation } from 'react-i18next';
 import type { Scope } from '../../../api';
-import { AccountTab } from '../AccountTab';
 import { FilesTab } from '../FilesTab';
 import { ProvidersTab } from '../ProvidersTab';
 import { SettingsTab } from '../SettingsTab';
 import { detailLabel, sectionLabel, settingsHref } from '../settingsGroups';
+import { SignInSection } from '../SignInSection';
 import { SettingsDetailRow, SettingsSection, type GroupScreenProps } from './Section';
 
 // The user scope is the empty one: no project id means the account's own files
 const USER_SCOPE: Scope = {};
 
-/** Settings → Claude Code (§6.2). A placeholder over today's tabs, in the plan's order, until w2 builds the screen. */
+/**
+ * Settings → Claude Code (docs/plans/settings-ia.md §6.2): the account it runs on, the program
+ * itself, and the two things of `~/.claude` too long for this screen, `settings.json` and the file
+ * tree, each a detail of its own.
+ */
 export function ClaudeCode({ detail }: GroupScreenProps<'claude-code'>) {
   const { t } = useTranslation(['config']);
   if (detail === 'behaviour') return <SettingsTab scope={USER_SCOPE} scopeKey="user" filesHref={settingsHref('claude-code', { detail: 'files' })} />;
@@ -18,7 +22,7 @@ export function ClaudeCode({ detail }: GroupScreenProps<'claude-code'>) {
   return (
     <div className="settings-group">
       <SettingsSection id="sign-in" title={t(sectionLabel('sign-in'))}>
-        <AccountTab />
+        <SignInSection />
       </SettingsSection>
       <SettingsSection id="provider" title={t(sectionLabel('provider'))}>
         <ProvidersTab />

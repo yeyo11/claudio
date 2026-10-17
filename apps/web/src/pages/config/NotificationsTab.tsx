@@ -7,9 +7,10 @@ import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { NotificationPreferences } from '../../components/NotificationPreferences';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { disablePush, usePushState } from '../../lib/push';
+import { PrefRow, PrefRows } from './PrefRow';
 
 /**
  * What reaches a person, and where.
@@ -23,13 +24,12 @@ export function NotificationsTab() {
   const { t } = useTranslation('config');
 
   return (
-    <>
-      <Card title={t('notifications.title')}>
-        <p className="small muted">{t('notifications.intro')}</p>
+    <PrefRows>
+      <PrefRow id="notifications-kinds" setting="notifications.kinds" title={t('settings.rows.notifications.kinds')} hint={t('notifications.intro')} stacked>
         <NotificationPreferences />
-      </Card>
+      </PrefRow>
       <DevicesCard />
-    </>
+    </PrefRows>
   );
 }
 
@@ -73,8 +73,7 @@ function DevicesCard() {
   });
 
   return (
-    <Card title={t('notifications.devices.title')}>
-      <p className="small muted">{t('notifications.devices.intro')}</p>
+    <PrefRow id="notifications-devices" setting="notifications.devices" title={t('notifications.devices.title')} hint={t('notifications.devices.intro')} stacked>
       <ErrorBox error={error} />
       {isLoading ? (
         <Skeleton rows={3} />
@@ -130,6 +129,6 @@ function DevicesCard() {
           ))}
         </ul>
       )}
-    </Card>
+    </PrefRow>
   );
 }

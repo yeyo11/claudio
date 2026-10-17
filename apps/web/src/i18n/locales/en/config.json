@@ -283,15 +283,13 @@
     "version": "In use",
     "notInstalled": "not installed",
     "pinned": "Pinned by the image",
-    "notPinned": "not pinned (the image installs whatever was current when it was built)",
     "latest": "Newest published",
     "never": "not checked yet",
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
     "checking": "Checking…",
     "updateHow": "Claudio does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Claudio image. On a plain install, run claude update.",
-    "checkFailed": "Could not check for updates",
-    "note": "Checked when you ask and once a day, never when a page loads. It reads the npm registry, not claude.ai."
+    "checkFailed": "Could not check for updates"
   },
   "updates": {
     "title": "Claudio",
@@ -304,7 +302,6 @@
     "check": "Check for updates",
     "checking": "Checking…",
     "checkFailed": "Could not check for updates",
-    "note": "Checked when you ask and once a day, never when a page loads. It reads Claudio's latest release on GitHub.",
     "copyCommand": "Copy the command",
     "remote": "This page is connected to the Claudio at {{host}}, which runs on another machine. Whoever runs it can update it:",
     "docker": {
@@ -371,22 +368,18 @@
     "worksDetail": "A real request completed successfully.",
     "verifyFailed": "Verification failed",
     "inUse": "Account in use",
-    "status": "Status",
-    "loggedIn": "logged in",
-    "loggedOut": "logged out",
-    "account": "Account",
-    "subscription": "Subscription",
-    "credential": "Credential",
+    "loggedIn": "Signed in",
+    "loggedOut": "Signed out",
+    "noAccount": "No account",
     "verifying": "Verifying…",
     "verify": "Verify with a real request",
     "remove": "Remove stored credential",
     "working": "Working",
     "failed": "Failed: {{detail}}",
-    "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure.",
+    "loggedInNote": "“Logged in” only means a credential is set.",
     "accounts": "Accounts",
-    "accountsOne": "Claude Code runs on its own login. Add more accounts to switch to another one when a limit is reached.",
-    "accountsMany": "Accounts: {{names}}. New work starts on the first one with room.",
-    "manageAccounts": "Manage accounts"
+    "rotationOn": "rotation on",
+    "rotationOff": "rotation off"
   },
   "instructions": {
     "variants": {
@@ -1499,11 +1492,10 @@
     }
   },
   "notifications": {
-    "title": "Notifications",
-    "intro": "What reaches you, and how. These switches are this browser's own; push is registered with the server, and it is what lets a notification arrive while Claudio is closed.",
+    "intro": "Chosen per browser; push arrives even with Claudio closed.",
     "devices": {
       "title": "Devices registered for push",
-      "intro": "Every install that turned push on. A subscription belongs to an install and not to a person, so each of these is sent the same notifications, and removing one silences that device for everybody.",
+      "intro": "Removing a device silences it for everybody.",
       "none": "No device is registered",
       "noneHint": "Turn the switch above on, from the phone or the computer you want to be told on.",
       "thisDevice": "This device",

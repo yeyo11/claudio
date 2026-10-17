@@ -3,11 +3,15 @@ import { AppearanceTab } from '../AppearanceTab';
 import { CliCard } from '../CliCard';
 import { InstallTab } from '../InstallTab';
 import { NotificationsTab } from '../NotificationsTab';
+import { PrefRows } from '../PrefRow';
 import { sectionLabel } from '../settingsGroups';
 import { UpdatesCard } from '../UpdatesCard';
 import { SettingsSection, type GroupScreenProps } from './Section';
 
-/** Settings → General (§6.1). A placeholder over today's tabs, in the plan's order, until w2 builds the screen. */
+/**
+ * Settings → General (docs/plans/settings-ia.md §6.1): how this browser looks and tells, which
+ * Claudio and which Claude Code run, and the app on this device. Every choice here saves at once.
+ */
 export function General(_: GroupScreenProps<'general'>) {
   const { t } = useTranslation(['config']);
   return (
@@ -19,8 +23,10 @@ export function General(_: GroupScreenProps<'general'>) {
         <NotificationsTab />
       </SettingsSection>
       <SettingsSection id="updates" title={t(sectionLabel('updates'))}>
-        <UpdatesCard />
-        <CliCard />
+        <PrefRows>
+          <UpdatesCard />
+          <CliCard />
+        </PrefRows>
       </SettingsSection>
       <SettingsSection id="install" title={t(sectionLabel('install'))}>
         <InstallTab />
