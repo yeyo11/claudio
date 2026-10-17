@@ -57,6 +57,7 @@ import type { MergeService, PushHold } from './hosts/merge-service.ts';
 import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
 import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, MergeCodeHostAdapter, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
+import type { ChildProcesses } from './child-processes.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { githubAdapter } from './hosts/github/adapter.ts';
 import { gitlabAdapter } from './hosts/gitlab/adapter.ts';
@@ -338,6 +339,8 @@ export interface PullRequestDeps {
   searchPath?: () => Promise<string>;
   /** Runs one host call; the execution layer, with the shared breaker, unless a test brings its own */
   run?: HostRun;
+  /** The owner's children, which its shutdown ends; used by the default run */
+  processes?: ChildProcesses;
   /** The checks of a change request. The watcher reads through it, and a fix takes its failures from it; without one neither does */
   checks?: ChecksService;
   /** The review threads of a change request; without it nothing is addressed */
@@ -413,7 +416,7 @@ export class PullRequestService {
     // A probe is never retried: a signed-out `glab auth status` exits 1 like a host that cannot be reached, and would wait 5 s for it
     this.runHost =
       deps.run ??
-      ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker: this.breaker, ...(call.class === 'probe' ? { retry: { delaysMs: [] } } : {}) }));
+      ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker: this.breaker, ...(deps.processes ? { processes: deps.processes } : {}), ...(call.class === 'probe' ? { retry: { delaysMs: [] } } : {}) }));
   }
 
   private now(): number {

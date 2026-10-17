@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-17T10:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -169,6 +169,16 @@ the whole tree can be killed (a `gh` on PATH is often a shim). On a timeout the 
 so no CLI waits on a terminal. Timeouts per class: `probe` 15 s, `read` 60 s, `log` 60 s, `write`
 120 s, `long-write` 180 s. stdout is read up to 32 MiB; a log keeps a tail of 512 KiB while
 streaming; stderr keeps its first 8 KiB.
+
+**Shutdown.** A call carries its owner's `ChildProcesses` (`packages/core/src/child-processes.ts`;
+the core passes its own to every detector and service that runs a host call, and to the provider
+probes). `Core.shutdown()` sends `SIGKILL` to the group of every call still running and returns a
+promise that resolves once each has exited; a call asked for after it is refused as `busy`
+without starting a process. The server waits for that promise before it exits. A child is not
+ended when its parent exits, and one in its own process group not even when the terminal closes:
+before this, a `gh --version` or `glab auth status` the detector started at boot kept running after
+SIGTERM and wrote its config home (`~/.config/glab-cli`, gh's state) into a `HOME` that was the
+data dir being removed, which the packaging test saw as `ENOTEMPTY` on a loaded machine.
 
 **Environment** (`hosts/env.ts`), on top of the process environment:
 
