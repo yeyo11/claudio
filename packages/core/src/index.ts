@@ -765,6 +765,7 @@ export class Core {
     this.runtime.on('spend-recorded', () => this.spend.recorded());
     this.spend.start();
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
+    this.orchestrator.workflowJournal = (sessionId, runId, from) => this.sessions.workflowJournal(sessionId, runId, from);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
     this.health = new HealthService(this.runtime, this.db);
