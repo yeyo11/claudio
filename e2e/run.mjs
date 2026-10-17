@@ -21,6 +21,18 @@
 // split is greedy longest-first over e2e/timings.json (seconds per spec, checked in so every CI job
 // computes the same split; a spec missing from it weighs the median), and every fakeCli spec stays
 // in one shard, behind one restart of its server. See e2e/shards.mjs.
+// Collaborators (docs/plans/collaborators.md, C4): a spec that exports `peers = ['ben', …]` gets one
+// more wrapper per name, each with a sandbox, a port and a fake `claude` of its own, started before
+// it and stopped after it; its context gains `peers.<name>` (`api`, `dirs`, `fakeCli`, `baseUrl`,
+// `page`, the same browser tab with `goto` aimed at that wrapper, `openTab()`, a tab of its own at
+// that wrapper, for a page that must stay loaded while another install acts (its console errors fail
+// the spec, it is captured on a failure and closed after the spec), and `restart()`, which starts its
+// server again on the same port and directories). Every spec's context also has `capture(label)`,
+// the failure screenshots taken now (from a spec's `catch`, before its cleanup changes the page), and
+// `serverLog(pattern?)`, the stderr lines every server wrote during the spec. Every wrapper of a run binds
+// its iroh endpoint on the minimal preset to a fixed loopback port (CLAUDIO_COLLAB_PRESET,
+// CLAUDIO_COLLAB_BIND): no relay and no discovery, so installs reach each other by their loopback
+// tickets and the suite needs no network, and an invite stays good across a turn off and on.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -31,7 +43,7 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './driver.mjs';
 import { runShards } from './parallel.mjs';
-import { killGroup } from './processes.mjs';
+import { freePort, killGroup } from './processes.mjs';
 import { defaultShardCount, groupSpecs, loadTimings, parseCount, parseShard, splitSpecs } from './shards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -122,6 +134,9 @@ await once(releaseFixture, 'listening');
 releaseFixture.unref();
 const releasesUrl = `http://127.0.0.1:${releaseFixture.address().port}/repos/yeyo11/claudio/releases/latest`;
 
+/** Collaborators on loopback only, at a UDP port the wrapper keeps for the whole run (see the header) */
+const collabEnv = async () => ({ CLAUDIO_COLLAB_PRESET: 'minimal', CLAUDIO_COLLAB_BIND: `127.0.0.1:${await freePort('udp')}` });
+
 const sandbox = mkdtempSync(join(tmpdir(), 'claudio-e2e-'));
 // The guard program every guarded run is armed with, bundled the way apps/api/scripts/bundle.mjs ships
 // it and read-only, as the image and the packages install it. The server runs from source, where the
@@ -198,6 +213,7 @@ const env = {
   FAKE_TAILSCALE_STATE: join(sandbox, 'tailscale-node.json'),
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
+  ...(await collabEnv()),
 };
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
@@ -220,6 +236,22 @@ const fakeEnv = {
   CLAUDE_BIN: join(here, 'fake-cli', 'claude'),
 };
 
+/**
+ * What every server of the run (the main one and the peers, each line prefixed with its name) wrote
+ * to stderr while the spec running now ran: a spec reads it through `serverLog()` to say why it failed,
+ * which the shard's interleaved output does not. Null between specs.
+ */
+let specLog = null;
+/** Splits a stream into lines for `specLog`; a line cut across two chunks is kept until it ends */
+function specLogLines(prefix) {
+  let partial = '';
+  return (chunk) => {
+    const lines = (partial + chunk).split('\n');
+    partial = lines.pop() ?? '';
+    if (specLog) for (const line of lines) if (line.trim()) specLog.push(`${prefix}${line}`);
+  };
+}
+
 /** The server running now, and which CLI it was given */
 let server = null;
 let serverCli = null;
@@ -230,10 +262,12 @@ function startServer(cli) {
   // Its own process group: `pnpm`, `tsx` and the API are killed together, by the leader's PID
   const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
   serverStderr = '';
+  const toSpecLog = specLogLines('');
   // Still shown as it comes, as when stderr was inherited; kept as well, so a start that fails can say why
   child.stderr.on('data', (chunk) => {
     process.stderr.write(chunk);
     if (server === child) serverStderr = (serverStderr + chunk).slice(-STDERR_TAIL_CHARS);
+    toSpecLog(chunk);
   });
   child.on('error', () => {});
   server = child;
@@ -247,6 +281,7 @@ function stopServer() {
 // 'exit' is the one hook every way out passes through (the browser closes itself from its own
 // handler, registered when it launches). The server goes first, then the sandbox it was using.
 process.on('exit', () => {
+  stopPeers();
   stopServer();
   if (process.env.E2E_KEEP !== '1') rmSync(sandbox, { recursive: true, force: true, maxRetries: 3 });
 });
@@ -279,8 +314,7 @@ const SERVER_START_LIMIT_MS = envMs('E2E_SERVER_START_TIMEOUT', 120_000);
  * registered, since the server listens last. Its `ok` field speaks of the CLI's login, which the
  * sandbox does not have: any 200 means the server is ready.
  */
-async function waitForServer() {
-  const child = server;
+async function waitForServer(child = server, url = baseUrl, stderr = () => serverStderr) {
   // Already gone if it failed between the spawn and this call
   let exited = child.exitCode !== null || child.signalCode !== null ? { code: child.exitCode, signal: child.signalCode } : null;
   const onExit = (code, signal) => (exited = { code, signal });
@@ -289,33 +323,141 @@ async function waitForServer() {
   try {
     while (Date.now() - started < SERVER_START_LIMIT_MS) {
       if (exited) {
-        throw new Error(`the API exited before it answered (${exited.signal ?? `code ${exited.code}`}):\n${serverStderr.trim() || '(no stderr)'}`);
+        throw new Error(`the API exited before it answered (${exited.signal ?? `code ${exited.code}`}):\n${stderr().trim() || '(no stderr)'}`);
       }
       try {
-        const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) return;
       } catch {
         // not up yet
       }
       await new Promise((r) => setTimeout(r, 250));
     }
-    throw new Error(`the API did not answer /api/health within ${SERVER_START_LIMIT_MS / 1000}s (set E2E_SERVER_START_TIMEOUT to allow longer):\n${serverStderr.trim() || '(no stderr)'}`);
+    throw new Error(`the API did not answer /api/health within ${SERVER_START_LIMIT_MS / 1000}s (set E2E_SERVER_START_TIMEOUT to allow longer):\n${stderr().trim() || '(no stderr)'}`);
   } finally {
     child.off('exit', onExit);
   }
 }
 
-const api = {
-  baseUrl,
-  async request(method, path, body) {
-    const res = await fetch(`${baseUrl}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
-    return { status: res.status, body: await res.json().catch(() => null) };
-  },
-  get: (path) => api.request('GET', path),
-  put: (path, body) => api.request('PUT', path, body),
-  post: (path, body) => api.request('POST', path, body),
-  del: (path) => api.request('DELETE', path),
-};
+function apiAt(url) {
+  const client = {
+    baseUrl: url,
+    async request(method, path, body) {
+      const res = await fetch(`${url}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      return { status: res.status, body: await res.json().catch(() => null) };
+    },
+    get: (path) => client.request('GET', path),
+    put: (path, body) => client.request('PUT', path, body),
+    post: (path, body) => client.request('POST', path, body),
+    del: (path) => client.request('DELETE', path),
+  };
+  return client;
+}
+const api = apiAt(baseUrl);
+
+// ---------- peers: the other wrappers of a Collaborators spec ----------
+
+/** The peers running now, by name; started for one spec and stopped after it */
+const peers = new Map();
+let peerRuns = 0;
+const PEER_NAME = /^[a-z][a-z0-9-]{0,30}$/;
+/** The tabs peers opened for the spec running now, by the name of the peer whose page each shows */
+const peerTabs = [];
+
+/** What the peers' own tabs logged as errors, emptied */
+function takePeerTabErrors() {
+  return peerTabs.flatMap(({ name, tab }) => tab.takeErrors().map((e) => `[${name}] ${e}`));
+}
+
+async function closePeerTabs() {
+  for (const { tab } of peerTabs.splice(0)) await tab.close();
+}
+
+function stopPeers() {
+  for (const peer of peers.values()) if (peer.child) killGroup(peer.child.pid, { graceMs: 3000 });
+  peers.clear();
+}
+
+/**
+ * One more wrapper, as the main one is made but always on the fake CLI: a peer is a teammate's
+ * machine, and nothing a spec does there may reach the real `claude`. Each run of a spec gets fresh
+ * directories, so no spec sees what an earlier one left on a peer.
+ */
+async function startPeer(name, page, browser) {
+  const home = join(sandbox, 'peers', `${name}-${++peerRuns}`);
+  const peerDirs = { configDir: join(home, 'claude'), workspaceDir: join(home, 'workspace'), dataDir: join(home, 'data') };
+  for (const dir of Object.values(peerDirs)) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(peerDirs.dataDir, 'app-settings.json'), `${JSON.stringify({ setupSeen: true }, null, 2)}\n`);
+  const port = await freePort('tcp');
+  const url = `http://127.0.0.1:${port}`;
+  const peerFake = { bin: fakeCli.bin, log: join(home, 'fake-cli.jsonl'), scripts: join(home, 'fake-cli-scripts.json') };
+  // Kept for a restart: the same port, directories and iroh bind, so the peer comes back as itself
+  const peerEnv = {
+    ...fakeEnv,
+    PORT: String(port),
+    CLAUDIO_WORKSPACE_DIR: peerDirs.workspaceDir,
+    CLAUDIO_DATA_DIR: peerDirs.dataDir,
+    CLAUDE_CONFIG_DIR: peerDirs.configDir,
+    CLAUDIO_FAKE_CLI_LOG: peerFake.log,
+    CLAUDIO_FAKE_CLI_SCRIPTS: peerFake.scripts,
+    FAKE_TAILSCALE_STATE: join(home, 'tailscale-node.json'),
+    ...(await collabEnv()),
+  };
+  const entry = { child: null };
+  peers.set(name, entry);
+  let stderr = '';
+  const boot = async () => {
+    const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: peerEnv, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+    stderr = '';
+    const toSpecLog = specLogLines(`[${name}] `);
+    child.stderr.on('data', (chunk) => {
+      process.stderr.write(`[${name}] ${chunk}`);
+      stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS);
+      toSpecLog(chunk);
+    });
+    child.on('error', () => {});
+    entry.child = child;
+    await waitForServer(child, url, () => stderr);
+  };
+  await boot();
+  const peerPage = Object.assign(Object.create(page), {
+    baseUrl: url,
+    // The same tab, sent to the peer's own origin: a person looking at a teammate's screen
+    async goto(path, wait = 1200) {
+      await page.eval(`location.assign(${JSON.stringify(`${url}${path}`)}); return true`);
+      await page.sleep(wait);
+    },
+  });
+  /**
+   * Stops the peer's server and starts it again on what it left on disk: a teammate's machine that
+   * restarted. A spec changes those files in between (a vault lost, say) to see what the app makes of it.
+   */
+  const restart = async () => {
+    // SIGTERM first, as the main server: the API closes its database, and the port is free on return
+    killGroup(entry.child.pid, { graceMs: 3000 });
+    await boot();
+  };
+  const openTab = async () => {
+    const tab = await browser.openTab(url);
+    peerTabs.push({ name, tab });
+    return tab;
+  };
+  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage, openTab, restart };
+}
+
+async function startPeers(names, page, browser) {
+  if (!Array.isArray(names) || names.some((n) => typeof n !== 'string' || !PEER_NAME.test(n)) || new Set(names).size !== names.length) {
+    throw new Error(`\`peers\` must be distinct lower-case names, got ${JSON.stringify(names)}`);
+  }
+  const started = await Promise.all(names.map((name) => startPeer(name, page, browser)));
+  return Object.fromEntries(started.map((peer) => [peer.name, peer]));
+}
+
+/** The main tab and every peer's own tab, as screenshots under E2E_SHOTS (nothing without it) */
+async function captureFailure(name, page) {
+  await page.shot(name).catch(() => {});
+  for (const { name: peer, tab } of peerTabs) await tab.shot(`${name}-${peer}`).catch(() => {});
+}
 
 function check(condition, message) {
   if (!condition) throw new Error(`assertion failed: ${message}`);
@@ -356,21 +498,32 @@ try {
     try {
       await browser.page.reset();
       browser.page.takeErrors();
+      specLog = [];
       const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli, releases } : { page: browser.page, api, check, dirs, releases };
+      // A spec's `finally` runs before the harness sees its error: one whose cleanup changes the page
+      // captures it from its own `catch`, and says why with what the servers logged meanwhile
+      context.capture = (label) => captureFailure(`FAILED-${file}-${label}`, browser.page);
+      context.serverLog = (pattern) => (specLog ?? []).filter((line) => !pattern || pattern.test(line));
+      if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page, browser);
       await within(spec.default(context), limit, file);
-      const errors = browser.page.takeErrors();
+      const errors = [...browser.page.takeErrors(), ...takePeerTabErrors()];
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);
       console.log(`✓ ${file} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
     } catch (error) {
       failed++;
       failedFiles.push(file);
       console.log(`✗ ${file}\n  ${error.message.replaceAll('\n', '\n  ')}`);
-      await browser.page.shot(`FAILED-${file}`).catch(() => {});
+      await captureFailure(`FAILED-${file}`, browser.page);
       // A spec that timed out is still running in the background: the browser is not safe to reuse
       if (error.message.endsWith(`took longer than ${limit / 1000}s`)) {
         console.log('- stopping: the timed-out spec may still be driving the browser');
         break;
       }
+    } finally {
+      specLog = null;
+      // Closed before their servers stop: a page whose server goes away under it is noise
+      await closePeerTabs().catch(() => {});
+      stopPeers();
     }
   }
 } catch (error) {

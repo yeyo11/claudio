@@ -588,6 +588,7 @@ export function Transcript({
   messages,
   edits,
   compactions,
+  readOnly = false,
 }: {
   entries: TranscriptEntry[];
   /** The rows of `entries`, when the caller has already worked them out */
@@ -606,7 +607,19 @@ export function Transcript({
   edits?: TranscriptEdits;
   /** What a compaction's fold offers: saving its summary as a note, a callback of the app's */
   compactions?: CompactionActions;
+  /**
+   * Someone else's chat, copied from their machine: nothing in it leads into this install (no
+   * message menu, no edit chips, no branch of this install to open, no note from a compaction),
+   * whatever the caller passed. `subagents` is kept: there it opens a subagent copied with the chat
+   */
+  readOnly?: boolean;
 }) {
+  if (readOnly) {
+    messages = undefined;
+    edits = undefined;
+    compactions = undefined;
+    branches = undefined;
+  }
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
   const target = focus ? rowOf(own, focus.item) : undefined;
   const focused = useMemo(() => (target ? { item: target } : null), [target, focus]);

@@ -18,7 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/claudio-ds.css`](design-system/claudio-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 16 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 17 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 | Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
@@ -246,7 +246,7 @@ status bar (30 px).
   - Brand, then the command palette trigger ("Buscar o ejecutar… ⌘K").
   - Two labelled nav groups:
     - Work: Home, Chats, Orchestrations, Schedules.
-    - Space: Projects, Accounts, Connectors, Usage, Settings.
+    - Space: Projects, Collaborators, Accounts, Connectors, Usage, Settings.
   - "Live": the running and waiting chats and orchestrations, with braille spinners and segmented
     progress.
   - The API reference link.
@@ -1981,7 +1981,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Claudio has its own set of 16 SVG illustrations, drawn in the interface's language: hairline
+Claudio has its own set of 17 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
@@ -1996,6 +1996,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `schedules` | no schedules, a schedule that never fired | accent |
 | `projects` | no projects, a project without worktrees | accent |
 | `board` | a project's board without work items, the task list without items. The five fixed columns and the first card floating into Por hacer with the project's key | accent |
+| `collaborators` | the Collaborators page while it is off (and, in the `warn` tone, when the native module cannot load). Two machines joined by a line with an eye on it; the link flows, and the gradient is on one element | accent |
 | `team` | a project whose Team module is on but has no members yet. The flow's three roles in order, the first arriving | accent |
 | `evals` | a project's Team → Evals list without evals. A prompt card (the one gradient element, floating) over three tool-call rows: two ticks and one failed | accent |
 | `no-results` | search or filters without matches, an empty usage range | accent |
@@ -2472,6 +2473,58 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - Paths inside a lens are relative to the chat's folder.
 - An `Edit` with no recorded patch uses the generic lens, not a diff.
 
+### Collaborators, as built
+
+> **Landed** in the `claudio-collaborators` orchestration (2026-10-16). The feature is described in
+> [collaborators.md](collaborators.md), the plan is [plans/collaborators.md](plans/collaborators.md).
+> Where the app differs from the plan's §5:
+
+- The `collaborators` illustration is the 17th of §4; its reference is
+  `design-system/illustrations/collaborators.svg`.
+- `claudio-ds.css` gained the `.collab-*` variants of the Collaborators page: `.collab-you-*` (the
+  You card), `.collab-member*` and `.collab-presence` (a member row and its presence), `.collab-share*`
+  and `.collab-sync` (what is shared with you and its sync words), `.collab-invite*` (the invite
+  dialog and its QR code) and `.collab-tone` (status colour paired with a word). Syncing is never
+  `--live`.
+- The page has one gradient action: **Turn on** while Collaborators is off, **Invite** while it is
+  on. Buttons inside the dialogs are default ones.
+- The Sharing section, the Shared tab and the read-only view of a project not cloned here add no CSS
+  of their own. The marker classes (`read-only-bar`, `shared-view`, `shared-head`, `shared-chats`,
+  `shared-chat`, `shared-board`, `shared-journal`, `shared-artifacts`, `shared-project`,
+  `project-sharing`) have no styles; they reuse the chat list, transcript, journal, master-detail,
+  documents and board styles.
+- The **Shared** tab sits after Memory in `PROJECT_VIEWS` and has its own gate (Collaborators on and a
+  teammate's project matching). A running chat there has the live rail and braille spinner, never
+  the energy border. The transcript is `Transcript` with `readOnly`, which drops the message menu,
+  edit chips, subagent and branch links, and the composer's place takes `ReadOnlyBar`.
+- A shared project that is not cloned here shows "Not cloned here", **Link to a local project** and
+  **Open**, which leads to its read-only view at `/collaborators/shared/:owner/:shareId`: the page
+  header with the project's name and "Shared by … · read only", the share key and sync words, and the
+  same sub-tabs as the Shared tab. Its one action is **Link to a local project**, a default button
+  (the page has no gradient surface); once linked it becomes **Open in …**.
+- The sub-tabs are the kinds the copy carries: Chats, Memory, Journal, Documents, Artifacts, Board.
+  The journal is the person's own journal list without delete or task links, written by the teammate
+  (never "you"); artifacts are a master-detail list whose attachment is downloaded, never launched.
+- The invite's QR code comes from the encoder in `packages/ui` (versions 1 to 40, level M).
+- A member, a join request and a waiting join are named by the person's name; the label and the
+  short endpoint id follow in Geist Mono as muted detail, with the full id as the title.
+- A frozen group (only ever on the install that owned it) shows an `alert-warn` line with its icon,
+  "The owner's install is gone: the group can no longer change.", and **Create a new group** as a
+  link button; the owner-only menu entries are gone.
+- A join request waiting for the owner is a notification of the `collaborators` kind, in the `warn`
+  tone, linking to the Collaborators page; once answered the bell shows it as settled.
+- A join of the person's own that ended without joining keeps its row in the pending card, with the
+  group's name, then a `.collab-tone` word and icon: **Denied** in `bad` with the circled cross, when
+  the owner said no, or **Expired** in `warn` with the clock, when the invite ran out first (the
+  request stopped unanswered). The sentence under it names the owner, and **Dismiss** is a link
+  button. No CSS of its own: it is `.collab-pending` and `.collab-tone`.
+- A shared chat's subagent opens from its delegation in the same side panel as a local chat's,
+  read only.
+- The nav item sits where the plan's §5.1 puts it: the Space group reads Projects, Collaborators,
+  Accounts, Connectors, Usage, Settings, with the `Network` icon. On a phone it is in **More**,
+  after Projects. `shell.spec.mjs` asserts the desktop order and `a11y-shell.spec.mjs` the More
+  entry.
+
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[desktop.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[desktop.md]] · [[collaborators.md]]

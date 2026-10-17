@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T22:00:00Z
+updated_at: 2026-10-17T09:00:00Z
 tags:
     - plan
     - collaborators
@@ -42,6 +42,7 @@ sources in §9. What is still unchecked is what stage C0 (§7) is for, and is ma
 8. [Decisions taken and rejected](#8-decisions-taken-and-rejected)
 9. [Sources](#9-sources)
 10. [Review of 2026-10-16](#10-review-of-2026-10-16)
+11. [Outcome](#outcome)
 
 ---
 
@@ -350,6 +351,11 @@ apply to every one of them:
   `pending {owner}` when a member stores it to relay. `sealed` is `{secret, name, label,
   endpointId}` sealed to the owner's key
 - `joinRelay {groupId, sealed, from}` member → owner, the stored request, forwarded once
+- `roster {groupId, sinceVersion: 0, denial}` from a joiner not in the chain yet: `denied` when the
+  install holds a denial for that joiner and tag, `forbidden` otherwise; `join` is answered `denied`
+  too for an invite the owner denied (R14, below)
+- `joinAnswers {groupId}` member → owner → `joinAnswers {groupId, denied: [{from, tag, deniedAt,
+  expiresAt}]}`, the group's denials, which the member keeps to answer joiners while the owner is away
 - `leave {groupId}` → ack
 - `catalog {groupId}` → shared projects `{shareKey, name, remote?, subpath?, kinds, counts, versions}`
 - `pull {shareKey, kind, since}` → batches of records, ending with the new cursor
@@ -742,7 +748,8 @@ Taken on 2026-10-16:
   methods abort the process and its promises can reject unhandled; a host process after
   `terminal-host.mjs` keeps that away from the API, and polling at 250–1000 ms is enough for presence
   and paths.
-- **`@number0/iroh` pinned at 1.1.0** until the `watch*` and `Buffer` issues are answered upstream;
+- **`@number0/iroh` pinned at 1.1.0** until the `watch*` and `Buffer` issues are answered upstream
+  (drafted in [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md));
   the wire stays 1.x-compatible either way.
 - **A QR encoder of our own** in `packages/ui`, over a dependency: the encoder is small, has tests,
   and the design system already keeps third-party art out.
@@ -820,6 +827,102 @@ The first draft was reviewed adversarially the same day. What changed, so the re
 | Isolation: add a lint rule; a package boundary adds nothing | §3.5, §8 |
 | `ProjectSettings` is strict; `PROJECT_VIEWS` is module-gated; workflow subagent transcripts; vault's new secret kind; QR dependency | §4.3, §5.3, §4.1, §3.1, §8 |
 
+## Outcome
+
+Built on `feat/collaborators` by the `claudio-collaborators` orchestration (2026-10-16), stages C1 to
+C5 as §7.1 defines them. The feature is described in [collaborators.md](../collaborators.md); the
+security additions are in [security-model.md](../security-model.md#collaborators) and the screens'
+notes in the design system's [Landed](../design-system.md#collaborators-as-built) section.
+
+**What shipped.** Everything in §3 to §6: the host process and the read-only serving side, the roster
+chain and invites (direct and relayed joins), the share key, the storage and the sync client, every
+§6 route (closed to chat tokens, reads included), the Collaborators page, the Sharing section and the
+Shared tab, the `collaborators` illustration and the in-house QR encoder (versions 1 to 40).
+
+**Where it differs from the plan.**
+
+- The OpenAPI tag is `Collaborators`, capitalised like the other tags, not `collaborators`.
+- The copy readers also take `?refresh=1`, which pulls from the owner first, and transcripts page by
+  `limit` and `before` like a local chat. Neither is in §6.
+- A share key already in use answers 409 with `{ error, code: 'share-key-in-use', projectId,
+  projectName }`. With Collaborators off, the owner-only routes answer 409 `off` before they look at
+  the group, so an unknown group gets 409 rather than 404.
+- The You card has a **Turn off** button, which §5.1 does not specify.
+- A shared project that is not cloned here first showed only "Not cloned here" and **Link to a local
+  project**; the follow-ups below added the read-only view §5.1 asks for.
+- The Shared tab's sub-tabs were first the four of §5.3; the follow-ups added Journal and Artifacts.
+- The Sharing section and the Shared tab add no CSS. The page's variants are `.collab-*` in
+  `claudio-ds.css`.
+- The design-system stylesheet is `docs/design-system/claudio-ds.css`, not `agentry-ds.css`.
+
+**Verified by the workers:** type checks, the core, API, ui, chat-ui and web tests of each task, the
+schema drift check, and an API test that runs a real iroh endpoint on the minimal preset. **Not run
+by any of them:** the browser specs (the `e1` and `e2e-specs` tasks own them) and a run between two
+real machines after C0.
+
+### Follow-ups (R12, 2026-10-17)
+
+The gaps that orchestration left ([requests.md](../requests.md) R12) were closed on
+`feat/collaborators-gaps`, one task each:
+
+- **Frozen is real.** A group document records the endpoint id the install held the chain as
+  (`heldAs`, backfilled for older chains). When that id is the owner's and the install now holds
+  another key, `Group.frozen` is true and the card shows its warn line and **Create a new group**. A
+  member's install never reports frozen: it cannot tell a lost owner from an offline one.
+- **Members by name.** An invite names the members it lists as relays, so a joiner names the member
+  holding its request before it has the roster; roster changes are announced by name; the web shows
+  the short endpoint id in mono beside each member, join request and waiting join.
+- **Quiet sync logs.** A `forbidden` answer is recorded once on the copies (translated reason) and once
+  in the log, and the peer is asked again at a doubling wait from the reconcile pace up to a day, or
+  on its hello. Other repeated failures are logged once per reason, and a recovery once.
+- **Subagent transcripts.** A chat's record lists its subagents and workflow agents; their transcripts
+  are pulled with the chat when their size changes and open from its delegations in the side panel.
+  New route: `GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`.
+- **Uploads per chat.** `chat_uploads` rows record which uploads a message attached (older chats are
+  scanned once from their transcripts), so the owner serves a chat's uploads after a restart and a
+  receiver pulls the artifacts after any chat changed.
+- **Join requests notify.** The decision was yes: `collaborators.join-request` is a `high`
+  notification of the new kind `collaborators`, in the bell and by push, and the new
+  `collaborators.join-answered` event settles it ([notifications.md](../notifications.md#join-requests)).
+- **Read-only view of an uncloned project.** `GET /collaborators/shared/:owner/:shareId` and the web
+  route of the same path: the copy's name, owner, share key and sync state, the Shared tab's
+  sub-tabs (now Chats, Memory, Journal, Documents, Artifacts, Board) and **Link to a local project**.
+- **Browser specs and timings.** `collaborators.spec.mjs` covers names, the join notification, the
+  read-only view and a revoked share; the new `collaborators-copies.spec.mjs` covers subagents,
+  uploads and a frozen group (a peer restarted without its vault). Both have entries in
+  `e2e/timings.json`.
+- **iroh issues.** Both are rechecked against 1.1.0 and drafted, ready to file, in
+  [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md). The pin of §8 stays until
+  they are answered.
+
+**Still open:** a run between two real machines, and filing the two iroh issues (the owner's call).
+
+### A denied join reaches the joiner (R14, 2026-10-17)
+
+The owner's three-install LAN test found that a denial reached nobody: `denyJoin` deleted the
+request on the owner and nothing told the joiner or the member that relayed it, and the joiner's
+retry asked only for a chain, which a denied joiner never gets, so its page said pending for ever.
+An invite that expired left the join pending for ever too. Fixed on `feat/collaborators-merge`:
+
+- **The owner remembers.** `collab_join_denials` rows (group, joiner, `denialTag` of the invite
+  secret's hash, the hash itself on the owner only, denied and expiry times), pruned once the invite
+  would have expired. The tag, not the hash, travels: the hash is what spends an invite.
+- **The wire says so.** `denied` answers a joiner's `roster` that names the tag, and a `join` with a
+  denied invite. Members learn the group's denials with `joinAnswers` on each sync with the owner (the
+  holding member is told to sync at once), keep them, drop the request copy they still held, and
+  answer the joiner the same way. Every member hears every denial of the group, rather than only the
+  one that held it: a joiner may ask any member its invite names.
+- **Older peers.** A release before this drops `denial` and refuses `joinAnswers`; both read as "no
+  answer yet", so the joiner waits as before and sync goes on.
+- **The joiner.** A pending join now has a `state` (`waiting`, `denied`, `expired`) and `endedAt`;
+  an ended one is never asked after again, emits `collaborators.join-ended`, and stays on the page
+  until dismissed with `DELETE /collaborators/join/:groupId`. Pasting the denied invite again is
+  refused with "Ana denied the request to join UDD with this invite".
+- **Tests.** `packages/core/test/collab-join-answer.test.ts` runs the installs over an in-process
+  network: a relayed deny learnt through the member with the owner gone, a direct one, an expiry, an
+  owner from before this, and an answer from a newer peer. The web tests cover the two cards, and
+  `collaborators.spec.mjs` a denial seen live on the joiner's open page.
+
 ## Related
 
-[[team-and-flow.md]] · [[tunnel.md]] · [[security-model.md]] · [[projects.md]] · [[layered-settings.md]] · [[design-system.md]] · [[accounts.md]]
+[[collaborators.md]] · [[reports/iroh-upstream-issues.md]] · [[notifications.md]] · [[team-and-flow.md]] · [[tunnel.md]] · [[security-model.md]] · [[projects.md]] · [[layered-settings.md]] · [[design-system.md]] · [[accounts.md]]

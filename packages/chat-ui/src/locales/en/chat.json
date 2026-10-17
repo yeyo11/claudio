@@ -645,5 +645,8 @@
       "wide-scope": "Wide scope"
     },
     "reason": "{{level}}: {{factors}}"
+  },
+  "readOnlyBar": {
+    "from": "Read only · from {{name}}"
   }
 }

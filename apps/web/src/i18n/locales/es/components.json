@@ -108,7 +108,8 @@
       "conflict": "Conflictos de integración",
       "limit": "Límites de uso y rotaciones de cuenta",
       "activity": "Tareas en segundo plano, subagentes y workflows que terminan",
-      "health": "Una ejecución parece atascada o desviada"
+      "health": "Una ejecución parece atascada o desviada",
+      "collaborators": "Alguien pide unirse a uno de mis grupos"
     }
   },
   "environment": {
@@ -302,7 +303,12 @@
     "supervisorProposed": "{{name}}: el supervisor propone una pista",
     "spendWarnTitle": "Gasto de hoy al 75 % del tope",
     "spendExhaustedTitle": "Tope de gasto diario alcanzado: el trabajo automático espera hasta las 00:00",
-    "spendBody": "{{spent}} de {{cap}}, según el CLI."
+    "spendBody": "{{spent}} de {{cap}}, según el CLI.",
+    "joinRequest": "{{name}} pide unirse a {{group}}",
+    "joinRequestBody": {
+      "relayed": "A través de {{name}}. Acéptala o recházala en la página Colaboradores.",
+      "direct": "Acéptala o recházala en la página Colaboradores."
+    }
   },
   "projectExport": {
     "title": "Exportar {{name}}",

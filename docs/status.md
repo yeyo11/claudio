@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-16T14:00:00Z
+updated_at: 2026-10-16T23:00:00Z
 tags:
     - status
     - project-state
@@ -19,7 +19,7 @@ change gets in.
 | | |
 | --- | --- |
 | Version | **0.1.0** on `main` (merged from `feat/claude-only` on 2026-10-16), the same across all nine packages; release-please restarts from the fresh changelog |
-| Released | Nothing yet: Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444). The repository `yeyo11/claudio` does not exist yet; see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
+| Released | **v0.1.0** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`). Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 1,620 tracked `.ts`/`.tsx` files at Agentry 0.37.0, before the fork; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
 | REST | 31 route files, documented as OpenAPI 3.1 and served at `/docs` |
@@ -113,6 +113,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Verified — see [Verification](plans/roadmap-completion.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
 | [`plans/post-roadmap.md`](plans/post-roadmap.md) | Verified — see [Verification](plans/post-roadmap.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
 | [`plans/terminal.md`](plans/terminal.md) | Built and verified (2026-10-16): core, API, web, packaging, the t8 security audit (T8-1 accepted by the owner with a warning in Settings, T8-2 and T8-3 fixed), `docker build`, `pnpm desktop:dist` and the full `pnpm e2e` run. The terminal lives in the status bar only (owner, 2026-10-15), detaches into its own window and goes full screen. Feature: [terminal.md](terminal.md) |
+| [`plans/collaborators.md`](plans/collaborators.md) | Built on `feat/collaborators` (2026-10-16), stages C1 to C5, see [Outcome](plans/collaborators.md#outcome). The browser specs and a run between two real machines were not run by the workers. Feature: [collaborators.md](collaborators.md) |
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
@@ -238,4 +239,4 @@ possible to keep honest.
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
 [[decision-engine.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/claudio-assistant.md]] · [[claudio-assistant.md]] ·
-[[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/web-packages.md]] · [[api-wire.md]] · [[plans/agent-wire-format.md]] · [[plans/multi-provider.md]] · [[providers.md]] · [[plans/in-app-setup.md]] · [[setup.md]] · [[security-model.md]] · [[terminal.md]]
+[[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/web-packages.md]] · [[api-wire.md]] · [[plans/agent-wire-format.md]] · [[plans/multi-provider.md]] · [[providers.md]] · [[plans/in-app-setup.md]] · [[setup.md]] · [[security-model.md]] · [[terminal.md]] · [[collaborators.md]]

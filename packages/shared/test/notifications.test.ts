@@ -6,7 +6,7 @@ import { displayTitle, englishNotificationText, interrupts, KINDS, LEVELS, notif
 /*
  * The mapping the web's toasts and the server's push sender share. The web covers it through its
  * own store; these tests hold it from the server's side, where there is no browser and no
- * translation: one representative event of each of the seven kinds, and the English the sender
+ * translation: one representative event of each of the eight kinds, and the English the sender
  * puts on a lock screen.
  */
 
@@ -186,6 +186,12 @@ test('every kind the preferences list can be produced by some event', () => {
     { type: 'run.rateLimited', ...base('limited'), ...run },
     { type: 'subagent.ended', ...base('sub'), ...run, sessionId: 's9', toolUseId: 'tu1', agentId: 'a1', subagentType: 'Explore', description: 'find things', status: 'completed' },
     { type: 'health.changed', ...base('stuck'), ...run, taskId: null, taskName: null, level: 'bad', previousLevel: 'ok', reason: 'Stuck.', signals: ['loop'] },
+    {
+      type: 'collaborators.join-request',
+      ...base('Cleo asks to join Platform'),
+      groupName: 'Platform',
+      request: { groupId: 'g1', from: 'c'.repeat(64), name: 'Cleo', relayedBy: null, receivedAt: AT, expiresAt: '2026-01-08T12:00:00Z' },
+    },
   ];
   assert.deepEqual(events.flatMap((event) => notificationsFor(event)).map((draft) => draft.kind), KINDS);
 });

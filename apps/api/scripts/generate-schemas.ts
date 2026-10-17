@@ -96,6 +96,10 @@ const ROOT_TYPES = [
   'EvalDefinition', 'EvalFile', 'EvalRunRequest', 'EvalEstimate', 'EvalRun', 'EvalRunSummary', 'EvalSample', 'EvalCall', 'EvalCheck', 'EvalComparison',
   'EvalFileListItem', 'EvalHead', 'EvalFileDetail', 'PutEvalFileRequest', 'EvalConsentRequest', 'ResumeEvalRunRequest', 'EvalRunPage', 'EvalSampleDetail', 'EvalGate',
   'DecisionFeedbackRequest', 'DecisionPaletteActionRequest', 'DecisionNotificationOpenedRequest', 'DecisionNotificationOpenedResult', 'DecisionClearResult', 'DecisionStats', 'DecisionPaletteRequest', 'DecisionPaletteResult',
+  // Collaborators
+  'CollaboratorsStatus', 'UpdateCollaboratorsRequest', 'RosterVersion', 'Group', 'GroupList', 'CreateGroupRequest', 'GroupInvite', 'JoinGroupRequest', 'JoinGroupResult', 'JoinRequest', 'TransferGroupOwnershipRequest',
+  'ProjectSharing', 'UpdateProjectSharingRequest', 'ShareKeyInUseError', 'SharedProject', 'LinkSharedProjectRequest',
+  'SharedChat', 'SharedSubagent', 'SharedTranscriptPage', 'SharedAgentTranscriptPage', 'SharedMemoryFile', 'SharedDocument', 'SharedBoard', 'SharedArtifact',
 ];
 
 const generator = createGenerator({

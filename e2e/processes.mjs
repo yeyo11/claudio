@@ -60,3 +60,31 @@ export function killGroup(pid, { graceMs = 0 } = {}) {
   // SIGKILL cannot be caught, but the kernel still needs a moment to reap the group
   for (let waited = 0; waited < 2000 && groupAlive(pid); waited += 20) pause(20);
 }
+
+/**
+ * A loopback port nobody holds right now, TCP for a server or UDP for an iroh endpoint. Another
+ * process could take it before the caller binds it; on a loopback interface with ports handed out
+ * by the kernel, that race is what the rest of the suite already lives with for Chrome's port.
+ */
+export async function freePort(kind = 'tcp') {
+  if (kind === 'udp') {
+    const { createSocket } = await import('node:dgram');
+    const socket = createSocket('udp4');
+    await new Promise((resolve, reject) => {
+      socket.once('error', reject);
+      socket.bind(0, '127.0.0.1', resolve);
+    });
+    const { port } = socket.address();
+    await new Promise((resolve) => socket.close(resolve));
+    return port;
+  }
+  const { createServer } = await import('node:net');
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = server.address();
+  await new Promise((resolve) => server.close(resolve));
+  return port;
+}

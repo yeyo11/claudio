@@ -103,7 +103,7 @@ test('an endpoint is registered once, and the list never hands the whole of it b
   const registered = push.register({ endpoint: ENDPOINT, keys, label: 'Pixel 8 · Chrome' });
   assert.equal(registered.id, idOfEndpoint(ENDPOINT));
   assert.equal(registered.label, 'Pixel 8 · Chrome');
-  assert.deepEqual(registered.kinds, ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health']);
+  assert.deepEqual(registered.kinds, ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health', 'collaborators']);
   assert.equal(registered.endpoint.includes('gAAAAAB'), false, 'a full endpoint is a capability to notify that install');
   assert.equal(registered.endpoint, truncateEndpoint(ENDPOINT));
 
@@ -175,6 +175,29 @@ test('an event reaches only the installs that asked for its kind, with the key i
     sent.map((s) => s.endpoint),
     [ENDPOINT, OTHER],
   );
+});
+
+test("a join request wakes the owner's phone at the default level, and not an install that left its kind out", async () => {
+  const { transport, sent } = fakeTransport();
+  const { push, events } = harness(transport);
+  push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
+  push.register({ endpoint: OTHER, keys, kinds: ['waiting', 'run'], level: 'all', label: 'laptop' });
+  const joinEvent: ClaudioEventInput = {
+    type: 'collaborators.join-request',
+    title: 'Cleo asks to join Platform',
+    groupName: 'Platform',
+    request: { groupId: 'a'.repeat(64), from: 'c'.repeat(64), name: 'Cleo', relayedBy: { endpointId: 'b'.repeat(64), name: 'Ben' }, receivedAt: '2026-10-16T10:00:00.000Z', expiresAt: '2026-10-23T10:00:00.000Z' },
+  };
+
+  // A second relay of the same request is not pushed again
+  events.emit(joinEvent);
+  events.emit(joinEvent);
+  await push.idle();
+  assert.deepEqual(
+    sent.map((s) => [s.endpoint, s.payload.kind, s.payload.title, s.payload.href]),
+    [[ENDPOINT, 'collaborators', 'Cleo asks to join Platform', '/collaborators']],
+  );
+  assert.equal(sent[0]?.payload.body, 'Relayed by Ben. Accept or deny it on the Collaborators page.');
 });
 
 test('the same news inside its dedupe window is pushed once', async () => {

@@ -108,7 +108,8 @@
       "conflict": "An integration conflict",
       "limit": "A rate limit or account rotation",
       "activity": "A background task, subagent or workflow finished",
-      "health": "A run looks stuck or off track"
+      "health": "A run looks stuck or off track",
+      "collaborators": "Someone asks to join one of my groups"
     }
   },
   "environment": {
@@ -302,7 +303,12 @@
     "supervisorProposed": "{{name}}: the supervisor proposes a hint",
     "spendWarnTitle": "Today's spend is at 75 % of the cap",
     "spendExhaustedTitle": "Daily spend cap reached: automatic work waits until 00:00",
-    "spendBody": "{{spent}} of {{cap}}, as the CLI reported it."
+    "spendBody": "{{spent}} of {{cap}}, as the CLI reported it.",
+    "joinRequest": "{{name}} asks to join {{group}}",
+    "joinRequestBody": {
+      "relayed": "Relayed by {{name}}. Accept or deny it on the Collaborators page.",
+      "direct": "Accept or deny it on the Collaborators page."
+    }
   },
   "projectExport": {
     "title": "Export {{name}}",

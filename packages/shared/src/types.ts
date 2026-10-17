@@ -1720,6 +1720,8 @@ export interface ProjectSettings {
   guards?: ProjectGuardSettings;
   /** What lessons this project's runs are handed; a missing field takes the default */
   lessons?: ProjectLessonsSettings;
+  /** Collaborators: the groups the project is shared with and its share key; absent while never shared */
+  sharing?: ProjectSharingSettings;
 }
 
 /**
@@ -4969,6 +4971,499 @@ export interface TunnelStatus {
   /** The HTTPS port on the tailnet name that Claudio's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default) */
   port: number;
   settings: TunnelSettings;
+}
+
+// ---------- Collaborators ----------
+
+// Teammates' Claudios share projects read only, peer to peer over iroh (docs/plans/collaborators.md).
+// Each install is one endpoint, identified by the public key of its iroh `SecretKey`; a group's
+// membership is a chain of roster versions signed by its one owner. Nothing here can start work on
+// another machine: the serving side only reads, and every rule on a receiver is cooperative.
+
+/** An iroh endpoint id: the public key of an install, as iroh prints it. */
+export type EndpointId = string;
+
+/** How a connection to a peer travels: a direct QUIC path, or through a relay (slower, not wrong). */
+export type CollaboratorsPath = 'direct' | 'relay';
+
+/**
+ * Why Collaborators cannot run on this install. `platform`: `@number0/iroh` has no prebuild for it
+ * (macOS Intel); `load`: the native module was there and did not load; `host`: the endpoint's child
+ * process keeps dying.
+ */
+export type CollaboratorsUnavailableCode = 'platform' | 'load' | 'host';
+
+export interface CollaboratorsUnavailable {
+  code: CollaboratorsUnavailableCode;
+  /** What the page says, with a code a client translates */
+  reason: Localized;
+}
+
+/**
+ * This install's own connection, in the words of the You card:
+ *
+ * - `off`: Collaborators is off, or unavailable;
+ * - `starting`: the endpoint is binding and waiting to be online;
+ * - `online`: reachable, with a home relay;
+ * - `no-relay`: bound, but no relay answered in time (`online()` never resolves without one), so
+ *   only direct paths can work;
+ * - `offline`: no network at all.
+ */
+export type CollaboratorsConnection = 'off' | 'starting' | 'online' | 'no-relay' | 'offline';
+
+/** `<dataDir>/collaborators/settings.json`. */
+export interface CollaboratorsSettings {
+  enabled: boolean;
+  /** The person's name as teammates see it, carried in every roster entry they are added with */
+  displayName: string;
+  /** Which of the person's installs this is ("desktop", "laptop"); empty when not set */
+  label: string;
+  /** A self-hosted `iroh-relay` that replaces n0's public relays; null for the default ones */
+  relayUrl: string | null;
+}
+
+/** `GET /collaborators`. */
+export interface CollaboratorsStatus {
+  /** Set when the module did not load: the page shows the reason and no action */
+  unavailable: CollaboratorsUnavailable | null;
+  settings: CollaboratorsSettings;
+  /** This install's endpoint id; null until Collaborators is turned on for the first time */
+  endpointId: EndpointId | null;
+  connection: CollaboratorsConnection;
+  /** The relay the endpoint calls home, while it has one */
+  homeRelay: string | null;
+}
+
+/** `PUT /collaborators`: the settings to change, and only those. Turning on generates the key once. */
+export type UpdateCollaboratorsRequest = Partial<CollaboratorsSettings>;
+
+/** One person's install in a roster version. The owner is listed too, with role `owner`. */
+export interface RosterMember {
+  endpointId: EndpointId;
+  /** Display name */
+  name: string;
+  /** "desktop", "laptop"… */
+  label?: string;
+  role: 'owner' | 'member';
+  addedAt: string;
+}
+
+/**
+ * One signed version of a group's roster. Canonical bytes are RFC 8785 over the version without
+ * `signature`; `groupId` and `prevHash` are the sha256 of such bytes, hex.
+ */
+export interface RosterVersion {
+  /** sha256 of the canonical bytes of version 1, so the group id is self-certifying */
+  groupId: string;
+  /** 1 for the genesis version, +1 on every change */
+  version: number;
+  /** sha256 of the canonical bytes of the previous version; null for version 1 */
+  prevHash: string | null;
+  name: string;
+  /** The endpoint id that signs the next version */
+  owner: EndpointId;
+  members: RosterMember[];
+  issuedAt: string;
+  /** Ed25519 by the `owner` of the previous version, or by this version's own `owner` for version 1; hex */
+  signature: string;
+}
+
+/** Whether a member's install is reachable now, from `collab_peers`. */
+export interface PeerPresence {
+  online: boolean;
+  /** How the connection travels while online; null while offline */
+  path: CollaboratorsPath | null;
+  /** When the install was last connected; null when it never was */
+  lastSeenAt: string | null;
+}
+
+/** A roster member with what this install knows about it now. */
+export interface GroupMember extends RosterMember {
+  /** This install's own entry */
+  self: boolean;
+  /** Null on the install's own entry */
+  presence: PeerPresence | null;
+}
+
+/** The head of a group's chain: what every connection starts by comparing. */
+export interface RosterHead {
+  version: number;
+  /** sha256 of the head version's canonical bytes, hex */
+  hash: string;
+}
+
+/** A group this install belongs to, as `GET /collaborators/groups` lists it. */
+export interface Group {
+  /** The group id: sha256 of the signed genesis */
+  id: string;
+  name: string;
+  head: RosterHead;
+  owner: EndpointId;
+  /** Whether this install is the owner, and so may invite, accept, remove and transfer */
+  isOwner: boolean;
+  /** The head version's members, the owner first */
+  members: GroupMember[];
+  /**
+   * The owner's install is gone (its key is lost): the group can no longer change. Known on the
+   * install that held the group as its owner and holds another key now (a vault lost or restored
+   * apart from the data); to a member, the owner only looks offline.
+   */
+  frozen: boolean;
+  /**
+   * The owner's install found two versions with the same number and different hashes (§3.3). Shown
+   * as an error until the owner signs a higher version over it; null when the chain is consistent.
+   */
+  conflict: { version: number; hashes: string[] } | null;
+  /** Pending joins relayed to the owner; always 0 for a member */
+  joinRequestCount: number;
+}
+
+/**
+ * Where a join this install sent stands: `waiting` for the owner, `denied` by the owner, or
+ * `expired` because the invite ran out before the owner answered. A join the owner accepted is no
+ * longer pending: the group is listed instead.
+ */
+export type PendingJoinState = 'waiting' | 'denied' | 'expired';
+
+/** A `join` this install sent: waiting for the owner, or ended without joining until it is dismissed. */
+export interface PendingJoin {
+  groupId: string;
+  /** The group's name, as the invite carried it */
+  groupName: string;
+  owner: { endpointId: EndpointId; name: string };
+  /** The member holding the request until the owner is back; null while it is still being delivered */
+  relayedBy: { endpointId: EndpointId; name: string } | null;
+  sentAt: string;
+  /** The invite's expiry: past it the owner refuses the request */
+  expiresAt: string;
+  state: PendingJoinState;
+  /** When this install learnt it was denied or saw the invite expire; null while it waits */
+  endedAt: string | null;
+}
+
+/** `GET /collaborators/groups`. */
+export interface GroupList {
+  groups: Group[];
+  /** Requests to join that wait for an owner, or ended unanswered or denied until dismissed, so the page shows them after a reload */
+  pendingJoins: PendingJoin[];
+}
+
+/** `POST /collaborators/groups`: the creator becomes the owner, at version 1. */
+export interface CreateGroupRequest {
+  name: string;
+}
+
+/** `POST /collaborators/groups/:id/invites`: a one-time invite, valid 7 days. */
+export interface GroupInvite {
+  groupId: string;
+  groupName: string;
+  /** The text the invitee pastes; the QR code encodes the same text */
+  text: string;
+  expiresAt: string;
+}
+
+/** `POST /collaborators/join`. */
+export interface JoinGroupRequest {
+  /** The invite's text, as pasted */
+  invite: string;
+}
+
+/**
+ * The answer to a join: `joined` when the owner signed in the same round trip, `pending` when a
+ * member stored the request until the owner is back.
+ */
+export type JoinGroupResult = { state: 'joined'; group: Group } | { state: 'pending'; pending: PendingJoin };
+
+/** A join waiting for the owner's answer, on the owner's install (`GET /collaborators/groups/:id/join-requests`). */
+export interface JoinRequest {
+  groupId: string;
+  /** The joiner's endpoint id, the `:from` of the accept and deny routes */
+  from: EndpointId;
+  name: string;
+  label?: string;
+  /** The member that relayed it while the owner was offline; null when it came straight to the owner */
+  relayedBy: { endpointId: EndpointId; name: string } | null;
+  receivedAt: string;
+  /** The invite's expiry */
+  expiresAt: string;
+}
+
+/** `PUT /collaborators/groups/:id/owner`: the current owner signs a version naming the new one. */
+export interface TransferGroupOwnershipRequest {
+  endpointId: EndpointId;
+}
+
+/**
+ * What a project shares, by the receiver's tabs. `chats` carries their transcripts and `board` the
+ * work items with their milestones; terminal sessions are never shared.
+ */
+export type CollaboratorsKind = 'chats' | 'memory' | 'journal' | 'documents' | 'artifacts' | 'board';
+
+/** Every kind a shared project carries, in the order the Shared tab lists them. */
+export const COLLABORATORS_KINDS: readonly CollaboratorsKind[] = ['chats', 'memory', 'journal', 'documents', 'artifacts', 'board'];
+
+/** `ProjectSettings.sharing`: what the project shares and under which key. */
+export interface ProjectSharingSettings {
+  /** The groups the project is shared with; empty shares it with none */
+  groups: string[];
+  /** Computed once as a default, then the person's to edit; unique among the install's projects */
+  shareKey: string;
+  /** The git remote the key was computed from, when the person picked one other than the default */
+  remote?: string;
+}
+
+/** A git remote of the project, as the Sharing section offers it. */
+export interface SharingRemote {
+  name: string;
+  /** The remote's URL with credentials dropped */
+  url: string;
+  /** The key computed from this remote */
+  shareKey: string;
+}
+
+/** `GET /projects/:id/sharing`, and the answer of `PUT`. */
+export interface ProjectSharing {
+  projectId: string;
+  /** The groups the project is shared with */
+  groups: string[];
+  /** The key in use: the stored one, or the default until something is stored */
+  shareKey: string;
+  /** `sha256(shareKey)`, 32 hex characters */
+  shareId: string;
+  /** The key computed from the repository, so the section can offer to go back to it */
+  defaultShareKey: string;
+  /** Whether `shareKey` was edited by hand */
+  edited: boolean;
+  /** The remote the key comes from; null when the repository has none (`local/<hex>`) */
+  remote: string | null;
+  /** Every remote of the repository, for the `Select` when there are several */
+  remotes: SharingRemote[];
+  /** Inside the repository, for a project in a subdirectory (`--show-prefix`); null at its root */
+  subpath: string | null;
+  /** Another project of this install already shares this key: the toggles stay off until it is edited */
+  keyInUse: { projectId: string; projectName: string } | null;
+  /** What is included; not chosen per project */
+  kinds: CollaboratorsKind[];
+  /** What a collaborator sees as the project's name and remote */
+  seenAs: { name: string; remote: string | null };
+}
+
+/** `PUT /projects/:id/sharing`: the fields to change, and only those. */
+export interface UpdateProjectSharingRequest {
+  groups?: string[];
+  /** An edited key: `[a-z0-9._/#-]{3,200}`, refused with 400 otherwise */
+  shareKey?: string;
+  /** Recomputes the key from this remote; null goes back to the default remote */
+  remote?: string | null;
+}
+
+/** The 409 body of `PUT /projects/:id/sharing` when another project already shares the key. */
+export interface ShareKeyInUseError {
+  error: string;
+  code: 'share-key-in-use';
+  projectId: string;
+  projectName: string;
+}
+
+/**
+ * How current a shared project's copy is, in the words of §5.1:
+ *
+ * - `live`: the owner is connected and the watch stream is open ("Up to date · syncing");
+ * - `synced`: connected, between pulls ("Synced 3 min ago");
+ * - `offline`: the owner is not reachable ("Owner offline · last synced 2 h ago");
+ * - `pending`: nothing synced yet.
+ */
+export type SyncStateKind = 'live' | 'synced' | 'offline' | 'pending';
+
+export interface SyncState {
+  state: SyncStateKind;
+  /** When the last pull ended; null before the first */
+  lastSyncedAt: string | null;
+  /** How the connection to the owner travels while connected */
+  path: CollaboratorsPath | null;
+  /** The last pull failed, with a code a client translates; null when it did not */
+  error: Localized | null;
+}
+
+/** A project a teammate's install shares with this one (`GET /collaborators/shared`). */
+export interface SharedProject {
+  /** The sharing install's endpoint id, the `:owner` of the routes */
+  owner: EndpointId;
+  /** The person's display name: the page groups by it, then by `ownerLabel` */
+  ownerName: string;
+  ownerLabel: string | null;
+  /** The groups through which this install sees it */
+  groupIds: string[];
+  shareKey: string;
+  /** `sha256(shareKey)`, 32 hex characters: a share key holds `/` and `#`, so routes use this */
+  shareId: string;
+  name: string;
+  remote: string | null;
+  subpath: string | null;
+  kinds: CollaboratorsKind[];
+  counts: Partial<Record<CollaboratorsKind, number>>;
+  sync: SyncState;
+  /** Local projects whose default key equals `shareKey`; several for two clones */
+  matches: string[];
+  /** The local project it was linked to by hand; null when it was not */
+  linkedProjectId: string | null;
+}
+
+/** `PUT /collaborators/shared/:owner/:shareId/link`: shows the shared project inside a local one. */
+export interface LinkSharedProjectRequest {
+  projectId: string;
+}
+
+/** A teammate's chat, as copied: what its row and its header need, nothing of the owner's process. */
+export interface SharedChat {
+  id: string;
+  title: string;
+  firstPrompt: string | null;
+  messageCount: number;
+  startedAt: string | null;
+  updatedAt: string | null;
+  model: string | null;
+  origin: ChatOrigin;
+  /** The worktree's branch, when the chat ran in one */
+  branch: string | null;
+  /** An agent is working in it on the owner's machine now: the row carries the live rail */
+  live: boolean;
+  /** What that agent is doing, while `live` */
+  activity: ChatActivity | null;
+  /** The subagents and workflow agents whose transcripts the CLI kept beside the chat's; absent in a copy from an older install */
+  subagents?: SharedSubagent[];
+}
+
+/**
+ * A subagent or workflow agent of a teammate's chat, as copied: what opens its transcript from the
+ * call that launched it. Its transcript is pulled with the chat's.
+ */
+export interface SharedSubagent {
+  /** The CLI's id of the agent, which names its transcript */
+  agentId: string;
+  /** The workflow run (`wf_…`) a workflow agent belongs to; null for a subagent */
+  workflowRunId: string | null;
+  /** The CLI's `agentType` (`Explore`, `general-purpose`…) */
+  subagentType: string | null;
+  /** The description given at launch */
+  description: string | null;
+  workflowPhase: string | null;
+  /** Bytes of its transcript on the owner's machine when the chat was read */
+  size: number;
+  /** When its transcript last changed */
+  updatedAt: string | null;
+}
+
+/** `GET /collaborators/shared/:owner/:shareId/chats/:chatId/transcript`: a window of the copied transcript. */
+export interface SharedTranscriptPage {
+  chatId: string;
+  /** Oldest first */
+  entries: TranscriptEntry[];
+  /** Index of the first entry in `entries` within the copied transcript */
+  from: number;
+  total: number;
+  live: boolean;
+}
+
+/** `GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`: a window of a copied subagent's transcript. */
+export interface SharedAgentTranscriptPage extends SharedTranscriptPage {
+  agentId: string;
+  workflowRunId: string | null;
+}
+
+/** A memory file of the owner's project, as copied. */
+export interface SharedMemoryFile {
+  name: string;
+  isIndex: boolean;
+  description: string | null;
+  type: string | null;
+  content: string;
+  updatedAt: string | null;
+}
+
+/** A file of the owner's documents folder, or the project's `CLAUDE.md`, from the owner's working tree. */
+export interface SharedDocument {
+  /** Relative to the project */
+  path: string;
+  title: string | null;
+  size: number;
+  updatedAt: string | null;
+  /** The content is the blob of this hash, fetched from the owner on first open */
+  sha256: string;
+}
+
+/** `GET /collaborators/shared/:owner/:shareId/work-items`. */
+export interface SharedBoard {
+  items: WorkItemDetail[];
+  milestones: Milestone[];
+}
+
+/** An artifact of the owner's project: an orchestration's result, an upload of a shared chat, a plan draft. */
+export type SharedArtifact =
+  | { kind: 'orchestration'; id: string; name: string; finalResult: string; updatedAt: string }
+  | { kind: 'upload'; id: string; name: string; mediaType: string; sizeBytes: number; sha256: string; chatId: string; createdAt: string }
+  | { kind: 'plan'; id: string; name: string; objective: string | null; taskCount: number; createdAt: string };
+
+/** What changed in `collaborators.changed`. */
+export type CollaboratorsChangeScope = 'settings' | 'roster' | 'links' | 'sharing';
+
+/** The settings, a group's roster, the manual links or a project's sharing changed. */
+export interface CollaboratorsChangedEvent extends ClaudioEventBase {
+  type: 'collaborators.changed';
+  scope: CollaboratorsChangeScope;
+  /** The group, for `roster`; the project, for `sharing`; null otherwise */
+  groupId: string | null;
+  projectId: string | null;
+}
+
+/** A member's install came online, went offline or changed path. */
+export interface CollaboratorsPeerEvent extends ClaudioEventBase {
+  type: 'collaborators.peer';
+  endpointId: EndpointId;
+  name: string;
+  presence: PeerPresence;
+}
+
+/** A pull of one kind of a shared project ended. */
+export interface CollaboratorsSyncedEvent extends ClaudioEventBase {
+  type: 'collaborators.synced';
+  owner: EndpointId;
+  shareKey: string;
+  shareId: string;
+  kind: CollaboratorsKind;
+  sync: SyncState;
+}
+
+/** A join reached the owner's install and waits for an answer; only the owner's install emits it. */
+export interface CollaboratorsJoinRequestEvent extends ClaudioEventBase {
+  type: 'collaborators.join-request';
+  request: JoinRequest;
+  /** The group's name, so the owner's notification can say which group without a read */
+  groupName: string;
+}
+
+/** How a join request on the owner's install was settled. */
+export type JoinAnswer = 'accepted' | 'denied' | 'dropped';
+
+/**
+ * A join request on the owner's install was answered, or dropped because it could no longer be
+ * accepted (expired, spent, superseded): its notification is over. Only the owner's install emits it.
+ */
+export interface CollaboratorsJoinAnsweredEvent extends ClaudioEventBase {
+  type: 'collaborators.join-answered';
+  groupId: string;
+  /** The joiner's endpoint id, as in `JoinRequest.from` */
+  from: EndpointId;
+  answer: JoinAnswer;
+}
+
+/**
+ * A join this install sent ended without joining: the owner denied it, or its invite expired before
+ * the owner answered. Only the joiner's install emits it; the page shows the ended join until dismissed.
+ */
+export interface CollaboratorsJoinEndedEvent extends ClaudioEventBase {
+  type: 'collaborators.join-ended';
+  pending: PendingJoin;
 }
 
 // ---------- Effective environment ----------
@@ -8350,7 +8845,13 @@ export type ClaudioEvent =
   | SpendAlertEvent
   | GuardsChangedEvent
   | EvalRunEvent
-  | EvalSampleEvent;
+  | EvalSampleEvent
+  | CollaboratorsChangedEvent
+  | CollaboratorsPeerEvent
+  | CollaboratorsSyncedEvent
+  | CollaboratorsJoinRequestEvent
+  | CollaboratorsJoinAnsweredEvent
+  | CollaboratorsJoinEndedEvent;
 
 export type ClaudioEventType = ClaudioEvent['type'];
 

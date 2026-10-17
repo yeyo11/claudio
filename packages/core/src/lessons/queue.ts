@@ -239,7 +239,8 @@ export class LessonMiningQueue {
   private readonly sql: DatabaseSync;
   private readonly instance: string;
   private timer: NodeJS.Timeout | null = null;
-  private busy = false;
+  /** The pass in flight: a tick asked for meanwhile joins it, so awaiting any tick means the queue drained */
+  private pass: Promise<void> | null = null;
   private pending = false;
   private current: { jobId: string; chatId: string | null; projectId: string; abort: AbortController } | null = null;
 
@@ -516,23 +517,25 @@ export class LessonMiningQueue {
   }
 
   /** Recovers expired leases and runs jobs, one at a time per process, until none is due */
-  async tick(): Promise<void> {
-    if (this.busy) {
+  tick(): Promise<void> {
+    if (this.pass) {
       this.pending = true;
-      return;
+      return this.pass;
     }
-    this.busy = true;
-    try {
-      do {
-        this.pending = false;
-        this.recover();
-        for (let claimed = this.claim(); claimed; claimed = this.claim()) {
-          await this.run(claimed.job, claimed.spent).catch((err: unknown) => this.settle(claimed.job, 'failed', { outcome: 'invalid-output', error: cutToBytes(String(err), 300) }));
-        }
-      } while (this.pending);
-    } finally {
-      this.busy = false;
-    }
+    this.pass = this.drain().finally(() => {
+      this.pass = null;
+    });
+    return this.pass;
+  }
+
+  private async drain(): Promise<void> {
+    do {
+      this.pending = false;
+      this.recover();
+      for (let claimed = this.claim(); claimed; claimed = this.claim()) {
+        await this.run(claimed.job, claimed.spent).catch((err: unknown) => this.settle(claimed.job, 'failed', { outcome: 'invalid-output', error: cutToBytes(String(err), 300) }));
+      }
+    } while (this.pending);
   }
 
   // ---------- Running a job ----------

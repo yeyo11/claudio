@@ -146,6 +146,12 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'guards.changed': true,
   'eval.run': true,
   'eval.sample': true,
+  'collaborators.changed': true,
+  'collaborators.peer': true,
+  'collaborators.synced': true,
+  'collaborators.join-request': true,
+  'collaborators.join-answered': true,
+  'collaborators.join-ended': true,
 };
 
 /**
@@ -467,6 +473,15 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'eval.run':
     case 'eval.sample':
       return [[['evals'], NOW]];
+    // The Collaborators page and the Shared tab key their queries under 'collaborators'
+    case 'collaborators.changed':
+    case 'collaborators.peer':
+    case 'collaborators.synced':
+    case 'collaborators.join-request':
+    case 'collaborators.join-answered':
+    // A join of this install's that the owner denied or that expired: the page's pending card turns into its ended state
+    case 'collaborators.join-ended':
+      return [[['collaborators'], NOW]];
   }
 }
 

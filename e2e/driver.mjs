@@ -79,21 +79,26 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
   // A Chrome that cannot start emits 'error' (nothing to kill then); without a listener it would be an uncaught one
   chrome.on('error', () => {});
   let closed = false;
+  /** Every tab's socket, the first one's included, closed with the browser */
+  const sockets = new Set();
   const close = () => {
     if (closed) return;
     closed = true;
-    try {
-      ws?.close();
-    } catch {
-      // the socket is gone with the browser
+    for (const ws of sockets) {
+      try {
+        ws.close();
+      } catch {
+        // the socket is gone with the browser
+      }
     }
     killGroup(chrome.pid);
     rmSync(profile, { recursive: true, force: true, maxRetries: 3 });
   };
   process.once('exit', close);
-  let ws;
+  let debuggingPort;
+  let page;
   try {
-    const debuggingPort = port || (await devtoolsEndpoint(profile, chrome, output));
+    debuggingPort = port || (await devtoolsEndpoint(profile, chrome, output));
     let target;
     for (let i = 0; i < 60 && !target; i++) {
       try {
@@ -103,15 +108,39 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       }
     }
     if (!target) throw new Error('Chrome did not expose a debugging target');
-    ws = new WebSocket(target.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-      ws.onopen = resolve;
-      ws.onerror = () => reject(new Error('could not connect to Chrome over the DevTools socket'));
-    });
+    page = await connectTab(target.webSocketDebuggerUrl, { baseUrl, shotsDir, sockets });
   } catch (error) {
     close();
     throw error;
   }
+
+  /**
+   * A second tab of the same browser, at `tabBaseUrl`: two people's screens open side by side, so one
+   * page stays loaded while the other acts. Its `close()` closes the tab; the browser's closes them all.
+   */
+  const openTab = async (tabBaseUrl = baseUrl) => {
+    // PUT: Chrome refuses a GET on /json/new
+    const created = await fetch(`http://127.0.0.1:${debuggingPort}/json/new?about:blank`, { method: 'PUT' });
+    if (!created.ok) throw new Error(`Chrome did not open a tab (${created.status})`);
+    const target = await created.json();
+    const tab = await connectTab(target.webSocketDebuggerUrl, { baseUrl: tabBaseUrl, shotsDir, sockets });
+    return Object.assign(tab, {
+      async close() {
+        await fetch(`http://127.0.0.1:${debuggingPort}/json/close/${target.id}`).catch(() => {});
+      },
+    });
+  };
+  return { page, close, pid: chrome.pid, openTab };
+}
+
+/** The page API over one tab's DevTools socket */
+async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
+  const ws = new WebSocket(wsUrl);
+  await new Promise((resolve, reject) => {
+    ws.onopen = resolve;
+    ws.onerror = () => reject(new Error('could not connect to Chrome over the DevTools socket'));
+  });
+  sockets.add(ws);
 
   let id = 0;
   const pending = new Map();
@@ -333,5 +362,5 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       writeFileSync(join(shotsDir, `${name}.png`), Buffer.from(r.result.data, 'base64'));
     },
   };
-  return { page, close, pid: chrome.pid };
+  return page;
 }

@@ -90,8 +90,11 @@ import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
 // Reading an account's model list (the `initialize` handshake and the version before it) is not a
-// chat's process: the logs below count what chats spawn
-const probe = args[0] === '--version' || args.join(' ') === '-p --input-format stream-json --output-format stream-json --verbose';
+// chat's process: the logs below count what chats spawn. Nor are the CLI's own subcommands: the
+// session listing (`agents --json`) fires on its own clock after a chat starts, so a test reading
+// the last account a chat ran on would otherwise read the listing's whenever it landed last
+const probe =
+  args[0] === '--version' || args[0] === 'agents' || args[0] === 'auth' || args.join(' ') === '-p --input-format stream-json --output-format stream-json --verbose';
 if (process.env.FAKE_CLAUDE_ENVS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.CLAUDIO_API_URL ?? null, token: process.env.CLAUDIO_API_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_ACCOUNTS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ACCOUNTS, `${JSON.stringify({ dir: process.env.CLAUDE_CONFIG_DIR ?? null, oauth: process.env.CLAUDE_CODE_OAUTH_TOKEN ?? null, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_SPAWNS && !probe) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);

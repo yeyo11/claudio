@@ -1,7 +1,9 @@
 // Accessibility of the app's own pages (see a11y-shared.mjs): the contrast of the theme tokens, and
 // axe over Home, the chats, the orchestrations, connectors and every Settings tab, in both themes, and
 // the context breakdown and the compact confirmation that open over a chat, in both themes and at phone width,
-// and the strip of what is running over a chat's composer, open in both themes and as the phone's sheet.
+// and the strip of what is running over a chat's composer, open in both themes and as the phone's sheet,
+// and Collaborators: its page off and on (with a group and its invite dialog), and a project's Sharing
+// section, in both themes and at phone width.
 import { a11ySpec, OVERLAY_RULES, scanBothThemes, scanNarrow, SESSION, SETTINGS_TABS, settle, tokenContrast } from './a11y-shared.mjs';
 
 // Two themes and two dozen pages
@@ -79,6 +81,55 @@ const RUNNING_BRANCHES = `(() => {
   };
 })();`;
 
+/**
+ * Collaborators on, on the minimal preset the harness gives every wrapper (loopback, no network):
+ * the page with one group, the invite dialog it opens, and the project's Sharing section. It is off
+ * again, with no group, when the scan ends.
+ */
+async function scanCollaborators(page, api, scan, problems, projectId) {
+  let groupId = null;
+  try {
+    const on = await api.put('/collaborators', { enabled: true, displayName: 'Ana' });
+    if (on.status !== 200) {
+      problems.push(`Collaborators could not be turned on (${on.status} ${JSON.stringify(on.body)})`);
+      return;
+    }
+    if (on.body?.unavailable) {
+      problems.push(`Collaborators is unavailable here: ${JSON.stringify(on.body.unavailable)}`);
+      return;
+    }
+    // An invite needs the endpoint's ticket
+    for (let i = 0; i < 80 && ['off', 'starting'].includes((await api.get('/collaborators')).body?.connection); i++) await page.sleep(250);
+    const group = await api.post('/collaborators/groups', { name: 'Backend' });
+    groupId = group.body?.id ?? null;
+    if (!groupId) {
+      problems.push(`no group for the Collaborators scan (${group.status})`);
+      return;
+    }
+    const pages = ['/collaborators', `/?project=${projectId}&view=settings`];
+    for (const theme of ['dark', 'light']) {
+      await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
+      for (const path of pages) {
+        await settle(page, path);
+        await scan(page, `${theme} ${path} (Collaborators on)`);
+      }
+      await settle(page, '/collaborators');
+      await page.click('button[data-testid=collab-invite]', undefined, 800);
+      await page.waitFor(`return !!document.querySelector('[role=dialog] div[data-testid=collab-invite] textarea')?.value`, { label: 'the invite dialog' });
+      await page.sleep(300);
+      await scan(page, `${theme} invite dialog`, { rules: OVERLAY_RULES });
+      await page.key('Escape');
+      await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the invite dialog closed' });
+    }
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
+    await scanNarrow(page, pages, scan, problems);
+    await page.viewport(1440, 900);
+  } finally {
+    if (groupId) await api.del(`/collaborators/groups/${groupId}`).catch(() => {});
+    await api.put('/collaborators', { enabled: false }).catch(() => {});
+  }
+}
+
 async function scanBranchStrip(page, scan, problems) {
   const remove = await page.onNewDocument(RUNNING_BRANCHES);
   try {
@@ -120,6 +171,8 @@ export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
     '/orchestration',
     `/orchestration/${fx.orchestrationId}`,
     '/connectors',
+    // Off: the page is its illustration and the one action that turns it on
+    '/collaborators',
     ...SETTINGS_TABS.map((tab) => `/settings?tab=${tab}`),
   ];
   // A terminal's own screen (what a phone opens) and the phone's list only exist while the feature is on; it
@@ -142,6 +195,7 @@ export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
     await scanContextOverlays(page, scan, problems, true);
     await page.viewport(1440, 900);
     await scanBranchStrip(page, scan, problems);
+    await scanCollaborators(page, api, scan, problems, fx.projectId);
   } finally {
     if (shell.body?.id) await api.del(`/terminals/${shell.body.id}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});

@@ -174,6 +174,89 @@ test('a failing spec still ends the run cleanly', { skip }, async () => {
   assert.deepEqual(r.survivors, { chrome: [], server: false });
 });
 
+// ---------- peers: the other wrappers of a Collaborators spec ----------
+
+/** A spec with two peers that says where they are, and whether each is a wrapper of its own on loopback-only Collaborators */
+const peerProbe = (body = '') =>
+  `export const peers = ['ben', 'cleo'];\n` +
+  `export default async ({ api, peers, page }) => {` +
+  ` const seen = {};` +
+  ` for (const [name, peer] of Object.entries(peers)) {` +
+  `   const health = await peer.api.get('/health');` +
+  `   const collab = await peer.api.get('/collaborators');` +
+  `   seen[name] = { port: peer.port, health: health.status, collab: collab.body?.connection, data: peer.dirs.dataDir, own: peer.baseUrl !== api.baseUrl };` +
+  ` }` +
+  ` await peers.ben.page.goto('/collaborators', 300);` +
+  ` seen.at = await page.eval('return location.port');` +
+  ` console.log('PEERS ' + JSON.stringify(seen)); ${body} };`;
+const peerPorts = (output) => {
+  const line = /^PEERS (.+)$/m.exec(output);
+  return line ? Object.values(JSON.parse(line[1])).flatMap((p) => (p && typeof p === 'object' ? [p.port] : [])) : [];
+};
+const answers = (port) => fetch(`http://127.0.0.1:${port}/api/health`).then(() => true, () => false);
+
+test('a spec that asks for peers gets a wrapper of its own per name, and none outlives the run', { skip }, async () => {
+  const r = await run({ specs: { 'peers.spec.mjs': peerProbe() }, env: { E2E_SHARDS: '1' } });
+  assert.equal(r.code, 0, r.output);
+  const seen = JSON.parse(/^PEERS (.+)$/m.exec(r.output)?.[1] ?? 'null');
+  assert.ok(seen, r.output);
+  for (const name of ['ben', 'cleo']) {
+    assert.equal(seen[name].health, 200);
+    assert.equal(seen[name].own, true);
+    // Off until a spec turns it on; the environment only says how it binds
+    assert.equal(seen[name].collab, 'off');
+  }
+  assert.notEqual(seen.ben.data, seen.cleo.data);
+  assert.notEqual(seen.ben.port, seen.cleo.port);
+  assert.equal(seen.at, String(seen.ben.port), "the peer's page is the same tab, on the peer's origin");
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+  assert.deepEqual(r.sandboxLeft, []);
+  for (const port of peerPorts(r.output)) assert.equal(await answers(port), false, `the peer on ${port} was stopped`);
+});
+
+test('SIGTERM during a spec with peers stops the peers too', { skip }, async () => {
+  const spec = peerProbe(`(await import('node:fs')).writeFileSync(READY, ''); await new Promise(() => {});`);
+  let ports = [];
+  const r = await run({
+    specs: { 'peers.spec.mjs': spec },
+    env: { E2E_SHARDS: '1', E2E_SPEC_TIMEOUT: '600000' },
+    beforeEnd: async ({ child, output }) => {
+      ports = peerPorts(output());
+      assert.equal(ports.length, 2, output());
+      assert.deepEqual(await Promise.all(ports.map(answers)), [true, true], 'both peers answer while the spec runs');
+      child.kill('SIGTERM');
+    },
+  });
+  assert.equal(r.code, 143, r.output);
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+  assert.deepEqual(r.sandboxLeft, []);
+  for (const port of ports) assert.equal(await answers(port), false, `the peer on ${port} was stopped`);
+});
+
+test("a peer's own tab stays on the peer's origin while the main tab moves, and its console errors fail the spec", { skip }, async () => {
+  const tabProbe = (extra) =>
+    `export const peers = ['ben'];\n` +
+    `export default async ({ page, peers: { ben } }) => {` +
+    ` const tab = await ben.openTab();` +
+    ` await tab.goto('/collaborators', 300);` +
+    ` await tab.eval('window.__kept = true; return true');` +
+    ` await page.goto('/', 300);` +
+    ` const seen = { tab: await tab.eval('return location.port'), kept: await tab.eval('return window.__kept === true'), main: await page.eval('return location.port') };` +
+    ` console.log('TAB ' + JSON.stringify(seen)); ${extra} };`;
+  const ok = await run({ specs: { 'tab.spec.mjs': tabProbe('') }, env: { E2E_SHARDS: '1' } });
+  assert.equal(ok.code, 0, ok.output);
+  const seen = JSON.parse(/^TAB (.+)$/m.exec(ok.output)?.[1] ?? 'null');
+  assert.ok(seen, ok.output);
+  assert.notEqual(seen.tab, seen.main, "the peer's tab is on the peer's origin, the main tab on the main one");
+  assert.equal(seen.kept, true, 'the main tab moving does not reload the peer tab');
+  assert.deepEqual(ok.survivors, { chrome: [], server: false });
+
+  const noisy = await run({ specs: { 'tab.spec.mjs': tabProbe(`await tab.eval("console.error('peer tab broke'); return true");`) }, env: { E2E_SHARDS: '1' } });
+  assert.equal(noisy.code, 1, noisy.output);
+  assert.match(noisy.output, /console errors:[\s\S]*\[ben\] peer tab broke/);
+  assert.deepEqual(noisy.survivors, { chrome: [], server: false });
+});
+
 // ---------- shards ----------
 
 /** Probe specs that say they ran; two want the fake CLI and must share a shard */

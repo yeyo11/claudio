@@ -104,6 +104,8 @@ export default async ({ page, api, check, dirs }) => {
     // ---- the Projects list shows each project's key and modules
     await page.goto('/projects', 1200);
     const card = `[...document.querySelectorAll('main .project-card')].find((c) => c.textContent.includes('e2e-wizard'))`;
+    // The list is read after it loads: under load the navigation's pause can end before it does
+    await page.waitFor(`return !!${card}`, { label: 'the e2e-wizard card on Projects' });
     check((await page.eval(`return ${card}?.querySelector('.workitem-key')?.textContent`)) === 'WZD', 'the card shows the key');
     check((await page.eval(`return ${card}?.querySelectorAll('.module-mark.is-on').length`)) === 2, 'the card marks the modules that are on');
 

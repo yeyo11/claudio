@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-16T23:00:00Z
 tags:
     - security
     - secrets
@@ -35,7 +35,9 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
 
 `packages/core/src/secret-vault.ts`, one document: `<dataDir>/secrets.json`, mode 0600, written
 through a temp file created at 0600. It holds only what a CLI reads from its **environment**: Claude
-Code's OAuth token or API key, YouTrack's address and token. Values are sealed with AES-256-GCM (`SecretBox`) when
+Code's OAuth token or API key, YouTrack's address and token, and one secret no CLI reads at all: the
+iroh secret key of an install that turned Collaborators on (see [Collaborators](#collaborators)).
+Values are sealed with AES-256-GCM (`SecretBox`) when
 there is a key, as `enc:v1:…`.
 
 **The key**, in this order (the plan's decision 3):
@@ -241,6 +243,52 @@ A prompt injection holding a chat's token could otherwise lift the cap it is bou
 - **The override.** `X-Claudio-Spend-Override: 1` lets a person's request through a `409 spend-cap`.
   On a chat token the header is ignored, so the request still answers `409`.
 
+## Collaborators
+
+Teammates' Claudios share projects read only, peer to peer over iroh
+([collaborators.md](collaborators.md), [the plan](plans/collaborators.md)). It is off until the person
+turns it on; with it off, no endpoint is bound, no socket is opened, nothing is published and the
+native module is not loaded.
+
+**The new surface.** A UDP endpoint, reachable by any peer that knows its id, speaking Claudio's own
+protocol (`claudio/collab/1`), never the HTTP API.
+
+- **Identity is the key.** iroh authenticates the endpoint id in the QUIC handshake, so there is no
+  token of ours to steal. A request is served only when its id is a member of a group on the chain
+  this install holds, for a project shared with that group, of a kind it shares. The only frames
+  accepted from a non-member are `join` and, from a member leaving, `leave`.
+- **The roster is signed.** One owner key signs a hash chain of member lists, so a forged or reordered
+  roster is rejected and a group's id certifies its own genesis. An invite's secret is 128 bits,
+  one-time and valid for 7 days; a relayed `join` is sealed to the owner's key, so the member carrying
+  it learns nothing.
+- **Serving starts nothing.** The serving side gets read-only ports and no run, chat, flow or
+  orchestration service, enforced by construction, by a lint rule and by a test. Serving never calls
+  Claude, so nobody's quota is spent.
+- **A blob is never served by its hash alone.** The hash must be referenced by a shared record of that
+  project, and an unknown hash answers like a missing one.
+- **The local routes are the owner's.** Every `/collaborators` route, and the project's `sharing`
+  routes, are in `CHAT_FORBIDDEN_COLLABORATORS`: a chat's token gets `403`, reads included, so a
+  teammate's transcript never reaches an agent's context.
+- **The endpoint runs in a child process** (`collab-host.mjs`), so a fault in the native binding
+  cannot take the API down.
+
+**The vault's new kind of secret.** The iroh secret key is generated once, when Collaborators is
+first turned on, and kept in the vault. It is the first vault value that is not handed to a CLI's
+environment. It is the install's identity: whoever holds it can speak as that member, so it follows
+the vault's rules ([the key](#the-secret-vault)), and losing it means joining again under a new id. An
+owner's key is also what signs the group, so losing it freezes the group; ownership can be
+transferred beforehand.
+
+**The n0 dependency.** Discovery and the default relays are run by n0. With the defaults n0's
+discovery server learns each endpoint id and its addresses, and its relays carry traffic they cannot
+read. The Node binding offers no discovery setting, so discovery stays n0's in v1; a custom relay URL
+removes the relay part.
+
+**What is cooperative.** What a receiver deletes, stops showing or stops serving after a removal, a
+departure or an unshare describes an unmodified Claudio; a modified one keeps what it got.
+Transcripts are shared as they are, tool output included, which is the group's trust and is stated in
+the UI.
+
 ## Guards
 
 Orchestration workers and the flow run with deterministic `PreToolUse` hooks that block skipping git
@@ -265,9 +313,11 @@ switched off from inside the run without the run being stopped.
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
+- Nothing about a copy is enforced on a teammate's machine: a removed member keeps what they already
+  received ([Collaborators](#collaborators)).
 - A kept token is not validated for free, so a revoked one reads `ready` until a run fails on it.
 
 ## Related
 
 [[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
