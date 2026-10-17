@@ -346,7 +346,7 @@ export default async ({ page, api, check, dirs }) => {
     const active = await text(rowOf(ghId));
     check(/Active/.test(active) && /last test/i.test(active) && /backup read/i.test(active), `an active row says its state, its last test and its backup read (${active})`);
     check((await text('.wh-card .wh-bar')).includes(ADDRESS), 'the address line is shown');
-    check(/1 project/.test(await text('.wh-card .prov-summary')) || /2 projects · 1 with a webhook/.test(await text('.wh-card .prov-summary')), `the summary counts the hook (${await text('.wh-card .prov-summary')})`);
+    check(/1 project/.test(await text('#webhooks .prov-summary')) || /2 projects · 1 with a webhook/.test(await text('#webhooks .prov-summary')), `the summary counts the hook (${await text('#webhooks .prov-summary')})`);
     await everyScreen('webhooks-active-dark', 'an active webhook, dark');
     await setTheme('light');
     await openWebhooks(ghId, 'active', 'registered, light');
