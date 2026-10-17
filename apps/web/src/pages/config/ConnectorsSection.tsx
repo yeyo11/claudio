@@ -231,8 +231,9 @@ export function ConnectorsSection() {
 
   const connectors = data?.connectors ?? [];
   const needsAuth = connectors.filter((c) => c.status === 'needs-auth');
-  // Nothing usable and every one waiting on a person: that is the page's news, so it leads
-  const allBlocked = connectors.length > 0 && needsAuth.length === connectors.length;
+  // Nothing usable and every one waiting on a person: that is the section's news, so it leads; with
+  // one connector its own card already says so
+  const allBlocked = connectors.length > 1 && needsAuth.length === connectors.length;
   // The steps are said once: inside a card that needs them, or on their own when no card shows them
   const stepsInCard = needsAuth.length > 0;
 
@@ -247,11 +248,11 @@ export function ConnectorsSection() {
       <p className="small muted">{t('line')}</p>
       <div className="prov-toolbar">
         <button type="button" className="btn btn-small" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching}>
-          {/* One label in every state, so the button keeps its width: the spinner says it is asking */}
-          {refresh.isPending || isFetching ? <Spinner /> : <RefreshCw {...ICON_SM} aria-hidden />} {t('refresh')}
+          {/* One icon and one label in every state, so the button keeps its width; the line beside it says it is asking */}
+          <RefreshCw {...ICON_SM} aria-hidden /> {t('refresh')}
         </button>
         <span className="prov-checked tnum connectors-checked" title={data ? formatDateTime(data.checkedAt) : undefined} aria-live="polite">
-          {refresh.isPending ? t('refreshing') : checked}
+          {refresh.isPending || isFetching ? t('refreshing') : checked}
         </span>
       </div>
       <ErrorBox error={error ?? refresh.error ?? ask.error ?? authorise.error} />

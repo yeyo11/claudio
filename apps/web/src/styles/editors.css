@@ -858,7 +858,8 @@ button.master-item-on:hover {
 .settings-detail-name {
   flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  /* A name wraps between words, never inside one */
+  overflow-wrap: break-word;
 }
 
 .settings-detail-note {
@@ -875,11 +876,19 @@ button.master-item-on:hover {
 /* A row that stands for a whole section: its name, and under it what the items are */
 .settings-detail-text {
   display: flex;
-  flex: 1;
+  flex: 1 1 14ch;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
+  min-width: 12ch;
   padding: 6px 0;
+}
+
+/* Beside a name and its description the count gives way first: it wraps, at the row's end */
+.settings-detail-text ~ .settings-detail-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: end;
+  overflow-wrap: break-word;
 }
 
 .settings-detail-desc {

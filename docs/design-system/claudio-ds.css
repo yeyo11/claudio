@@ -2696,9 +2696,10 @@ a.cont-from:hover { color: var(--fg); }
 /* A row that opens a detail ("Skills · 12 · 3 from plugins"): the whole row is the link, 44 px on a phone */
 .settings-detail-row { display: flex; align-items: center; gap: 12px; min-height: 40px; min-width: 0; padding: 0 10px; margin: 0 -10px; border-radius: var(--r-sm); color: var(--fg); }
 .settings-detail-row:hover { background: var(--bg-3); }
-.settings-detail-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.settings-detail-name { flex: 1; min-width: 0; overflow-wrap: break-word; }
 .settings-detail-note { flex: none; color: var(--fg-2); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
-.settings-detail-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; padding: 6px 0; }
+.settings-detail-text { display: flex; flex: 1 1 14ch; flex-direction: column; gap: 2px; min-width: 12ch; padding: 6px 0; }
+.settings-detail-text ~ .settings-detail-note { flex: 0 1 auto; min-width: 0; text-align: end; overflow-wrap: break-word; }
 .settings-detail-desc { color: var(--fg-2); font-size: var(--fs-small); overflow-wrap: anywhere; }
 .settings-row-sections { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .settings-row-section { min-width: 0; }
