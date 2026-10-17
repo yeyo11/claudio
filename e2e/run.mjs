@@ -6,6 +6,8 @@
 // A hung run cannot outlive its limits: E2E_SPEC_TIMEOUT (ms, per spec; a spec may export `timeout`)
 // and E2E_TIMEOUT (ms, whole run). The server and the browser are closed on every way out (end,
 // failure, timeout, SIGINT/SIGTERM/SIGHUP, uncaught error), by the PID of what this run started.
+// E2E_CPU_THROTTLE=N slows every tab's CPU N times (Chrome's own throttling), to meet a wait that
+// fails only under load on a machine that is idle.
 // E2E_SPECS_DIR runs the specs of another directory (the harness's own test uses it); E2E_KEEP=1
 // keeps the temporary sandbox for inspection.
 // A spec that exports `fakeCli = true` runs against the fake `claude` of e2e/fake-cli instead of the
