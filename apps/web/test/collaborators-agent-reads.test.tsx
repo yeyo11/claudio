@@ -178,7 +178,7 @@ test('whose copy: person, install and project from the catalog, the person alone
   assert.equal(teammateLabel(shared, 'someone-else', 's1'), null);
 });
 
-test('Security → Read by agents: a row per read with the chat, tool, copy and what; empty and loading states', () => {
+test('Access & safety → Agent reads: a row per read with the chat, tool, copy and what; empty and loading states', () => {
   const html = render(
     <AgentReadsView
       reads={[read(), read({ id: 2, tool: 'collab_list_shared', kind: null, recordIds: [], owner: 'gone', shareKey: 'local/zz', shareId: 'zz' })]}
@@ -187,7 +187,8 @@ test('Security → Read by agents: a row per read with the chat, tool, copy and 
     />,
   );
   const words = text(html);
-  assert.ok(words.includes('Read by agents'));
+  // The section's heading or the detail's title names it; the table keeps the name for a reader
+  assert.match(html, /<table class="table" aria-label="Read by agents">/);
   assert.match(html, /href="\/chats\/chat-aaaaaaaa-1111"/);
   assert.ok(words.includes('collab_read_transcript'));
   assert.ok(words.includes('Ana · laptop · api'));

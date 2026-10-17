@@ -1419,6 +1419,54 @@ button.master-item-on:hover {
   overflow-wrap: anywhere;
 }
 
+/*
+ * Runs & spend, Access & safety: the cards they were moved in whole lose their box, since the
+ * section's heading names them and space separates them (AP11); a card's state tag or refresh
+ * leads its first line instead of sitting at the far end of an empty one.
+ */
+.settings-cards .card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.settings-cards .card-head {
+  justify-content: flex-start;
+}
+
+.settings-cards .card-head > span:empty {
+  display: none;
+}
+
+/* One named part of a section that holds several: its name, its state in words beside it */
+.settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-block + .settings-block {
+  margin-top: 12px;
+}
+
+.settings-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-block-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
   .tunnel-address {
     flex-direction: column;

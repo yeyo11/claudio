@@ -81,24 +81,22 @@ export function GuardsCardView(props: GuardsCardViewProps) {
   const { t } = useTranslation('config');
   const { data, loadError } = props;
   return (
-    <div id="guards">
-      <Card title={t('security.guards.title')} actions={data && <StatusTag data={data} />}>
-        <p className="small muted">{t('security.guards.intro')}</p>
-        {loadError !== undefined && loadError !== null && !data && (
-          <div className="alert alert-bad" role="alert">
-            <div className="alert-body">
-              <strong>{t('security.guards.loadFailed')}</strong>
-              <div>{errorMessage(loadError)}</div>
-            </div>
-            <button type="button" className="btn btn-small" onClick={props.onRetry}>
-              {t('security.guards.retry')}
-            </button>
+    <Card actions={data && <StatusTag data={data} />}>
+      <p className="small muted">{t('security.guards.intro')}</p>
+      {loadError !== undefined && loadError !== null && !data && (
+        <div className="alert alert-bad" role="alert">
+          <div className="alert-body">
+            <strong>{t('security.guards.loadFailed')}</strong>
+            <div>{errorMessage(loadError)}</div>
           </div>
-        )}
-        {!data && !loadError && <Skeleton rows={6} />}
-        {data && <GuardsBody {...props} data={data} />}
-      </Card>
-    </div>
+          <button type="button" className="btn btn-small" onClick={props.onRetry}>
+            {t('security.guards.retry')}
+          </button>
+        </div>
+      )}
+      {!data && !loadError && <Skeleton rows={6} />}
+      {data && <GuardsBody {...props} data={data} />}
+    </Card>
   );
 }
 
@@ -378,7 +376,7 @@ function RecentBlocks({ events, error }: { events: GuardEvent[] | undefined; err
   );
 }
 
-/** Settings → Security → Guards (docs/plans/guards.md, Web §1). */
+/** Settings → Access & safety → Guards (docs/plans/guards.md, Web §1). */
 export function GuardsCard({ readOnly }: { readOnly: boolean }) {
   const queryClient = useQueryClient();
   const settings = useQuery({ queryKey: keys.guardSettings, queryFn: ({ signal }) => api.guardSettings({ signal }) });
@@ -392,11 +390,6 @@ export function GuardsCard({ readOnly }: { readOnly: boolean }) {
     onSuccess: (next) => queryClient.setQueryData(keys.guardSettings, next),
   });
   const check = useMutation({ mutationFn: api.checkGuard });
-
-  // `/settings/access#guards` lands on the card once the screen has drawn it
-  useEffect(() => {
-    if (window.location.hash === '#guards') document.getElementById('guards')?.scrollIntoView?.({ block: 'start' });
-  }, [settings.isSuccess]);
 
   return (
     <GuardsCardView

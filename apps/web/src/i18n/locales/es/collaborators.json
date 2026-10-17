@@ -316,7 +316,8 @@
       "list": "Lista de proyectos compartidos",
       "goneCopy": "Ya no se comparte",
       "records_one": "{{count}} registro",
-      "records_other": "{{count}} registros"
+      "records_other": "{{count}} registros",
+      "openAll": "Ver todas las lecturas"
     }
   }
 }

@@ -2684,3 +2684,16 @@ a.cont-from:hover { color: var(--fg); }
   .settings-result, .settings-detail-row { min-height: 44px; }
 }
 /* ---------- end of Settings: eight groups ---------- */
+
+/* ---------- Settings: a section's parts (Runs & spend, Access & safety) ----------
+   A card moved whole into a section loses its box: the section's heading names it, and its state
+   tag leads its first line. A section with several parts names each one a level under its heading,
+   with the state in words beside the name. */
+.settings-cards .card { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.settings-cards .card-head { justify-content: flex-start; }
+.settings-cards .card-head > span:empty { display: none; }
+.settings-block { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-block + .settings-block { margin-top: 12px; }
+.settings-block-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.settings-block-title { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+/* ---------- end of Settings: a section's parts ---------- */

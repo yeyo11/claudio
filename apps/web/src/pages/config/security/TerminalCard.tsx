@@ -209,10 +209,9 @@ function Form({ status }: { status: TerminalStatus }) {
  * terminal that cannot be opened has no button.
  */
 export function TerminalCard() {
-  const { t } = useTranslation('terminal');
   const { data, error, isLoading } = useTerminalStatus();
   return (
-    <Card title={t('settings.title')}>
+    <Card>
       <ErrorBox error={error} />
       {isLoading && <Skeleton rows={4} />}
       {data && (
