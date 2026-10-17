@@ -2040,6 +2040,11 @@ Rules:
 - Never next to live data.
 - Never decorative filler on a page that has content.
 
+The one exception is the page that could not start (`apps/web/boot-guard.js`): its bundle never
+loaded, so neither React nor the illustrations exist. The guard writes the compact `Empty` by hand
+(`.state.state-empty`, `role="alert"`): a title, one sentence, and Reload as the primary, in the
+language the app would have used, with the words read from `shell.json` at build time.
+
 ---
 
 ## 5. Diff comparator

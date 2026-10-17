@@ -328,6 +328,15 @@ test('a navigation to a route of the app is painted from the cached shell', asyn
   }
 });
 
+test('every top-level route the app declares is painted from the cached shell', async () => {
+  // A route missing from the worker loads its page from the network, so a new page must be added there too
+  const app = readFileSync(path.join(import.meta.dirname, '../src/App.tsx'), 'utf8');
+  const routes = [...new Set([...app.matchAll(/path(?:=|: )['"]\/?([a-z-]+)/g)].map((m) => m[1] as string))];
+  assert.ok(routes.length > 5, `the routes were read from App.tsx (${routes.join(', ')})`);
+  const worker = await ready();
+  for (const route of routes) assert.equal(await worker.fetch(navigation(`/${route}`)), 'cached /index.html', `/${route} is served the app shell`);
+});
+
 test('a navigation to a path the app does not route is left to the server, which owns it', async () => {
   const worker = await ready();
   // /docs is the live one; anything the API grows later behaves the same, and the worst a route

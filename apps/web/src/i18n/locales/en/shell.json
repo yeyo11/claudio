@@ -121,6 +121,10 @@
     "reducedForced": "Your system asks for reduced motion, so nothing moves while that setting is on. The choice below applies again once it is turned off.",
     "preview": "Preview"
   },
+  "boot": {
+    "title": "Claudio could not start",
+    "hint": "Part of the app did not load. Reloading usually fixes it."
+  },
   "reload": {
     "updated": "Claudio was updated to {{version}}.",
     "stale": "Claudio was updated.",
