@@ -35,7 +35,7 @@ import { Links } from './Links';
 import { Picker } from './Picker';
 import { PullRequestState } from './PullRequest';
 import { useRefreshPullRequestOnOpen } from '../board/PullRequest';
-import { LabelsEditor, Properties } from './Properties';
+import { FieldName, LabelsEditor, Properties } from './Properties';
 import { Relations } from './Relations';
 import { RunState } from './RunState';
 import { WaitingBadge, WaitingState } from './Waiting';
@@ -182,7 +182,8 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
             options={statuses}
             onPick={move}
             trigger={
-              <button type="button" className="chip workitem-chip" aria-label={t('fields.statusIs', { status: tt(columnMeta(item.status).label) })}>
+              <button type="button" className="chip workitem-chip">
+                <FieldName field={t('fields.status')} />
                 <WorkItemStatusIcon status={item.status} decorative />
                 {tt(columnMeta(item.status).label)}
               </button>
@@ -194,7 +195,8 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
             options={priorities}
             onPick={(priority) => actions.update.mutate({ priority })}
             trigger={
-              <button type="button" className="chip workitem-chip" aria-label={t('fields.priorityIs', { priority: tt(priorityMeta(item.priority).label) })}>
+              <button type="button" className="chip workitem-chip">
+                <FieldName field={t('fields.priority')} />
                 <PriorityMark priority={item.priority} />
                 {tt(priorityMeta(item.priority).label)}
               </button>
@@ -206,7 +208,8 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
             options={assignees}
             onPick={(value) => actions.update.mutate({ assignee: assigneeOf(value) })}
             trigger={
-              <button type="button" className="chip workitem-chip" aria-label={t('fields.assigneeIs', { assignee: assigneeName })}>
+              <button type="button" className="chip workitem-chip">
+                <FieldName field={t('fields.assignee')} />
                 <AssigneeMark assignee={item.assignee} person={person} />
                 {assigneeName}
               </button>
@@ -221,7 +224,8 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
               options={epics.options}
               onPick={(value) => actions.update.mutate({ epicId: value === NONE ? null : value })}
               trigger={
-                <button type="button" className="workitem-fact" aria-label={t('fields.epicIs', { epic: item.epic?.title ?? t('fields.noEpic') })}>
+                <button type="button" className="workitem-fact">
+                  <FieldName field={t('fields.epic')} />
                   {item.epic ? <EpicLabel epic={item.epic} /> : <span className="muted">{t('fields.noEpic')}</span>}
                 </button>
               }
@@ -233,7 +237,8 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
             options={milestones.options}
             onPick={(value) => actions.update.mutate({ milestoneId: value === NONE ? null : value })}
             trigger={
-              <button type="button" className="workitem-fact" aria-label={t('fields.milestoneIs', { milestone: milestone?.name ?? t('fields.noMilestone') })}>
+              <button type="button" className="workitem-fact">
+                <FieldName field={t('fields.milestone')} />
                 {milestone ? <span className="milestone-name">{milestone.name}</span> : <span className="muted">{t('fields.noMilestone')}</span>}
               </button>
             }

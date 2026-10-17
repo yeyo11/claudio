@@ -26,11 +26,20 @@ import { Picker } from './Picker';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="prop-row">
+    <div className="prop-row" data-field={label}>
       <span className="prop-key">{label}</span>
       <span className="prop-value">{children}</span>
     </div>
   );
+}
+
+/**
+ * The field a value button edits, said before the value off screen ("Assignee: Developer"), as the
+ * New task form's fields say it. The button is named by what it shows, so a voice user can say the
+ * words they see; an aria-label would hide them behind words of its own.
+ */
+export function FieldName({ field }: { field: string }) {
+  return <span className="sr-only">{field}: </span>;
 }
 
 /**
@@ -39,13 +48,14 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
  */
 export function Value({
   children,
-  label,
+  field,
   chevron = false,
   className = '',
   ...rest
-}: { children: ReactNode; label: string; chevron?: boolean; className?: string } & Omit<ComponentPropsWithRef<'button'>, 'children' | 'className'>) {
+}: { children: ReactNode; field: string; chevron?: boolean; className?: string } & Omit<ComponentPropsWithRef<'button'>, 'children' | 'className'>) {
   return (
-    <button type="button" {...rest} className={`prop-edit ${chevron ? 'btn btn-small' : ''} ${className}`.trim()} aria-label={label}>
+    <button type="button" {...rest} className={`prop-edit ${chevron ? 'btn btn-small' : ''} ${className}`.trim()}>
+      <FieldName field={field} />
       {children}
       {chevron && <ChevronDown {...ICON_SM} />}
     </button>
@@ -136,7 +146,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           options={statuses}
           onPick={move}
           trigger={
-            <Value label={t('fields.statusIs', { status: tt(columnMeta(item.status).label) })} chevron>
+            <Value field={t('fields.status')} chevron>
               <WorkItemStatusIcon status={item.status} decorative />
               {tt(columnMeta(item.status).label)}
             </Value>
@@ -150,7 +160,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           options={priorities}
           onPick={(priority) => actions.update.mutate({ priority })}
           trigger={
-            <Value label={t('fields.priorityIs', { priority: tt(priorityMeta(item.priority).label) })}>
+            <Value field={t('fields.priority')}>
               <PriorityMark priority={item.priority} />
               {tt(priorityMeta(item.priority).label)}
             </Value>
@@ -167,7 +177,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           )}
           onPick={(type) => actions.update.mutate({ type })}
           trigger={
-            <Value label={t('fields.typeIs', { type: tt(`type.${item.type}`) })}>
+            <Value field={t('fields.type')}>
               <WorkItemTypeIcon type={item.type} decorative />
               {tt(`type.${item.type}`)}
             </Value>
@@ -181,7 +191,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           options={assignees}
           onPick={(value) => actions.update.mutate({ assignee: assigneeOf(value) })}
           trigger={
-            <Value label={t('fields.assigneeIs', { assignee: assigneeName })}>
+            <Value field={t('fields.assignee')}>
               <AssigneeMark assignee={item.assignee} person={person} />
               <span className={item.assignee ? '' : 'muted'}>{assigneeName}</span>
             </Value>
@@ -200,7 +210,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
             options={epics.options}
             onPick={(value) => actions.update.mutate({ epicId: value === NONE ? null : value })}
             trigger={
-              <Value label={t('fields.epicIs', { epic: item.epic?.title ?? t('fields.noEpic') })}>
+              <Value field={t('fields.epic')}>
                 {item.epic ? <EpicLabel epic={item.epic} /> : <span className="muted">{t('fields.noEpic')}</span>}
               </Value>
             }
@@ -214,7 +224,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           options={milestones.options}
           onPick={(value) => actions.update.mutate({ milestoneId: value === NONE ? null : value })}
           trigger={
-            <Value label={t('fields.milestoneIs', { milestone: milestone?.name ?? t('fields.noMilestone') })}>
+            <Value field={t('fields.milestone')}>
               {milestone ? (
                 <>
                   <span className="milestone-name">{milestone.name}</span>

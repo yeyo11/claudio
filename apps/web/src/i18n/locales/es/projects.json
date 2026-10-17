@@ -66,7 +66,7 @@
     "title": "Worktrees",
     "chats": "Chats",
     "newChatHere": "Nuevo chat aquí",
-    "newChatIn": "Nuevo chat en {{name}}",
+    "newChatIn": "Nuevo chat aquí, en {{name}}",
     "emptyTitle": "Este proyecto no tiene worktrees",
     "emptyBody": "Los worktrees creados con <mono>git worktree add</mono>, o por una tarea de orquestación, aparecen aquí."
   },

@@ -295,7 +295,7 @@
     "mcpDefault": "MCP: CLI default",
     "mcpChosen_one": "MCP: {{count}} server",
     "mcpChosen_other": "MCP: {{count}} servers",
-    "open": "Run options: {{status}}",
+    "open": "Run options",
     "liveTitle": "How this chat runs",
     "resumeTitle": "Resume with",
     "forkTitle": "Fork with",

@@ -17,6 +17,15 @@ export interface SelectOption<T extends string> {
   disabled?: boolean;
 }
 
+/**
+ * Radix names an option by its ItemText alone, which leaves a hint the option shows out of its name.
+ * An option with a hint is named by all it shows instead (label, then hint), so a voice user can
+ * say the words they see; the trigger still shows the ItemText only.
+ */
+export function nameFromContent(hint: ReactNode): { 'aria-labelledby'?: undefined } {
+  return hint ? { 'aria-labelledby': undefined } : {};
+}
+
 /** Themed replacement for a native <select>. `""` is a valid option value (e.g. "Default"). */
 export function Select<T extends string>({
   value,
@@ -53,10 +62,10 @@ export function Select<T extends string>({
         <RadixSelect.Content {...LAYER_ATTR} className="menu select-menu" position="popper" sideOffset={6} collisionPadding={8}>
           <RadixSelect.Viewport className="menu-viewport">
             {options.map((option) => (
-              <RadixSelect.Item key={option.value} value={encode(option.value)} disabled={option.disabled} className="menu-item">
+              <RadixSelect.Item key={option.value} value={encode(option.value)} disabled={option.disabled} className="menu-item" {...nameFromContent(option.hint)}>
                 <span className="menu-item-text">
                   <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
-                  {option.hint && <span className="menu-item-hint">{option.hint}</span>}
+                  {option.hint && <> <span className="menu-item-hint">{option.hint}</span></>}
                 </span>
                 <RadixSelect.ItemIndicator className="menu-item-check">
                   <Check {...ICON_SM} />

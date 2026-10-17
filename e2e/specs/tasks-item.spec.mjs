@@ -34,7 +34,11 @@ async function pick(page, selector, option) {
   await page.click('[role=menu] [role=menuitemcheckbox]', option, 600);
 }
 
-const prop = (name) => `.workitem-props .prop-edit[aria-label^="${name}:"]`;
+/**
+ * The value button of the property row whose key reads `name`. The button is named by the value it
+ * shows, not by a fixed label, so the row carries its key for a selector.
+ */
+const prop = (name) => `.workitem-props .prop-row[data-field="${name}"] .prop-edit`;
 
 export default async ({ page, api, check, dirs }) => {
   let projectId = null;

@@ -586,7 +586,7 @@
     "scope": "Scope",
     "actions": "Actions",
     "editNamed": "Edit {{name}}",
-    "editInUserNamed": "Edit {{name}} in user scope",
+    "editInUserNamed": "Edit in user scope: {{name}}",
     "removeNamed": "Remove {{name}}"
   },
   "toolPresets": {

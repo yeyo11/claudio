@@ -1,7 +1,7 @@
 import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Fragment, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AttachmentTray, useAttachments, type AttachmentsState } from '../components/Attachments';
@@ -106,11 +106,10 @@ function StatusLine({
     <button
       type="button"
       className={`composer-status ${changed ? 'is-changed' : ''}`.trim()}
-      aria-label={t('status.open', { status: words.join(' · ') })}
       aria-expanded={open}
       onClick={narrow ? () => setOpen(true) : undefined}
     >
-      <StatusChips words={words} accent={1} />
+      <StatusChips label={t('status.open')} words={words} accent={1} />
     </button>
   );
   return (
@@ -122,17 +121,29 @@ function StatusLine({
   );
 }
 
-/** The status line's words as chips; `accent` is the index of the permission mode's. */
-export function StatusChips({ words, accent, icon }: { words: string[]; accent: number; icon?: ReactNode }) {
+/**
+ * The status line's words as chips; `accent` is the index of the permission mode's. The button is
+ * named by the chips it shows, after `label` said off screen: a phone hides the preset's chip, and
+ * a name of its own words would still say it. A space goes between two chips: the flex row does not
+ * draw it, but without it the chips' text runs together ("workspacedefault model").
+ */
+export function StatusChips({ label, words, accent, icon }: { label: string; words: string[]; accent: number; icon?: ReactNode }) {
+  // Outside the row of chips, whose `:nth-child` rules pick which chip a phone hides
   return (
-    <span className="composer-status-words">
-      {words.map((word, i) => (
-        <span key={i} className={`composer-status-word ${i === accent ? 'is-accent' : ''}`.trim()}>
-          {i === 0 && icon}
-          <span className="composer-status-text">{word}</span>
-        </span>
-      ))}
-    </span>
+    <>
+      <span className="sr-only">{label}: </span>
+      <span className="composer-status-words">
+        {words.map((word, i) => (
+          <Fragment key={i}>
+            {i > 0 && ' '}
+            <span className={`composer-status-word ${i === accent ? 'is-accent' : ''}`.trim()}>
+              {i === 0 && icon}
+              <span className="composer-status-text">{word}</span>
+            </span>
+          </Fragment>
+        ))}
+      </span>
+    </>
   );
 }
 

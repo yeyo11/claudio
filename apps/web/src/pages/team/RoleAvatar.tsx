@@ -30,17 +30,23 @@ export function useResponsibility(): (member: Pick<TeamMember, 'role' | 'respons
  * A team role: a neutral squircle with its initials in mono, and the role's own hue only on the
  * diamond in its corner. A person stays a round monogram, so a board never mixes the two up.
  */
-export function RoleAvatar({ role, size = 'md', label }: { role: string; size?: 'xs' | 'sm' | 'md' | 'lg'; label?: string }) {
+export function RoleAvatar({
+  role,
+  size = 'md',
+  label,
+  decorative = false,
+}: {
+  role: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  label?: string;
+  /** Beside the role's name in words, where saying it again would read the name twice */
+  decorative?: boolean;
+}) {
   const name = useRoleName()(role);
   const said = label ?? name;
+  const named = decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': said };
   return (
-    <span
-      className={`role-avatar ${size === 'md' ? '' : `role-avatar-${size}`}`.trim()}
-      style={{ '--hue': roleHue(role) } as CSSProperties}
-      role="img"
-      aria-label={said}
-      title={said}
-    >
+    <span className={`role-avatar ${size === 'md' ? '' : `role-avatar-${size}`}`.trim()} style={{ '--hue': roleHue(role) } as CSSProperties} {...named} title={said}>
       {roleInitials(role)}
     </span>
   );

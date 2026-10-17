@@ -66,7 +66,8 @@ export const assigneeOf = (value: string): WorkItemAssignee | null =>
 /** The person's round monogram, a role's squircle (as the board draws it), or an empty dashed ring for nobody. */
 export function AssigneeMark({ assignee, person }: { assignee: WorkItemAssignee | null; person: string }) {
   if (!assignee) return <span className="workitem-assignee-none" aria-hidden />;
-  if (assignee.kind === 'role') return <RoleAvatar role={assignee.role} size="sm" />;
+  // Always drawn beside the assignee's name, which says who it is
+  if (assignee.kind === 'role') return <RoleAvatar role={assignee.role} size="sm" decorative />;
   return <Monogram name={person} size={18} />;
 }
 

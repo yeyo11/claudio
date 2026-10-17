@@ -6,6 +6,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { useModelOptions } from './ui';
 import type { ComboboxOption } from '@claudio/ui/components/controls/Combobox';
 import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { nameFromContent } from '@claudio/ui/components/controls/Select';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 
 /** One model as the picker says it: the value a file stores, and the name the CLI gives it today. */
@@ -78,7 +79,9 @@ export function ModelPicker({
   if (narrow) {
     return (
       <>
-        <button type="button" className={`model-pick ${className}`.trim()} aria-label={ariaLabel} aria-haspopup="dialog" disabled={disabled} onClick={() => setOpen(true)}>
+        {/* Named by the field off screen and then by the model it shows, so a voice user can say what they see */}
+        <button type="button" className={`model-pick ${className}`.trim()} aria-haspopup="dialog" disabled={disabled} onClick={() => setOpen(true)}>
+          <span className="sr-only">{ariaLabel}: </span>
           {face}
           <ChevronDown {...ICON_SM} className="ico" aria-hidden />
         </button>
@@ -121,14 +124,14 @@ export function ModelPicker({
         <RadixSelect.Content {...LAYER_ATTR} className="menu select-menu model-pick-menu" position="popper" sideOffset={6} collisionPadding={8}>
           <RadixSelect.Viewport className="menu-viewport">
             {picks.map((pick) => (
-              <RadixSelect.Item key={pick.value} value={pick.value} className="menu-item">
+              <RadixSelect.Item key={pick.value} value={pick.value} className="menu-item" {...nameFromContent(pick.hint)}>
                 <span className="menu-item-text">
                   <span className="model-pick-row">
                     <RadixSelect.ItemText>
                       <PickFace pick={pick} />
                     </RadixSelect.ItemText>
                   </span>
-                  {pick.hint && <span className="menu-item-hint">{pick.hint}</span>}
+                  {pick.hint && <> <span className="menu-item-hint">{pick.hint}</span></>}
                 </span>
                 <RadixSelect.ItemIndicator className="menu-item-check">
                   <Check {...ICON_SM} />

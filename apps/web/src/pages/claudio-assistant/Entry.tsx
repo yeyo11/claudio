@@ -128,8 +128,8 @@ function StartOptions({ model, onModel, effort, onEffort }: { model: string; onM
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <button type="button" className="composer-status" aria-label={chat('status.open', { status: words.join(' · ') })} aria-expanded={open} onClick={() => setOpen(true)}>
-          <StatusChips words={words} accent={-1} />
+        <button type="button" className="composer-status" aria-expanded={open} onClick={() => setOpen(true)}>
+          <StatusChips label={chat('status.open')} words={words} accent={-1} />
         </button>
       }
     >

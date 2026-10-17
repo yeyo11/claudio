@@ -59,7 +59,7 @@
   },
   "chip": {
     "label": "Issues",
-    "open": "Abrir {{ref}} en {{tracker}}",
+    "opensIn": "(se abre en {{tracker}})",
     "more": "+{{count}}"
   },
   "panel": {

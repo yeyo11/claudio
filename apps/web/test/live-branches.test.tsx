@@ -106,10 +106,10 @@ test('the fold is remembered', () => {
   const html = withStorage(stored, () => strip(children({ subagents: [sub({ id: 'a', activity: reading, tasks: [task({ id: 'n', ownerId: 'a', description: '', command: 'grep -rn parent_tool_use_id' })] })] })));
   assert.match(html, /aria-expanded="true"/);
   assert.match(html, /aria-label="Running now"/);
-  // A row per branch, the one the subagent launched nested under it
-  assert.match(html, /class="chat-branch-row is-running" aria-label="Open Read the stream"/);
-  assert.match(html, /class="chat-branch-row is-running is-nested" aria-label="Open grep -rn parent_tool_use_id · from Read the stream"/);
-  assert.match(html, /<span class="badge chat-branch-kind">bash<\/span><span class="chat-branch-desc mono">grep -rn parent_tool_use_id<\/span>/);
+  // A row per branch, named by what it shows; the one the subagent launched nested under it says so off screen
+  assert.match(html, /<button type="button" class="chat-branch-row is-running">/);
+  assert.match(html, /class="chat-branch-row is-running is-nested">(?:(?!<\/button>).)*<span class="sr-only"> · from Read the stream<\/span><\/button>/);
+  assert.match(html, /<span class="badge chat-branch-kind">bash<\/span> <span class="chat-branch-desc mono">grep -rn parent_tool_use_id<\/span>/);
   assert.match(html, /<span class="chat-branch-act"><span class="verb">reading<\/span> packages\/core\/src\/chats\.ts<\/span>/);
 });
 

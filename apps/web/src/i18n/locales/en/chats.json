@@ -137,7 +137,7 @@
         "three": "Add a test for the case where the file is missing"
       }
     },
-    "options": "Where the chat will run: {{status}}"
+    "options": "Where the chat will run"
   },
   "provider": {
     "agent": "Agent",

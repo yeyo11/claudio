@@ -7,7 +7,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { timeAgo } from '@claudio/ui/lib/format';
-import { canSyncAgain, issueChipText, issueRef, SYNC_TONE, trackerWords } from '../../../lib/trackers';
+import { canSyncAgain, issueChipText, SYNC_TONE, trackerWords } from '../../../lib/trackers';
 
 /** An issue's sync state as a dot and a word; the word is what says it, the colour only agrees. */
 export function SyncMark({ state }: { state: IssueSyncState }) {
@@ -40,17 +40,19 @@ export function IssueChips({ item }: { item: Pick<WorkItemDetail, 'issues'> }) {
     <ul className="iss-chips" aria-label={t('chip.label')}>
       {issues.map((issue) => {
         const words = trackerWords(issue.tracker);
+        // The link is named by what it shows, key then sync word (the space keeps them two words for
+        // a reader; the flex chip does not draw it), and only where it leads is said off screen
         const inner = (
           <>
-            <b className="iss-key">{issueChipText(issue)}</b>
+            <b className="iss-key">{issueChipText(issue)}</b>{' '}
             <SyncMark state={issue.syncState} />
-            {issue.url && <ExternalLink {...ICON_SM} />}
+            {issue.url && <ExternalLink {...ICON_SM} aria-hidden />}
           </>
         );
         return issue.url ? (
           <li key={`${issue.tracker}-${issue.key}`} className="iss-li">
-            <a className="iss-chip" href={issue.url} target="_blank" rel="noreferrer" aria-label={t('chip.open', { ref: issueRef(issue.tracker, issue.key), tracker: words.label })}>
-              {inner}
+            <a className="iss-chip" href={issue.url} target="_blank" rel="noreferrer">
+              {inner} <span className="sr-only">{t('chip.opensIn', { tracker: words.label })}</span>
             </a>
           </li>
         ) : (

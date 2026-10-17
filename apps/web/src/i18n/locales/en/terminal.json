@@ -148,7 +148,7 @@
     "range": "{{first}}–{{last}} of {{total}}"
   },
   "bar": {
-    "item": "Terminal ({{count}} running)",
+    "item": "Terminal: {{count}} running",
     "hide": "Hide the terminal panel",
     "newIn": "Open a terminal in…",
     "noProjects": "There is no project to open a terminal in.",

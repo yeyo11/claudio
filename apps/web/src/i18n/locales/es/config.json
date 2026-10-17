@@ -586,7 +586,7 @@
     "scope": "Ámbito",
     "actions": "Acciones",
     "editNamed": "Editar {{name}}",
-    "editInUserNamed": "Editar {{name}} en el ámbito de usuario",
+    "editInUserNamed": "Editar en el ámbito del usuario: {{name}}",
     "removeNamed": "Quitar {{name}}"
   },
   "toolPresets": {
