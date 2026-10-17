@@ -24,7 +24,9 @@
 // Collaborators (docs/plans/collaborators.md, C4): a spec that exports `peers = ['ben', …]` gets one
 // more wrapper per name, each with a sandbox, a port and a fake `claude` of its own, started before
 // it and stopped after it; its context gains `peers.<name>` (`api`, `dirs`, `fakeCli`, `baseUrl`,
-// `page`, the same browser tab with `goto` aimed at that wrapper, and `restart()`, which starts its
+// `page`, the same browser tab with `goto` aimed at that wrapper, `openTab()`, a tab of its own at
+// that wrapper, for a page that must stay loaded while another install acts (its console errors fail
+// the spec, it is captured on a failure and closed after the spec), and `restart()`, which starts its
 // server again on the same port and directories). Every wrapper of a run binds
 // its iroh endpoint on the minimal preset to a fixed loopback port (CLAUDIO_COLLAB_PRESET,
 // CLAUDIO_COLLAB_BIND): no relay and no discovery, so installs reach each other by their loopback
@@ -339,6 +341,17 @@ const api = apiAt(baseUrl);
 const peers = new Map();
 let peerRuns = 0;
 const PEER_NAME = /^[a-z][a-z0-9-]{0,30}$/;
+/** The tabs peers opened for the spec running now, by the name of the peer whose page each shows */
+const peerTabs = [];
+
+/** What the peers' own tabs logged as errors, emptied */
+function takePeerTabErrors() {
+  return peerTabs.flatMap(({ name, tab }) => tab.takeErrors().map((e) => `[${name}] ${e}`));
+}
+
+async function closePeerTabs() {
+  for (const { tab } of peerTabs.splice(0)) await tab.close();
+}
 
 function stopPeers() {
   for (const peer of peers.values()) if (peer.child) killGroup(peer.child.pid, { graceMs: 3000 });
@@ -350,7 +363,7 @@ function stopPeers() {
  * machine, and nothing a spec does there may reach the real `claude`. Each run of a spec gets fresh
  * directories, so no spec sees what an earlier one left on a peer.
  */
-async function startPeer(name, page) {
+async function startPeer(name, page, browser) {
   const home = join(sandbox, 'peers', `${name}-${++peerRuns}`);
   const peerDirs = { configDir: join(home, 'claude'), workspaceDir: join(home, 'workspace'), dataDir: join(home, 'data') };
   for (const dir of Object.values(peerDirs)) mkdirSync(dir, { recursive: true });
@@ -402,14 +415,19 @@ async function startPeer(name, page) {
     killGroup(entry.child.pid, { graceMs: 3000 });
     await boot();
   };
-  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage, restart };
+  const openTab = async () => {
+    const tab = await browser.openTab(url);
+    peerTabs.push({ name, tab });
+    return tab;
+  };
+  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage, openTab, restart };
 }
 
-async function startPeers(names, page) {
+async function startPeers(names, page, browser) {
   if (!Array.isArray(names) || names.some((n) => typeof n !== 'string' || !PEER_NAME.test(n)) || new Set(names).size !== names.length) {
     throw new Error(`\`peers\` must be distinct lower-case names, got ${JSON.stringify(names)}`);
   }
-  const started = await Promise.all(names.map((name) => startPeer(name, page)));
+  const started = await Promise.all(names.map((name) => startPeer(name, page, browser)));
   return Object.fromEntries(started.map((peer) => [peer.name, peer]));
 }
 
@@ -453,9 +471,9 @@ try {
       await browser.page.reset();
       browser.page.takeErrors();
       const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli, releases } : { page: browser.page, api, check, dirs, releases };
-      if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page);
+      if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page, browser);
       await within(spec.default(context), limit, file);
-      const errors = browser.page.takeErrors();
+      const errors = [...browser.page.takeErrors(), ...takePeerTabErrors()];
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);
       console.log(`✓ ${file} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
     } catch (error) {
@@ -463,12 +481,15 @@ try {
       failedFiles.push(file);
       console.log(`✗ ${file}\n  ${error.message.replaceAll('\n', '\n  ')}`);
       await browser.page.shot(`FAILED-${file}`).catch(() => {});
+      for (const { name, tab } of peerTabs) await tab.shot(`FAILED-${file}-${name}`).catch(() => {});
       // A spec that timed out is still running in the background: the browser is not safe to reuse
       if (error.message.endsWith(`took longer than ${limit / 1000}s`)) {
         console.log('- stopping: the timed-out spec may still be driving the browser');
         break;
       }
     } finally {
+      // Closed before their servers stop: a page whose server goes away under it is noise
+      await closePeerTabs().catch(() => {});
       stopPeers();
     }
   }
