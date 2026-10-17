@@ -316,11 +316,20 @@ test('a page that does not answer is reported as such, with what the network sai
 
 test('a wait that times out reports the page, and a failed assertion the console errors it would have failed on', { skip }, async () => {
   // Six event streams hold every connection Chrome allows one host over HTTP/1.1, so a request
-  // made after them waits in the browser and is never sent: what a page starved of connections shows
+  // made after them waits in the browser and is never sent: what a page starved of connections shows.
+  // The app is let finish loading first: started mid-load, the streams starve the app's own chunks
+  // and reads, which fill the report's "still open" list (oldest first, 20 kept) ahead of the probe.
+  // The app's own event stream holds one of the six, so five probes open is a full pool; the pause
+  // lets a sixth take the last one first if the app's stream did not, so the probe is queued either way.
   const blank =
     `export default async ({ page }) => {` +
     ` await page.goto('/', 300);` +
-    ` await page.eval("console.error('the page broke'); await fetch('/api/no-such-route').catch(() => {}); for (let i = 0; i < 6; i++) new EventSource('/api/events?probe=' + i); setTimeout(() => fetch('/api/system?probe=queued').catch(() => {}), 500); return true");` +
+    ` await page.waitFor("return !!document.querySelector('main')?.innerText.trim()", { label: 'the app' });` +
+    ` await page.sleep(1000);` +
+    ` await page.eval("console.error('the page broke'); await fetch('/api/no-such-route').catch(() => {}); window.probes = []; for (let i = 0; i < 6; i++) window.probes.push(new EventSource('/api/events?probe=' + i)); return true");` +
+    ` await page.waitFor('return window.probes.filter((p) => p.readyState === 1).length >= 5', { label: 'the streams to hold the connections' });` +
+    ` await page.sleep(500);` +
+    ` await page.eval("fetch('/api/system?probe=queued').catch(() => {}); return true");` +
     ` await page.waitFor('return false', { timeout: 3000, label: 'what never comes' }); };`;
   const asserted = `export default async ({ page, check }) => { await page.goto('/', 300); await page.eval("console.error('logged before the assertion'); return true"); check(false, 'on purpose'); };`;
   const result = await run({ specs: { 'blank.spec.mjs': blank, 'asserted.spec.mjs': asserted }, env: { E2E_SHARDS: '1' } });
