@@ -3,7 +3,8 @@ import { ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Copy, I
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useChatUi } from '../lib/context';
+import { useChatUi, useOptionalChatUi } from '../lib/context';
+import { teammateRead, type TeammateRead } from '../lib/teammate-reads';
 import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
 import { toolHint } from '../lib/tool-lens';
 import { toolKindLabel } from '../lib/wire-words';
@@ -333,6 +334,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const hint = call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') };
   // Scored from the input, so a call still waiting for its result already shows it
   const risk = useToolRisk(call.name, call.input);
+  const read = teammateRead(call.name, call.input);
   // A call the guard blocked is the guard's strip, not a failed call: the reason is the fold
   const blocked = call.result?.isError ? readGuardResult(call.result.content, hint.text) : null;
   if (blocked) return <NoticeRow notice={blocked} />;
@@ -348,6 +350,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
               {hint.items !== undefined ? t('transcript.call.items', { count: hint.items }) : hint.text}
               {hint.aside && <span className="tool-hint-aside"> {hint.aside}</span>}
             </span>
+            {read && <TeammateReadHint read={read} />}
             <RiskTag risk={risk} />
             {/* The rail's colour is not the only thing that says it failed */}
             {outcome === 'error' && <span className="call-outcome">{t('transcript.callFailed')}</span>}
@@ -365,6 +368,22 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
         </Tooltip>
       )}
     </div>
+  );
+}
+
+/**
+ * Whose content a teammate-read call put into the chat (docs/plans/collaborators-agent-access.md):
+ * the person and install the app knows by the id, or the id itself in mono when it knows none.
+ */
+function TeammateReadHint({ read }: { read: TeammateRead }) {
+  const { t } = useTranslation('chat');
+  const Teammate = useOptionalChatUi()?.slots.Teammate;
+  if (read.kind === 'list') return <span className="teammate-read">{t('transcript.teammate.list')}</span>;
+  return (
+    <span className="teammate-read">
+      {t('transcript.teammate.from')}{' '}
+      {Teammate ? <Teammate owner={read.owner} shareId={read.shareId} /> : <span className="mono">{read.owner.slice(0, 10)}</span>}
+    </span>
   );
 }
 

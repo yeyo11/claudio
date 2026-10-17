@@ -81,6 +81,11 @@ export interface ChatUiConfig {
     LiveOptions: ComponentType<{ chat: Chat }>;
     /** A patch as the app's comparator draws it: the chat package must not import the app's diff (design system §5) */
     Diff: ComponentType<{ path: string; patch: string }>;
+    /**
+     * Who shares a copy a tool call read (`owner`, an install's endpoint id), in the person's words:
+     * the app knows its teammates, the chat package does not. Absent, the row names the install's id
+     */
+    Teammate?: ComponentType<{ owner: string; shareId: string | null }>;
   };
 }
 
@@ -91,6 +96,11 @@ export function ChatUiProvider({ value, children }: { value: ChatUiConfig; child
 }
 
 /** Throws outside the provider: a chat component without a client is a wiring bug, not a state. */
+/** The config when a provider is above, null otherwise: for a row that only adds to what it shows */
+export function useOptionalChatUi(): ChatUiConfig | null {
+  return useContext(ChatUiContext);
+}
+
 export function useChatUi(): ChatUiConfig {
   const config = useContext(ChatUiContext);
   if (!config) throw new Error('useChatUi needs a ChatUiProvider above it');

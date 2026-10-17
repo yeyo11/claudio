@@ -809,6 +809,17 @@
           }
         ],
         "description": "The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md)"
+      },
+      "teammateReads": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AgentReadScope"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Which teammates' shared copies its agent may read now (docs/plans/collaborators-agent-access.md); null when it may read none. Only on a chat read alone, decided on its live process"
       }
     },
     "required": [
@@ -1783,6 +1794,39 @@
       "observe"
     ],
     "description": "`enforce` blocks; `observe` records \"would block\" and passes, for rollback after a false positive."
+  },
+  "AgentReadScope": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "assistant"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "project"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "projectId"
+        ]
+      }
+    ],
+    "description": "Why a chat may read teammates' copies through its token (docs/plans/collaborators-agent-access.md): `assistant` reads every copy whose sharer allows it, `project` only those of its own project."
   },
   "AuthVerification": {
     "type": "object",
@@ -13346,6 +13390,17 @@
           }
         ],
         "description": "The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md)"
+      },
+      "teammateReads": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AgentReadScope"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Which teammates' shared copies its agent may read now (docs/plans/collaborators-agent-access.md); null when it may read none. Only on a chat read alone, decided on its live process"
       }
     },
     "required": [
@@ -14871,6 +14926,17 @@
           }
         ],
         "description": "The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md)"
+      },
+      "teammateReads": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AgentReadScope"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Which teammates' shared copies its agent may read now (docs/plans/collaborators-agent-access.md); null when it may read none. Only on a chat read alone, decided on its live process"
       }
     },
     "required": [
@@ -34597,39 +34663,6 @@
       }
     ],
     "description": "An artifact of the owner's project: an orchestration's result, an upload of a shared chat, a plan draft."
-  },
-  "AgentReadScope": {
-    "anyOf": [
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "assistant"
-          }
-        },
-        "required": [
-          "kind"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "project"
-          },
-          "projectId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "projectId"
-        ]
-      }
-    ],
-    "description": "Why a chat may read teammates' copies through its token (docs/plans/collaborators-agent-access.md): `assistant` reads every copy whose sharer allows it, `project` only those of its own project."
   },
   "AgentReadEntry": {
     "type": "object",

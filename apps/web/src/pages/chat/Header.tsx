@@ -27,6 +27,7 @@ import { compactState } from './context-model';
 import { useContextControls, useRefusalText } from './ContextPanel';
 import type { InspectorTab } from './Inspector';
 import { GuardTag } from './GuardTag';
+import { TeammateReadsTag } from './TeammateReadsTag';
 import { LimitBadge } from './LimitBadge';
 import type { LimitPhase } from './LimitBanner';
 import { copyText } from '@claudio/ui/lib/clipboard';
@@ -256,6 +257,7 @@ export const ChatHeader = memo(function ChatHeader({
       {limitPhase === 'none' ? <StatePill chat={chat} connected={connected} /> : <LimitBadge phase={limitPhase} resetsAt={limitResetsAt} />}
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
       <GuardTag guards={chat.guards} />
+      <TeammateReadsTag scope={chat.teammateReads} />
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
       <div className="chat-head-actions">
         {!compact && (

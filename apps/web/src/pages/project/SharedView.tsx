@@ -1,6 +1,6 @@
 import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type JournalEntry, type JournalEntryKind, type SharedArtifact, type Project, type SharedChat, type SharedProject, type SharedSubagent, type SharedTranscriptPage, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BookText, Check, Download, FileText, GitCommitVertical, ListTodo, MessagesSquare, NotebookText, Package, Paperclip, SquareKanban, StickyNote, Workflow, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BookText, Bot, BotOff, Check, Download, FileText, GitCommitVertical, ListTodo, MessagesSquare, NotebookText, Package, Paperclip, SquareKanban, StickyNote, Workflow, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,6 +19,7 @@ import { columnMeta, workItemLiveState } from '../../lib/work-items';
 import { DocumentView } from '../documents/Pane';
 import { dayGroups } from '../home/memory/model';
 import { useRoleName } from '../team/RoleAvatar';
+import { chatsThatRead, useCopyReadsToday } from '../../lib/api/collaborators';
 import { collaboratorsApi, collaboratorsKeys, useSharedWith, type SharedRef } from './shared-data';
 
 /**
@@ -105,6 +106,7 @@ export function SharedView({ project }: { project: Project }) {
           <strong>{memberLabel(current)}</strong>
         )}
         <SyncLine sync={current.sync} />
+        <AgentReadsLine shared={current} />
       </div>
       <SharedSections shared={current} />
     </div>
@@ -178,6 +180,34 @@ export function SyncLine({ sync }: { sync: SyncState }) {
       {sync.state === 'pending' && <span className="muted">{t('shared.sync.pending')}</span>}
       {sync.error && <Tag tone="bad">{t('shared.sync.failed')}</Tag>}
     </span>
+  );
+}
+
+/**
+ * What agents of this install did with the copy today (docs/plans/collaborators-agent-access.md):
+ * how many chats read it, linked to the full list in Settings → Security, or that its sharer lets no
+ * agent read it. Nothing while no agent has read it today: a zero is not news.
+ */
+export function AgentReadsLine({ shared }: { shared: SharedProject }) {
+  const reads = useCopyReadsToday(shared, shared.agentsMayRead);
+  return <AgentReadsLineView agentsMayRead={shared.agentsMayRead} chats={reads.data ? chatsThatRead(reads.data.reads) : 0} />;
+}
+
+/** The line from its numbers, so a test draws each case without a server. */
+export function AgentReadsLineView({ agentsMayRead, chats }: { agentsMayRead: boolean; chats: number }) {
+  const { t } = useTranslation('collaborators');
+  if (!agentsMayRead) {
+    return (
+      <span className="small muted collab-share-where" data-testid="collab-agents-forbidden">
+        <BotOff {...ICON_SM} aria-hidden /> {t('agentReads.forbidden')}
+      </span>
+    );
+  }
+  if (chats === 0) return null;
+  return (
+    <Link to="/settings?tab=security#agent-reads" className="small muted collab-share-where" data-testid="collab-agent-reads">
+      <Bot {...ICON_SM} aria-hidden /> {t('agentReads.today', { count: chats })}
+    </Link>
   );
 }
 

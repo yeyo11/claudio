@@ -415,3 +415,11 @@
     justify-content: flex-start;
   }
 }
+
+/* ---------- Agents reading what teammates share ---------- */
+
+/* The chat header's "Reads teammates' shares", in the guard tag's mono */
+.teammate-reads-tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+}

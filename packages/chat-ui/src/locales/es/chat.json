@@ -431,6 +431,10 @@
       "account": "Cuenta cambiada a",
       "guard": "Guardia: bloqueado",
       "guardMissing": "La guardia no se ha ejecutado en esta llamada"
+    },
+    "teammate": {
+      "list": "lo que comparten todos tus compañeros",
+      "from": "de"
     }
   },
   "agent": {

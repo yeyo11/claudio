@@ -876,6 +876,10 @@ export class Core {
       memberChat: (chatId) => this.memberChat(chatId),
       guardsForChat: (cwd) => this.guardsForChat(cwd),
       compact: (chat) => this.context.availability(chat),
+      teammateReads: (chatId) => {
+        const decision = this.agentReadScope(chatId);
+        return 'scope' in decision ? decision.scope : null;
+      },
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
       rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),

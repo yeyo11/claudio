@@ -244,3 +244,35 @@ test("the assistant's switch is a Collaborators setting, on by default", async (
   const res = await fx.app.inject({ method: 'PUT', url: '/api/collaborators', ...json({ assistantReads: 'off' }) });
   assert.equal(res.statusCode, 400, res.body);
 });
+
+test("a chat read alone says what of teammates' shares its agent may read: the chat's chip", async (t) => {
+  const fx = await fixture(t);
+  const dir = join(fx.core.config.projectsDir, '-work-chip');
+  mkdirSync(dir, { recursive: true });
+  const transcript = (id: string) =>
+    writeFileSync(
+      join(dir, `${id}.jsonl`),
+      `${JSON.stringify({ type: 'user', uuid: 'u1', timestamp: '2026-10-17T09:00:00Z', cwd: '/work/chip', sessionId: id, message: { role: 'user', content: 'what is Ana on?' } })}\n`,
+    );
+  const teammateReads = async (id: string) => {
+    const res = await fx.app.inject(`/api/chats/${id}`);
+    assert.equal(res.statusCode, 200, res.body);
+    return res.json<{ chat: { teammateReads?: unknown } }>().chat.teammateReads;
+  };
+  for (const id of ['assistant-chat', 'project-chat', 'worker-chat']) transcript(id);
+  // The decision is the guard's own, tested above on live processes; here, that the chat carries it
+  const decisions: Record<string, ReturnType<Core['agentReadScope']>> = {
+    'assistant-chat': { scope: { kind: 'assistant' } },
+    'project-chat': { scope: { kind: 'project', projectId: fx.projectId } },
+    'worker-chat': { refusal: 'mode' },
+  };
+  const real = fx.core.agentReadScope.bind(fx.core);
+  fx.core.agentReadScope = (chatId) => decisions[chatId] ?? real(chatId);
+  assert.deepEqual(await teammateReads('assistant-chat'), { kind: 'assistant' });
+  assert.deepEqual(await teammateReads('project-chat'), { kind: 'project', projectId: fx.projectId });
+  // A chat that runs without asking reads nothing: no chip
+  assert.equal(await teammateReads('worker-chat'), null);
+  // Nor one Claudio has no live process for, decided for real
+  transcript('ended-chat');
+  assert.equal(await teammateReads('ended-chat'), null);
+});

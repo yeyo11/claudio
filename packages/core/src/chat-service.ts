@@ -14,6 +14,7 @@ import {
   type CancelCommandResult,
   type Chat,
   type ChatBackgroundTaskEntry,
+  type AgentReadScope,
   type ChatCompactAvailability,
   type ChatControl,
   type ChatDetail,
@@ -215,6 +216,8 @@ export interface ChatServiceDeps {
   memberChat?: (chatId: string) => boolean;
   /** Whether Compact now is offered on a chat read alone, and why not (`ContextControl.availability`) */
   compact?: (chat: Chat) => ChatCompactAvailability;
+  /** The teammates' copies a chat's agent may read now, null for none (`Core.agentReadScope`) */
+  teammateReads?: (chatId: string) => AgentReadScope | null;
   /**
    * A message typed into an idle chat that is a `/compact`: handled as the person's compaction, and
    * answered with how it was taken; null when it is an ordinary message after all
@@ -545,7 +548,14 @@ export class ChatService {
       failedBranches: [...children.subagents, ...children.backgroundTasks, ...children.workflows].filter((b) => b.status === 'failed').length,
       ...(task ? { limits: task.limits, taskElapsedMs: task.elapsedMs, taskSpentUsd: task.spentUsd } : {}),
     });
-    const chat: Chat = { ...summary, children, environment: env ? toChatEnvironment(env) : null, health, tools: runtime?.tools ?? null };
+    const chat: Chat = {
+      ...summary,
+      children,
+      environment: env ? toChatEnvironment(env) : null,
+      health,
+      tools: runtime?.tools ?? null,
+      ...(this.deps.teammateReads ? { teammateReads: this.deps.teammateReads(id) } : {}),
+    };
     return this.deps.compact ? { ...chat, compact: this.deps.compact(chat) } : chat;
   }
 

@@ -1191,6 +1191,11 @@ export interface Chat {
   compact?: ChatCompactAvailability;
   /** The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md) */
   guards?: ChatGuards | null;
+  /**
+   * Which teammates' shared copies its agent may read now (docs/plans/collaborators-agent-access.md);
+   * null when it may read none. Only on a chat read alone, decided on its live process
+   */
+  teammateReads?: AgentReadScope | null;
 }
 
 /**

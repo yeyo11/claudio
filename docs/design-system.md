@@ -1951,6 +1951,10 @@ bad always sit beside a word and the shield icon.
   (**`.guard-always`**) instead of a Switch.
 - **`.guard-tag`** is the chat header's `.badge`, a button: neutral "Guards" when armed, warn
   "Observe", bad "Guards not running". A press opens a `Sheet` with **`.guard-rules-list`**.
+- **`.teammate-reads-tag`** is the chat header's neutral `.badge` beside the guard's, in the same
+  mono: "Reads teammates' shares" on a chat whose agent may read what teammates share
+  (docs/plans/collaborators-agent-access.md). A fact, not a status: no colour, no motion, what it
+  reads in its tooltip.
 - **`.chip.guard`** is the warn chip of a task or a flow run, "N blocked" in tabular figures, a link
   to the chat at its first guard notice. It shows only when the count is above 0. Warn fill
   (`--warn-soft`), text in `--fg`, the shield in `--warn`.
@@ -2462,6 +2466,8 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - `.call-lines`: a Read's numbered code. The numbers come from a CSS counter, so copying leaves them
   out; the reference draws `CodeBlock`, which has no line numbers.
 - `.tool-hint-aside`: the muted mono path after a Grep pattern in the folded hint.
+- `.teammate-read`: after a teammate-read tool's hint, "from Ana · laptop · api", whose share went into
+  the chat; never cut when the hint before it is.
 - `.call-diff.is-all`: the diff once "Show all" lifted its 360 px cap.
 - `.call-checklist .word`: the status word beside a checklist item's icon, so a status is never colour
   alone.
