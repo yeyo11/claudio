@@ -31,7 +31,7 @@ const SHELL_PATHS = new Set(SHELL);
  * `index.html` itself. Forgetting an entry here costs a round trip, never a broken page, which is
  * why this is a list of what we handle rather than a list of what we skip.
  */
-const APP_ROUTES = new Set(['', 'accounts', 'chats', 'connectors', 'orchestration', 'projects', 'schedules', 'settings', 'usage']);
+const APP_ROUTES = new Set(['', 'accounts', 'assistant', 'chats', 'collaborators', 'connectors', 'orchestration', 'projects', 'schedules', 'settings', 'tasks', 'terminals', 'usage']);
 
 /** The page's own shell for a navigation: one URL for every route, since the app routes in place. */
 const SHELL_DOCUMENT = '/index.html';
