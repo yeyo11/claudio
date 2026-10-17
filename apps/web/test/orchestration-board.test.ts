@@ -4,7 +4,7 @@ import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 
 // The wording follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
-const { attemptLabel, blockedBy, costSplit, decisionsOn, waitingSummary } = await import('../src/lib/orchestration-board.ts');
+const { attemptLabel, blockedBy, canResume, costSplit, decisionsOn, waitingSummary } = await import('../src/lib/orchestration-board.ts');
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({
   id,
@@ -104,4 +104,21 @@ test('cost outside the tasks is what a clean retry left behind, and rounding noi
   const split = costSplit(orch([task('a', { costUsd: 0.5 })], { costUsd: 0.8 }));
   assert.equal(split.tasks, 0.5);
   assert.ok(Math.abs(split.other - 0.3) < 1e-9);
+});
+
+// R11: after "Stop waiting" a task ends stopped, and it needs the way back a failed one has
+test('a task stopped while it waited for a reset offers both retries and giving the branch up', () => {
+  const o = orch([task('a', { status: 'stopped' }), task('b', { status: 'blocked', dependsOn: ['a'] })], { status: 'waiting' });
+  assert.deepEqual(decisionsOn(o, o.tasks[0]!), { retry: true, retryClean: true, skip: true, hint: false });
+  assert.deepEqual(blockedBy(o, o.tasks[1]!).map((t) => t.id), ['a'], 'what is blocked names the stopped task it waits behind');
+  const summary = waitingSummary(o);
+  assert.deepEqual([summary?.failed.length, summary?.stopped.length, summary?.blocked.length], [0, 1, 1]);
+});
+
+test('a graph that waits for a decision can be resumed, a running or finished one cannot', () => {
+  const left = [task('a', { status: 'stopped' }), task('b', { status: 'completed' })];
+  assert.equal(canResume(orch(left, { status: 'waiting' })), true);
+  assert.equal(canResume(orch(left, { status: 'stopped' })), true);
+  assert.equal(canResume(orch(left, { status: 'running' })), false);
+  assert.equal(canResume(orch([task('b', { status: 'completed' })], { status: 'completed' })), false);
 });

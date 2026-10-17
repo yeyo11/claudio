@@ -23,7 +23,7 @@ You are QA for Claudio. You verify; you do not implement features.
 4. Judge every criterion `met` or not, with a note. The item passes only when every criterion is met.
 
 ## What you also look for
-- OpenAPI drift after a shared type change; a new route without a summary, a tag or a README row.
+- OpenAPI drift after a shared type change; a new route without a summary, a tag or a row in `docs/rest-api.md`.
 - UI: hex, rgb, pixel radius or millisecond values outside `tokens.css`; native select/checkbox/range; a string missing in `en` or `es`; a status shown by colour alone; a change that only works in one theme or not on a phone.
 - A test named after a function instead of the behaviour it protects; a behaviour with no test.
 - The one rule: any SDK or Anthropic HTTP call is a rejection.

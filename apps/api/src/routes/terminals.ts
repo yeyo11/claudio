@@ -31,18 +31,23 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
       }
     };
 
-  /** The gate for a route: answers and records the refusal, or returns null to go on */
-  const gated = (req: FastifyRequest, reply: FastifyReply, options: { feature: boolean; reducing?: boolean }): FastifyReply | null => {
-    const refused = terminalGate(core, req, { actor: true, ...options });
-    if (!refused) return null;
+  /**
+   * The gate for a route: answers and records the refusal and says so, or says to go on. A boolean,
+   * not the reply: a FastifyReply is thenable, and an async function that returns one hands back
+   * what awaiting it gives (nothing), so a refused request would have gone on to run the route.
+   */
+  const gated = async (req: FastifyRequest, reply: FastifyReply, options: { feature: boolean; reducing?: boolean }): Promise<boolean> => {
+    const refused = await terminalGate(core, req, { actor: true, ...options });
+    if (!refused) return false;
     recordGateRefusal(core, req, refused, (req.params as { id?: string } | undefined)?.id);
-    return send(reply, refused);
+    void send(reply, refused);
+    return true;
   };
 
   app.get('/terminal', async (req, reply) => {
     // Read-only and a chat's token are refused outright; where the caller is from is an answer, not
     // an error: the person on another device is told why the terminal is not offered to them
-    const refused = clientRefusal(core, req, { actor: true });
+    const refused = await clientRefusal(core, req, { actor: true });
     if (refused && (refused.status === 405 || refused.reason === 'chat-token')) return send(reply, refused);
     const status = core.terminals.status();
     return refused && status.reason === null ? { ...status, available: false, reason: refused.reason ?? null } : status;
@@ -53,7 +58,7 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
     handle<{ Body: UpdateTerminalSettingsRequest }>(async (req, reply) => {
       const body = req.body ?? {};
       const off = Object.keys(body).length === 1 && body.enabled === false;
-      if (gated(req, reply, { feature: false, reducing: off })) return reply;
+      if (await gated(req, reply, { feature: false, reducing: off })) return reply;
       const remote = core.terminals.settings().remote;
       const status = await core.terminals.updateSettings(body);
       // A socket from another device was let in under the old `remote`: it reconnects through the gate as it is now
@@ -64,16 +69,16 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
 
   app.get<{ Querystring: { limit?: string; offset?: string } }>(
     '/terminal/history',
-    handle<{ Querystring: { limit?: string; offset?: string } }>((req, reply) => {
-      if (gated(req, reply, { feature: false })) return reply;
+    handle<{ Querystring: { limit?: string; offset?: string } }>(async (req, reply) => {
+      if (await gated(req, reply, { feature: false })) return reply;
       return core.terminals.history(count(req.query.limit, 'limit'), count(req.query.offset, 'offset'));
     }),
   );
 
   app.get<{ Querystring: { project?: string; chat?: string } }>(
     '/terminals',
-    handle<{ Querystring: { project?: string; chat?: string } }>((req, reply) => {
-      if (gated(req, reply, { feature: true })) return reply;
+    handle<{ Querystring: { project?: string; chat?: string } }>(async (req, reply) => {
+      if (await gated(req, reply, { feature: true })) return reply;
       return core.terminals.list({ ...(req.query.project ? { project: req.query.project } : {}), ...(req.query.chat ? { chat: req.query.chat } : {}) });
     }),
   );
@@ -81,7 +86,7 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
   app.post<{ Body: CreateTerminalRequest }>(
     '/terminals',
     handle<{ Body: CreateTerminalRequest }>(async (req, reply) => {
-      if (gated(req, reply, { feature: true })) return reply;
+      if (await gated(req, reply, { feature: true })) return reply;
       // Fastify also parses `text/plain`, which a cross-site form can send without a preflight
       if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
         return reply.status(400).send({ error: 'the body must be a JSON object', code: 'terminal.bad-request' });
@@ -93,8 +98,8 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
 
   app.get<{ Params: { id: string } }>(
     '/terminals/:id',
-    handle<{ Params: { id: string } }>((req, reply) => {
-      if (gated(req, reply, { feature: true })) return reply;
+    handle<{ Params: { id: string } }>(async (req, reply) => {
+      if (await gated(req, reply, { feature: true })) return reply;
       const terminal = core.terminals.get(req.params.id);
       if (!terminal) return reply.status(404).send({ error: 'No such terminal', code: 'terminal.not-found' });
       return terminal;
@@ -103,8 +108,8 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
 
   app.post<{ Params: { id: string } }>(
     '/terminals/:id/ticket',
-    handle<{ Params: { id: string } }>((req, reply) => {
-      if (gated(req, reply, { feature: true })) return reply;
+    handle<{ Params: { id: string } }>(async (req, reply) => {
+      if (await gated(req, reply, { feature: true })) return reply;
       const terminal = core.terminals.get(req.params.id);
       if (!terminal) return reply.status(404).send({ error: 'No such terminal', code: 'terminal.not-found' });
       if (terminal.state === 'closed') return reply.status(409).send({ error: 'The terminal was closed', code: 'terminal.ended' });
@@ -119,8 +124,8 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
 
   app.delete<{ Params: { id: string } }>(
     '/terminals/:id',
-    handle<{ Params: { id: string } }>((req, reply) => {
-      if (gated(req, reply, { feature: true })) return reply;
+    handle<{ Params: { id: string } }>(async (req, reply) => {
+      if (await gated(req, reply, { feature: true })) return reply;
       const terminal = core.terminals.close(req.params.id);
       if (!terminal) return reply.status(404).send({ error: 'No such terminal', code: 'terminal.not-found' });
       return terminal;

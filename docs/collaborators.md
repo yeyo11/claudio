@@ -250,7 +250,7 @@ read ("from Ana · laptop · api").
   copies say so once, the log says so once, and it is asked again at a wait that doubles from the
   reconcile pace up to a day, or as soon as it says hello. Any other failure is logged when its
   reason changes, and the recovery once. Log lines name the peer with the start of its id.
-- **The API** is the Collaborators table in the [README](../README.md#collaborators); the events are
+- **The API** is the [Collaborators](rest-api.md#collaborators) table of the REST API; the events are
   `collaborators.changed`, `collaborators.peer`, `collaborators.synced`,
   `collaborators.join-request`, `collaborators.join-answered` and, on the joiner's install,
   `collaborators.join-ended` (its join denied, or its invite expired unanswered). A join request

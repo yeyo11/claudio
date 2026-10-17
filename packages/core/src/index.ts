@@ -134,6 +134,7 @@ import { TrackerSyncService } from './trackers/sync.ts';
 import { TrackerDetector } from './trackers/detector.ts';
 import { YoutrackCredentialStore } from './trackers/youtrack/credentials.ts';
 import { runHostCall } from './hosts/exec.ts';
+import { ChildProcesses } from './child-processes.ts';
 import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
@@ -241,7 +242,7 @@ export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { MCP_ENTRY_ENV, type ClaudioMcpLaunch } from './claudio-mcp.ts';
 export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
 export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
-export type { PeerVerdict } from './terminals/peer.ts';
+export type { PeerLook, PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -277,7 +278,7 @@ export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type 
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
-export { ProviderRotation, effectiveOnLimit, openWaitOf } from './rotation.ts';
+export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
 export { EvalFileError } from './evals/definition.ts';
@@ -443,6 +444,8 @@ export class Core {
    * `hosts.changed` when a status changes. A project's readiness runs its own probes instead.
    */
   readonly hosts: CodeHostDetector;
+  /** The probes and host calls this core started, ended and waited for by `shutdown` */
+  private readonly children = new ChildProcesses();
   /** Which code hosts are on and a binary of the person's own (`hosts.json`) */
   readonly hostsSettings: CodeHostsSettingsStore;
   /** Which issue trackers are on and a binary of the person's own (`trackers.json`) */
@@ -532,6 +535,14 @@ export class Core {
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
+  /** Set by `shutdown`: what was still on its way when it ran must not start anything */
+  private closed = false;
+  /**
+   * Settles once the chats of the last run are back and what waited for them has started (or, shut
+   * down first, has not). Whoever ends a Core it just made awaits it after `shutdown`, so nothing of
+   * the boot is left to touch the closed database.
+   */
+  readonly restored: Promise<void>;
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
@@ -610,6 +621,7 @@ export class Core {
     const drivers = this.sessionDrivers(config);
     this.accounts = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: config.claudeBin });
     this.providers = new ProviderDetector({
+      processes: this.children,
       config,
       otherAccount: () => this.readyAccountLabel(),
       accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
@@ -625,6 +637,7 @@ export class Core {
     this.hostsSettings = new CodeHostsSettingsStore(config);
     this.trackersSettings = new TrackersSettingsStore(config);
     this.hosts = new CodeHostDetector({
+      processes: this.children,
       adapter: codeHostAdapter,
       settings: () => this.hostsSettings.get(),
       emit: (event) => {
@@ -635,6 +648,7 @@ export class Core {
     });
     this.youtrackCredentials = new YoutrackCredentialStore(config, this.vault);
     this.trackers = new TrackerDetector({
+      processes: this.children,
       hosts: this.hosts,
       adapter: codeHostAdapter,
       settings: () => this.trackersSettings.get(),
@@ -771,7 +785,7 @@ export class Core {
       this.events.emit({ type: 'spend.changed', title: 'Daily spend changed', spend: this.spend.state() });
     });
     this.spend.onAlert((level, spend) => {
-      this.events.emit({ type: 'spend.alert', title: level === 'exhausted' ? 'Daily spend cap reached' : 'Daily spend at 75 % of the cap', level, spend });
+      this.events.emit({ type: 'spend.alert', title: level === 'exhausted' ? 'Daily spend cap reached' : `Daily spend at ${new Intl.NumberFormat('en', { style: 'percent' }).format(0.75)} of the cap`, level, spend });
     });
     this.appSettings.onSpendCapChange = () => this.spend.capChanged();
     this.runtime.on('spend-recorded', () => this.spend.recorded());
@@ -1071,6 +1085,7 @@ export class Core {
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
     this.logins = new LoginService({
+      processes: this.children,
       vault: this.vault,
       youtrack: this.youtrackCredentials,
       emit: (event) => this.events.emit(event),
@@ -1111,6 +1126,7 @@ export class Core {
       },
     });
     this.pullRequests = new PullRequestService({
+      processes: this.children,
       db: this.db,
       checks: this.checks,
       reviews: this.reviews,
@@ -1162,6 +1178,7 @@ export class Core {
       return settings?.id === tracker ? settings.scope : null;
     });
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
+      processes: this.children,
       db: this.db,
       settings: () => this.hostsSettings.get(),
       codeHost: (path) => this.pullRequests.codeHost(path),
@@ -1375,7 +1392,10 @@ export class Core {
         event.type === 'orchestration.removed';
       if (ended) void this.schedules.drain().catch(() => undefined);
     });
-    void this.runtime.restore(this.sessions).finally(() => {
+    const restored = this.runtime.restore(this.sessions).finally(() => {
+      // Shut down before the chats came back: nothing may start, and the database is closed. Started
+      // anyway, the pull request watcher and the scheduler armed timers no shutdown would ever clear
+      if (this.closed) return;
       this.orchestrator.recover();
       void this.evals.load().catch(() => undefined);
       try {
@@ -1394,6 +1414,12 @@ export class Core {
       // otherwise waits for seconds on a machine with hundreds of megabytes of them
       void this.sessions.listSessions().catch(() => undefined);
     });
+    this.restored = restored.then(
+      () => undefined,
+      (error: unknown) => {
+        if (!this.closed) console.warn(`restore: ${error instanceof Error ? error.message : String(error)}`);
+      },
+    );
     this.connectors = new Connectors(config, { account: () => this.accounts.ref(DEFAULT_ID) });
     this.projectDocs = new ProjectDocsService({ config, runtime: this.runtime, connectors: this.connectors });
     // A project's agent file is also a team member's: the team announces it, however it was written
@@ -1451,6 +1477,8 @@ export class Core {
       emit: (event) => this.events.emit(event),
       work: (chatId) => this.workOf(chatId),
       replay: (chatId, account) => this.orchestrator.replayWorkflow(chatId, account),
+      // A wait goes on with the first account that has room, whichever it is (R10)
+      accountsChanged: (listener) => this.accounts.onChange(listener),
       ended: (move, end, reason) => {
         if (move.subjectKind === 'flow_run') this.flow.waitEnded(move, end, reason);
         else if (move.subjectKind === 'task') this.orchestrator.waitEnded(move, end, reason);
@@ -2245,7 +2273,7 @@ export class Core {
       hostname: credentials.host,
       repo: null,
       // The address and token come from the vault, laid over by the execution layer (`buildHostEnv`)
-      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }),
+      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, processes: this.children }),
       issueUrl: (key) => youtrackIssueUrl(credentials.host, key),
     };
   }
@@ -3289,7 +3317,14 @@ export class Core {
     });
   }
 
-  shutdown(): void {
+  /**
+   * Stops everything this core runs. What has to happen at once happens before it returns; the
+   * promise resolves once the probes and host calls it ended have exited too, which is what a
+   * process about to exit waits for: one left running writes its config home after the server is
+   * gone (see `ChildProcesses`). Callers that only stop the core may ignore it.
+   */
+  shutdown(): Promise<void> {
+    this.closed = true;
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();
@@ -3320,5 +3355,6 @@ export class Core {
     void this.collaborators.dispose();
     this.runtime.stopAll();
     this.db.close();
+    return this.children.close();
   }
 }

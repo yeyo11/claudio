@@ -271,6 +271,7 @@ const CHAT_FORBIDDEN_LAYOUT = new Set([`PUT ${API_PREFIX}/dashboard/layout`, `DE
 const CHAT_FORBIDDEN_ROTATION = new Set([
   `POST ${API_PREFIX}/chats/:id/wait`,
   `POST ${API_PREFIX}/limits/waits/:id/cancel`,
+  `POST ${API_PREFIX}/limits/waits/:id/run-now`,
 ]);
 
 /**

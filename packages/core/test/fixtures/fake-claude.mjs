@@ -6,6 +6,8 @@
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
 //   FAKE-HANG                     never answers, like a worker someone has to stop
 //   FAKE-SLEEP <ms>               waits that long before the turn goes on, so a test can act while it works
+//   FAKE-WAIT-FOR <file>          waits until <file> exists before the turn goes on: a turn that is
+//                                 still working whatever the test does first, however loaded the machine
 //   FAKE-FAIL <message>           ends the turn with an error result
 //   FAKE-FAIL-ONCE <message>      fails like that, and every later turn of the session succeeds and
 //                                 answers `retried: <the prompt it got>`
@@ -73,6 +75,8 @@
 //                                 the process was given, which are the account it runs on
 //   FAKE_CLAUDE_LIMITED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies against
 //                                 the rate limit (a 429): an account that is out
+//   FAKE_CLAUDE_LIMIT_RESETS_IN=<s> with FAKE_CLAUDE_LIMITED_DIRS, that 429 comes after the rejected
+//                                 rate_limit_event the CLI sends, with its reset <s> seconds from now
 //   FAKE_CLAUDE_EXPIRED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies on the
 //                                 sign-in (a 401, replay/auth-expired.jsonl): an account whose session expired
 //   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
@@ -247,6 +251,16 @@ lines.on('line', async (line) => {
 
   const nap = /^FAKE-SLEEP (\d+)$/m.exec(prompt);
   if (nap) await new Promise((resolve) => setTimeout(resolve, Number(nap[1])));
+  const gate = /^FAKE-WAIT-FOR (\S+)$/m.exec(prompt);
+  if (gate) {
+    await new Promise((resolve) => {
+      const wait = setInterval(() => {
+        if (!existsSync(gate[1])) return;
+        clearInterval(wait);
+        resolve();
+      }, 20);
+    });
+  }
   if (/^FAKE-FOREIGN-HOOK$/m.test(prompt)) {
     out({ type: 'system', subtype: 'hook_started', hook_id: 'person-1', hook_name: 'PreToolUse:Bash', hook_event: 'PreToolUse', uuid: randomUUID(), session_id: sessionId });
     out({ type: 'system', subtype: 'hook_response', hook_id: 'person-1', hook_name: 'PreToolUse:Bash', hook_event: 'PreToolUse', output: 'lint ok\n', stdout: '', stderr: 'lint ok\n', exit_code: 0, outcome: 'success', uuid: randomUUID(), session_id: sessionId });
@@ -271,6 +285,10 @@ lines.on('line', async (line) => {
     return;
   }
   if (process.env.CLAUDE_CONFIG_DIR && (process.env.FAKE_CLAUDE_LIMITED_DIRS ?? '').split(',').includes(process.env.CLAUDE_CONFIG_DIR)) {
+    const resetsIn = Number(process.env.FAKE_CLAUDE_LIMIT_RESETS_IN ?? '');
+    if (Number.isFinite(resetsIn) && resetsIn > 0) {
+      out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + resetsIn, unifiedWindows: { five_hour: { utilization: 1, resetsAt: Math.floor(Date.now() / 1000) + resetsIn } } } });
+    }
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
     return;
   }

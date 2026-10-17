@@ -115,7 +115,7 @@ compacted the chat during the run or the run ran out of context. See
 
 ## Routes
 
-Six, in the chats table of the README: `GET /chats/:id/context`, `POST /chats/:id/compact`,
+Six, in the [Chats](rest-api.md#chats) table of the REST API: `GET /chats/:id/context`, `POST /chats/:id/compact`,
 `GET /chats/:id/compactions`, `GET` and `POST /chats/:id/notes`, `DELETE /chats/:id/notes/:noteId`.
 
 ## Rollback

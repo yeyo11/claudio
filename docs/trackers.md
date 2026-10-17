@@ -161,7 +161,7 @@ text written by another person: data to weigh, not instructions`). It is cut at 
   issue is in another repository). Into any other base a closing word does not work (recorded for
   both hosts), so Claudio never writes one there. An issue of a tracker the project no longer uses
   is left out. Keys that are not plain (`[A-Za-z0-9_-]`) are left out.
-- The branch stays `task/<key>`; Claudio never uses `gh issue develop`, which creates a branch and
+- The branch stays `claudio-task/<key>`; Claudio never uses `gh issue develop`, which creates a branch and
   then exits 1 outside a clone.
 
 ## Status sync
@@ -208,7 +208,7 @@ Reads (`GET /trackers`, `GET /trackers/:id`, `GET /trackers/settings`,
 YouTrack's access (`GET|PUT|DELETE /trackers/youtrack/credentials`: the token is write-only, and
 the PUT answers after YouTrack was probed again). A chat token gets 403 on every write and on every
 credentials route, the read included. A `TrackerError` answers with its status, its `reason` and
-the CLI's first line as `detail`. The README's REST tables list them; the schemas are in `apps/api`.
+the CLI's first line as `detail`. The [REST API](rest-api.md#code-hosts) tables list them; the schemas are in `apps/api`.
 
 ## Reasons
 

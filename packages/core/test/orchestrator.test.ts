@@ -656,7 +656,6 @@ test('what waits behind a failed task is blocked, not skipped, and the graph hol
   assert.equal(orch.synthesisRunId, null);
   assert.equal(orch.finalResult, null);
   assert.throws(() => orchestrator.retryIntegration(orch.id), /waiting for a decision/);
-  assert.throws(() => orchestrator.resume(orch.id), /waiting for a decision/);
   assert.throws(() => orchestrator.remove(orch.id), /stop the orchestration/);
   db.close();
 });

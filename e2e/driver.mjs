@@ -287,6 +287,9 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
   await send('Log.enable');
   await send('Network.enable');
   network.mainFrame = (await send('Page.getFrameTree')).result?.frameTree?.frame?.id ?? null;
+  // E2E_CPU_THROTTLE=N runs every tab N times slower: how a flaky wait is met on a machine that is not loaded
+  const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
+  if (throttle > 1) await send('Emulation.setCPUThrottlingRate', { rate: throttle });
 
   const page = {
     baseUrl,
@@ -328,8 +331,18 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
     takeErrors: () => errors.splice(0),
     async goto(path, wait = 1200) {
       const navigated = await send('Page.navigate', { url: `${baseUrl}${path}` });
+      // A protocol error (an address Chrome will not open) or a navigation that failed (errorText)
+      const failed = navigated.error?.message ?? navigated.result?.errorText;
       // Kept, not thrown: a navigation the page itself interrupted is aborted and still lands
-      if (navigated.result?.errorText) network.note(`Page.navigate to ${path} answered ${navigated.result.errorText}`);
+      if (failed) network.note(`Page.navigate to ${path} answered ${failed}`);
+      // Page.navigate answers once the new document is committed, so the tab is on the app now unless
+      // the navigation never got there. Left on about:blank or an error page, every read of storage
+      // that follows fails with a SecurityError that says nothing of the navigation: say it here
+      const origin = await this.eval('return self.origin').catch(() => null);
+      if (origin !== null && origin !== new URL(baseUrl).origin) {
+        const at = await this.eval('return location.href').catch(() => 'unknown');
+        throw Object.assign(new Error(`the navigation to ${path} did not reach the app${failed ? ` (${failed})` : ''}: the tab is on ${at}\n${await this.diagnose()}`), { diagnosed: true });
+      }
       await sleep(wait);
     },
     /**
@@ -352,7 +365,17 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
     },
     async eval(body) {
       const r = await send('Runtime.evaluate', { expression: `(async()=>{${body}})()`, awaitPromise: true, returnByValue: true });
-      if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? 'eval failed');
+      if (r.result.exceptionDetails) {
+        const description = r.result.exceptionDetails.exception?.description ?? 'eval failed';
+        // Storage refused is a document with an opaque origin (about:blank, an error page), never the
+        // app: where the tab is, and how it got there, is what the failure needs to say
+        if (description.startsWith('SecurityError')) {
+          const at = await send('Runtime.evaluate', { expression: 'location.href', returnByValue: true }).then((h) => h.result?.result?.value ?? 'unknown', () => 'unknown');
+          const notes = network.snapshot(Date.now()).notes;
+          throw new Error(`${description}\n(the tab is on ${at}${notes.length ? `; navigation: ${notes.join('; ')}` : ''})`);
+        }
+        throw new Error(description);
+      }
       return r.result.result.value;
     },
     /** Polls until `body` (a JS function body) returns something truthy. */
@@ -481,8 +504,9 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
       return this.eval(body);
     },
     text: (selector = 'body') => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`),
-    async viewport(width, height) {
-      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    // `scale` below 1 makes the screenshot smaller than the page (a recording of 800 px of a 1280 px page)
+    async viewport(width, height, scale = 1) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false });
       await sleep(200);
     },
     /**

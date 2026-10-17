@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { LimitWait, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
+import type { LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
@@ -27,6 +27,9 @@ import { defaultRotationSettings } from './providers/settings.ts';
  * - A wait is a row in `provider_moves`. A timer in the process that owns the chat claims it at the
  *   reset with a guarded update, so two processes on one data directory replay the turn once, and
  *   `recover()` re-arms the timers of a restarted process.
+ * - A wait is not tied to the reset it began with. Whenever an account's reading or state changes
+ *   (`accountsChanged`), at the earliest reset any account now gives, and on every look, each open
+ *   wait asks the accounts again (`roomFor`) and goes on with the first one that has room (R10).
  */
 
 /** A reset is taken as passed a moment late: the provider's own clock may differ from ours */
@@ -46,9 +49,22 @@ const CONTINUE_TEXT = "The provider's usage limit has reset. Continue the work y
 
 export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 
+/** Why a person's "run it now" on a wait was refused; the 409's `code` */
+export type RunNowRefusalCode = LimitWaitRunNowRefusalCode;
+
+export class RunNowRefusal extends Error {
+  constructor(
+    readonly code: RunNowRefusalCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RunNowRefusal';
+  }
+}
+
 export interface RotationDeps {
   db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent'>;
-  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
+  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'roomFor' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
@@ -68,6 +84,11 @@ export interface RotationDeps {
    * is replayed; otherwise whether the work went on, on `account` when the limit moved it there.
    */
   replay?: (chatId: string, account?: string) => Promise<boolean> | null;
+  /**
+   * Subscribes to every change of an account's reading or stored state (`AccountStore.onChange`);
+   * returns the unsubscribe. Without it a wait only looks again on its own timer.
+   */
+  accountsChanged?: (listener: () => void) => () => void;
   /** A wait is over: the turn was replayed, it could not be, or a person stopped waiting */
   ended?: (move: ProviderMove, end: WaitEnd, reason: string | null) => void;
   now?: () => number;
@@ -109,6 +130,9 @@ export class ProviderRotation {
     void this.onLimitHit(run, limit);
   };
   private started = false;
+  private unsubscribe: (() => void) | null = null;
+  /** A look at every wait is queued for the next turn of the loop: a burst of readings costs one */
+  private recheckQueued = false;
 
   constructor(private readonly deps: RotationDeps) {
     this.now = deps.now ?? Date.now;
@@ -121,10 +145,13 @@ export class ProviderRotation {
     if (this.started) return;
     this.started = true;
     this.deps.runtime.on('limit-hit', this.listener);
+    this.unsubscribe = this.deps.accountsChanged?.(() => this.recheckSoon()) ?? null;
   }
 
   close(): void {
     if (this.started) this.deps.runtime.off('limit-hit', this.listener);
+    this.unsubscribe?.();
+    this.unsubscribe = null;
     this.started = false;
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
@@ -298,14 +325,25 @@ export class ProviderRotation {
     return effectiveOnLimit(this.deps.settings(), project).maxWaitHours;
   }
 
-  /** Sets the timer of a wait: the reset when it is known, otherwise the next look. */
+  /** The earliest reset a wait knows of: the one it began with, or an earlier one a later reading gave. */
+  private resetOf(move: Pick<ProviderMove, 'id' | 'resetsAt'>): string | null {
+    const learned = this.learned.get(move.id) ?? null;
+    if (!move.resetsAt || !learned) return move.resetsAt ?? learned;
+    return Date.parse(learned) < Date.parse(move.resetsAt) ? learned : move.resetsAt;
+  }
+
+  /**
+   * Sets the timer of a wait: the next look, or its reset when that comes first. A known reset is
+   * no reason to stop looking: another account may get room before it (R10).
+   */
   private arm(move: ProviderMove): void {
     const existing = this.timers.get(move.id);
     if (existing) clearTimeout(existing);
     const now = this.now();
-    const reset = move.resetsAt ?? this.learned.get(move.id) ?? null;
+    const reset = this.resetOf(move);
     const cap = Date.parse(move.at) + this.maxWaitHours(move) * HOUR_MS;
-    const due = reset ? Date.parse(reset) + this.slackMs : Math.min(now + this.pollMs, cap);
+    const look = Math.min(now + this.pollMs, cap);
+    const due = reset ? Math.min(Date.parse(reset) + this.slackMs, look) : look;
     const timer = setTimeout(() => void this.tick(move.id), Math.min(Math.max(0, due - now), MAX_TIMER_MS));
     timer.unref();
     this.timers.set(move.id, timer);
@@ -327,12 +365,10 @@ export class ProviderRotation {
         return;
       }
       const now = this.now();
-      // A sign-in failure has no reset to wait for: it ends when an account can take the turn again
-      if (row.reason === AUTH_WAIT && this.deps.runtime.chooseNext(row.fromChat)?.account) {
-        await this.resume(row);
-        return;
-      }
-      const reset = row.resetsAt ?? this.learned.get(id) ?? null;
+      // An account with room ends any wait, whatever reset it began with; a sign-in failure has no
+      // other way to end
+      if (await this.goOnIfRoom(row)) return;
+      const reset = this.resetOf(row);
       if (reset) {
         if (now >= Date.parse(reset) + this.slackMs) await this.resume(row);
         else this.arm(row);
@@ -356,28 +392,97 @@ export class ProviderRotation {
     }
   }
 
-  /** Claims the wait and replays the turn on the same chat and provider. Only the claim's winner replays. */
-  private async resume(row: ProviderMove): Promise<void> {
+  /**
+   * Looks for an account with room for a waiting chat and, when one has it, goes on there. What every
+   * look, every reset and every change of an account's reading or state comes to.
+   */
+  private async goOnIfRoom(row: ProviderMove): Promise<boolean> {
+    const room = this.deps.runtime.roomFor(row.fromChat, Date.parse(row.at));
+    if (room?.account) {
+      await this.resume(row, room.account);
+      return true;
+    }
+    // Every account is still out, but one may now say it is back sooner than the wait thought
+    if (room?.waitUntil && row.reason !== AUTH_WAIT) {
+      const known = this.resetOf(row);
+      if (!known || room.waitUntil < Date.parse(known)) this.learned.set(row.id, new Date(room.waitUntil).toISOString());
+    }
+    return false;
+  }
+
+  private recheckSoon(): void {
+    if (this.recheckQueued) return;
+    this.recheckQueued = true;
+    setImmediate(() => {
+      this.recheckQueued = false;
+      void this.recheck();
+    });
+  }
+
+  /** Every open wait this process owns asks the accounts again. Never throws: it runs from an event. */
+  private async recheck(): Promise<void> {
+    for (const [chatId, id] of [...this.waits]) {
+      try {
+        const row = this.deps.db.providerMove(id);
+        if (!row || (row.state !== 'waiting' && row.state !== 'resuming') || row.fromChat !== chatId) continue;
+        if (!(await this.goOnIfRoom(row))) this.arm(row);
+      } catch {
+        // A closed database (shutting down) is not the wait's to report
+      }
+    }
+  }
+
+  /**
+   * A person's "run it now" on an open wait: the turn goes on at once on an account with room, the
+   * first the accounts' readings allow. An account the turn already died on is taken only when no
+   * other one can be: the person decided to try it. Refused when the wait is over, belongs to
+   * another process, or every account's reading says it is out.
+   */
+  async runNow(moveId: string): Promise<{ move: ProviderMove; account: string | null }> {
+    const row = this.deps.db.providerMove(moveId);
+    if (!row || (row.state !== 'waiting' && row.state !== 'resuming')) throw new RunNowRefusal('wait-over', 'this wait is already over');
+    if (!this.deps.runtime.get(row.fromChat)) throw new RunNowRefusal('not-owned', 'the chat of this wait runs in another Claudio process on this data directory');
+    const room = this.deps.runtime.roomFor(row.fromChat, Date.parse(row.at))?.account ?? this.deps.runtime.roomFor(row.fromChat, null)?.account ?? null;
+    // A chat on no account (no account store) has only its provider's reading to go by, and the person overrides it
+    if (!room && this.deps.runtime.accountOf(row.fromChat)) {
+      const back = this.deps.runtime.chooseNext(row.fromChat)?.waitUntil ?? null;
+      throw new RunNowRefusal('no-room', `every account is out of usage${back ? ` until ${new Date(back).toISOString()}` : ''}`);
+    }
+    if (!(await this.resume(row, room ?? undefined, 'person'))) {
+      const now = this.deps.db.providerMove(moveId);
+      if (!now || (now.state !== 'waiting' && now.state !== 'resuming')) return { move: now ?? row, account: null };
+      throw new RunNowRefusal('wait-over', 'the wait is being resumed already');
+    }
+    return { move: this.deps.db.providerMove(moveId) ?? row, account: room };
+  }
+
+  /**
+   * Claims the wait and replays the turn in the same chat, on `account` when one was found with room.
+   * Only the claim's winner replays. False when it did not get to replay (another claim, another
+   * process's chat).
+   */
+  private async resume(row: ProviderMove, account?: string, decidedBy: 'rotation' | 'person' = 'rotation'): Promise<boolean> {
     const run = this.deps.runtime.get(row.fromChat);
     if (!run) {
       // Not this process's chat: whoever owns it arms its own timer
       this.drop(row);
-      return;
+      return false;
     }
     const claimedAt = this.now();
     if (!this.deps.db.claimProviderMove(row.id, new Date(claimedAt).toISOString(), new Date(claimedAt + CLAIM_MS).toISOString())) {
       this.drop(row);
-      return;
+      return false;
     }
+    const from = this.deps.runtime.accountOf(run.id);
     let replayed = false;
     let reason: string | null = null;
     try {
-      const own = this.deps.replay?.(run.id) ?? null;
+      const own = this.deps.replay?.(run.id, account) ?? null;
       if (own) {
         replayed = await own;
         if (!replayed) reason = 'its work could not be resumed';
       } else {
-        replayed = await this.deps.runtime.replayLastTurn(run.id);
+        replayed = await this.deps.runtime.replayLastTurn(run.id, account);
         // A restart forgot the turn that was cut off: the session resumes with a nudge instead
         if (!replayed) {
           this.deps.runtime.send(run.id, CONTINUE_TEXT);
@@ -387,9 +492,15 @@ export class ProviderRotation {
     } catch (error) {
       reason = `its turn could not be resumed: ${error instanceof Error ? error.message : String(error)}`;
     }
-    if (replayed) this.deps.runtime.notice(run.id, 'The usage limit reset: the turn goes on.');
-    else this.deps.runtime.notice(run.id, 'The usage limit reset, but the turn could not be resumed automatically; send it again.');
+    const moved = replayed && account && from && account !== from ? { from, to: account } : null;
+    if (moved) this.record('switch', moved.from, moved.to, decidedBy === 'person' ? 'person' : 'limit', run, { wait: row.id });
+    if (!replayed) this.deps.runtime.notice(run.id, 'The usage limit reset, but the turn could not be resumed automatically; send it again.');
+    else if (decidedBy === 'person') this.deps.runtime.notice(run.id, `Run now on a person's request${account ? `, with account ${account}` : ''}: the turn goes on.`);
+    else if (account) this.deps.runtime.notice(run.id, `Account ${account} has room again: the turn goes on with it.`);
+    else this.deps.runtime.notice(run.id, 'The usage limit reset: the turn goes on.');
+    if (moved) this.deps.emit({ type: 'run.accountRotated', title: `${run.name} moved from account ${moved.from} to ${moved.to}`, ...runRef(run), from: moved.from, to: moved.to, resumed: true });
     this.end(row, replayed ? 'resumed' : 'failed', replayed ? null : reason);
+    return true;
   }
 
   private end(row: ProviderMove, end: WaitEnd, reason: string | null): boolean {

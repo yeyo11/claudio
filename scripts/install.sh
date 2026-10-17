@@ -19,7 +19,7 @@ UNINSTALL=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version) VERSION="${2:?--version needs a tag, e.g. v0.7.0}"; shift 2 ;;
+    --version) VERSION="${2:?--version needs a tag, e.g. v0.2.0}"; shift 2 ;;
     --appimage) FORMAT="appimage"; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     -h|--help) sed -n '2,14p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;

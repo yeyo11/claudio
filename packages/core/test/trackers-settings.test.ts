@@ -68,7 +68,9 @@ describe('TrackersSettingsStore', () => {
       assert.equal(core.trackersSettings.get().trackers.youtrack.enabled, false);
       assert.equal(JSON.parse(await readFile(join(config.dataDir, 'trackers.json'), 'utf8')).trackers.youtrack.enabled, false);
     } finally {
-      core.db.close();
+      // The whole Core: with only its database closed, its timers go on querying it while the file runs
+      core.shutdown();
+      await core.restored;
     }
   });
 });

@@ -57,14 +57,15 @@
   The audit log narrows by path (matched literally), method and status code or class, a tool
   permission is answered from the notification without opening the chat, and a lost token is replaced
   from the environment with `CLAUDIO_AUTH_TOKEN_RESET=1`, audited with actor `env`.
-- **Multi-account** — several accounts through claude-swap, with usage per window, manual switch,
-  proactive rotation at a usage threshold, rotate-and-resume for a chat that hits its limit, and
-  per-chat account pinning. Each account can have a config directory of its own (nothing moved or
-  copied), a project — or the chats that belong to no project — can have its own rotation policy, and
-  every account's usage is kept as a history. **Retired in #188** (multiple providers, phase 4): one
-  account per provider, the one signed in to its CLI, and a usage limit moves the work to another
-  provider, waits for the reset or starts over. See [docs/providers.md](docs/providers.md#rotation-at-a-limit) and
-  [the plan's Outcome of phase 4](docs/plans/multi-provider.md#outcome-of-phase-4).
+- **Multi-account** — several Claude accounts, each its own `CLAUDE_CONFIG_DIR` signed in once with
+  `claude auth login` (or a setup token or an API key), through `@claudio/accounts` and its
+  `claudio-accounts` CLI: usage per window from the stream and the CLI's own cache, proactive
+  rotation at a usage threshold, a turn that hits its limit replayed in the same chat on the next
+  account, waiting for the reset only when no account has quota, per-project rotation policies, a
+  switch on demand from the composer, and every account's usage kept as a history. Agentry had done
+  this through claude-swap and retired it for moving work between vendors; Claudio, a Claude-only
+  fork, rebuilt it on the CLI alone, with no claude-swap and no undocumented endpoint. See
+  [docs/accounts.md](docs/accounts.md) and [the fork's plan](docs/plans/claude-only-fork.md).
 - **claude.ai connectors** — the Docs, Gmail and Calendar connectors the CLI can see, as `claude mcp
   list` reports them, with prepared prompts that start a chat and what to do to authorise one. What
   has no CLI surface (web artifacts, claude.ai memory) is said plainly on the page.
@@ -227,6 +228,29 @@
   for All projects, and Documents and Flows widgets. Edits save at once and work with taps on a
   phone. See [docs/dashboard.md](docs/dashboard.md).
 
+- **Guards and a review gate** — deterministic `PreToolUse` hooks that hold even in
+  `bypassPermissions` (no `--no-verify`, no push, no recursive delete outside the worktree, no secret
+  written), on for orchestration workers and the flow and per project for chats; and an optional
+  review of an orchestration's integrated diff that fails closed. See [docs/guards.md](docs/guards.md)
+  and [docs/orchestrations.md](docs/orchestrations.md#the-review-gate).
+- **Lessons and instruction evals** — corrections turned into lessons a person approves before any
+  run is handed them, and evals that measure whether an agent file, a skill, a rule or `CLAUDE.md` is
+  followed. See [docs/lessons.md](docs/lessons.md) and [docs/evals.md](docs/evals.md).
+- **The decision engine** — the small judgments Claudio makes as typed questions to a provider, every
+  point off until the owner turns it on. See [docs/decision-engine.md](docs/decision-engine.md).
+- **Code hosts and trackers** — pull and merge requests through `gh` and `glab`, their checks and
+  logs, and issues imported from GitHub, GitLab and YouTrack. See [docs/code-hosts.md](docs/code-hosts.md)
+  and [docs/trackers.md](docs/trackers.md).
+- **The Claudio assistant** — a global chat that reads Claudio through its own MCP server and changes
+  something only when the person allows each change. See
+  [docs/claudio-assistant.md](docs/claudio-assistant.md).
+- **The terminal and remote access** — the person's own shell per project and per chat, off by
+  default, and Claudio served on the person's Tailscale tailnet through `tailscale serve`. See
+  [docs/terminal.md](docs/terminal.md) and [docs/tunnel.md](docs/tunnel.md).
+- **Collaborators** — a project shared read only with a group of teammates' Claudios, peer to peer
+  over iroh with no server of ours, and readable by agents when the project opts in. See
+  [docs/collaborators.md](docs/collaborators.md).
+
 ## Next
 
 ### Planned
@@ -288,8 +312,9 @@ by #101: every chat surface shows the first prompt instead. See
 ### Out of reach of the CLI
 
 - **Web artifacts and claude.ai chat memory** — no public API, no CLI command.
-- **Authorising a claude.ai connector from Claudio** — it happens in an interactive session (`/mcp`) or in
-  claude.ai's connector settings; the page links the instructions.
+- **Finishing a claude.ai connector's sign-in inside Claudio** — the Connectors page starts it and hands
+  the CLI's sign-in link to the browser; the rest happens there, in an interactive session (`/mcp`) or
+  in claude.ai's connector settings.
 - **Plugin and claude.ai connector servers in a chat's own MCP selection** — they are in no file
   Claudio can read, and `--strict-mcp-config` drops them.
 - **A time limit as a CLI flag** — the cost limit is `--max-budget-usd`; the time limit is Claudio's

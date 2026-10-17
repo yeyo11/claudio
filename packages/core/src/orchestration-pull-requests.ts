@@ -10,6 +10,7 @@ import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
+import type { ChildProcesses } from './child-processes.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { HostRateLimiter } from './hosts/rate-limit.ts';
 import { firstLine } from './hosts/redact.ts';
@@ -51,6 +52,8 @@ export interface OrchestrationPullRequestDeps {
   searchPath?: () => Promise<string>;
   /** Runs one host call; the execution layer unless a test brings its own */
   run?: HostRun;
+  /** The owner's children, which its shutdown ends; used by the default run */
+  processes?: ChildProcesses;
   /** The checks of a change request. The watcher reads through it, and a fix takes its failures from it; without one neither does */
   checks?: ChecksService;
   /** The review threads of a change request; without it nothing is addressed */
@@ -126,7 +129,7 @@ export class OrchestrationPullRequestService {
     this.sql = deps.db.connection;
     this.hostFacts = new HostFactsCache(() => this.now());
     const breaker = (this.breaker = new HostRateLimiter(this.sql));
-    this.runHost = deps.run ?? ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker }));
+    this.runHost = deps.run ?? ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker, ...(deps.processes ? { processes: deps.processes } : {}) }));
   }
 
   private now(): number {

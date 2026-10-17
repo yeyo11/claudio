@@ -10,6 +10,21 @@ import { DEFAULT_LIMITS } from '../src/guards/input.ts';
 import { SECRET_PATTERNS, findSecrets } from '../src/guards/secrets.ts';
 import { ANTHROPIC, AWS, CHAT_TOKEN, GITHUB, GITLAB, SLACK } from './guards-corpus.ts';
 
+/**
+ * The CPU time `fn` spends on this thread, user and system, in ms. The budgets below are there to
+ * catch catastrophic backtracking, which burns CPU however idle the machine is; wall-clock time
+ * also counts the time a loaded machine leaves the thread waiting for a core, and failed at 599 ms
+ * of 500 at a load average of 30 while the matching itself stayed well inside the budget.
+ * `threadCpuUsage` leaves out the other threads (GC helpers, libuv's pool), which `cpuUsage` counts.
+ */
+function cpuMs(fn: () => void): number {
+  const usage = typeof process.threadCpuUsage === 'function' ? () => process.threadCpuUsage() : () => process.cpuUsage();
+  const before = usage();
+  fn();
+  const after = usage();
+  return (after.user - before.user + (after.system - before.system)) / 1000;
+}
+
 describe('guard secret patterns', () => {
   it('matches every pattern and no near miss', () => {
     const positives: [string, string][] = [
@@ -42,27 +57,28 @@ describe('guard secret patterns', () => {
       assert.ok(findSecrets(sample).length > 0, `guard should match ${sample.slice(0, 12)}`);
     }
   });
-  it('runs every pattern over 16 MiB of adversarial input in under 500 ms', () => {
+  it('runs every pattern over 16 MiB of adversarial input in under 500 ms of CPU', () => {
     const size = 16 * 1024 * 1024;
     const inputs = [
       'a'.repeat(size), '-----BEGIN '.repeat(size / 11), 'sk-'.repeat(size / 3), 'sk-ant-api03-'.repeat(size / 13), 'ghp_'.repeat(size / 4),
       'AKIA'.repeat(size / 4), 'a-'.repeat(size / 2 - 1), 'xox'.repeat(size / 3), `${'A'.repeat(size - 1)}\n`,
     ];
     for (const text of inputs) {
-      const started = performance.now();
-      findSecrets(text);
-      const took = performance.now() - started;
-      assert.ok(took < 500, `${text.slice(0, 12)} took ${Math.round(took)} ms`);
+      const took = cpuMs(() => findSecrets(text));
+      assert.ok(took < 500, `${text.slice(0, 12)} took ${Math.round(took)} ms of CPU`);
     }
   });
-  it('decides a 16 MiB write within the budget', () => {
-    const started = performance.now();
-    const decision = decide(
-      { version: 1, mode: 'enforce', rules: ['integrity', 'secrets'], roots: ['/work'], mainCheckout: null, hooksPathDir: null, dataDir: '/d', guardDir: '/d/g', claudeConfigDirs: [], protectConfigs: [], knownSecretSha256: [], limits: { ...DEFAULT_LIMITS } },
-      { hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: '/work/a.txt', content: 'abc def '.repeat(2 * 1024 * 1024) }, cwd: '/work' },
-    );
-    assert.equal(decision.verdict, 'pass');
-    assert.ok(performance.now() - started < 500);
+  it('decides a 16 MiB write within the budget of CPU', () => {
+    const content = 'abc def '.repeat(2 * 1024 * 1024);
+    let decision: ReturnType<typeof decide> | undefined;
+    const took = cpuMs(() => {
+      decision = decide(
+        { version: 1, mode: 'enforce', rules: ['integrity', 'secrets'], roots: ['/work'], mainCheckout: null, hooksPathDir: null, dataDir: '/d', guardDir: '/d/g', claudeConfigDirs: [], protectConfigs: [], knownSecretSha256: [], limits: { ...DEFAULT_LIMITS } },
+        { hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: '/work/a.txt', content }, cwd: '/work' },
+      );
+    });
+    assert.equal(decision?.verdict, 'pass');
+    assert.ok(took < 500, `took ${Math.round(took)} ms of CPU`);
   });
 });
 

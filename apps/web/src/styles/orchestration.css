@@ -2098,6 +2098,12 @@
   flex-shrink: 0;
   color: var(--fg-2);
 }
+/* Stop waiting and Run now side by side, as at a waiting task's foot */
+.wait-line span.wait-line-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* The review gate on the verification card (docs/plans/review-gate.md). The energy border turns only while reviewers run. */
 .rg { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--radius-lg); background: var(--bg-1); font-size: var(--fs-small); color: var(--fg-2); }

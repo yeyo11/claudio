@@ -78,8 +78,9 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   try {
     await listenOn(app, opts.port ?? 8797, host, opts.portFallback ?? true);
   } catch (err) {
-    core.shutdown();
+    const ended = core.shutdown();
     await app.close();
+    await ended;
     throw err;
   }
 
@@ -113,8 +114,11 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     port,
     close() {
       closing ??= (async () => {
-        core.shutdown();
+        const ended = core.shutdown();
         await app.close();
+        // The process exits next, and a probe still running would outlive it and keep writing the
+        // config home it was started with
+        await ended;
       })();
       return closing;
     },

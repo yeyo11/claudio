@@ -53,6 +53,9 @@ async function rig(opts: { lite?: (ids: Record<string, string>) => string[] } = 
     events,
     ids: { a: a.id, b: b.id },
     dirs,
+    /** A prompt whose turn works until `release()`: the switch's own awaits (the model lists it reads) can outlast any fixed nap. */
+    held: `FAKE-WAIT-FOR ${join(config.dataDir, 'release-turn')}`,
+    release: () => writeFileSync(join(config.dataDir, 'release-turn'), ''),
     spawns: (): Spawn[] => (existsSync(spawns) ? readFileSync(spawns, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Spawn) : []),
     close: () => {
       chats.stopAll();
@@ -142,7 +145,7 @@ test('an idle chat with a live process has it ended between turns, and the next 
 test('a working chat queues the switch, applies it when the result arrives, and the next message runs on it', async () => {
   const r = await rig();
   try {
-    const chat = r.chats.start({ prompt: 'FAKE-SLEEP 600', name: 'busy', keepAlive: true });
+    const chat = r.chats.start({ prompt: r.held, name: 'busy', keepAlive: true });
     await waitFor(() => r.chats.get(chat.id)?.status === 'busy');
     const queued = await r.chats.switchAccount(chat.id, r.ids.a, 'person');
     assert.equal(queued.pending, true);
@@ -150,6 +153,7 @@ test('a working chat queues the switch, applies it when the result arrives, and 
     assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID, 'the turn goes on where it is');
     assert.equal(r.db.rotationEvents().length, 0, 'nothing is recorded until it applies');
 
+    r.release();
     await r.chats.waitForResult(chat.id);
     await waitFor(() => r.chats.accountOf(chat.id) === r.ids.a && !r.chats.get(chat.id)?.pendingAccount);
     assert.equal(r.spawns().length, 1, 'the turn was never interrupted or replayed');
@@ -168,7 +172,7 @@ test('a working chat queues the switch, applies it when the result arrives, and 
 test('a pending switch is cancelled by naming the current account, and a second request for it changes nothing', async () => {
   const r = await rig();
   try {
-    const chat = r.chats.start({ prompt: 'FAKE-SLEEP 500', name: 'busy', keepAlive: false });
+    const chat = r.chats.start({ prompt: r.held, name: 'busy', keepAlive: false });
     await waitFor(() => r.chats.get(chat.id)?.status === 'busy');
     await r.chats.switchAccount(chat.id, r.ids.a, 'person');
     const again = await r.chats.switchAccount(chat.id, r.ids.a, 'person');
@@ -178,6 +182,7 @@ test('a pending switch is cancelled by naming the current account, and a second 
     assert.equal(cancelled.pending, false);
     assert.equal(cancelled.chat.pendingAccount, undefined);
 
+    r.release();
     await r.chats.waitForResult(chat.id);
     await r.chats.exited(chat.id);
     assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID);

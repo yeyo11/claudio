@@ -2,8 +2,8 @@
 
 ## Read this before you deploy anything
 
-Claudio can now guard the API, but it starts with the guard **off**, and turning it on is your job.
-What is and is not protected:
+Claudio can now guard the API, but it starts with the guard **off**, and turning it on is your job:
+[docs/securing.md](docs/securing.md) says how. What is and is not protected:
 
 **On by default, whether or not the guard is on:**
 
@@ -114,9 +114,10 @@ What is and is not protected:
   one failed-authentication wait, kept apart from loopback: a guess from the tailnet can make your
   phone wait for up to a minute, never the desk. In a container, the tunnel would go around the
   published port, the proxy and the Ingress, which is why it is off there by default.
-- **The token can travel in a query string** on the five GETs a browser makes without headers
-  (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export` and
-  `/api/projects/:id/export`), so a proxy's access log may record it.
+- **The token can travel in a query string** on the six GETs a browser makes without headers
+  (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export`,
+  `/api/projects/:id/export` and `/api/eval-runs/:runId/export`), so a proxy's access log may record
+  it.
 - **There is one credential.** Everyone who holds the token is the same user; nothing isolates one
   person's chats from another's. OIDC validates a JWT, it does not sign anyone in.
 - **A running chat's token is readable by your own user.** Another process on the machine running as
@@ -128,7 +129,7 @@ What is and is not protected:
   without prompting. The container is the sandbox.
 - **Account credentials live in the data volume**, and the API can write them. Claudio's own are
   sealed in `secrets.json`, but its key sits beside them in `secret.key` unless `CLAUDIO_SECRET_KEY`
-  comes from elsewhere, and the vendors' CLIs (gh, glab, Codex, tailscaled) keep theirs in plain
+  comes from elsewhere, and the vendors' CLIs (gh, glab, tailscaled) keep theirs in plain
   text there where no keyring exists ([docs/security-model.md](docs/security-model.md)).
 - **Per-chat MCP config files hold a server's real `env` and `headers`.** They are mode 600 in a
   mode 700 directory of the data volume.

@@ -55,7 +55,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('rebuilt in 12ms')`, { label: 'the panel back after a reload' });
 
     await page.key('Escape');
-    check(!(await page.eval(`return document.querySelector('[role=dialog]') !== null`)), 'Escape closes the panel');
+    // Closing is a navigation (the panel is the address's `?detail=`), which React renders as a
+    // transition: on a busy machine it lands after the key's pause, so the panel is waited for
+    await page.waitFor(`return document.querySelector('[role=dialog]') === null`, { label: 'Escape closes the panel' });
     check(!(await page.eval('return location.search')).includes('detail='), 'closing drops it from the address');
 
     // The subagent's prompt, result and transcript, and its task one click away

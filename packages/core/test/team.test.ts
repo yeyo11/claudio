@@ -17,7 +17,9 @@ async function withCore(fn: (core: Core) => Promise<void>): Promise<void> {
   try {
     await fn(core);
   } finally {
-    core.db.close();
+    // The whole Core: with only its database closed, its timers go on querying it while the file runs
+    core.shutdown();
+    await core.restored;
   }
 }
 

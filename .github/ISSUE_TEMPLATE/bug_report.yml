@@ -21,9 +21,9 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Start with `docker compose up`
-        2. POST /api/runs with …
-        3. The run stays `starting` forever
+        1. Start the desktop app (or `docker compose up`)
+        2. Start a chat with …
+        3. The chat stays `Working` forever
     validations:
       required: true
 
@@ -32,9 +32,12 @@ body:
     attributes:
       label: How are you running it
       options:
+        - Desktop app (.deb)
+        - Desktop app (AppImage)
+        - Docker (docker run with ghcr.io/yeyo11/claudio)
         - Docker (docker compose)
+        - Kubernetes (Helm chart)
         - Local dev (pnpm dev)
-        - Docker image, custom compose
     validations:
       required: true
 
@@ -50,6 +53,7 @@ body:
     id: claudio-version
     attributes:
       label: Claudio version or commit
+      description: "Settings → Account → Updates, the `current` of `GET /api/system/release`, or the commit."
     validations:
       required: true
 
@@ -57,5 +61,5 @@ body:
     id: logs
     attributes:
       label: Relevant logs
-      description: API logs, or the run's events. Redact tokens before pasting.
+      description: API logs, or the chat's events. Redact tokens before pasting.
       render: shell

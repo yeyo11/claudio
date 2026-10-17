@@ -183,7 +183,7 @@ prompt and the directory. The prompt's first line is `KEY · title`, since a cha
 first line of its first prompt and those are the person's own words in whatever language they wrote
 them; the instructions for Claude after it stay in English (orchestration 6, gap 13).
 
-The chat runs in the item's **own worktree**, on branch `task/<key>` in lower case, under
+The chat runs in the item's **own worktree**, on branch `claudio-task/<key>` in lower case, under
 `<main checkout>/.claude/worktrees/task-<key>`, where the CLI keeps the worktrees it makes. It is made
 the first time, locked so `git worktree prune` leaves it alone, and found again by every later chat
 on the item. A project that is not a git repository, or has no commit to branch from yet, is worked
@@ -195,7 +195,7 @@ on in its directory.
   checkout, not its git directory under the superproject's `.git/modules/` (`mainCheckout`). An
   orchestration's `--worktree` stays where `mainTopLevel` puts it, which is where the CLI looks.
 - **Never a node's worktree.** "Retry clean" on a failed node force-removes its worktree and branch,
-  so "Work on it" never works there: it makes the item's own `task/<key>` one instead, and nothing
+  so "Work on it" never works there: it makes the item's own `claudio-task/<key>` one instead, and nothing
   removes a worktree an item holds.
 - **Deleted by hand**: git still holds the worktree, locked, and would refuse to check its branch out
   again. That one record is removed (`git worktree remove --force --force`, which only drops the
@@ -203,7 +203,7 @@ on in its directory.
   commits.
 - **A plain directory** at that path, which git does not list as a worktree, is refused with 409:
   a chat running there would reach the main checkout with its git commands.
-- **The branch checked out elsewhere** (another worktree holds `task/<key>`) is a 409 that says
+- **The branch checked out elsewhere** (another worktree holds `claudio-task/<key>`) is a 409 that says
   where, not git's own error as a 400.
 - **Two projects of one repository** (its main checkout and a folder of it, say) can have the same
   key. The lock's reason names the project that made the worktree, and another project asking for
@@ -278,9 +278,9 @@ else. Otherwise it answers 202 at once, with `pullRequest.phase: 'preparing'`, a
 worktree:
 
 1. commits whatever QA verified and nobody committed, as `chore(<key>): keep the work QA verified`;
-2. fetches the default branch and merges `origin/<default>` into `task/<key>` (a merge, not a
+2. fetches the default branch and merges `origin/<default>` into `claudio-task/<key>` (a merge, not a
    rebase: the PR is squash-merged anyway, and what was pushed stays valid);
-3. pushes `task/<key>` (`git push -u origin`);
+3. pushes `claudio-task/<key>` (`git push -u origin`);
 4. opens the PR with `gh pr create --base <default> --body-file -`, and reads its number and URL back
    with `gh pr view`. The title is `<type>: <title> (<KEY>)`, the type the item's first Conventional
    label or else `fix` for a bug and `feat` for the rest. The body is the description, each criterion
@@ -787,7 +787,7 @@ as before. See [claudio-assistant.md](claudio-assistant.md).
 
 ## Routes
 
-The README's [Work items](../README.md#work-items) table lists every route, with the filters (`status`,
+The [Work items](rest-api.md#work-items) table of the REST API lists every route, with the filters (`status`,
 `type`, `priority`, `labels`, `assignee`, `epicId`, `milestoneId` and `q` over title, description and
 key). The OpenAPI descriptions in `apps/api/src/openapi/routes.ts` carry the details of each refusal.
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 import test from 'node:test';
 import { processTable } from '../src/processes.ts';
@@ -10,10 +10,43 @@ const procReadable = PeerCheck.prototype.available.call({}) === 'on';
 const linux = { skip: procReadable ? false : '/proc is not readable here' };
 
 const children: ChildProcess[] = [];
+/** Shells spawned as the leaders of their own process group, so killing the group takes their children too */
+const groups: ChildProcess[] = [];
 const servers: Server[] = [];
-test.after(() => {
+const ports: number[] = [];
+
+/** The clients of this run still alive: their command line is CLIENT, and their port one of this run's */
+function leftClients(): string[] {
+  const left: string[] = [];
+  for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name))) {
+    let argv: string[];
+    try {
+      argv = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0');
+    } catch {
+      continue;
+    }
+    const at = argv.indexOf(CLIENT);
+    if (at >= 0 && ports.includes(Number(argv[at + 1]))) left.push(`${pid} ${argv.join(' ')}`);
+  }
+  return left;
+}
+
+test.after(async () => {
   for (const child of children) child.kill('SIGKILL');
+  for (const group of groups) {
+    try {
+      if (group.pid) process.kill(-group.pid, 'SIGKILL');
+    } catch {
+      // The group is already gone
+    }
+  }
   for (const server of servers) server.close();
+  if (!procReadable) return;
+  // A grandchild the shell left is reparented, and nothing else would ever end it: 140 of them
+  // once piled up on a machine from runs of this file
+  const end = Date.now() + 5000;
+  while (leftClients().length > 0 && Date.now() < end) await new Promise((done) => setTimeout(done, 25));
+  assert.deepEqual(leftClients(), [], 'every client process this file started has ended');
 });
 
 /** A listening socket that hands each accepted connection to the test */
@@ -32,11 +65,13 @@ async function listen(host: string): Promise<{ port: number; next: () => Promise
   });
   const address = server.address();
   assert.ok(address && typeof address === 'object');
+  ports.push(address.port);
   return { port: address.port, next: () => new Promise((resolve) => (ready.length > 0 ? resolve(ready.shift() as Socket) : waiting.push(resolve))) };
 }
 
-/** What a client process holds open: it connects and waits */
-const CLIENT = "const s = require('node:net').connect(Number(process.argv[1]), process.argv[2]); s.on('error', () => process.exit(1)); setInterval(() => undefined, 1000);";
+/** What a client process holds open: it connects and waits, and ends once the connection does */
+const CLIENT =
+  "const s = require('node:net').connect(Number(process.argv[1]), process.argv[2]); s.on('error', () => process.exit(1)); s.on('close', () => process.exit(0)); setInterval(() => undefined, 1000);";
 
 function client(port: number, host: string, env: NodeJS.ProcessEnv): ChildProcess {
   const child = spawn(process.execPath, ['-e', CLIENT, String(port), host], { env: { ...process.env, ...env }, stdio: 'ignore' });
@@ -52,7 +87,7 @@ async function verdict(host: string, via: (port: number) => void, bind = host, c
   // Let the client's connect settle, and the process table with it
   await new Promise((done) => setTimeout(done, 100));
   const check = chats ? new PeerCheck({ table: processTable, chatPids: chats }) : new PeerCheck();
-  const found = check.check({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  const found = await check.verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
   socket.destroy();
   return found;
 }
@@ -66,9 +101,9 @@ test('a connection from a descendant of a chat\'s process is an agent even if it
     const parent = spawn(
       '/bin/sh',
       ['-c', `env -u CLAUDIO_CHAT_ID "${process.execPath}" -e "${CLIENT}" ${String(port)} 127.0.0.1 & wait`],
-      { env: { ...process.env, CLAUDIO_CHAT_ID: 'chat-2' }, stdio: 'ignore' },
+      { env: { ...process.env, CLAUDIO_CHAT_ID: 'chat-2' }, stdio: 'ignore', detached: true },
     );
-    children.push(parent);
+    groups.push(parent);
   });
   assert.equal(found, 'agent');
 });
@@ -79,9 +114,9 @@ test('a connection from a process Claudio started for an agent (CLAUDIO_AGENT_RU
     const parent = spawn(
       '/bin/sh',
       ['-c', `env -u CLAUDIO_AGENT_RUN "${process.execPath}" -e "${CLIENT}" ${String(port)} 127.0.0.1 & wait`],
-      { env: { ...process.env, CLAUDIO_AGENT_RUN: 'orch-2' }, stdio: 'ignore' },
+      { env: { ...process.env, CLAUDIO_AGENT_RUN: 'orch-2' }, stdio: 'ignore', detached: true },
     );
-    children.push(parent);
+    groups.push(parent);
   });
   assert.equal(found, 'agent');
 });
@@ -111,9 +146,9 @@ test('IPv6 loopback and a v4-mapped peer are found in the right table', linux, a
   assert.equal(await verdict('127.0.0.1', (port) => client(port, '127.0.0.1', { CLAUDIO_CHAT_ID: 'chat-5' }), '::'), 'agent');
 });
 
-test('a peer that cannot be found is unknown, never "not an agent"', linux, () => {
-  assert.equal(new PeerCheck().check({ address: '127.0.0.1', port: 1, serverPort: 2 }), 'unknown');
-  assert.equal(new PeerCheck().check({ address: '::1', port: 1, serverPort: 2 }), 'unknown');
+test('a peer that cannot be found is unknown, never "not an agent"', linux, async () => {
+  assert.equal(await new PeerCheck().verdict({ address: '127.0.0.1', port: 1, serverPort: 2 }), 'unknown');
+  assert.equal(await new PeerCheck().verdict({ address: '::1', port: 1, serverPort: 2 }), 'unknown');
 });
 
 test('a chat process that ended and waits to be reaped does not make the answer unknown', linux, async () => {
@@ -137,7 +172,7 @@ test('a chat process that ended and waits to be reaped does not make the answer 
   }
   assert.equal(state(), 'Z');
   const check = new PeerCheck({ table: processTable, chatPids: () => [dead.pid as number] });
-  const found = check.check({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  const found = await check.verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
   socket.destroy();
   assert.equal(found, 'not-agent');
 });

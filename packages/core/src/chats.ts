@@ -1201,7 +1201,10 @@ export class ChatManager extends EventEmitter {
     return new Promise((resolvePromise) => {
       const onEvent = (event: RunEvent) => {
         if (event.kind === 'result' && chat.lastResult && chat.lastResult !== before) finish(chat.lastResult);
-        else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '') && !chat.respawnQueued) {
+        // A process stopped for a limit replay (`carrying`) is replaced at once: its end is not the
+        // chat's, and the replayed turn's result is the next one (the flake of 2026-10: a worker whose
+        // limited process was still exiting ended its task with the replay's stop)
+        else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '') && !chat.respawnQueued && !chat.carrying) {
           finish(
             chat.lastResult && chat.lastResult !== before ? chat.lastResult : ChatManager.ended(chat, event.status ?? 'ended'),
           );
@@ -1444,6 +1447,34 @@ export class ChatManager extends EventEmitter {
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
     const failedOn = new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)]);
     return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn: [...failedOn] });
+  }
+
+  /**
+   * What `choose` makes of the accounts for a chat that waits at its limit. As `chooseNext`, except
+   * that an account the turn died on is a candidate again once a reading taken after `since` (epoch
+   * ms, when the wait began) says it is not out: a failure says the account was out then, and a
+   * newer reading knows better (R10: the CLI's own login restarted its window early while twelve
+   * tasks waited for another account's reset). With `since` null every failure is passed over, which
+   * is a person asking to run now: only the readings decide. Null for a chat that runs on none.
+   */
+  roomFor(id: string, since: number | null): Choice | null {
+    const chat = this.chats.get(id);
+    const store = this.accounts;
+    if (!chat || !store || !chat.account) return null;
+    const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
+    const newer = (account: string): boolean => {
+      let limit;
+      try {
+        limit = store.get(account).limits;
+      } catch {
+        return false;
+      }
+      return !!limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > (since ?? 0);
+    };
+    const failedOn = since === null ? [] : [...new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)])].filter((a) => !newer(a));
+    // Overriding the failures, staying on the account the turn died on last is no reason of its own:
+    // the order (or the most room) decides
+    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn });
   }
 
   /** Reads the model lists the account choice needs and does not have yet (no turn, no tokens). */

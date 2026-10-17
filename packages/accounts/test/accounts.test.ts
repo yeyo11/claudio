@@ -238,6 +238,27 @@ describe('readings', () => {
     assert.equal(await s.readCachedUsage('default'), false);
     assert.equal(s.get('default').limits?.utilization, 0.1);
   });
+
+  it('tells its listeners when a reading or a stored state changes, and not for a reading it kept out', async () => {
+    const s = store();
+    let heard = 0;
+    const off = s.onChange(() => void heard++);
+    const at = Date.now() + 60_000;
+    const fresh = readingFromEvent({ status: 'allowed', rateLimitType: 'five_hour', unifiedWindows: { five_hour: { utilization: 0, resetsAt: sec(at) + 3600 } } }, at);
+    const stale = readingFromEvent({ status: 'allowed', rateLimitType: 'five_hour', unifiedWindows: { five_hour: { utilization: 0.5, resetsAt: sec(at) + 3600 } } }, at - 1000);
+    assert.ok(fresh && stale);
+    assert.equal(await s.observe('default', fresh), true);
+    assert.equal(heard, 1, 'a new reading is a change');
+    assert.equal(await s.observe('default', stale), false);
+    assert.equal(heard, 1, 'an older reading that was not kept is none');
+    await s.markAuthFailed('default');
+    assert.equal(heard, 2, 'a sign-in marked is a change');
+    await s.clearAuthFailed('default');
+    assert.equal(heard, 3, 'and so is one cleared: the account can take work again');
+    off();
+    await s.setEnabled('default', true);
+    assert.equal(heard, 3, 'an unsubscribed listener hears nothing');
+  });
 });
 
 describe('choose', () => {

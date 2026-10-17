@@ -271,6 +271,9 @@
     "why": "Llegó a su límite de uso. Conserva su sitio y sigue sola cuando se restablezca.",
     "stop": "Dejar de esperar",
     "stopFailed": "No se ha podido dejar de esperar",
+    "runNow": "Ejecutar ahora",
+    "runNowTitle": "Enviar el turno ya, en la primera cuenta con margen, sin esperar a que se restablezca el límite",
+    "runNowFailed": "No se ha podido ejecutar ahora",
     "badge": "esperando"
   },
   "notificationText": {
@@ -301,7 +304,7 @@
     "conflictResolving_other": "{{count}} archivos en {{branch}}.",
     "fromSubagent": "Lo ha iniciado un subagente.",
     "supervisorProposed": "{{name}}: el supervisor propone una pista",
-    "spendWarnTitle": "Gasto de hoy al 75 % del tope",
+    "spendWarnTitle": "Gasto de hoy al {{percent}} del tope",
     "spendExhaustedTitle": "Tope de gasto diario alcanzado: el trabajo automático espera hasta las 00:00",
     "spendBody": "{{spent}} de {{cap}}, según el CLI.",
     "joinRequest": "{{name}} pide unirse a {{group}}",

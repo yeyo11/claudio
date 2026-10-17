@@ -39,6 +39,7 @@ import { useListParams } from '../lib/list-params';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ALL_PROJECTS, inProject, useProjectScope } from '../lib/project-scope';
 import { layerTasks, liveTask, orchestrationProgress } from '../lib/orchestration-steps';
+import { canResume } from '../lib/orchestration-board';
 import { cleanTask, draftOfVerification, verificationOf, type VerificationDraft } from '../lib/orchestration-v2';
 
 type Mode = 'auto' | 'manual';
@@ -572,8 +573,8 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
   const blocked = orch.tasks.filter((t) => t.status === 'blocked').length;
   const failed = orch.tasks.filter((t) => t.status === 'failed').length;
   const running = orch.status === 'running';
-  // A waiting graph is not resumed: its failed tasks are decided on, one by one, on its board
-  const resumable = !running && orch.status !== 'waiting' && completed < orch.tasks.length;
+  // A waiting graph is decided on from its board first; it can be resumed too, from its page
+  const resumable = canResume(orch) && orch.status !== 'waiting';
   const stage = currentStage(orch);
   const href = `/orchestration/${orch.id}`;
   // The first failed task's stage, so "See failures" opens on it

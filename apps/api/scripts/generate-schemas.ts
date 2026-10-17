@@ -78,7 +78,7 @@ const ROOT_TYPES = [
   // The person's own terminal
   'TerminalStatus', 'Terminal', 'CreateTerminalRequest', 'UpdateTerminalSettingsRequest', 'TerminalSettings', 'TerminalTicket', 'TerminalClientFrame', 'TerminalServerFrame', 'TerminalHistoryPage', 'TerminalChangedEvent',
   // Providers
-  'ProviderStatus', 'ProvidersSettings', 'ProviderMove',
+  'ProviderStatus', 'ProvidersSettings', 'ProviderMove', 'RunLimitWaitNowResponse', 'LimitWaitRunNowRefusalCode',
   // Several Claude accounts
   'Account', 'AccountsSettings', 'RotationPolicy', 'RotationPolicyRequest', 'UsageHistoryPoint', 'RotationEvent', 'AddLoginAccountRequest', 'AddTokenAccountRequest', 'UpdateAccountRequest', 'AccountLoginSession', 'AccountLoginCodeRequest',
   // Code hosts

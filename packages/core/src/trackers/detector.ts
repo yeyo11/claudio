@@ -1,7 +1,8 @@
 import { tmpdir } from 'node:os';
 import type { CodeHostId, CodeHostStatus, TrackerId, TrackerReason, TrackerState, TrackerStatus, TrackersSettings } from '@claudio/shared';
 import type { CodeHostAdapter, HostCall } from '../hosts/code-host.ts';
-import { defaultHostRun, hostSearchPath, probeHostVersion, type HostRun, type HostRunWhere } from '../hosts/detector.ts';
+import { hostRunIn, hostSearchPath, probeHostVersion, type HostRun, type HostRunWhere } from '../hosts/detector.ts';
+import type { ChildProcesses } from '../child-processes.ts';
 import { runHostCall } from '../hosts/exec.ts';
 import { parseJson } from '../hosts/json.ts';
 import { resolveCommand } from '../providers/path.ts';
@@ -13,7 +14,10 @@ import type { YoutrackCredentials } from './youtrack/credentials.ts';
 /** Runs a call of a tracker with a CLI of its own, with the credentials Claudio keeps for it in the child's environment */
 export type OwnTrackerRun = (call: HostCall, where: HostRunWhere, secrets: Record<string, string>) => Promise<import('../hosts/exec.ts').HostResult>;
 
-const defaultOwnRun: OwnTrackerRun = (call, where, secrets) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, secretEnv: secrets });
+const ownRunIn =
+  (processes?: ChildProcesses): OwnTrackerRun =>
+  (call, where, secrets) =>
+    runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, secretEnv: secrets, ...(processes ? { processes } : {}) });
 
 /** The environment `youtrack-app` reads its instance and token from (recorded); `--host`/`--token` would put them in argv */
 export function youtrackSecrets(credentials: YoutrackCredentials): Record<string, string> {
@@ -35,6 +39,8 @@ export interface TrackerDetectorDeps {
   /** What the person chose; null (or a missing entry) means every tracker is on, using its host's binary */
   settings?: () => TrackersSettings | null;
   run?: HostRun;
+  /** The owner's children, which its shutdown ends; used by the default run */
+  processes?: ChildProcesses;
   /** The YouTrack instance and token Claudio keeps; absent where no tracker keeps credentials */
   youtrackCredentials?: () => YoutrackCredentials | null;
   /** Runs `youtrack-app` with its credentials; the execution layer by default */
@@ -66,7 +72,7 @@ export class TrackerDetector {
 
   constructor(private readonly deps: TrackerDetectorDeps) {
     this.registry = deps.registry ?? new TrackerRegistry();
-    this.run = deps.run ?? defaultHostRun;
+    this.run = deps.run ?? hostRunIn(deps.processes);
     this.env = deps.env ?? process.env;
     this.home = deps.home ?? (this.env.HOME ?? '');
     this.now = deps.now ?? Date.now;
@@ -170,7 +176,7 @@ export class TrackerDetector {
     const binaryPath = await resolveCommand(chosen ?? manifest.cli, searchPath);
     if (!binaryPath) return { state: 'not-installed', reason: null };
     const where: HostRunWhere = { binaryPath, cwd: tmpdir(), env: { ...this.env, PATH: searchPath } };
-    const run = this.deps.ownRun ?? defaultOwnRun;
+    const run = this.deps.ownRun ?? ownRunIn(this.deps.processes);
     const version = await run({ cli: manifest.cli as HostCall['cli'], args: ['--version'], kind: 'read', class: 'probe', host: null }, where, {});
     if (version.reason === 'timeout' || version.exitCode === null) return { binaryPath, state: 'unknown', reason: 'timeout' };
     const parsed = version.exitCode === 0 ? VERSION.exec(version.stdout.trim()) : null;

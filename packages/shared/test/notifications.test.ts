@@ -313,7 +313,7 @@ test('the daily spend cap raises two limit drafts, the second a high one', () =>
 
   const warn = only(notificationsFor(alert('warn', 15)));
   assert.deepEqual([warn.kind, warn.priority, warn.tone], ['limit', 'normal', 'warn']);
-  assert.equal(warn.title, "Today's spend is at 75 % of the cap");
+  assert.equal(warn.title, "Today's spend is at 75% of the cap");
   assert.equal(warn.body, '$15.00 of $20.00, as the CLI reported it.');
   assert.equal(warn.href, '/settings?tab=security');
 

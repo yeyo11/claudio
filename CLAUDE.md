@@ -35,7 +35,7 @@ pnpm build && pnpm e2e
 
 After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (CI fails if they
 drift): `pnpm --filter @claudio/api openapi:schemas`. Every new route needs a summary and a tag in
-`apps/api/src/openapi/routes.ts`, and a row in the README's REST API tables.
+`apps/api/src/openapi/routes.ts`, and a row in `docs/rest-api.md` (a test checks both).
 
 A chat started by Claudio has `CLAUDIO_API_URL` (and `CLAUDIO_CHAT_ID`) in its environment. Call
 the API there, never on a guessed port, with `Authorization: Bearer $CLAUDIO_API_TOKEN` when that

@@ -26924,6 +26924,35 @@
     ],
     "description": "Who chose a move: the person, the settings, or a decision point."
   },
+  "RunLimitWaitNowResponse": {
+    "type": "object",
+    "properties": {
+      "move": {
+        "$ref": "#/components/schemas/ProviderMove"
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null when the chat runs on no account of Claudio's"
+      }
+    },
+    "required": [
+      "move",
+      "account"
+    ],
+    "description": "What a person's \"run it now\" did: the wait, now closed `resumed`, and the account the turn went on with."
+  },
+  "LimitWaitRunNowRefusalCode": {
+    "type": "string",
+    "enum": [
+      "wait-over",
+      "not-owned",
+      "no-room"
+    ],
+    "description": "Why `POST /limits/waits/:id/run-now` was refused (409): the wait is over (`wait-over`), its chat runs in another Claudio process on the same data directory (`not-owned`), or every account's reading says it is out (`no-room`)."
+  },
   "Account": {
     "type": "object",
     "properties": {

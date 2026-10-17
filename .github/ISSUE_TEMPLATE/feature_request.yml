@@ -24,4 +24,4 @@ body:
       options:
         - label: I checked ROADMAP.md and this is not already planned.
           required: true
-        - label: This can be done through the Claude Code CLI (Claudio never bypasses it).
+        - label: This can be done through the Claude Code CLI, which is how Claudio reaches Claude Code ([docs/cli-surfaces.md](https://github.com/yeyo11/claudio/blob/main/docs/cli-surfaces.md)).

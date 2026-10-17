@@ -8,6 +8,7 @@ import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResul
 import { childEnv } from '../child-env.ts';
 import type { ClaudioEventInput } from '../events.ts';
 import { buildHostEnv } from '../hosts/env.ts';
+import type { ChildProcesses } from '../child-processes.ts';
 import { runHostCall, type HostCall, type HostResult, type RunOptions } from '../hosts/exec.ts';
 import { killGroup } from '../processes.ts';
 import type { SecretVault } from '../secret-vault.ts';
@@ -62,6 +63,8 @@ export interface LoginServiceDeps {
   baseEnv?: NodeJS.ProcessEnv;
   /** Runs a call of gh or glab; the execution layer by default */
   runHost?: (call: HostCall, options: RunOptions) => Promise<HostResult>;
+  /** The owner's children, which its shutdown ends; handed to every host call */
+  processes?: ChildProcesses;
   now?: () => number;
   lifetimeMs?: number;
   commandTimeoutMs?: number;
@@ -334,7 +337,7 @@ export class LoginService {
       const run = this.deps.runHost ?? runHostCall;
       const result = await run(
         { cli: tool, args, ...(input !== null ? { input } : {}), kind: 'write', class: 'write', host },
-        { binaryPath: binary, cwd: tmpdir(), baseEnv: this.deps.baseEnv ?? process.env, timeoutMs: this.commandTimeoutMs, killGraceMs: this.killGraceMs },
+        { binaryPath: binary, cwd: tmpdir(), baseEnv: this.deps.baseEnv ?? process.env, timeoutMs: this.commandTimeoutMs, killGraceMs: this.killGraceMs, ...(this.deps.processes ? { processes: this.deps.processes } : {}) },
       );
       if (result.reason === 'cli-missing') return { exitCode: null, error: 'cli-missing' };
       if (result.reason === 'timeout') return { exitCode: null, error: 'timeout' };

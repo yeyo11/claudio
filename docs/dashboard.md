@@ -70,7 +70,7 @@ the registry), after a skeleton while it loads. The layout comes from the API, t
 
 `PUT` and `DELETE` are refused to a chat's token with 403 (`apps/api/src/security.ts`): an agent
 does not rearrange a person's Home. Both emit `dashboard.layout`. The routes are in the Configuration
-tag of the OpenAPI document and in the README's REST tables.
+tag of the OpenAPI document and in the REST tables of [rest-api.md](rest-api.md).
 
 ## The two widgets
 

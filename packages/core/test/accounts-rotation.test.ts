@@ -11,7 +11,7 @@ import { Db } from '../src/db.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { defaultProvidersSettings, defaultRotationSettings } from '../src/providers/settings.ts';
-import { ProviderRotation } from '../src/rotation.ts';
+import { ProviderRotation, RunNowRefusal } from '../src/rotation.ts';
 import { tempConfig } from './helpers.ts';
 
 // Several accounts over the fake Claude: the account a process runs on, the limit path (move to
@@ -28,7 +28,7 @@ interface Spawn {
   authToken: string | null;
 }
 
-async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; expired?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[] } = {}) {
+async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; expired?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[]; resetsIn?: number; pollMs?: number } = {}) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const store = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: FAKE_CLAUDE });
@@ -52,6 +52,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
   set('FAKE_CLAUDE_LIMITED_DIRS', (opts.limited?.(dirs) ?? []).join(','));
   set('FAKE_CLAUDE_EXPIRED_DIRS', (opts.expired?.(dirs) ?? []).join(','));
   set('FAKE_CLAUDE_LITE_DIRS', (opts.lite?.(dirs) ?? []).join(','));
+  set('FAKE_CLAUDE_LIMIT_RESETS_IN', opts.resetsIn ? String(opts.resetsIn) : '');
   const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
   chats.accounts = store;
   const settings = defaultProvidersSettings(['claude-code']);
@@ -68,7 +69,8 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
     projectOf: () => null,
     emit: (event) => events.push(event),
     ...(opts.work ? { work: () => opts.work ?? null } : {}),
-    pollMs: 20,
+    accountsChanged: (listener) => store.onChange(listener),
+    pollMs: opts.pollMs ?? 20,
     slackMs: 0,
   });
   rotation.start();
@@ -94,6 +96,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
       delete process.env.FAKE_CLAUDE_LIMITED_DIRS;
       delete process.env.FAKE_CLAUDE_LITE_DIRS;
       delete process.env.FAKE_CLAUDE_EXPIRED_DIRS;
+      delete process.env.FAKE_CLAUDE_LIMIT_RESETS_IN;
     },
   };
 }
@@ -351,6 +354,117 @@ test('with every account signed out, automated work waits, and goes on once an a
     await r.store.clearAuthFailed(r.ids.c);
     await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed');
     assert.equal(r.chats.accountOf(chat.id), r.ids.c);
+  } finally {
+    r.close();
+  }
+});
+
+// R10 (2026-10-16): every account was out at 12:44 UTC and the waits took the earliest reset they
+// knew (13:10), while the CLI's own login restarted its window around 12:50 with 0 % used. Twelve
+// tasks kept waiting for a reset that was not the first way back.
+const sec = (ms: number): number => Math.floor(ms / 1000);
+const roomy = (at: number) => readingFromEvent({ status: 'allowed', rateLimitType: 'five_hour', unifiedWindows: { five_hour: { utilization: 0, resetsAt: sec(at) + 5 * 3600 } } }, at);
+
+test('a wait goes on with the first account a new reading gives room, not at the reset it waited for (R10)', async () => {
+  // A long poll: only the new reading can end this wait before the hour is out
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    assert.ok(move?.resetsAt && Date.parse(move.resetsAt) > Date.now() + 50 * 60_000, 'every account said it is out for about an hour');
+    assert.equal(r.spawns().length, 4, 'every account was tried once before it waited');
+
+    // The CLI's own login restarts early, and its cache (or another chat's stream) says so
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = [r.dirs[r.ids.a], r.dirs[r.ids.b], r.dirs[r.ids.c]].join(',');
+    const reading = roomy(Date.now());
+    assert.ok(reading);
+    await r.chats.noteAccountReading(DEFAULT_ID, reading);
+
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed');
+    await waitFor(() => r.spawns().length === 5 && r.chats.get(chat.id)?.status !== 'busy' && r.chats.get(chat.id)?.status !== 'starting');
+    assert.equal(r.spawns()[4]?.dir, r.dirs[DEFAULT_ID], 'the turn went on with the account that had room');
+    assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID);
+    assert.equal(r.chats.atLimit(chat.id), false, 'and went through');
+  } finally {
+    r.close();
+  }
+});
+
+test('a wait for a reset goes on with an account signed in again while the others are still out (R10)', async () => {
+  // Alpha's sign-in expired; the CLI's own login, beta and gamma are out for an hour
+  const r = await rig({ work, limited: (d) => Object.values(d).filter((_, i) => i !== 1), expired: (d) => [Object.values(d)[1] ?? ''], resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    assert.equal(move?.reason, null, 'the last account said it was out: a wait for a reset');
+    assert.equal(r.store.get(r.ids.a).signInState, 'expired');
+
+    process.env.FAKE_CLAUDE_EXPIRED_DIRS = '';
+    const before = r.spawns().length;
+    await r.store.clearAuthFailed(r.ids.a);
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.a]);
+    assert.equal(r.chats.accountOf(chat.id), r.ids.a);
+  } finally {
+    r.close();
+  }
+});
+
+test('a reading that leaves every account out moves the wait to the earliest reset it now knows (R10)', async () => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    // Beta's window is reported to reset in a moment: still out now, back soon
+    const soon = Date.now() + 400;
+    const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
+    assert.ok(reading);
+    await r.chats.noteAccountReading(r.ids.b, reading);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', 'beta is still out');
+    const before = r.spawns().length;
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.b], 'its reset passing is a way back');
+  } finally {
+    r.close();
+  }
+});
+
+// R11: "Stop waiting" also offers "run it now on an account with room"
+test('run now sends a waiting turn on at once, on the first account the readings allow, even one it died on (R11)', async () => {
+  const r = await rig({ work, limited: (d) => Object.values(d), pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    // Nothing says when any account is back (no reading came with the 429s); the person knows better
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    const before = r.spawns().length;
+    const done = await r.rotation.runNow(move?.id ?? '');
+    assert.equal(done.account, DEFAULT_ID, 'the first account in the order');
+    assert.equal(done.move.state, 'resumed');
+    await waitFor(() => r.spawns().length > before && r.chats.get(chat.id)?.status !== 'busy' && r.chats.get(chat.id)?.status !== 'starting');
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[DEFAULT_ID]);
+    assert.equal(r.chats.atLimit(chat.id), false, 'the turn went through');
+    assert.deepEqual(r.db.rotationEvents().at(-1)?.reason, 'person', 'recorded as a person\'s move');
+    await assert.rejects(r.rotation.runNow(move?.id ?? ''), (e: unknown) => e instanceof RunNowRefusal && e.code === 'wait-over');
+  } finally {
+    r.close();
+  }
+});
+
+test('run now is refused while every account reads out, and the wait stays (R11)', async () => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    await assert.rejects(r.rotation.runNow(move?.id ?? ''), (e: unknown) => e instanceof RunNowRefusal && e.code === 'no-room' && /until/.test(e.message));
+    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting');
   } finally {
     r.close();
   }

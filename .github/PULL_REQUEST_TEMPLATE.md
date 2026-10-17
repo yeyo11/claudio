@@ -11,6 +11,8 @@
 - [ ] `pnpm build`
 - [ ] `pnpm e2e` (if it touches the UI or a route)
 - [ ] `pnpm --filter @claudio/api openapi:schemas` (if it touches a shared type)
+- [ ] A summary and a tag in `apps/api/src/openapi/routes.ts` and a row in `docs/rest-api.md` (if it adds or changes a route)
+- [ ] A document under `docs/` for the feature or decision
 
 ## Notes for the reviewer
 

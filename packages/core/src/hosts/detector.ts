@@ -2,6 +2,7 @@ import { statSync, watch, type FSWatcher } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname } from 'node:path';
 import type { CodeHostHostEntry, CodeHostId, CodeHostReason, CodeHostState, CodeHostStatus, CodeHostsSettings } from '@claudio/shared';
+import type { ChildProcesses } from '../child-processes.ts';
 import type { ClaudioEventInput } from '../events.ts';
 import { installDirs, resolveCommand } from '../providers/path.ts';
 import { compareVersions } from '../version-check.ts';
@@ -28,7 +29,13 @@ export interface HostRunWhere {
 /** Runs a call; injected so tests run a stub, and the default is the execution layer's. */
 export type HostRun = (call: HostCall, where: HostRunWhere) => Promise<HostResult>;
 
-export const defaultHostRun: HostRun = (call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env });
+/** The execution layer's run, its processes followed by `processes` when given */
+export const hostRunIn =
+  (processes?: ChildProcesses): HostRun =>
+  (call, where) =>
+    runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, ...(processes ? { processes } : {}) });
+
+export const defaultHostRun: HostRun = hostRunIn();
 
 export type VersionProbe =
   | { kind: 'ok'; version: string }
@@ -77,6 +84,8 @@ export interface CodeHostDetectorDeps {
   settings?: () => CodeHostsSettings | null;
   emit?: (event: ClaudioEventInput) => unknown;
   run?: HostRun;
+  /** The owner's children, which its shutdown ends; used by the default run */
+  processes?: ChildProcesses;
   /** The hosts glab's own configuration lists; defaults to reading its `config.yml` */
   glabHosts?: () => Promise<GlabKnownHost[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
@@ -139,7 +148,7 @@ export class CodeHostDetector {
     this.ttlMs = deps.ttlMs ?? HOSTS_TTL_MS;
     this.debounceMs = deps.debounceMs ?? HOSTS_WATCH_DEBOUNCE_MS;
     this.minWatchGapMs = deps.minWatchGapMs ?? HOSTS_WATCH_MIN_GAP_MS;
-    this.run = deps.run ?? defaultHostRun;
+    this.run = deps.run ?? hostRunIn(deps.processes);
   }
 
   /** What the last detection saw, whatever its age, without starting one; null before the first */

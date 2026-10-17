@@ -82,3 +82,34 @@ test('the first block in a grammar shiki compiles on the spot is still coloured'
   const styled = out.lines.flat().filter((run) => typeof run !== 'string');
   assert.ok(styled.length >= 3, `expected keywords, types and literals coloured, got ${styled.length} runs`);
 });
+
+test('on a machine slow enough that compiling a grammar outlasts every budget, the first block is still coloured to its end', async () => {
+  // Compiling a TextMate grammar is building its regular expressions, so here each one built costs a
+  // tenth of a second on the clock the tokenizer reads: the C++ grammar took 27 s on a loaded
+  // machine, which is what this stands for, and running the rules once built costs no more than it
+  // does. Go is used by no other test here, so its grammar starts cold.
+  const realNow = Date.now;
+  const RealRegExp = globalThis.RegExp;
+  let compiled = 0;
+  globalThis.RegExp = new Proxy(RealRegExp, {
+    construct(target, args: [string | RegExp, string?]) {
+      compiled++;
+      return new target(...args);
+    },
+  });
+  Date.now = () => realNow() + compiled * 100;
+  let out: Awaited<ReturnType<typeof highlight>>;
+  try {
+    out = await highlight('func main() { var answer int = 42; fmt.Println("answer", answer) } // done', 'go');
+  } finally {
+    globalThis.RegExp = RealRegExp;
+    Date.now = realNow;
+  }
+  assert.ok(compiled > 30, `the grammar was compiled while the block was highlighted (${compiled} expressions)`);
+  assert.ok(out);
+  const line = out.lines[0]!;
+  const end = line[line.length - 1];
+  // The line comment that closes the line is the last thing the tokenizer reaches
+  assert.ok(end !== undefined && typeof end !== 'string' && end.content === '// done', `the end of the line is coloured as a comment (${JSON.stringify(end)})`);
+  assert.ok(line.filter((run) => typeof run !== 'string').length >= 6, `keywords, types, a number, a string and the comment are coloured (${JSON.stringify(line)})`);
+});

@@ -271,6 +271,9 @@
     "why": "It reached its usage limit. It keeps its place and goes on by itself at the reset.",
     "stop": "Stop waiting",
     "stopFailed": "Could not stop waiting",
+    "runNow": "Run now",
+    "runNowTitle": "Send the turn on now, on the first account with room, without waiting for the limit to reset",
+    "runNowFailed": "Could not run it now",
     "badge": "waiting"
   },
   "notificationText": {
@@ -301,7 +304,7 @@
     "conflictResolving_other": "{{count}} files in {{branch}}.",
     "fromSubagent": "Started by a subagent.",
     "supervisorProposed": "{{name}}: the supervisor proposes a hint",
-    "spendWarnTitle": "Today's spend is at 75 % of the cap",
+    "spendWarnTitle": "Today's spend is at {{percent}} of the cap",
     "spendExhaustedTitle": "Daily spend cap reached: automatic work waits until 00:00",
     "spendBody": "{{spent}} of {{cap}}, as the CLI reported it.",
     "joinRequest": "{{name}} asks to join {{group}}",

@@ -247,6 +247,9 @@ describe('instruction eval runner', () => {
 
   it('an agent target runs as that agent from a definition file made of the variant text', async () => {
     rt.behave = passes;
+    // One chat at a time, so rt.started is in queue order (pinned, then proposed): with two, each
+    // start first writes its agents file, and the two writes may finish in either order
+    maxRuns = 1;
     const d = def({ target: { kind: 'agent', scope: 'project', name: 'developer' }, runAs: { agent: 'developer', model: 'claude-sonnet-5-5' }, cases: [def().cases[0]!] });
     const agentText = '---\ndescription: Dev\ntools: Read, Edit\n---\nproposed developer prompt\n';
     const run = await runner.start(input(d, { variants: ['pinned', 'proposed'], proposed: agentText }));

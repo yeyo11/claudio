@@ -26,12 +26,24 @@ const needsIroh = iroh ? {} : { skip: `@number0/iroh does not load here: ${irohE
 
 const options = (seed: Buffer = randomBytes(32)): HostStartOptions => ({ secretKey: [...seed], preset: 'minimal', relayUrls: [], bindAddr: '127.0.0.1:0', pollMs: 100 });
 
-async function until<T>(what: string, probe: () => T | null | undefined | false, ms = 15_000): Promise<T> {
-  const deadline = Date.now() + ms;
+/**
+ * Polls `probe` until it holds. With `progress`, `ms` bounds a stall rather than the whole wait: the
+ * deadline restarts whenever `progress()` changes, so a transfer that is still moving on a loaded
+ * machine is waited for, and one that stopped fails as fast as before. `seen` names what had happened
+ * by the timeout, so a failure says where it stood.
+ */
+async function until<T>(what: string, probe: () => T | null | undefined | false, ms = 15_000, watch: { progress?: () => number; seen?: () => string } = {}): Promise<T> {
+  let deadline = Date.now() + ms;
+  let last = watch.progress?.();
   for (;;) {
     const value = probe();
     if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    const now = watch.progress?.();
+    if (now !== last) {
+      last = now;
+      deadline = Date.now() + ms;
+    }
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}${watch.progress ? ` after ${String(ms)} ms without progress` : ''}${watch.seen ? `; saw ${watch.seen()}` : ''}`);
     await new Promise((r) => setTimeout(r, 20));
   }
 }
@@ -116,17 +128,24 @@ test('two endpoints on loopback: a request, a reply frame and 3 MiB of raw bytes
   assert.equal(statusA.connection, 'no-relay', 'the minimal preset has no relay');
 
   b.handle({ type: 'request', req: 1, to: { endpointId: statusA.endpointId, ticket: statusA.ticket }, frame: { type: 'blob', shareKey: 'github.com/acme/api', sha256: 'f'.repeat(64) } });
-  await until('the reply', () => fromB.find((m) => (m.type === 'response-end' || m.type === 'response-error') && m.req === 1));
-  const replies = fromB.filter((m) => 'req' in m && m.req === 1);
-  assert.equal(replies.find((m) => m.type === 'response-error'), undefined);
-  const head = replies[0];
+  // 3 MiB cross the binding as Array<number> on both sides, CPU-bound: on a loaded machine that takes
+  // tens of seconds while it keeps moving, so the wait fails on a stall, not on a total budget
+  const replies = (): HostToCore[] => fromB.filter((m) => 'req' in m && m.req === 1);
+  const received = (): number => replies().reduce((n, m) => n + (m.type === 'response-bytes' ? m.data.length : 0), 0);
+  await until('the reply', () => replies().find((m) => m.type === 'response-end' || m.type === 'response-error'), 15_000, {
+    progress: () => replies().length + received(),
+    seen: () => `${String(replies().length)} replies with ${String(received())} of ${String(payload.length)} bytes; A sent ${fromA.map((m) => m.type).join(', ')}`,
+  });
+  const got = replies();
+  assert.equal(got.find((m) => m.type === 'response-error'), undefined);
+  const head = got[0];
   assert.equal(head?.type, 'response');
   if (head?.type === 'response') {
     assert.deepEqual(head.frame, { type: 'blob', sha256: 'f'.repeat(64), bytes: payload.length, asked: { type: 'blob', shareKey: 'github.com/acme/api', sha256: 'f'.repeat(64) }, from: endpointIdFromSeed(seedB) });
   }
-  const bytes = Buffer.concat(replies.flatMap((m) => (m.type === 'response-bytes' ? [m.data] : [])));
+  const bytes = Buffer.concat(got.flatMap((m) => (m.type === 'response-bytes' ? [m.data] : [])));
   assert.ok(bytes.equals(payload));
-  assert.equal(replies.at(-1)?.type, 'response-end');
+  assert.equal(got.at(-1)?.type, 'response-end');
 
   // Both sides see the other, polled, never watched
   await until('A sees B', () => fromA.find((m) => m.type === 'peer' && m.endpointId === endpointIdFromSeed(seedB) && m.connected));

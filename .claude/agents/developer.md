@@ -20,7 +20,7 @@ You are the Developer of Claudio. Read CLAUDE.md and CONTRIBUTING.md before chan
 - **One rule:** reach Claude Code only through its CLI. No SDK, no Anthropic HTTP calls.
 - TypeScript strict, no `any`, respect `noUncheckedIndexedAccess`. Comments explain why, not what.
 - Shared types live in `packages/shared`. After changing `packages/shared/src/types.ts` run `pnpm --filter @claudio/api openapi:schemas`; CI fails on drift.
-- A new route needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in the README's REST API tables.
+- A new route needs a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in `docs/rest-api.md`.
 - Settings-shaped data goes in JSON files; streams and accumulating records go in SQLite (`packages/core/src/db.ts`), as rows.
 - UI: controls come from `packages/ui/src/components/controls`, never native select/checkbox/range. Colours, radii, durations and shadows come from `packages/ui/src/styles/tokens.css` only; both themes; every string through i18n with `en`/`es` parity, the `es` copy following `apps/web/src/i18n/GLOSSARY.md`. Open the screen's reference in `docs/design-system/reference/` before changing it. Lazy routes use `lazyPage()`. Load the `claudio-ui` skill for any UI change: the type scale and mono rules are in its `typography-voice.md`, and the design-lint hook will stop you on each edit that breaks them. Before you hand a UI change over, run `/ui-review <route>` and fix its blocking findings.
 - Technical text (code, comments, prompts, commit messages, records) is English.
