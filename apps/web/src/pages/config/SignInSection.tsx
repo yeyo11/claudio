@@ -75,7 +75,8 @@ export function SignInSection() {
       </span>
       <span className="account-facts-line break">{[auth.email, auth.orgName].filter(Boolean).join(' · ') || t('account.noAccount')}</span>
       <span className="account-facts-line">
-        {[auth.subscriptionType, t(`account.tokenSource.${TOKEN_SOURCE_KEY[auth.tokenSource]}`)].filter(Boolean).join(' · ')}
+        {/* With no credential the source line would only say "none" */}
+        {[auth.subscriptionType, auth.tokenSource === 'none' ? null : t(`account.tokenSource.${TOKEN_SOURCE_KEY[auth.tokenSource]}`)].filter(Boolean).join(' · ')}
       </span>
       {auth.loggedIn && <span>{t('account.loggedInNote')}</span>}
     </span>
