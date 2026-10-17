@@ -240,8 +240,8 @@ Every proposal is a row in `assistant_proposals`, `pending` until the person dec
 | POST | `/assistant/runs/:runId/stop` |
 | POST | `/assistant/proposals/:proposalId/accept` (optional edits), `/discard`, `/restore` |
 
-`apps/api/src/routes/assistant.ts`; the validation lives in core. The README's
-[Assistant](../README.md#assistant) table describes each route.
+`apps/api/src/routes/assistant.ts`; the validation lives in core. The
+[Assistant](rest-api.md#assistant) table of the REST API describes each route.
 
 Events:
 

@@ -2,19 +2,23 @@
 //
 // It boots an ISOLATED wrapper the way e2e/run.mjs does (temporary config, workspace and data
 // directories; the built UI), with the fake `claude` of e2e/fake-cli first on PATH and a stub
-// claude-swap holding three accounts, fills it with invented projects, chats, a graph and schedules,
-// and drives one headless Chrome through e2e/driver.mjs at 1280×800 (and 390×844 for the phone still). Nothing of the real ~/.claude,
-// no login and no model: every name, prompt and figure in frame is made up here.
+// three accounts (the CLI's own and two token accounts, with usage the recorder writes where the CLI
+// would cache it), two teammates (more wrappers of this checkout on loopback, joined to a group), and
+// invented projects, chats, a graph and schedules. One headless Chrome is driven through
+// e2e/driver.mjs at 1280×800 (390×844 for the phone still). Nothing of the real ~/.claude, no login
+// and no model: every name, prompt and figure in frame is made up here.
 //
-//   pnpm media                  the tour and every still, into docs/media
-//   pnpm media stills           only the stills (or `tour` for only the GIF)
+//   pnpm media                  every GIF and still, into docs/media
+//   pnpm media stills           only the stills; `tour`, `clips` (chat streaming + orchestration)
+//                               and `social` (the 1280×640 preview card) name the others
 //   MEDIA_OUT=/tmp/m pnpm media somewhere else than docs/media
 //   MEDIA_KEEP=1                keeps the sandbox for inspection
 //
-// The wrapper and Chrome are killed by the PID this script started (each as the leader of its own
+// The wrappers and Chrome are killed by the PID this script started (each as the leader of its own
 // process group) on every way out: the end, a failure, MEDIA_TIMEOUT (ms), a signal, an uncaught error.
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { delimiter, dirname, join, resolve } from 'node:path';
@@ -22,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 import gifenc from 'gifenc';
 import { launch } from '../e2e/driver.mjs';
-import { killGroup } from '../e2e/processes.mjs';
+import { freePort, killGroup } from '../e2e/processes.mjs';
 
 // gifenc ships CommonJS: its functions come off the default export
 const { applyPalette, GIFEncoder, quantize } = gifenc;
@@ -35,7 +39,13 @@ const HEIGHT = 800;
 /** A phone: the chat as it is used on one, composer at the bottom */
 const PHONE = { width: 390, height: 844 };
 /** What the README can carry at the top without a slow first paint */
-const TOUR_MAX_BYTES = 1.5 * 1024 * 1024;
+const TOUR_MAX_BYTES = 2.9 * 1024 * 1024;
+/** A GIF is written at this width (the page is 1280): the README shows them about this wide anyway */
+const GIF_WIDTH = 800;
+const GIF_MAX_BYTES = 2.9 * 1024 * 1024;
+/** The longest a live frame stays up */
+const MAX_FRAME_MS = 400;
+const SOCIAL = { width: 1280, height: 640 };
 const RUN_LIMIT_MS = Number(process.env.MEDIA_TIMEOUT ?? 600_000);
 const wanted = new Set(process.argv.slice(2));
 const want = (what) => wanted.size === 0 || wanted.has(what);
@@ -65,7 +75,6 @@ const dirs = {
   bin: join(sandbox, 'bin'),
 };
 for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true });
-const cswap = join(dirs.bin, 'cswap');
 const scriptsFile = join(sandbox, 'fake-cli-scripts.json');
 const gitConfig = join(sandbox, 'gitconfig');
 // Commits in frame (the seeded history, the workers' and the merges) carry an invented author
@@ -81,7 +90,8 @@ const env = {
   CLAUDIO_DATA_DIR: dirs.data,
   // The UI just built: a terminal of the desktop app inherits the installed app's own
   CLAUDIO_WEB_DIST: join(root, 'apps/web/dist'),
-  CSWAP_BIN: cswap,
+  // By absolute path: the API puts the login shell's PATH first, which may hold a real claude
+  CLAUDE_BIN: join(root, 'e2e/fake-cli/claude'),
   CLAUDIO_HEALTH_INTERVAL_MS: '1000',
   CLAUDIO_FAKE_CLI_HEARTBEAT_MS: '1000',
   CLAUDIO_FAKE_CLI_SCRIPTS: scriptsFile,
@@ -90,13 +100,33 @@ const env = {
   CLAUDIO_FAKE_CLI_TURN_COST_USD: '0.18',
   CLAUDIO_FAKE_CLI_VERSION: '2.1.0',
   CLAUDIO_FAKE_CLI_AUTH: JSON.stringify({ authMethod: 'claude.ai', email: 'maya@northwind.dev', orgName: 'Northwind Labs', subscriptionType: 'team' }),
+  // Collaborators on loopback only: no relay, no discovery, no network (as e2e/run.mjs)
+  CLAUDIO_COLLAB_PRESET: 'minimal',
+  CLAUDIO_COLLAB_BIND: `127.0.0.1:${await freePort('udp')}`,
   GIT_CONFIG_GLOBAL: gitConfig,
   GIT_CONFIG_NOSYSTEM: '1',
   TZ: 'UTC',
 };
-// Named by PATH alone, so the variable must not point anywhere else
-delete env.CLAUDE_BIN;
 delete env.CLAUDIO_AUTH_TOKEN;
+// The setup assistant stands in for every page of a machine that has not finished it
+writeFileSync(join(dirs.data, 'app-settings.json'), `${JSON.stringify({ setupSeen: true }, null, 2)}\n`);
+// The guard every orchestration worker is armed with, bundled and read-only the way e2e/run.mjs makes
+// it: run from source it is group-writable under umask 002, and preflight refuses it
+const guardEntry = join(sandbox, 'guard', 'guard.mjs');
+createRequire(join(root, 'apps/api/package.json'))('esbuild').buildSync({
+  entryPoints: [join(root, 'packages/core/src/guards/main.ts')],
+  outfile: guardEntry,
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  logLevel: 'error',
+});
+chmodSync(guardEntry, 0o444);
+env.CLAUDIO_GUARD_ENTRY = guardEntry;
+env.CLAUDIO_UPDATE_CHECK = 'off';
+delete env.CLAUDIO_MCP_ENTRY;
 // Chrome takes this process's environment: the times it prints are in the zone the server reads cron in
 process.env.TZ = 'UTC';
 
@@ -104,8 +134,11 @@ process.env.TZ = 'UTC';
 
 let server = null;
 let browser = null;
+/** The teammates' wrappers, started for the Collaborators scenes */
+const peerProcesses = [];
 process.on('exit', () => {
-  // The browser closes itself from its own 'exit' handler; the wrapper goes by the PID started here
+  // The browser closes itself from its own 'exit' handler; the wrappers go by the PIDs started here
+  for (const child of peerProcesses.splice(0)) killGroup(child.pid, { graceMs: 3000 });
   if (server) killGroup(server.pid, { graceMs: 3000 });
   server = null;
   if (process.env.MEDIA_KEEP !== '1') rmSync(sandbox, { recursive: true, force: true, maxRetries: 3 });
@@ -122,17 +155,17 @@ setTimeout(() => stop(1, `the recorder took longer than ${RUN_LIMIT_MS / 1000}s:
 
 // ---------- the API ----------
 
-const api = {
-  async request(method, path, body) {
-    const res = await fetch(`${baseUrl}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+/** The REST client of one wrapper: the main one, or a teammate's */
+function apiAt(url) {
+  const request = async (method, path, body) => {
+    const res = await fetch(`${url}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
     const json = await res.json().catch(() => null);
     if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${JSON.stringify(json)}`);
     return json;
-  },
-  get: (path) => api.request('GET', path),
-  post: (path, body) => api.request('POST', path, body),
-  put: (path, body) => api.request('PUT', path, body),
-};
+  };
+  return { get: (path) => request('GET', path), post: (path, body) => request('POST', path, body), put: (path, body) => request('PUT', path, body) };
+}
+const api = apiAt(baseUrl);
 
 async function until(condition, label, timeout = 30_000) {
   const end = Date.now() + timeout;
@@ -148,29 +181,38 @@ async function until(condition, label, timeout = 30_000) {
 
 const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
 
-/** Where each account's five-hour window stands now: one near its limit, two with room. */
+/**
+ * The three accounts in frame, as three people's logins. `now` is where the five-hour window stands,
+ * `week` the seven-day one: one account near its limit, two with room.
+ */
 const ACCOUNTS = [
-  { number: 1, now: 82, resetsInHours: 1.3, perHour: 22 },
-  { number: 2, now: 12, resetsInHours: 3.6, perHour: 8 },
-  { number: 3, now: 3, resetsInHours: 4.8, perHour: 3 },
+  { id: 'default', alias: null, email: 'maya@northwind.dev', organization: 'Northwind Labs', plan: 'team', now: 82, resetsInHours: 1.3, perHour: 22, week: 46 },
+  { id: 'acc-demo-ops', alias: 'ops', email: 'ops@northwind.dev', organization: 'Northwind Labs', plan: 'team', now: 12, resetsInHours: 3.6, perHour: 8, week: 27 },
+  { id: 'acc-demo-side', alias: null, email: 'maya.side@fastmail.dev', organization: null, plan: 'pro', now: 3, resetsInHours: 4.8, perHour: 3, week: 64 },
 ];
 
-/** The stub claude-swap: the three accounts, with the week besides the five hours. */
-function writeCswap() {
-  const at = new Date().toISOString();
-  const inHours = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
-  const window = (pct, hours, name) => ({ pct, resetsAt: inHours(hours), countdown: null, ...(name ? { name } : {}) });
-  const list = {
-    schemaVersion: 1,
-    activeAccountNumber: 1,
-    accounts: [
-      { number: 1, email: 'maya@northwind.dev', organizationName: 'Northwind Labs', alias: 'main', active: true, usageStatus: 'ok', usage: { fiveHour: window(ACCOUNTS[0].now, ACCOUNTS[0].resetsInHours), sevenDay: window(46, 76), scoped: [window(31, 76, 'Opus')] }, usageFetchedAt: at },
-      { number: 2, email: 'ops@northwind.dev', organizationName: 'Northwind Labs', alias: 'ops', active: false, usageStatus: 'ok', usage: { fiveHour: window(ACCOUNTS[1].now, ACCOUNTS[1].resetsInHours), sevenDay: window(27, 100), scoped: [window(9, 100, 'Opus')] }, usageFetchedAt: at },
-      { number: 3, email: 'maya.side@fastmail.dev', organizationName: null, alias: null, active: false, usageStatus: 'ok', usage: { fiveHour: window(ACCOUNTS[2].now, ACCOUNTS[2].resetsInHours), sevenDay: window(64, 22) }, usageFetchedAt: at },
-    ],
+/**
+ * Writes accounts.json and each account's usage where the CLI caches it (`cachedUsageUtilization`)
+ * BEFORE the server starts: it reads that cache once at boot and again only every five minutes, and
+ * a login can not be made here (that needs a browser). Nothing of this touches a real account: the
+ * default account is the sandbox's config dir, the others are dirs of the sandbox's data.
+ */
+function seedAccounts() {
+  const identity = (a) => ({ signedIn: true, email: a.email, organization: a.organization, plan: a.plan });
+  const doc = {
+    settings: { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used' },
+    default: { enabled: true, alias: null, identity: identity(ACCOUNTS[0]) },
+    accounts: ACCOUNTS.slice(1).map((a) => ({ id: a.id, kind: 'login', alias: a.alias, enabled: true, links: [], identity: identity(a) })),
+    policies: [],
   };
-  writeFileSync(cswap, `#!/bin/sh\ncase "$1" in\n  --version) echo "cswap 0.26.0" ;;\n  list) cat <<'JSON'\n${JSON.stringify(list)}\nJSON\n ;;\n  *) echo "not part of the recorder's stub: $*" >&2; exit 2 ;;\nesac\n`);
-  chmodSync(cswap, 0o755);
+  writeFileSync(join(dirs.data, 'accounts.json'), `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 });
+  for (const account of ACCOUNTS) {
+    const dir = account.id === 'default' ? dirs.config : join(dirs.data, 'accounts', account.id);
+    mkdirSync(dir, { recursive: true });
+    const window = (pct, hours) => ({ utilization: pct, resets_at: new Date(Date.now() + hours * 3_600_000).toISOString() });
+    const cache = { cachedUsageUtilization: { fetchedAtMs: Date.now(), utilization: { five_hour: window(account.now, account.resetsInHours), seven_day: window(account.week, 76) } } };
+    writeFileSync(join(dir, '.claude.json'), JSON.stringify({ ...cache, oauthAccount: { emailAddress: account.email, organizationName: account.organization } }));
+  }
 }
 
 function git(cwd, ...args) {
@@ -180,8 +222,8 @@ function git(cwd, ...args) {
 }
 
 /** A small repository with a history, so a worktree has something to branch from and a diff has a base. */
-function repository(name, files) {
-  const dir = join(dirs.workspace, name);
+function repository(name, files, { base = dirs.workspace } = {}) {
+  const dir = join(base, name);
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), content);
@@ -293,7 +335,7 @@ function seedChats(harbor, lumen, atlas) {
 
 /**
  * A day of five-hour readings per account, the chart's default range: each window climbs and drops
- * back at its reset, and ends where the stub claude-swap says the account is now.
+ * back at its reset, and ends where the cached reading says the account is now.
  */
 function seedUsageHistory() {
   const db = new DatabaseSync(join(dirs.data, 'wrapper.db'));
@@ -301,15 +343,15 @@ function seedUsageHistory() {
   const insert = db.prepare('INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
   const WINDOW = 300;
   const busier = [1, 0.7, 1.1, 0.45, 0.9];
-  for (const { number, now, resetsInHours, perHour } of ACCOUNTS) {
+  for (const { id, now, resetsInHours, perHour } of ACCOUNTS) {
     const into = WINDOW - resetsInHours * 60;
     for (let ago = 24 * 60; ago >= 0; ago -= 15) {
       const at = into - ago;
       const windows = Math.floor(at / WINDOW);
       const minute = at - windows * WINDOW;
-      // The window running now ends at the reading claude-swap reports; the ones before ran at their own pace
+      // The window running now ends at the reading seedAccounts wrote; the ones before ran at their own pace
       const pct = windows === 0 ? (now * minute) / into : Math.min(100, (perHour * busier[Math.abs(windows) % busier.length] * minute) / 60);
-      insert.run(number, '5h', minutesAgo(ago), Math.round(pct * 10) / 10);
+      insert.run(id, 'five_hour', minutesAgo(ago), Math.round(pct * 10) / 10);
     }
   }
   db.close();
@@ -465,26 +507,66 @@ function encodeGif(frames, width, height) {
 // ---------- driving the page ----------
 
 let page;
+/** Chrome renders the page at this fraction of its size, so a GIF frame comes out GIF_WIDTH wide, sharp */
+const SCALE = GIF_WIDTH / WIDTH;
+const GIF_HEIGHT = Math.round(HEIGHT * SCALE);
+/** Stills are taken at the page's own size, GIFs at SCALE */
+const stillsView = () => page.viewport(WIDTH, HEIGHT, 1);
+const clipsView = () => page.viewport(WIDTH, HEIGHT, SCALE);
+
 async function capture() {
   await page.shot('frame');
   return readFileSync(join(dirs.shots, 'frame.png'));
 }
-async function still(name) {
+async function still(name, expected = { width: WIDTH, height: HEIGHT }) {
   const png = await capture();
+  const { width, height } = decodePng(png);
+  if (width !== expected.width || height !== expected.height) throw new Error(`${name} came out ${width}×${height}, not ${expected.width}×${expected.height}`);
   writeFileSync(join(OUT, name), png);
-  console.log(`  ${name} (${Math.round(png.length / 1024)} KB)`);
+  console.log(`  ${name} (${width}×${height}, ${Math.round(png.length / 1024)} KB)`);
 }
-/** Frames of the tour: a still held for `ms`, or the same screen again merged into the one before. */
-const frames = [];
+
+/** A sequence of frames: `delay` is how long each is shown, in ms. */
+const newClip = (name) => ({ name, frames: [], last: null, stamp: 0, taken: 0 });
+const sameFrame = (a, b) => Buffer.compare(Buffer.from(a.buffer), Buffer.from(b.buffer)) === 0;
+function addFrame(clip, rgba, width, height, delay) {
+  if (width !== GIF_WIDTH || height !== GIF_HEIGHT) throw new Error(`a frame came out ${width}×${height}, not ${GIF_WIDTH}×${GIF_HEIGHT}`);
+  if (clip.last && sameFrame(clip.last.rgba, rgba)) clip.last.delay += delay;
+  else {
+    clip.last = { rgba, delay };
+    clip.frames.push(clip.last);
+  }
+}
+/** The tour: a screen held for `ms`, or the same screen again merged into the frame before. */
+const tour = newClip('tour');
 async function hold(ms) {
   const png = await capture();
   // Kept with the sandbox, to look at a scene frame by frame
-  if (process.env.MEDIA_KEEP === '1') writeFileSync(join(dirs.shots, `tour-${String(frames.length).padStart(3, '0')}.png`), png);
+  if (process.env.MEDIA_KEEP === '1') writeFileSync(join(dirs.shots, `tour-${String(tour.frames.length).padStart(3, '0')}.png`), png);
   const { width, height, rgba } = decodePng(png);
-  if (width !== WIDTH || height !== HEIGHT) throw new Error(`a frame came out ${width}×${height}, not ${WIDTH}×${HEIGHT}`);
-  const last = frames.at(-1);
-  if (last && Buffer.compare(Buffer.from(last.rgba.buffer), Buffer.from(rgba.buffer)) === 0) last.delay += ms;
-  else frames.push({ rgba, delay: ms });
+  addFrame(tour, rgba, width, height, ms);
+}
+/**
+ * One frame of a live recording. Each frame stays up for as long as the next one took to arrive, so
+ * a clip plays at the speed the app really moved (the capture itself is part of it).
+ */
+async function sample(clip) {
+  const png = await capture();
+  const now = Date.now();
+  if (process.env.MEDIA_KEEP === '1') writeFileSync(join(dirs.shots, `${clip.name}-${String(clip.taken++).padStart(3, '0')}.png`), png);
+  const { width, height, rgba } = decodePng(png);
+  // Capped: a machine under load answers slowly, and a frame held for a second is not how the app moved
+  addFrame(clip, rgba, width, height, clip.last ? Math.min(now - clip.stamp, MAX_FRAME_MS) : 0);
+  clip.stamp = now;
+}
+/** Samples until `ms` pass or `stop()` says so */
+async function watch(clip, ms, stop) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    await sample(clip);
+    if (stop && (await stop())) return true;
+  }
+  return false;
 }
 const visible = (selector, text) =>
   page.waitFor(`return [...document.querySelectorAll(${JSON.stringify(selector)})].some((e) => e.offsetParent !== null && ${text ? `e.innerText.includes(${JSON.stringify(text)})` : 'true'})`, { label: `${selector}${text ? ` "${text}"` : ''}` });
@@ -537,7 +619,7 @@ async function paletteScene(record) {
   await visible('[role=dialog][aria-label="Command palette"]');
   await sleep(300);
   if (record) await hold(600);
-  for (const ch of 'harbor') {
+  for (const ch of 'rate limit') {
     await page.type(ch);
     if (record) await hold(200);
   }
@@ -552,15 +634,14 @@ async function paletteScene(record) {
 async function chatScene(chatId, { record, navigate, stillName }) {
   if (navigate) await page.goto(`/chats/${chatId}`, 1500);
   await visible('main', 'in watch mode');
-  await visible('main .ticker', 'node --test --watch');
   await visible('aside.chat-inspector');
   await settle();
+  if (stillName) await still(stillName);
   if (record) await hold(2400);
   // What it changed, from the inspector's Changes tab
   await page.click('aside.chat-inspector [role=tab]', 'Changes', 600);
   await visible('aside.chat-inspector', 'rate-limit.js');
   await settle();
-  if (stillName) await still(stillName);
   if (!record) return;
   await hold(2200);
   // The diff of one file, on the review screen the summary opens
@@ -570,7 +651,7 @@ async function chatScene(chatId, { record, navigate, stillName }) {
   await hold(2600);
   await page.goto(`/chats/${chatId}`, 1500);
   await visible('aside.chat-inspector');
-  // Back to the Summary tab, so the stills taken after the tour start from the inspector's default
+  // Back to the Summary tab, so the scenes after start from the inspector's default
   await page.click('aside.chat-inspector [role=tab]', 'Summary', 300);
 }
 
@@ -588,39 +669,43 @@ async function phoneChatScene(chatId, { stillName }) {
   await page.viewport(PHONE.width, PHONE.height);
   await page.goto(`/chats/${chatId}`, 1500);
   await visible('main', 'in watch mode');
-  await visible('main .ticker', 'node --test --watch');
   await visible('.composer-status');
   await settle();
-  await still(stillName);
-  await page.viewport(WIDTH, HEIGHT);
+  await still(stillName, PHONE);
+  await stillsView();
 }
 
-async function graphScene(harbor, { record, stillName }) {
-  const graphId = await startGraph(harbor);
-  // Two workers running side by side, the first one done: the moment the board says the most
-  await until(async () => {
-    const tasks = (await api.get(`/orchestrations/${graphId}`)).tasks;
-    return tasks.find((t) => t.id === 'schema')?.status === 'completed' && tasks.filter((t) => t.status === 'running').length === 2;
-  }, 'two workers of the graph running at once', 60_000);
-  await page.goto(`/orchestration/${graphId}`, 1500);
-  // The stepper follows the stage that runs: its two tasks, each with what it is doing
-  await visible('main .stepper');
-  await visible('main', 'Cursor pagination');
-  await visible('main .ticker');
+const STREAM_PROMPT = 'Why does the 61st request in a minute get a 429, and how is Retry-After worked out?';
+SCRIPTS[STREAM_PROMPT] = [
+  'say: I will start from how the orders route answers, to see where a limit would sit.',
+  'read: src/routes/orders.js',
+  'type: A request is counted per client address in a sliding window of 60 seconds. The first 60 pass untouched, so the 61st is the first one the window can refuse.',
+  'run: sleep 2',
+  'type: When it refuses, it answers 429 and tells the client when to come back: Retry-After is the seconds left until the oldest hit in the window falls out of it, rounded up.',
+  'run: sleep 2',
+  'type: In short, the limit is 60 per minute, the refusal is a plain 429, and Retry-After is never more than 60 seconds. Nothing else about the route changes.',
+  'run: sleep 1',
+].join('\n');
+
+/** A chat started from the composer, streaming its answer: the prompt typed, the steps, the text arriving. */
+async function streamingClip(harbor) {
+  await page.goto(`/chats/new?cwd=${encodeURIComponent(harbor)}`, 1500);
+  await visible('[data-composer-input]');
   await settle();
-  if (stillName) await still(stillName);
-  if (!record) return;
-  await hold(2600);
-  // Then the rest of it, merged and checked, which is not worth recording as it happens
-  await until(async () => (await api.get(`/orchestrations/${graphId}`)).verification?.status === 'passed', 'the checks on the merged branch to pass', 120_000);
-  await visible('main .stepper', 'Verification');
-  await sleep(1500);
-  await settle();
-  await hold(1400);
-  // The checks' step, picked from the stepper
-  await page.click('main .stepper button', 'Verification', 900);
-  await settle();
-  await hold(2600);
+  const clip = newClip('streaming');
+  await sample(clip);
+  await page.focus('[data-composer-input]');
+  for (const word of STREAM_PROMPT.split(' ')) {
+    await page.type(`${word} `);
+    await sample(clip);
+  }
+  await sample(clip);
+  // On this screen Enter adds a line: the person presses Start
+  await page.click('main button', 'Start', 0);
+  const done = await watch(clip, 40_000, async () => (await page.eval(`return document.body.innerText.includes('Nothing else about the route changes.')`)) === true);
+  if (!done) throw new Error('the streaming chat did not finish its answer');
+  await watch(clip, 1500);
+  return clip;
 }
 
 async function accountsScene({ record, stillName }) {
@@ -645,11 +730,208 @@ async function schedulesScene({ stillName }) {
   if (stillName) await still(stillName);
 }
 
+async function collaboratorsScene({ record, stillName }) {
+  await page.goto('/collaborators', 1500);
+  await page.waitFor(`return document.querySelectorAll('.collab-group [data-testid=collab-member]').length >= 3 && document.querySelectorAll('[data-testid=collab-shared-project]').length >= 2`, {
+    label: 'the group with its three members and what teammates share',
+    timeout: 60_000,
+  });
+  await settle();
+  // The group and what is shared with Maya, under the cards about her own install
+  await glide('.collab-group', false, { text: 'Harbor team', offset: 70 });
+  await sleep(400);
+  if (stillName) await still(stillName);
+  if (!record) return;
+  await hold(2800);
+}
+
+/** The orchestration page of a graph already run: the stepper at its end, then the checks' step. */
+async function graphTourScene(graphId) {
+  await page.goto(`/orchestration/${graphId}`, 1500);
+  await visible('main .stepper', 'Verification');
+  await settle();
+  await hold(1800);
+  await page.click('main .stepper button', 'Verification', 900);
+  await settle();
+  await hold(2400);
+}
+
+/** The graph's page, still: the last step it ran. */
+async function graphScene(graphId, { stillName }) {
+  await page.goto(`/orchestration/${graphId}`, 1500);
+  await visible('main .stepper', 'Verification');
+  await settle();
+  await still(stillName);
+}
+
+/** Starts the graph and records its page while the first worker finishes and two run side by side. */
+async function graphClip(harbor) {
+  const graphId = await startGraph(harbor);
+  await page.goto(`/orchestration/${graphId}`, 600);
+  await visible('main .stepper');
+  const clip = newClip('graph');
+  let sideBySide = 0;
+  const found = await watch(clip, 40_000, async () => {
+    const tasks = (await api.get(`/orchestrations/${graphId}`)).tasks;
+    if (!sideBySide && tasks.find((t) => t.id === 'schema')?.status === 'completed' && tasks.filter((t) => t.status === 'running').length === 2) sideBySide = Date.now();
+    // A few seconds of the two workers moving, then the loop ends
+    return sideBySide > 0 && Date.now() - sideBySide > 4000;
+  });
+  if (!found) throw new Error('the graph never showed two workers running at once');
+  await sample(clip);
+  // The rest of it, merged and checked, is not worth recording as it happens
+  await until(async () => (await api.get(`/orchestrations/${graphId}`)).verification?.status === 'passed', 'the checks on the merged branch to pass', 120_000);
+  return { graphId, clip };
+}
+
+// ---------- the invented teammates ----------
+
+/** Another wrapper of this checkout on loopback, on its own data: a teammate's machine. */
+async function startPeer(name, port) {
+  const home = join(sandbox, 'peers', name);
+  const peerDirs = { config: join(home, 'claude'), workspace: join(home, 'work'), data: join(home, 'data') };
+  for (const dir of Object.values(peerDirs)) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(peerDirs.data, 'app-settings.json'), `${JSON.stringify({ setupSeen: true }, null, 2)}\n`);
+  const scripts = join(home, 'fake-cli-scripts.json');
+  const peerEnv = {
+    ...env,
+    PORT: String(port),
+    CLAUDIO_WORKSPACE_DIR: peerDirs.workspace,
+    CLAUDIO_DATA_DIR: peerDirs.data,
+    CLAUDE_CONFIG_DIR: peerDirs.config,
+    CLAUDIO_FAKE_CLI_SCRIPTS: scripts,
+    CLAUDIO_FAKE_CLI_LOG: join(home, 'fake-cli.jsonl'),
+    CLAUDIO_COLLAB_BIND: `127.0.0.1:${await freePort('udp')}`,
+  };
+  const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: peerEnv, stdio: ['ignore', 'ignore', 'inherit'], detached: true });
+  child.on('error', () => {});
+  peerProcesses.push(child);
+  const peerApi = apiAt(`http://127.0.0.1:${port}`);
+  await until(async () => (await fetch(`http://127.0.0.1:${port}/api/system`)).ok, `${name}'s wrapper to start`, 30_000);
+  return { name, api: peerApi, dirs: peerDirs, scripts };
+}
+
+const bound = async (client) => (await client.get('/collaborators')).connection;
+const ready = (client, who) => until(async () => !['off', 'starting'].includes(await bound(client)), `${who}'s endpoint to bind`, 30_000);
+
+/**
+ * Maya (the main wrapper) owns the group "Harbor team"; Priya and Tomas join it. Maya shares
+ * harbor-api, Priya shares lumen-web with a chat still working, Tomas shares a notes project that
+ * has no remote, which Maya reads without cloning it.
+ */
+async function seedCollaborators(maya, projects) {
+  const PEERS = [
+    { name: 'Priya', index: 1 },
+    { name: 'Tomas', index: 2 },
+  ];
+  const started = [];
+  for (const { name, index } of PEERS) started.push({ ...(await startPeer(name.toLowerCase(), PORT + index)), displayName: name });
+  const [priya, tomas] = started;
+
+  await api.put('/collaborators', { enabled: true, displayName: 'Maya' });
+  await ready(api, 'Maya');
+  const group = await api.post('/collaborators/groups', { name: 'Harbor team' });
+  for (const peer of started) {
+    await peer.api.put('/collaborators', { enabled: true, displayName: peer.displayName });
+    await ready(peer.api, peer.displayName);
+    const invite = await api.post(`/collaborators/groups/${group.id}/invites`);
+    await peer.api.post('/collaborators/join', { invite: invite.text });
+  }
+  await until(async () => ((await api.get('/collaborators/groups')).groups.find((g) => g.id === group.id)?.members ?? []).length === 3, 'Priya and Tomas to join the group', 60_000);
+
+  // Maya's harbor-api, and what each teammate has of the same repository
+  // No git remote in frame (a remote makes the graph's page offer a pull request step): the share
+  // key is set by hand, the same on every machine that has a clone
+  const KEY = 'northwind';
+  await api.put(`/projects/${projects['harbor-api']}/sharing`, { groups: [group.id], shareKey: `${KEY}/harbor-api` });
+  await api.put(`/projects/${projects['lumen-web']}/sharing`, { shareKey: `${KEY}/lumen-web` });
+  const priyaLumen = repository('lumen-web', LUMEN, { base: priya.dirs.workspace });
+  const priyaProject = await priya.api.post('/projects/import', { path: priyaLumen, name: 'lumen-web' });
+  await priya.api.put(`/projects/${priyaProject.id}/sharing`, { groups: [group.id], shareKey: `${KEY}/lumen-web` });
+  const tomasHarbor = repository('harbor-api', HARBOR, { base: tomas.dirs.workspace });
+  const tomasProject = await tomas.api.post('/projects/import', { path: tomasHarbor, name: 'harbor-api' });
+  await tomas.api.put(`/projects/${tomasProject.id}/sharing`, { shareKey: `${KEY}/harbor-api` });
+  const notes = await tomas.api.post('/projects', { name: 'runbook-notes' });
+  await tomas.api.put(`/projects/${notes.id}/sharing`, { groups: [group.id] });
+
+  // Priya's chat is at work: a hold on a file nobody creates keeps it live while the scenes run
+  const priyaPrompt = 'Move the storefront router to v7 and fix the loader types';
+  writeFileSync(priya.scripts, JSON.stringify({ [priyaPrompt]: 'say: Reading how the loaders take their params.\nrun: sleep 1\nhold: .never\nsay: Done.' }));
+  await priya.api.post('/chats', { prompt: priyaPrompt, cwd: priyaLumen });
+  // The shared copies reach Maya's side
+  await until(async () => (await api.get('/collaborators/shared')).length >= 2, 'what the teammates share to reach Maya', 60_000);
+}
+
+// ---------- the social preview ----------
+
+/**
+ * The 1280×640 card GitHub shows for the repository: the brand, a tagline and a real screenshot in a
+ * frame, drawn by Chrome from a page built here out of the design tokens (nothing is hand-coloured).
+ */
+async function socialCard() {
+  const shot = join(OUT, 'home.png');
+  if (!existsSync(shot)) throw new Error('social needs docs/media/home.png: run `pnpm media stills` first');
+  const dataUrl = (file, type) => `data:${type};base64,${readFileSync(file).toString('base64')}`;
+  const geist = join(root, 'apps/web/node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2');
+  const geistMono = join(root, 'apps/web/node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2');
+  const tokens = readFileSync(join(root, 'packages/ui/src/styles/tokens.css'), 'utf8');
+  const logo = readFileSync(join(root, 'apps/web/public/favicon.svg'), 'utf8');
+  const html = `<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><style>
+@font-face { font-family: 'Geist'; src: url(${dataUrl(geist, 'font/woff2')}) format('woff2'); font-weight: 100 900; }
+@font-face { font-family: 'Geist Mono'; src: url(${dataUrl(geistMono, 'font/woff2')}) format('woff2'); font-weight: 100 900; }
+${tokens}
+* { box-sizing: border-box; margin: 0; }
+html, body { width: ${SOCIAL.width}px; height: ${SOCIAL.height}px; overflow: hidden; }
+body { position: relative; background: var(--glow-top), var(--bg); color: var(--fg); font-family: 'Geist', sans-serif; -webkit-font-smoothing: antialiased; }
+.brand { position: absolute; left: 72px; top: 76px; width: 440px; }
+.mark { display: flex; align-items: center; gap: 22px; }
+.mark svg { width: 92px; height: 92px; filter: drop-shadow(var(--shadow-md)); }
+.mark h1 { font-size: 80px; font-weight: 650; letter-spacing: -0.03em; line-height: 1; background: var(--grad-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tagline { margin-top: 44px; font-size: 31px; line-height: 1.32; font-weight: 450; color: var(--fg); letter-spacing: -0.012em; }
+.tagline span { color: var(--fg-2); }
+.chips { position: absolute; left: 72px; bottom: 64px; display: flex; gap: 10px; font-family: 'Geist Mono', monospace; font-size: 15px; color: var(--fg-2); }
+.chips b { font-weight: 500; padding: 7px 13px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); background: var(--bg-elev); }
+.frame { position: absolute; left: 548px; top: 92px; width: 700px; height: 437px; border-radius: var(--radius-xl); border: 1px solid transparent; background: linear-gradient(var(--bg-elev), var(--bg-elev)) padding-box, var(--grad-border) border-box; box-shadow: var(--shadow-lg); overflow: hidden; }
+.frame img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+</style></head><body>
+<div class="brand"><div class="mark">${logo.replace('<svg ', '<svg aria-hidden="true" ')}<h1>Claudio</h1></div>
+<p class="tagline">Run Claude Code as a service <span>— chats, orchestrations, several accounts, one place</span></p></div>
+<div class="chips"><b>REST API</b><b>Web UI</b><b>Desktop</b></div>
+<div class="frame"><img src="${dataUrl(shot, 'image/png')}" alt=""></div>
+</body></html>`;
+  await page.viewport(SOCIAL.width, SOCIAL.height, 1);
+  await page.eval(`location.assign('about:blank'); return true`);
+  await sleep(500);
+  await page.eval(`document.open(); document.write(${JSON.stringify(html)}); document.close(); return true`);
+  await page.eval('await document.fonts.ready; return true;');
+  await sleep(800);
+  await still('social-preview.png', SOCIAL);
+}
+
 // ---------- the recording ----------
 
+const sizeOf = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+function writeGif(name, clip, { tailMs = 1200, maxBytes = GIF_MAX_BYTES } = {}) {
+  if (clip.last) clip.last.delay += tailMs;
+  const bytes = encodeGif(clip.frames, GIF_WIDTH, GIF_HEIGHT);
+  writeFileSync(join(OUT, name), bytes);
+  const seconds = clip.frames.reduce((s, f) => s + f.delay, 0) / 1000;
+  console.log(`  ${name} (${GIF_WIDTH}×${GIF_HEIGHT}, ${clip.frames.length} frames, ${seconds.toFixed(1)} s, ${sizeOf(bytes.length)})`);
+  if (bytes.length > maxBytes) throw new Error(`${name} is ${sizeOf(bytes.length)}, over the ${sizeOf(maxBytes)} it may take`);
+}
+
 async function main() {
-  writeCswap();
   mkdirSync(OUT, { recursive: true });
+  const needsApp = want('tour') || want('clips') || want('stills');
+  if (!needsApp) {
+    browser = await launch({ baseUrl, shotsDir: dirs.shots });
+    page = browser.page;
+    console.log(`recording into ${OUT}`);
+    await socialCard();
+    return;
+  }
+
+  seedAccounts();
   const harbor = repository('harbor-api', HARBOR);
   const lumen = repository('lumen-web', LUMEN);
   const atlas = repository('atlas-docs', ATLAS);
@@ -665,8 +947,8 @@ async function main() {
   for (const [name, path] of [['harbor-api', harbor], ['lumen-web', lumen], ['atlas-docs', atlas]]) {
     projects[name] = (await api.post('/projects/import', { path, name })).id;
   }
-  await api.get('/accounts?refresh=1');
   await seedSchedules(harbor);
+  await seedCollaborators(api, projects);
 
   // The live chat: a worktree of its own, files written and committed for real, a watcher still running
   const chat = await api.post('/chats', { prompt: CHAT_PROMPT, cwd: harbor, worktree: 'rate-limit', model: 'sonnet', permissionMode: 'acceptEdits' });
@@ -674,34 +956,55 @@ async function main() {
 
   browser = await launch({ baseUrl, shotsDir: dirs.shots });
   page = browser.page;
-  await page.viewport(WIDTH, HEIGHT);
+  await stillsView();
   await page.goto('/', 800);
   await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true;`);
   console.log(`recording into ${OUT}`);
 
-  const record = want('tour');
-  const stills = want('stills');
-  if (record) {
-    await homeScene(projects['harbor-api'], { record });
-    await paletteScene(true);
+  // The graph runs once, in front of the camera when clips are wanted
+  let graphId;
+  if (want('clips') || want('tour')) {
+    await clipsView();
+    if (want('clips')) writeGif('chat-streaming.gif', await streamingClip(harbor));
+    const graph = await graphClip(harbor);
+    graphId = graph.graphId;
+    if (want('clips')) writeGif('orchestration.gif', graph.clip);
+  } else if (want('stills')) {
+    graphId = await startGraph(harbor);
+    await until(async () => (await api.get(`/orchestrations/${graphId}`)).verification?.status === 'passed', 'the checks on the merged branch to pass', 120_000);
   }
-  await chatScene(chat.id, { record, navigate: !record, stillName: stills && 'chat.png' });
-  if (stills) await changesScene(chat.id, { stillName: 'changes.png' });
-  if (stills) await phoneChatScene(chat.id, { stillName: 'chat-mobile.png' });
-  await graphScene(harbor, { record, stillName: stills && 'orchestration.png' });
-  // The dashboard's still once the graph has run, so its Orchestrations widget has one to follow
-  if (stills) await homeScene(projects['harbor-api'], { stillName: 'home.png' });
-  await accountsScene({ record, stillName: stills && 'accounts.png' });
-  if (stills) await schedulesScene({ stillName: 'schedules.png' });
-  if (record) writeTour();
-}
 
-function writeTour() {
-  const bytes = encodeGif(frames, WIDTH, HEIGHT);
-  writeFileSync(join(OUT, 'tour.gif'), bytes);
-  const seconds = frames.reduce((s, f) => s + f.delay, 0) / 1000;
-  console.log(`  tour.gif (${frames.length} frames, ${seconds.toFixed(1)} s, ${Math.round(bytes.length / 1024)} KB)`);
-  if (bytes.length > TOUR_MAX_BYTES) throw new Error(`tour.gif is ${bytes.length} bytes, over the ${TOUR_MAX_BYTES} the README can carry`);
+  if (want('tour')) {
+    await clipsView();
+    await homeScene(projects['harbor-api'], { record: true });
+    await paletteScene(true);
+    await chatScene(chat.id, { record: true, navigate: false });
+    await graphTourScene(graphId);
+    await accountsScene({ record: true });
+    await collaboratorsScene({ record: true });
+    writeGif('tour.gif', tour, { maxBytes: TOUR_MAX_BYTES });
+  }
+
+  if (want('stills')) {
+    await stillsView();
+    // The dashboard once the graph has run, so its Orchestrations widget has one to follow
+    await homeScene(projects['harbor-api'], { stillName: 'home.png' });
+    await chatScene(chat.id, { record: false, navigate: true, stillName: 'chat.png' });
+    await changesScene(chat.id, { stillName: 'changes.png' });
+    await phoneChatScene(chat.id, { stillName: 'chat-mobile.png' });
+    await graphScene(graphId, { stillName: 'orchestration.png' });
+    await accountsScene({ stillName: 'accounts.png' });
+    await schedulesScene({ stillName: 'schedules.png' });
+    await collaboratorsScene({ stillName: 'collaborators.png' });
+    // One light still: the same dashboard in the other theme
+    await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true;`);
+    await homeScene(projects['harbor-api'], { stillName: 'home-light.png' });
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true;`);
+  }
+  if (want('social')) {
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true;`);
+    await socialCard();
+  }
 }
 
 /** The cron slot `back` periods before now, at `hour`:00 UTC: a history that agrees with the expression beside it. */

@@ -11,7 +11,7 @@ terminal scraping, no undocumented HTTP endpoints, no second login of our own. I
 be expressed as a documented surface of the agent's own, it does not belong here yet. An agent that
 only has an interactive terminal interface is not a provider. What a provider is, and how to add
 one, is in [docs/providers.md](docs/providers.md). For Claude Code, the table in
-[README.md](README.md#how-it-talks-to-claude) lists every surface currently in use.
+[docs/cli-surfaces.md](docs/cli-surfaces.md) lists every surface currently in use.
 
 This is what keeps the project honest: whatever an agent does, Claudio does, and nothing more.
 
@@ -69,8 +69,8 @@ assumes ([docs/chat-environment.md](docs/chat-environment.md)).
 ## Before you open a pull request
 
 ```bash
-pnpm typecheck    # all four packages
-pnpm test         # unit (core) + API integration (Fastify inject)
+pnpm typecheck    # every package
+pnpm test         # each package's unit tests + API integration (Fastify inject)
 pnpm build
 pnpm e2e          # headless Chrome over CDP, against an isolated instance
 ```
@@ -85,7 +85,9 @@ so if you touched a shared type:
 pnpm --filter @claudio/api openapi:schemas
 ```
 
-Every route must carry a summary and a tag — there is a test that enforces it.
+Every route must carry a summary and a tag in `apps/api/src/openapi/routes.ts`, and a row in
+[docs/rest-api.md](docs/rest-api.md) — a test enforces each (`apps/api/test/api.test.ts` and
+`apps/api/test/rest-api-doc.test.ts`). The README links to that page and lists no routes itself.
 
 Each package's `test` script runs through `scripts/test-tmp.mjs`, which points `TMPDIR` at a
 directory of the run's own and removes it when the run ends, however it ends. Create scratch dirs
@@ -161,6 +163,8 @@ searches are documents nobody wrote.
 | --- | --- |
 | `packages/shared` | Types shared by every other package |
 | `packages/core` | The CLI driver: runs, sessions, accounts, orchestration, config, storage |
+| `packages/accounts` | `@claudio/accounts`: the Claude accounts, their usage readings and the `claudio-accounts` CLI |
+| `packages/mcp` | Claudio's own MCP server, through which the assistant and confined chats read and change Claudio |
 | `apps/api` | Fastify REST API and the OpenAPI document |
 | `packages/ui` | `@claudio/ui`: the web's primitives (tokens, controls, dialogs, toasts, icons, illustrations, formatters, Markdown, highlighting) |
 | `packages/chat-ui` | `@claudio/chat-ui`: the conversation (transcript, composer, permission prompts, chat hooks) |
@@ -169,11 +173,41 @@ searches are documents nobody wrote.
 | `e2e/` | Browser suite driven over the Chrome DevTools Protocol |
 | `docker/` | The single image |
 
+## The repository's media
+
+The GIFs and screenshots in `docs/media/` (the README's, the social preview) are recorded, not
+captured by hand: `pnpm build && pnpm media` runs `scripts/record-media.mjs`. It boots an isolated
+wrapper like `e2e/run.mjs` does (temporary config, workspace and data directories, the fake CLI of
+`e2e/fake-cli`), seeds invented data (three accounts, three projects, chats, schedules, an
+orchestration, and two teammates that are more wrappers on loopback, joined to a group), and drives
+headless Chrome over CDP. No real account, token, path or model is involved, and nothing is written
+outside the temporary directory but `docs/media/` (or `MEDIA_OUT`).
+
+```bash
+pnpm media                 # every file below
+pnpm media stills          # also: tour, clips (chat-streaming and orchestration), social
+MEDIA_OUT=/tmp/m pnpm media stills   # somewhere else than docs/media
+MEDIA_KEEP=1 pnpm media    # keep the sandbox (/tmp/claudio-demo) and the tour's frames to inspect
+```
+
+| File | What it is |
+|---|---|
+| `tour.gif`, `chat-streaming.gif`, `orchestration.gif` | 800 px wide, under 3 MB each, dark theme; only live things move |
+| `home.png`, `chat.png`, `changes.png`, `orchestration.png`, `accounts.png`, `schedules.png`, `collaborators.png` | 1280 × 800, dark |
+| `chat-mobile.png` | 390 × 844, the phone layout |
+| `home-light.png` | the one light-theme still |
+| `social-preview.png` | 1280 × 640, built by Chrome from an HTML page the script writes out of `tokens.css`, the logo and `home.png` (so run `stills` first) |
+
+`board*.png` and `work-item.png` are not made by the script. Run it from outside a chat's process
+tree, like the e2e suite (`setsid -f`); it kills what it started, by PID and process group, on every
+way out. The sandbox directory must not exist when it starts.
+
 ## Commits and pull requests
 
 Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org), because they
 drive the release: `feat:` bumps the minor version, `fix:` the patch, and `feat!:` (or a
-`BREAKING CHANGE:` footer) the major. Anything else — `docs:`, `refactor:`, `test:`, `chore:`,
+`BREAKING CHANGE:` footer) the major — until 1.0, where a breaking change bumps the minor
+(`bump-minor-pre-major`). Anything else — `docs:`, `refactor:`, `test:`, `chore:`,
 `build:`, `perf:` — ships without a version bump.
 
 ```
@@ -190,7 +224,8 @@ it — the output of the command counts for more than a claim that it works.
 
 You do not tag anything by hand. [release-please](https://github.com/googleapis/release-please)
 reads the commits on `main` and keeps a pull request open with the next version's changelog and
-every version number already bumped in the six `package.json` files. The running version is read
+every version number already bumped: the root `package.json`, the nine of the packages and apps,
+and the image tag in the Helm chart's `values.yaml`. The running version is read
 from `packages/core/package.json`, so no source file carries it.
 
 Merging that pull request tags the commit and creates the GitHub release as a draft, builds the

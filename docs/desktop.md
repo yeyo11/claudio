@@ -49,7 +49,7 @@ registration under an origin that never came back; that one no longer holds, so 
 window ever looks worth having, it is now a question of whether it earns its keep and not of
 whether it can work.
 To be told on a phone, point it at a wrapper served over HTTPS — see
-[On a phone](../README.md#on-a-phone) and [deploy.md](deploy.md).
+[pwa.md](pwa.md) and [deploy.md](deploy.md).
 
 Authentication is off by default (see [SECURITY.md](../SECURITY.md)). The desktop server only
 listens on the loopback interface, but any process on your machine can reach that port. Turn on a
@@ -82,7 +82,7 @@ Debian and Ubuntu (it asks for your password once), the AppImage everywhere else
 `~/.local` with a menu entry and icon and no root. Options go after `bash -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --version v0.7.0
+curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --version v0.2.0
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --appimage
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --uninstall
 ```
@@ -320,7 +320,7 @@ service, the standalone bundle), so it finds what your terminal finds. Directori
    `ELECTRON_RUN_AS_NODE=1`, and it removes that from its environment as it starts, so the chats
    and commands it runs — an Electron app among them — start as themselves rather than as Node.
 
-Any variable from the [environment table](../README.md#environment-variables), such as
+Any variable from the [environment table](configuration.md#environment-variables), such as
 `CLAUDIO_DEFAULT_PERMISSION_MODE`, can be set this way.
 
 ## Building from source

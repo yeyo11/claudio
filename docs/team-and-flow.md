@@ -206,7 +206,7 @@ The flow **starts paid runs on its own**, so what it will not do is part of the 
 
 Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
 
-- working and verifying run in the item's own worktree, on `task/<key>`, as "Work on it" places it.
+- working and verifying run in the item's own worktree, on `claudio-task/<key>`, as "Work on it" places it.
   **Refining runs in the project's checkout** and makes no worktree: it changes no code, a worktree
   per refined card was only clutter, and its specification belongs in the documents folder the
   Documents module reads;
@@ -255,7 +255,7 @@ created **or resumed**, `launchFlowRun` brings the item's documents across:
   the sync's own commits aside) or when the worktree has uncommitted changes to it. A spec the
   developer or a person edited on the branch wins over the checkout's copy.
 - **The commit.** What was copied, and only that (`git add -- <paths>`, then `git commit -- <paths>`,
-  so the developer's uncommitted work stays out), is committed on `task/<key>` in one commit,
+  so the developer's uncommitted work stays out), is committed on `claudio-task/<key>` in one commit,
   `docs: bring <KEY>'s specification into its branch`, with the identity and `--no-verify` the
   orchestrator's commits in worktrees use, and no `Co-Authored-By` line. Nothing copied, no commit.
 - **The prompt.** A work or verify prompt gets one line, after the item's part, naming every tied
@@ -730,11 +730,11 @@ Reads work with the module off; changes need it on.
 
 ## Routes and events
 
-Every route is in the README: [Team](../README.md#team) (with `GET /projects/:id/flow`, the team's
+Every route is in [rest-api.md](rest-api.md): [Team](rest-api.md#team) (with `GET /projects/:id/flow`, the team's
 activity `GET /projects/:id/flow/runs`, the waiting cards `GET /projects/:id/flow/waiting` and
 `POST /projects/:id/flow/start-waiting`, and an item's runs `GET /work-items/:itemId/runs`),
-[Documents](../README.md#documents) and
-[Project journal and memory proposals](../README.md#project-journal-and-memory-proposals).
+[Documents](rest-api.md#documents) and
+[Project journal and memory proposals](rest-api.md#project-journal-and-memory-proposals).
 
 Each change reaches the event feed, and the web refetches exactly what it touched
 (`apps/web/src/lib/events.ts`):

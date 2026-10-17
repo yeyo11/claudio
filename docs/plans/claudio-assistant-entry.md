@@ -182,7 +182,7 @@ The designer draws this before anything is built (criterion 1). The constraints,
 |---|---|
 | Starting and re-applying the confinement, the marker, the appended prompt | `packages/core/src/index.ts` (next to `launchAssistantRun`), `packages/core/src/chats.ts` (`ChatConfinement`, resume/fork paths), the chat store in `packages/core/src/db.ts` (JSON field, no new table) |
 | The Claudio guide for the system prompt | a new `packages/core/src/claudio-assistant-prompt.ts` (name indicative) |
-| The route | a new file or `apps/api/src/routes/assistant.ts`; `apps/api/src/openapi/routes.ts` (summary + tag); the README's [Assistant](../../README.md#assistant) table |
+| The route | a new file or `apps/api/src/routes/assistant.ts`; `apps/api/src/openapi/routes.ts` (summary + tag); the [Assistant](../rest-api.md#assistant) table of the REST API (the README's, when this plan was written) |
 | Types | `packages/shared/src/types.ts`, then `pnpm --filter @claudio/api openapi:schemas` |
 | The entry | `apps/web/src/App.tsx` (sidebar groups / `startEntries` / `TabBar` `more`) or `components/shell/TopBar.tsx`, as the design reference says |
 | The palette | `apps/web/src/components/CommandPalette.tsx` |

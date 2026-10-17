@@ -220,8 +220,8 @@ macOS app keeps it inside the bundle).
 `POST /api/tunnel/stop` open and close the tunnel. A stop that arrives through the tunnel itself
 answers first, with `state: 'stopping'`, and removes the rule a second after the reply is sent.
 Every move emits `tunnel.changed` on `/api/events`, carrying the whole status; the event's title
-never contains the address, and it never becomes a notification. The rows are in the README's
-[Remote access](../README.md#remote-access) table.
+never contains the address, and it never becomes a notification. The rows are in the
+[Remote access](rest-api.md#remote-access) table of the REST API.
 
 ## Related
 

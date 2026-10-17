@@ -14,6 +14,106 @@ tags:
 Three ways to run the image, from one machine to a cluster, what a phone needs from it, how it learns
 of a new release, and what to know about restarts.
 
+## Running the published image
+
+On a machine where you are already logged in to Claude Code, mint a long-lived token:
+
+```bash
+claude setup-token
+```
+
+Then run the published image, pasting that token in:
+
+```bash
+docker run -d --init --name claudio --restart unless-stopped -p 127.0.0.1:8797:8797 \
+  -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
+  -v claudio-config:/home/node/.claude \
+  -v claudio-data:/data \
+  -v claudio-workspace:/workspace \
+  ghcr.io/yeyo11/claudio
+```
+
+The workspace is a named volume too. A folder of your own (`-v "$HOME/projects:/workspace"`) works
+as well, as an absolute path: a relative one such as `$PWD/workspace` is a different folder from
+wherever you run the command next.
+
+The image carries Claude Code at the version Claudio's driver was written for, with `gh`, `glab` and
+`youtrack-app` beside it ([What the image contains](#what-the-image-contains)). Their sign-ins live
+under `/data`, so the same three volumes keep them: the setup assistant shows which ones are signed
+in.
+
+The UI and the API reference are on <http://localhost:8797> — the panel at `/`, the interactive
+OpenAPI docs at `/docs`, the API under `/api` ([rest-api.md](rest-api.md)). Everything else is
+configured from the UI, or from the environment ([configuration.md](configuration.md)).
+
+The port is published on `127.0.0.1` only: authentication is off by default (see
+[securing.md](securing.md) and [SECURITY.md](../SECURITY.md)), so do not drop that prefix unless you
+turn it on and put TLS in front.
+
+Name all three volumes: the image declares each as a volume, so a command that names fewer still
+starts, with the others on volumes Docker made on its own, and replacing the container to update
+starts again with empty ones. [Updating](#updating-a-container-without-losing-anything)
+says how, and Settings → Account warns when a container was started that way.
+
+### Building it yourself instead
+
+```bash
+git clone https://github.com/yeyo11/claudio
+cd claudio
+cp .env.example .env        # paste the token into CLAUDE_CODE_OAUTH_TOKEN
+docker compose up --build
+```
+
+The image pins the Claude Code it installs (`CLAUDE_CODE_VERSION`, defaulting to the version in
+`docker/Dockerfile`), so an image is the same tomorrow as today; set it in `.env` to move. Compose
+publishes the port on `127.0.0.1` like the command above, and adds a `tls` profile:
+
+```bash
+docker compose --profile tls up -d    # plus Caddy on :80 and :443, in front of Claudio
+```
+
+More ways to run it, with the details — Compose profiles, the TLS proxy, a Helm chart, the pinned
+CLI and its update check, health-driven restarts and the signals the server handles — are in the
+sections below.
+
+### Volumes
+
+| Volume (`docker run` / compose) | Mount | Purpose |
+| --- | --- | --- |
+| `claudio-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
+| `./workspace` / `claudio-workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
+| `claudio-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, each account's usage limit, the waits at a limit, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `providers.json` (whether Claude Code is enabled, and its binary), `auth.json` (the auth mode and the hash of the token, mode 600), `secrets.json` (the sealed secret vault: every key and token given in the setup, mode 600) and `secret.key` (the vault's key when `CLAUDIO_SECRET_KEY` is not set, mode 600; see [security-model.md](security-model.md)), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Claudio release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments, `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets), `accounts/` the Claude accounts added in the app (one config dir each, [accounts.md](accounts.md)) and `provider-homes/` the GitHub and GitLab sign-ins of `gh` and `glab`, in the Docker image (`GH_CONFIG_DIR` and `GLAB_CONFIG_DIR` point there) |
+
+The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
+prefixes them with the project name (`claudio_wrapper-data`…), which is the folder's name unless
+`COMPOSE_PROJECT_NAME` is set. Run from another folder, it would start with three empty volumes: set
+`COMPOSE_PROJECT_NAME` in `.env` once, before the first start.
+
+### In short
+
+What the sections below say, in brief:
+
+- **Docker Compose**: `docker compose up -d` publishes Claudio on `127.0.0.1:8797`;
+  `--profile tls` adds the Caddy proxy on `:80` and `:443` (`CLAUDIO_DOMAIN` picks the name).
+- **Kubernetes**: the Helm chart in `deploy/helm/claudio` is a Deployment (one replica, `Recreate`),
+  a Service and one PersistentVolumeClaim that outlives `helm uninstall`. Its values cover the image
+  tag (pinned to a release rather than `latest`), the port, resources, the pod and container
+  security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
+  template; bring your own — and if it gives the pod a host name, put that name in
+  `CLAUDIO_ALLOWED_HOSTS` through the chart's `env`.
+- **The tunnel** (Settings → Remote access): the image runs a Tailscale of its own in userspace
+  networking, with its node on the data volume, and you sign it in from the app with a login link or
+  an auth key. Once open it goes around the published port, the proxy and the Ingress; turn it off
+  with `CLAUDIO_TUNNEL=off` (or `tunnel.enabled: false`). See
+  [The tunnel in Docker](#the-tunnel-in-docker).
+- **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
+  newer one is published, with how to move. The check reads the npm registry on demand and once a
+  day.
+- **Restarts**: Docker only marks a container `unhealthy`, so the image's healthcheck ends the server
+  itself after three failed probes and Compose's `restart: unless-stopped` starts it again; the chart
+  uses ordinary liveness and readiness probes. `SIGTERM` is a clean stop: the chats' transcripts are
+  on disk and resume afterwards.
+
 ## Docker Compose
 
 ```bash
@@ -362,7 +462,7 @@ Firebase project, no key of anyone else's.
 
 The payload itself holds only what a lock screen shows anyway — the kind, a title and body, the chat
 or orchestration id and the path to open — because it passes through a push service nobody here runs.
-See "Securing it" in the [README](../README.md#securing-it).
+See [securing.md](securing.md).
 
 ## Pinned Claude Code
 
@@ -524,4 +624,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]]
+[[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]] · [[securing.md]] · [[configuration.md]] · [[rest-api.md]]

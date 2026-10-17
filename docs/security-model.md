@@ -19,7 +19,7 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
 
 - **The auth mode** is `none`, `token` or `oidc` (Settings → Security, `auth.json` in the data
   directory with the hash of the token, mode 0600; `CLAUDIO_AUTH_MODE` only seeds an install that has
-  none yet). See the README's [Securing it](../README.md#securing-it). The setup assistant's Access
+  none yet). See [securing.md](securing.md). The setup assistant's Access
   step sets the same thing, and turning Token on makes a token first when the browser holds none, so
   it cannot lock the person out ([setup.md](setup.md#the-web)).
 - **Read-only mode** (`CLAUDIO_READ_ONLY`) refuses every write, the setup's included (405).
