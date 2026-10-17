@@ -41,6 +41,13 @@ ci=$(read_key ci)
 ci=${ci:-none}
 mr_state=$(read_key state)
 mr_state=${mr_state:-open}
+# `stateOf` gives `state` to that one number only, and the others read open: the watcher reads every
+# open change request in the background, and a state meant for one would close the rest
+state_of=$(read_key stateOf)
+if [ -n "$state_of" ]; then
+  asked_state=$(echo "$*" | sed -n 's/.*\(pr\|mr\) \(view\|merge\) \([0-9][0-9]*\).*/\3/p; t; s/.*number=\([0-9][0-9]*\).*/\1/p; t; s/.*merge_requests\/\([0-9][0-9]*\).*/\1/p')
+  [ "$asked_state" = "$state_of" ] || mr_state=open
+fi
 # The checks of the open change request, for the change request routes: none, failing, running,
 # mixed or fixed. A rerun or a cancel the CLI is asked for moves them (the .checks file wins over the
 # JSON), which is what a spec then sees on its next read
