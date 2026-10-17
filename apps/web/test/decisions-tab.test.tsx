@@ -185,6 +185,8 @@ test("the Supervisor's point can be active on the CLI, and its row says what eac
     row(supervisor, settings({ 'supervisor.intervene': { mode: 'active', threshold: 0.85, consent: null } }), provider, null);
   assert.doesNotMatch(unconsented('cli'), /Funciona como sombra/);
   assert.match(unconsented('jev'), /Funciona como sombra hasta que tenga consentimiento/);
+  assert.match(unconsented('jev'), /Propone pistas para que las envíes tú/);
+  assert.match(unconsented('cli'), /Envía cada pista por su cuenta/);
   assert.equal(isLimited(supervisor, null, 'active', 'cli'), false);
   assert.equal(isLimited(supervisor, null, 'active', 'jev'), true);
   assert.equal(isLimited(info(), null, 'shadow', 'jev'), false);

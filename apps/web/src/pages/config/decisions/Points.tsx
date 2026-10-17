@@ -245,7 +245,12 @@ export function PointRow({
         <EvidenceLine id={info.id} stats={stats} />
         {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} />}
       </p>
-      {supervisor && <p className="dp-point-line">{t(`supervisor.${supervisorMeaning(point.mode, provider)}`)}</p>}
+      {/* Active without consent runs as shadow: the line says what it does, not what was asked */}
+      {supervisor && (
+        <p className="dp-point-line">
+          {t(`supervisor.${supervisorMeaning(isLimited(info, settings.points[info.id]?.consent ?? null, point.mode, provider) ? 'shadow' : point.mode, provider)}`)}
+        </p>
+      )}
       {showThreshold && (
         <div className="dp-thr dp-point-thr">
           <span className="dp-point-line">{t('points.thresholdLine')}</span>
