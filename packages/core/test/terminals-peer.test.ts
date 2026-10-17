@@ -87,7 +87,7 @@ async function verdict(host: string, via: (port: number) => void, bind = host, c
   // Let the client's connect settle, and the process table with it
   await new Promise((done) => setTimeout(done, 100));
   const check = chats ? new PeerCheck({ table: processTable, chatPids: chats }) : new PeerCheck();
-  const found = check.check({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  const found = await check.verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
   socket.destroy();
   return found;
 }
@@ -146,9 +146,9 @@ test('IPv6 loopback and a v4-mapped peer are found in the right table', linux, a
   assert.equal(await verdict('127.0.0.1', (port) => client(port, '127.0.0.1', { CLAUDIO_CHAT_ID: 'chat-5' }), '::'), 'agent');
 });
 
-test('a peer that cannot be found is unknown, never "not an agent"', linux, () => {
-  assert.equal(new PeerCheck().check({ address: '127.0.0.1', port: 1, serverPort: 2 }), 'unknown');
-  assert.equal(new PeerCheck().check({ address: '::1', port: 1, serverPort: 2 }), 'unknown');
+test('a peer that cannot be found is unknown, never "not an agent"', linux, async () => {
+  assert.equal(await new PeerCheck().verdict({ address: '127.0.0.1', port: 1, serverPort: 2 }), 'unknown');
+  assert.equal(await new PeerCheck().verdict({ address: '::1', port: 1, serverPort: 2 }), 'unknown');
 });
 
 test('a chat process that ended and waits to be reaped does not make the answer unknown', linux, async () => {
@@ -172,7 +172,7 @@ test('a chat process that ended and waits to be reaped does not make the answer 
   }
   assert.equal(state(), 'Z');
   const check = new PeerCheck({ table: processTable, chatPids: () => [dead.pid as number] });
-  const found = check.check({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  const found = await check.verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
   socket.destroy();
   assert.equal(found, 'not-agent');
 });

@@ -345,6 +345,18 @@ test('a wait that times out reports the page, and a failed assertion the console
   assert.deepEqual(result.survivors, { chrome: [], server: false });
 });
 
+test('a navigation that never reached the app fails at the goto, and a read of storage off the app says where the tab is', { skip }, async () => {
+  // An address Chrome refuses to open (a port past 65535) leaves the tab where the reset put it, on
+  // about:blank, whose origin is opaque: the next read of storage threw a bare SecurityError
+  const failed = `export default async ({ page }) => { await page.goto('9/', 0); };`;
+  const blank = `export default async ({ page }) => { await page.reset(); await page.eval('return sessionStorage.length'); };`;
+  const result = await run({ specs: { 'failed.spec.mjs': failed, 'blank.spec.mjs': blank }, env: { E2E_SHARDS: '1' } });
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /✗ failed\.spec\.mjs\n {2}the navigation to 9\/ did not reach the app \([^)]+\): the tab is on about:blank\n {2}page: about:blank/);
+  assert.match(result.output, /✗ blank\.spec\.mjs\n {2}SecurityError: [^\n]*'sessionStorage'[^]*\(the tab is on about:blank/);
+  assert.deepEqual(result.survivors, { chrome: [], server: false });
+});
+
 // ---------- shards ----------
 
 /** Probe specs that say they ran; two want the fake CLI and must share a shard */

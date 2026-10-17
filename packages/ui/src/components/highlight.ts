@@ -167,12 +167,16 @@ type Shiki = typeof import('shiki/core');
 type Langs = typeof import('shiki/langs');
 type HighlighterCore = Awaited<ReturnType<Shiki['createHighlighterCore']>>;
 
-/** Per line, for the first block in a language, which also compiles its grammar; see where it is passed. */
-const FIRST_TOKENIZE_BUDGET_MS = 2000;
-/** Per line once the grammar is compiled: a pathological line must not hold the page for seconds. */
+/** Per line: a pathological line must not hold the page for seconds, highlighting being on the main thread. */
 const TOKENIZE_BUDGET_MS = 300;
-/** Languages whose grammar has already been through one tokenization. */
-const warmed = new Set<string>();
+/**
+ * The longest line `compileFor` runs the grammar over without a clock. The tokenizer's cost follows
+ * the square of a line's length (see `lineCost`): 59 000 characters took over a minute, so a line
+ * this long costs a few milliseconds, which is nothing the budget would have saved.
+ */
+const UNTIMED_LINE_CHARS = 1000;
+type Grammar = ReturnType<HighlighterCore['getLanguage']>;
+type GrammarState = Parameters<Grammar['tokenizeLine2']>[1];
 type Loader = Langs['bundledLanguages'][keyof Langs['bundledLanguages']];
 
 let shiki: Promise<{ h: HighlighterCore; langs: Langs }> | null = null;
@@ -197,6 +201,24 @@ function shikiCore() {
   return shiki;
 }
 
+/**
+ * Runs the grammar over `code` with no time limit, so that the rules its lines reach are compiled
+ * before the timed tokenization, which then spends each line's budget on the text alone. A TextMate
+ * grammar compiles a rule the first time a line reaches it, and that time counts against the line's
+ * limit: shiki cuts a line once its budget is spent and leaves the rest of it uncoloured. Compiling
+ * the C++ grammar took a second on an idle machine and over twenty on a loaded one, so no budget
+ * covered it, and the first block in a language lost its colours whenever the machine was busy.
+ * The clock stays on what it is for, a line long enough to be slow by itself: compiling stops at the
+ * first line past `UNTIMED_LINE_CHARS`, and from there the budget decides.
+ */
+function compileFor(grammar: Grammar, code: string): void {
+  let state: GrammarState = null;
+  for (const line of code.split('\n')) {
+    if (line.length > UNTIMED_LINE_CHARS) return;
+    state = grammar.tokenizeLine2(line, state, 0).ruleStack;
+  }
+}
+
 async function highlightShiki(code: string, id: string): Promise<Highlighted | null> {
   const { h, langs } = await shikiCore();
   const loader =
@@ -210,14 +232,8 @@ async function highlightShiki(code: string, id: string): Promise<Highlighted | n
     }
     await pending;
   }
-  // shiki gives up on a line after 500 ms by default and returns the rest of it uncoloured. The
-  // first call in a language compiles its grammar within that budget, which a busy machine
-  // overruns, so the first block on screen lost its colours. A wider budget keeps the guard
-  // against a pathological line without tripping over the grammar's own start-up; once that is
-  // paid, the budget drops back, since highlighting runs on the main thread.
-  const tokenizeTimeLimit = warmed.has(id) ? TOKENIZE_BUDGET_MS : FIRST_TOKENIZE_BUDGET_MS;
-  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false, tokenizeTimeLimit });
-  warmed.add(id);
+  compileFor(h.getLanguage(id), code);
+  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false, tokenizeTimeLimit: TOKENIZE_BUDGET_MS });
   const base = { '--shiki-light': h.getTheme(THEMES.light).fg, '--shiki-dark': h.getTheme(THEMES.dark).fg };
   const runs = new Runs(base);
   tokens.forEach((line, i) => {

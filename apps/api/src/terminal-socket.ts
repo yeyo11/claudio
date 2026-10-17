@@ -238,7 +238,7 @@ export const terminalSocketRoute: FastifyPluginAsync<{ core: Core; guard: Guard;
           return reply;
         }
         // The actor is the ticket's, learned below: only the feature, read-only and where from are decided here
-        const refused = terminalGate(core, req, { feature: true, actor: false });
+        const refused = await terminalGate(core, req, { feature: true, actor: false });
         if (refused) {
           recordGateRefusal(core, req, refused, id);
           void reply.status(refused.status).send({ error: refused.error, code: `terminal.${refused.reason ?? 'refused'}`, ...(refused.reason ? { reason: refused.reason } : {}) });
@@ -278,7 +278,7 @@ export const terminalSocketRoute: FastifyPluginAsync<{ core: Core; guard: Guard;
         }
         req.actor = actor;
         // The ticket was minted through the gate; a caller that has since become a chat's or the desktop's is still turned away
-        const again = terminalGate(core, req, { feature: false, actor: true });
+        const again = await terminalGate(core, req, { feature: false, actor: true });
         if (again) {
           recordGateRefusal(core, req, again, id);
           void reply.status(again.status).send({ error: again.error, code: `terminal.${again.reason ?? 'refused'}`, ...(again.reason ? { reason: again.reason } : {}) });

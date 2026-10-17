@@ -16,7 +16,7 @@ export const timeout = 240_000;
 const RENDERER = 'claudio-terminal-renderer';
 const SCREEN = `document.querySelector('.term .xterm-rows')?.innerText ?? ''`;
 
-export default async ({ page, api, check, dirs }) => {
+export default async ({ page, api, check, dirs, serverLog }) => {
   let projectId = null;
   const path = join(dirs.workspaceDir, 'e2e-terminal');
   mkdirSync(path, { recursive: true });
@@ -24,7 +24,32 @@ export default async ({ page, api, check, dirs }) => {
   const screen = () => page.eval(`return ${SCREEN}`);
   const onScreen = (text, label = text) => page.waitFor(`return (${SCREEN}).includes(${JSON.stringify(text)})`, { label: `"${label}" on the terminal's screen`, timeout: 30_000 });
   // Ready is the shell's prompt on the screen: input typed while the socket is still attaching is dropped
-  const ready = () => page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea') && !!document.querySelector('.term-status') && (${SCREEN}).trim().length > 0`, { label: 'a terminal with its status and a prompt', timeout: 30_000 });
+  const ready = async (step) => {
+    try {
+      await page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea') && !!document.querySelector('.term-status') && (${SCREEN}).trim().length > 0`, { label: 'a terminal with its status and a prompt', timeout: 30_000 });
+    } catch (error) {
+      // The page's own report stops at the sidebar: what the panel shows and what the server holds say which half is missing
+      const shown = await page
+        .eval(`const d = document.querySelector('.term-dock, .term-space, .term'); return { dock: d ? d.outerHTML.replace(/<svg[\\s\\S]*?<\\/svg>/g, '').slice(0, 1500) : null, status: [...document.querySelectorAll('.term-status')].map((e) => e.textContent), screen: (${SCREEN}).slice(0, 300) }`)
+        .catch((e) => `unreadable: ${e.message}`);
+      const held = projectId ? await terminalsOf().catch((e) => e.message) : null;
+      // No panel at all is either the feature refused (GET /terminal) or the panel remembered closed
+      const feature = (await api.get('/terminal').catch((e) => ({ body: e.message }))).body;
+      const remembered = await page.eval(`return { bar: localStorage.getItem('claudio-terminal-bar'), item: !!document.querySelector('.statusbar-btn') }`).catch((e) => e.message);
+      error.message += `\nGET /terminal: ${JSON.stringify(feature)}\nremembered: ${JSON.stringify(remembered)}`;
+      // A prompt that comes late is a slow shell; one that only an Enter brings is output that never reached the screen
+      const late = await page.waitFor(`return (${SCREEN}).trim().length > 0`, { timeout: 30_000 }).then(() => 'yes', () => 'no');
+      let afterEnter = 'not tried';
+      if (late === 'no' && (await page.eval(`return !!document.querySelector('.term .xterm-helper-textarea')`).catch(() => false))) {
+        await page.focus('.term .xterm-helper-textarea').catch(() => {});
+        await page.key('Enter').catch(() => {});
+        afterEnter = await page.waitFor(`return (${SCREEN}).trim().length > 0`, { timeout: 10_000 }).then(() => page.eval(`return (${SCREEN}).trim().slice(0, 120)`), () => 'still blank');
+      }
+      error.message += `\nprompt within 30 s more: ${late}; after an Enter: ${afterEnter}`;
+      error.message += `\nstep: ${step}\npanel: ${JSON.stringify(shown)}\nterminals: ${JSON.stringify(held)}\nserver log: ${serverLog(/terminal|pty|socket/i).slice(-10).join(' | ')}`;
+      throw error;
+    }
+  };
   /** Types a line into the shell as a person does: into xterm's own textarea, then Enter */
   const run = async (line) => {
     await page.focus('.term .xterm-helper-textarea');
@@ -33,6 +58,11 @@ export default async ({ page, api, check, dirs }) => {
   };
   const terminalsOf = async () => (await api.get(`/terminals?project=${encodeURIComponent(projectId)}`)).body;
 
+  // Every POST that opens a shell, in every document, with when and from where: what a check that
+  // counts the shells reports when there is one too many
+  const removeOpens = await page.onNewDocument(
+    `window.__opens = []; const real = window.fetch; window.fetch = (input, init) => { if ((init?.method ?? 'GET') === 'POST' && String(input).endsWith('/api/terminals')) window.__opens.push({ at: Math.round(performance.now()), stack: new Error().stack.split('\\n').slice(2, 9).join(' < ') }); return real(input, init); };`,
+  );
   try {
     const imported = await api.post('/projects/import', { path, name: 'e2e-terminal' });
     check(imported.status === 201, `the project was imported (${imported.status})`);
@@ -55,7 +85,7 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(`return !!document.querySelector('${ITEM}')`)), 'with the feature off, the status bar has no Terminal item');
 
     const on = await api.put('/terminal/settings', { enabled: true });
-    check(on.status === 200, `the feature was turned on (${on.status})`);
+    check(on.status === 200, `the feature was turned on (${on.status} ${JSON.stringify(on.body)})`);
     check((await api.get('/terminal')).body.available === true, 'the terminal is available from loopback with authentication off');
     await page.goto(home, 1500);
     await page.waitFor(`return !!document.querySelector('${ITEM}')`, { label: 'the status bar Terminal item' });
@@ -64,7 +94,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- 2. open the panel from the item; a command's answer reaches the screen ----
     await page.click(ITEM, undefined, 800);
-    await ready();
+    await ready('2, the panel opened from the item');
     check((await item()).expanded === 'true', 'the item says the panel is expanded');
     check(await page.eval(`return !!document.querySelector('section.term-dock[aria-label]')`), 'the panel is a labelled region');
     // Opening the panel is the person's doing, so the keyboard is in the shell once it has attached
@@ -80,7 +110,8 @@ export default async ({ page, api, check, dirs }) => {
     const printed = (await screen()).match(/cwd:(\/\S*)/g)?.map((m) => m.slice(4)) ?? [];
     const open = (await terminalsOf())[0];
     check(open?.state === 'running', `the API lists the terminal as running (${open?.state})`);
-    check((await terminalsOf()).length === 1, 'opening the panel with a project chosen opened one shell');
+    const shells = await terminalsOf();
+    check(shells.length === 1, `opening the panel with a project chosen opened one shell (${JSON.stringify(shells.map(({ id, startedAt }) => ({ id, startedAt })))}; the page asked ${JSON.stringify(await page.eval('return window.__opens'))})`);
     check(printed.some((p) => p.endsWith('/e2e-terminal')) && Boolean(open?.cwd.endsWith('e2e-terminal')), `pwd prints the project's directory (${printed.join(', ')} vs ${open?.cwd})`);
     await run('echo env$(env | grep -c "^CLAUDIO_")');
     await onScreen('env0');
@@ -91,9 +122,10 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- 4. a reload brings the screen back from the server's snapshot (the panel remembers it is open) ----
     await page.goto(home, 1500);
-    await ready();
+    await ready('4, after a reload');
     await onScreen('m42', 'the earlier output after a reload');
-    check((await terminalsOf()).length === 1, 'the reload attached to the same shell, it did not open another');
+    const afterReload = await terminalsOf();
+    check(afterReload.length === 1, `the reload attached to the same shell, it did not open another (${JSON.stringify(afterReload.map(({ id, state, startedAt, endedAt, endReason, clients }) => ({ id, state, startedAt, endedAt, endReason, clients })))}; this page asked ${JSON.stringify(await page.eval('return window.__opens'))})`);
 
     // ---- 5. the panel's "+", its bounded height, X, Esc ----
     await page.click('.term-plus', undefined, 800);
@@ -125,7 +157,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return localStorage.getItem('claudio-terminal-bar') === '0'`), 'the panel remembers it is closed');
     // The item opens it again, on the shell that is still running
     await page.click(ITEM, undefined, 800);
-    await ready();
+    await ready('5, shown again after Esc');
     check((await terminalsOf()).length === 1, 'showing the panel again reused the running shell');
 
     // ---- 5a. full screen: the frame fills the screen, the terminal refits, Esc or the button leaves ----
@@ -162,11 +194,11 @@ export default async ({ page, api, check, dirs }) => {
     await page.shot('terminal-detached');
     check((await page.text('.term-tab.on .term-status')).includes('In another window'), "the tab's status says it too, in words");
     await page.click('.term-detached .btn', undefined, 600);
-    await ready();
+    await ready('5c, brought back from the window');
     check(!(await page.eval(`return !!document.querySelector('.term-detached')`)), '"Bring it here" showed the terminal in the panel again');
     // The window's route, as the other window would load it: the terminal alone, attached to the same shell
     await page.goto(`/terminal-window/${shellId}`, 1500);
-    await ready();
+    await ready('5c, the window route');
     check(await page.eval(`return !document.querySelector('.statusbar') && !document.querySelector('.sidebar') && !document.querySelector('.term-dock') && !document.querySelector('.term-detach, .term-head [aria-label="Open in a window"]')`), 'the window route has no app shell, no panel and no detach button');
     check((await page.eval(`return document.title`)).startsWith('Terminal'), 'the window is titled for the terminal');
     check(await page.eval(`return !!document.querySelector('.term-head [aria-label="Full screen"]')`), 'the window offers full screen too');
@@ -175,7 +207,7 @@ export default async ({ page, api, check, dirs }) => {
     await onScreen('win42');
     check((await terminalsOf()).length === 1, 'the window attached to the same shell, it did not open another');
     await page.goto(home, 1500);
-    await ready();
+    await ready('5c, back home');
     await onScreen('win42', "what was typed in the window, back in the panel");
 
     // ---- 5b. the page that used to hold the terminals is gone on a desktop: an old bookmark shows the panel and goes home ----
@@ -183,7 +215,7 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await hasPanel()), 'the item hides the panel');
     await page.goto(`/terminals?project=${encodeURIComponent(projectId)}`, 1500);
     await page.waitFor(`return location.pathname === '/'`, { label: 'the old terminals page redirected home' });
-    await ready();
+    await ready('5b, the old terminals page');
     check(await hasPanel(), '/terminals on a desktop opens the status bar panel');
     for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`).catch(() => {});
 
@@ -197,7 +229,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.text('main')).includes('New terminal'), "the phone's list offers New terminal");
     await page.click('.term-row', undefined, 1500);
     await page.waitFor(`return location.pathname === '/terminals/${phoneTerminal.body.id}'`, { label: "the row opened the terminal's own screen" });
-    await ready();
+    await ready('6, the phone screen');
     const keys = await page.eval(`const bar=document.querySelector('.term-keys'); const r=bar?.getBoundingClientRect(); return { shown: !!bar && r.height > 0, tabBar: [...document.querySelectorAll('.tab-bar, .tabbar')].some((e) => e.getClientRects().length > 0) }`);
     check(keys.shown, 'the key bar is visible at phone width');
     check(!keys.tabBar, "the terminal's screen hides the tab bar");
@@ -223,9 +255,13 @@ export default async ({ page, api, check, dirs }) => {
     // ---- 7. the light theme paints the terminal with the light --term-bg ----
     await page.viewport(1440, 900);
     await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
+    // The panel comes back as it was left, but only once the feature's status and its own code have
+    // loaded: deciding from whether it is on screen yet raced that, and a click on an item already
+    // opening the panel closed it again. What it was left as is read instead.
+    const remembered = await page.eval(`return localStorage.getItem('claudio-terminal-bar') === '1'`);
     await page.goto(home, 1500);
-    if (!(await hasPanel())) await page.click(ITEM, undefined, 800);
-    await ready();
+    if (!remembered) await page.click(ITEM, undefined, 800);
+    await ready('7, the light theme');
     const paint = await page.eval(`
       const probe = document.createElement('div');
       probe.style.background = 'var(--term-bg)';
@@ -246,7 +282,14 @@ export default async ({ page, api, check, dirs }) => {
     // With the feature off every terminal route answers 409 (the gate), so nothing can be listed or reached
     const listed = await api.get(`/terminals?project=${encodeURIComponent(projectId)}`);
     check(listed.status === 409 || (Array.isArray(listed.body) && listed.body.every((t) => t.state !== 'running')), `no terminal is reachable once the feature is off (${listed.status})`);
+  } catch (error) {
+    // Whatever failed, the shells the server holds and the POSTs this page sent for them say whether one too many was opened, and by whom
+    const held = projectId ? await terminalsOf().catch((e) => e.message) : null;
+    const asked = await page.eval('return window.__opens ?? null').catch((e) => e.message);
+    error.message += `\nshells: ${JSON.stringify(Array.isArray(held) ? held.map(({ id, state, startedAt, clients }) => ({ id, state, startedAt, clients })) : held)}\nPOST /terminals from this page: ${JSON.stringify(asked)}`;
+    throw error;
   } finally {
+    await removeOpens().catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(RENDERER)}); localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});

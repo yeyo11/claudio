@@ -156,7 +156,15 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     const found = (await api.get(`/work-items/${it.id}`)).body;
     if (found?.pullRequest?.id) await api.get(`/change-requests/${found.pullRequest.id}/merge?refresh=1`);
     await page.goto(`/tasks/${it.key}`, 1500);
-    await page.waitFor(`return !!document.querySelector('${ready}')`, { timeout: 60_000, label });
+    try {
+      await page.waitFor(`return !!document.querySelector('${ready}')`, { timeout: 60_000, label });
+    } catch (error) {
+      // What the block shows and what the API reads now: the page's own report stops at the sidebar
+      const block = await page.eval(`return document.querySelector('.mg')?.outerHTML.slice(0, 1500) ?? 'no .mg block'`).catch((e) => `unreadable: ${e.message}`);
+      const read = found?.pullRequest?.id ? (await api.get(`/change-requests/${found.pullRequest.id}/merge`)).body : null;
+      error.message += `\n.mg: ${block}\nGET merge now: ${JSON.stringify(read)?.slice(0, 1500)}\nfake gh calls (last 8): ${calls('gh').trim().split('\n').slice(-8).join(' | ')}`;
+      throw error;
+    }
   };
   // What carries the gradient: the split New chat button is one surface drawn as two buttons
   const surfaces = () =>
@@ -327,7 +335,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         ['merged', 'merged', 'was merged'],
         ['closed', 'closed', 'was closed without merging'],
       ]) {
-        scenario('gh', { state });
+        // Only #12: the watcher reads every open request meanwhile, and a host-wide `closed` closed the
+        // others too, so a later visit to one found no merge block at all
+        scenario('gh', { state, stateOf: 12 });
         // The core says so at once; the page either still shows the notice or, once the watcher has stored the
         // host's answer, no block at all (a request that is not open has none): never "open", never a Merge
         const found = (await api.get(`/work-items/${gone.id}`)).body;
@@ -530,7 +540,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       }
       check(seen.size >= 2, `[${theme}] the spinner turns at full motion (${[...seen]})`);
       await page.reduceMotion(true);
-      await page.sleep(300);
+      // The page hears of the media change as an event and re-renders after it, which a busy machine
+      // can take longer than a pause over: the spinner settles on its still glyph first, then holds it
+      await page.waitFor(`return document.querySelector('.mg .mg-live .spinner-glyph')?.textContent === '⠿'`, { label: `[${theme}] the spinner on its still glyph under reduced motion` });
       const still = new Set();
       for (let i = 0; i < 4; i++) {
         still.add(await text('.mg .mg-live .spinner-glyph'));

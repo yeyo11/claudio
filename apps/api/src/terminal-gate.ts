@@ -49,7 +49,7 @@ function serviceRefusal(core: Core): GateRefusal | null {
  * Who the caller is and where they came from. Read-only comes first here because a shell is the
  * largest possible change; a chat's token and the desktop app's secret are never the person.
  */
-export function clientRefusal(core: Core, req: FastifyRequest, options: Pick<GateOptions, 'actor' | 'reducing'>): GateRefusal | null {
+export async function clientRefusal(core: Core, req: FastifyRequest, options: Pick<GateOptions, 'actor' | 'reducing'>): Promise<GateRefusal | null> {
   if (core.security.readOnly) return refuse(405, 'read-only', 'read-only mode is on: the terminal is closed while this wrapper accepts no changes');
 
   if (options.actor) {
@@ -81,7 +81,7 @@ export function clientRefusal(core: Core, req: FastifyRequest, options: Pick<Gat
   // Defence in depth for a connection from this machine: which process opened it
   const address = req.socket.remoteAddress;
   if (address !== undefined && LOOPBACK.test(address)) {
-    const verdict = core.terminals.peer.check({ address, port: req.socket.remotePort ?? 0, serverPort: req.socket.localPort ?? 0 });
+    const verdict = await core.terminals.peer.verdict({ address, port: req.socket.remotePort ?? 0, serverPort: req.socket.localPort ?? 0 });
     if (verdict === 'agent') return refuse(403, 'from-agent', "this request came from a chat's process: the terminal is the person's, never an agent's");
     // With nothing guarding the API, a client nobody could identify is refused rather than trusted:
     // a credential already proves the person under a token or OIDC
@@ -93,7 +93,7 @@ export function clientRefusal(core: Core, req: FastifyRequest, options: Pick<Gat
 }
 
 /** The whole gate: the feature first, then read-only, who, and from where */
-export function terminalGate(core: Core, req: FastifyRequest, options: GateOptions): GateRefusal | null {
+export async function terminalGate(core: Core, req: FastifyRequest, options: GateOptions): Promise<GateRefusal | null> {
   if (options.feature) {
     const unavailable = serviceRefusal(core);
     if (unavailable) return unavailable;
