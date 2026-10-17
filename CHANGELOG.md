@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0](https://github.com/yeyo11/claudio/compare/v0.1.0...v0.2.0) (2026-10-17)
+
+
+### Features
+
+* **collaborators:** agents read what teammates share, the assistant always and a project's chats when it opts in ([#13](https://github.com/yeyo11/claudio/issues/13)) ([6a63ab2](https://github.com/yeyo11/claudio/commit/6a63ab244a5955587f44e0d7dc3230c036b38123))
+* **collaborators:** share a project between teammates' Claudio over iroh, P2P ([#7](https://github.com/yeyo11/claudio/issues/7)) ([ee907d3](https://github.com/yeyo11/claudio/commit/ee907d3a7892a93d2962451a5881f86e588dca38))
+
+
+### Bug fixes
+
+* **chat:** streaming answers stay legible, no gap above the composer, and the assistant uses the chat's composer ([#9](https://github.com/yeyo11/claudio/issues/9)) ([7c2de13](https://github.com/yeyo11/claudio/commit/7c2de13ddc75bd080a1a271d11de8ac7690afd53))
+* **desktop:** the packed tree carries no group write, so a package built under umask 002 does not lock the guards out ([57cfaa4](https://github.com/yeyo11/claudio/commit/57cfaa4d4faa58dd24175e58b6d77ad9792e3902))
+* e2e green on main: guarded runs under umask 002, lesson proposals, guard events, and out-of-date specs ([#5](https://github.com/yeyo11/claudio/issues/5)) ([ef3d95e](https://github.com/yeyo11/claudio/commit/ef3d95e2066d30fd9c1e2a265072a19f7030dd21))
+* **orchestrator:** the workflow engine follows its journal, waits or rotates at a usage limit, and never hangs running ([#10](https://github.com/yeyo11/claudio/issues/10)) ([e15c794](https://github.com/yeyo11/claudio/commit/e15c794779afc26b0ff197a32967809895f5285f))
+* **web:** a page whose service worker was stopped mid-boot no longer stays blank, and a failed wait says why ([#12](https://github.com/yeyo11/claudio/issues/12)) ([01d1e11](https://github.com/yeyo11/claudio/commit/01d1e1103dafaf699e08ef38c09adc972219ed2f))
+
+
+### Documentation
+
+* **plans:** test-scope and retry-loop guards for every agent, with an opt-in failure baseline ([#6](https://github.com/yeyo11/claudio/issues/6)) ([fa960c7](https://github.com/yeyo11/claudio/commit/fa960c7a95259513cdc46ad7813e67cb7fa43793))
+* R12 to R16 closed with their pull requests, and where the project stands after collaborators ([#14](https://github.com/yeyo11/claudio/issues/14)) ([ba5fd30](https://github.com/yeyo11/claudio/commit/ba5fd304d346f7b652748e6a20b5172dab17d42d))
+
 ## 0.1.0 (2026-10-16)
 
 
