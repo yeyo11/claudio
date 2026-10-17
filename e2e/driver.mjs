@@ -481,8 +481,9 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
       return this.eval(body);
     },
     text: (selector = 'body') => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`),
-    async viewport(width, height) {
-      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    // `scale` below 1 makes the screenshot smaller than the page (a recording of 800 px of a 1280 px page)
+    async viewport(width, height, scale = 1) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false });
       await sleep(200);
     },
     async shot(name) {

@@ -173,6 +173,35 @@ searches are documents nobody wrote.
 | `e2e/` | Browser suite driven over the Chrome DevTools Protocol |
 | `docker/` | The single image |
 
+## The repository's media
+
+The GIFs and screenshots in `docs/media/` (the README's, the social preview) are recorded, not
+captured by hand: `pnpm build && pnpm media` runs `scripts/record-media.mjs`. It boots an isolated
+wrapper like `e2e/run.mjs` does (temporary config, workspace and data directories, the fake CLI of
+`e2e/fake-cli`), seeds invented data (three accounts, three projects, chats, schedules, an
+orchestration, and two teammates that are more wrappers on loopback, joined to a group), and drives
+headless Chrome over CDP. No real account, token, path or model is involved, and nothing is written
+outside the temporary directory but `docs/media/` (or `MEDIA_OUT`).
+
+```bash
+pnpm media                 # every file below
+pnpm media stills          # also: tour, clips (chat-streaming and orchestration), social
+MEDIA_OUT=/tmp/m pnpm media stills   # somewhere else than docs/media
+MEDIA_KEEP=1 pnpm media    # keep the sandbox (/tmp/claudio-demo) and the tour's frames to inspect
+```
+
+| File | What it is |
+|---|---|
+| `tour.gif`, `chat-streaming.gif`, `orchestration.gif` | 800 px wide, under 3 MB each, dark theme; only live things move |
+| `home.png`, `chat.png`, `changes.png`, `orchestration.png`, `accounts.png`, `schedules.png`, `collaborators.png` | 1280 × 800, dark |
+| `chat-mobile.png` | 390 × 844, the phone layout |
+| `home-light.png` | the one light-theme still |
+| `social-preview.png` | 1280 × 640, built by Chrome from an HTML page the script writes out of `tokens.css`, the logo and `home.png` (so run `stills` first) |
+
+`board*.png` and `work-item.png` are not made by the script. Run it from outside a chat's process
+tree, like the e2e suite (`setsid -f`); it kills what it started, by PID and process group, on every
+way out. The sandbox directory must not exist when it starts.
+
 ## Commits and pull requests
 
 Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org), because they
