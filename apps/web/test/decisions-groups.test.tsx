@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { groupSummary } from '../src/pages/config/DecisionsTab.tsx';
+import { groupSummary } from '../src/pages/config/decisions/model.ts';
 
 const label = (mode: string, count: number) => `${String(count)} ${mode}`;
 

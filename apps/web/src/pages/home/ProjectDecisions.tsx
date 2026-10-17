@@ -11,7 +11,7 @@ import { ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { AREAS, MODES, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/DecisionsTab';
+import { AREAS, MODES, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
 
 type Provider = 'inherit' | DecisionProviderId;
 type Override = { mode?: DecisionMode; threshold?: number };

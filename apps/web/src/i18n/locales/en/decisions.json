@@ -1,19 +1,10 @@
 {
   "tab": "Decisions",
-  "intro": "Short typed questions that Claudio answers for you, with the CLI or with Jev. Every point starts off, and you decide when it moves to shadow or to active.",
-  "nav": "Sections of Decisions",
   "engine": {
-    "title": "Engine",
-    "sub": "Provider, model and privacy",
-    "provider": "Provider",
-    "providerHint": "Who answers the questions. The CLI is the default; Jev is an external service with your key.",
-    "providerProjects": "Each project can choose its own in its settings.",
     "jev": "Jev",
     "cli": "Claude Code CLI",
-    "cliHint": "One housekeeping chat per request, with your account. It counts against your quota.",
     "cliModel": "CLI model",
     "effort": "Effort",
-    "maxCost": "Cost limit per request (USD)",
     "maxCostInvalid": "The limit has to be above $0 and at most ${{max}}.",
     "jevKey": "Jev key",
     "jevKeyHint": "Saved on this machine, and the API never returns it.",
@@ -31,14 +22,7 @@
     "testing": "Testing…",
     "connected": "Connected",
     "failed": "No connection",
-    "jevModel": "Jev model",
-    "jevModelHint": "Pinned so the answers do not change without telling you.",
-    "pinned": "Pinned",
-    "privacy": "Privacy",
-    "privacyHint": "What Jev knows about what you do.",
-    "privacyTitle": "What leaves your machine with Jev",
-    "privacyBody": "Only the state each point declares, redacted and cut to its limit, to {{host}}. You see all of it before consenting to each point. Jev keeps nothing only on the enterprise plan. With the Claude Code CLI nothing leaves.",
-    "historyDays": "History kept (days)",
+    "historyDays": "Days of history kept",
     "historyDaysHint": "Older decisions are deleted on their own.",
     "unavailableTitle": "Jev unavailable",
     "unavailableBody": "{{failed}} of the last {{total}} requests did not arrive ({{reasons}}). The last one was {{when}}. Claudio carries on with its usual behaviour and does not wait for Jev.",
@@ -57,12 +41,16 @@
     "saving": "Saving…",
     "saved": "Decision settings saved",
     "discard": "Discard",
-    "beta": "Beta"
+    "beta": "Beta",
+    "modelPinned": "<mono>{{model}}</mono>, pinned",
+    "exampleTitle": "What Jev would receive",
+    "exampleClose": "Close",
+    "cliModelEmpty": "Choose a model for the CLI.",
+    "historyDaysInvalid": "Between 1 and {{max}} days."
   },
   "points": {
     "title": "Decision points",
     "count": "{{points}} points · {{groups}} groups",
-    "intro": "Every point starts off. In shadow the engine answers and compares with what happened, but changes nothing. A point that acts only does so when its confidence clears its threshold.",
     "none": "No decision points are available.",
     "kind": {
       "act": "Acts",
@@ -82,7 +70,6 @@
     "threshold": "Threshold of {{point}}",
     "noThreshold": "No threshold",
     "consent": {
-      "given": "Consented",
       "none": "Not consented",
       "stale": "Asks again",
       "staleHint": "The state of this point changed since you consented, so it asks again."
@@ -142,16 +129,14 @@
       "shadow_other": "{{count}} in shadow",
       "off_one": "{{count}} off",
       "off_other": "{{count}} off"
-    }
+    },
+    "thresholdLine": "Acts when at least this sure"
   },
   "supervisor": {
-    "file": "supervisor.json"
-  },
-  "sections": {
-    "engine": "Engine",
-    "points": "Decision points",
-    "supervisor": "Supervisor",
-    "history": "History"
+    "off": "Does not watch for stuck workers",
+    "shadow": "Proposes hints for you to send",
+    "activeCli": "Sends each hint on its own",
+    "activeJev": "Sends a hint when Jev expects it to help"
   },
   "consent": {
     "title": "Before moving to {{mode}}",
@@ -177,23 +162,9 @@
     "withdrawPoint": "Withdraw the consent of {{point}}",
     "withdrawn": "Consent withdrawn"
   },
-  "metrics": {
-    "label": "Metrics of the last {{days}} days",
-    "count": "Decisions",
-    "acted": "Acted",
-    "confidence": "Confidence",
-    "agreement": "Agreement",
-    "n": "n {{n}}",
-    "useful": "Useful",
-    "notUseful": "Not useful",
-    "unavailable": "Unavailable",
-    "cost": "Cost",
-    "saved": "Runs saved",
-    "inHistory": "See in History"
-  },
   "history": {
     "title": "History",
-    "sub": "{{days}} days · set above",
+    "sub": "Kept {{days}} days · change it in Advanced",
     "filters": {
       "point": "Point",
       "project": "Project",
@@ -331,5 +302,29 @@
   "bulkConsent": {
     "title": "Before moving {{count}} points",
     "agree": "Consent to all and apply"
+  },
+  "whoAnswers": "Who answers",
+  "consequence": {
+    "cli": "Uses your Claude Code quota. Nothing leaves this machine.",
+    "jev": "Sends each point's declared state to Jev."
+  },
+  "examplePayload": "See an example payload",
+  "cap": {
+    "label": "Cap per decision",
+    "perDay": "≈ {{cost}} a day at today's volume",
+    "withinDaily_one": "≈ {{formatted}} decision a day within your cap",
+    "withinDaily_other": "≈ {{formatted}} decisions a day within your cap",
+    "none": "At most {{cost}} per decision"
+  },
+  "advanced": "Advanced",
+  "allHistory": "See every decision",
+  "evidence": {
+    "none": "No decisions yet",
+    "count_one": "{{formatted}} decision",
+    "count_other": "{{formatted}} decisions",
+    "agrees": "agrees with you {{percent}}",
+    "disagreements_one": "{{formatted}} disagreement",
+    "disagreements_other": "{{formatted}} disagreements",
+    "consentedOn": "Consented on {{date}}"
   }
 }

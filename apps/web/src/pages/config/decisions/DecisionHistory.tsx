@@ -36,23 +36,34 @@ function filterOf(filters: Filters): DecisionFilter {
 }
 
 /**
- * The History section of Settings → Decisions: what each point was asked and answered, filterable,
- * with the person's word on it (D13). Rows are accumulating records, so the list is paged.
+ * Settings → Decisions → Every decision: what each point was asked and answered, filterable, with
+ * the person's word on it (D13). Rows are accumulating records, so the list is paged. The point
+ * filter is the address's `?point=`, so a point's evidence links straight to its decisions.
  */
-export function DecisionHistory({ id, catalogue, days, focusPoint }: { id: string; catalogue: DecisionPointInfo[]; days: number | null; focusPoint: { point: DecisionPointId; n: number } | null }) {
+export function DecisionHistory({
+  catalogue,
+  days,
+  point,
+  onPoint,
+}: {
+  catalogue: DecisionPointInfo[];
+  days: number | null;
+  point: DecisionPointId | null;
+  onPoint: (point: DecisionPointId | null) => void;
+}) {
   const { t } = useTranslation('decisions');
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [filters, setFilters] = useState<Filters>(() => ({ ...NO_FILTERS, point: point ?? ALL }));
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const filter = useMemo(() => filterOf(filters), [filters]);
   const filtered = Object.values(filters).some((value) => value !== ALL);
 
-  // "See in History" on a point's metrics: filter by that point
+  // The address changed under the screen (back, or another point's link): the filter follows it
   useEffect(() => {
-    if (focusPoint) setFilters({ ...NO_FILTERS, point: focusPoint.point });
-  }, [focusPoint]);
+    setFilters((current) => (current.point === (point ?? ALL) ? current : { ...current, point: point ?? ALL }));
+  }, [point]);
 
   const projects = useQuery({ queryKey: keys.projects, queryFn: () => api.projects() });
   const history = useInfiniteQuery({
@@ -82,17 +93,20 @@ export function DecisionHistory({ id, catalogue, days, focusPoint }: { id: strin
 
   const set = (patch: Partial<Filters>) => {
     setFilters((current) => ({ ...current, ...patch }));
+    if (patch.point !== undefined && patch.point !== filters.point) onPoint(patch.point === ALL ? null : (patch.point as DecisionPointId));
     setOpen(null);
     setConfirming(false);
   };
   const all = (label: string) => ({ value: ALL, label });
 
   return (
-    <section id={id} className="card dp-card" aria-labelledby="decisions-history-title">
-      <div className="card-head">
-        <h2 id="decisions-history-title">{t('history.title')}</h2>
-        {days !== null && <span className="dp-card-sub">{t('history.sub', { days })}</span>}
-      </div>
+    // The screen's title names it ("Every decision"): the card only says how far back it goes
+    <section id="decisions-history" className="card dp-card" aria-label={t('history.title')}>
+      {days !== null && (
+        <div className="card-head">
+          <span className="dp-card-sub">{t('history.sub', { days: formatNumber(days) })}</span>
+        </div>
+      )}
       <div className="dp-hist-filters">
         <Select
           aria-label={t('history.filters.point')}
