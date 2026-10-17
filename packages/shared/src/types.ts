@@ -7593,6 +7593,20 @@ export interface ProviderMove {
 }
 
 /**
+ * Why `POST /limits/waits/:id/run-now` was refused (409): the wait is over (`wait-over`), its chat
+ * runs in another Claudio process on the same data directory (`not-owned`), or every account's
+ * reading says it is out (`no-room`).
+ */
+export type LimitWaitRunNowRefusalCode = 'wait-over' | 'not-owned' | 'no-room';
+
+/** What a person's "run it now" did: the wait, now closed `resumed`, and the account the turn went on with. */
+export interface RunLimitWaitNowResponse {
+  move: ProviderMove;
+  /** Null when the chat runs on no account of Claudio's */
+  account: string | null;
+}
+
+/**
  * A provider's detected status changed: it was installed, signed in, updated or removed, or the
  * settings turned it on or off. Sent only when a status actually differs, so one listener keeps
  * every page in step without polling.

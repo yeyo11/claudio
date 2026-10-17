@@ -128,6 +128,7 @@ has any; it never sends the work to another vendor.
 | --- | --- | --- |
 | GET | `/limits/waits?chatId=&projectId=&state=&limit=` | Waits, newest first; `waiting` and `resuming` rows are the open waits |
 | POST | `/limits/waits/:id/cancel` | Stop waiting: a flow run or task then ends `stopped`. `409` when the wait is over. Not open to a chat's token |
+| POST | `/limits/waits/:id/run-now` | Run now: the wait closes `resumed` and its turn goes on at once in the same chat, on an account a newer reading gives room (or, failing that, one the turn failed on whose reading does not say it is out) → `{ move, account }`. `404` unknown wait; `409` with `code` `wait-over`, `not-owned` or `no-room`. Not open to a chat's token |
 
 ## Projects
 
@@ -675,11 +676,11 @@ every 3 s and only while a client listens.
 | GET | `/orchestrations/:id/timings` | Where the graph's time went, computed on read: phases, time after the last task, parallelism, the critical path with its waits, slot/limit/retry waits, every verification run and fixer attempt; `missing` names what an older graph did not record. `node scripts/orchestration-timings.mjs` prints it as Markdown tables against `CLAUDIO_API_URL` |
 | POST | `/orchestrations/:id/spend-pass` | Let a graph run past today's spend cap: sets `spendPass` to the server's local day and answers the orchestration. Refused to a chat's token with `403` |
 | POST | `/orchestrations/:id/stop` | Stop all workers |
-| POST | `/orchestrations/:id/resume` | Run again every task that did not complete (each in its own chat, as a new execution), keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode?, limits?, maxAttempts? }` corrects the settings the graph failed with. `limits` as an object replaces the graph's default and leaves the ceilings individual tasks were given; as `null` it lifts every ceiling, those included, which is what a graph stopped by its own budget needs |
-| POST | `/orchestrations/:id/tasks/:taskId/retry` | Run a task that failed for good again, in its own chat and worktree, told what went wrong; the tasks blocked behind it go back to waiting for their turn |
-| POST | `/orchestrations/:id/tasks/:taskId/retry-clean` | Start a failed task over: a new chat, its worktree rebuilt from the base commit |
+| POST | `/orchestrations/:id/resume` | Also accepted on a graph `waiting` for a decision, unless a person is still working by hand in one of its tasks' chats (`409`). Run again every task that did not complete (each in its own chat, as a new execution), keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode?, limits?, maxAttempts? }` corrects the settings the graph failed with. `limits` as an object replaces the graph's default and leaves the ceilings individual tasks were given; as `null` it lifts every ceiling, those included, which is what a graph stopped by its own budget needs |
+| POST | `/orchestrations/:id/tasks/:taskId/retry` | Run a task that failed for good, or was stopped, again, in its own chat and worktree, told what went wrong; the tasks blocked behind it go back to waiting for their turn |
+| POST | `/orchestrations/:id/tasks/:taskId/retry-clean` | Start a failed or stopped task over: a new chat, its worktree rebuilt from the base commit |
 | POST | `/orchestrations/:id/tasks/:taskId/rerun` | Run a task of a finished graph again with everything that depends on it, each in a new chat and worktree, then integrate and synthesise again; the integration branch is rebuilt from the base |
-| POST | `/orchestrations/:id/tasks/:taskId/skip` | Give a failed or blocked task up, with every task that depends on it, so the graph can finish without them |
+| POST | `/orchestrations/:id/tasks/:taskId/skip` | Give a failed, stopped or blocked task up, with every task that depends on it, so the graph can finish without them |
 | POST | `/orchestrations/:id/tasks/:taskId/hint` | `{ text }` — a nudge for a worker whose task is still running; a finished task takes none (fork its chat) |
 | POST | `/orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send` | Send the supervisor's proposal for a worker through the task hint route and mark it `sent`. What the supervisor cost is already on the graph's `costUsd` |
 | POST | `/orchestrations/:id/tasks/:taskId/supervisor/:proposalId/dismiss` | Mark the proposal `dismissed` |

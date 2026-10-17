@@ -1,6 +1,7 @@
 import type { LimitWait, Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowRight,
   Ban,
   ChevronDown,
   CircleAlert,
@@ -171,6 +172,46 @@ function HintForm({ orchId, task, onDone }: { orchId: string; task: Orchestratio
 }
 
 /**
+ * The two ways out of a wait for a reset: stop waiting (the task or graph ends stopped), or run it
+ * now on an account with room (R11). Both refetch the graph; a refusal says why in a toast.
+ */
+function useWaitWayOut(orchId: string, moveId: string | null) {
+  const { t } = useTranslation('components');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const refetch = () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orchId) });
+  const stop = useMutation({
+    mutationFn: () => api.cancelLimitWait(moveId ?? ''),
+    onSuccess: refetch,
+    onError: (error) => toast.error(t('limitWait.stopFailed'), error),
+  });
+  const runNow = useMutation({
+    mutationFn: () => api.runLimitWaitNow(moveId ?? ''),
+    onSuccess: refetch,
+    onError: (error) => toast.error(t('limitWait.runNowFailed'), error),
+  });
+  return { stop, runNow, pending: stop.isPending || runNow.isPending };
+}
+
+/** Stop waiting and Run now, quiet then plain, as the reference draws them at a waiting task's foot. */
+function WaitWayOut({ orchId, moveId, quiet }: { orchId: string; moveId: string; quiet: string }) {
+  const { t } = useTranslation('components');
+  const way = useWaitWayOut(orchId, moveId);
+  return (
+    <>
+      <button type="button" className={`btn btn-small ${quiet}`} disabled={way.pending} onClick={() => way.stop.mutate()}>
+        {t('limitWait.stop')}
+      </button>
+      <Tooltip content={t('limitWait.runNowTitle')}>
+        <button type="button" className="btn btn-small" disabled={way.pending} onClick={() => way.runNow.mutate()}>
+          <ArrowRight {...ICON_SM} /> {t('limitWait.runNow')}
+        </button>
+      </Tooltip>
+    </>
+  );
+}
+
+/**
  * What a person can do to a task: the decisions a failed graph waits for, a re-run, a hint. The
  * buttons go on the card's foot line with its links; the hint form and any error open under the
  * card's body, where there is room for them.
@@ -199,23 +240,13 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
     onSuccess: (next) => queryClient.setQueryData(keys.orchestration(orch.id), next),
   });
   const name = task.name || task.id;
-  const { t: tc } = useTranslation('components');
-  const stopWait = useMutation({
-    mutationFn: () => api.cancelLimitWait(task.waiting?.moveId ?? ''),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) }),
-    onError: (error) => toast.error(tc('limitWait.stopFailed'), error),
-  });
   const behind = orch.tasks.filter((t) => t.status === 'blocked').length;
   // The task itself is not counted among what depends on it
   const dependants = dependantsOf(orch.tasks, task.id).length - 1;
 
   const buttons = (
     <>
-      {task.waiting && !waitShownOnGraph(orch) && (
-        <button type="button" className="btn btn-small btn-quiet" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
-          {tc('limitWait.stop')}
-        </button>
-      )}
+      {task.waiting && !waitShownOnGraph(orch) && <WaitWayOut orchId={orch.id} moveId={task.waiting.moveId} quiet="btn-quiet" />}
       {decisions.hint && !hinting && (
         <button type="button" className="btn btn-small btn-quiet" onClick={() => setHinting(true)}>
           <Send {...ICON_SM} /> {t('board.sendAHint')}
@@ -718,17 +749,22 @@ export function WaitingNotice({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation('orchestration');
   const waiting = waitingSummary(orch);
   if (!waiting) return null;
-  const { failed, blocked } = waiting;
+  const { failed, stopped, blocked } = waiting;
   const held = orch.worktree && orch.synthesize ? t('board.heldBoth') : orch.synthesize ? t('board.heldSynthesis') : orch.worktree ? t('board.heldIntegration') : null;
-  const names = failed.map((f) => f.name || f.id).join(', ');
+  const names = (list: OrchestrationTaskState[]) => list.map((f) => f.name || f.id).join(', ');
+  const behind = failed.length + stopped.length;
+  const said = [
+    ...(failed.length > 0 ? [t('board.failedForGood', { count: failed.length, names: names(failed) })] : []),
+    ...(stopped.length > 0 ? [t('board.stoppedTasks', { count: stopped.length, names: names(stopped) })] : []),
+  ].join(t('board.andJoin'));
   return (
     <div className="alert alert-warn alert-big" role="status">
       <Hand className="alert-icon" {...ICON_SM} />
       <div className="alert-body stack-tight">
         <div className="strong">{t('board.waitingTitle')}</div>
         <div className="small">
-          {t('board.failedForGood', { count: failed.length, names })}
-          {blocked.length > 0 && ` ${failed.length === 1 ? t('board.blockedBehindIt', { count: blocked.length }) : t('board.blockedBehindThem', { count: blocked.length })}`}.
+          {said}
+          {blocked.length > 0 && ` ${behind === 1 ? t('board.blockedBehindIt', { count: blocked.length }) : t('board.blockedBehindThem', { count: blocked.length })}`}.
           {held && ` ${held}`} {t('board.decide')}
         </div>
       </div>
@@ -742,23 +778,16 @@ export function WaitingNotice({ orch }: { orch: Orchestration }) {
  */
 export function WorkflowWaitNotice({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation(['orchestration', 'components']);
-  const queryClient = useQueryClient();
-  const toast = useToast();
   const wait = workflowWait(orch);
-  const stopWait = useMutation({
-    mutationFn: () => api.cancelLimitWait(wait?.moveId ?? ''),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) }),
-    onError: (error) => toast.error(t('components:limitWait.stopFailed'), error),
-  });
   if (!wait) return null;
   return (
     <WaitLine
       wait={wait}
       why={t('board.workflowWaitWhy')}
       action={
-        <button type="button" className="btn btn-ghost btn-small wait-line-go" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
-          {t('components:limitWait.stop')}
-        </button>
+        <span className="wait-line-go">
+          <WaitWayOut orchId={orch.id} moveId={wait.moveId} quiet="btn-ghost" />
+        </span>
       }
     />
   );

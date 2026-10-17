@@ -278,7 +278,7 @@ export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type 
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
-export { ProviderRotation, effectiveOnLimit, openWaitOf } from './rotation.ts';
+export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
 export { EvalFileError } from './evals/definition.ts';
@@ -1477,6 +1477,8 @@ export class Core {
       emit: (event) => this.events.emit(event),
       work: (chatId) => this.workOf(chatId),
       replay: (chatId, account) => this.orchestrator.replayWorkflow(chatId, account),
+      // A wait goes on with the first account that has room, whichever it is (R10)
+      accountsChanged: (listener) => this.accounts.onChange(listener),
       ended: (move, end, reason) => {
         if (move.subjectKind === 'flow_run') this.flow.waitEnded(move, end, reason);
         else if (move.subjectKind === 'task') this.orchestrator.waitEnded(move, end, reason);

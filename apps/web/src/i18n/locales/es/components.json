@@ -271,6 +271,9 @@
     "why": "Llegó a su límite de uso. Conserva su sitio y sigue sola cuando se restablezca.",
     "stop": "Dejar de esperar",
     "stopFailed": "No se ha podido dejar de esperar",
+    "runNow": "Ejecutar ahora",
+    "runNowTitle": "Enviar el turno ya, en la primera cuenta con margen, sin esperar a que se restablezca el límite",
+    "runNowFailed": "No se ha podido ejecutar ahora",
     "badge": "esperando"
   },
   "notificationText": {

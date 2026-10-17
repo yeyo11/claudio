@@ -119,6 +119,7 @@ export class AccountStore {
   private readonly claude: string;
   private readonly env: NodeJS.ProcessEnv;
   private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
+  private readonly listeners = new Set<() => void>();
 
   constructor(private readonly opts: AccountStoreOptions) {
     this.env = opts.env ?? process.env;
@@ -142,8 +143,30 @@ export class AccountStore {
     }
   }
 
-  private save(): Promise<void> {
-    return writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, 0o600);
+  private async save(): Promise<void> {
+    await writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, 0o600);
+    this.changed();
+  }
+
+  /**
+   * Calls `listener` after any account's reading or stored state changed (a new reading, a sign-in
+   * marked or cleared, an account enabled, added or removed, the settings). Work waiting for an
+   * account with room listens: the account it waits on is not always the one that comes back first
+   * (R10). Returns the unsubscribe.
+   */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  }
+
+  private changed(): void {
+    for (const listener of [...this.listeners]) {
+      try {
+        listener();
+      } catch {
+        // A listener's failure is its own: the change is stored all the same
+      }
+    }
   }
 
   private dirOf(id: string): string {
@@ -349,8 +372,10 @@ export class AccountStore {
   }
 
   /** Records a reading from a run's stream or a failed turn. */
-  observe(id: string, reading: Reading): Promise<boolean> {
-    return this.readings.observe(id, reading);
+  async observe(id: string, reading: Reading): Promise<boolean> {
+    const kept = await this.readings.observe(id, reading);
+    if (kept) this.changed();
+    return kept;
   }
 
   /**
@@ -359,7 +384,7 @@ export class AccountStore {
    */
   async readCachedUsage(id: string): Promise<boolean> {
     const reading = readCache(this.dirOf(id));
-    return reading ? this.readings.observe(id, reading) : false;
+    return reading ? this.observe(id, reading) : false;
   }
 
   // ---------- settings and policies ----------

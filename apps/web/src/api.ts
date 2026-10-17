@@ -192,6 +192,7 @@ import type {
   ProjectTrackerSettings,
   ProjectWebhooks,
   ProviderMove,
+  RunLimitWaitNowResponse,
   ProvidersSettings,
   ProviderStatus,
   PushKeyInfo,
@@ -1191,6 +1192,8 @@ export const api = {
   waitForLimit: (id: string) => request<ProviderMove>(`/chats/${enc(id)}/wait`, { method: 'POST' }),
   /** Closes an open wait as cancelled: a chat that waited stays as it is, a flow run or a task that waited ends stopped */
   cancelLimitWait: (id: string) => request<ProviderMove>(`/limits/waits/${enc(id)}/cancel`, { method: 'POST' }),
+  /** Ends an open wait by sending its turn on now, on an account with room; 409 with `no-room` when every account reads out */
+  runLimitWaitNow: (id: string) => request<RunLimitWaitNowResponse>(`/limits/waits/${enc(id)}/run-now`, { method: 'POST' }),
   hosts: (o: ReadOptions = {}) => request<CodeHostStatus[]>('/hosts', o),
   host: (id: string, o: ReadOptions = {}) => request<CodeHostStatus>(`/hosts/${enc(id)}`, o),
   /** Skips the detector's cache; the answer is the fresh statuses */
