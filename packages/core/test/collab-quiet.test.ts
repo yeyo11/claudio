@@ -76,16 +76,15 @@ function setup(mode: { now: Mode }, opts: { reconcileMs?: number; refusedMaxMs?:
   return { client, logs, asked };
 }
 
-const settle = () => new Promise((r) => setTimeout(r, 30));
-
 test('a refusal is said once on the copy and in the log, however often the peer is asked', async () => {
   const mode = { now: 'forbidden' as Mode };
   const { client, logs } = setup(mode);
   client.setPeers([owner]);
-  await settle();
+  // Each run is waited for, not a fixed delay: on a loaded machine a run takes longer than any guess
+  await client.idle(owner);
   for (let i = 0; i < 5; i++) {
     client.poke(owner);
-    await settle();
+    await client.idle(owner);
     await client.announce(owner, true);
   }
   assert.equal(client.isRefused(owner), true);
@@ -96,11 +95,27 @@ test('a refusal is said once on the copy and in the log, however often the peer 
   // It lists this install again: said once, and the refusal is over
   mode.now = 'ok';
   client.poke(owner);
-  await settle();
+  await client.idle(owner);
+  assert.equal(client.isRefused(owner), false);
   client.poke(owner);
-  await settle();
+  await client.idle(owner);
   assert.equal(client.isRefused(owner), false);
   assert.deepEqual(logs.slice(1), ['collab: sync with Ana works again']);
+  client.stop();
+});
+
+test('idle waits for the run in flight and for the re-run a poke asked for during it', async () => {
+  const mode = { now: 'ok' as Mode };
+  const { client, asked } = setup(mode);
+  client.setPeers([owner]);
+  // Poked while the first run is in flight: idle resolves only after the second one, its hello included
+  client.poke(owner);
+  await client.idle(owner);
+  assert.equal(asked.filter((t) => t === 'hello').length, 2);
+  assert.equal(asked.at(-1), 'catalog', 'the second run went all the way through');
+  // Nothing in flight: it resolves at once
+  await client.idle(owner);
+  await client.idle(endpointIdFromSeed(randomBytes(32)));
   client.stop();
 });
 

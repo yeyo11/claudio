@@ -416,6 +416,19 @@ export class SyncClient {
     for (const peer of this.peers.values()) this.start(peer);
   }
 
+  /**
+   * Resolves once no run with the peer is in flight, the re-run a `poke` asked for during one
+   * included. A run's length depends on the peer and the machine, so what follows a run waits for
+   * this rather than for a guessed delay.
+   */
+  async idle(id: string): Promise<void> {
+    for (;;) {
+      const run = this.peers.get(id)?.run;
+      if (!run) return;
+      await run;
+    }
+  }
+
   isOnline(id: string): boolean {
     return this.peers.get(id)?.online ?? false;
   }
