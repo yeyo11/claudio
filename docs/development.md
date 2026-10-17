@@ -28,7 +28,7 @@ pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, ne
                          # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
                          # E2E_SHARD=k/N runs only shard k, as each CI job does (split: e2e/timings.json)
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
-pnpm media        # re-record the README's tour and stills (needs pnpm build first, ~2 min)
+pnpm media        # re-record docs/media (needs pnpm build first)
 ```
 
 Locally the wrapper uses your real `~/.claude`. Point `CLAUDE_CONFIG_DIR` somewhere else to
@@ -46,12 +46,11 @@ in `e2e/fake-cli` — an executable that speaks just enough stream-json to hang 
 and be interrupted; every other spec keeps the real CLI. `E2E_LIVE=1 pnpm e2e chat` additionally
 holds a real conversation with Claude (streamed reply, follow-up turn, stop) using your login.
 
-`pnpm media` re-records the tour and the stills the README shows, through the same fake CLI and one
-headless Chrome: `scripts/record-media.mjs` boots an isolated wrapper, invents the projects, chats,
-graph, schedules and accounts in frame, and writes `docs/media/`: the tour, desktop stills at
-1280×800 and the working chat at phone size (390×844). It needs `pnpm build` first and takes about
-two minutes. The board's stills (`board.png`, `board-mobile.png` and `work-item.png`) are not part
-of it yet: they were captured the same way, with a one-off script against the same kind of sandbox.
+`pnpm media` re-records the README's GIFs, stills and the social preview through the same fake CLI
+and one headless Chrome; what it seeds, its targets and its limits are in CONTRIBUTING's
+[The repository's media](../CONTRIBUTING.md#the-repositorys-media). The board's stills
+(`board.png`, `board-mobile.png` and `work-item.png`) are not part of it yet: they were captured the
+same way, with a one-off script against the same kind of sandbox.
 
 ## Monorepo layout
 
