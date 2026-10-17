@@ -429,7 +429,7 @@
   "model [Draft, SetDraft, blank]",
   "model [FOLDER_NAME, LIMIT_STATUSES, MODULE_ICON, ModuleFigures, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, PrefixProblem, TEMPLATE_ICON, TEMPLATE_ORDER, columnLimitsOf, deriveKeyPrefix, folderNameFor, limitedColumns, moduleFigure, normalizePrefix, prefixProblem, sameModules, sortModules, toggleModule]",
   "model [FlowRow, Headline, LimitSummary, LimitWindow, OrchestrationStage, ProjectLive, WaitingReason, documentFolder, excerpt, flowRows, homeHeadline, initials, limitSummary, liveByProject, orchestrationStages, orchestrationsToShow, recentDocuments, scheduleCwd, taskCounts, taskSegments, upcomingSchedules, waitingFor]",
-  "model [SUGGEST_PARAM, SourcePhrase, initialSelection, isRunning, latestFocus, readPhrases, selectedPending, suggestRequest, workItemProposals]",
+  "model [SUGGEST_PARAM, SourcePhrase, initialSelection, isRunning, latestFocus, readPhrases, selectedPending, stillRunning, suggestRequest, workItemProposals]",
   "more-notes [useMoreNotes]",
   "motion [AnimatePresence, Collapse, DotTone, EASE_OUT, PageTransition, ProgressRing, SPRING, SlidingIndicator, Stagger, StatusDot, ThinkingDots, UsageTone, motion, usageTone, useIndicatorId, useReducedMotion]",
   "motion [MotionLevel, setMotionPreference, useAnimationFrameIndex, useClockTick, useDecorativeMotion, useMotionLevel, useMotionPreference, useReducedMotionForced]",
