@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.1](https://github.com/yeyo11/claudio/compare/v0.2.0...v0.2.1) (2026-10-17)
+
+
+### Bug fixes
+
+* **core:** flaky core tests at the root: a Core shut down during boot starts nothing, and tests end what they start ([#18](https://github.com/yeyo11/claudio/issues/18)) ([110b21f](https://github.com/yeyo11/claudio/commit/110b21f15a619ae19e1718886bd0f5adf0617a6e))
+* **core:** shutdown ends and waits for the gh, glab and provider probes the core started ([#20](https://github.com/yeyo11/claudio/issues/20)) ([07d0efe](https://github.com/yeyo11/claudio/commit/07d0efe6f00ba7d30fdd4b8dbdbee323349901ae))
+* **rotation:** a limit wait goes on with the first account that has room, and a stopped task has its way back (R10, R11) ([#21](https://github.com/yeyo11/claudio/issues/21)) ([7f1ee09](https://github.com/yeyo11/claudio/commit/7f1ee0980d377f8348480128cf5525ba86199b8d))
+* the e2e and web flakes a loaded machine showed, at their causes: shiki's first compile, the peer check's exiting processes, and five spec waits ([#24](https://github.com/yeyo11/claudio/issues/24)) ([42cbd4b](https://github.com/yeyo11/claudio/commit/42cbd4b3006e95d1f41f94259e38f1ad6478ad65))
+* **web:** the pull request step of an orchestration reads "Push & open PR", not an unfilled template ([#16](https://github.com/yeyo11/claudio/issues/16)) ([068fcf4](https://github.com/yeyo11/claudio/commit/068fcf49c3b4bd21340dd704a3cbbce7c4937a2d))
+
+
+### Documentation
+
+* a short README as the repository's front door, the long sections as docs pages, the REST contract in docs/rest-api.md, and fresh media ([#19](https://github.com/yeyo11/claudio/issues/19)) ([def67a0](https://github.com/yeyo11/claudio/commit/def67a0764f6ec896737cdbd0de52581c3e4e49b))
+
 ## [0.2.0](https://github.com/yeyo11/claudio/compare/v0.1.0...v0.2.0) (2026-10-17)
 
 
