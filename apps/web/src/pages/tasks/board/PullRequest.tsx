@@ -8,6 +8,7 @@ import { api, ApiRequestError, keys } from '../../../api';
 import { useToast } from '@claudio/ui/components/Toast';
 import { changeRequestRef, changeRequestWords } from '../../../lib/code-hosts';
 import { checkoutNote, ciTone, notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
+import { settingsHref } from '../../config/settingsGroups';
 
 // The pieces of an item's pull request that the board and the item's page share
 // (docs/plans/work-item-pull-requests.md): the project's readiness, the approval that opens it, the
@@ -143,7 +144,7 @@ export function NotReadyNote({ readiness, className = '' }: { readiness: PullReq
                 {label}
               </a>
             ) : remedy.kind === 'settings' ? (
-              <Link className="pr-not-ready-remedy" to="/settings?tab=integrations" onClick={(event) => event.stopPropagation()}>
+              <Link className="pr-not-ready-remedy" to={settingsHref('connections', { section: 'code-hosts' })} onClick={(event) => event.stopPropagation()}>
                 {label}
               </Link>
             ) : null}

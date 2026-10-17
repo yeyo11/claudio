@@ -13,7 +13,7 @@ import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { DirtyProvider } from '../src/lib/dirty';
 import { LessonsTab, lessonSettingsProblem } from '../src/pages/config/LessonsTab';
-import { TAB_LABELS } from '../src/pages/config/settingsTabs';
+import { detailsOf, sectionsOf } from '../src/pages/config/settingsGroups';
 import { lesson } from './lesson-fixtures';
 
 const settings: LessonSettings = {
@@ -35,7 +35,7 @@ test('the settings validate ranges and the retire threshold before saving', () =
 
 test('Settings → Lessons lists the global lessons with "Back to a project" and the settings fields', async () => {
   await i18n.changeLanguage('en');
-  assert.equal(TAB_LABELS.lessons, 'config:config.tabs.lessons');
+  assert.ok(sectionsOf('instructions').includes('lessons') && detailsOf('instructions').includes('lessons'));
   const client = new QueryClient();
   client.setQueryData(keys.lessons(null, 'all'), { lessons: [lesson('9', { projectId: null })], handed: { lessons: 1, bytes: 1, budget: 1, overBudget: 0 } });
   client.setQueryData(keys.lessonSettings, settings);

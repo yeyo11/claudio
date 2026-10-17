@@ -10,7 +10,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Play,
-  Plug,
   Settings2,
   Sparkle,
   SquareCheck,
@@ -56,6 +55,7 @@ import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Accounts } from './pages/Accounts';
 import { Home } from './pages/Home';
 import { CLAUDIO_ASSISTANT_PATH } from './pages/claudio-assistant/model';
+import { settingsHref } from './pages/config/settingsGroups';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
@@ -64,7 +64,6 @@ const ChatChangesReview = lazyPage(() => loadChangesReview().then((m) => m.ChatC
 const TaskChangesReview = lazyPage(() => loadChangesReview().then((m) => m.TaskChangesReview));
 const IntegrationChangesReview = lazyPage(() => loadChangesReview().then((m) => m.IntegrationChangesReview));
 const WorkItemChangesReview = lazyPage(() => loadChangesReview().then((m) => m.WorkItemChangesReview));
-const Connectors = lazyPage(() => import('./pages/Connectors').then((m) => m.Connectors));
 // Loaded ahead of a visit too: the list is where most visits go after the landing page
 const loadChats = () => import('./pages/Chats');
 const Chats = lazyPage(() => loadChats().then((m) => m.Chats));
@@ -98,6 +97,9 @@ const SetupAssistant = lazyPage(() => import('./components/setup/SetupAssistant'
 
 /** A list prefetched on hover is used as it is if the click comes within this long. */
 const PREFETCH_FRESH_MS = 10_000;
+
+/** Settings keeps one page across its groups and details: moving between them is not a new page. */
+const transitionKey = (pathname: string) => (pathname === '/settings' || pathname.startsWith('/settings/') ? '/settings' : pathname);
 
 
 export function App() {
@@ -242,20 +244,19 @@ function Shell() {
   const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
   // Network, not UsersRound: that one is Accounts
   const collaborators: NavItem = { to: '/collaborators', label: t('collaborators:nav'), icon: Network };
-  const connectors: NavItem = { to: '/connectors', label: t('connectors:nav'), icon: Plug };
   const accounts: NavItem = { to: '/accounts', label: t('nav.accounts'), icon: UsersRound };
   const usage: NavItem = { to: '/usage', label: t('nav.usage'), icon: ChartColumn };
   const settings: NavItem = {
     to: '/settings',
     label: t('nav.settings'),
     icon: Settings2,
-    // The Updates card is on the account tab: the dot leads straight to it
-    ...(updateAvailable ? { dot: t('nav.badge.update'), search: '?tab=account' } : {}),
+    // The dot leads straight to the Updates section of General
+    ...(updateAvailable ? { dot: t('nav.badge.update'), target: settingsHref('general', { section: 'updates' }) } : {}),
   };
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
     { id: 'work', label: t('shell:nav.work'), items: [home, assistant, chats, tasks, orchestrations, schedules] },
-    { id: 'space', label: t('shell:nav.space'), items: [projects, collaborators, accounts, connectors, usage, settings] },
+    { id: 'space', label: t('shell:nav.space'), items: [projects, collaborators, accounts, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
@@ -274,7 +275,7 @@ function Shell() {
 
   // The phone has no status bar: its More sheet says the same, in two lines
   const connectionLink = (
-    <NavLink to="/settings?tab=account" className="more-connection">
+    <NavLink to={settingsHref('claude-code', { section: 'sign-in' })} className="more-connection">
       <StatusDot tone={connection.tone} live={connection.live} />
       <span className="more-connection-text">
         <span className="more-connection-title ellipsis">{connection.title}</span>
@@ -381,8 +382,8 @@ function Shell() {
         <ReloadBanner />
 
         <main id="main" ref={mainRef} tabIndex={-1} className="main">
-          {/* Keyed by pathname only: tab and scope switches (query string) must not replay the transition */}
-          <PageTransition key={pathname} className="page">
+          {/* Keyed by pathname only (Settings by its root): tab and scope switches must not replay the transition */}
+          <PageTransition key={transitionKey(pathname)} className="page">
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -411,8 +412,9 @@ function Shell() {
               <Route path="/schedules/new" element={<ScheduleEditor />} />
               <Route path="/schedules/:id/edit" element={<ScheduleEditor />} />
               <Route path="/usage" element={<Usage />} />
-              <Route path="/connectors" element={<Connectors />} />
-              <Route path="/settings" element={<Settings />} />
+              {/* Connectors is a section of Settings → Connections now; its old address still lands there */}
+              <Route path="/connectors" element={<Navigate to={settingsHref('connections', { section: 'connectors' })} replace />} />
+              <Route path="/settings/:group?/:detail?" element={<Settings />} />
               <Route
                 path="*"
                 element={
@@ -447,7 +449,7 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[assistant, tasks, projects, collaborators, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, connectors, settings]}
+            more={[assistant, tasks, projects, collaborators, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}

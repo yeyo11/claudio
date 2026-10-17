@@ -430,7 +430,432 @@
     },
     "projectTitle": "Project settings",
     "userTitle": "User settings",
-    "file": "Settings file"
+    "file": "Settings file",
+    "nav": "Settings groups",
+    "search": {
+      "label": "Search settings",
+      "placeholder": "Search settings",
+      "none": "No setting matches “{{query}}”",
+      "results": "Settings found"
+    },
+    "back": "← {{group}}",
+    "backTo": "Back to {{group}}",
+    "behaviour": "Behaviour (settings.json)",
+    "memory": {
+      "line_one": "{{count}} project keeps memory",
+      "line_other": "{{count}} projects keep memory",
+      "none": "No project keeps memory yet"
+    },
+    "overridden_one": "Overridden in {{count}} project",
+    "overridden_other": "Overridden in {{count}} projects",
+    "groups": {
+      "general": "General",
+      "claude-code": "Claude Code",
+      "connections": "Connections",
+      "instructions": "Instructions & memory",
+      "extensions": "Extensions",
+      "decisions": "Decisions",
+      "runs": "Runs & spend",
+      "access": "Access & safety"
+    },
+    "sections": {
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "updates": "Updates",
+      "install": "Install",
+      "sign-in": "Sign-in",
+      "provider": "Provider",
+      "behaviour": "Behaviour",
+      "files": "Files",
+      "connectors": "Connectors",
+      "code-hosts": "Code hosts",
+      "trackers": "Trackers",
+      "webhooks": "Webhooks",
+      "mcp": "MCP servers",
+      "instructions": "Instructions",
+      "memory": "Memory",
+      "lessons": "Lessons",
+      "rules": "Rules",
+      "output-styles": "Output styles",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "agents": "Agents",
+      "commands": "Commands",
+      "workflows": "Workflows",
+      "tool-presets": "Tool presets",
+      "engine": "Who answers",
+      "points": "Decision points",
+      "runs": "Runs",
+      "spend-cap": "Daily spend cap",
+      "evals": "Evals",
+      "access": "Access",
+      "hosts": "Allowed hosts",
+      "remote": "Remote access",
+      "secrets": "Secrets",
+      "guards": "Guards",
+      "terminal": "Terminal",
+      "audit": "Audit log",
+      "agent-reads": "Agent reads"
+    },
+    "details": {
+      "behaviour": "Behaviour (settings.json)",
+      "files": "Files of ~/.claude",
+      "mcp": "MCP servers",
+      "claude-md": "CLAUDE.md",
+      "memory": "Memory",
+      "lessons": "Global lessons",
+      "rules": "Rules",
+      "output-styles": "Output styles",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "agents": "Agents",
+      "commands": "Commands",
+      "workflows": "Workflows",
+      "tool-presets": "Tool presets",
+      "history": "Every decision",
+      "audit": "Audit log",
+      "agent-reads": "Agent reads"
+    },
+    "rows": {
+      "appearance": {
+        "theme": "Theme",
+        "language": "Language",
+        "motion": "Motion"
+      },
+      "notifications": {
+        "kinds": "What to notify",
+        "devices": "Devices"
+      },
+      "updates": {
+        "claudio": "Claudio updates",
+        "cli": "Claude Code CLI version"
+      },
+      "install": {
+        "app": "Install the app on this device"
+      },
+      "sign-in": {
+        "account": "Account in use",
+        "panel": "Sign in to Claude Code",
+        "accounts": "Accounts"
+      },
+      "provider": {
+        "binary": "Claude Code binary",
+        "limits": "Usage limits",
+        "check": "Check again"
+      },
+      "behaviour": {
+        "settings-json": "Behaviour (settings.json)"
+      },
+      "files": {
+        "tree": "Files of ~/.claude"
+      },
+      "connectors": {
+        "authorise": "Authorise a connector"
+      },
+      "code-hosts": {
+        "github": "GitHub",
+        "gitlab": "GitLab"
+      },
+      "trackers": {
+        "youtrack": "YouTrack"
+      },
+      "mcp": {
+        "servers": "MCP servers"
+      },
+      "instructions": {
+        "claude-md": "CLAUDE.md"
+      },
+      "memory": {
+        "projects": "Memory of each project"
+      },
+      "lessons": {
+        "miner-model": "Miner model",
+        "miner-effort": "Miner effort",
+        "max-cost": "Cost per run",
+        "project-daily": "Daily cap per project",
+        "global-daily": "Daily cap, all projects",
+        "chat-minutes": "Minutes between runs on one chat",
+        "jobs-daily": "Mining jobs per project per day",
+        "approve-floor": "Confidence at approval",
+        "deliver-at": "Hand over from confidence",
+        "budget": "Handoff budget",
+        "loose-chats": "Global lessons in chats outside a project",
+        "repeated-errors": "Look at repeated errors too",
+        "manual-mining": "Allow “Look for lessons” on a chat",
+        "global": "Global lessons"
+      },
+      "rules": {
+        "list": "Rules"
+      },
+      "output-styles": {
+        "list": "Output styles"
+      },
+      "plugins": {
+        "list": "Plugins"
+      },
+      "skills": {
+        "list": "Skills"
+      },
+      "agents": {
+        "list": "Agents"
+      },
+      "commands": {
+        "list": "Commands"
+      },
+      "workflows": {
+        "list": "Workflows"
+      },
+      "tool-presets": {
+        "list": "Tool presets"
+      },
+      "engine": {
+        "who-answers": "Who answers",
+        "jev-key": "Jev key",
+        "cap": "Cap per decision",
+        "cli-model": "CLI model",
+        "cli-effort": "CLI effort",
+        "history-days": "Days of history kept"
+      },
+      "points": {
+        "history": "See every decision"
+      },
+      "runs": {
+        "permission-mode": "Default permission mode",
+        "concurrent": "Concurrent runs"
+      },
+      "spend-cap": {
+        "daily": "Daily spend cap"
+      },
+      "evals": {
+        "phase-2": "Evals phase 2"
+      },
+      "access": {
+        "mode": "Access mode",
+        "token": "API token",
+        "read-only": "Read-only"
+      },
+      "hosts": {
+        "allowed": "Allowed hosts"
+      },
+      "remote": {
+        "tunnel": "Tunnel"
+      },
+      "secrets": {
+        "storage": "Where secrets are kept"
+      },
+      "guards": {
+        "rules": "Guard rules"
+      },
+      "terminal": {
+        "enabled": "Terminal access"
+      },
+      "audit": {
+        "log": "Audit log"
+      },
+      "agent-reads": {
+        "log": "What agents read"
+      }
+    },
+    "keywords": {
+      "appearance": {
+        "section": "theme look colours dark light",
+        "theme": "dark light system colours",
+        "language": "english spanish español locale",
+        "motion": "animation reduce spinner"
+      },
+      "notifications": {
+        "section": "alerts push bell",
+        "kinds": "kinds levels alerts",
+        "devices": "phone push browser"
+      },
+      "updates": {
+        "section": "version upgrade new release",
+        "claudio": "version upgrade release",
+        "cli": "cli binary version path check"
+      },
+      "install": {
+        "section": "app pwa desktop home screen",
+        "app": "pwa desktop phone"
+      },
+      "sign-in": {
+        "section": "account login credential subscription",
+        "account": "subscription credential verify remove",
+        "panel": "login auth token key",
+        "accounts": "rotation switch"
+      },
+      "provider": {
+        "section": "agent claude code binary",
+        "binary": "path executable cli",
+        "limits": "quota session weekly",
+        "check": "refresh status"
+      },
+      "behaviour": {
+        "section": "settings.json permissions hooks env model",
+        "settings-json": "permissions hooks env model"
+      },
+      "files": {
+        "section": "~/.claude tree explorer",
+        "tree": "explorer hooks scripts keybindings"
+      },
+      "connectors": {
+        "section": "claude.ai gmail calendar drive",
+        "authorise": "claude.ai oauth gmail calendar"
+      },
+      "code-hosts": {
+        "section": "github gitlab gh glab pull request",
+        "github": "gh pull request",
+        "gitlab": "glab merge request"
+      },
+      "trackers": {
+        "section": "issues tickets",
+        "youtrack": "issues tickets token"
+      },
+      "webhooks": {
+        "section": "freshness pull request events"
+      },
+      "mcp": {
+        "section": "tools connectors",
+        "servers": "tools stdio http"
+      },
+      "instructions": {
+        "section": "CLAUDE.md prompt",
+        "claude-md": "instructions prompt"
+      },
+      "memory": {
+        "section": "facts feedback MEMORY.md projects",
+        "projects": "MEMORY.md projects"
+      },
+      "lessons": {
+        "section": "mining learning",
+        "miner-model": "model haiku sonnet",
+        "miner-effort": "effort reasoning",
+        "max-cost": "cap dollars",
+        "project-daily": "cost dollars",
+        "global-daily": "cost dollars",
+        "chat-minutes": "interval",
+        "jobs-daily": "limit",
+        "approve-floor": "approve",
+        "deliver-at": "handoff threshold",
+        "budget": "bytes size",
+        "loose-chats": "chats",
+        "repeated-errors": "errors",
+        "manual-mining": "manual",
+        "global": "promoted"
+      },
+      "rules": {
+        "section": "rules files",
+        "list": ".claude/rules"
+      },
+      "output-styles": {
+        "section": "style tone",
+        "list": "outputStyle"
+      },
+      "plugins": {
+        "section": "marketplace install extensions",
+        "list": "installed browse marketplaces"
+      },
+      "skills": {
+        "section": "SKILL.md",
+        "list": "SKILL.md"
+      },
+      "agents": {
+        "section": "subagents",
+        "list": "subagents .claude/agents"
+      },
+      "commands": {
+        "section": "slash",
+        "list": "slash .claude/commands"
+      },
+      "workflows": {
+        "section": "saved script",
+        "list": ".claude/workflows script"
+      },
+      "tool-presets": {
+        "section": "tools allowed denied",
+        "list": "tools allowed denied"
+      },
+      "engine": {
+        "section": "engine provider jev cli",
+        "who-answers": "engine provider jev cli model",
+        "jev-key": "api key secret",
+        "cap": "cost dollars limit",
+        "cli-model": "advanced haiku",
+        "cli-effort": "advanced reasoning",
+        "history-days": "retention advanced"
+      },
+      "points": {
+        "section": "modes shadow active off",
+        "history": "history log",
+        "point": "decision point mode shadow active off"
+      },
+      "runs": {
+        "section": "permission concurrent chats",
+        "permission-mode": "acceptEdits plan bypass",
+        "concurrent": "parallel queue"
+      },
+      "spend-cap": {
+        "section": "cost money budget dollars",
+        "daily": "cost money budget"
+      },
+      "evals": {
+        "section": "phase 2 evaluation",
+        "phase-2": "evaluation"
+      },
+      "access": {
+        "section": "auth token oidc login",
+        "mode": "none token oidc",
+        "token": "bearer key",
+        "read-only": "readonly lock"
+      },
+      "hosts": {
+        "section": "host origin domain",
+        "allowed": "host origin domain"
+      },
+      "remote": {
+        "section": "tunnel tailscale phone address qr",
+        "tunnel": "tailscale tailnet serve"
+      },
+      "secrets": {
+        "section": "encrypted keychain keys",
+        "storage": "encrypted keychain"
+      },
+      "guards": {
+        "section": "block rules dangerous commands",
+        "rules": "block deny"
+      },
+      "terminal": {
+        "section": "shell pty console",
+        "enabled": "shell pty"
+      },
+      "audit": {
+        "section": "writes requests history",
+        "log": "requests filter"
+      },
+      "agent-reads": {
+        "section": "collaborators shared",
+        "log": "collaborators shared"
+      }
+    },
+    "consequences": {
+      "engine": {
+        "who-answers": "Uses your Claude Code quota, or Jev."
+      },
+      "runs": {
+        "concurrent": "The next ones wait for a free slot."
+      },
+      "spend-cap": {
+        "daily": "New runs wait once today’s spend reaches it."
+      },
+      "access": {
+        "read-only": "Nobody can change anything through the API."
+      },
+      "hosts": {
+        "allowed": "Other addresses are refused."
+      },
+      "remote": {
+        "tunnel": "Reach Claudio from your phone over Tailscale."
+      }
+    }
   },
   "settingsGuided": {
     "notSet": "Not set (inherit)",

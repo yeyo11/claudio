@@ -15,7 +15,7 @@ import { en, es } from '../src/i18n/resources';
 import { DirtyProvider } from '../src/lib/dirty';
 import { entryOf, latestCheck, orderedIds, withEntry } from '../src/lib/provider-settings';
 import { ProvidersTab } from '../src/pages/config/ProvidersTab';
-import { GROUPS, isTab, TAB_LABELS } from '../src/pages/config/settingsTabs';
+import { resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
 const status = (id: string, over: Partial<ProviderStatus> = {}): ProviderStatus => ({
   id,
@@ -63,11 +63,10 @@ test('the newest detection is the one that is shown', () => {
   assert.equal(latestCheck([status('a', { checkedAt: '2026-09-30T10:00:00Z' }), status('b', { checkedAt: '2026-09-30T10:05:00Z' })]), '2026-09-30T10:05:00Z');
 });
 
-test('Providers is a tab of the Claudio group, right after Account', () => {
-  assert.ok(isTab('providers'));
-  const claudio = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
-  assert.equal(claudio.indexOf('providers'), claudio.indexOf('account') + 1);
-  assert.equal(TAB_LABELS.providers, 'providers:tab');
+test('Provider is a section of Claude Code, right after Sign-in', () => {
+  const sections = sectionsOf('claude-code');
+  assert.equal(sections.indexOf('provider'), sections.indexOf('sign-in') + 1);
+  assert.equal(resolveSettingsAddress('?tab=providers', ''), '/settings/claude-code#provider');
 });
 
 test('the copy of the tab exists in both languages with the same placeholders', () => {

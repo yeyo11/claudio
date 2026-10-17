@@ -40,13 +40,14 @@ import { useProviderSignIn } from './provider-sign-in';
 import { SecretsCallout } from './SecretsCard';
 import { SignInPanel, SignInSheet } from './SignInPanel';
 import { TailscaleRow } from './TailscaleRow';
+import { settingsHref } from '../../pages/config/settingsGroups';
 
 /** Where each Settings tab of the summary is */
 const WHERE: Record<SummaryRow['where'], string> = {
-  security: '/settings?tab=security',
-  providers: '/settings?tab=providers',
-  integrations: '/settings?tab=integrations',
-  remote: '/settings?tab=remote',
+  security: settingsHref('access'),
+  providers: settingsHref('claude-code', { section: 'provider' }),
+  integrations: settingsHref('connections', { section: 'code-hosts' }),
+  remote: settingsHref('access', { section: 'remote' }),
 };
 
 /**

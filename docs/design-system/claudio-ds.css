@@ -2650,3 +2650,36 @@ a.cont-from:hover { color: var(--fg); }
   .collab-share-actions { justify-content: flex-start; }
 }
 /* ---------- end of Collaborators ---------- */
+
+/* ---------- Settings: eight groups, sections, details and search (plans/settings-ia.md) ----------
+   The nav holds the search, then the eight groups as one tablist (.settings-nav-item, no group headings).
+   While the search has a query its results take the groups' place: the group in --fg-3 above each label.
+   A group's screen is sections separated by space, never by a card's border (AP11); a detail is its own
+   screen, opened from a row and headed by a quiet way back to its group. */
+.settings-search { min-width: 0; }
+.settings-search input { width: 100%; min-width: 0; }
+.settings-results { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.settings-result { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 6px 10px; border-radius: var(--r-sm); color: var(--fg); cursor: pointer; }
+.settings-result.is-active { background: var(--bg-3); }
+.settings-result-group { color: var(--fg-3); font-size: var(--fs-small); }
+.settings-result-label { font-size: var(--fs-small); overflow-wrap: anywhere; }
+.settings-results-none { margin: 0; padding: 6px 10px; color: var(--fg-2); font-size: var(--fs-small); }
+.settings-back { align-self: flex-start; color: var(--fg-2); font-size: var(--fs-small); }
+.settings-back:hover { color: var(--fg); }
+.settings-group { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
+.settings-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-section-title { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-strong); }
+/* A row that opens a detail ("Skills · 12 · 3 from plugins"): the whole row is the link, 44 px on a phone */
+.settings-detail-row { display: flex; align-items: center; gap: 12px; min-height: 40px; min-width: 0; padding: 0 10px; margin: 0 -10px; border-radius: var(--r-sm); color: var(--fg); }
+.settings-detail-row:hover { background: var(--bg-3); }
+.settings-detail-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.settings-detail-note { flex: none; color: var(--fg-2); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+/* The row a result opened: a fill that holds a moment and fades; it does not move under the reduced motion levels */
+[data-setting].is-found { border-radius: var(--r-sm); animation: setting-found var(--dur-slow) ease-out var(--dur-slow) both; }
+@keyframes setting-found { from { background: var(--bg-3); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { [data-setting].is-found { animation: none; } }
+@media (max-width: 900px) {
+  .settings-search input { min-height: 44px; font-size: var(--fs-input); }
+  .settings-result, .settings-detail-row { min-height: 44px; }
+}
+/* ---------- end of Settings: eight groups ---------- */

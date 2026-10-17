@@ -5,9 +5,10 @@ import type { TFunction } from 'i18next';
 import { api, keys } from '../api';
 import { useProviders } from './providers';
 import { isUsable } from './provider-state';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 /** Where the providers are managed; the status bar and Home lead here. */
-export const PROVIDERS_SETTINGS_PATH = '/settings?tab=providers';
+export const PROVIDERS_SETTINGS_PATH = settingsHref('claude-code', { section: 'provider' });
 
 /**
  * The providers that are on, in the order the settings list them. Without settings (not read yet,

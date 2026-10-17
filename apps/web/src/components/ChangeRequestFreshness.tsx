@@ -7,6 +7,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { api, keys } from '../api';
 import { BACKUP_POLL_MINUTES, freshnessLine, isHealthy, lastHeardAt, liveRegistration, spanWords } from '../lib/webhooks';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 /** How often the seconds in the sentence are rewritten: the text renews, nothing counts down. */
 const RENEW_MS = 5_000;
@@ -117,7 +118,7 @@ export function ChangeRequestFreshness({
     main = <Trans t={t} i18nKey={heard ? 'freshness.silent' : 'freshness.silentNever'} values={{ since: heardAgo, ago, next }} components={time} />;
     why = (
       <>
-        {t('freshness.silentWhy', { host: hostLabel })} <Link to="/settings?tab=integrations">{t('freshness.seeWebhooks')}</Link>
+        {t('freshness.silentWhy', { host: hostLabel })} <Link to={settingsHref('connections', { section: 'webhooks' })}>{t('freshness.seeWebhooks')}</Link>
       </>
     );
   } else {

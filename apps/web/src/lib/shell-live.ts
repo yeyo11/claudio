@@ -273,7 +273,6 @@ export interface MoreNotesInput {
   schedules?: number | undefined;
   /** Null when nothing cost anything today */
   todayCost?: number | null | undefined;
-  connectors?: { total: number; pending: number } | undefined;
 }
 
 /** Keyed by the section's path. A section with nothing known yet has no entry rather than a guess. */
@@ -284,9 +283,5 @@ export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
   if (input.projects !== undefined) notes['/projects'] = { kind: 'count', value: input.projects };
   if (input.schedules !== undefined) notes['/schedules'] = { kind: 'count', value: input.schedules };
   if (input.todayCost !== undefined) notes['/usage'] = { kind: 'cost', value: input.todayCost };
-  if (input.connectors) {
-    const { total, pending } = input.connectors;
-    notes['/connectors'] = pending ? { kind: 'pending', value: pending } : { kind: 'count', value: total };
-  }
   return notes;
 }
