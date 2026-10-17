@@ -1915,9 +1915,11 @@ export class Core {
     const project = marker.projectId ? this.projectStore.get(marker.projectId) : null;
     const scope = project ? { id: project.id, name: project.name, key: this.projectSettingsStore.stored(project.id, project.name)?.keyPrefix ?? '', path: project.path } : null;
     // The assistant always asks before it runs anything (`assistantChatOptions`): its reads of teammates' copies hang on the switches alone
-    const reads = 'scope' in this.collaborators.agentReadScope({ assistant: true, projectId: null, permissionMode: 'manual' });
+    const decision = this.collaborators.agentReadScope({ assistant: true, projectId: null, permissionMode: 'manual' });
+    const reads = 'scope' in decision;
     const launch = claudioMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION, toolsets: reads ? ['claudio', 'collab'] : ['claudio'] });
-    return assistantChatOptions(launch, claudioAssistantPrompt(scope, marker.language));
+    const teammates = reads ? 'reads' : decision.refusal === 'assistant-off' ? 'off' : null;
+    return assistantChatOptions(launch, claudioAssistantPrompt(scope, marker.language, teammates));
   }
 
   /**
