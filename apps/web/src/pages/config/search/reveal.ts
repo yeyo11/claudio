@@ -45,6 +45,13 @@ export function useRevealSetting(): void {
     const started = performance.now();
     let frame = 0;
     let row: HTMLElement | null = null;
+    // While it waits for the row, the person may open something else (the palette, a dialog):
+    // the focus stays where they put it, and only the scroll and the fill still happen
+    const before = document.activeElement;
+    const mayFocus = () => {
+      const active = document.activeElement;
+      return !active || active === document.body || active === before || !active.isConnected;
+    };
 
     const find = (): HTMLElement | null => {
       if (setting) {
@@ -60,12 +67,12 @@ export function useRevealSetting(): void {
       if (!target) {
         if (performance.now() - started < WAIT_MS) frame = requestAnimationFrame(tick);
         // Nothing on this screen carries the anchor yet: the screen's title takes the focus instead of the search
-        else document.querySelector<HTMLElement>('[data-settings-title]')?.focus({ preventScroll: true });
+        else if (mayFocus()) document.querySelector<HTMLElement>('[data-settings-title]')?.focus({ preventScroll: true });
         return;
       }
       target.scrollIntoView?.({ block: setting ? 'center' : 'start' });
       if (setting && target.dataset.setting === setting) {
-        focusInside(target);
+        if (mayFocus()) focusInside(target);
         row = target;
         target.classList.remove('is-found');
         // Restarts the fade when the same row is opened twice in a row
@@ -74,7 +81,7 @@ export function useRevealSetting(): void {
       } else {
         const heading = target.querySelector<HTMLElement>('[data-section-heading]') ?? target;
         if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
-        heading.focus({ preventScroll: true });
+        if (mayFocus()) heading.focus({ preventScroll: true });
       }
     };
     frame = requestAnimationFrame(tick);
