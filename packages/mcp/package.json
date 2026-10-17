@@ -14,7 +14,7 @@
     "@claudio/api": "workspace:*",
     "@claudio/core": "workspace:*",
     "@claudio/shared": "workspace:*",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.7",
     "tsx": "^4.23.15"
   }
 }
