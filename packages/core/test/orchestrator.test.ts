@@ -1443,6 +1443,34 @@ test('a task that waits for the reset goes on in its chat when the turn is repla
   db.close();
 });
 
+test('a turn replayed while the limited process is still on its way out is followed to its result, not taken for a stop', async () => {
+  // The flake of the test above: under load the limited worker's process had not exited yet when
+  // the turn was replayed. The replay stops it to respawn clean, and the task's follower took that
+  // stop for the chat's end, so the task ended stopped and the replayed turn's result was nobody's.
+  // A process that lingers after its result makes the same order happen every time.
+  const saved = process.env.FAKE_CLAUDE_LINGER_MS;
+  process.env.FAKE_CLAUDE_LINGER_MS = '3000';
+  const { db, repo, runs, orchestrator, state, taskOf } = providerGraph({ held: true });
+  try {
+    const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false }));
+    const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+    await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
+    // The orchestrator heard the limited result: it follows the chat's next one
+    await until(() => taskOf(started.id, 'a').costUsd, (cost) => (cost ?? 0) > 0, 'the limited result to be charged');
+    assert.ok(runs.get(chat)?.pid, 'the limited process is still up');
+    delete process.env.FAKE_CLAUDE_LINGER_MS;
+    state.held = false;
+    assert.equal(await runs.replayLastTurn(chat), true);
+    orchestrator.waitEnded({ fromChat: chat, at: new Date().toISOString() }, 'resumed', null);
+    const orch = await settle(orchestrator, started.id);
+    assert.equal(taskOf(orch.id, 'a').status, 'completed', taskOf(orch.id, 'a').error ?? '');
+  } finally {
+    if (saved === undefined) delete process.env.FAKE_CLAUDE_LINGER_MS;
+    else process.env.FAKE_CLAUDE_LINGER_MS = saved;
+    db.close();
+  }
+});
+
 test('a person who stops waiting stops the task, and a wait that ran out fails it for a person to decide', async () => {
   const { db, repo, runs, orchestrator, taskOf } = providerGraph({ held: true });
   const started = orchestrator.create(

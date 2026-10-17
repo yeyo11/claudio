@@ -1201,7 +1201,10 @@ export class ChatManager extends EventEmitter {
     return new Promise((resolvePromise) => {
       const onEvent = (event: RunEvent) => {
         if (event.kind === 'result' && chat.lastResult && chat.lastResult !== before) finish(chat.lastResult);
-        else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '') && !chat.respawnQueued) {
+        // A process stopped for a limit replay (`carrying`) is replaced at once: its end is not the
+        // chat's, and the replayed turn's result is the next one (the flake of 2026-10: a worker whose
+        // limited process was still exiting ended its task with the replay's stop)
+        else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '') && !chat.respawnQueued && !chat.carrying) {
           finish(
             chat.lastResult && chat.lastResult !== before ? chat.lastResult : ChatManager.ended(chat, event.status ?? 'ended'),
           );
