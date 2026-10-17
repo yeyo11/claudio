@@ -31,12 +31,17 @@ export const terminalRoutes: FastifyPluginAsync<{ core: Core; guard: Guard; tick
       }
     };
 
-  /** The gate for a route: answers and records the refusal, or returns null to go on */
-  const gated = async (req: FastifyRequest, reply: FastifyReply, options: { feature: boolean; reducing?: boolean }): Promise<FastifyReply | null> => {
+  /**
+   * The gate for a route: answers and records the refusal and says so, or says to go on. A boolean,
+   * not the reply: a FastifyReply is thenable, and an async function that returns one hands back
+   * what awaiting it gives (nothing), so a refused request would have gone on to run the route.
+   */
+  const gated = async (req: FastifyRequest, reply: FastifyReply, options: { feature: boolean; reducing?: boolean }): Promise<boolean> => {
     const refused = await terminalGate(core, req, { actor: true, ...options });
-    if (!refused) return null;
+    if (!refused) return false;
     recordGateRefusal(core, req, refused, (req.params as { id?: string } | undefined)?.id);
-    return send(reply, refused);
+    void send(reply, refused);
+    return true;
   };
 
   app.get('/terminal', async (req, reply) => {
