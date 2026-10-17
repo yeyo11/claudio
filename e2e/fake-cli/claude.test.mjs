@@ -269,6 +269,29 @@ test('stream: hands the structured output over as StructuredOutput deltas, and h
   await c.done();
 });
 
+test('type: streams an answer as text deltas, hold: keeps it half-written, then it is handed over whole', async () => {
+  const c = chat();
+  c.say('type: Here is the fix:\\n\\n```ts\\nconst answer = 42;\\n```\\nThat is all.\nhold: release');
+  const start = await c.next((e) => e.type === 'stream_event' && e.event.type === 'content_block_start');
+  assert.equal(start.event.content_block.type, 'text');
+  const typed = () =>
+    c.events
+      .filter((e) => e.type === 'stream_event' && e.event.delta?.type === 'text_delta')
+      .map((e) => e.event.delta.text)
+      .join('');
+  const whole = 'Here is the fix:\n\n```ts\nconst answer = 42;\n```\nThat is all.';
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(typed(), whole.slice(0, Math.floor(whole.length / 2)));
+  assert.ok(!c.events.some((e) => e.type === 'assistant' || e.type === 'result'));
+  writeFileSync(join(c.dir, 'release'), '');
+  const said = await c.next((e) => e.type === 'assistant');
+  assert.equal(typed(), whole);
+  assert.equal(text(said), whole);
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.result, whole);
+  await c.done();
+});
+
 test('an interrupt during a read ends the turn at once', async () => {
   const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '60000' });
   c.say('read: README.md');

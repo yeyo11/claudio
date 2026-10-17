@@ -941,7 +941,15 @@ exactly as received at `off`.
 
 ### CHAT-9 — Fade new words in
 
-Status: built 2026-10-15 (no PR yet). Deviations: the hook `useStreamFade` lives in `smooth-text.ts` next to `freshRanges`; `SmoothEntry` passes `fade` (motion `full`) to `StreamingEntry`, which sets `has-fade` on `.streaming-text` and scopes the caret rules with `:not(.has-fade)`. Two steps (0–120 ms, 120–240 ms), as in the sketch. Not checked in a browser.
+Status: **removed 2026-10-17 (R16 (a), [requests.md](../requests.md))**. The fade put the whole
+streaming answer, code blocks included, at 35 % of its colour: every time markdown closed a `**`, a
+backtick or a fence, the rendered text got shorter, step 2 cleared the checkpoints, and the next
+paint marked everything from offset 0 as fresh. Even fixed, it breaks the owner's rule (text keeps
+4.5:1 during the turn; only the live indicator may be muted): at 90 % of its colour the faintest
+text (`--text-faint`, comments) is already below 4.5:1 in the light theme. The caret is now the
+streaming block's live mark at every motion level; `packages/chat-ui/test/streaming-legible.test.ts`
+and `e2e/specs/composer.spec.mjs` guard it. What follows is the design as it was built on
+2026-10-15 (no PR yet). Deviations: the hook `useStreamFade` lives in `smooth-text.ts` next to `freshRanges`; `SmoothEntry` passes `fade` (motion `full`) to `StreamingEntry`, which sets `has-fade` on `.streaming-text` and scopes the caret rules with `:not(.has-fade)`. Two steps (0–120 ms, 120–240 ms), as in the sketch. Not checked in a browser.
 
 **Design.** Fade the freshest characters of the streaming block without touching React's DOM, with
 the CSS Custom Highlight API (Chromium, which the web app and the Electron desktop app use;
@@ -1168,7 +1176,7 @@ warm idle chat when at the limit.
 
 ### CHAT-14 — The new question goes to the top
 
-Status: **built** on 2026-10-15, as planned (`composer/turn-spacer.ts`, `turnSpacerHeight` tested as a pure function). A resume's optimistic id is swapped for the last stored user row, since the stored entry arrives under another id. The e2e checks (row 16–40 px from the top; paging specs with `overflow-anchor: none`) are not written yet.
+Status: **removed 2026-10-17 (R16 (b), [requests.md](../requests.md))**. Built on 2026-10-15 as a spacer under the conversation (`composer/turn-spacer.ts`), it is what opened the large empty gap between the last message and the composer: while the answer was shorter than the view, the spacer filled the rest of it, and it stayed for as long as the chat was open. A send follows the end of the conversation again, so the composer sits right under the last message; `apps/web/test/chat-no-gap.test.ts` and `e2e/specs/composer.spec.mjs` guard it. `overflow-anchor: none` stays on `.run-scroll`, for the windowed transcript's own anchoring. The design below is kept as the record of what was tried.
 
 **Design.** On Send, scroll so the new user row sits near the top of the viewport, with a spacer
 under the conversation that fills the rest of the viewport. Because the spacer exactly fills the
