@@ -98,7 +98,9 @@ export default async ({ page, api, dirs, check }) => {
     check((await page.eval(textOf)) === '', 'ArrowDown walks back to an empty box');
 
     // The "+" is a menu of three groups; Servers opens the live process's list, the connector by its own name
-    await page.click('main .composer-plus');
+    // Opened the way a keyboard does: Radix opens a menu on pointerdown, never on a synthetic click
+    await page.focus('main .composer-plus');
+    await page.press('Enter');
     await page.waitFor(`return document.querySelectorAll('[role=menu] [role=group]').length >= 2`, { label: 'the menu and its groups' });
     check(
       await page.eval(`const b = document.querySelector('main .composer-plus'); return b?.getAttribute('aria-haspopup') === 'menu' && b.getAttribute('aria-label') === 'Add and options'`),

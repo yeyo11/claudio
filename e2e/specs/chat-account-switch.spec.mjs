@@ -36,9 +36,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const openMenu = async (id) => {
     await page.goto(`/chats/${id}`, 1200);
     await page.waitFor(`return !!document.querySelector('main .composer-plus')`, { label: 'the "+" button' });
-    await page.click('main .composer-plus');
+    // Opened the way a keyboard does: Radix opens a menu on pointerdown, never on a synthetic click,
+    // and a submenu on the right arrow
+    await page.focus('main .composer-plus');
+    await page.press('Enter');
     await page.waitFor(`return [...document.querySelectorAll('[role=menu] [role=menuitem]')].some((i) => i.innerText.startsWith('Account'))`, { label: 'the Account item' });
-    await page.eval(`[...document.querySelectorAll('[role=menu] [role=menuitem]')].find((i) => i.innerText.startsWith('Account'))?.click(); return true`);
+    await page.eval(`[...document.querySelectorAll('[role=menu] [role=menuitem]')].find((i) => i.innerText.startsWith('Account'))?.focus(); return true`);
+    await page.press('ArrowRight');
     await page.waitFor(`return document.querySelectorAll('[role=menuitemradio]').length >= 3`, { label: 'the accounts in the submenu' });
   };
   const ROW = '[role=menuitemradio]';
