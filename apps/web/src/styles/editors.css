@@ -1566,6 +1566,120 @@ button.master-item-on:hover {
   overflow-wrap: anywhere;
 }
 
+/*
+ * Runs & spend, Access & safety: the cards they were moved in whole lose their box, since the
+ * section's heading names them and space separates them (AP11); a card's state tag or refresh
+ * leads its first line instead of sitting at the far end of an empty one.
+ */
+.settings-cards .card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.settings-cards .card-head {
+  justify-content: flex-start;
+}
+
+.settings-cards .card-head > span:empty {
+  display: none;
+}
+
+/* One named part of a section that holds several: its name, its state in words beside it */
+.settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-block + .settings-block {
+  margin-top: 12px;
+}
+
+.settings-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-block-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  overflow-wrap: anywhere;
+}
+
+/* Rows 12 px apart (plans/settings-ia.md §6.0): the gap spaces them, so a paragraph adds no margin of its own */
+.settings-cards .form {
+  gap: 12px;
+}
+
+.settings-cards p {
+  margin: 0;
+}
+
+/* A control and its consequence: attached, one row */
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* A consequence whose words change with the choice: two lines kept, so the rows below stay put */
+.settings-consequence-2 {
+  min-height: 2lh;
+}
+
+/* Shown only while it applies; closed, it also gives back the gap before it, so nothing jumps */
+.settings-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  min-width: 0;
+  margin-top: -12px;
+  transition:
+    grid-template-rows var(--dur-base) var(--ease-out),
+    margin-top var(--dur-base) var(--ease-out);
+}
+
+.settings-reveal.is-open {
+  grid-template-rows: 1fr;
+  margin-top: 0;
+}
+
+.settings-reveal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+}
+
+/* Open, it leaves room for the focus ring of what is inside; closed, nothing of it may paint */
+.settings-reveal.is-open > .settings-reveal-body {
+  overflow-clip-margin: 4px;
+}
+
+/* A save's two words in one cell: the button keeps the longer's width in both states */
+.btn-states {
+  display: inline-grid;
+}
+
+.btn-states > span {
+  grid-area: 1 / 1;
+}
+
+[data-state='idle'] > .btn-states > .btn-state-loading,
+[data-state='loading'] > .btn-states > .btn-state-idle {
+  visibility: hidden;
+}
+
 @media (max-width: 900px) {
   .tunnel-address {
     flex-direction: column;
@@ -1663,6 +1777,7 @@ button.master-item-on:hover {
 .guard-subtitle {
   margin: 8px 0 0;
   font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
 }
 
 .guard-problems {

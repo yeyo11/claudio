@@ -231,6 +231,8 @@
   align-items: center;
   align-self: flex-start;
   gap: 5px;
+  /* The desktop's least target; the phone rule raises it to --touch */
+  min-height: 24px;
   font-size: var(--fs-small);
 }
 

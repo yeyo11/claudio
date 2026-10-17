@@ -7,7 +7,7 @@
 // MobileTableroIssues, DesktopTareaIssues* and MobileTareaIssues*. With E2E_SHOTS set the screens are
 // saved for comparing them with the reference screenshots.
 //
-// 1. Settings → Integrations: four tracker rows. GitHub Issues and GitLab Issues are ready and offer
+// 1. Settings → Connections → Trackers: four tracker rows. GitHub Issues and GitLab Issues are ready and offer
 //    only "Choose binary"; YouTrack has no access saved yet and offers "Connect" (youtrack.spec.mjs
 //    walks it). Jira is not a tracker.
 // 2. A project whose origin is a GitHub repository: its tracker form refuses the trackers that cannot
@@ -38,6 +38,8 @@ export const timeout = 420_000;
 const GH_ORIGIN = 'https://github.com/acme/shop.git';
 const GL_ORIGIN = 'https://gitlab.com/acme/shop.git';
 const POINT = 'issue.triage';
+// The trackers are a section of Settings → Connections; the old `?tab=integrations` lands on its code hosts
+const TRACKERS = '/settings/connections#trackers';
 const overflow = `return document.documentElement.scrollWidth - innerWidth`;
 
 function git(cwd, ...args) {
@@ -154,11 +156,11 @@ export default async ({ page, api, check, dirs }) => {
     await api.post('/hosts/refresh');
     await api.post('/trackers/refresh');
 
-    // ================= 1. Settings → Integrations =================
+    // ================= 1. Settings → Connections → Trackers =================
     await page.goto('/', 300);
     for (const theme of ['dark', 'light']) {
       await setTheme(theme);
-      await page.goto('/settings?tab=integrations', 300);
+      await page.goto(TRACKERS, 300);
       await page.waitFor(`return document.querySelectorAll('.prov-row[data-tracker]').length === 3`, { label: `[${theme}] one row per tracker` });
       const rows = await page.eval(
         `return [...document.querySelectorAll('.prov-row[data-tracker]')].map((r) => ({ id: r.dataset.tracker, state: r.dataset.state, actions: [...r.querySelectorAll('[data-action]')].map((a) => a.dataset.action), text: r.textContent }))`,
@@ -170,18 +172,18 @@ export default async ({ page, api, check, dirs }) => {
       check(github.text.includes('#12') && gitlab.text.includes('#12'), `[${theme}] each row says how its issues are numbered`);
       check(youtrack.state === 'signed-out' && youtrack.actions.join() === 'connect,choose-binary', `[${theme}] YouTrack has no access yet and offers Connect first (${youtrack.state}; ${youtrack.actions})`);
       check(youtrack.text.includes('PROJ-12'), `[${theme}] YouTrack says how its issues are numbered`);
-      await atMostTwo(`[${theme}] Integrations`);
+      await atMostTwo(`[${theme}] Connections`);
       await page.shot(`trackers-integrations-${theme}`);
-      await scan(page, check, `Settings → Integrations with the trackers, ${theme}`);
+      await scan(page, check, `Settings → Connections → Trackers with the trackers, ${theme}`);
     }
     await setTheme('dark');
     await page.viewport(390, 844);
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(TRACKERS, 300);
     await page.waitFor(`return document.querySelectorAll('.prov-cell[data-tracker]').length === 3`, { label: 'a cell per tracker on a phone' });
-    check((await page.eval(overflow)) <= 1, `[390px Integrations] nothing scrolls sideways (${await page.eval(overflow)}px)`);
-    await atMostTwo('[390px] Integrations');
+    check((await page.eval(overflow)) <= 1, `[390px Connections] nothing scrolls sideways (${await page.eval(overflow)}px)`);
+    await atMostTwo('[390px] Connections');
     await page.shot('trackers-integrations-phone');
-    await scan(page, check, 'Settings → Integrations with the trackers, on a phone');
+    await scan(page, check, 'Settings → Connections → Trackers with the trackers, on a phone');
     await page.viewport(1440, 900);
 
     // ================= 2. The project's tracker =================

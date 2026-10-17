@@ -52,11 +52,12 @@
       "title": "Read-only mode",
       "on": "read-only",
       "off": "writes allowed",
-      "intro": "Turn it on to show the panel to someone without letting them change anything: every request that would write is refused with 405.",
       "label": "Refuse every write",
       "note": "Answering a permission prompt still works, so a chat someone is watching can be unblocked, and so does this switch. Everything else, including the token below, is refused until it is turned off.",
       "enabled": "Read-only mode is on",
-      "disabled": "Read-only mode is off"
+      "disabled": "Read-only mode is off",
+      "consequenceOn": "Every write is refused; permission prompts still get answers.",
+      "consequenceOff": "Turn it on to show the panel without letting anyone change it."
     },
     "access": {
       "title": "Access",
@@ -137,7 +138,6 @@
       }
     },
     "guards": {
-      "title": "Guards",
       "intro": "Guards are deterministic checks that run before an agent's command or file write. They block the dangerous ones with a reason the agent can read, and nothing else decides: no model is asked.",
       "loadFailed": "Could not load the guard settings",
       "retry": "Retry",
@@ -272,7 +272,10 @@
         "readOnly": "refused, read-only",
         "rejected": "rejected",
         "failed": "failed"
-      }
+      },
+      "openAll": "See the whole log",
+      "count_one": "{{formatted}} entry",
+      "count_other": "{{formatted}} entries"
     }
   },
   "scope": {
@@ -835,7 +838,7 @@
         "who-answers": "Uses your Claude Code quota, or Jev."
       },
       "runs": {
-        "concurrent": "The next ones wait for a free slot."
+        "concurrent": "Past it, new chats are refused and workers wait for a slot."
       },
       "spend-cap": {
         "daily": "New runs wait once today’s spend reaches it."
@@ -1616,7 +1619,6 @@
     "decideFailed": "Could not change the proposal"
   },
   "remote": {
-    "title": "Tunnel through Tailscale",
     "intro": "Reach this Claudio from your phone or another computer on your tailnet, through this machine's Tailscale. Only devices signed in to your tailnet can open the address; nothing is published on the internet.",
     "node": "This machine on the tailnet:",
     "states": {
@@ -1639,8 +1641,8 @@
     "failedTitle": "The tunnel failed",
     "authRequired": {
       "title": "Turn on authentication first",
-      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
-      "action": "Open Security"
+      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Access, above.",
+      "action": "Go to Access"
     },
     "tailscale": {
       "tags": {
@@ -1688,7 +1690,6 @@
       "qr": "QR code of {{url}}"
     },
     "startWith": {
-      "title": "On start",
       "label": "Open the tunnel when Claudio starts",
       "hint": "Off by default. It still needs authentication turned on and Tailscale ready."
     },
@@ -1717,27 +1718,41 @@
       "placeholder": "claudio.example.com",
       "saved": "Allowed hosts saved",
       "fromTunnel": "tunnel, while it is open",
-      "hintBesideEnv": "One per line: a name, or *.example.com for the names under it. No ports. They answer beside the ones from the environment, at once."
+      "hintBesideEnv": "One per line: a name, or *.example.com for the names under it. No ports. They answer beside the ones from the environment, at once.",
+      "consequence_one": "Answers to {{formatted}} name besides localhost.",
+      "consequence_other": "Answers to {{formatted}} names besides localhost.",
+      "consequenceNone": "Answers to localhost only."
     },
     "runs": {
       "title": "Runs",
       "intro": "What a new run gets unless it asks for something else. A change applies to the next run, without a restart.",
       "mode": "Default permission mode",
-      "modeHint": "The --permission-mode of a chat, schedule or orchestration that does not choose one.",
       "concurrent": "Runs at once",
-      "concurrentHint": "From {{min}} to {{max}}. A new chat past the limit is refused until one ends, and an orchestration runs no more workers than this at once.",
-      "saved": "Run defaults saved"
+      "saved": "Run defaults saved",
+      "modeConsequence": {
+        "acceptEdits": "Edits go ahead; other tools still ask.",
+        "auto": "Claude Code decides which tools need asking.",
+        "bypassPermissions": "Nothing asks: every tool runs at once.",
+        "manual": "Each tool asks before it runs.",
+        "dontAsk": "A tool that would ask is refused instead.",
+        "plan": "Claude plans and changes nothing."
+      },
+      "concurrentConsequence_one": "Up to {{formatted}} run at once; a new chat past it is refused.",
+      "concurrentConsequence_other": "Up to {{formatted}} runs at once; a new chat past them is refused.",
+      "concurrentRange": "A whole number from {{min}} to {{max}}."
     },
     "spend": {
       "title": "Daily spend cap",
       "switch": "Limit daily spend",
       "amount": "Cap per day, in USD",
-      "hintToday": "Today: {{spent}} according to the CLI. Over the cap, automatic work waits and your chats ask before sending.",
       "hintApi": "On subscription accounts it is what it would cost on the API, not what you pay.",
       "hintOff": "No cap: nothing waits for the day’s spend.",
       "invalid": "Enter an amount above 0 and up to {{max}}.",
       "saved": "Daily spend cap saved",
-      "savedOff": "Daily spend cap turned off"
+      "savedOff": "Daily spend cap turned off",
+      "today": "Today {{spent}} of {{cap}}, {{percent}}.",
+      "todayOff": "Today {{spent}}, and no cap: nothing waits for it.",
+      "hintOver": "Over the cap, automatic work waits and chats ask first."
     },
     "evals": {
       "title": "Instruction evals, phase 2",

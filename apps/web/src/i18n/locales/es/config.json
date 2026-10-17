@@ -52,11 +52,12 @@
       "title": "Modo solo lectura",
       "on": "solo lectura",
       "off": "escritura permitida",
-      "intro": "Actívalo para enseñar el panel a alguien sin dejar que cambie nada: toda petición que escriba se rechaza con 405.",
       "label": "Rechazar toda escritura",
       "note": "Responder a una petición de permiso sigue funcionando, para poder desbloquear un chat que alguien está viendo; y este interruptor, también. Todo lo demás, incluido el token de abajo, se rechaza hasta que lo desactives.",
       "enabled": "El modo solo lectura está activado",
-      "disabled": "El modo solo lectura está desactivado"
+      "disabled": "El modo solo lectura está desactivado",
+      "consequenceOn": "Se rechaza toda escritura; las peticiones de permiso siguen respondiéndose.",
+      "consequenceOff": "Actívalo para enseñar el panel sin que nadie cambie nada."
     },
     "access": {
       "title": "Acceso",
@@ -137,7 +138,6 @@
       }
     },
     "guards": {
-      "title": "Guardas",
       "intro": "Las guardas son comprobaciones deterministas que se ejecutan antes de cada comando o escritura de un agente. Bloquean las peligrosas con un motivo que el agente puede leer, y no decide nada más: no se consulta a ningún modelo.",
       "loadFailed": "No se han podido cargar los ajustes de las guardas",
       "retry": "Reintentar",
@@ -272,7 +272,10 @@
         "readOnly": "rechazado, solo lectura",
         "rejected": "rechazado",
         "failed": "fallido"
-      }
+      },
+      "openAll": "Ver todo el registro",
+      "count_one": "{{formatted}} entrada",
+      "count_other": "{{formatted}} entradas"
     }
   },
   "scope": {
@@ -835,7 +838,7 @@
         "who-answers": "Usa tu cuota de Claude Code, o Jev."
       },
       "runs": {
-        "concurrent": "Las siguientes esperan un hueco libre."
+        "concurrent": "Por encima, los chats nuevos se rechazan y los workers esperan un hueco."
       },
       "spend-cap": {
         "daily": "Las ejecuciones nuevas esperan cuando el gasto de hoy lo alcanza."
@@ -1616,7 +1619,6 @@
     "decideFailed": "No se ha podido cambiar la propuesta"
   },
   "remote": {
-    "title": "Túnel por Tailscale",
     "intro": "Llega a este Claudio desde el móvil u otro ordenador de tu tailnet, a través del Tailscale de esta máquina. Solo los dispositivos con sesión en tu tailnet pueden abrir la dirección; no se publica nada en internet.",
     "node": "Esta máquina en la tailnet:",
     "states": {
@@ -1639,8 +1641,8 @@
     "failedTitle": "El túnel ha fallado",
     "authRequired": {
       "title": "Activa antes la autenticación",
-      "body": "Mientras Claudio no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Seguridad.",
-      "action": "Abrir Seguridad"
+      "body": "Mientras Claudio no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Acceso, más arriba.",
+      "action": "Ir a Acceso"
     },
     "tailscale": {
       "tags": {
@@ -1688,7 +1690,6 @@
       "qr": "Código QR de {{url}}"
     },
     "startWith": {
-      "title": "Al arrancar",
       "label": "Abrir el túnel al arrancar Claudio",
       "hint": "Desactivado de forma predeterminada. Sigue necesitando la autenticación activada y Tailscale listo."
     },
@@ -1717,27 +1718,41 @@
       "placeholder": "claudio.example.com",
       "saved": "Hosts permitidos guardados",
       "fromTunnel": "túnel, mientras está abierto",
-      "hintBesideEnv": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos. Responden junto a los del entorno, al momento."
+      "hintBesideEnv": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos. Responden junto a los del entorno, al momento.",
+      "consequence_one": "Responde a {{formatted}} nombre además de localhost.",
+      "consequence_other": "Responde a {{formatted}} nombres además de localhost.",
+      "consequenceNone": "Solo responde a localhost."
     },
     "runs": {
       "title": "Ejecuciones",
       "intro": "Lo que recibe una ejecución nueva si no pide otra cosa. Un cambio se aplica a la siguiente ejecución, sin reiniciar.",
       "mode": "Modo de permisos predeterminado",
-      "modeHint": "El --permission-mode de un chat, programación u orquestación que no elige ninguno.",
       "concurrent": "Ejecuciones a la vez",
-      "concurrentHint": "De {{min}} a {{max}}. Un chat nuevo por encima del límite se rechaza hasta que termine otro, y una orquestación no ejecuta más workers que estos a la vez.",
-      "saved": "Valores predeterminados de las ejecuciones guardados"
+      "saved": "Valores predeterminados de las ejecuciones guardados",
+      "modeConsequence": {
+        "acceptEdits": "Las ediciones pasan; el resto de herramientas pregunta.",
+        "auto": "Claude Code decide qué herramientas preguntan.",
+        "bypassPermissions": "Nada pregunta: cada herramienta se ejecuta al momento.",
+        "manual": "Cada herramienta pregunta antes de ejecutarse.",
+        "dontAsk": "Lo que preguntaría se rechaza.",
+        "plan": "Claude planifica y no cambia nada."
+      },
+      "concurrentConsequence_one": "Hasta {{formatted}} ejecución a la vez; un chat nuevo por encima se rechaza.",
+      "concurrentConsequence_other": "Hasta {{formatted}} ejecuciones a la vez; un chat nuevo por encima se rechaza.",
+      "concurrentRange": "Un número entero de {{min}} a {{max}}."
     },
     "spend": {
       "title": "Tope de gasto diario",
       "switch": "Limitar el gasto diario",
       "amount": "Tope por día, en USD",
-      "hintToday": "Hoy: {{spent}} según el CLI. Por encima del tope, el trabajo automático espera y tus chats te preguntan antes de enviar.",
       "hintApi": "En cuentas de suscripción es lo que costaría en la API, no lo que pagas.",
       "hintOff": "Sin tope: nada espera por el gasto del día.",
       "invalid": "Introduce un importe mayor que 0 y de hasta {{max}}.",
       "saved": "Tope de gasto diario guardado",
-      "savedOff": "Tope de gasto diario desactivado"
+      "savedOff": "Tope de gasto diario desactivado",
+      "today": "Hoy {{spent}} de {{cap}}, el {{percent}}.",
+      "todayOff": "Hoy {{spent}}, y sin tope: nada espera por ello.",
+      "hintOver": "Por encima del tope, el trabajo automático espera y los chats preguntan antes."
     },
     "evals": {
       "title": "Evaluaciones de instrucciones, fase 2",

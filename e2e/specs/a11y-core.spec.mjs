@@ -172,10 +172,9 @@ export default a11ySpec(async ({ page, api, problems, scan, fx }) => {
     '/projects',
     '/orchestration',
     `/orchestration/${fx.orchestrationId}`,
-    '/connectors',
     // Off: the page is its illustration and the one action that turns it on
     '/collaborators',
-    ...SETTINGS_TABS.map((tab) => `/settings?tab=${tab}`),
+    ...SETTINGS_TABS,
   ];
   // A terminal's own screen (what a phone opens) and the phone's list only exist while the feature is on; it
   // is off again when the scan ends. On a desktop /terminals redirects to the status bar's panel.

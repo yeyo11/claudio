@@ -54,7 +54,7 @@ export default async ({ page, api, check, releases }) => {
     // ---- An app that can update itself ----
     let remove = await page.onNewDocument(fakeShell({ status: 'available', version: NEXT }));
     try {
-      await page.goto('/settings?tab=account', 1500);
+      await page.goto('/settings/general#updates', 1500);
       await page.waitFor(`return !!document.querySelector(${JSON.stringify(DESKTOP)})`, { label: 'the desktop branch of the card' });
       const steps = await page.eval(`return !!document.querySelector('[data-testid^=update-steps]')`);
       check(!steps, 'the desktop window gets its own button, not the commands for other installs');
@@ -90,7 +90,7 @@ export default async ({ page, api, check, releases }) => {
     // ---- "Restart now" goes through even with work live ----
     remove = await page.onNewDocument(fakeShell({ status: 'ready', version: NEXT }));
     try {
-      await page.goto('/settings?tab=account', 1500);
+      await page.goto('/settings/general#updates', 1500);
       await page.click(`${DESKTOP} button`, `Restart to update to ${NEXT}`);
       await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the live-work question' });
       await page.click('[role=dialog] button', 'Restart now');
@@ -104,7 +104,7 @@ export default async ({ page, api, check, releases }) => {
     const message = 'This copy of Claudio was not installed from an AppImage or a .deb, so it cannot update itself.';
     remove = await page.onNewDocument(fakeShell({ status: 'unsupported', reason: 'unknown-package', message }));
     try {
-      await page.goto('/settings?tab=account', 1500);
+      await page.goto('/settings/general#updates', 1500);
       await page.waitFor(cardSays(message), { label: "the shell's own explanation" });
       const links = await page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${DESKTOP} a`)})].map((a) => a.href)`);
       check(links.includes(releases.url), `the release page is linked: ${links.join(', ')}`);

@@ -129,17 +129,23 @@ test('the Usage line shows the cap with the same bar and words, and what was spe
   assert.equal(renderToStaticMarkup(<MemoryRouter><SpendLineView state={state(3, { capUsd: null })} /></MemoryRouter>), '');
 });
 
-test('the settings card shows off, on, set by the environment and invalid', () => {
+test('the settings section shows off, on, set by the environment and invalid', () => {
   const off = wrap(<SpendCard saved={settings(null)} />);
-  assert.match(text(off), /Daily spend cap Limit daily spend/);
+  // The section's heading names it; the form starts at its switch
+  assert.match(text(off), /^ ?Limit daily spend/);
+  assert.match(off, /data-setting="spend-cap\.daily"/);
+  assert.match(text(off), /No cap: nothing waits for the day’s spend\./);
+  assert.match(text(wrap(<SpendCard saved={settings(null)} />, state(3, { capUsd: null }))), /Today \$3\.00, and no cap: nothing waits for it\./);
   assert.match(off, /role="switch"[^>]*aria-checked="false"/);
-  assert.doesNotMatch(off, /type="number"/, 'the amount appears once the cap is on');
+  assert.match(off, /<div class="settings-reveal" inert=""><div class="settings-reveal-body"><label class="field">/, 'the amount waits, closed and out of reach, until the cap is on');
   assert.match(text(off), /On subscription accounts it is what it would cost on the API, not what you pay\./);
 
   const on = wrap(<SpendCard saved={settings(20, 'file')} />, state(8));
   assert.match(on, /role="switch"[^>]*aria-checked="true"/);
   assert.match(on, /type="number"[^>]*value="20"/);
-  assert.match(text(on), /Today: \$8\.00 according to the CLI\. Over the cap, automatic work waits and your chats ask before sending\./);
+  // The consequence, against the amount: today's spend and its share, then what the cap does
+  assert.ok(text(on).includes(`Today $8.00 of $20.00, ${formatPercent(40)}.`));
+  assert.match(text(on), /Over the cap, automatic work waits and chats ask first\./);
   assert.doesNotMatch(on, /set by the environment/);
 
   const env = wrap(<SpendCard saved={settings(50, 'env')} />);
@@ -170,10 +176,13 @@ test('the cap is sent only when it moved, never when the environment set it', ()
   assert.deepEqual(changedSettings(settings(50, 'env'), { dailySpendCapUsd: 20 }), {});
 });
 
-test('the settings card says what it is in Spanish', async () => {
+test('the settings section says what it is in Spanish', async () => {
   await speak('es');
-  assert.match(text(wrap(<SpendCard saved={settings(null)} />)), /Tope de gasto diario Limitar el gasto diario/);
-  assert.match(text(wrap(<SpendCard saved={settings(20, 'file')} />, state(8))), /Hoy: 8,00 US\$ según el CLI\. Por encima del tope, el trabajo automático espera y tus chats te preguntan antes de enviar\./);
+  assert.match(text(wrap(<SpendCard saved={settings(null)} />)), /Limitar el gasto diario/);
+  const on = text(wrap(<SpendCard saved={settings(20, 'file')} />, state(8)));
+  // text() folds the no-break spaces Intl puts in amounts and percentages
+  assert.ok(on.includes(`Hoy 8,00 US$ de 20,00 US$, el ${formatPercent(40).replace(/\s/g, ' ')}.`));
+  assert.match(on, /Por encima del tope, el trabajo automático espera y los chats preguntan antes\./);
 });
 
 test('the views read the same level the server computed', () => {

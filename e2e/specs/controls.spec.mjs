@@ -7,7 +7,7 @@ const openListbox = `return !!document.querySelector('[role=listbox]')`;
 
 export default async ({ page, api, check }) => {
   // Escape closes the open menu first, and only then the dialog around it
-  await page.goto('/settings?tab=files', 1500);
+  await page.goto('/settings/claude-code/files', 1500);
   await page.click('button', 'New file', 800);
   await page.click('[role=dialog] .select-trigger', undefined, 500);
   await page.waitFor(openListbox, { label: 'template menu open inside the dialog' });

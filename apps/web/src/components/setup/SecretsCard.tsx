@@ -23,7 +23,7 @@ function HowLink() {
 }
 
 /**
- * Settings → Security's first card: how the keys and tokens Claudio hands a CLI are kept
+ * Settings → Access & safety → Secrets: how the keys and tokens Claudio hands a CLI are kept
  * (`SecretStorageStatus` in `GET /setup`). Sealed is ok; a key beside the data it seals is a warning
  * that recommends the environment; no key at all is a warning that values are plain.
  */
@@ -35,12 +35,6 @@ export function SecretsCard() {
   return (
     <Card
       className="secrets-card"
-      title={
-        <span className="card-title-icon">
-          <Lock {...ICON_SM} />
-          {t('secrets.title')}
-        </span>
-      }
       actions={secrets.sealed ? <Tag tone="ok">{t('secrets.sealed')}</Tag> : <Tag tone="warn">{t('secrets.plain')}</Tag>}
     >
       <p className="small muted">
