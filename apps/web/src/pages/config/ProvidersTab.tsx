@@ -58,6 +58,8 @@ export function ProvidersTab() {
   const checkedAt = latestCheck(list);
 
   const recheck = async (): Promise<ProviderStatus[] | null> => {
+    // The row keeps its Retry while a read runs: a second press waits for the first
+    if (checking) return null;
     setChecking(true);
     try {
       return await refresh.mutateAsync();
@@ -127,7 +129,7 @@ export function ProvidersTab() {
       variant={narrow ? 'cell' : 'row'}
       compact
       limit={limit}
-      checking={checking}
+      // Not `checking`: the row keeps its state while the button spins, so nothing below it moves
       onRetry={() => void recheck()}
       onChooseBinary={() => setBinaryOpen((now) => !now)}
       more={checkAgain}
@@ -138,7 +140,7 @@ export function ProvidersTab() {
   // Signing in is the Sign-in section's: the row's Sign in links there (ProviderRow), so the panel lives in one place
   return (
     <div className="prov-page prov-bare">
-      <div className="prov-item" data-setting="provider.binary">
+      <div className="prov-item" data-setting="provider.binary" aria-busy={checking}>
         {row}
         {!narrow && binaryOpen && editor(false)}
       </div>

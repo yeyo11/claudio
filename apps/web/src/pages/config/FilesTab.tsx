@@ -97,7 +97,8 @@ function TreeNode({
     <li role="none">
       <div
         role="treeitem"
-        aria-label={isDir ? node.name : `${node.name}${node.size !== undefined ? `, ${formatBytes(node.size)}` : ''}`}
+        // A file is named by what it shows (its name and size); a folder by its name alone, not its delete button
+        aria-label={isDir ? node.name : undefined}
         aria-level={depth + 1}
         aria-expanded={isDir ? open : undefined}
         aria-selected={selected === node.path}

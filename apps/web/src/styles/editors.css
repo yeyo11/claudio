@@ -1157,9 +1157,11 @@ button.master-item-on:hover {
 }
 
 
+/* Three tiles on one line at every width: they share the control column instead of wrapping */
 .appearance-themes {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 156px));
+  width: 100%;
   gap: 12px;
 }
 
@@ -1167,7 +1169,7 @@ button.master-item-on:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 156px;
+  min-width: 0;
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

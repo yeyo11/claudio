@@ -70,24 +70,28 @@ export function SignInSection() {
   const facts = auth && (
     <span className="account-facts">
       <span className="account-facts-line">
-        {auth.loggedIn ? <Tag tone="ok">{t('account.loggedIn')}</Tag> : <Tag tone="bad">{t('account.loggedOut')}</Tag>}
-        {auth.authMethod && <span>{auth.authMethod}</span>}
+        {auth.loggedIn ? <Tag tone="ok">{t('account.loggedIn')}</Tag> : <Tag tone="warn">{t('account.loggedOut')}</Tag>}
+        {auth.authMethod && auth.authMethod !== 'none' && <span>{auth.authMethod}</span>}
       </span>
       <span className="account-facts-line break">{[auth.email, auth.orgName].filter(Boolean).join(' · ') || t('account.noAccount')}</span>
       <span className="account-facts-line">
         {[auth.subscriptionType, t(`account.tokenSource.${TOKEN_SOURCE_KEY[auth.tokenSource]}`)].filter(Boolean).join(' · ')}
       </span>
-      <span>{t('account.loggedInNote')}</span>
+      {auth.loggedIn && <span>{t('account.loggedInNote')}</span>}
     </span>
   );
+  // With no credential at all a real request can only fail: there is nothing to verify
+  const verifiable = auth !== undefined && auth.tokenSource !== 'none';
 
   return (
     <PrefRows>
-      <PrefRow id="sign-in-account" setting="sign-in.account" title={t('account.inUse')} hint={isLoading ? <Skeleton rows={3} /> : facts}>
+      <PrefRow id="sign-in-account" setting="sign-in.account" title={t('account.inUse')} hint={isLoading ? <Skeleton rows={4} /> : facts}>
         <div className="pref-actions">
-          <button className="btn" disabled={verify.isPending} onClick={() => verify.mutate()}>
-            <ReservedLabel states={[t('account.verify'), t('account.verifying')]} shown={verify.isPending ? 1 : 0} />
-          </button>
+          {verifiable && (
+            <button className="btn" disabled={verify.isPending} onClick={() => verify.mutate()}>
+              <ReservedLabel states={[t('account.verify'), t('account.verifying')]} shown={verify.isPending ? 1 : 0} />
+            </button>
+          )}
           {fromWrapper && (
             <button className="btn btn-danger" disabled={clear.isPending} onClick={() => clear.mutate()}>
               {t('account.remove')}

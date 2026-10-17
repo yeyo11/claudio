@@ -2363,6 +2363,26 @@ the file being edited is its only moving part.
 - The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
 - `quota` is still reserved: the app has no "every account exhausted" state yet.
 
+### The setting row (Settings)
+
+A setting on a group's screen (`PrefRow` in `apps/web/src/pages/config/PrefRow.tsx`) follows the
+anatomy of `settings-patterns.md`. It replaces the bordered Appearance rows, and General and
+Claude Code are built from it ([settings IA plan](plans/settings-ia.md) §6.0).
+
+| Class | What it is |
+|---|---|
+| `.pref-rows` | the rows of one section: a 12 px gap, no border between them (AP11), and the container the rows measure |
+| `.pref-row` | label and consequence (`.pref-row-text`, `.pref-row-title`, `.pref-row-hint` in `--fg-2`, at most 60 characters) beside the control (`.pref-row-control`), on one baseline; below 560 px of its container the label stacks over the control |
+| `.pref-row.is-stacked` | a row whose control is a block (a list, a form, the sign-in panel): the label over it at every width, the control at full width |
+| `.pref-actions` | a line of buttons in the control column, with the answer they bring, wrapping on a phone |
+| `.reserved-label` (`ReservedLabel`) | a busy button's states ("Check for updates" → "Checking…") in one grid cell, so the button keeps the width of the longest (AP10) |
+| `.settings-detail-body`, `.settings-detail-tools` | a detail screen's content (Behaviour, Files) without a card: the detail's header names it |
+| `.prov-bare` | Claude Code → Provider: the one provider row on the screen, not in a card, its padding hanging outside the column so its mark lines up with the section heading |
+
+Every row carries the `data-setting` id that `settingsIndex.ts` names, so a search result lands on
+it. A signed-out account is `warn` everywhere (it needs authorisation), in the Sign-in section and
+on the Provider row alike.
+
 ### The diff comparator (§5)
 
 > **Landed** in the `changes-review` orchestration (2026-09-28), as
