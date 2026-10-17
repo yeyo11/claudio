@@ -10,7 +10,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { StatusDot } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Skeleton, StatusBadge, Tag } from '@claudio/ui/components/ui';
-import { formatDateTime } from '@claudio/ui/lib/format';
+import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { intlLocale } from '@claudio/ui/i18n/language';
 import { connectorActionLabel, connectorLimitName, localized } from '../../lib/server-strings';
 import { useProjectScope } from '../../lib/project-scope';
@@ -44,6 +44,11 @@ function ConnectorStatus({ status }: { status: Connector['status'] }) {
   return <StatusBadge status="unknown" />;
 }
 
+/** `claude`, `/mcp`: the literal a person types, in mono; the rest stays prose. */
+function withCode(text: string) {
+  return text.split(/`([^`]+)`/).map((part, index) => (index % 2 === 1 ? <code key={index}>{part}</code> : part));
+}
+
 /**
  * Authorising a connector happens in an interactive `claude` session or in claude.ai's settings:
  * there is no command that does it. The steps and links are the server's, so they stay true to what
@@ -56,7 +61,7 @@ function AuthorisationSteps({ guide }: { guide: ConnectorsOverview['authorisatio
         {guide.steps.map((step, index) => (
           <li key={step.code}>
             <span className="count">{index + 1}</span>
-            <span>{localized(step)}</span>
+            <span>{withCode(localized(step))}</span>
           </li>
         ))}
       </ol>
@@ -231,7 +236,8 @@ export function ConnectorsSection() {
   // The steps are said once: inside a card that needs them, or on their own when no card shows them
   const stepsInCard = needsAuth.length > 0;
 
-  const checked = data ? t('checked', { when: formatDateTime(data.checkedAt) }) : t('subtitleLoading');
+  // Relative and short, as the code hosts say it; the full date is the hover title
+  const checked = data ? t('checked', { when: timeAgo(data.checkedAt) }) : t('subtitleLoading');
   const notListed = data && data.notListed.length > 0 ? `${t('notListed', { kinds: data.notListed.map((kind) => t(`kinds.${kind}`)).join(', ') })}${stepsInCard ? ` ${t('notListedSame')}` : ''}` : null;
   const firstNeedsAuth = needsAuth[0]?.id ?? null;
   const GuideTitle = useContext(SectionLevel) === 2 ? 'h3' : 'h4';
@@ -241,9 +247,12 @@ export function ConnectorsSection() {
       <p className="small muted">{t('line')}</p>
       <div className="prov-toolbar">
         <button type="button" className="btn btn-small" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching}>
-          <RefreshCw {...ICON_SM} aria-hidden /> {refresh.isPending ? t('refreshing') : t('refresh')}
+          {/* One label in every state, so the button keeps its width: the spinner says it is asking */}
+          {refresh.isPending || isFetching ? <Spinner /> : <RefreshCw {...ICON_SM} aria-hidden />} {t('refresh')}
         </button>
-        <span className="prov-checked tnum connectors-checked">{checked}</span>
+        <span className="prov-checked tnum connectors-checked" title={data ? formatDateTime(data.checkedAt) : undefined} aria-live="polite">
+          {refresh.isPending ? t('refreshing') : checked}
+        </span>
       </div>
       <ErrorBox error={error ?? refresh.error ?? ask.error ?? authorise.error} />
 

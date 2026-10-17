@@ -9,6 +9,7 @@ import { NumberInput, Switch } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field, Skeleton } from '@claudio/ui/components/ui';
 import type { ReactNode } from 'react';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { useDirty } from '../../lib/dirty';
 import { LessonItems } from '../home/memory/Lessons';
 
@@ -24,23 +25,29 @@ const LIMITS = {
   jobs: { min: 0, max: 1000 },
 } as const;
 
+type RangeLabel = `config:lessons.${'maxCost' | 'projectDaily' | 'globalDaily' | 'chatMinutes' | 'jobsDaily' | 'approveFloor' | 'deliverAt' | 'budget'}`;
+
+/** The first number of a draft outside what the server accepts: its label's key and its range. */
+export function lessonSettingsOutOfRange(draft: LessonSettings): { label: RangeLabel; min: number; max: number } | null {
+  const checks: Array<[number, { min: number; max: number }, RangeLabel]> = [
+    [draft.miner.maxCostUsd, LIMITS.maxCostUsd, 'config:lessons.maxCost'],
+    [draft.caps.perProjectDailyUsd, LIMITS.projectDaily, 'config:lessons.projectDaily'],
+    [draft.caps.globalDailyUsd, LIMITS.globalDaily, 'config:lessons.globalDaily'],
+    [draft.caps.perChatMinMinutes, LIMITS.minutes, 'config:lessons.chatMinutes'],
+    [draft.caps.perProjectDailyJobs, LIMITS.jobs, 'config:lessons.jobsDaily'],
+    [draft.confidence.approveFloor, LIMITS.floor, 'config:lessons.approveFloor'],
+    [draft.confidence.deliverAt, LIMITS.deliver, 'config:lessons.deliverAt'],
+    [draft.delivery.handoffBytes, LIMITS.bytes, 'config:lessons.budget'],
+  ];
+  const found = checks.find(([value, limit]) => !(Number.isFinite(value) && value >= limit.min && value <= limit.max));
+  return found ? { label: found[2], ...found[1] } : null;
+}
+
 /** Why a draft cannot be saved, as the key of the sentence that says it; null when it can */
 export function lessonSettingsProblem(draft: LessonSettings): 'range' | 'order' | null {
-  const inRange = (value: number, limit: { min: number; max: number }) => Number.isFinite(value) && value >= limit.min && value <= limit.max;
-  const { miner, caps, confidence, delivery } = draft;
-  if (
-    !inRange(miner.maxCostUsd, LIMITS.maxCostUsd) ||
-    !inRange(caps.perProjectDailyUsd, LIMITS.projectDaily) ||
-    !inRange(caps.globalDailyUsd, LIMITS.globalDaily) ||
-    !inRange(caps.perChatMinMinutes, LIMITS.minutes) ||
-    !inRange(caps.perProjectDailyJobs, LIMITS.jobs) ||
-    !inRange(confidence.approveFloor, LIMITS.floor) ||
-    !inRange(confidence.deliverAt, LIMITS.deliver) ||
-    !inRange(delivery.handoffBytes, LIMITS.bytes)
-  )
-    return 'range';
+  if (lessonSettingsOutOfRange(draft)) return 'range';
   // Decay must retire a lesson before it could be delivered again
-  return draft.decay.retireBelow >= confidence.deliverAt ? 'order' : null;
+  return draft.decay.retireBelow >= draft.confidence.deliverAt ? 'order' : null;
 }
 
 /** The active and retired lessons promoted out of a project: what the global lessons detail lists. */
@@ -100,6 +107,7 @@ export function LessonSettingsRows() {
   const dirty = draft !== null && settings.data !== undefined && JSON.stringify(draft) !== JSON.stringify(settings.data);
   useDirty('lessons-settings', dirty);
   const problem = draft ? lessonSettingsProblem(draft) : null;
+  const outOfRange = draft && problem === 'range' ? lessonSettingsOutOfRange(draft) : null;
 
   const save = useMutation({
     mutationFn: (next: LessonSettings) => api.putLessonSettings(next),
@@ -209,11 +217,14 @@ export function LessonSettingsRows() {
               below: draft.decay.retireBelow,
             })}
           </p>
-          {problem && (
-            <p className="field-error" role="alert">
-              {t(`config:lessons.problem.${problem}`)}
-            </p>
-          )}
+          {/* Always there, so a message appearing pushes nothing down; it names the setting to fix */}
+          <p className="field-error lessons-problem" role="alert">
+            {outOfRange
+              ? t('config:lessons.problem.field', { field: t(outOfRange.label), min: formatNumber(outOfRange.min), max: formatNumber(outOfRange.max) })
+              : problem
+                ? t(`config:lessons.problem.${problem}`)
+                : null}
+          </p>
           <div className="lessons-settings-actions">
             <button type="button" className="btn btn-quiet" disabled={!dirty || save.isPending} onClick={() => setDraft(settings.data ?? null)}>
               {t('config:lessons.discard')}

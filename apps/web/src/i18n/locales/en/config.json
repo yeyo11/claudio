@@ -1785,7 +1785,8 @@
     "save": "Save",
     "problem": {
       "range": "A value is out of range.",
-      "order": "Lessons must be retired below the confidence they are handed from."
+      "order": "Lessons must be retired below the confidence they are handed from.",
+      "field": "{{field}} goes from {{min}} to {{max}}."
     },
     "globalRow": "Lessons every project that allows them gets"
   }

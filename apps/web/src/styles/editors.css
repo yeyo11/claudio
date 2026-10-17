@@ -872,6 +872,39 @@ button.master-item-on:hover {
   color: var(--text-faint);
 }
 
+/* A row that stands for a whole section: its name, and under it what the items are */
+.settings-detail-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.settings-detail-desc {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+/* One-row sections: the row is the section, and the rows keep a row's gap between them */
+.settings-row-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-row-section {
+  min-width: 0;
+  scroll-margin-top: 16px;
+}
+
+.settings-row-section:focus {
+  outline: none;
+}
+
 /*
  * The row a search result or the palette opened: a fill that holds a moment and fades, so the eye
  * finds it once. --bg-3, not --bg-2: on the light page --bg-2 is the white of a card and would not show.

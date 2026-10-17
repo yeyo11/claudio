@@ -6,9 +6,9 @@ import { InstructionsTab } from '../InstructionsTab';
 import { GlobalLessons, LessonSettingsRows, useGlobalLessons } from '../LessonsTab';
 import { MemoryOverview, useMemoryProjects } from '../MemoryOverview';
 import { ResourcesTab } from '../ResourcesTab';
-import { detailLabel, sectionLabel, settingsHref } from '../settingsGroups';
+import { sectionLabel, settingsHref } from '../settingsGroups';
 import { ResourceRow } from './ResourceRow';
-import { SettingsDetailRow, SettingsSection, type GroupScreenProps } from './Section';
+import { RowSections, SettingsDetailRow, SettingsRowSection, SettingsSection, type GroupScreenProps } from './Section';
 
 const USER_SCOPE: Scope = {};
 
@@ -17,9 +17,11 @@ function InstructionsRow() {
   const { t } = useTranslation(['config']);
   const { data } = useQuery({ queryKey: keys.instructions(USER_SCOPE, 'shared'), queryFn: () => api.getInstructions(USER_SCOPE, 'shared') });
   return (
-    <SettingsDetailRow
+    <SettingsRowSection
+      id="instructions"
       to={settingsHref('instructions', { detail: 'claude-md' })}
-      label={t('instructions.row')}
+      label={t(sectionLabel('instructions'))}
+      description={t('instructions.row')}
       note={
         <>
           <span className="mono">CLAUDE.md</span>
@@ -37,9 +39,12 @@ function MemoryRow() {
   const { data } = useMemoryProjects();
   const keeping = (data ?? []).filter((project) => project.fileCount > 0).length;
   return (
-    <SettingsDetailRow
+    <SettingsRowSection
+      id="memory"
       to={settingsHref('instructions', { detail: 'memory' })}
-      label={!data ? t(detailLabel('memory')) : keeping === 0 ? t('settings.memory.none') : t('settings.memory.line', { count: keeping })}
+      label={t(sectionLabel('memory'))}
+      // Reserved while the list loads, so the row does not grow when it arrives
+      description={!data ? '\u00a0' : keeping === 0 ? t('settings.memory.none') : t('settings.memory.line', { count: keeping })}
       setting="memory.projects"
     />
   );
@@ -60,7 +65,8 @@ function GlobalLessonsRow() {
 
 /**
  * Settings → Instructions & memory (docs/plans/settings-ia.md §6.4): what Claude reads before it
- * starts. Each editor and list is a detail; only the lessons' own settings are rows on the screen.
+ * starts. Each editor and list is a detail, reached from a section that is its one row; only the
+ * lessons, with settings of their own, keep a heading.
  */
 export function Instructions({ detail }: GroupScreenProps<'instructions'>) {
   const { t } = useTranslation(['config']);
@@ -70,22 +76,18 @@ export function Instructions({ detail }: GroupScreenProps<'instructions'>) {
   if (detail) return <ResourcesTab scope={USER_SCOPE} kind={detail} />;
   return (
     <div className="settings-group">
-      <SettingsSection id="instructions" title={t(sectionLabel('instructions'))}>
+      <RowSections>
         <InstructionsRow />
-      </SettingsSection>
-      <SettingsSection id="memory" title={t(sectionLabel('memory'))}>
         <MemoryRow />
-      </SettingsSection>
+      </RowSections>
       <SettingsSection id="lessons" title={t(sectionLabel('lessons'))}>
         <GlobalLessonsRow />
         <LessonSettingsRows />
       </SettingsSection>
-      <SettingsSection id="rules" title={t(sectionLabel('rules'))}>
+      <RowSections>
         <ResourceRow kind="rules" />
-      </SettingsSection>
-      <SettingsSection id="output-styles" title={t(sectionLabel('output-styles'))}>
         <ResourceRow kind="output-styles" />
-      </SettingsSection>
+      </RowSections>
     </div>
   );
 }

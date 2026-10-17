@@ -1289,6 +1289,8 @@
    control; below 480 px of its own width the control goes under the label */
 .lessons-settings { container: lessons-settings / inline-size; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .lessons-settings > p { margin: 0; }
+/* The error line is reserved: two lines, so a message that wraps on a phone moves nothing either */
+.lessons-problem { min-height: calc(2 * 1.45em); }
 .lessons-row { min-width: 0; }
 .lessons-row > .field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); align-items: center; gap: 2px 16px; }
 .lessons-row > .field > .field-label { grid-column: 1; grid-row: 1; }

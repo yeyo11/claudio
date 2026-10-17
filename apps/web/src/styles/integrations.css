@@ -275,3 +275,29 @@
     min-height: var(--touch);
   }
 }
+
+/*
+ * Settings → Connections: the settings body is narrower than the old tab, and four columns left the
+ * state of a row with no width at all. Below 760 px of the list's own width the state and the
+ * remedies go under the name, beside the mark.
+ */
+.settings-section > .prov-card {
+  container: host-list / inline-size;
+}
+
+@container host-list (max-width: 760px) {
+  .prov-row.compact {
+    grid-template-columns: 36px minmax(0, 1fr);
+    row-gap: 10px;
+  }
+
+  .prov-row.compact > .prov-state,
+  .prov-row.compact > .prov-actions {
+    grid-column: 2;
+  }
+
+  .prov-row.compact > .prov-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

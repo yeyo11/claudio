@@ -1785,7 +1785,8 @@
     "save": "Guardar",
     "problem": {
       "range": "Un valor está fuera de rango.",
-      "order": "Las lecciones deben retirarse por debajo de la confianza desde la que se entregan."
+      "order": "Las lecciones deben retirarse por debajo de la confianza desde la que se entregan.",
+      "field": "{{field}} va de {{min}} a {{max}}."
     },
     "globalRow": "Lecciones para cada proyecto que las permita"
   }
