@@ -134,6 +134,7 @@ import { TrackerSyncService } from './trackers/sync.ts';
 import { TrackerDetector } from './trackers/detector.ts';
 import { YoutrackCredentialStore } from './trackers/youtrack/credentials.ts';
 import { runHostCall } from './hosts/exec.ts';
+import { ChildProcesses } from './child-processes.ts';
 import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
@@ -443,6 +444,8 @@ export class Core {
    * `hosts.changed` when a status changes. A project's readiness runs its own probes instead.
    */
   readonly hosts: CodeHostDetector;
+  /** The probes and host calls this core started, ended and waited for by `shutdown` */
+  private readonly children = new ChildProcesses();
   /** Which code hosts are on and a binary of the person's own (`hosts.json`) */
   readonly hostsSettings: CodeHostsSettingsStore;
   /** Which issue trackers are on and a binary of the person's own (`trackers.json`) */
@@ -618,6 +621,7 @@ export class Core {
     const drivers = this.sessionDrivers(config);
     this.accounts = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: config.claudeBin });
     this.providers = new ProviderDetector({
+      processes: this.children,
       config,
       otherAccount: () => this.readyAccountLabel(),
       accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
@@ -633,6 +637,7 @@ export class Core {
     this.hostsSettings = new CodeHostsSettingsStore(config);
     this.trackersSettings = new TrackersSettingsStore(config);
     this.hosts = new CodeHostDetector({
+      processes: this.children,
       adapter: codeHostAdapter,
       settings: () => this.hostsSettings.get(),
       emit: (event) => {
@@ -643,6 +648,7 @@ export class Core {
     });
     this.youtrackCredentials = new YoutrackCredentialStore(config, this.vault);
     this.trackers = new TrackerDetector({
+      processes: this.children,
       hosts: this.hosts,
       adapter: codeHostAdapter,
       settings: () => this.trackersSettings.get(),
@@ -1079,6 +1085,7 @@ export class Core {
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
     this.logins = new LoginService({
+      processes: this.children,
       vault: this.vault,
       youtrack: this.youtrackCredentials,
       emit: (event) => this.events.emit(event),
@@ -1119,6 +1126,7 @@ export class Core {
       },
     });
     this.pullRequests = new PullRequestService({
+      processes: this.children,
       db: this.db,
       checks: this.checks,
       reviews: this.reviews,
@@ -1170,6 +1178,7 @@ export class Core {
       return settings?.id === tracker ? settings.scope : null;
     });
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
+      processes: this.children,
       db: this.db,
       settings: () => this.hostsSettings.get(),
       codeHost: (path) => this.pullRequests.codeHost(path),
@@ -2262,7 +2271,7 @@ export class Core {
       hostname: credentials.host,
       repo: null,
       // The address and token come from the vault, laid over by the execution layer (`buildHostEnv`)
-      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }),
+      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, processes: this.children }),
       issueUrl: (key) => youtrackIssueUrl(credentials.host, key),
     };
   }
@@ -3306,7 +3315,13 @@ export class Core {
     });
   }
 
-  shutdown(): void {
+  /**
+   * Stops everything this core runs. What has to happen at once happens before it returns; the
+   * promise resolves once the probes and host calls it ended have exited too, which is what a
+   * process about to exit waits for: one left running writes its config home after the server is
+   * gone (see `ChildProcesses`). Callers that only stop the core may ignore it.
+   */
+  shutdown(): Promise<void> {
     this.closed = true;
     this.forgetSecrets();
     this.releaseVault();
@@ -3338,5 +3353,6 @@ export class Core {
     void this.collaborators.dispose();
     this.runtime.stopAll();
     this.db.close();
+    return this.children.close();
   }
 }

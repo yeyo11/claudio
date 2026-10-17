@@ -212,7 +212,9 @@ test('the compiled API serves and stops on its own, with no source tree, node_mo
     assert.equal(existsSync(pidFile), false, 'a server that stopped must not leave a pid file for the healthcheck to signal');
   } finally {
     // The server may still be writing its data dir when a failed assertion lands here: it is waited
-    // for before the dir goes, or a loaded machine sees ENOTEMPTY (four runs of this file at once, CW-27)
+    // for before the dir goes, or a loaded machine sees ENOTEMPTY (four runs of this file at once, CW-27).
+    // Its exit is the last write: the gh and glab probes it started (HOME is this dir) are ended and
+    // waited for by its shutdown, so none is left writing a config home here (core-shutdown.test.ts)
     if (server.exitCode === null && server.signalCode === null) {
       const gone = once(server, 'exit');
       server.kill('SIGKILL');

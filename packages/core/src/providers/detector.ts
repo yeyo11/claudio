@@ -14,6 +14,7 @@ import type {
   ProviderStatus,
   ProvidersSettings,
 } from '@claudio/shared';
+import type { ChildProcesses } from '../child-processes.ts';
 import { detectCli, getAuthStatus } from '../cli.ts';
 import type { ClaudioEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
@@ -80,6 +81,8 @@ export interface ProviderDetectorDeps {
   now?: () => number;
   ttlMs?: number;
   probeTimeoutMs?: number;
+  /** The owner's children: its shutdown ends a probe still running, and a probe asked for after it is not started */
+  processes?: ChildProcesses;
   debounceMs?: number;
   minWatchGapMs?: number;
 }
@@ -647,8 +650,10 @@ export class ProviderDetector {
   }
 
   private exec(file: string, args: string[], env: NodeJS.ProcessEnv): Promise<Exec> {
+    const processes = this.deps.processes;
+    if (processes?.closed) return Promise.resolve({ outcome: 'failed', code: 1, stdout: '' });
     return new Promise((resolve) => {
-      execFile(file, args, { timeout: this.probeTimeoutMs, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024, env }, (error, stdout) => {
+      const child = execFile(file, args, { timeout: this.probeTimeoutMs, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024, env }, (error, stdout) => {
         if (!error) return resolve({ outcome: 'done', code: 0, stdout });
         const failure = error as NodeJS.ErrnoException & { killed?: boolean };
         if (failure.killed) return resolve({ outcome: 'timeout', code: 1, stdout });
@@ -656,6 +661,7 @@ export class ProviderDetector {
         const denied = failure.code === 'EACCES' || failure.code === 'EPERM';
         resolve({ outcome: denied ? 'denied' : 'failed', code: 1, stdout });
       });
+      processes?.add(child);
     });
   }
 

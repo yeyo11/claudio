@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { ChildProcesses } from '../src/child-processes.ts';
 import { migrate } from '../src/db.ts';
 import { classifyCall, hostErrorFields, reasonOf } from '../src/hosts/classify.ts';
 import { buildHostEnv, envOf } from '../src/hosts/env.ts';
@@ -77,6 +78,40 @@ test('a child that ignores SIGTERM is killed with its grandchild, and the result
   // SIGKILL went to the group, so the grandchild, which also ignores SIGTERM, is gone; the timeout and the wait are wide because node can start slowly when the whole suite runs at once
   for (let i = 0; i < 100 && alive(pid); i++) await new Promise((r) => setTimeout(r, 50));
   assert.equal(alive(pid), false);
+});
+
+const waitFor = async (file: string): Promise<void> => {
+  for (let i = 0; i < 200 && !existsSync(file); i++) await new Promise((r) => setTimeout(r, 50));
+  assert.ok(existsSync(file), `${file} was never written`);
+};
+
+test('a host call still running when its owner shuts down is ended with its group, and the shutdown waits for the CLI to exit', async () => {
+  // A probe left running outlived the server it belonged to and wrote its config home into a data
+  // dir being removed (the packaging test's ENOTEMPTY): shutdown has to end it, not only stop asking
+  const processes = new ChildProcesses();
+  const pidFile = join(mkdtempSync(join(scratch, 'owner-')), 'grandchild.pid');
+  const call = spawnHostCall(run('ignore-term', [counterFile(), pidFile]), options({ processes }));
+  await waitFor(pidFile);
+  assert.equal(processes.size, 1);
+
+  await processes.close();
+  assert.equal(processes.size, 0, 'close resolved before the CLI exited');
+  const result = await call;
+  assert.equal(result.exitCode, null);
+  const grandchild = Number(readFileSync(pidFile, 'utf8'));
+  // The group got SIGKILL; what is left of the grandchild is at most a zombie its new parent reaps
+  for (let i = 0; i < 100 && alive(grandchild); i++) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(alive(grandchild), false);
+});
+
+test('a host call asked for after its owner shut down is refused as busy and starts nothing', async () => {
+  const processes = new ChildProcesses();
+  await processes.close();
+  const counter = counterFile();
+  const result = await spawnHostCall(run('flaky', [counter, '0']), options({ processes }));
+  assert.equal(result.reason, 'busy');
+  assert.equal(result.exitCode, null);
+  assert.equal(existsSync(counter), false, 'the CLI ran');
 });
 
 test('stdin is always closed: a CLI that reads it sees the body, and one given none sees the end of input', async () => {

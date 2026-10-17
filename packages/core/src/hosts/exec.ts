@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { HostReason } from '@claudio/shared';
+import type { ChildProcesses } from '../child-processes.ts';
 import { classifyCall, reasonOf } from './classify.ts';
 import { buildHostEnv } from './env.ts';
 import { HostBusyError, hostLimiter, type HostLimiter } from './limits.ts';
@@ -82,6 +83,8 @@ export interface SpawnOptions {
   /** SIGTERM to SIGKILL, 5 s */
   killGraceMs?: number;
   caps?: Partial<ExecCaps>;
+  /** The owner's children: its shutdown ends this call, and one asked for after it is refused as `busy` */
+  processes?: ChildProcesses;
 }
 
 export interface RunOptions extends SpawnOptions {
@@ -124,6 +127,7 @@ export function spawnHostCall(call: HostCall, options: SpawnOptions): Promise<Ho
   const graceMs = options.killGraceMs ?? 5_000;
   const isLog = call.class === 'log';
   const started = Date.now();
+  if (options.processes?.closed) return Promise.resolve(refusal('busy'));
 
   return new Promise((resolve) => {
     // A process group of its own, so that a shim that starts another process can be killed with it
@@ -134,6 +138,7 @@ export function spawnHostCall(call: HostCall, options: SpawnOptions): Promise<Ho
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    options.processes?.add(child, { group: true });
 
     const killGroup = (signal: NodeJS.Signals): void => {
       if (child.pid === undefined) return;
