@@ -6,7 +6,7 @@ export default async ({ page, api, check }) => {
   const shipped = (await api.get('/config/tool-presets')).body.presets;
   check(shipped.some((p) => p.id === 'read-only') && shipped.every((p) => p.builtIn), 'the shipped presets are listed');
 
-  await page.goto('/settings?tab=tools', 1500);
+  await page.goto('/settings/extensions/tool-presets', 1500);
   await page.waitFor(`return document.querySelector('[role=tabpanel]')?.textContent.includes('Everything')`, { label: 'the preset list' });
   const listed = await page.text('[role=tabpanel]');
   check(listed.includes('Read only') && listed.includes('No network') && listed.includes('Everything'), 'Settings lists the shipped presets');
@@ -43,7 +43,7 @@ export default async ({ page, api, check }) => {
   // Restore puts back an edited shipped preset and leaves the others and the default alone
   const readOnly = shipped.find((p) => p.id === 'read-only');
   await api.put('/config/tool-presets/read-only', { name: 'Read only (edited)', allowedTools: ['Read'], disallowedTools: [] });
-  await page.goto('/settings?tab=tools', 1200);
+  await page.goto('/settings/extensions/tool-presets', 1200);
   await page.click('button', 'Restore shipped presets', 500);
   await page.eval(`const d=document.querySelector('[role=dialog],[role=alertdialog]');[...d.querySelectorAll('button')].find(b=>/restore/i.test(b.textContent)).click();return true`);
   await page.sleep(1000);

@@ -29,12 +29,22 @@ export const ROUTES = [
   { path: '/accounts' },
   { path: '/usage' },
   { path: '/schedules' },
-  { path: '/connectors' },
   { path: '/collaborators' },
+  // General on a desktop, the eight groups on a phone
   { path: '/settings' },
-  { path: '/settings?tab=decisions' },
-  { path: '/settings?tab=providers' },
-  { path: '/settings?tab=appearance' },
+  { path: '/settings/claude-code' },
+  { path: '/settings/connections' },
+  {
+    path: '/settings/decisions',
+    interactions: [
+      // An invalid cap swaps its consequence for the error in the same line, and the save bar appears below
+      async (page) => page.fill('[data-setting="engine.cap"] input', '9'),
+      // Discard puts the draft back: the bar goes, nothing above it moves
+      async (page) => page.click('.dp-foot .btn:not(.dp-save)'),
+    ],
+  },
+  { path: '/settings/runs' },
+  { path: '/settings/access' },
 ];
 
 export const WIDTHS = [320, 390, 768, 1280];

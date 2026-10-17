@@ -14,7 +14,7 @@ export default async ({ page, api, check, releases }) => {
   check(before.body.updateAvailable === false, 'nothing is known before a check: the daily one is off in the harness');
 
   releases.set('v999.0.0');
-  await page.goto('/settings?tab=account');
+  await page.goto('/settings/general#updates');
   await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.innerText.includes(${JSON.stringify(current)})`, { label: 'the card to show the version in use' });
   check(!(await page.eval(`return !!document.querySelector('.nav-dot')`)), 'no dot while no newer release is known');
 
@@ -41,7 +41,7 @@ export default async ({ page, api, check, releases }) => {
   const dot = await page.waitFor(`return document.querySelector(${JSON.stringify(`${SIDEBAR_SETTINGS} .nav-dot`)})?.textContent`, { label: 'the dot on Settings' });
   check(dot === 'update available', `the dot says what it means to a screen reader: "${dot}"`);
   const href = await page.eval(`return document.querySelector(${JSON.stringify(SIDEBAR_SETTINGS)})?.getAttribute('href')`);
-  check(href === '/settings?tab=account', `the dot leads to the Updates card: ${href}`);
+  check(href === '/settings/general#updates', `the dot leads to the Updates section of General: ${href}`);
   // Read from the stored list rather than the bell's label, which a notification from an earlier
   // spec landing now would change without this one being wrong
   const inBell = await page.eval(

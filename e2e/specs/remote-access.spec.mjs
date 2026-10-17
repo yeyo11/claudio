@@ -1,12 +1,14 @@
-// Settings → Remote access, and the layered settings in Security (docs/plans/tunnel.md, task `web`).
+// Settings → Access & safety → Remote access, and the layered settings in Runs & spend
+// (docs/plans/tunnel.md, task `web`; docs/plans/settings-ia.md §6.7, §6.8).
 //
 // The suite's wrapper runs with authentication off, and its `tailscale` is the core tests' fake
-// (e2e/run.mjs: TAILSCALE_BIN), which reports a ready node. So against the real server the tab can
+// (e2e/run.mjs: TAILSCALE_BIN), which reports a ready node. So against the real server the section can
 // only say why the tunnel stays closed. The open tunnel and the states of a Tailscale that is not
 // ready are a fake too: a script that runs before the app answers `/api/tunnel` (and says the guard
-// is on) the way the server does; the tab, its QR code and its buttons are the real ones.
+// is on) the way the server does; the section, its QR code and its buttons are the real ones.
 
-const TAB = '[role=tabpanel]';
+// The section, not the panel: Access & safety has other switches (read-only first) above it
+const TAB = '#remote';
 const NODE = 'claudio-test.tail0000.ts.net';
 const FAKE_URL = `https://${NODE}:8444`;
 const READY = { state: 'ready', version: '1.102.4', host: NODE, reason: null };
@@ -54,19 +56,19 @@ export default async ({ page, api, check }) => {
   const real = (await api.get('/tunnel')).body;
   check(real.tailscale?.state === 'ready' && real.tailscale.host === NODE, `the server read the fake tailscale (${JSON.stringify(real.tailscale)})`);
 
-  await page.goto('/settings?tab=remote', 1500);
+  await page.goto('/settings/access#remote', 1500);
   await page.waitFor(`return !!document.querySelector('[data-testid=tunnel-auth-required]')`, { label: 'the authentication warning' });
   const open = await page.text(TAB);
-  check(open.includes('Turn on authentication first'), 'the tab says why the tunnel stays closed');
+  check(open.includes('Turn on authentication first'), 'the section says why the tunnel stays closed');
   check(!(await page.eval(`return !!document.querySelector('[data-testid=tunnel-start]')`)), 'no start button while the guard is open');
   check(/closed/i.test(open), 'the state is said in words');
-  await page.click(`${TAB} a`, 'Open Security', 1200);
-  check((await page.eval('return location.search')) === '?tab=security', 'the warning leads to Security');
+  await page.click(`${TAB} a`, 'Go to Access', 1200);
+  check((await page.eval('return location.pathname + location.hash')) === '/settings/access#access', 'the warning leads to Access, on the same screen');
 
   // "Start with Claudio" is saved, and a change made elsewhere reaches the page through the feed
   const before = (await api.get('/tunnel')).body.settings.startWithClaudio;
   try {
-    await page.goto('/settings?tab=remote', 1500);
+    await page.goto('/settings/access#remote', 1500);
     await page.click(`${TAB} [role=switch]`, undefined, 800);
     check((await api.get('/tunnel')).body.settings.startWithClaudio === !before, 'the switch saved the setting');
     await api.put('/tunnel/settings', { startWithClaudio: before });
@@ -80,7 +82,7 @@ export default async ({ page, api, check }) => {
   // ---- A fake open tunnel ----
   let remove = await page.onNewDocument(fakeTunnel(status('active')));
   try {
-    await page.goto('/settings?tab=remote', 1500);
+    await page.goto('/settings/access#remote', 1500);
     await page.waitFor(`return !!document.querySelector('[data-testid=tunnel-address]')`, { label: 'the open address' });
     const url = await page.eval(`return document.querySelector('[data-testid=tunnel-url]')?.textContent ?? ''`);
     check(url === FAKE_URL, `the address is shown (got ${url})`);
@@ -100,10 +102,10 @@ export default async ({ page, api, check }) => {
   const missing = { state: 'missing', version: null, host: null, reason: { code: 'tunnel.tailscaleMissing', text: 'No tailscale' } };
   remove = await page.onNewDocument(fakeTunnel(status('stopped', { tailscale: missing })));
   try {
-    await page.goto('/settings?tab=remote', 1500);
+    await page.goto('/settings/access#remote', 1500);
     await page.waitFor(`return !!document.querySelector('${TAB} [data-testid=tunnel-tailscale-missing] .state-illustrated')`, { label: 'the not-installed state' });
     const text = await page.text(TAB);
-    check(text.includes('Tailscale is not installed'), 'the tab says Tailscale is missing');
+    check(text.includes('Tailscale is not installed'), 'the section says Tailscale is missing');
     check(await page.eval(`return !!document.querySelector('${TAB} a[href="https://tailscale.com/download"]')`), 'and links to where it is installed');
     check(!(await page.eval(`return !!document.querySelector('${TAB} [data-testid=tunnel-start], ${TAB} [role=switch]')`)), 'and offers neither the start button nor the start-with-Claudio switch');
   } finally {
@@ -114,27 +116,28 @@ export default async ({ page, api, check }) => {
   const signedOut = { state: 'loggedOut', version: '1.102.4', host: null, reason: { code: 'tunnel.tailscaleLoggedOut', text: 'Signed out' } };
   remove = await page.onNewDocument(fakeTunnel(status('stopped', { tailscale: signedOut })));
   try {
-    await page.goto('/settings?tab=remote', 1500);
+    await page.goto('/settings/access#remote', 1500);
     await page.waitFor(`return !!document.querySelector('${TAB} [data-testid=tunnel-tailscale-loggedOut]')`, { label: 'the signed-out state' });
     const text = await page.text(TAB);
-    check(text.includes('Tailscale is not signed in') && text.includes('tailscale up'), 'the tab says to run tailscale up');
+    check(text.includes('Tailscale is not signed in') && text.includes('tailscale up'), 'the section says to run tailscale up');
     check(!(await page.eval(`return !!document.querySelector('${TAB} .state-illustrated')`)), 'with no illustration beside the warning');
   } finally {
     await remove();
   }
 
-  // ---- The layered settings in Security ----
+  // ---- The layered settings in Runs & spend ----
   const settings = (await api.get('/settings/app')).body;
   check(Array.isArray(settings.allowedHosts) && typeof settings.sources === 'object', 'the settings come with their sources');
   if (settings.sources.maxConcurrentRuns !== 'env') {
     const next = settings.maxConcurrentRuns === 5 ? 6 : 5;
     try {
-      await page.goto('/settings?tab=security', 1500);
-      await page.fill(`${TAB} input[aria-label="Runs at once"]`, String(next));
-      const runsCard = `[...document.querySelectorAll('${TAB} .card')].find(c => c.querySelector('h2')?.textContent === 'Runs')`;
-      await page.eval(`${runsCard}.querySelector('button[type=submit]').click(); return true`);
+      await page.goto('/settings/runs#runs', 1500);
+      const field = '[role=tabpanel] input[aria-label="Runs at once"]';
+      await page.fill(field, String(next));
+      // The Runs section's own save, in the form that holds the field
+      await page.eval(`document.querySelector('${field}').closest('form').querySelector('button[type=submit]').click(); return true`);
       await page.waitFor(`return fetch('/api/settings/app').then(r => r.json()).then(s => s.maxConcurrentRuns === ${next})`, { label: 'the new run limit saved' });
-      check(true, 'the run limit was saved from the Security tab');
+      check(true, 'the run limit was saved from Runs & spend');
     } finally {
       await api.put('/settings/app', { maxConcurrentRuns: settings.maxConcurrentRuns });
     }

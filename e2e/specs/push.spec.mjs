@@ -51,7 +51,7 @@ export default async ({ api, page, check }) => {
   // browser with a real subscription. What the page does with a delivered push — show it, or stay
   // quiet because a window is visible, and where a tap goes — is driven event by event as a unit in
   // apps/web/test/pwa.test.ts, against the very file that ships.
-  await page.goto('/settings?tab=notifications', 1500);
+  await page.goto('/settings/general#notifications', 1500);
   await page.waitFor(`return !!document.querySelector('[data-testid=push-devices]')`, { label: 'the list of registered devices' });
   const list = await page.text('[data-testid=push-devices]');
   check(list.includes('e2e device'), `the registered install is in the list: "${list}"`);

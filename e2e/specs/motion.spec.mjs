@@ -1,6 +1,6 @@
 // Motion is a preference, and the whole point of it is that it is in force before anything has had
 // a chance to move: the level is stamped on <html> at import time, the way the theme is. The
-// control that changes it lives in Settings → Appearance; what is checked here is the mechanism
+// control that changes it lives in Settings → General → Appearance; what is checked here is the mechanism
 // under it, and that the stylesheet — not each component — is what stops the loops.
 //
 // The second half does it on a real live surface: a work item whose "Work on it" chat is running,

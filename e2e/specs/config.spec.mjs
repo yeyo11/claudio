@@ -1,6 +1,6 @@
 // Settings: file explorer round trip (create, type, Ctrl+S, delete with confirmation) and guided settings.
 export default async ({ page, api, check }) => {
-  await page.goto('/settings?tab=files', 1500);
+  await page.goto('/settings/claude-code/files', 1500);
   await page.click('button', 'New file');
   await page.fill('input[placeholder="hooks/my-hook.sh"]', 'hooks/e2e.sh');
   await page.click('[role=dialog] button', 'Create in editor', 1200);
@@ -13,7 +13,7 @@ export default async ({ page, api, check }) => {
 
   await page.focus('.cm-content');
   await page.type('# edited ');
-  check(await page.eval(`return !!document.querySelector('.tab-dirty')`), 'dirty marker shown on the tab');
+  check(await page.eval(`return !!document.querySelector('.tab-dirty')`), 'dirty marker shown beside Claude Code in the settings nav');
   await page.key('s', 2);
   await page.waitFor(`return !document.querySelector('.tab-dirty')`, { label: 'saved with Ctrl+S' });
   file = await api.get('/config/files/content?root=user&path=hooks/e2e.sh');
@@ -26,7 +26,7 @@ export default async ({ page, api, check }) => {
   check((await api.get('/config/files/content?root=user&path=hooks/e2e.sh')).status === 404, 'file deleted after confirmation');
 
   // Guided settings write the same JSON the raw editor shows
-  await page.goto('/settings?tab=settings', 1500);
+  await page.goto('/settings/claude-code/behaviour', 1500);
   await page.fill('[role=tabpanel] input[placeholder="default"]', 'sonnet');
   await page.click('button', 'Save settings', 1200);
   check((await api.get('/config/settings')).body.settings.model === 'sonnet', 'guided settings saved the model');

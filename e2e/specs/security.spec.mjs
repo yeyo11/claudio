@@ -1,6 +1,7 @@
-// Security tab: the token is shown once, read-only refuses writes, the access mode guards the API
+// Settings → Access & safety: the token is shown once, read-only refuses writes, the access mode guards the API
 // and a 401 is a sign-in screen. The suite shares one wrapper, so whatever this turns on it turns
-// back off, even when an assertion fails half way.
+// back off, even when an assertion fails half way. The audit log's filters live on its detail,
+// /settings/access/audit; the group's screen shows its latest rows only.
 const TOKEN_KEY = 'claudio.token';
 
 export default async ({ page, api, check }) => {
@@ -14,22 +15,23 @@ export default async ({ page, api, check }) => {
   };
   const panelText = () => page.text('[role=tabpanel]');
   const buttonDisabled = (label) =>
-    page.eval(`const b=[...document.querySelectorAll('[role=tabpanel] button')].find(b=>b.textContent.trim()===${JSON.stringify(label)});return b?b.disabled:null`);
+    // A section's save holds its "Saving…" too, hidden: the label is its idle word
+    page.eval(`const b=[...document.querySelectorAll('[role=tabpanel] button')].find(b=>(b.querySelector('.btn-state-idle')??b).textContent.trim()===${JSON.stringify(label)});return b?b.disabled:null`);
 
   await page.goto('/settings', 800);
   await page.eval(`localStorage.removeItem(${JSON.stringify(TOKEN_KEY)}); return true`);
   // The audit log loads on its own and the other cards wait for /security/auth, so both are waited
-  // for: a fixed pause read a blank or half-drawn tab on a loaded machine
+  // for: a fixed pause read a blank or half-drawn screen on a loaded machine
   const securityTab = `const t=document.querySelector('[role=tabpanel]')?.innerText??'';return t.includes('Audit log')&&t.includes('Read-only mode')`;
-  await page.goto('/settings?tab=security', 0);
-  await page.waitFor(securityTab, { label: 'the security tab', timeout: 60_000 });
+  await page.goto('/settings/access', 0);
+  await page.waitFor(securityTab, { label: 'Access & safety', timeout: 60_000 });
   const initial = await panelText();
-  for (const heading of ['Read-only mode', 'Access', 'Token', 'Audit log']) check(initial.toLowerCase().includes(heading.toLowerCase()), `the security tab has a "${heading}" card`);
+  for (const heading of ['Read-only mode', 'Authentication mode', 'Token', 'Audit log']) check(initial.toLowerCase().includes(heading.toLowerCase()), `Access & safety has a "${heading}" part`);
   check(initial.toLowerCase().includes('open'), 'the unguarded mode is said in words, not only shown');
   check(initial.includes('CLAUDIO_AUTH_TOKEN_RESET'), 'the token card names the recovery path for a lost token');
 
   // A mode that would lock everyone out is named before the click, not after it
-  await page.click('[role=radio]', 'Token');
+  await page.click('[data-setting="access.mode"] [role=radio]', 'Token');
   check((await panelText()).includes('Set a token below before turning token authentication on'), 'token mode explains it needs a token first');
   check((await buttonDisabled('Save access')) === true, 'token mode cannot be saved without a token');
 
@@ -44,18 +46,18 @@ export default async ({ page, api, check }) => {
   check(!JSON.stringify(config.body).includes(token), 'the configuration never carries the token');
   await page.click('button', 'I have copied it', 500);
   check(!(await page.eval(`return !!document.querySelector('[data-testid=new-token]')`)), 'the token is gone once it is acknowledged');
-  await page.goto('/settings?tab=security', 0);
-  await page.waitFor(securityTab, { label: 'the security tab after a reload', timeout: 60_000 });
+  await page.goto('/settings/access', 0);
+  await page.waitFor(securityTab, { label: 'Access & safety after a reload', timeout: 60_000 });
   check(!(await page.text('body')).includes(token), 'after a reload the token is nowhere on the page');
 
   // Read-only: the switch flips it, a write is refused with 405, the switch flips it back
-  await page.click('[role=tabpanel] [role=switch]', undefined, 900);
+  await page.click('[data-setting="access.read-only"] [role=switch]', undefined, 900);
   try {
     check((await api.get('/security/auth')).body.readOnly === true, 'the switch turned read-only on');
     check((await panelText()).toLowerCase().includes('read-only'), 'read-only is said in words');
     const refused = await api.post('/projects', { name: 'e2e-read-only' });
     check(refused.status === 405, `a write is refused in read-only mode (got ${refused.status})`);
-    await page.click('[role=tabpanel] [role=switch]', undefined, 900);
+    await page.click('[data-setting="access.read-only"] [role=switch]', undefined, 900);
     check((await api.get('/security/auth')).body.readOnly === false, 'the same switch turned it off again');
   } finally {
     // The switch itself is exempt from read-only, so this always gets through
@@ -67,9 +69,9 @@ export default async ({ page, api, check }) => {
 
   try {
     // Token mode: asks before it locks the door, and this browser keeps working because it holds the token
-    await page.goto('/settings?tab=security', 0);
-    await page.waitFor(securityTab, { label: 'the security tab before token mode', timeout: 60_000 });
-    await page.click('[role=radio]', 'Token');
+    await page.goto('/settings/access', 0);
+    await page.waitFor(securityTab, { label: 'Access & safety before token mode', timeout: 60_000 });
+    await page.click('[data-setting="access.mode"] [role=radio]', 'Token');
     await page.click('button', 'Save access', 600);
     await page.waitFor(`return !!document.querySelector('[role=dialog],[role=alertdialog]')`, { label: 'the lock-out confirmation' });
     await page.click('[role=dialog] button, [role=alertdialog] button', 'Turn it on', 1500);
@@ -78,13 +80,19 @@ export default async ({ page, api, check }) => {
     // Everything the tab did so far ran while the wrapper was open, so the log has no row made by a
     // credential yet: this is the write whose actor is the token
     check((await authed(token)('PUT', '/security/auth', { readOnly: false })).status === 200, 'a write goes through with the token');
-    await page.goto('/settings?tab=security', 0);
+    await page.goto('/settings/access', 0);
     await page.waitFor(`return document.querySelector('[role=tabpanel]')?.innerText.includes('Audit log')`, { label: 'this browser is still signed in after turning the guard on' });
 
+    // The group's screen shows the latest rows and a row to the whole log, which owns the filters
+    await page.click('[role=tabpanel] .settings-detail-row', 'See the whole log', 800);
+    await page.waitFor(`return location.pathname === '/settings/access/audit' && !!document.querySelector('[role=tabpanel] .filter-bar')`, { label: 'the audit log detail' });
+
     // The audit log lists the writes, filterable by path, and records who made them. Its table is
-    // named: the tab has others before it once a spec has run a terminal (Terminal history)
+    // named: the screen may have others once a spec has run a terminal (Terminal history). The
+    // settings search in the nav is a search field too, so the log's is reached inside the panel
     const auditTable = `[role=tabpanel] .table-wrap[aria-label="Audit log"] table`;
-    await page.fill('input[type=search]', '/security');
+    const pathFilter = '[role=tabpanel] .filter-bar input[type=search]';
+    await page.fill(pathFilter, '/security');
     await page.waitFor(`const t=document.querySelector('${auditTable}');return !!t&&t.textContent.includes('/api/security/auth')&&t.textContent.includes('token:')`, { label: 'the audit rows for /security' });
     // Badges are uppercase by CSS: the words are read from the DOM
     const rows = await page.eval(`return document.querySelector('${auditTable}')?.textContent ?? ''`);
@@ -95,7 +103,7 @@ export default async ({ page, api, check }) => {
     const auditRows = `[...document.querySelectorAll('${auditTable} tbody tr')]`;
     await page.select('[role=tabpanel] .filter-bar .select-trigger', 'PUT');
     await page.waitFor(`const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.strong')?.textContent==='PUT')`, { label: 'only PUT rows' });
-    await page.fill('input[type=search]', '');
+    await page.fill(pathFilter, '');
     await page.select('[role=tabpanel] .filter-bar .select-trigger', 'POST');
     await page.fill('[role=tabpanel] input[role=combobox]', '4xx');
     // The write refused while read-only was on is a POST that ended in a 405
@@ -112,7 +120,7 @@ export default async ({ page, api, check }) => {
     await page.click('[role=tabpanel] button', 'Clear filters', 600);
     check((await page.eval(`return document.querySelector('[role=tabpanel] input[role=combobox]').value`)) === '', 'clearing the filters empties the status too');
 
-    await page.fill('input[type=search]', 'zz-no-such-path');
+    await page.fill(pathFilter, 'zz-no-such-path');
     await page.waitFor(`return document.querySelector('[role=tabpanel]').textContent.includes('No entry matches these filters')`, { label: 'an empty filter result' });
 
     // A 401 is a screen that says what to do; a wrong token fails in the form, the right one returns the app

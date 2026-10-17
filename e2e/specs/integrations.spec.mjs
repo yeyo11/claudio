@@ -1,4 +1,4 @@
-// Settings → Integrations: the code host CLIs (gh, glab), on a desktop and on a phone, in both themes.
+// Settings → Connections → Code hosts: the code host CLIs (gh, glab), on a desktop and on a phone, in both themes.
 //
 // Reference screens: DesktopIntegraciones*, MobileIntegraciones* and DSIntegraciones. With E2E_SHOTS
 // set the screens are saved for comparing them with the reference screenshots.
@@ -22,6 +22,8 @@ const stateOf = (id) => `return document.querySelector(${JSON.stringify(row(id))
 const stateIs = (id, wanted) => `return (() => { ${stateOf(id)} })() === ${JSON.stringify(wanted)}`;
 const overflow = `return document.documentElement.scrollWidth - innerWidth`;
 const NOWHERE = '/nonexistent/claudio-e2e/gh';
+// The code hosts are a section of Connections; the old `?tab=integrations` redirects here
+const CODE_HOSTS = '/settings/connections#code-hosts';
 
 async function scan(page, check, label) {
   await page.reduceMotion(true);
@@ -63,10 +65,11 @@ export default async ({ page, api, check, dirs }) => {
     // The theme lives in the app's localStorage, which a blank page does not have: open the app first
     await page.goto('/', 300);
     await theme(page, 'dark');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(CODE_HOSTS, 300);
     await page.waitFor(`return document.querySelectorAll('.prov-row[data-host]').length === 2`, { label: 'one row per host' });
-    const tabs = await page.eval(`return [...document.querySelectorAll('[role=tab]')].map((t) => t.textContent.trim())`);
-    check(tabs.indexOf('Integrations') === tabs.indexOf('Providers') + 1, `the tab sits right after Providers (${tabs.join(', ')})`);
+    const tabs = await page.eval(`return [...document.querySelectorAll('.settings-nav [role=tab]')].map((t) => t.textContent.trim())`);
+    check(tabs.indexOf('Connections') === tabs.indexOf('Claude Code') + 1, `Connections sits right after Claude Code (${tabs.join(', ')})`);
+    check((await page.eval(`return document.querySelector('.settings-nav [role=tab][aria-selected=true]')?.textContent.trim() ?? ''`)) === 'Connections', 'the address selects Connections');
     check((await page.eval(stateOf('github'))) === 'ready' && (await page.eval(stateOf('gitlab'))) === 'ready', 'both rows are ready');
     const names = await page.eval(`return [...document.querySelectorAll('.prov-row[data-host] .prov-name')].map((n) => n.textContent)`);
     check(names[0].includes('GitHub') && names[0].includes('#12') && names[1].includes('GitLab') && names[1].includes('!12'), `each row says the host and how its requests are numbered (${names.join(' | ')})`);
@@ -77,14 +80,14 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return document.querySelectorAll('.grad-border').length`)) <= 2, 'at most two gradient surfaces');
     check((await page.eval(`return !!document.querySelector('.prov-checked')`)) && (await page.text('.prov-checked')).startsWith('Checked'), 'the page says when it checked');
     await page.shot('integrations-dark');
-    await scan(page, check, 'Settings → Integrations, dark');
+    await scan(page, check, 'Settings → Connections → Code hosts, dark');
     await theme(page, 'light');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(CODE_HOSTS, 300);
     await page.waitFor(`return document.querySelectorAll('.prov-row[data-host]').length === 2`, { label: 'the rows, light' });
     await page.shot('integrations-light');
-    await scan(page, check, 'Settings → Integrations, light');
+    await scan(page, check, 'Settings → Connections → Code hosts, light');
     await theme(page, 'dark');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(CODE_HOSTS, 300);
 
     // ---- Signed out: the remedy is the sign-in panel inside Claudio, never a command ----
     state('gh', { signedIn: false });
@@ -119,7 +122,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(stateIs('gitlab', 'degraded'), { label: 'glab degraded' });
     check((await page.text('.prov-row[data-host="gitlab"]')).includes('9.9.9'), 'a newer, untested release says which version it is');
     await page.shot('integrations-states-dark');
-    await scan(page, check, 'Settings → Integrations with a degraded host, dark');
+    await scan(page, check, 'Settings → Connections → Code hosts with a degraded host, dark');
 
     state('glab', { versionExit: 3 });
     await checkAgain();
@@ -154,7 +157,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- A host that is off ----
     await api.put('/hosts/settings', { hosts: { ...savedSettings.hosts, gitlab: { ...savedSettings.hosts.gitlab, enabled: false } } });
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(CODE_HOSTS, 300);
     await page.waitFor(stateIs('gitlab', 'disabled'), { label: 'gitlab off' });
     check((await page.eval(`return document.querySelectorAll('.prov-row[data-host="gitlab"] [data-action]').length`)) === 0, 'a host that is off offers no remedy');
     await api.put('/hosts/settings', savedSettings);
@@ -163,7 +166,7 @@ export default async ({ page, api, check, dirs }) => {
     await api.post('/hosts/refresh');
     await page.viewport(390, 844);
     await theme(page, 'dark');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(CODE_HOSTS, 300);
     await page.waitFor(`return document.querySelectorAll('.prov-cell[data-host]').length === 2`, { label: 'one cell per host' });
     check((await page.eval(overflow)) <= 0, 'the phone page does not scroll sideways');
     state('gh', { signedIn: false });
@@ -172,15 +175,15 @@ export default async ({ page, api, check, dirs }) => {
     const small = await page.eval(`return [...document.querySelectorAll('.prov-cell .btn, .prov-cell .host-actions a')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent.trim())`);
     check(small.length === 0, `the phone targets are at least 44 px (${small.join(', ')})`);
     await page.shot('integrations-phone-dark');
-    await scan(page, check, 'Settings → Integrations on a phone, dark');
+    await scan(page, check, 'Settings → Connections → Code hosts on a phone, dark');
     state('gh', {});
     await checkAgain();
     await page.waitFor(stateIs('github', 'ready'), { label: 'gh ready on a phone' });
     await theme(page, 'light');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(CODE_HOSTS, 300);
     await page.waitFor(`return document.querySelectorAll('.prov-cell[data-host]').length === 2`, { label: 'the cells, light' });
     await page.shot('integrations-phone-light');
-    await scan(page, check, 'Settings → Integrations on a phone, light');
+    await scan(page, check, 'Settings → Connections → Code hosts on a phone, light');
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
