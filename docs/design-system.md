@@ -2321,9 +2321,11 @@ the file being edited is its only moving part.
   `top`: `kpis` (agents running, waiting, today's spend) and `limits` (the 5 h ring with the weekly
   share, the account card at the bottom on a phone). "In progress" folds the orchestrations into the
   live widget and holds the page's one energy border while anything runs.
-- **Settings** has 20 tabs in four groups (Claudio, Claude Code, Extensions, System): a vertical side
-  nav on desktop that is still one ARIA tablist, and cells in cards on a phone, where a tab opens as
-  its own screen. The `?tab=` ids did not change.
+- **Settings** has eight groups and a search (General, Claude Code, Connections, Instructions &
+  memory, Extensions, Decisions, Runs & spend, Access & safety): a vertical nav on desktop that is
+  still one ARIA tablist, and on a phone a list of cells that opens a group, then a detail, each as
+  its own screen. Addresses are `/settings/<group>/<detail>`; the `?tab=` ids redirect. See
+  [Settings: groups, rows, details and search](#settings-groups-rows-details-and-search).
 - **Chats** folds each row into a phone card with a container query on the list, not the window.
   On touch, checkboxes appear only after a long press.
 - **Usage** picks its metric with the KPI tiles themselves (pressed buttons, the chosen one
@@ -2362,6 +2364,41 @@ the file being edited is its only moving part.
 
 - The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
 - `quota` is still reserved: the app has no "every account exhausted" state yet.
+
+### Settings: groups, rows, details and search
+
+The shape of Settings after the [settings IA plan](plans/settings-ia.md); what a person finds where
+is in [settings.md](settings.md).
+
+- **Two levels of navigation, at most:** the sidebar and the settings nav. Inside a group there are
+  sections on one screen, never chips or sub-tabs. The nav (`nav.settings-nav`, one `role=tablist`
+  of `.settings-nav-item`, with the dirty dot `.tab-dirty`) holds the search field and the eight
+  groups, with no group headings: uppercase belongs to the sidebar alone. ↑ ↓ Home End move across
+  the groups and `/` focuses the search.
+- **A group's screen** is its title (`--fs-title`) and its sections. A section heading is
+  `--fs-section`, `--fw-strong`, sans, and is the anchor `#<section>` scrolls to and focuses.
+  Sections are 32 px apart and rows 12 px apart: space, not cards with borders (AP11). Each section
+  saves on its own; Decisions has one save bar.
+- **A row** is [the setting row](#the-setting-row-settings): tier, a consequence line of at most 60
+  characters, label and control on one baseline, and the changed dot and Reset reserved so nothing
+  moves. Every row carries `data-setting`, the id the search registry names.
+- **A detail** is a screen of its own, reached from a row whose control is a chevron and a count
+  ("Skills · 12 · 3 from plugins"; 44 px tall on a phone). It starts with a back link to its group
+  (`← Extensions`, sans, `--fg-2`) and its title; on a desktop the nav stays beside it. An editor or
+  a long list is a detail, not a section. A detail owns its filters, the group screen has none.
+- **Phone:** list → group → detail, each a screen with `PhoneHeader` and its back button
+  (`.settings-cells`, `.settings-cell`). The list starts with the search field (16 px), the theme
+  `Segmented`, then one card of eight cells. Never a sheet inside a sheet.
+- **Search** results replace the groups (the cells on a phone): the group in `--fg-3` above each
+  label, at most 12, ↑ ↓ to move, Enter to open, Escape to clear, a line announced when nothing
+  matches. Opening a result scrolls to the row, focuses its control and fills the row with `--bg-2`
+  that fades over `--dur-slow`; the fill does not animate under the reduced motion levels.
+  Results are 44 px tall on a phone.
+- **Decisions** shows evidence, not a form: Who answers is the primary control (the Jev key and the
+  model hint revealed with `grid-template-rows`), the cap per decision carries its cost per day, and
+  each decision point is an evidence row (mode, decisions, agreement, disagreements linking to
+  History). The Supervisor is one of those rows; it has no screen. The threshold shows only under
+  Jev.
 
 ### The setting row (Settings)
 
@@ -2626,4 +2663,4 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[plans/claudio-designer]] · [[desktop.md]] · [[collaborators.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[plans/claudio-designer]] · [[plans/settings-ia.md]] · [[settings.md]] · [[desktop.md]] · [[collaborators.md]]

@@ -76,6 +76,8 @@ is built yet: the redesign gets its own plan, with the design settled before any
    Decisions "Provider" becomes "Who answers" / "Quién responde". The daily spend cap moves to Runs &
    spend, referenced from Decisions and Usage.
 
+**Built** (2026-10-17): all eight decisions, as settled in [plans/settings-ia.md](../plans/settings-ia.md#outcome); a person's guide is [settings.md](../settings.md).
+
 ## Notes for design (not developed)
 
 AP1: the Engine rows all weigh the same. AP11: every Security card has a border. The Beta tag shows
