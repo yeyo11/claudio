@@ -93,13 +93,14 @@ import { worseAfterFix } from './review-findings.ts';
 import { REVIEW_TOOLS } from './review-roles.ts';
 import { securityTriggered, type ScanFinding } from './review-scan.ts';
 import { ReviewStore, ReviewStoreError } from './review-store.ts';
+import { openWaitOf } from './rotation.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 import { isSynthesis, journalError, journalRefusal, type JournalRead, type JournalRefusal, type JournalTask } from './workflow-journal.ts';
 import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
-import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, taskBlock, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
+import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, taskBlock, thinkThrough, timeSignal, UNATTENDED, unpasted, WORKFLOW_LEAD_WAIT } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import { GuardEventStore } from './guards/events.ts';
@@ -160,6 +161,14 @@ const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
 /** How often running tasks are checked against their time limit; the limits are in minutes */
 const LIMITS_CHECK_MS = Number(process.env.CLAUDIO_LIMITS_INTERVAL_MS ?? 10_000);
+/** A workflow's lead still up this long after its workflow ended is stopped: it has nothing left to report (R15) */
+const WORKFLOW_GRACE_MS = 60_000;
+/** A running workflow in which nothing grew for this long is stopped, failed and resumable (R15) */
+const WORKFLOW_IDLE_MS = 30 * 60_000;
+/** The workflow watcher reads the run's record every this many ticks: the stream was seen to miss the end */
+const RECORD_EVERY_TICKS = 10;
+/** A watchdog bound as a person reads it */
+const span = (ms: number): string => (ms >= 60_000 ? `${String(Math.round(ms / 60_000))} min` : `${String(Math.round(ms / 1000))} s`);
 const now = () => new Date().toISOString();
 
 const pendingCommand = (command: string, group?: number): VerificationCommand => ({
@@ -489,6 +498,23 @@ export class Orchestrator {
    * rotation cannot take it. Set by Core; none leaves a refused agent a failed task, as any other.
    */
   workflowLimit: ((chatId: string, refusal: JournalRefusal) => boolean) | null = null;
+  /**
+   * The watchdog's bounds: how long a workflow's lead may outlive its workflow, and how long a running
+   * workflow may go with nothing growing (its journal, its agents' transcripts, the stream's progress)
+   * before it is stopped. A test shortens them.
+   */
+  workflowGraceMs = WORKFLOW_GRACE_MS;
+  workflowIdleMs = WORKFLOW_IDLE_MS;
+  /** Each followed workflow graph's last measure of progress, and when it last changed */
+  private readonly workflowGrowth = new Map<string, { sign: string; at: number }>();
+  /** What each workflow graph's run directory held at the latest journal read */
+  private readonly journalBytes = new Map<string, number>();
+  /** When each workflow graph's run was last followed: a record that ended before then is an earlier attempt's */
+  private readonly followedAt = new Map<string, number>();
+  /** Workflow graphs whose run's record says it ended, though the stream did not */
+  private readonly recordEnded = new Set<string>();
+  /** Workflow graphs between a launch into their session and the turn that takes it: no watcher yet, and none missing */
+  private readonly workflowLaunching = new Set<string>();
   /** Where status changes, task changes and merge conflicts are announced; set by Core */
   bus: EventBus | null = null;
   private readonly tracker = new OrchestrationEventTracker();
@@ -633,6 +659,9 @@ export class Orchestrator {
    * its cache, wait for `resume()`.
    */
   private interrupt(orch: Orchestration): void {
+    // A workflow whose lead waits for a limit to reset was not cut off: the wait outlives the restart,
+    // and its end resumes the run from its cache (`replayWorkflow`) or ends the graph (`workflowWaitEnded`)
+    if (orch.engine === 'workflow' && orch.workflow?.runId && openWaitOf(this.db, orch.workflow.runId)) return;
     let lastHeard = '';
     for (const task of orch.tasks) {
       if (task.status !== 'running') continue;
@@ -653,6 +682,8 @@ export class Orchestrator {
    */
   recover(): void {
     for (const orch of this.items.values()) {
+      // A workflow kept running through the restart waits for its limit: watched again, so it is never left unwatched
+      if (orch.status === 'running' && orch.engine === 'workflow' && orch.workflow?.runId) this.followWorkflow(orch, orch.workflow.runId);
       if (orch.status !== 'running' || orch.engine !== 'graph') continue;
       // A task that waits for a limit to reset was not cut off: the rotation re-arms the wait and replays
       // its turn, so it stays running rather than go on in a second execution
@@ -754,6 +785,7 @@ export class Orchestrator {
    * to what it did. The clock is a parameter because a limit is a fact of it.
    */
   enforceLimits(nowMs = Date.now()): void {
+    this.watchWorkflows();
     let changed = false;
     for (const orch of this.items.values()) {
       if (orch.status !== 'running' || orch.engine !== 'graph') continue;
@@ -1631,6 +1663,19 @@ ${quoted}
       if (task) return { orch, task };
     }
     return null;
+  }
+
+  /**
+   * A running workflow graph always has a watcher, which settles it once its lead is gone, its run
+   * ended or nothing grew for too long, unless a launch into its session is still on its way. One that
+   * lost its watcher is followed again rather than left `running` with nothing behind it (R15).
+   */
+  private watchWorkflows(): void {
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running' || orch.engine !== 'workflow' || !orch.workflow?.runId) continue;
+      if (this.workflowWatchers.has(orch.id) || this.workflowLaunching.has(orch.id)) continue;
+      this.followWorkflow(orch, orch.workflow.runId);
+    }
   }
 
   /** The running workflow graph a chat leads. */
@@ -3499,14 +3544,18 @@ ${quoted}
         orch.workflow = { scriptPath, runId: previous.id, workflowRunId: resumeFrom };
         // Back to the session that holds the cache. Its last process may still be on its way out
         // from the previous turn, and whatever is sent before it exits would be lost with it.
-        void this.runs.exited(previous.id).then(async () => {
-          if (orch.status !== 'running') return;
-          await this.markJournal(orch, previous.id, resumeFrom);
-          if (orch.status !== 'running') return;
-          this.workflowBaseline.set(orch.id, this.runs.get(previous.id)?.workflows?.length ?? 0);
-          this.runs.send(previous.id, prompt);
-          this.followWorkflow(orch, previous.id);
-        });
+        this.workflowLaunching.add(orch.id);
+        void this.runs
+          .exited(previous.id)
+          .then(async () => {
+            if (orch.status !== 'running') return;
+            await this.markJournal(orch, previous.id, resumeFrom);
+            if (orch.status !== 'running') return;
+            this.workflowBaseline.set(orch.id, this.runs.get(previous.id)?.workflows?.length ?? 0);
+            this.runs.send(previous.id, prompt);
+            this.followWorkflow(orch, previous.id);
+          })
+          .finally(() => this.workflowLaunching.delete(orch.id));
       } else {
         // No tool policy: the engine's own calls are none, but the subagents it spawns edit and run commands, and F10 shows their calls are hooked
         const guards = this.guardPlan(orch, 'workflow', orch.cwd);
@@ -3555,8 +3604,8 @@ ${quoted}
     return (
       'Run the workflow Claudio generated for this orchestration: call the Workflow tool with ' +
       `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
-      'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
-      `${DELEGATION}\n\n` +
+      'I explicitly ask you to run this workflow.\n\n' +
+      `${WORKFLOW_LEAD_WAIT}\n\n` +
       // No budget for a workflow today: the signal says time matters all the same
       timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)))
     );
@@ -3609,6 +3658,10 @@ ${quoted}
       t.sessionId = run?.id ?? null;
     }
     this.clearWorkflowWatcher(orch.id);
+    this.followedAt.set(orch.id, Date.now());
+    this.recordEnded.delete(orch.id);
+    this.workflowGrowth.delete(orch.id);
+    let ticks = 0;
     const stop = () => {
       clearInterval(watcher);
       this.timers.delete(watcher);
@@ -3619,24 +3672,116 @@ ${quoted}
       this.syncWorkflow(orch);
       void this.followJournal(orch);
       // The rotation has the lead at a limit: it moves the session or waits for the reset, and goes on
-      // through `replayWorkflow`, which follows the run again. A lead it stopped has not ended the graph
-      if (this.limitHeld?.(runId)) return;
+      // through `replayWorkflow`, which follows the run again. A lead it stopped has not ended the graph,
+      // and the time it waits is not time the run went without progress
+      if (this.limitHeld?.(runId)) return void this.grew(orch, true);
+      if (++ticks % RECORD_EVERY_TICKS === 0) void this.readRecordEnd(orch, runId);
       const workflow = this.currentWorkflow(orch);
       const now = this.runs.get(runId);
-      const ended = workflow !== null && workflow.status !== 'running';
+      const ended = (workflow !== null && workflow.status !== 'running') || this.recordEnded.has(orch.id);
       const gone = !now || (now.pid === null && ['completed', 'failed', 'stopped'].includes(now.status));
-      if (!ended && !gone || this.finishing.has(orch.id)) return;
+      if (this.finishing.has(orch.id)) return;
+      if (!ended && !gone) {
+        // Up and running, yet nothing of it grew for too long: a lead looping on its own, or an agent stuck
+        if (!this.grew(orch) && Date.now() - (this.workflowGrowth.get(orch.id)?.at ?? Date.now()) >= this.workflowIdleMs) {
+          stop();
+          this.abandonWorkflow(orch, runId, `nothing in the workflow moved for ${span(this.workflowIdleMs)} (its journal, its agents' transcripts and its progress stayed the same); resume it to go on from its cache`);
+        }
+        return;
+      }
       // The last read of the journal may still find a limit, which the rotation then holds: the
       // watcher stays until the graph has really ended
       this.finishing.add(orch.id);
       void this.finishWorkflow(orch, runId).finally(() => {
         this.finishing.delete(orch.id);
-        if (orch.status !== 'running') stop();
+        if (orch.status !== 'running') {
+          stop();
+          this.reapLead(orch, runId);
+        }
       });
     }, 1000);
     watcher.unref();
     this.timers.add(watcher);
     this.workflowWatchers.set(orch.id, watcher);
+    this.persist();
+  }
+
+  /**
+   * Whether the run grew since the watcher last looked: its run directory (journal and agents'
+   * transcripts), the agents the stream reports, or the tasks. The lead's own activity does not count:
+   * a lead polling its journal in a loop is busy without the workflow getting anywhere. `held` restarts
+   * the clock, for a run that waits for a limit rather than stalls.
+   */
+  private grew(orch: Orchestration, held = false): boolean {
+    const agents = this.currentWorkflow(orch)?.agents ?? [];
+    const sign = [
+      this.journalBytes.get(orch.id) ?? 0,
+      ...agents.map((a) => `${a.label}:${a.state}:${String(a.tokens)}:${String(a.toolCalls)}`),
+      ...orch.tasks.map((t) => t.status),
+      orch.synthesisStartedAt ?? '',
+    ].join('|');
+    const last = this.workflowGrowth.get(orch.id);
+    if (!held && last?.sign === sign) return false;
+    this.workflowGrowth.set(orch.id, { sign, at: Date.now() });
+    return true;
+  }
+
+  /**
+   * Whether the run's record says it ended since this launch: written as the workflow ends, it can say
+   * so where the stream does not, with the lead still up. A record from an earlier attempt of the same
+   * run, which a resume goes back into, ended before the launch.
+   */
+  private async readRecordEnd(orch: Orchestration, runId: string): Promise<void> {
+    const workflowRunId = orch.workflow?.workflowRunId;
+    if (!workflowRunId || !this.workflowRecords) return;
+    const since = this.followedAt.get(orch.id) ?? Number.POSITIVE_INFINITY;
+    const record = (await this.workflowRecords(runId).catch(() => [])).find((r) => r.id === workflowRunId);
+    if (orch.status !== 'running' || orch.workflow?.runId !== runId || this.followedAt.get(orch.id) !== since) return;
+    if (record && record.status !== 'running' && record.endedAt && Date.parse(record.endedAt) >= since) this.recordEnded.add(orch.id);
+  }
+
+  /**
+   * A lead still up after its workflow ended has nothing left to report: one was seen looping over its
+   * own journal for as long as nobody stopped it. It is given a moment to say its one line, then stopped.
+   */
+  private reapLead(orch: Orchestration, runId: string): void {
+    const pid = this.runs.get(runId)?.pid;
+    if (!pid) return;
+    const timer = setTimeout(() => {
+      this.timers.delete(timer);
+      // Resumed meanwhile, or the session went on in another process: that one is not the leftover
+      if (orch.status === 'running' || orch.workflow?.runId !== runId || this.runs.get(runId)?.pid !== pid) return;
+      this.runs.notice(runId, `Claudio stopped this session: its workflow had ended ${span(this.workflowGraceMs)} before, and it was still running.`);
+      this.runs.stop(runId);
+    }, this.workflowGraceMs);
+    timer.unref();
+    this.timers.add(timer);
+  }
+
+  /**
+   * Ends a running workflow the watchdog gave up on: the lead is stopped and what was left undone
+   * fails with the reason, which the graph carries too. The run id stays, so a resume goes on from
+   * the cache.
+   */
+  private abandonWorkflow(orch: Orchestration, runId: string, error: string): void {
+    if (orch.status !== 'running') return;
+    this.clearWorkflowWatcher(orch.id);
+    orch.status = 'failed';
+    orch.error = error;
+    orch.endedAt = now();
+    for (const t of orch.tasks) {
+      if (t.status !== 'pending' && t.status !== 'running') continue;
+      t.status = 'failed';
+      t.error = error;
+      t.endedAt = now();
+    }
+    if (orch.synthesisStartedAt && !orch.synthesisEndedAt) orch.synthesisEndedAt = now();
+    this.journalTasks.delete(orch.id);
+    this.workflowGrowth.delete(orch.id);
+    if (this.runs.get(runId)?.pid) {
+      this.runs.notice(runId, `Claudio stopped this workflow: ${error}.`);
+      this.runs.stop(runId);
+    }
     this.persist();
   }
 
@@ -3732,6 +3877,7 @@ ${quoted}
     // Stopped, relaunched, resumed after a limit or closed while the files were read: what was read belongs to what is gone
     if (!read || this.closed || orch.status !== 'running' || orch.workflow?.runId !== sessionId || orch.workflow.workflowRunId !== workflowRunId) return;
     if ((this.journalFrom.get(orch.id) ?? 0) !== from) return;
+    this.journalBytes.set(orch.id, read.bytes);
     this.applyJournal(orch, read.tasks);
   }
 
@@ -3818,12 +3964,18 @@ ${quoted}
     for (let attempt = 0; attempt < 10 && !record?.result; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
       const records = run && this.workflowRecords ? await this.workflowRecords(run.id).catch(() => []) : [];
-      record = (live?.taskId ? records.find((r) => r.taskId === live.taskId) : undefined) ?? records[0] ?? null;
+      record =
+        (live?.taskId ? records.find((r) => r.taskId === live.taskId) : undefined) ??
+        (orch.workflow?.workflowRunId ? records.find((r) => r.id === orch.workflow?.workflowRunId) : undefined) ??
+        records[0] ??
+        null;
       if (live?.status !== 'completed') break; // nothing more is coming
     }
     if (orch.status !== 'running') return;
     if (orch.workflow && record?.id.startsWith('wf_')) orch.workflow.workflowRunId = record.id;
     const compiled = readCompiledResult(record?.result);
+    // No result: the session ended before its workflow did, which the graph says as well as its tasks
+    const unfinished = compiled ? null : `the workflow did not finish: ${live?.summary ?? run?.error ?? run?.lastText ?? record?.status ?? 'no result'}`;
 
     for (const task of orch.tasks) {
       if (task.status !== 'pending' && task.status !== 'running' && !(compiled && task.status === 'completed')) continue;
@@ -3837,15 +3989,14 @@ ${quoted}
         task.error = 'a dependency did not complete';
       } else if (task.status !== 'completed') {
         task.status = 'failed';
-        task.error = compiled
-          ? 'the agent returned nothing'
-          : `the workflow did not finish: ${live?.summary ?? run?.error ?? run?.lastText ?? record?.status ?? 'no result'}`;
+        task.error = unfinished ?? 'the agent returned nothing';
       }
       task.endedAt ??= now();
     }
     if (compiled?.synthesis) orch.finalResult = compiled.synthesis;
     orch.costUsd = run?.costUsd ?? orch.costUsd;
     orch.status = orch.tasks.every((t) => t.status === 'completed') ? 'completed' : 'failed';
+    if (unfinished) orch.error = unfinished;
     orch.endedAt = now();
     this.journalTasks.delete(orch.id);
     this.persist();

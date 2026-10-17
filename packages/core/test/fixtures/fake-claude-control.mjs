@@ -23,7 +23,9 @@
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE or
 //                  LIMIT on a first run; HOLD waits: see runWorkflow), journals them under $FAKE_WORKFLOW_DIR/<session>/ and
-//                  writes its record to $FAKE_WORKFLOW_DIR/<session>.json
+//                  writes its record to $FAKE_WORKFLOW_DIR/<session>.json. A script that says LINGER keeps the
+//                  process up once the workflow ended, as a lead looping over its journal did (R15), and one
+//                  that says QUIET-END also never reports the end on the stream
 //   (anything)     ends the turn at once
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -296,6 +298,8 @@ async function runWorkflow(path, resumeFrom) {
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
   const returned = await new AsyncFunction('agent', 'phase', 'log', body)(agent, () => {}, () => {});
   writeFileSync(`${process.env.FAKE_WORKFLOW_DIR}/${sessionId}.json`, JSON.stringify({ runId, taskId, status: 'completed', result: returned }));
-  out({ type: 'system', subtype: 'task_notification', task_id: taskId, status: 'completed', summary: 'fake workflow completed' });
+  if (!source.includes('QUIET-END')) out({ type: 'system', subtype: 'task_notification', task_id: taskId, status: 'completed', summary: 'fake workflow completed' });
+  // A `sleep 30` loop of the lead's own: nothing of the workflow is left, yet the process stays up
+  if (source.includes('LINGER')) setInterval(() => {}, 60_000);
   return `workflow ${runId} completed; args=${args.join(' ')}`;
 }
