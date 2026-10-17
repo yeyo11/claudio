@@ -6,3 +6,5 @@ export { cliVersion, ModelCache, offers, parseInitialize, readInitialize, type I
 export { login, type LoginSession } from './login.ts';
 export { AccountStore, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';
 export { cliConfigFile, fold, NEAR, readCache, readingFromEvent, Readings, type Reading } from './usage.ts';
+export { parseUsage, usageOf } from './cli-usage.ts';
+export { controlRequest, type ControlOptions } from './control.ts';

@@ -9,6 +9,7 @@ import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
+import { usageOf } from './cli-usage.ts';
 import { ModelCache, offers } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
@@ -201,19 +202,21 @@ export class AccountStore {
       const login = identity.email === null && kind === 'login' ? cliLogin(this.ref(id).dir) : null;
       const cached = identity.email === null ? this.modelCache.read(id)?.account : undefined;
       const cli = cached && (!login || cached.email === login.email) ? cached : login ? { email: login.email, organization: login.organization, subscriptionType: null } : undefined;
+      const limits = this.readings.limit(id, now);
       return {
         id,
         kind,
         alias,
         email: identity.email ?? cli?.email ?? null,
         organization: identity.organization ?? cli?.organization ?? null,
-        plan: identity.plan ?? cli?.subscriptionType ?? null,
+        // `get_usage` states the plan for token accounts too, which `auth status` leaves out
+        plan: identity.plan ?? limits?.cli?.plan ?? cli?.subscriptionType ?? null,
         enabled,
         // `claude auth status` keeps saying logged in after the OAuth session expired: the failed run and the credentials file know better
         signedIn: identity.signedIn && (signInState === 'ok' || signInState === 'unknown'),
         signInState,
         ...(authFailedAt ? { authFailedAt } : {}),
-        limits: this.readings.limit(id, now),
+        limits,
       };
     };
     return [
@@ -369,6 +372,15 @@ export class AccountStore {
   async warmModels(): Promise<void> {
     const missing = this.list().filter((a) => a.enabled && a.signedIn && !this.modelCache.cached(a.id));
     await Promise.all(missing.map((a) => this.models(a.id).catch(() => undefined)));
+  }
+
+  /**
+   * Asks the CLI for the account's real usage (`get_usage`; no turn, no tokens). The reading is
+   * returned, not recorded: the caller hands it to `observe` (the runtime also appends the history).
+   * A CLI that fails or times out rejects.
+   */
+  fetchUsage(id: string, opts: { timeoutMs?: number } = {}): Promise<Reading> {
+    return usageOf(this.ref(id), { claude: this.claude, env: this.env, ...opts });
   }
 
   /** Records a reading from a run's stream or a failed turn. */

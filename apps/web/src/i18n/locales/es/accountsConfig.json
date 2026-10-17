@@ -78,7 +78,8 @@
     "usageRead": "uso leído {{ago}}",
     "refresh": "Actualizar",
     "none": "Sin cuentas",
-    "noneHint": "Claude Code usa su propio directorio de configuración hasta que añadas cuentas. Añade una para pasar a ella al llegar a un límite."
+    "noneHint": "Claude Code usa su propio directorio de configuración hasta que añadas cuentas. Añade una para pasar a ella al llegar a un límite.",
+    "refreshing": "Leyendo el uso…"
   },
   "kind": {
     "login": "Inicio de sesión",
@@ -87,7 +88,8 @@
   },
   "window": {
     "fiveHour": "5 horas",
-    "sevenDay": "7 días"
+    "sevenDay": "7 días",
+    "scoped": "7 días · {{model}}"
   },
   "card": {
     "inUse": "en uso",
@@ -106,6 +108,7 @@
     "noLimitsApiKey": "Una clave de API no tiene límites de uso que leer.",
     "source": {
       "stream": "leído de una ejecución {{ago}}",
+      "cli": "leído del CLI {{ago}}",
       "cache": "leído de la caché del CLI {{ago}}",
       "failure": "llegó a un límite {{ago}}"
     },
@@ -114,7 +117,14 @@
     "signInAgain": "Volver a iniciar sesión",
     "signInAgainFor": "Volver a iniciar sesión: {{name}}",
     "expiredHint": "Su sesión terminó y no se pudo renovar. Queda fuera de la rotación hasta que vuelvas a iniciar sesión.",
-    "incompleteHint": "Su inicio de sesión guardado está incompleto (sin token de renovación). Queda fuera de la rotación hasta que vuelvas a iniciar sesión."
+    "incompleteHint": "Su inicio de sesión guardado está incompleto (sin token de renovación). Queda fuera de la rotación hasta que vuelvas a iniciar sesión.",
+    "credits": {
+      "used": "Créditos · {{used}} de {{limit}} este mes",
+      "usedNoLimit": "Créditos · {{used}} usados este mes",
+      "none": "Sin créditos adicionales",
+      "limitReached": "Límite alcanzado"
+    },
+    "noLimitsToken": "El CLI no da el uso de un token. Los límites aparecerán aquí cuando un chat se ejecute en esta cuenta."
   },
   "toast": {
     "heldOut": "{{name}} queda fuera de rotación",
@@ -123,7 +133,9 @@
     "backInRotationFailed": "No se ha podido devolver {{name}} a la rotación",
     "removed": "{{name}} quitada",
     "removeFailed": "No se ha podido quitar {{name}}",
-    "signedInAgain": "{{name}} ha vuelto a iniciar sesión"
+    "signedInAgain": "{{name}} ha vuelto a iniciar sesión",
+    "refreshFailed": "No se ha podido leer el uso de {{names}}",
+    "refreshError": "No se ha podido leer el uso"
   },
   "remove": {
     "title": "¿Quitar {{name}}?",
@@ -228,5 +240,12 @@
     "disabled": "fuera de la rotación",
     "signed-out": "sin sesión",
     "auth": "sesión caducada"
+  },
+  "plan": {
+    "max": "Max",
+    "pro": "Pro",
+    "team": "Team",
+    "enterprise": "Enterprise",
+    "apiKey": "Clave de API"
   }
 }

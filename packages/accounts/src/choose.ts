@@ -56,6 +56,22 @@ function exhaustedUntil(limit: AccountLimit | null, now: number): number | null 
 }
 
 /**
+ * When the account is out of the weekly limit that applies to this model alone (`Fable`), the time
+ * it comes back (epoch ms); null when the model has no spent scoped limit. The account-wide state
+ * never carries it: another model runs on the account all the same.
+ */
+function scopedOutUntil(limit: AccountLimit | null, model: string | null, now: number): number | null {
+  if (!limit?.cli || !model) return null;
+  const wanted = model.toLowerCase();
+  let until: number | null = null;
+  for (const s of limit.cli.scoped) {
+    const t = s.resetsAt * 1000;
+    if (s.utilization >= 1 && t > now && wanted.includes(s.model.toLowerCase())) until = until === null ? t : Math.max(until, t);
+  }
+  return until;
+}
+
+/**
  * Pure: the account the next process should run on.
  *
  * Staying put wins over the order. The current account is kept while its binding window is under
@@ -87,7 +103,7 @@ export function choose(
   const out = (id: string): boolean => exhaustedUntil(limits[id] ?? null, now) !== null || !!opts.failedOn?.includes(id);
   const model = opts.model && opts.model !== 'default' ? opts.model : null;
   const runs = (id: string): boolean => !model || !opts.canRun || opts.canRun(id, model);
-  const usable = (id: string): boolean => ready(id) && !out(id) && runs(id);
+  const usable = (id: string): boolean => ready(id) && !out(id) && runs(id) && scopedOutUntil(limits[id] ?? null, model, now) === null;
 
   const pinned = opts.pinned ?? null;
   if (pinned && usable(pinned)) return { account: pinned, reason: pinned === current ? null : 'person', waitUntil: null };
@@ -96,7 +112,7 @@ export function choose(
     const a = current ? byId.get(current) : undefined;
     if (!a || !a.enabled) return 'disabled';
     if (!a.signedIn || !signInUsable(a)) return 'signed-out';
-    return out(a.id) ? 'limit' : 'threshold';
+    return out(a.id) || scopedOutUntil(limits[a.id] ?? null, model, now) !== null ? 'limit' : 'threshold';
   };
 
   const currentUnder = current !== null && usable(current) && (util(current) ?? 0) < threshold;
@@ -128,6 +144,9 @@ export function choose(
   if (fallback) return { account: fallback, reason: current === null ? null : reasonFor(), waitUntil: null };
 
   // Only an account that can run the model is worth waiting for: another one coming back changes nothing
-  const resets = order.filter((id) => ready(id) && runs(id)).map((id) => exhaustedUntil(limits[id] ?? null, now)).filter((t): t is number => t !== null);
+  const resets = order
+    .filter((id) => ready(id) && runs(id))
+    .map((id) => exhaustedUntil(limits[id] ?? null, now) ?? scopedOutUntil(limits[id] ?? null, model, now))
+    .filter((t): t is number => t !== null);
   return { account: null, reason: null, waitUntil: resets.length ? Math.min(...resets) : null };
 }

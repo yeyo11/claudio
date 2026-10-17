@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AccountLimit, ProviderLimitState, RateLimitWindow } from '@claudio/shared';
+import type { AccountCliUsage, AccountLimit, ProviderLimitState, RateLimitWindow } from '@claudio/shared';
 import { isRecord, writeAtomic } from './fs.ts';
 
 /** From here the account counts as near its limit; matches where the usage bars turn red. */
@@ -21,6 +21,8 @@ export interface Reading {
    * use the CLI did not report is not one to draw.
    */
   rejected?: { window: string; resetsAt: number };
+  /** What only `get_usage` states (plan, per-model limits, credits); carried over readings that lack it */
+  cli?: AccountCliUsage;
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -126,6 +128,7 @@ export function fold(reading: Reading, now: number): AccountLimit {
     windows: Object.fromEntries(live),
     observedAt: new Date(reading.at).toISOString(),
     source: reading.source,
+    ...(reading.cli ? { cli: reading.cli } : {}),
   };
 }
 
@@ -152,13 +155,36 @@ export class Readings {
     }
   }
 
-  /** Records a reading; returns whether it replaced what was kept. */
+  /**
+   * Records a reading; returns whether it replaced what was kept. The windows follow the newest
+   * reading, so a `get_usage` answer is the truth only while it is newer than the stream's. What
+   * only `get_usage` states (plan, per-model limits, credits) is kept apart from that: a newer
+   * stream reading inherits it, and an older `get_usage` answer still updates it.
+   */
   async observe(account: string, reading: Reading): Promise<boolean> {
     const old = this.kept.get(account);
-    if (old && (old.at > reading.at || (old.at === reading.at && reading.source === 'cache' && old.source !== 'cache'))) return false;
-    this.kept.set(account, reading);
-    if (this.file) await writeAtomic(this.file, `${JSON.stringify({ accounts: Object.fromEntries(this.kept) }, null, 2)}\n`);
+    let next: Reading | null = reading;
+    if (old && (old.at > reading.at || (old.at === reading.at && reading.source === 'cache' && old.source !== 'cache'))) {
+      // Older windows lose, but fresher CLI extras are still worth keeping
+      next = reading.cli && (!old.cli || old.cli.observedAt < reading.cli.observedAt) ? { ...old, cli: reading.cli } : null;
+    } else if (old?.cli && !reading.cli) {
+      next = { ...reading, cli: old.cli };
+    }
+    if (!next) return false;
+    this.kept.set(account, next);
+    await this.persist();
     return true;
+  }
+
+  private async persist(): Promise<void> {
+    if (this.file) await writeAtomic(this.file, `${JSON.stringify({ accounts: Object.fromEntries(this.kept) }, null, 2)}\n`);
+  }
+
+  /** When the CLI last answered `get_usage` for the account (epoch ms), or null. */
+  cliReadAt(account: string): number | null {
+    const at = this.kept.get(account)?.cli?.observedAt;
+    const ms = at ? Date.parse(at) : NaN;
+    return Number.isFinite(ms) ? ms : null;
   }
 
   limit(account: string, now: number = Date.now()): AccountLimit | null {
@@ -167,6 +193,6 @@ export class Readings {
   }
 
   async forget(account: string): Promise<void> {
-    if (this.kept.delete(account) && this.file) await writeAtomic(this.file, `${JSON.stringify({ accounts: Object.fromEntries(this.kept) }, null, 2)}\n`);
+    if (this.kept.delete(account)) await this.persist();
   }
 }

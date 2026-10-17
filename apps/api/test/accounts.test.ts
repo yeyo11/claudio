@@ -240,6 +240,8 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ['DELETE', '/api/accounts/logins/any', undefined],
       ['PATCH', `/api/accounts/${id}`, { enabled: false }],
       ['DELETE', `/api/accounts/${id}`, undefined],
+      ['POST', '/api/accounts/refresh', undefined],
+      ['POST', `/api/accounts/${id}/refresh`, undefined],
       ['PUT', '/api/accounts/settings', { threshold: 80 }],
       ['PUT', '/api/accounts/model-fallbacks', { fallbacks: [] }],
       ['POST', '/api/accounts/policies', { projects: ['p'] }],
@@ -255,4 +257,31 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
     await guarded.close();
     secured.shutdown();
   }
+});
+
+test('refreshing reads the CLI itself and answers the plan, the per-model limits and the credits', async () => {
+  const res = await app.inject({ method: 'POST', url: '/api/accounts/refresh' });
+  assert.equal(res.statusCode, 200);
+  const { accounts: list, failed } = res.json<{ accounts: Account[]; failed: unknown[] }>();
+  assert.deepEqual(failed, []);
+  const fresh = list.find((a) => a.id === 'default');
+  assert.equal(fresh?.limits?.source, 'cli');
+  assert.equal(fresh?.limits?.cli?.plan, 'max');
+  assert.equal(fresh?.limits?.cli?.scoped[0]?.model, 'Fable');
+  assert.equal(fresh?.limits?.cli?.credits?.enabled, false);
+  assert.deepEqual(await accounts(), list, 'GET /accounts serves what the refresh stored');
+});
+
+test('refreshing one account answers it, and an unknown one is a 404', async () => {
+  const id = (await core.accounts.add({ kind: 'login' })).id;
+  const res = await app.inject({ method: 'POST', url: `/api/accounts/${id}/refresh` });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json<Account>().plan, 'max');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/nope/refresh' })).statusCode, 404);
+});
+
+test('an api-key account refreshes to a reading that says it has no subscription limits', async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'a-key', secret: 'sk-ant-api-r' }) });
+  const res = await app.inject({ method: 'POST', url: `/api/accounts/${created.json<Account>().id}/refresh` });
+  assert.equal(res.json<Account>().limits?.cli?.available, false);
 });

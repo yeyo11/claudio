@@ -415,3 +415,22 @@
     min-height: 44px;
   }
 }
+
+/* The refresh button keeps its width while it reads: the spinner takes the icon's place */
+.accounts-refresh-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/* Credits beyond the plan: a quiet line under the meters, a tag only when the cap is reached */
+.account-credits {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--fg-2);
+}
