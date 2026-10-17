@@ -215,6 +215,10 @@ const env = {
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
   ...(await collabEnv()),
 };
+// Claudio's MCP server runs from this checkout's source, never from a bundle the environment pointed
+// at: a desktop install exports CLAUDIO_MCP_ENTRY for its own packaged server, which lacks the tools
+// this build added, and a chat's call of one would read "unknown tool" instead of what the spec tests
+delete env.CLAUDIO_MCP_ENTRY;
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
 // checked every half second, so a signal reaches the page within a spec's patience.

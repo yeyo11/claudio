@@ -98,6 +98,14 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   structuredPatch, originalFile }`.
 - `skill: <name>` — one `Skill` call (`input: { skill }`), answered `Launching skill: <name>` with
   `tool_use_result: { success: true, commandName }`.
+- `mcp: <server> <tool> <json>` — one MCP tool call (`name: "mcp__<server>__<tool>"`, `input` the JSON),
+  as the CLI makes it: the server is the one the `--mcp-config` file names, started with its `command`,
+  `args` and `env` (`${VAR}` expanded from the fake's own environment, as the CLI expands it, so Claudio's
+  server gets the chat's id and token) and asked `initialize`, then `tools/call` over stdio; the text it
+  answers is the call's result, `is_error` when it answered `isError`. A server the config does not name is
+  a tool the CLI does not have (`No such tool available: <name>`), and a name missing from
+  `--allowedTools` is denied (`Permission to use <name> was denied`). One server per call, closed after it.
+  It is how a spec drives Claudio's own MCP tools from a chat (`e2e/fake-cli/mcp.test.mjs`).
 - `agent: <description> | <sidechain script>` — one subagent: an `Agent` call (`input: { description,
   subagent_type: "Explore", prompt: "Look around" }`), a `system` `task_started` (`task_type:
   "local_agent"`, `task_id` the agent id, `tool_use_id` the call's, `is_backgrounded: false`), then its
@@ -240,6 +248,8 @@ With `CLAUDIO_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid`
 | `absorbed` | `texts` — messages read inside the running turn, at its next step |
 | `asked` | `requestId`, `command` — an `ask:` step's permission request |
 | `answered` | `requestId`, `allowed` |
+| `mcp` | `toolUseId`, `server`, `tool` — an `mcp:` step's call |
+| `mcp-ended` | `toolUseId`, `server`, `tool`, `isError` |
 | `agent` | `toolUseId`, `agentId`, `description`, `background` — an `agent:` step's subagent |
 | `agent-ended` | `toolUseId`, `agentId` |
 | `background` | `toolUseId`, `taskId`, `command`, `commandPid` — a `background:` step's command |

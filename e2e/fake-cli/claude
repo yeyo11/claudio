@@ -415,7 +415,7 @@ function startTurn(message, uuid = null) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|type|read|edit|write|skill|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|type|read|edit|write|skill|mcp|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
@@ -560,6 +560,7 @@ function nextStep() {
     }, READ_MS);
     return;
   }
+  if (step.kind === 'mcp') return mcpCall(own, step.text);
   if (step.kind === 'ask') {
     // A Bash call the CLI asks permission for, as `--permission-prompt-tool stdio` makes it: the call,
     // then a `can_use_tool` control request; the turn waits for the answer. Allowed, the call answers
@@ -629,6 +630,90 @@ function nextStep() {
     toolResult(id, content, isError, detail);
     afterTool(own);
   });
+}
+
+// ---------- MCP tool calls ----------
+
+/** The MCP servers an `mcp:` step started, so none outlives the process */
+const mcpChildren = new Set();
+
+/**
+ * An `mcp: <server> <tool> <json>` step: one call of an MCP tool, as the CLI makes it. The server is
+ * the one `--mcp-config` names, started with its `env` (`${VAR}` expanded from this process's own, as
+ * the CLI does) and asked `initialize` then `tools/call` over stdio; what it answers is the call's
+ * result. A server the config does not name is a tool the CLI does not have, and a tool missing from
+ * `--allowedTools` is denied, as a chat that may not ask for it sees it. One server per call: the CLI
+ * keeps it for the session, which a spec cannot tell apart.
+ */
+function mcpCall(own, text) {
+  const [, server = '', tool = '', raw = '{}'] = /^(\S+)\s+(\S+)\s*(.*)$/.exec(text) ?? [];
+  const name = `mcp__${server}__${tool}`;
+  let input;
+  try {
+    input = JSON.parse(raw || '{}');
+  } catch {
+    input = {};
+  }
+  const id = newToolId();
+  assistant([{ type: 'tool_use', id, name, input }]);
+  own.current = { id, child: null, command: null };
+  log('mcp', { toolUseId: id, server, tool });
+  let answered = false;
+  const finish = (content, isError) => {
+    if (answered || turn !== own) return;
+    answered = true;
+    own.current = null;
+    log('mcp-ended', { toolUseId: id, server, tool, isError });
+    // The CLI records an MCP result as the content blocks the server returned
+    toolResult(id, content, isError, isError ? `Error: ${content}` : [{ type: 'text', text: content }]);
+    afterTool(own);
+  };
+  const configFile = flag('--mcp-config');
+  let def;
+  try {
+    def = configFile ? JSON.parse(readFileSync(configFile, 'utf8')).mcpServers?.[server] : undefined;
+  } catch {
+    def = undefined;
+  }
+  if (!def) return finish(`<tool_use_error>Error: No such tool available: ${name}</tool_use_error>`, true);
+  const allowed = (flag('--allowedTools') ?? '').split(',');
+  if (!allowed.includes(name)) return finish(`Permission to use ${name} was denied`, true);
+  const expand = (v) => String(v).replace(/\$\{(\w+)\}/g, (_, n) => env[n] ?? '');
+  const serverEnv = { ...env, ...Object.fromEntries(Object.entries(def.env ?? {}).map(([k, v]) => [k, expand(v)])) };
+  const child = spawn(def.command, (def.args ?? []).map(expand), { env: serverEnv, stdio: ['pipe', 'pipe', 'ignore'] });
+  mcpChildren.add(child);
+  const pending = new Map();
+  let next = 0;
+  const ask = (method, params) =>
+    new Promise((resolveReply) => {
+      pending.set(++next, resolveReply);
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: next, method, params })}\n`);
+    });
+  createInterface({ input: child.stdout }).on('line', (line) => {
+    try {
+      const reply = JSON.parse(line);
+      pending.get(reply.id)?.(reply);
+    } catch {
+      // a server's stray output is not an answer
+    }
+  });
+  child.on('error', (err) => finish(`MCP server "${server}" did not start: ${err.message}`, true));
+  child.on('exit', () => {
+    mcpChildren.delete(child);
+    for (const settle of pending.values()) settle({ error: { message: `MCP server "${server}" exited` } });
+  });
+  void (async () => {
+    const hello = await ask('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'claude-code', version: VERSION } });
+    if (hello.error) {
+      child.kill();
+      return finish(hello.error.message, true);
+    }
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
+    const reply = await ask('tools/call', { name: tool, arguments: input });
+    child.stdin.end();
+    const answer = (reply.result?.content ?? []).map((c) => c.text ?? '').join('\n');
+    finish(reply.error ? reply.error.message : answer, reply.error !== undefined || reply.result?.isError === true);
+  })();
 }
 
 // ---------- branches: subagents and background commands ----------
@@ -1071,6 +1156,7 @@ function shutdown() {
   if (turn?.current?.child) killTree(turn.current.child.pid, 'SIGKILL');
   for (const branch of branches) for (const child of branch.children) killTree(child.pid, 'SIGKILL');
   for (const child of backgroundChildren) killTree(child.pid, 'SIGKILL');
+  for (const child of mcpChildren) killTree(child.pid, 'SIGKILL');
   log('exit');
   process.exit(0);
 }
