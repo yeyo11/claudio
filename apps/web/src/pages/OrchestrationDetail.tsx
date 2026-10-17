@@ -11,7 +11,7 @@ import { Collapsible, MoreActions, Switch, type MenuEntry } from '@claudio/ui/co
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
-import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
+import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice, WorkflowEndedNotice, WorkflowWaitNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { OrchestrationSpendWait } from '../components/SpendWait';
 import { RelaunchPanel } from '../components/RelaunchPanel';
@@ -444,7 +444,10 @@ function stepMeta(step: OrchestrationStep, orch: Orchestration, reviewMeta: (pro
     case 'stage':
       return `${step.completed}/${step.tasks.length}`;
     case 'phase':
-      return `${step.agents.filter((a) => a.status === 'completed').length}/${step.agents.length}`;
+      // Counted as a stage is once the graph's tasks are in it: the journal has states the stream may never report
+      return step.tasks.length
+        ? `${step.tasks.filter((t) => t.status === 'completed').length}/${step.tasks.length}`
+        : `${step.agents.filter((a) => a.status === 'completed').length}/${step.agents.length}`;
     case 'integration':
       return orch.integration ? `${orch.integration.merged.length}/${orch.tasks.filter((t) => t.branch && t.status === 'completed').length}` : undefined;
     case 'verification': {
@@ -468,6 +471,7 @@ function stepProgress(step: OrchestrationStep, orch: Orchestration): number | un
     case 'stage':
       return step.tasks.length ? step.tasks.filter((t) => t.status === 'completed' || t.status === 'failed' || t.status === 'skipped').length / step.tasks.length : undefined;
     case 'phase':
+      if (step.tasks.length) return step.tasks.filter((t) => t.status === 'completed' || t.status === 'failed' || t.status === 'skipped').length / step.tasks.length;
       return step.agents.length ? step.agents.filter((a) => a.status === 'completed').length / step.agents.length : undefined;
     default:
       return undefined;
@@ -532,23 +536,29 @@ function StepPanel({
       </Link>
     ) : null;
 
+  // A stage's tasks, and on a workflow the graph's tasks its run works on, as the same rows
+  const taskRows = (tasks: readonly Orchestration['tasks'][number][]) =>
+    tasks.length > 0 && (
+      <ul className="task-rows">
+        {tasks.map((task) => (
+          <TaskRow
+            key={task.id}
+            orch={orch}
+            task={task}
+            energy={task.id === mostActive(orch, tasks)}
+            inspected={inspected === task.id}
+            onInspect={() => onInspect(task.id)}
+          />
+        ))}
+      </ul>
+    );
+
   let body: ReactNode;
   switch (step.kind) {
     case 'stage':
       body = (
         <>
-          <ul className="task-rows">
-            {step.tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                orch={orch}
-                task={task}
-                energy={task.id === mostActive(orch, step.tasks)}
-                inspected={inspected === task.id}
-                onInspect={() => onInspect(task.id)}
-              />
-            ))}
-          </ul>
+          {taskRows(step.tasks)}
           {rerunBlockedByPullRequest(orch) && <p className="muted small">{t('orchestrationV2:rerun.blockedByPullRequest')}</p>}
         </>
       );
@@ -601,6 +611,7 @@ function StepPanel({
     case 'phase':
       body = (
         <>
+          {taskRows(step.tasks)}
           {workflow && orch.workflow?.runId && <WorkflowRunCard workflow={workflow} chatId={orch.workflow.runId} phase={step.phase} />}
           <WorkflowCard orch={orch} />
         </>
@@ -609,6 +620,7 @@ function StepPanel({
     case 'workflow':
       body = (
         <>
+          {taskRows(step.tasks)}
           {workflow && orch.workflow?.runId && <WorkflowRunCard workflow={workflow} chatId={orch.workflow.runId} />}
           <WorkflowCard orch={orch} />
         </>
@@ -974,6 +986,8 @@ export function OrchestrationDetail() {
 
       <ErrorBox error={error ?? stop.error ?? resume.error ?? remove.error} />
       <WaitingNotice orch={orch} />
+      <WorkflowWaitNotice orch={orch} />
+      <WorkflowEndedNotice orch={orch} />
       <OrchestrationSpendWait orch={orch} />
       <FailedByChecksNotice orch={orch} />
       {resuming && <ResumePanel orch={orch} unfinished={unfinished} pending={resume.isPending} onResume={(changes) => resume.mutate(changes)} onCancel={closeResume} />}

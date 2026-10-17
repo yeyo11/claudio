@@ -11,7 +11,18 @@ import { resetWhen } from '../lib/reset-when';
  * The strip a waiting piece of work shows where a running one shows its command: warn tint and the
  * clock, in words, with nothing moving (waiting is not live work). `why` says what holds it.
  */
-export function WaitLine({ wait, why, children }: { wait: Pick<LimitWait, 'provider' | 'resetsAt'>; why?: ReactNode; children?: ReactNode }) {
+export function WaitLine({
+  wait,
+  why,
+  children,
+  action,
+}: {
+  wait: Pick<LimitWait, 'provider' | 'resetsAt'>;
+  why?: ReactNode;
+  children?: ReactNode;
+  /** A quiet way out at the line's end, such as stopping the wait */
+  action?: ReactNode;
+}) {
   const { t } = useTranslation('components');
   const label = useProviderLabel();
   const name = label(wait.provider);
@@ -31,6 +42,7 @@ export function WaitLine({ wait, why, children }: { wait: Pick<LimitWait, 'provi
         {why && <span className="why">{why}</span>}
         {children}
       </span>
+      {action}
     </div>
   );
 }

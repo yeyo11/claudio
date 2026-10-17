@@ -5,6 +5,7 @@
 // graph is stopped to be a finished one, which is what these controls are for. On the way, the
 // detail page is read as steps (followed, picked, back to the latest), a task's chat opens beside it,
 // the graph view carries every stage's progress, and the list is searched and opens its templates from the header.
+// A graph on the workflow engine lists its tasks as rows and says why its run did not finish.
 //
 // The verification outcome card is not driven here: an outcome only exists once the core runs the
 // checks on a real integration branch, which needs a repository and a logged-in CLI.
@@ -177,6 +178,40 @@ export default async ({ page, api, check, dirs }) => {
     const after = await until(source, (s) => s.status !== beforeRerun, 'the graph to start over');
     check(after.status === 'running' || after.status === 'waiting', `re-running started the graph again (${after.status})`);
     await finish(source);
+
+    // ---------- a graph on the workflow engine ----------
+    // Its tasks are the graph's, followed in the CLI's journal, and drawn as a graph's stage draws
+    // them; why its run did not finish is said once at the top, in the bad tone, never as its checks'
+    const wfCreated = await api.post('/orchestrations', {
+      name: 'e2e-v2-workflow',
+      objective: 'a workflow that cannot run',
+      cwd: workspace,
+      engine: 'workflow',
+      synthesize: false,
+      tasks: [
+        { id: 'read', name: 'Read', prompt: 'Read the code' },
+        { id: 'report', name: 'Report', prompt: 'Report on it', dependsOn: ['read'] },
+      ],
+    });
+    check(wfCreated.status === 201, `the workflow graph was created (${wfCreated.status})`);
+    const wfId = wfCreated.body.id;
+    made.push(wfId);
+    const wfState = await finish(wfId);
+    await page.goto(`/orchestration/${wfId}`, 1500);
+    await page.waitFor(`return !!document.querySelector('main .step-panel .task-rows')`, { label: "the workflow's task rows" });
+    const wfPanel = await page.text('main .step-panel');
+    check(wfPanel.includes('Read') && wfPanel.includes('Report'), "the workflow's step lists the graph's tasks");
+    check(
+      (await page.eval(`return document.querySelectorAll('main .step-panel .task-row').length`)) === 2,
+      'each task of the workflow is one row, as on a graph',
+    );
+    if (wfState.status === 'failed' && wfState.error) {
+      const alert = await page.text('main .alert-bad');
+      check(alert.includes('The workflow did not finish') && alert.includes(wfState.error.slice(0, 40)), "the workflow's failure says why, in the bad tone");
+      check(!(await page.text('main')).includes('The checks failed this graph'), "a workflow's failure is not reported as its checks'");
+    }
+    // Nothing waits on a finished workflow, and no task keeps a wait strip of its own
+    check((await page.eval(`return document.querySelectorAll('main .wait-line').length`)) === 0, 'a finished workflow shows no wait');
 
     // ---------- the launch form ----------
     await page.goto('/orchestration', 1500);
