@@ -150,6 +150,8 @@ interface RouteDoc {
   accepted?: boolean;
   /** Non-JSON response content type (SSE) */
   produces?: string;
+  /** Kept for old clients; the description names what replaces it */
+  deprecated?: boolean;
 }
 
 const d = (tag: string, summary: string, rest: Omit<RouteDoc, 'tags' | 'summary'> = {}): RouteDoc => ({ tags: [tag], summary, ...rest });
@@ -395,8 +397,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /chats/:id/interrupt': d('Chats', 'Interrupt the current turn', { description: 'Ends the turn in progress and keeps the process, which reads what waits for it, then the next message. Any prompt the chat was holding is withdrawn. With `messageId` ("Send now"), only while that message still waits in the agent\'s queue: once the agent has read it, or it is not waiting in this chat, the answer is 409 and nothing is interrupted.', body: ref('ChatInterruptRequest'), ok: ref('ChatSummary') }),
   'POST /chats/:id/hint': d('Chats', 'Send a hint to a chat that is working', { description: 'A nudge: the text reaches the worker as its next user message. For a chat whose process is up; one with none is refused with 409, and a message resumes it. The suggested text for each signal of the chat\'s health is on the signal (`hint`).', body: ref('HintRequest'), ok: ref('ChatSummary') }),
   'POST /chats/:id/commands/:toolUseId/cancel': d('Chats', 'Cancel one command without ending the turn', { description: 'Kills the process tree of one shell command the chat is running, found under the CLI process by the tree and by when each process started, never by matching a command line. The CLI hands the worker a failed result for that call and the turn goes on; the worker is told a person did it. Refused with 409 when the call is not a command that is running, or its process cannot be told apart from another. Needs `/proc`, so Linux only. Which call to cancel is on the health signal (`toolUseId`).', body: ref('CancelCommandRequest'), ok: ref('CancelCommandResult') }),
-  'GET /settings/supervisor': d('Chats', 'Supervisor settings', { description: "The optional supervisor: a housekeeping chat of the CLI (`haiku` by default) that wakes once per signal per chat when a worker's health turns `bad`, reads the signal and the worker's last steps, and proposes a hint of a line or two. Off by default. Read from `supervisor.json` in the data directory; absent, the defaults.", ok: ref('SupervisorConfig') }),
-  'PUT /settings/supervisor': d('Chats', 'Change the supervisor settings', { description: 'Replaces the whole document. `model` is what the housekeeping chat is started with (`--model`), `maxCostUsd` its `--max-budget-usd` (above 0, at most 5), and `autoSend` sends each proposal to the worker without waiting for a person.', body: ref('UpdateSupervisorConfigRequest'), ok: ref('SupervisorConfig') }),
+  'GET /settings/supervisor': d('Chats', 'Supervisor settings (deprecated)', { deprecated: true, description: "Deprecated: the Supervisor is the `supervisor.intervene` decision point; read `GET /decisions/settings`. The optional supervisor is a housekeeping chat of the CLI that wakes once per signal per chat when a worker's health turns `bad`, reads the signal and the worker's last steps, and drafts a hint of a line or two. This view is derived from the point: `enabled` is its mode not being `off`, `autoSend` its mode being `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.maxCostUsd`.", ok: ref('SupervisorConfig') }),
+  'PUT /settings/supervisor': d('Chats', 'Change the supervisor settings (deprecated)', { deprecated: true, description: "Deprecated: set the `supervisor.intervene` point's mode through `PUT /decisions/settings`. Maps `enabled` and `autoSend` onto that mode (`enabled: false` is `off`, `enabled` alone `shadow`, which proposes hints for a person to send, `enabled` with `autoSend` `active`, which sends them on its own and, under Jev, only when the engine expects a hint to help); `model` and `maxCostUsd` are accepted and ignored, the engine's CLI settings being the Supervisor's. Answers the derived view. Refused to a chat's token with 403.", body: ref('UpdateSupervisorConfigRequest'), ok: ref('SupervisorConfig') }),
   // ---- Decisions
   // ---- Providers
   'GET /hosts': d('Integrations', 'Every code host\'s status', { description: 'One status per code host (GitHub through `gh`, GitLab through `glab`), from the detector\'s cache (5 minutes; a stale one is answered and re-detected in the background). `state` says whether it is ready and `reason` why not; `hosts` lists the host names the CLI knows and whether it is signed in to each.', ok: list('CodeHostStatus') }),
@@ -868,6 +870,7 @@ export function routeSchema(method: string, path: string): Json | null {
     ...(doc.body ? { body: doc.body } : {}),
     ...(gated ? { headers: obj({ 'x-claudio-spend-override': str('`1` goes on past the daily spend cap; ignored on a request authenticated by a chat\'s token', { enum: ['1'] }) }) } : {}),
     ...(doc.produces ? { produces: [doc.produces] } : {}),
+    ...(doc.deprecated ? { deprecated: true } : {}),
     response: {
       [doc.created ? 201 : doc.accepted ? 202 : 200]: doc.produces
         ? { description: 'Event stream', content: { [doc.produces]: { schema: doc.ok } } }

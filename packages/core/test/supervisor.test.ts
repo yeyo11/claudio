@@ -1,25 +1,16 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { ClaudioEvent, HealthSignal, SupervisorProposal, TranscriptEntry } from '@claudio/shared';
+import type { ClaudioEvent, DecisionMode, DecisionPointSettings, HealthSignal, SupervisorProposal, TranscriptEntry } from '@claudio/shared';
 import type { ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, DEFAULT_THRESHOLD } from '../src/decisions/settings.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
 import { HealthMonitor, type TaskContext } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
-import {
-  DEFAULT_SUPERVISOR,
-  hintFrom,
-  lastSteps,
-  parseSupervisorConfig,
-  Supervisor,
-  SupervisorConflictError,
-  SupervisorSettings,
-  type SupervisorAnswer,
-  type SupervisorQuestion,
-} from '../src/supervisor.ts';
+import { hintFrom, lastSteps, Supervisor, SupervisorConflictError, supervisorModeOf, type SupervisorAnswer, type SupervisorQuestion } from '../src/supervisor.ts';
 import { tempConfig } from './helpers.ts';
 import { PASTED_NOTE } from '../src/prompt-rules.ts';
 
@@ -57,7 +48,7 @@ const entry = (role: 'user' | 'assistant', blocks: TranscriptEntry['blocks'], is
 function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<SupervisorAnswer> = () => ({ text: 'Check the open socket.', costUsd: 0.002, isError: false })) {
   const config = tempConfig();
   const db = new Db(config);
-  const settings = new SupervisorSettings(config);
+  const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
   const asked: SupervisorQuestion[] = [];
   const events: ClaudioEventInput[] = [];
   const hints: SupervisorProposal[] = [];
@@ -80,30 +71,146 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     emit: (e) => events.push(e),
     charge: (id, usd) => charged.push([id, usd]),
   });
-  const enable = (over: Partial<typeof DEFAULT_SUPERVISOR> = {}) => settings.set({ ...DEFAULT_SUPERVISOR, enabled: true, ...over });
-  return { db, settings, supervisor, asked, events, hints, charged, spend, enable, setSteps: (s: TranscriptEntry[]) => (steps = s) };
+  /** The point's mode is the Supervisor's switch; the CLI model and cap are the engine's */
+  const enable = async (mode: DecisionMode = 'shadow', cli: Partial<typeof DEFAULT_DECISION_SETTINGS.cli> = {}) => {
+    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli } });
+    await settings.setPointMode('supervisor.intervene', mode);
+  };
+  return { config, db, settings, supervisor, asked, events, hints, charged, spend, enable, setSteps: (s: TranscriptEntry[]) => (steps = s) };
 }
 
-test('the settings are off by default, validated whole, and a field broken by hand falls back on its own', async () => {
+test('the deprecated body maps onto the point\'s mode, and the view is derived from the point and the engine', async () => {
+  assert.equal(supervisorModeOf({ enabled: false, autoSend: true }), 'off');
+  assert.equal(supervisorModeOf({ enabled: true }), 'shadow');
+  assert.equal(supervisorModeOf({ enabled: true, autoSend: false, model: 'opus', maxCostUsd: 4 }), 'shadow');
+  assert.equal(supervisorModeOf({ enabled: true, autoSend: true }), 'active');
+  assert.throws(() => supervisorModeOf({ enabled: 'yes' }), /enabled/);
+  assert.throws(() => supervisorModeOf({ enabled: true, autoSend: 'sure' }), /autoSend/);
+  assert.throws(() => supervisorModeOf([]), /JSON object/);
+
+  const h = harness();
+  // Off by default, with the engine's CLI model and cap
+  assert.deepEqual(h.supervisor.config, { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.02 });
+  await h.settings.setConsent('supervisor.intervene', { granted: true, stateVersion: 1, providers: ['jev'] });
+  // The model and the cap of the body are ignored; the point keeps its threshold and consent
+  assert.deepEqual(await h.supervisor.configure({ enabled: true, model: 'opus', autoSend: true, maxCostUsd: 4 }), { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.02 });
+  const point = h.settings.get().points['supervisor.intervene'];
+  assert.equal(point?.mode, 'active');
+  assert.equal(point?.threshold, DEFAULT_THRESHOLD);
+  assert.deepEqual(point?.consent?.providers, ['jev']);
+  assert.equal((await h.supervisor.configure({ enabled: true, autoSend: false })).autoSend, false);
+  assert.equal(h.settings.get().points['supervisor.intervene']?.mode, 'shadow');
+  await h.supervisor.configure({ enabled: false, autoSend: true });
+  assert.equal(h.settings.get().points['supervisor.intervene']?.mode, 'off');
+  await assert.rejects(h.supervisor.configure({ enabled: 1 }), /enabled/);
+  assert.equal(existsSync(join(h.config.dataDir, 'supervisor.json')), false, 'the file of the days before the point is never written');
+});
+
+// ---------- the one-time migration from supervisor.json ----------
+
+/** A data directory with the given files, and the store over it */
+function migrating(files: { supervisor?: unknown; decisions?: unknown }) {
   const config = tempConfig();
-  const settings = new SupervisorSettings(config);
-  assert.deepEqual(settings.get(), { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.05 });
+  mkdirSync(config.dataDir, { recursive: true });
+  const supervisorFile = join(config.dataDir, 'supervisor.json');
+  const decisionsFile = join(config.dataDir, 'decisions.json');
+  const write = (file: string, body: unknown) => writeFileSync(file, typeof body === 'string' ? body : JSON.stringify(body));
+  if (files.supervisor !== undefined) write(supervisorFile, files.supervisor);
+  if (files.decisions !== undefined) write(decisionsFile, files.decisions);
+  const store = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
+  const point = (): DecisionPointSettings | undefined => store.get().points['supervisor.intervene'];
+  return { config, store, point, supervisorFile, decisionsFile };
+}
 
-  const saved = await settings.set({ enabled: true, model: ' claude-haiku-4-5 ', autoSend: true, maxCostUsd: 0.1 });
-  assert.deepEqual(saved, { enabled: true, model: 'claude-haiku-4-5', autoSend: true, maxCostUsd: 0.1 });
-  assert.deepEqual(settings.get(), saved);
+const legacy = (enabled: boolean, autoSend: boolean) => ({ enabled, model: 'sonnet', autoSend, maxCostUsd: 0.5 });
+const withPoint = (mode: DecisionMode) => ({
+  ...DEFAULT_DECISION_SETTINGS,
+  points: { 'supervisor.intervene': { mode, threshold: 0.9, consent: { at: '2026-10-01T00:00:00.000Z', stateVersion: 1, providers: ['jev'] } } },
+});
 
-  assert.throws(() => parseSupervisorConfig({ ...DEFAULT_SUPERVISOR, maxCostUsd: 0 }), /maxCostUsd/);
-  assert.throws(() => parseSupervisorConfig({ ...DEFAULT_SUPERVISOR, maxCostUsd: 50 }), /maxCostUsd/);
-  assert.throws(() => parseSupervisorConfig({ ...DEFAULT_SUPERVISOR, model: '--dangerously-skip-permissions' }), /model/);
-  assert.throws(() => parseSupervisorConfig({ ...DEFAULT_SUPERVISOR, enabled: 'yes' }), /enabled/);
-  assert.throws(() => parseSupervisorConfig({ enabled: true }), /autoSend/);
-  assert.throws(() => parseSupervisorConfig([]), /JSON object/);
+test('the migration: disabled is Off, enabled is Shadow, enabled with autoSend is Active; the model and the cap stay behind', () => {
+  for (const [enabled, autoSend, mode] of [
+    [false, false, 'off'],
+    [false, true, 'off'],
+    [true, false, 'shadow'],
+    [true, true, 'active'],
+  ] as const) {
+    const m = migrating({ supervisor: legacy(enabled, autoSend) });
+    assert.equal(m.store.migrateSupervisor(), mode);
+    assert.equal(m.point()?.mode, mode);
+    assert.equal(m.point()?.threshold, DEFAULT_THRESHOLD);
+    assert.deepEqual(m.store.get().cli, DEFAULT_DECISION_SETTINGS.cli, 'the engine keeps its own model and cap');
+    assert.equal(m.store.supervisorMigrated(), true);
+    assert.equal('supervisorMigrated' in m.store.get(), false, 'the mark is not part of what the API serves');
+  }
+});
 
-  writeFileSync(join(config.dataDir, 'supervisor.json'), JSON.stringify({ enabled: true, model: 'sonnet', autoSend: 'sure', maxCostUsd: -1 }));
-  assert.deepEqual(settings.get(), { enabled: true, model: 'sonnet', autoSend: false, maxCostUsd: 0.05 });
-  writeFileSync(join(config.dataDir, 'supervisor.json'), '{ not json');
-  assert.deepEqual(settings.get(), DEFAULT_SUPERVISOR);
+test('the migration: a point the person set keeps its mode unless the Supervisor was disabled', () => {
+  const kept = migrating({ supervisor: legacy(true, true), decisions: withPoint('shadow') });
+  assert.equal(kept.store.migrateSupervisor(), 'shadow');
+  assert.equal(kept.point()?.threshold, 0.9);
+  assert.deepEqual(kept.point()?.consent?.providers, ['jev'], 'threshold and consent are left as they were');
+
+  const activeKept = migrating({ supervisor: legacy(true, false), decisions: withPoint('active') });
+  assert.equal(activeKept.store.migrateSupervisor(), 'active');
+
+  const offTakesFile = migrating({ supervisor: legacy(true, true), decisions: withPoint('off') });
+  assert.equal(offTakesFile.store.migrateSupervisor(), 'active', 'a point left Off takes the mode of the file');
+
+  const disabled = migrating({ supervisor: legacy(false, false), decisions: withPoint('active') });
+  assert.equal(disabled.store.migrateSupervisor(), 'off');
+  assert.equal(disabled.point()?.mode, 'off');
+});
+
+test('the migration runs once, never writes supervisor.json, and a later save keeps its mark', async () => {
+  const m = migrating({ supervisor: legacy(true, false) });
+  const before = readFileSync(m.supervisorFile, 'utf8');
+  const mtime = statSync(m.supervisorFile).mtimeMs;
+  assert.equal(m.store.migrateSupervisor(), 'shadow');
+
+  // The person moves the point; the file still says enabled, and is not read again
+  await m.store.setPointMode('supervisor.intervene', 'off');
+  assert.equal(m.store.migrateSupervisor(), null);
+  assert.equal(m.point()?.mode, 'off');
+
+  // A whole-document save and a consent keep the mark, so a restart does not fold the file in again
+  await m.store.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), points: { 'supervisor.intervene': { mode: 'off' } } });
+  await m.store.setConsent('supervisor.intervene', { granted: true, stateVersion: 1, providers: ['cli'] });
+  const again = new DecisionSettingsStore(m.config, new DecisionCredentialStore(m.config));
+  assert.equal(again.supervisorMigrated(), true);
+  assert.equal(again.migrateSupervisor(), null);
+  assert.equal(again.get().points['supervisor.intervene']?.mode, 'off');
+
+  assert.equal(readFileSync(m.supervisorFile, 'utf8'), before);
+  assert.equal(statSync(m.supervisorFile).mtimeMs, mtime);
+});
+
+test('the migration: no file is nothing to fold, a broken one reads as disabled, and a broken decisions.json waits', () => {
+  const none = migrating({});
+  assert.equal(none.store.migrateSupervisor(), null);
+  assert.equal(existsSync(none.decisionsFile), false, 'a fresh install keeps the defaults unwritten');
+
+  const broken = migrating({ supervisor: '{ not json' });
+  assert.equal(broken.store.migrateSupervisor(), 'off');
+  const badFields = migrating({ supervisor: { enabled: 'yes', autoSend: true } });
+  assert.equal(badFields.store.migrateSupervisor(), 'off');
+
+  const handBroken = migrating({ supervisor: legacy(true, true), decisions: '{ half' });
+  assert.equal(handBroken.store.migrateSupervisor(), null);
+  assert.equal(readFileSync(handBroken.decisionsFile, 'utf8'), '{ half', 'not overwritten at start');
+});
+
+test('Core folds supervisor.json into the point when it starts, and the Supervisor reads the point', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  writeFileSync(join(config.dataDir, 'supervisor.json'), JSON.stringify(legacy(true, true)));
+  const core = new Core({ ...config, claudeBin: FAKE_CLAUDE });
+  try {
+    assert.equal(core.decisionSettings.get().points['supervisor.intervene']?.mode, 'active');
+    assert.deepEqual(core.supervisor.config, { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.02 });
+  } finally {
+    core.shutdown();
+  }
 });
 
 test('off, it asks nothing; on, a bad signal wakes it once per signal per chat', async () => {
@@ -154,7 +261,7 @@ test('two announcements before the answer arrives ask once', async () => {
 
 test('the question carries the signal, the settings and the worker\'s last steps; the event names the task', async () => {
   const h = harness();
-  await h.enable({ model: 'claude-haiku-4-5', maxCostUsd: 0.02 });
+  await h.enable('shadow', { model: 'claude-haiku-4-5', maxCostUsd: 0.02 });
   const long = Array.from({ length: 20 }, (_, i) => `line ${String(i)}`).join('\n');
   h.setSteps([
     entry('assistant', [{ type: 'text', text: 'Running the suite.' }, { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pnpm e2e' } }]),
@@ -267,15 +374,31 @@ test('send delivers the hint and marks it sent; dismiss marks it dismissed; each
   assert.equal(failing.db.proposal(p.id)?.status, 'proposed');
 });
 
-test('with autoSend the proposal goes to the worker on its own', async () => {
+test('Active under the CLI sends every hint on its own; Shadow leaves each for a person', async () => {
   const h = harness();
-  await h.enable({ autoSend: true });
+  await h.enable('active');
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [hung]);
   assert.equal(proposal?.status, 'sent');
   assert.equal(h.hints.length, 1);
   assert.equal(h.db.proposal(proposal?.id ?? '')?.status, 'sent');
   // The event said what was proposed, before it was sent
   assert.equal(h.events[0]?.type === 'supervisor.proposed' && h.events[0].proposal.status, 'proposed');
+
+  await h.enable('shadow');
+  assert.equal((await h.supervisor.wake(chatOf('c2'), null, [hung]))?.status, 'proposed');
+  assert.equal(h.hints.length, 1);
+});
+
+test('a person who switches the point while the hint is drafted decides whether it is sent', async () => {
+  let release: (a: SupervisorAnswer) => void = () => undefined;
+  const h = harness(() => new Promise((r) => (release = r)));
+  await h.enable('active');
+  const woken = h.supervisor.wake(chatOf('c1'), null, [hung]);
+  await new Promise((r) => setImmediate(r));
+  await h.settings.setPointMode('supervisor.intervene', 'shadow');
+  release({ text: 'Look at the port.', costUsd: 0.001, isError: false });
+  assert.equal((await woken)?.status, 'proposed');
+  assert.equal(h.hints.length, 0);
 });
 
 // ---------- through Core, with the fake CLI as both the worker and the supervisor ----------
@@ -308,7 +431,9 @@ test('a worker that turns bad gets a proposal from a read-only housekeeping chat
     0,
   );
   try {
-    await core.supervisor.configure({ enabled: true, model: 'haiku', autoSend: false, maxCostUsd: 0.03 });
+    // The cap is the engine's now; the body's own cap is ignored
+    await core.decisionSettings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, maxCostUsd: 0.03 } });
+    await core.supervisor.configure({ enabled: true, model: 'opus', autoSend: false, maxCostUsd: 1 });
     const chat = core.runtime.start({ prompt: 'SLEEP 60' });
     await until(() => core.runtime.pulse(chat.id)?.commands[0], 'the command to start');
 
