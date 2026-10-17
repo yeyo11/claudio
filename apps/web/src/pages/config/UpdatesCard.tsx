@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
-import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
 import { formatDate, formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import {
@@ -21,6 +21,7 @@ import {
   type LiveWork,
   type UpdateHow,
 } from '../../lib/updates';
+import { PrefRow, ReservedLabel } from './PrefRow';
 
 /**
  * Which Claudio this is and whether a newer release is out, with the way to take it that fits this
@@ -28,6 +29,7 @@ import {
  */
 export function UpdatesCard() {
   const { t } = useTranslation('config');
+  const { t: tProviders } = useTranslation('providers');
   const queryClient = useQueryClient();
   const { data: info, error, isLoading } = useQuery({ queryKey: keys.release, queryFn: () => api.release() });
   const check = useMutation({
@@ -37,54 +39,45 @@ export function UpdatesCard() {
   const bridge = typeof window !== 'undefined' ? window.claudioDesktop?.updates : undefined;
   const route = info && updateRoute({ distribution: info.distribution, desktopUpdates: Boolean(bridge), hostname: window.location.hostname });
 
+  const facts = info && (
+    <span className="update-facts">
+      <span>
+        {t('updates.version')} <span className="tnum">{info.current}</span>
+      </span>
+      <span>
+        {t('updates.latest')} <span className="tnum">{info.latest ?? t('updates.never')}</span>
+        {info.publishedAt && <> · {t('updates.published', { date: formatDate(info.publishedAt) })}</>}
+      </span>
+      {info.latest && (info.updateAvailable ? <Tag tone="warn">{t('updates.availableTag')}</Tag> : <Tag tone="ok">{t('updates.upToDateTag')}</Tag>)}
+      {info.url && (
+        <a href={info.url} target="_blank" rel="noopener noreferrer" className="meta-icon">
+          {t('updates.notes')} <ExternalLink {...ICON_SM} />
+          <span className="sr-only"> ({tProviders('row.opensNewTab')})</span>
+        </a>
+      )}
+    </span>
+  );
+
   return (
-    <Card title={t('updates.title')}>
-      <div className="stack" data-testid="updates-card">
-        <ErrorBox error={error} />
-        {isLoading && <Skeleton rows={3} />}
-        {info && (
-          <dl className="kv">
-            <dt>{t('updates.version')}</dt>
-            <dd>{info.current}</dd>
-            <dt>{t('updates.latest')}</dt>
-            <dd>
-              {info.latest ?? t('updates.never')}
-              {info.publishedAt && <span className="muted"> · {t('updates.published', { date: formatDate(info.publishedAt) })}</span>}{' '}
-              {info.latest &&
-                (info.updateAvailable ? (
-                  <Tag tone="warn">{t('updates.availableTag')}</Tag>
-                ) : (
-                  <Tag tone="ok">{t('updates.upToDateTag')}</Tag>
-                ))}
-              {info.url && (
-                <>
-                  {' '}
-                  <a href={info.url} target="_blank" rel="noopener noreferrer" className="meta-icon">
-                    {t('updates.notes')} <ExternalLink {...ICON_SM} />
-                  </a>
-                </>
-              )}
-            </dd>
-          </dl>
-        )}
-
-        {info?.distribution === 'docker' && <StorageWarning />}
-        {info && route?.kind === 'desktop' && bridge && <DesktopUpdate bridge={bridge} info={info} />}
-        {info?.updateAvailable && route?.kind === 'steps' && <UpdateSteps how={route.how} remote={route.remote} />}
-
-        <div className="form-actions">
+    <div className="stack" data-testid="updates-card">
+      <PrefRow id="updates-claudio" setting="updates.claudio" title={t('updates.title')} hint={isLoading ? <Skeleton rows={1} /> : facts}>
+        <div className="pref-actions">
           <button className="btn" disabled={check.isPending} onClick={() => check.mutate()}>
-            {check.isPending ? t('updates.checking') : t('updates.check')}
+            <ReservedLabel states={[t('updates.check'), t('updates.checking')]} shown={check.isPending ? 1 : 0} />
           </button>
           {/* Always rendered so a screen reader is told when the answer lands */}
           <span className="small muted" role="status">
             {info?.checkedAt && t('updates.checked', { when: timeAgo(info.checkedAt) })}
           </span>
         </div>
-        <ErrorBox title={t('updates.checkFailed')} error={check.error ?? (info?.error ? new Error(info.error) : null)} />
-        <p className="small muted">{t('updates.note')}</p>
-      </div>
-    </Card>
+      </PrefRow>
+      <ErrorBox error={error} />
+      <ErrorBox title={t('updates.checkFailed')} error={check.error ?? (info?.error ? new Error(info.error) : null)} />
+
+      {info?.distribution === 'docker' && <StorageWarning />}
+      {info && route?.kind === 'desktop' && bridge && <DesktopUpdate bridge={bridge} info={info} />}
+      {info?.updateAvailable && route?.kind === 'steps' && <UpdateSteps how={route.how} remote={route.remote} />}
+    </div>
   );
 }
 

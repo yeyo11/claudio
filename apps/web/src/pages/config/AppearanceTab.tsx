@@ -1,5 +1,5 @@
 import { Info } from 'lucide-react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -8,26 +8,13 @@ import { Spinner } from '@claudio/ui/components/Spinner';
 import { Segmented } from '@claudio/ui/components/ui';
 import { setMotionPreference, useMotionPreference, useReducedMotionForced, type MotionLevel } from '@claudio/ui/lib/motion';
 import { setThemePreference, useThemePreference, type ThemePreference } from '../../lib/theme';
+import { PrefRow, PrefRows } from './PrefRow';
 
 const THEMES: ThemePreference[] = ['system', 'light', 'dark'];
 const MOTION: MotionLevel[] = ['full', 'subtle', 'off'];
 
 // A fixed moment in the past, so the preview's clock reads like a real one without depending on a chat
 const PREVIEW_SINCE = new Date(Date.now() - 42_000).toISOString();
-
-function Row({ id, title, hint, children }: { id: string; title: string; hint: ReactNode; children: ReactNode }) {
-  return (
-    <div className="appearance-row" role="group" aria-labelledby={`${id}-title`}>
-      <div className="appearance-row-text">
-        <span id={`${id}-title`} className="appearance-row-title">
-          {title}
-        </span>
-        <span className="small muted">{hint}</span>
-      </div>
-      <div className="appearance-row-control">{children}</div>
-    </div>
-  );
-}
 
 /**
  * The three themes as miniatures of themselves. A miniature paints its theme whichever one is on,
@@ -129,33 +116,36 @@ export function AppearanceTab() {
   const forced = useReducedMotionForced();
 
   return (
-    <section className="card appearance" aria-label={t('appearance.tab')}>
-      <Row id="appearance-theme" title={t('appearance.theme')} hint={t('appearance.themeHint')}>
-        <ThemeCards />
-      </Row>
+    // Not a named region of its own: the section that holds it already carries its heading
+    <div className="appearance">
+      <PrefRows>
+        <PrefRow id="appearance-theme" setting="appearance.theme" title={t('appearance.theme')} hint={t('appearance.themeHint')}>
+          <ThemeCards />
+        </PrefRow>
 
-      <Row id="appearance-language" title={t('appearance.language')} hint={t('appearance.languageHint')}>
-        <div className="appearance-language">
-          <LanguageMenu />
-        </div>
-      </Row>
+        <PrefRow id="appearance-language" setting="appearance.language" title={t('appearance.language')} hint={t('appearance.languageHint')}>
+          <div className="appearance-language">
+            <LanguageMenu />
+          </div>
+        </PrefRow>
 
-      <Row id="appearance-motion" title={t('appearance.motion')} hint={t('appearance.motionHint')}>
-        <Segmented
-          label={t('appearance.motion')}
-          value={motion}
-          onChange={setMotionPreference}
-          options={MOTION.map((value) => ({ value, label: t(`appearance.motionOptions.${value}`) }))}
-        />
-        <span className="small muted appearance-motion-says">{t(`appearance.motionDescriptions.${motion}`)}</span>
-        {forced && (
-          <p className="appearance-forced small" role="note">
-            <Info {...ICON_SM} />
-            <span>{t('appearance.reducedForced')}</span>
-          </p>
-        )}
-        <MotionPreview />
-      </Row>
-    </section>
+        <PrefRow id="appearance-motion" setting="appearance.motion" title={t('appearance.motion')} hint={t('appearance.motionHint')}>
+          <Segmented
+            label={t('appearance.motion')}
+            value={motion}
+            onChange={setMotionPreference}
+            options={MOTION.map((value) => ({ value, label: t(`appearance.motionOptions.${value}`) }))}
+          />
+          <span className="small muted appearance-motion-says">{t(`appearance.motionDescriptions.${motion}`)}</span>
+          {forced && (
+            <p className="appearance-forced small" role="note">
+              <Info {...ICON_SM} />
+              <span>{t('appearance.reducedForced')}</span>
+            </p>
+          )}
+          <MotionPreview />
+        </PrefRow>
+      </PrefRows>
+    </div>
   );
 }

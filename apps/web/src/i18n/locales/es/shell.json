@@ -95,19 +95,18 @@
     "home": "Ir a Inicio"
   },
   "appearance": {
-    "tab": "Apariencia",
     "intro": "Cómo se ve y se mueve Claudio en este navegador. Se guarda aquí, no en el servidor.",
     "theme": "Tema",
-    "themeHint": "Sistema sigue el modo claro u oscuro de tu sistema operativo.",
+    "themeHint": "Sistema sigue el modo claro u oscuro de tu sistema.",
     "themeOptions": {
       "system": "Sistema",
       "light": "Claro",
       "dark": "Oscuro"
     },
     "language": "Idioma",
-    "languageHint": "El idioma de la interfaz. Lo que escribe Claude nunca se traduce.",
+    "languageHint": "Lo que escribe Claude nunca se traduce.",
     "motion": "Movimiento",
-    "motionHint": "Los spinners, los raíles que laten y los contadores dicen qué hace un agente ahora mismo.",
+    "motionHint": "Los indicadores que muestran a un agente trabajando.",
     "motionOptions": {
       "full": "Completo",
       "subtle": "Sutil",

@@ -38,7 +38,7 @@ export interface ProviderRowProps {
   onChooseBinary?: () => void;
   /**
    * Opens the sign-in panel (components/setup) under the row or in a Sheet. Without it, Sign in is
-   * the vendor's page, or Settings → Account for Claude Code.
+   * the vendor's page, or Settings → Claude Code → Sign-in for Claude Code.
    */
   onSignIn?: () => void;
   /** A panel is open under the row (the sign-in or the binary): the row joins it */
@@ -47,6 +47,8 @@ export interface ProviderRowProps {
   signOut?: ReactNode;
   /** Sign in where the state alone gives no such action (`no-probe` with no key kept) */
   offerSignIn?: boolean;
+  /** Actions the page adds after the state's own (Settings → Claude Code's "Check again") */
+  more?: ReactNode;
 }
 
 /** The plain-words reason under the state: a code the detector gave, or what ready means. */
@@ -92,6 +94,7 @@ export function ProviderRow({
   open = false,
   signOut,
   offerSignIn = false,
+  more,
 }: ProviderRowProps) {
   const { t } = useTranslation('providers');
   const reason = useProviderReason(status, enabled);
@@ -129,6 +132,7 @@ export function ProviderRow({
     <ActionButton key={action.kind} action={action} status={status} open={open} onRetry={onRetry} onChooseBinary={onChooseBinary} onSignIn={onSignIn} />
   ));
   if (signOut && !checking && enabled) buttons.push(<Fragment key="sign-out">{signOut}</Fragment>);
+  if (more) buttons.push(<Fragment key="more">{more}</Fragment>);
 
   if (variant === 'cell') {
     return (

@@ -1018,41 +1018,144 @@ button.master-item-on:hover {
   background-size: 100% 360px;
 }
 
-/* ---- Settings → Appearance ---- */
-.appearance {
-  gap: 0;
-  padding: 0;
+/*
+ * A setting's row (settings-patterns.md): the label and its consequence, the control beside them.
+ * Space separates the rows, never a border (AP11); a narrow container stacks the label over the
+ * control, so the same row reads at 320 px and in a wide body.
+ */
+.pref-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
 }
 
-.appearance-row {
+.pref-row {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 12px 24px;
-  padding: 20px;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: 8px 24px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 8px 0;
 }
 
-.appearance-row + .appearance-row {
-  border-top: 1px solid var(--border);
+.pref-row.is-stacked {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.appearance-row-text {
+@container (max-width: 560px) {
+  .pref-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pref-row-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
 
-.appearance-row-title {
+.pref-row-title {
   font-weight: var(--fw-regular);
+  overflow-wrap: anywhere;
 }
 
-.appearance-row-control {
+.pref-row-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.pref-row-control {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
   min-width: 0;
 }
+
+/* A stacked row's control is a block (a list, a form): it takes the row's width */
+.pref-row.is-stacked > .pref-row-control {
+  align-items: stretch;
+}
+
+/* The control column holds a line of buttons and the answer they bring, which wraps on a phone */
+.pref-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+/* A detail screen's content (Behaviour, Files): no card around it, the header above names it */
+.settings-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.settings-detail-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Settings → General → Updates: what is in use and what is out, as one wrapping line under the name */
+.update-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.update-path {
+  /* literal */
+  flex-basis: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Settings → Claude Code → Sign-in: the account in use, a line per fact, under its label */
+.account-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-facts-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  color: var(--text);
+}
+
+/* A button's states share one cell, so the button keeps the width of the longest (AP10) */
+.reserved-label {
+  display: inline-grid;
+}
+
+.reserved-label > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+
+.reserved-label > .is-off {
+  visibility: hidden;
+}
+
+/* ---- Settings → Appearance ---- */
+/* Its controls are pictures with no text line to share with the label: they line up by the top */
+.appearance .pref-row {
+  align-items: start;
+}
+
 
 .appearance-themes {
   display: flex;
@@ -1290,11 +1393,6 @@ button.master-item-on:hover {
 }
 
 @media (max-width: 900px) {
-  .appearance-row {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 16px 14px;
-  }
-
   .appearance-themes {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
