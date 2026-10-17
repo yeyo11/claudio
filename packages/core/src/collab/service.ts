@@ -153,6 +153,12 @@ interface OwnPendingJoin {
   invite: Invite;
   sentAt: string;
   relayedBy: string | null;
+  /**
+   * The version of the group's chain this install held when it asked, 0 for none. A member the owner
+   * removed is never sent the version that removes it, so its chain may still list it: only a newer
+   * head that lists it means the join was signed. Absent in a file written before it: 0.
+   */
+  heldVersion?: number;
   /** Absent in a file written before joins could end: those were all waiting */
   state?: PendingJoinState;
   endedAt?: string | null;
@@ -556,7 +562,7 @@ export class CollaboratorsService {
     // A join whose chain arrived is done, even before its entry is cleared
     const waiting = this.readPending().filter((p) => {
       const head = this.chains.get(p.invite.groupId)?.at(-1);
-      return !(head && me && isMember(head, me));
+      return !(head && me && isMember(head, me) && head.version > (p.heldVersion ?? 0));
     });
     return { groups, pendingJoins: waiting.map((p) => this.pendingView(p)) };
   }
@@ -737,9 +743,14 @@ export class CollaboratorsService {
     if (isInviteExpired(invite)) throw new CollaboratorsError('expired', 'The invite has expired');
     const me = this.endpointId() as string;
     if (invite.owner === me) throw new CollaboratorsError('invalid', 'This install made the invite');
+    // The chain held here may be stale: a removed member is never sent the version that removes it.
+    // So the owner or a member is asked first, and the held chain answers only when nobody does
     const held = this.chains.get(invite.groupId)?.at(-1);
-    if (held && isMember(held, me)) return { state: 'joined', group: this.getGroup(invite.groupId) };
-    if (!this.hostStatus) throw new CollaboratorsError('not-ready', 'The endpoint is not bound yet');
+    const heldAsMember = !!held && isMember(held, me);
+    if (!this.hostStatus) {
+      if (heldAsMember) return { state: 'joined', group: this.getGroup(invite.groupId) };
+      throw new CollaboratorsError('not-ready', 'The endpoint is not bound yet');
+    }
     const sealed = sealJoin(invite.owner, joinPayloadFor(invite, { endpointId: me, ...this.me() }));
     let relayedBy: string | null = null;
     try {
@@ -755,9 +766,10 @@ export class CollaboratorsService {
       if (error instanceof PeerError && (error.code === 'refused' || error.code === 'bad-request' || error.code === 'protocol')) {
         throw new CollaboratorsError('refused', `The owner refused the invite${error.message && error.message !== error.code ? `: ${error.message}` : ''}`);
       }
+      if (heldAsMember) return { state: 'joined', group: this.getGroup(invite.groupId) };
       // Nobody answered: kept, and sent again until someone does
     }
-    const pending: OwnPendingJoin = { invite, sentAt: now(), relayedBy };
+    const pending: OwnPendingJoin = { invite, sentAt: now(), relayedBy, heldVersion: held?.version ?? 0 };
     await this.writePending([...this.readPending().filter((p) => p.invite.groupId !== invite.groupId), pending]);
     this.changed('roster', invite.groupId);
     return { state: 'pending', pending: this.pendingView(pending) };
@@ -793,7 +805,8 @@ export class CollaboratorsService {
           const invite = decodeInvite(encodeInvite(p.invite as unknown as Invite));
           const state = PENDING_STATES.find((s) => s === p.state) ?? 'waiting';
           const endedAt = state !== 'waiting' && typeof p.endedAt === 'string' ? p.endedAt : null;
-          return [{ invite, sentAt: p.sentAt, relayedBy: typeof p.relayedBy === 'string' ? p.relayedBy : null, state, endedAt }];
+          const heldVersion = typeof p.heldVersion === 'number' && Number.isInteger(p.heldVersion) && p.heldVersion > 0 ? p.heldVersion : 0;
+          return [{ invite, sentAt: p.sentAt, relayedBy: typeof p.relayedBy === 'string' ? p.relayedBy : null, heldVersion, state, endedAt }];
         } catch {
           return [];
         }
@@ -892,6 +905,8 @@ export class CollaboratorsService {
         const me = this.endpointId();
         if (head.owner === me) return this.signJoin(group.groupId, sealed, from);
         if (!me || !isMember(head, me)) return { type: 'error', code: 'not-found' };
+        // A member pasting an invite again is answered with the chain that lists it, as the owner would
+        if (isMember(head, from)) return { type: 'roster', groupId: group.groupId, versions: [...group.chain] };
         // Held for the owner, and handed over on the next connection to it (§3.3)
         this.deps.store.putJoinRequest({ groupId: group.groupId, fromEndpointId: from, sealed, relayedBy: null, expiresAt: null, receivedAt: now() });
         this.client.poke(head.owner);

@@ -342,3 +342,44 @@ test('an answer the joiner does not know, from a newer peer, reads as still wait
   assert.equal(pendingOf(cleo, groupId)?.state, 'waiting');
   assert.ok(!cleo.events.some((e) => e.type === 'collaborators.join-ended'));
 });
+
+test('a member the owner removed is not taken for a member when she asks again: her request waits with a member, and the denial reaches her', async () => {
+  const net = new Net();
+  const { ana, ben, groupId } = await team(net);
+  const cleo = await install(net, 'Cleo');
+  assert.equal((await cleo.service.join(ana.service.createInvite(groupId).text)).state, 'joined');
+  await ana.service.removeMember(groupId, cleo.id);
+  await until('Ben learns of the removal', () => !ben.service.getGroup(groupId).members.some((m) => m.endpointId === cleo.id));
+  // Nobody sends a removed member the version that removes her: her chain still lists her
+  assert.ok(cleo.service.getGroup(groupId).members.some((m) => m.endpointId === cleo.id));
+
+  const invite = ana.service.createInvite(groupId).text;
+  await off(ana);
+  const asked = await cleo.service.join(invite);
+  assert.equal(asked.state === 'pending' ? asked.pending.relayedBy?.endpointId : null, ben.id, 'Ben holds the request');
+  assert.equal(pendingOf(cleo, groupId)?.state, 'waiting', 'the stale chain does not hide the waiting join');
+
+  await on(ana);
+  await until('the request reaches Ana', () => ana.service.joinRequests(groupId).some((r) => r.from === cleo.id));
+  ana.service.denyJoin(groupId, cleo.id);
+  await until('Cleo learns she was denied', () => pendingOf(cleo, groupId)?.state === 'denied');
+  assert.ok(!ana.service.getGroup(groupId).members.some((m) => m.endpointId === cleo.id));
+});
+
+test('a member pasting an invite again is still a member: a member answers with the chain while the owner is away, and the held chain when nobody answers', async () => {
+  const net = new Net();
+  const { ana, ben, groupId } = await team(net);
+  const dan = await install(net, 'Dan');
+  assert.equal((await dan.service.join(ana.service.createInvite(groupId).text)).state, 'joined');
+  const invite = ana.service.createInvite(groupId).text;
+  await off(ana);
+  const viaBen = await dan.service.join(invite);
+  assert.equal(viaBen.state, 'joined');
+  assert.equal(ben.store.joinRequest(groupId, dan.id), null, 'Ben holds no request for a member');
+  assert.equal(dan.service.groupList().pendingJoins.length, 0, 'nothing waits');
+
+  await off(ben);
+  const alone = await dan.service.join(invite);
+  assert.equal(alone.state, 'joined');
+  assert.equal(dan.service.groupList().pendingJoins.length, 0, 'nothing waits');
+});
