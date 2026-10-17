@@ -226,7 +226,7 @@
     "agentsMayRead": "Los agentes de tus compañeros pueden leerlo",
     "agentsMayReadHint": "Desactivado, el asistente y los chats de un compañero no reciben este proyecto; el compañero lo sigue leyendo en su pestaña Compartido.",
     "agentReads": "Los agentes de este proyecto pueden leer lo que comparten aquí tus compañeros",
-    "agentReadsHint": "Solo reciben las herramientas de lectura los chats que preguntan antes de ejecutar un comando: nunca uno en Sin comprobar permisos, ni los workers de una orquestación. Lo que leen aparece en Ajustes → Seguridad."
+    "agentReadsHint": "Solo reciben las herramientas de lectura los chats que preguntan antes de ejecutar un comando: nunca uno en Sin comprobar permisos, ni los workers de una orquestación. Lo que leen aparece en Ajustes → Acceso y seguridad."
   },
   "shared": {
     "member": "Colaborador",

@@ -1634,8 +1634,8 @@
     "failedTitle": "The tunnel failed",
     "authRequired": {
       "title": "Turn on authentication first",
-      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
-      "action": "Open Security"
+      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Access, above.",
+      "action": "Go to Access"
     },
     "tailscale": {
       "tags": {

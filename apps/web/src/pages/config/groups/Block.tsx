@@ -19,3 +19,21 @@ export function SettingsBlock({ title, status, setting, children }: { title: str
     </div>
   );
 }
+
+/** A control and the consequence line attached under it, close enough to read as one row. */
+export function SettingsRow({ children }: { children: ReactNode }) {
+  return <div className="settings-row">{children}</div>;
+}
+
+/**
+ * What shows only while it applies (the cap's amount, the OIDC fields, what is missing): always
+ * mounted, opened with `grid-template-rows: 0fr → 1fr` so the rows below glide instead of jumping,
+ * and `inert` while closed so nobody tabs into what cannot be seen.
+ */
+export function SettingsReveal({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <div className={open ? 'settings-reveal is-open' : 'settings-reveal'} inert={!open}>
+      <div className="settings-reveal-body">{children}</div>
+    </div>
+  );
+}

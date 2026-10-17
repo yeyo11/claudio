@@ -137,7 +137,7 @@ test('the settings section shows off, on, set by the environment and invalid', (
   assert.match(text(off), /No cap: nothing waits for the day’s spend\./);
   assert.match(text(wrap(<SpendCard saved={settings(null)} />, state(3, { capUsd: null }))), /Today \$3\.00, and no cap: nothing waits for it\./);
   assert.match(off, /role="switch"[^>]*aria-checked="false"/);
-  assert.doesNotMatch(off, /type="number"/, 'the amount appears once the cap is on');
+  assert.match(off, /<div class="settings-reveal" inert=""><div class="settings-reveal-body"><label class="field">/, 'the amount waits, closed and out of reach, until the cap is on');
   assert.match(text(off), /On subscription accounts it is what it would cost on the API, not what you pay\./);
 
   const on = wrap(<SpendCard saved={settings(20, 'file')} />, state(8));

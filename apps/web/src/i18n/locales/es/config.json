@@ -1634,8 +1634,8 @@
     "failedTitle": "El túnel ha fallado",
     "authRequired": {
       "title": "Activa antes la autenticación",
-      "body": "Mientras Claudio no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Seguridad.",
-      "action": "Abrir Seguridad"
+      "body": "Mientras Claudio no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Acceso, más arriba.",
+      "action": "Ir a Acceso"
     },
     "tailscale": {
       "tags": {

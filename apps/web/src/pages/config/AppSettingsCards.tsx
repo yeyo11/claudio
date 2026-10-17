@@ -8,6 +8,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { PERMISSION_MODES } from '../../components/ui';
+import { SettingsReveal, SettingsRow } from './groups/Block';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
@@ -343,10 +344,14 @@ export function SpendFields({
     cap !== null && spentUsd !== null ? t('appSettings.spend.today', { spent: formatCost(spentUsd), cap: formatCost(cap), percent: formatPercent((spentUsd / cap) * 100) }) : null;
   return (
     <>
-      <Switch checked={on} onChange={onToggle} disabled={fromEnv}>
-        {t('appSettings.spend.switch')}
-      </Switch>
-      {on && (
+      <SettingsRow>
+        <Switch checked={on} onChange={onToggle} disabled={fromEnv}>
+          {t('appSettings.spend.switch')}
+        </Switch>
+        <p className="small muted tnum">{on ? (today ?? t('appSettings.spend.hintOver')) : spentUsd !== null ? t('appSettings.spend.todayOff', { spent: formatCost(spentUsd) }) : t('appSettings.spend.hintOff')}</p>
+      </SettingsRow>
+      {/* Mounted either way, revealed while the cap is on, so turning it on moves nothing at once */}
+      <SettingsReveal open={on}>
         <Field
           label={t('appSettings.spend.amount')}
           hint={
@@ -359,15 +364,8 @@ export function SpendFields({
         >
           <NumberInput aria-label={t('appSettings.spend.amount')} value={amount} onChange={onAmount} min={MIN_CAP} max={MAX_CAP} step={1} decimal disabled={fromEnv} />
         </Field>
-      )}
-      {on ? (
-        <>
-          {today && <p className="small muted tnum">{today}</p>}
-          <p className="small muted">{t('appSettings.spend.hintOver')}</p>
-        </>
-      ) : (
-        <p className="small muted tnum">{spentUsd !== null ? t('appSettings.spend.todayOff', { spent: formatCost(spentUsd) }) : t('appSettings.spend.hintOff')}</p>
-      )}
+        {today && <p className="small muted">{t('appSettings.spend.hintOver')}</p>}
+      </SettingsReveal>
       <p className="small muted">{t('appSettings.spend.hintApi')}</p>
     </>
   );

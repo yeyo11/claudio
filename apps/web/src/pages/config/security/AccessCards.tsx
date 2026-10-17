@@ -8,7 +8,7 @@ import { useConfirm } from '@claudio/ui/components/Dialog';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Field, Segmented, Tag } from '@claudio/ui/components/ui';
 import { getToken } from '../../../lib/auth';
-import { SettingsBlock } from '../groups/Block';
+import { SettingsBlock, SettingsReveal, SettingsRow } from '../groups/Block';
 import { OwnTokenForm, RevealedToken, useTokenActions } from './token';
 
 const MODES: AuthMode[] = ['none', 'token', 'oidc'];
@@ -40,17 +40,21 @@ export function ReadOnlyCard({ auth }: { auth: AuthConfig }) {
       setting="access.read-only"
       status={auth.readOnly ? <Tag tone="warn">{t('security.readOnly.on')}</Tag> : <Tag>{t('security.readOnly.off')}</Tag>}
     >
-      <Switch
-        checked={auth.readOnly}
-        disabled={update.isPending}
-        onChange={(readOnly) =>
-          update.mutate({ readOnly }, { onSuccess: () => toast.success(readOnly ? t('security.readOnly.enabled') : t('security.readOnly.disabled')) })
-        }
-      >
-        {t('security.readOnly.label')}
-      </Switch>
-      <p className="small muted">{auth.readOnly ? t('security.readOnly.consequenceOn') : t('security.readOnly.consequenceOff')}</p>
-      {auth.readOnly && <p className="small muted">{t('security.readOnly.note')}</p>}
+      <SettingsRow>
+        <Switch
+          checked={auth.readOnly}
+          disabled={update.isPending}
+          onChange={(readOnly) =>
+            update.mutate({ readOnly }, { onSuccess: () => toast.success(readOnly ? t('security.readOnly.enabled') : t('security.readOnly.disabled')) })
+          }
+        >
+          {t('security.readOnly.label')}
+        </Switch>
+        <p className="small muted">{auth.readOnly ? t('security.readOnly.consequenceOn') : t('security.readOnly.consequenceOff')}</p>
+      </SettingsRow>
+      <SettingsReveal open={auth.readOnly}>
+        <p className="small muted">{t('security.readOnly.note')}</p>
+      </SettingsReveal>
     </SettingsBlock>
   );
 }
@@ -99,42 +103,43 @@ export function AccessCard({ auth }: { auth: AuthConfig }) {
         }}
       >
         <p className="small muted">{t('security.access.intro')}</p>
-        <Segmented
-          label={t('security.access.modeLabel')}
-          value={mode}
-          onChange={setMode}
-          options={MODES.map((value) => ({ value, label: t(`security.access.modes.${value}.label`) }))}
-        />
-        <p className="small muted">{t(`security.access.modes.${mode}.body`)}</p>
+        <SettingsRow>
+          <Segmented
+            label={t('security.access.modeLabel')}
+            value={mode}
+            onChange={setMode}
+            options={MODES.map((value) => ({ value, label: t(`security.access.modes.${value}.label`) }))}
+          />
+          {/* The three modes' lines are of a length: two lines kept for each, so a choice moves nothing */}
+          <p className="small muted settings-consequence-2">{t(`security.access.modes.${mode}.body`)}</p>
+        </SettingsRow>
 
-        {mode === 'oidc' && (
-          <>
-            <div className="form-grid form-grid-3">
-              <Field label={t('security.access.issuer')} hint={t('security.access.issuerHint')}>
-                <input
-                  type="url"
-                  autoComplete="off"
-                  placeholder="https://login.example.com/realms/claudio"
-                  value={oidc.issuer}
-                  onChange={(e) => setOidc({ ...oidc, issuer: e.target.value })}
-                />
-              </Field>
-              <Field label={t('security.access.audience')} hint={t('security.access.audienceHint')}>
-                <input type="text" autoComplete="off" placeholder="claudio" value={oidc.audience} onChange={(e) => setOidc({ ...oidc, audience: e.target.value })} />
-              </Field>
-              <Field label={t('security.access.clientId')} hint={t('security.access.clientIdHint')}>
-                <input type="text" autoComplete="off" value={oidc.clientId} onChange={(e) => setOidc({ ...oidc, clientId: e.target.value })} />
-              </Field>
-            </div>
-            <p className="small muted">{t('security.access.oidcNoLogin')}</p>
-          </>
-        )}
-
-        {missing && (
-          <div className="alert alert-warn" role="status">
-            <div className="alert-body">{t(`security.access.missing.${missing}`)}</div>
+        <SettingsReveal open={mode === 'oidc'}>
+          <div className="form-grid form-grid-3">
+            <Field label={t('security.access.issuer')} hint={t('security.access.issuerHint')}>
+              <input
+                type="url"
+                autoComplete="off"
+                placeholder="https://login.example.com/realms/claudio"
+                value={oidc.issuer}
+                onChange={(e) => setOidc({ ...oidc, issuer: e.target.value })}
+              />
+            </Field>
+            <Field label={t('security.access.audience')} hint={t('security.access.audienceHint')}>
+              <input type="text" autoComplete="off" placeholder="claudio" value={oidc.audience} onChange={(e) => setOidc({ ...oidc, audience: e.target.value })} />
+            </Field>
+            <Field label={t('security.access.clientId')} hint={t('security.access.clientIdHint')}>
+              <input type="text" autoComplete="off" value={oidc.clientId} onChange={(e) => setOidc({ ...oidc, clientId: e.target.value })} />
+            </Field>
           </div>
-        )}
+          <p className="small muted">{t('security.access.oidcNoLogin')}</p>
+        </SettingsReveal>
+
+        <SettingsReveal open={missing !== null}>
+          <div className="alert alert-warn" role="status">
+            <div className="alert-body">{missing && t(`security.access.missing.${missing}`)}</div>
+          </div>
+        </SettingsReveal>
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={!dirty || Boolean(missing) || update.isPending}>
             {update.isPending ? t('shared.saving') : t('security.access.save')}
