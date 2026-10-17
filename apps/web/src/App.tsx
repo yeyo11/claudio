@@ -201,7 +201,8 @@ function Shell() {
   }, []);
 
   // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
-  // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
+  // longer be there, so focus moves to the page, unless the page already took it (an autofocus), or
+  // a dialog has it: a redirect can commit after the person opened the palette, portalled outside main.
   const mainRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
   useEffect(() => {
@@ -210,7 +211,9 @@ function Shell() {
       return;
     }
     const main = mainRef.current;
-    if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+    const active = document.activeElement;
+    if (active?.closest('[role=dialog], [role=alertdialog]')) return;
+    if (main && !main.contains(active)) main.focus({ preventScroll: true });
   }, [pathname]);
 
   // The palette asks for the workflow dialog it cannot host itself
