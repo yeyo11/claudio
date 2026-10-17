@@ -16,15 +16,15 @@
   },
   "unavailable": {
     "title": "La terminal no está disponible aquí",
-    "unknown": "Claudio no ha podido saber por qué. Revisa Ajustes → Seguridad.",
-    "settings": "Abrir los ajustes de seguridad",
-    "off": "La terminal está desactivada. Actívala en Ajustes → Seguridad.",
+    "unknown": "Claudio no ha podido saber por qué. Revisa Ajustes → Acceso y seguridad.",
+    "settings": "Abrir Acceso y seguridad",
+    "off": "La terminal está desactivada. Actívala en Ajustes → Acceso y seguridad.",
     "disabled-by-env": "El entorno ha desactivado la terminal (CLAUDIO_TERMINAL).",
     "pty-missing": "Esta instalación no admite pseudoterminales, así que no se puede iniciar un shell.",
     "host-failed": "El host de terminales ha fallado varias veces. Reinicia Claudio, o desactiva y vuelve a activar la terminal.",
     "read-only": "Claudio está en modo de solo lectura, que no permite un shell.",
-    "needs-auth": "Desde otro dispositivo la terminal necesita autenticación con token. Actívala en Ajustes → Seguridad.",
-    "remote-off": "Los demás dispositivos no pueden abrir una terminal. Permite el túnel en Ajustes → Seguridad.",
+    "needs-auth": "Desde otro dispositivo la terminal necesita autenticación con token. Actívala en Ajustes → Acceso y seguridad.",
+    "remote-off": "Los demás dispositivos no pueden abrir una terminal. Permite el túnel en Ajustes → Acceso y seguridad.",
     "needs-tunnel": "Desde otro dispositivo la terminal solo se abre a través del túnel.",
     "from-agent": "No se puede abrir una terminal desde un proceso que ha iniciado un agente.",
     "chat-token": "El token de un chat no puede abrir una terminal."
@@ -121,7 +121,15 @@
     "peerOn": "Se comprueba el proceso que se conecta: un proceso que ha iniciado un agente no puede abrir una terminal.",
     "peerUnknown": "Aquí no se puede comprobar el proceso que se conecta, así que sin autenticación una terminal se abre solo desde este equipo.",
     "screenReader": "Modo de lector de pantalla",
-    "screenReaderHint": "Hace la terminal legible para un lector de pantalla, a costa de algo de velocidad. Se guarda en este navegador."
+    "screenReaderHint": "Hace la terminal legible para un lector de pantalla, a costa de algo de velocidad. Se guarda en este navegador.",
+    "consequence": {
+      "maxTerminals_one": "Hasta {{formatted}} terminal abierta a la vez.",
+      "maxTerminals_other": "Hasta {{formatted}} terminales abiertas a la vez.",
+      "idleMinutes_one": "Se cierra tras {{formatted}} minuto sin atender.",
+      "idleMinutes_other": "Se cierra tras {{formatted}} minutos sin atender.",
+      "scrollbackLines_one": "Guarda {{formatted}} línea para una recarga.",
+      "scrollbackLines_other": "Guarda {{formatted}} líneas para una recarga."
+    }
   },
   "history": {
     "title": "Historial de terminales",
