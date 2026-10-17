@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/yeyo11/claudio/compare/v0.2.1...v0.3.0) (2026-10-17)
+
+
+### Features
+
+* **e2e:** the browser suite runs on GitHub, never on this machine; pnpm e2e:remote runs it on a pushed branch ([#29](https://github.com/yeyo11/claudio/issues/29)) ([c9817c9](https://github.com/yeyo11/claudio/commit/c9817c9b1513c3a25b9f99f6950ac05040504b2d))
+* **ui:** the Claudio designer, and the typographic voice it brings ([#26](https://github.com/yeyo11/claudio/issues/26)) ([d2a25a8](https://github.com/yeyo11/claudio/commit/d2a25a869e929f837a7d5257db303f11c6f15f46))
+
+
+### Performance
+
+* **e2e:** balanced shards, and the three faults the old split hid (a spec selector, a leaked emulation, a Suggest tasks race) ([#30](https://github.com/yeyo11/claudio/issues/30)) ([217d0c5](https://github.com/yeyo11/claudio/commit/217d0c5767cdbc985785f992d6e845bc36e268f7))
+
+
+### Documentation
+
+* close out 2026-10-17: 0.2.1, the ledger, Collaborators run on real machines, and where the iroh defects stand ([#27](https://github.com/yeyo11/claudio/issues/27)) ([03ac872](https://github.com/yeyo11/claudio/commit/03ac872037fe806d1d51180e843c02958012772a))
+
 ## [0.2.1](https://github.com/yeyo11/claudio/compare/v0.2.0...v0.2.1) (2026-10-17)
 
 
