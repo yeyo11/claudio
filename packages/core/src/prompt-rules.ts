@@ -62,6 +62,16 @@ export const RETRIEVAL =
 export const DELEGATION =
   'You own the results of the work you delegate. When you start subagents or background tasks, wait for each one to finish, read what it returned and use it before your turn ends. Never end a turn by saying that you are waiting for background agents or tasks: when this turn ends this process ends, and whatever still runs in the background is lost with it.';
 
+/**
+ * A workflow's lead has nothing to collect by itself: the Workflow tool runs the script in the
+ * background and reports its end to the session. A lead told to wait for its work polled the journal
+ * in an unbounded `sleep 30` loop instead, which kept its process alive past the workflow's end (R15).
+ * Tools are not denied for it, since the deny list could reach its subagents: Claudio's watchdog is
+ * what bounds it.
+ */
+export const WORKFLOW_LEAD_WAIT =
+  'The Workflow tool runs the workflow in the background and tells this session when it ends, with a task notification. Do not wait for it yourself: no sleep, no polling loop, no Monitor, no background command, and do not read the workflow\'s files (its journal, its agents\' transcripts, its record) to check on it. Once the workflow is launched, end your turn. When the notification arrives, reply with one line: whether the workflow completed, and the label of every agent that failed, if any.';
+
 /** One error at a time: the fixes that went wrong unsupervised were the ones aimed at everything at once. */
 export const FIX_ONE_AT_A_TIME =
   'Fix one error at a time: the first one the output reports, or the one the others follow from. Run the narrowest check that shows it, and move to the next only when it is gone.';

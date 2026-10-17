@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-10-16T18:00:00Z
+updated_at: 2026-10-17T02:30:00Z
 tags:
     - orchestration
     - planner
@@ -181,6 +181,68 @@ that leaves it out. The full design is in [plans/review-gate.md](plans/review-ga
   [Outcome](plans/review-gate.md#outcome); the review's time is in
   [orchestration-timings.md](orchestration-timings.md#what-is-recorded).
 
+## The workflow engine
+
+A graph with `engine: 'workflow'` runs as one Claude Code session, the *lead*, which calls the CLI's
+Workflow tool with a script Claudio generates from the graph (`compileWorkflow` in
+`packages/core/src/workflow-engine.ts`). One agent per task, labelled with the task id, and a
+synthesis agent labelled `synthesis` in phase `Synthesis`. Launch, following and settling are in
+`packages/core/src/orchestrator.ts` (`launchWorkflow`, `followWorkflow`, `finishWorkflow`). Since
+R15 ([plans/workflow-engine-limits.md](plans/workflow-engine-limits.md)) it follows its journal,
+holds or rotates at a usage limit, and is never left running unwatched.
+
+- **Task states come from the journal, live.** The CLI writes
+  `<CLAUDE_CONFIG_DIR>/projects/<cwd-slug>/<sessionId>/subagents/workflows/<wf run id>/journal.jsonl`
+  as each agent starts and ends (`launched`, `started`, `result`, `failed`, with `key`, `agentId`,
+  `label`, `phase`). Claudio learns the run id from the new `wf_*` directory and reads the journal
+  every second (`readJournalTasks` in `packages/core/src/workflow-journal.ts`): `started` → running,
+  `result` → completed with the agent's whole answer, `failed` → failed with the last thing the
+  agent said (read from its transcript, `readAgentEnd`). A key's latest line wins, so a call
+  resumed from the cache under the same key replaces its failed attempt. The synthesis agent's
+  entry drives the graph's synthesis times and final report. The script's final result
+  (`readCompiledResult`) still settles what the journal never mentioned (skipped tasks, an agent
+  that returned nothing). The stream's own progress was seen to miss an agent the API refused;
+  the journal does not.
+- **A usage limit is held or rotated, for the whole graph.** An agent refused with a 429 (or a 401)
+  is recognised from its transcript's structured fields (`apiErrorStatus`,
+  `rate_limit_info.resetsAt`, `rateLimitType`), never from its wording (`journalRefusal`); the
+  lead's own limit is read from its stream as for any chat. Either way the lead is handed to the
+  [rotation](accounts.md#choosing-and-switching) as automated work (`workOf` answers
+  `<orchestration>:__workflow__`): the account is marked, the lead stopped, and the rotation moves
+  the session to an account with room, or opens a wait with the reset time. The run then goes on
+  by resuming the workflow from its cache in the same session (`resumeFromRunId`, through
+  `Orchestrator.replayWorkflow` → `ChatManager.replayWith`), never by replaying the lead's turn,
+  which would start it over. Every account's `projects/` points at one directory, so the cache is
+  there whichever account resumes it. The refused agent stays `running` meanwhile, not failed.
+- **While it waits** the graph stays `running` and the wait (`LimitWait`) sits on its running
+  tasks; `waiting` keeps meaning "a person decides". A wait that runs out or that a person stops
+  ends the graph `failed` or `stopped`, with the reason in `orch.error`, and stopping the graph
+  releases the wait. One replay is allowed per limit; a completed task resets the count, so a later
+  limit is a new one.
+- **A watchdog.** A running workflow graph always has a live lead, an open limit wait, or a launch
+  under way:
+  - the run's record or stream says the workflow ended but the lead is still up: it is given 60 s
+    to say its one line, then stopped (`reapLead`);
+  - the lead is gone before the workflow ended: the graph settles, and what was left undone fails
+    with "the workflow did not finish: …" in `orch.error`;
+  - nothing grew for 30 minutes (the run directory's bytes, the stream's agents, the task states;
+    the lead's own activity does not count): the lead is stopped and the graph fails, resumable
+    from its cache (`abandonWorkflow`);
+  - after a restart a graph whose lead waits for a reset stays `running` and is watched again.
+- **The lead never polls.** Its prompt carries `WORKFLOW_LEAD_WAIT` instead of `DELEGATION`
+  ([prompts.md](prompts.md#workflow-lead-launchworkflow)): the f33d7d0b lead, told to wait for its
+  delegated work, sat in a `sleep 30` loop over its own journal. No tools are denied to it, since
+  the deny list could reach its subagents; the watchdog is the guarantee.
+- **Where it shows.** The orchestration page lists every task of a workflow step as a row with its
+  journal state, says a limit wait once above the steps (a warn `WaitLine` with the reset hour and
+  one "Stop waiting"), and shows why a workflow did not finish or was stopped at the top, with the
+  note that resuming goes on from the cache.
+- **Tests.** `packages/core/test/workflow-journal.test.ts`, `workflow-engine.test.ts`,
+  `workflow-limits.test.ts`, `workflow-watchdog.test.ts` and `rotation.test.ts` against the fixture
+  `packages/core/test/fixtures/workflow-journal/{at-limit,resumed}` (a trimmed copy of f33d7d0b's
+  files with the CLI's real 429 entry); `apps/web/test/workflow-limits-board.test.tsx`; and
+  `e2e/specs/orchestration-v2.spec.mjs` (a two-task workflow graph's rows and its end notice).
+
 ## Related
 
-[[guards.md]] · [[plans/review-gate.md]] · [[plans/orchestration-speed.md]] · [[plans/graph-shape.md]] · [[plans/worker-checks.md]] · [[design-system.md]]
+[[plans/workflow-engine-limits.md]] · [[accounts.md]] · [[prompts.md]] · [[guards.md]] · [[plans/review-gate.md]] · [[plans/orchestration-speed.md]] · [[plans/graph-shape.md]] · [[plans/worker-checks.md]] · [[design-system.md]]

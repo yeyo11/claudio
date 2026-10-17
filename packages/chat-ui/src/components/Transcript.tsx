@@ -9,7 +9,6 @@ import { toolHint } from '../lib/tool-lens';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
-import { useStreamFade } from '../lib/smooth-text';
 import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/ui/lib/format';
@@ -508,12 +507,10 @@ export function WorkingLine({ detail }: { detail?: string }) {
 }
 
 /** The block the agent is generating right now, fed by ephemeral `partial` stream events. */
-export function StreamingEntry({ block, text, continued = false, fade = false, onHeight }: { block: 'text' | 'thinking'; text: string; continued?: boolean; fade?: boolean; onHeight?: (height: number) => void }) {
+export function StreamingEntry({ block, text, continued = false, onHeight }: { block: 'text' | 'thinking'; text: string; continued?: boolean; onHeight?: (height: number) => void }) {
   const { t } = useTranslation('chat');
   const agentName = useAgentName();
   const article = useRef<HTMLElement>(null);
-  const body = useRef<HTMLDivElement>(null);
-  const fading = useStreamFade(body, text, fade && block === 'text');
   const report = useRef(onHeight);
   report.current = onHeight;
   // The stored copy of this block takes this height as its first size
@@ -528,7 +525,7 @@ export function StreamingEntry({ block, text, continued = false, fade = false, o
   return (
     <article ref={article} className={`msg msg-assistant msg-streaming ${continued ? 'is-continued' : ''}`} aria-live="off" data-find-ignore>
       {continued ? <span className="avatar-gap" aria-hidden /> : <Avatar role="assistant" />}
-      <div className="msg-body" ref={body}>
+      <div className="msg-body">
         {!continued && (
           <header className="msg-head">
             <span className="msg-role">{agentName}</span>
@@ -542,7 +539,7 @@ export function StreamingEntry({ block, text, continued = false, fade = false, o
             <div className="prose muted">{text.length > 1200 ? `…${text.slice(-1200)}` : text}</div>
           </div>
         ) : (
-          <RichText text={text} className={fading ? 'streaming-text has-fade' : 'streaming-text'} streaming />
+          <RichText text={text} className="streaming-text" streaming />
         )}
       </div>
     </article>

@@ -30,7 +30,7 @@ import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useDetailPanel } from '../lib/detail';
 import { GuardChip } from './GuardControls';
-import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
+import { attemptLabel, blockedBy, decisionsOn, waitingSummary, waitShownOnGraph, workflowEnded, workflowWait } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '@claudio/ui/lib/format';
 import { useClockTick } from '@claudio/ui/lib/motion';
 import { canRerun, dependantsOf } from '../lib/orchestration-v2';
@@ -211,7 +211,7 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
 
   const buttons = (
     <>
-      {task.waiting && (
+      {task.waiting && !waitShownOnGraph(orch) && (
         <button type="button" className="btn btn-small btn-quiet" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
           {tc('limitWait.stop')}
         </button>
@@ -385,9 +385,18 @@ function TaskStatusBox({ orch, task }: { orch: Orchestration; task: Orchestratio
   const { t } = useTranslation(['orchestration', 'primitives', 'components']);
   const attempt = attemptLabel(orch, task);
   const behind = task.status === 'blocked' ? blockedBy(orch, task) : [];
+  const providerLabel = useProviderLabel();
   switch (task.status) {
     case 'running':
       // Waiting for a reset is not live work: no ticker, no spinner, the clock and the hour
+      if (task.waiting && waitShownOnGraph(orch))
+        // A workflow's wait is its lead's: the hour and the way out are said once, over the tasks
+        return (
+          <div className="task-box is-warn">
+            <Clock {...ICON_SM} />
+            <span>{t('components:limitWait.title', { name: providerLabel(task.waiting.provider) })}</span>
+          </div>
+        );
       if (task.waiting) return <TaskWaitLine wait={task.waiting} />;
       return task.activity ? (
         <div className="task-box is-live">
@@ -722,6 +731,56 @@ export function WaitingNotice({ orch }: { orch: Orchestration }) {
           {blocked.length > 0 && ` ${failed.length === 1 ? t('board.blockedBehindIt', { count: blocked.length }) : t('board.blockedBehindThem', { count: blocked.length })}`}.
           {held && ` ${held}`} {t('board.decide')}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A workflow held at a usage limit, said once for the whole graph: its one lead runs every task, so
+ * the wait, its hour and stopping it are the graph's. Warn and still, as every wait.
+ */
+export function WorkflowWaitNotice({ orch }: { orch: Orchestration }) {
+  const { t } = useTranslation(['orchestration', 'components']);
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const wait = workflowWait(orch);
+  const stopWait = useMutation({
+    mutationFn: () => api.cancelLimitWait(wait?.moveId ?? ''),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) }),
+    onError: (error) => toast.error(t('components:limitWait.stopFailed'), error),
+  });
+  if (!wait) return null;
+  return (
+    <WaitLine
+      wait={wait}
+      why={t('board.workflowWaitWhy')}
+      action={
+        <button type="button" className="btn btn-ghost btn-small wait-line-go" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
+          {t('components:limitWait.stop')}
+        </button>
+      }
+    />
+  );
+}
+
+/**
+ * Why a workflow ended without finishing, at the top of the page: its tasks say what each of them
+ * reached, and this says what took the run down, in the server's words, and that a resume keeps
+ * what finished.
+ */
+export function WorkflowEndedNotice({ orch }: { orch: Orchestration }) {
+  const { t } = useTranslation('orchestration');
+  const ended = workflowEnded(orch);
+  if (!ended) return null;
+  const Icon = ended.tone === 'bad' ? CircleX : Square;
+  return (
+    <div className={ended.tone === 'bad' ? 'alert alert-bad' : 'alert alert-warn'} role={ended.tone === 'bad' ? 'alert' : 'status'}>
+      <Icon className="alert-icon" {...ICON_SM} />
+      <div className="alert-body stack-tight">
+        <div className="strong">{ended.tone === 'bad' ? t('board.workflowFailedTitle') : t('board.workflowStoppedTitle')}</div>
+        <div className="small break">{ended.error}</div>
+        <div className="small">{t('board.workflowResumeHint')}</div>
       </div>
     </div>
   );

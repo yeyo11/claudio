@@ -12,7 +12,7 @@ import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { ReviewStore, ReviewStoreError } from '../src/review-store.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
-import { DELEGATION, FRONTEND, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
+import { DELEGATION, FRONTEND, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED, WORKFLOW_LEAD_WAIT } from '../src/prompt-rules.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { openWaitOf } from '../src/rotation.ts';
 import { tempConfig } from './helpers.ts';
@@ -1589,13 +1589,16 @@ test('a worker whose result arrives with a background subagent still running goe
   db.close();
 });
 
-test('the workflow lead is given the delegation contract, and each task of the script its own head', () => {
+test('the workflow lead is told not to wait for the workflow itself, and each task of the script its own head', () => {
   const { db, repo, runs, orchestrator } = retryGraph();
   const started = orchestrator.create({ ...graphOf(repo, [{ id: 'one', prompt: 'a' }, { id: 'two', prompt: 'b' }], { objective: 'go', worktree: false, synthesize: false }), engine: 'workflow' });
   const run = runs.get(started.workflow?.runId ?? '');
-  assert.ok(run?.prompt.includes(DELEGATION));
   const text = run?.prompt ?? '';
-  assert.ok(text.indexOf(DELEGATION) < text.indexOf('Time matters here'));
+  // The delegation contract told the lead to wait for its work, which it did in an unbounded sleep loop (R15)
+  assert.ok(!text.includes(DELEGATION));
+  assert.ok(!/wait for it to finish/i.test(text));
+  assert.ok(text.includes(WORKFLOW_LEAD_WAIT));
+  assert.ok(text.indexOf(WORKFLOW_LEAD_WAIT) < text.indexOf('Time matters here'));
   const script = readFileSync(started.workflow?.scriptPath ?? '', 'utf8');
   assert.ok(script.includes('yours is `one`') && script.includes('yours is `two`'));
   orchestrator.stop(started.id);

@@ -1,0 +1,1 @@
+{"agentType": "workflow-subagent", "description": "t1", "workflowPhase": "Tasks", "spawnDepth": 1, "requestShape": "foreground", "requestNonInteractive": true, "model": "claude-opus-5-5"}

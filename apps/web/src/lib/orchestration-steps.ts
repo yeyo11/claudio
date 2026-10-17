@@ -17,8 +17,8 @@ export type OrchestrationStep =
   | { id: 'verification'; kind: 'verification'; state: StepState }
   | { id: 'synthesis'; kind: 'synthesis'; state: StepState }
   | { id: 'pull-request'; kind: 'pull-request'; state: StepState }
-  | { id: string; kind: 'phase'; state: StepState; phase: string | null; agents: ChatWorkflowAgent[] }
-  | { id: 'workflow'; kind: 'workflow'; state: StepState };
+  | { id: string; kind: 'phase'; state: StepState; phase: string | null; agents: ChatWorkflowAgent[]; tasks: OrchestrationTaskState[] }
+  | { id: 'workflow'; kind: 'workflow'; state: StepState; tasks: OrchestrationTaskState[] };
 
 /** Nothing runs and nothing waits for a person: what has not happened by now only happens if someone relaunches. */
 function settled(status: OrchestrationStatus): boolean {
@@ -216,11 +216,32 @@ function phaseState(agents: readonly ChatWorkflowAgent[], workflowStatus: ChatWo
 }
 
 /**
- * A workflow's phases as steps, in the order its script declared them, with the agents that ran in
- * each. Agents the CLI reported without a phase make a step of their own. Null when the workflow
- * has not reported a phase or an agent yet: the orchestration is then shown as one step.
+ * Where each of the graph's tasks shows among a workflow's phases: under the phase its agent ran in
+ * (the script labels each agent with its task's id), and a task no agent has reported yet (one still
+ * to start, or one the API refused, which reaches the journal and never the stream) under the phase
+ * the others are in, else the first.
  */
-export function workflowPhaseSteps(workflow: ChatWorkflow | null | undefined): OrchestrationStep[] | null {
+function tasksByPhase(phases: readonly (string | null)[], agents: readonly ChatWorkflowAgent[], tasks: readonly OrchestrationTaskState[]): Map<string | null, OrchestrationTaskState[]> {
+  const phaseOf = new Map<string, string | null>();
+  for (const agent of agents) phaseOf.set(agent.label, agent.phase);
+  const home = tasks.map((t) => phaseOf.get(t.id)).find((p) => p !== undefined) ?? phases[0] ?? null;
+  const groups = new Map<string | null, OrchestrationTaskState[]>();
+  for (const task of tasks) {
+    const phase = phaseOf.has(task.id) ? (phaseOf.get(task.id) ?? null) : home;
+    groups.set(phase, [...(groups.get(phase) ?? []), task]);
+  }
+  return groups;
+}
+
+/**
+ * A workflow's phases as steps, in the order its script declared them, with the agents that ran in
+ * each and the graph's tasks they run. Agents the CLI reported without a phase make a step of their
+ * own. A phase whose tasks have started reads as a graph's stage does, from the task states the
+ * server follows in the workflow's journal: an agent refused at a limit fails its task there, or
+ * keeps it running while the run waits for the reset. Null when the workflow has not reported a
+ * phase or an agent yet: the orchestration is then shown as one step.
+ */
+export function workflowPhaseSteps(workflow: ChatWorkflow | null | undefined, orch?: Pick<Orchestration, 'tasks' | 'status'>): OrchestrationStep[] | null {
   if (!workflow) return null;
   const groups = new Map<string | null, ChatWorkflowAgent[]>();
   for (const phase of workflow.phases) groups.set(phase, []);
@@ -230,13 +251,19 @@ export function workflowPhaseSteps(workflow: ChatWorkflow | null | undefined): O
     groups.set(agent.phase, list);
   }
   if (groups.size === 0) return null;
-  return [...groups.entries()].map(([phase, agents], index) => ({
-    id: `phase-${index + 1}`,
-    kind: 'phase' as const,
-    phase,
-    agents,
-    state: phaseState(agents, workflow.status),
-  }));
+  const tasks = tasksByPhase([...groups.keys()], workflow.agents, orch?.tasks ?? []);
+  return [...groups.entries()].map(([phase, agents], index) => {
+    const own = tasks.get(phase) ?? [];
+    const started = orch && own.some((t) => t.status !== 'pending');
+    return {
+      id: `phase-${index + 1}`,
+      kind: 'phase' as const,
+      phase,
+      agents,
+      tasks: own,
+      state: started ? stageState(own, orch.status) : phaseState(agents, workflow.status),
+    };
+  });
 }
 
 /**
@@ -247,7 +274,7 @@ export function workflowPhaseSteps(workflow: ChatWorkflow | null | undefined): O
 export function orchestrationSteps(orch: Orchestration, workflow?: ChatWorkflow | null): OrchestrationStep[] {
   const steps: OrchestrationStep[] = [];
   if ((orch.engine ?? 'graph') === 'workflow') {
-    steps.push(...(workflowPhaseSteps(workflow) ?? [{ id: 'workflow', kind: 'workflow', state: workflowStatusState(orch.status) }]));
+    steps.push(...(workflowPhaseSteps(workflow, orch) ?? [{ id: 'workflow', kind: 'workflow', state: workflowStatusState(orch.status), tasks: orch.tasks }]));
   } else {
     layerTasks(orch.tasks).forEach((tasks, index) => {
       steps.push({

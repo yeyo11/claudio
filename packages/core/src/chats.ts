@@ -1740,6 +1740,46 @@ export class ChatManager extends EventEmitter {
     return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn && chat.limitReplays < MAX_LIMIT_REPLAYS;
   }
 
+  /**
+   * A limit the chat's process met where its stream does not say so: a workflow's subagent, refused by
+   * the API, ends in a transcript of its own (R15). It is recorded as the stream's rejected reading or
+   * failed sign-in would be, on the provider and on the account, and the chat is at its limit: a live
+   * process is stopped, and its end announces `limit-hit` as a turn of its own that died would. False
+   * when the chat already is at a limit, or has spent its replay without getting anywhere since.
+   */
+  limitReached(id: string, refusal: { resetsAt: string | null; rateLimitType: string | null; auth: boolean }): boolean {
+    const chat = this.chats.get(id);
+    if (!chat || chat.rateLimited || chat.limitRequested || !chat.lastUserTurn || chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    chat.rateLimited = true;
+    if (refusal.auth) {
+      chat.authFailed = true;
+      this.observeSignIn(chat, true);
+    } else {
+      // The stream's reset is in epoch seconds
+      const resetsAt = refusal.resetsAt ? Math.floor(Date.parse(refusal.resetsAt) / 1000) : NaN;
+      const event: DriverEvent = {
+        kind: 'rate-limit',
+        info: { status: 'rejected', windows: {}, observedAt: now(), ...(refusal.rateLimitType ? { rateLimitType: refusal.rateLimitType } : {}), ...(Number.isFinite(resetsAt) ? { resetsAt } : {}) },
+      };
+      try {
+        this.limits.observe(chat.provider, event);
+        this.observeAccount(chat, event);
+      } catch {
+        // A closed database (shutting down): the chat is at its limit all the same
+      }
+    }
+    this.persist();
+    if (chat.alive) this.stop(id);
+    else this.maybeLimit(chat);
+    return true;
+  }
+
+  /** The chat's work went on past a limit it was replayed for: the next limit is a new one, with a replay of its own. */
+  limitProgress(id: string): void {
+    const chat = this.chats.get(id);
+    if (chat) chat.limitReplays = 0;
+  }
+
   /** The chat's last turn died on its provider's limit and nothing has started on it since. */
   atLimit(id: string): boolean {
     return this.chats.get(id)?.rateLimited === true;
@@ -1877,6 +1917,30 @@ export class ChatManager extends EventEmitter {
       if (waiting.has(message.id)) chat.receipts.delete(message.id);
       this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined);
     }
+    return true;
+  }
+
+  /**
+   * Goes on after a limit with a turn of the caller's instead of the one that died, counted as a
+   * replay is: a workflow resumes its run from the cache, where replaying its lead's turn would launch
+   * it again from nothing. What was still queued for the old process goes with it.
+   */
+  async replayWith(id: string, text: string, account?: string): Promise<boolean> {
+    const chat = this.chats.get(id);
+    if (!chat) return false;
+    if (account) chat.forcedAccount = account;
+    else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    else chat.limitReplays++;
+    chat.rateLimited = false;
+    chat.authFailed = false;
+    chat.limitRequested = false;
+    if (chat.alive) {
+      const proc = chat.proc;
+      this.stop(id);
+      if (proc) await once(proc, 'close');
+    }
+    chat.pending.clear();
+    this.sendMessage(id, text);
     return true;
   }
 }

@@ -23,6 +23,8 @@ interface Options {
   work?: ChatWork | null;
   /** The chats the eval runner says are its samples */
   evalSample?: boolean;
+  /** Goes on with the chat's work instead of its last turn, as a workflow's lead does */
+  replay?: (chatId: string, account?: string) => Promise<boolean> | null;
 }
 
 function settingsOf(): ProvidersSettings {
@@ -48,6 +50,7 @@ function rig(o: Options = {}) {
     emit: (event) => events.push(event),
     ...(o.work ? { work: () => o.work ?? null } : {}),
     ...(o.evalSample ? { evalSample: () => true } : {}),
+    ...(o.replay ? { replay: o.replay } : {}),
     ended: (m, end, reason) => ended.push({ move: m, end, reason }),
     now: () => Date.now() + offset,
     pollMs: 20,
@@ -313,6 +316,42 @@ test('a wait replayed by a process that restored the chat ends the process after
   } finally {
     two?.shutdown();
     one.shutdown();
+  }
+});
+
+test('a chat whose work goes on its own way is not replayed when its wait ends: the hook resumes it', async () => {
+  const calls: Array<[string, string | undefined]> = [];
+  let knows = '';
+  const { chats, db, ended, limited, rotation, close } = rig({ replay: (chatId, account) => (chatId === knows ? (calls.push([chatId, account]), Promise.resolve(true)) : null) });
+  try {
+    const id = await limited();
+    knows = id;
+    const executions = chats.get(id)?.executions.length;
+    const row = pastMove(id, 'claude-code');
+    assert.equal(db.insertProviderMove(row), true);
+    rotation.recover();
+    await waitFor(() => db.providerMove(row.id)?.state === 'resumed');
+    assert.deepEqual(calls, [[id, undefined]]);
+    assert.equal(chats.get(id)?.executions.length, executions, 'the turn that died is not sent again');
+    assert.deepEqual(ended.map((e) => e.end), ['resumed']);
+  } finally {
+    close();
+  }
+});
+
+test('a chat the hook does not know is replayed as before', async () => {
+  const { chats, db, ended, limited, rotation, close } = rig({ replay: () => null });
+  try {
+    const id = await limited();
+    const row = pastMove(id, 'claude-code');
+    assert.equal(db.insertProviderMove(row), true);
+    rotation.recover();
+    await waitFor(() => db.providerMove(row.id)?.state === 'resumed');
+    await chats.exited(id);
+    assert.equal(chats.get(id)?.executions.at(-1)?.outcome, 'completed', 'the replay went through');
+    assert.deepEqual(ended.map((e) => e.end), ['resumed']);
+  } finally {
+    close();
   }
 });
 

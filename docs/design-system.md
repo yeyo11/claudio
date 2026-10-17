@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-17T09:00:00Z
+updated_at: 2026-10-17T10:00:00Z
 tags:
     - design-system
     - web
@@ -764,6 +764,30 @@ border of its own, the composer's card is the field. It grows with the text up t
   under the list says the switch also applies to new chats in the folder.
 - Nothing in the menu moves: it is configuration, not something running.
 
+### The streaming answer, the composer's place, and one composer everywhere
+
+Three rules the owner's R16 ([requests.md](requests.md)) settled, for every chat and every screen
+that starts one:
+
+- **A streaming answer is painted at full colour.** The block Claude is writing
+  (`.msg-streaming` › `.streaming-text`) uses the same colours as the stored message it becomes:
+  prose, inline code and code blocks keep ≥ 4.5:1 in both themes from the first character. The only
+  muted, moving part is the live mark, the caret after the last block (`.streaming-text >
+  :last-child::after`, hidden after a code block); it stops with every other loop under the motion
+  levels. No fade, opacity or `color-mix` of the text while it arrives: the fade of the newest words
+  (CHAT-9) is removed, since at any fraction of its colour the faintest text fails 4.5:1.
+- **The composer sits right under the last message.** Nothing after the conversation in
+  `.run-scroll` reserves height: no spacer to pin the question at the top of the view, no
+  `min-height` on the live tail. A send follows the end of the conversation. CHAT-14's turn spacer is
+  removed for this.
+- **One composer.** Every box that sends a prompt to Claude is the `@claudio/chat-ui` composer:
+  a chat's `Composer`, and `StartComposer` for a screen with no chat yet (the Claudio assistant's
+  entry). Both draw the same `ComposerBox`: the card, the editor, the send button, the line of chips
+  (`.composer-foot`) and the keys hint. A screen hides only what it cannot use (the entry hides the
+  "+", the stop button, the queue and the permission chip) and never restyles the rest; its own
+  chips go first in the line, and model and effort sit behind the chips, in the options popover (a
+  `Sheet` on a phone). `StartComposer` never takes the energy border, since nothing runs yet.
+
 ### Context control: the breakdown, the compact confirmation and the divider
 
 Three variants and one line of rule; the plan is [plans/context-control.md](plans/context-control.md).
@@ -1413,6 +1437,14 @@ New classes `.wait-line` and `.statusbar .lim`. Nothing here is live: waiting do
   command: "Esperando a Claude Code · vuelve a las 14:05", and why in one line (a limit, or no reset
   time with its cap). No spinner, no rail, no energy border; the badge says "esperando". The task
   keeps its parallel slot. "Dejar de esperar" is quiet.
+- **A workflow's wait.** A workflow graph's one lead runs every task, so its limit wait is said once,
+  above the steps (`WorkflowWaitNotice`): the same `.wait-line`, with the reset hour, one sentence
+  saying the run resumes from its cache, and "Dejar de esperar" in the line's `action` slot
+  (`.wait-line-go`, styled as `.spend-wait-go`). The tasks keep their "esperando" badge and a
+  `.task-box.is-warn` line, without a strip or button of their own.
+- **A workflow that did not finish.** `WorkflowEndedNotice` at the top of the page: an `.alert-bad`
+  "El workflow no ha terminado" (or `.alert-warn` "El workflow se ha detenido") with the server's
+  reason and that resuming goes on from the cache. The checks' notice is never shown for a workflow graph.
 - **Status bar (`.lim`).** One dot for Claude Code with its limit: a neutral bar below 60 %, warn with
   "límite" and the percentage from 60 %, bad with "límite agotado" and when it returns. No limit
   reading, no bar. The title gives the window, the reset and the reading's age.
@@ -1593,7 +1625,9 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 - **The entry screen is content, not an `Empty`.** The mark, the greeting (34 px on desktop, 24 on a phone), one line saying
   what the assistant does and that it asks before writing, the live figures in mono (the counts of what is running in
   `--live`, today's spend neutral: they are live things, and the line is optional if the build stays small), "Para
-  empezar" with the starters, and the composer. The page has one gradient surface, the send button. The composer is **not**
+  empezar" with the starters, and the composer, which is the chat's own (`StartComposer`, see "The streaming answer, the
+  composer's place, and one composer everywhere"): the same card, editor, chips and keys line, without the "+", the stop and
+  the permission chip; model and effort show as chips that open the chat's options popover. The page has one gradient surface, the send button. The composer is **not**
   energy-bordered: nothing runs yet. Once the first turn runs it is the chat's working composer and takes the screen's one
   energy border, as on any chat.
 - **Starters** are buttons that fill the composer, never send. Each shows what it is about and the sentence it fills in
@@ -1618,7 +1652,8 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 |---|---|---|
 | `.as-hello`, `.as-hello-sub`, `.as-figures` (`.live`) | new, on `/assistant` | the greeting block. `.as-hello` makes the `.ai-mark` 40 px; the figures are mono, tabular, and only the live counts are cyan |
 | `.as-starters`, `.as-starter` (`-body`, `-title`, `-ask`) | new, the entry's suggestion chips | a two-column grid on desktop and one column on a phone; the button fills the composer. A `.badge.b-warn` on the right when it writes |
-| `.as-context` (`.x`) | `.chip` with a clear button | "Con <project> como contexto"; × is a 44 px target on a phone |
+| `.as-context` (`.x`) | `.chip` with a clear button | "Con <project> como contexto", first in the composer's `.composer-foot`; × is a 44 px target on a phone |
+| the entry's composer | `StartComposer` of `@claudio/chat-ui` (`.composer`, `.composer-editor`, `.composer-foot`) | the chat's composer, not a box of its own: no "+", stop or permission chip, no energy border; model and effort behind the chips |
 | `.as-greeting` | the first message of an assistant chat | the sparkle on `.ai-mark.sm` and one dimmed line; the same at the top of a reopened assistant chat |
 | `.cell > .ai-mark` | the Más row | the sparkle tile at the size of the other rows' `.proj` |
 | `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |

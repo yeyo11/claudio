@@ -28,6 +28,7 @@ import { toolCallsOf, type ToolCall } from './tool-calls.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
 import { UsageFold } from './usage.ts';
 import { readSessionWorkflows, readWorkflowAgent, WorkflowMemo } from './workflows.ts';
+import { readJournalTasks, type JournalRead } from './workflow-journal.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
 const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
@@ -595,6 +596,12 @@ export class SessionStore {
   async workflows(sessionId: string, live = true): Promise<WorkflowRun[]> {
     const found = await this.findFile(sessionId);
     return found ? readSessionWorkflows(found.file, sessionId, live, this.workflowMemo) : [];
+  }
+
+  /** A workflow run's tasks as its journal has them, from line `from` on; null when the session is not found. */
+  async workflowJournal(sessionId: string, runId: string, from = 0): Promise<JournalRead | null> {
+    const found = await this.findFile(sessionId);
+    return found ? readJournalTasks(found.file, runId, from) : null;
   }
 
   /**
