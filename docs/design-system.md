@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-17T02:30:00Z
 tags:
     - design-system
     - web
@@ -1413,6 +1413,14 @@ New classes `.wait-line` and `.statusbar .lim`. Nothing here is live: waiting do
   command: "Esperando a Claude Code · vuelve a las 14:05", and why in one line (a limit, or no reset
   time with its cap). No spinner, no rail, no energy border; the badge says "esperando". The task
   keeps its parallel slot. "Dejar de esperar" is quiet.
+- **A workflow's wait.** A workflow graph's one lead runs every task, so its limit wait is said once,
+  above the steps (`WorkflowWaitNotice`): the same `.wait-line`, with the reset hour, one sentence
+  saying the run resumes from its cache, and "Dejar de esperar" in the line's `action` slot
+  (`.wait-line-go`, styled as `.spend-wait-go`). The tasks keep their "esperando" badge and a
+  `.task-box.is-warn` line, without a strip or button of their own.
+- **A workflow that did not finish.** `WorkflowEndedNotice` at the top of the page: an `.alert-bad`
+  "El workflow no ha terminado" (or `.alert-warn` "El workflow se ha detenido") with the server's
+  reason and that resuming goes on from the cache. The checks' notice is never shown for a workflow graph.
 - **Status bar (`.lim`).** One dot for Claude Code with its limit: a neutral bar below 60 %, warn with
   "límite" and the percentage from 60 %, bad with "límite agotado" and when it returns. No limit
   reading, no bar. The title gives the window, the reset and the reading's age.

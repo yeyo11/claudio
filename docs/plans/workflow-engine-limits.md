@@ -5,11 +5,11 @@ tags:
     - plan
     - orchestration
     - accounts
-    - decided
+    - built
 ---
 # Plan: the workflow engine follows its journal, holds or rotates at a limit, and never runs unwatched
 
-Status: decided (2026-10-17). Answers R15 of [requests.md](../requests.md). Tasks b1, b2, b3, w1 and x1 carry it out; each section names the files its task owns. Full text: docs/plans/workflow-engine-limits.md.
+Status: built (2026-10-17), see [Outcome](#outcome). Answers R15 of [requests.md](../requests.md). Tasks b1, b2, b3, w1 and x1 carry it out; each section names the files its task owns. Full text: docs/plans/workflow-engine-limits.md.
 
 The one rule holds: everything is read from what the Claude Code CLI ships (the workflow journal, each subagent's transcript, the run's record, stream-json `result` and `rate_limit_event`, the Workflow tool's `resumeFromRunId`). A limit is recognised from structured fields (`api_error_status` / `apiErrorStatus` 429, `rate_limit_info`), never from wording.
 
@@ -40,6 +40,43 @@ orchestrations.md, accounts.md, prompts.md, requests.md (close R15), this plan's
 
 ## Test fixture
 packages/core/test/fixtures/workflow-journal/{at-limit,resumed}: trimmed, anonymised copy of the f33d7d0b files (3 tasks, session 00000000-0000-4000-8000-000000000001, cwd /work/project), with the CLI's real 429 entry.
+
+## Outcome
+
+Built on 2026-10-17, one commit per task (b1 `761bfef30`, b2 `474953963`, b3 `896f471da`, w1
+`ba8a3c869`, x1 the docs). The feature as it stands is described in
+[orchestrations.md](../orchestrations.md#the-workflow-engine); the rotation side in
+[accounts.md](../accounts.md#choosing-and-switching); the lead's prompt in
+[prompts.md](../prompts.md#workflow-lead-launchworkflow).
+
+- **b1.** `packages/core/src/workflow-journal.ts` (`foldJournal`, `readJournalTasks`,
+  `journalRefusal`) folds the journal per key, latest line wins, one entry per label; the
+  orchestrator reads it every second (`syncJournal` → `applyJournal`), learns the `wf_*` run id, and
+  drives the synthesis from the `synthesis` / `Synthesis` entry. `fromJournal` records `failed`.
+- **b2.** As decided: `workOf` answers `<orch>:__workflow__` for the lead; a refusal read from the
+  journal goes through `ChatManager.limitReached` (marked on the account, lead stopped,
+  `limit-hit`); the rotation calls `RotationDeps.replay` → `Orchestrator.replayWorkflow` →
+  `ChatManager.replayWith` with the `resumeFromRunId` prompt, on the new account or the same one
+  after the wait. A refused agent stays `running` while the rotation holds it; `limitProgress`
+  resets the replay count when a task completes. `workflowWaitEnded` ends the graph `failed` or
+  `stopped` with the reason in `orch.error`.
+- **b3.** The watcher is the watchdog: a 60 s grace before a leftover lead is stopped, the run's
+  record read every few ticks, "the workflow did not finish: …" when the lead goes first, and a
+  30 min stall (run directory bytes, stream agents, task states; never the lead's own activity)
+  fails the graph, resumable. Startup re-follows a running workflow graph. `WORKFLOW_LEAD_WAIT`
+  replaced `DELEGATION` in the lead's prompt.
+- **w1.** No shared type change. Workflow steps list every task's journal state as rows; one
+  graph-level `WaitLine` with an `action` slot for "Stop waiting"; `WorkflowEndedNotice` for
+  `orch.error`; the checks' notice no longer claims a workflow failure. Spec extended in
+  `e2e/specs/orchestration-v2.spec.mjs` (run by the integrator).
+
+Known gaps:
+
+- A limit the lead hits before any task has started puts the wait on no task, so the page shows no
+  wait line for it (the server holds and resumes it all the same). Showing it needs a graph-level
+  wait in the shared types.
+- Not yet observed against a real five-hour limit after the fix; the tests use the anonymised
+  f33d7d0b fixture with the CLI's real 429 entry.
 
 ## Related
 [[orchestrations.md]] · [[accounts.md]] · [[prompts.md]] · [[plans/rotation-auth-fixes.md]] · [[plans/limit-resume.md]] · [[plans/multi-provider.md]] · [[requests.md]]

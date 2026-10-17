@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T12:00:00Z
-updated_at: 2026-10-16T14:00:00Z
+updated_at: 2026-10-17T02:30:00Z
 tags:
     - prompts
     - flow
@@ -68,6 +68,7 @@ Every builder imports these. No builder keeps its own copy of the text.
 | `PATTERN_GROUNDING` | For each convention the work depends on (naming, error handling, data access, tests, any other), cite one real place as `path:line` of a file opened in this run, or say the code has none and the work sets it. Never cite a place that was not read. Refine stages carry it, and the planner's guidance asks the same of task prompts. | 9 |
 | `RETRIEVAL` | Context a worker was not given is found in rounds aimed at the objective: search, read what looks relevant, judge what is still missing. Three rounds are enough for most gaps; after the third, work with what there is and name what was not found. A search handed to a subagent carries the objective as well as the question. It bounds searching for what is missing, never reading what the task names. | 8 |
 | `DELEGATION` | The run owns the results of what it delegates: wait for each subagent or background task, read what it returned and use it before the turn ends. Never end a turn by saying it is waiting for background work, because the end of the turn is the end of the process. | 3 |
+| `WORKFLOW_LEAD_WAIT` | For a workflow's lead only: the Workflow tool runs in the background and reports its end with a task notification, so do not wait for it: no sleep, no polling loop, no Monitor, no background command, and do not read the workflow's journal, transcripts or record. End the turn once it is launched; on the notification, one line saying whether it completed and the label of every agent that failed. | 3 |
 | `FIX_ONE_AT_A_TIME` | Fix one error at a time, the first one reported or the one the others follow from, with the narrowest check that shows it. | 5 |
 | `FIX_STOP_WHEN` | Stop when the same error survives three fixes, when a fix leaves more errors than it removed, or when the fix needs a change of design. Undo a fix that made things worse with a new commit, never by rewriting history. | 3 |
 | `FIXER_REPORT_ROWS` | The fixer ends its report with `[FIXED] path:line: what was wrong` per fix and, if it stopped early, `[STOP] same-error|more-errors|design|no-code-fix: what a person must decide`; `no-code-fix` is a failure no code change can fix (a missing tool, no network, a service that is down). | 5 |
@@ -351,9 +352,14 @@ worker prompt, so everything under Worker applies.
 10. The lead prompt ends with `timeSignal` from the graph's creation. A workflow has no budget
     today, so it reads "Time matters here…".
 
-3. The lead prompt carries `DELEGATION`, before the time signal. The structural delegation item is
-   not applied to the lead: its turn ends when the Workflow tool returns, and `followWorkflow`
-   follows the workflow run.
+3. The lead prompt carries `WORKFLOW_LEAD_WAIT`, before the time signal, and not `DELEGATION`. Told
+   to wait for its delegated work, the lead of f33d7d0b (R15) sat in an unbounded `sleep 30` loop over
+   its own journal, which kept its process alive past the workflow's end. No tool is denied to it,
+   since the deny list could reach its subagents; Claudio's watchdog bounds it instead
+   ([orchestrations.md](orchestrations.md#the-workflow-engine)). The structural delegation item is
+   not applied to the lead either: `followWorkflow` follows the workflow run from its journal.
+   After a usage limit, the same prompt is sent again with `resumeFromRunId`, so the run goes on
+   from its cache.
 
 Points 1, 2, 4–9, 11 and 12 are n/a: it only calls the Workflow tool with a generated script. "I
 explicitly ask you to run this workflow" is kept, because the CLI's tool asks for that consent.
@@ -501,4 +507,4 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Related
 
-[[decision-engine.md]] · [[lessons.md]] · [[evals.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]
+[[decision-engine.md]] · [[orchestrations.md]] · [[plans/workflow-engine-limits.md]] · [[lessons.md]] · [[evals.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/claudio-assistant.md]] · [[design-system.md]]
