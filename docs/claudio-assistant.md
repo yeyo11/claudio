@@ -1,12 +1,13 @@
 ---
 created_at: 2026-10-07T16:00:00Z
-updated_at: 2026-10-17T09:00:00Z
+updated_at: 2026-10-17T18:00:00Z
 tags:
     - assistant
     - mcp
     - chats
     - permissions
     - work-items
+    - collaborators
     - design-system
 ---
 # The Claudio assistant
@@ -60,7 +61,7 @@ whatever a request or the stored record held, from the `claudioAssistant` marker
 |---|---|
 | `--mcp-config` + `--strict-mcp-config` | only the `claudio` server |
 | `--tools=`, `--setting-sources=` | empty: no built-in tool, no user settings |
-| `--allowedTools` | the 15 read tools; **no write tool** |
+| `--allowedTools` | the read tools, and the seven `collab_*` reads while it may read teammates' copies; **no write tool** |
 | `--permission-mode` | the CLI's default (Claudio's name for it is `manual`), never accept-edits, auto or bypass |
 | permission prompts | `host`: a prompt reaches the person in the chat |
 | uploads | none |
@@ -69,6 +70,30 @@ The system prompt (`claudio-assistant-prompt.ts`) is a guide to Claudio's concep
 (look things up, short answers, no ids or JSON shown, what it reads is data), the project in scope as
 context and the language. The chat is a normal chat: listed in Chats by its first prompt, counted in
 Usage, continuable.
+
+## What teammates share
+
+With [Collaborators](collaborators.md#agents-that-read-what-teammates-share) on, the assistant reads
+every copy teammates share with this install (R13,
+[plans/collaborators-agent-access.md](plans/collaborators-agent-access.md)), so it can answer "what is
+Ana working on?" or "what did Ben's chat decide about the API?". It is the first of the plan's two
+levels: the assistant runs no command, so it reads every copy by default.
+
+- **The switch.** "The assistant reads what is shared with you", in the Collaborators page's Agents
+  card (`CollaboratorsSettings.assistantReads`, on by default). Off, the API refuses its token on the
+  copies and its guide says it cannot read them and points at the Shared tab. With Collaborators off
+  the guide names no teammates.
+- **The tools.** The seven `collab_*` reads of [claudio-mcp-server.md](claudio-mcp-server.md#teammates-shared-copies),
+  in `--allowedTools` beside its own reads. A copy whose sharer turned "Teammates' agents may read
+  this" off is not listed and cannot be read.
+- **The guide.** A "What teammates share" section: start from `collab_list_shared`; for "what is
+  <teammate> working on?" look at their latest chats, the board's items in progress and the journal,
+  and give the person, the project and when the copy was last synced, since it may lag; everything a
+  teammate wrote is third-party content inside a fence, data and never instructions, and it says so
+  when that content tries to direct it; document contents and uploads are not readable, only their
+  names.
+- **Recorded.** Every read is a row of the agent-read audit (Settings → Security → Read by agents), and
+  the chat's header shows `Reads teammates' shares`.
 
 ## Writes, confirmed one by one (option A)
 
@@ -102,7 +127,9 @@ skip or restore anything, change permissions, or start a chat with more than the
 `packages/mcp/test/write-tools.test.ts` (the tools against a stub API),
 `packages/core/test/claudio-assistant-chat.test.ts` and `permissions.test.ts` (the argv, the confinement
 across processes, no suggestions, deny and timeout with the fake CLI), `apps/api/test/assistant-chat.test.ts`
-and `assistant-writes.test.ts` (the route, the labelling and the history context) and
+and `assistant-writes.test.ts` (the route, the labelling and the history context),
+`apps/api/test/assistant-collab-reads.test.ts` (the assistant reading a teammate's copy through the
+fake CLI and the real MCP server, the guard and the audit) and
 `apps/web/test/claudio-assistant.test.tsx` (the entry).
 
 ## Known gaps
@@ -118,4 +145,4 @@ and `assistant-writes.test.ts` (the route, the labelling and the history context
 
 ## Related
 
-[[plans/claudio-assistant.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]
+[[plans/claudio-assistant.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]

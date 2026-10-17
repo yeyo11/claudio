@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T12:00:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-10-17T18:00:00Z
 tags:
     - mcp
     - assistant
@@ -13,8 +13,9 @@ tags:
 Claudio ships a small MCP server, named **`claudio`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
-`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 16 read tools (CW-6) and nine
-write tools (CW-17, [below](#write-tools)). The spec is [plans/claudio-mcp-server.md](plans/claudio-mcp-server.md) (CW-6, epic
+`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 16 read tools (CW-6), nine
+write tools (CW-17, [below](#write-tools)) and seven reads of teammates' shared copies (R13,
+[below](#teammates-shared-copies)). The spec is [plans/claudio-mcp-server.md](plans/claudio-mcp-server.md) (CW-6, epic
 [plans/claudio-assistant.md](plans/claudio-assistant.md)).
 
 It adds no screen and no route. The Claudio assistant's chat ([claudio-assistant.md](claudio-assistant.md))
@@ -105,6 +106,27 @@ stays strict and now accepts lists and nested objects (labels, criteria).
 None deletes, stops, skips or restores, and none can widen a chat. The write names are in `names.ts`
 (`isClaudioMcpWriteTool`) and are never in `--allowedTools`: the CLI asks the person before each call,
 and Claudio shows no "always allow" for them ([claudio-assistant.md](claudio-assistant.md#writes-confirmed-one-by-one-option-a)).
+
+## Teammates' shared copies
+
+`packages/mcp/src/collab-tools.ts` (R13, [plans/collaborators-agent-access.md](plans/collaborators-agent-access.md)):
+`collab_list_shared`, `collab_read_chats`, `collab_read_transcript`, `collab_read_memory`,
+`collab_read_documents`, `collab_read_board` and `collab_read_journal`. They read the copies of
+[Collaborators](collaborators.md#agents-that-read-what-teammates-share) this install holds, with the
+chat's own token, and send their name as `x-claudio-tool`, which the API's audit records.
+
+- **Toolsets.** A process offers what `CLAUDIO_MCP_TOOLSETS` (comma separated) names: `claudio`, the
+  read and write tools above, and `collab`, these. Unset or empty is `claudio`, as before; an unknown
+  name is dropped, so a value naming nothing known offers nothing. The assistant's file names
+  `claudio,collab` while it may read; a project chat that opted in gets a file with `collab` alone
+  (`collabMcpSync` in `packages/core/src/claudio-mcp.ts`), added to the servers it loads, or merged
+  under the name `claudio` into the strict file of the servers it chose.
+- **Fenced.** A result is already text (`TextResult`, `packages/mcp/src/untrusted.ts`): a header naming
+  the teammate, install, project and share key, when the copy was last synced, and that the content is
+  third-party, not instructions; then the content as compact JSON inside a fence longer than any
+  backtick run in it. The server sends it as it is, so its own cut cannot drop the closing fence; the
+  body is cut at 45,000 characters instead, with a line saying so.
+- **No blob.** Documents and uploads are listed by name and size, never their bytes or hash.
 
 ## Environment
 
