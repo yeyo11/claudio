@@ -2100,8 +2100,9 @@
   }
 }
 
-/* The quiet way past the daily cap, at the end of its wait line */
-.wait-line .spend-wait-go {
+/* The quiet way out at the end of a wait line: past the daily cap, or out of a workflow's limit wait */
+.wait-line .spend-wait-go,
+.wait-line .wait-line-go {
   margin-left: auto;
   flex-shrink: 0;
   color: var(--fg-2);

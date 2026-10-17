@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
+import type { LimitWait, Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import i18n from '../i18n';
 
 /** What a person can decide about one task right now; mirrors what the server accepts. */
@@ -82,4 +82,32 @@ export function costSplit(orch: Orchestration): { tasks: number; other: number }
   // A synthesis or an abandoned chat is in the total but on no task; float noise is not an amount
   const other = orch.costUsd - tasks;
   return { tasks, other: other > 0.0001 ? other : 0 };
+}
+
+const isWorkflow = (orch: Orchestration) => (orch.engine ?? 'graph') === 'workflow';
+
+/**
+ * The one wait a workflow held at a usage limit is in. Its lead runs every task, so the wait is the
+ * graph's, not a task's: the server puts it on each running task, and the page says it once.
+ */
+export function workflowWait(orch: Orchestration): LimitWait | null {
+  if (!isWorkflow(orch) || orch.status !== 'running') return null;
+  return orch.tasks.find((t) => t.status === 'running' && t.waiting)?.waiting ?? null;
+}
+
+/** Whether a task's own wait strip and "Stop waiting" give way to the graph's one line (`workflowWait`). */
+export function waitShownOnGraph(orch: Orchestration): boolean {
+  return isWorkflow(orch);
+}
+
+/**
+ * Why a workflow ended without finishing, in the server's words, with the tone its status takes:
+ * bad when it failed (its lead went away, nothing moved for too long, the limit never reset), warn
+ * when it was stopped. Null on the graph engine, whose `error` is its checks' (`FailedByChecksNotice`).
+ */
+export function workflowEnded(orch: Orchestration): { tone: 'bad' | 'warn'; error: string } | null {
+  if (!isWorkflow(orch) || !orch.error) return null;
+  if (orch.status === 'failed') return { tone: 'bad', error: orch.error };
+  if (orch.status === 'stopped') return { tone: 'warn', error: orch.error };
+  return null;
 }

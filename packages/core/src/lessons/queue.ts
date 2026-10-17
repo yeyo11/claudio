@@ -259,7 +259,7 @@ export class LessonMiningQueue {
   start(): void {
     if (this.timer) return;
     this.recover();
-    this.timer = setInterval(() => void this.tick(), TICK_MS);
+    this.timer = setInterval(() => void this.tick().catch(() => undefined), TICK_MS);
     this.timer.unref();
     this.kick();
   }

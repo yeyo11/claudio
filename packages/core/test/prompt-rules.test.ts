@@ -29,6 +29,7 @@ import {
   timeSignal,
   UNATTENDED,
   unpasted,
+  WORKFLOW_LEAD_WAIT,
 } from '../src/prompt-rules.ts';
 import { fixerPrompt, workerChecks, type FixerContext } from '../src/verification.ts';
 
@@ -229,6 +230,13 @@ test('the delegation contract says the end of a turn is the end of the process',
   assert.equal(
     DELEGATION,
     'You own the results of the work you delegate. When you start subagents or background tasks, wait for each one to finish, read what it returned and use it before your turn ends. Never end a turn by saying that you are waiting for background agents or tasks: when this turn ends this process ends, and whatever still runs in the background is lost with it.',
+  );
+});
+
+test('a workflow lead is told to end its turn and never to wait for the workflow by itself', () => {
+  assert.equal(
+    WORKFLOW_LEAD_WAIT,
+    "The Workflow tool runs the workflow in the background and tells this session when it ends, with a task notification. Do not wait for it yourself: no sleep, no polling loop, no Monitor, no background command, and do not read the workflow's files (its journal, its agents' transcripts, its record) to check on it. Once the workflow is launched, end your turn. When the notification arrives, reply with one line: whether the workflow completed, and the label of every agent that failed, if any.",
   );
 });
 

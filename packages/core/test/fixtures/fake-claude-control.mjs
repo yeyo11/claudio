@@ -21,12 +21,15 @@
 //                  the bare command, an argument on one line, an argument on several. With
 //                  $FAKE_CLAUDE_COMPACT=fail it plays the recorded failure instead (an interrupted compaction)
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
-//                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
-//                  first run), and writes its record to $FAKE_WORKFLOW_DIR/<session>.json
+//                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE or
+//                  LIMIT on a first run; HOLD waits: see runWorkflow), journals them under $FAKE_WORKFLOW_DIR/<session>/ and
+//                  writes its record to $FAKE_WORKFLOW_DIR/<session>.json. A script that says LINGER keeps the
+//                  process up once the workflow ended, as a lead looping over its journal did (R15), and one
+//                  that says QUIET-END also never reports the end on the stream
 //   (anything)     ends the turn at once
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
@@ -224,25 +227,69 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   }
 });
 
-/** Runs a workflow script the way the Workflow tool does, reporting progress on the stream. */
+/** What the CLI (2.1.301) wrote as the last line of a workflow agent the API refused at a usage limit (recorded, R15). */
+const limitRefusal = (agentId) => ({
+  type: 'assistant',
+  isSidechain: true,
+  agentId,
+  sessionId,
+  message: { role: 'assistant', model: '<synthetic>', type: 'message', content: [{ type: 'text', text: "You've hit your session limit · resets 2:40am (Europe/Madrid)" }] },
+  apiError: 'usage_limit_reached',
+  // $FAKE_WORKFLOW_RESETS_AT (epoch seconds) moves the reset where a test needs it
+  apiErrorParams: { rate_limit_info: { status: 'rejected', resetsAt: Number(process.env.FAKE_WORKFLOW_RESETS_AT ?? 1792197600), rateLimitType: 'five_hour' } },
+  error: 'rate_limit',
+  isApiErrorMessage: true,
+  apiErrorStatus: 429,
+});
+
+/**
+ * Runs a workflow script the way the Workflow tool does, reporting progress on the stream and
+ * keeping a journal and a transcript per agent where the CLI does, with $FAKE_WORKFLOW_DIR standing
+ * in for the project directory of the session's transcript. Besides FAIL-ONCE, an agent whose prompt
+ * says LIMIT (or the synthesis, when its prompt says SYNTH-LIMIT) is refused at a usage limit on a
+ * first run, and one whose prompt says HOLD waits for $FAKE_WORKFLOW_DIR/release to exist. A refused
+ * agent's end never reaches the stream, as was seen of the CLI.
+ */
 async function runWorkflow(path, resumeFrom) {
   const source = readFileSync(path, 'utf8');
   const body = source.replace(/export const meta =/, 'const meta =');
   const taskId = `wf-task-${Math.floor(process.hrtime()[1] % 100000)}`;
+  const runId = resumeFrom ?? 'wf_fake-001';
+  // A test that never reads the files sets no directory: nothing is written then
+  const runDir = process.env.FAKE_WORKFLOW_DIR ? `${process.env.FAKE_WORKFLOW_DIR}/${sessionId}/subagents/workflows/${runId}` : null;
+  if (runDir) mkdirSync(runDir, { recursive: true });
+  const journal = (line) => runDir && appendFileSync(`${runDir}/journal.jsonl`, `${JSON.stringify(line)}\n`);
+  const transcript = (agentId, line) => runDir && appendFileSync(`${runDir}/agent-${agentId}.jsonl`, `${JSON.stringify(line)}\n`);
   const agents = [];
   const progress = () => out({ type: 'system', subtype: 'task_progress', task_id: taskId, workflow_progress: agents.map((a) => ({ type: 'workflow_agent', ...a })) });
   out({ type: 'system', subtype: 'task_started', task_id: taskId, task_type: 'local_workflow', workflow_name: 'fake', description: 'fake workflow' });
+  journal({ type: 'launched' });
   await new Promise((r) => setTimeout(r, 20)); // after the turn that launched it has ended
   const agent = async (prompt, opts = {}) => {
-    const entry = { index: agents.length + 1, label: opts.label ?? `agent-${agents.length + 1}`, state: 'start', agentId: `ag${agents.length}`, model: opts.model ?? null };
+    const label = opts.label ?? `agent-${agents.length + 1}`;
+    const agentId = `a${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+    const key = `v2:${label}`;
+    const entry = { index: agents.length + 1, label, state: 'start', agentId, model: opts.model ?? null };
     agents.push(entry);
+    journal({ type: 'started', key, agentId, label, phase: opts.phase ?? null });
     progress();
     await new Promise((r) => setTimeout(r, 5));
+    // $FAKE_WORKFLOW_LIMIT=always refuses on a resumed run too: every account is at its limit
+    if ((!resumeFrom || process.env.FAKE_WORKFLOW_LIMIT === 'always') && (label === 'synthesis' ? prompt.includes('SYNTH-LIMIT') : /(^|[^-\w])LIMIT\b/.test(prompt))) {
+      transcript(agentId, limitRefusal(agentId));
+      journal({ type: 'failed', key, agentId });
+      return null;
+    }
+    if (prompt.includes('HOLD')) {
+      while (!existsSync(`${process.env.FAKE_WORKFLOW_DIR}/release`)) await new Promise((r) => setTimeout(r, 10));
+    }
     if (prompt.includes('FAIL-ONCE') && !resumeFrom) {
       entry.state = 'error';
+      journal({ type: 'failed', key, agentId });
       progress();
       return null;
     }
+    journal({ type: 'result', key, agentId, result: `done:${label}${opts.model ? ` (${opts.model})` : ''}` });
     entry.state = 'done';
     entry.resultPreview = `done:${entry.label}`;
     progress();
@@ -250,8 +297,9 @@ async function runWorkflow(path, resumeFrom) {
   };
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
   const returned = await new AsyncFunction('agent', 'phase', 'log', body)(agent, () => {}, () => {});
-  const runId = resumeFrom ?? 'wf_fake-001';
   writeFileSync(`${process.env.FAKE_WORKFLOW_DIR}/${sessionId}.json`, JSON.stringify({ runId, taskId, status: 'completed', result: returned }));
-  out({ type: 'system', subtype: 'task_notification', task_id: taskId, status: 'completed', summary: 'fake workflow completed' });
+  if (!source.includes('QUIET-END')) out({ type: 'system', subtype: 'task_notification', task_id: taskId, status: 'completed', summary: 'fake workflow completed' });
+  // A `sleep 30` loop of the lead's own: nothing of the workflow is left, yet the process stays up
+  if (source.includes('LINGER')) setInterval(() => {}, 60_000);
   return `workflow ${runId} completed; args=${args.join(' ')}`;
 }

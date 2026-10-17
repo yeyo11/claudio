@@ -138,6 +138,8 @@ async function fromJournal(dir: string, id: string, scriptsDir: string, sessionI
     } else if (entry.type === 'result' && known) {
       known.state = 'done';
       known.resultPreview = typeof entry.result === 'string' ? entry.result.slice(0, 200) : known.resultPreview;
+    } else if (entry.type === 'failed' && known) {
+      known.state = 'error';
     }
   }
   const script = (await readdir(scriptsDir).catch(() => [] as string[])).find((f) => f.endsWith(`-${id}.js`));
@@ -323,12 +325,13 @@ export async function readWorkflowAgent(
   const journal = await readLines(join(base, 'subagents', 'workflows', runId, 'journal.jsonl'));
   const started = journal.find((e) => e.type === 'started' && e.agentId === agentId);
   const journalDone = journal.some((e) => e.type === 'result' && e.agentId === agentId);
+  const journalFailed = !journalDone && journal.some((e) => e.type === 'failed' && e.agentId === agentId);
   if (!started) return { agent: null, journalDone };
   return {
     agent: {
       index: 0,
       label: text(started.label) ?? agentId,
-      state: journalDone ? 'done' : 'progress',
+      state: journalDone ? 'done' : journalFailed ? 'error' : 'progress',
       agentId,
       phaseTitle: text(started.phase),
       model: null,
@@ -340,6 +343,84 @@ export async function readWorkflowAgent(
       resultPreview: null,
     },
     journalDone,
+  };
+}
+
+/** One line of a workflow's journal, as the CLI writes it while the run goes on. */
+export interface WorkflowJournalLine {
+  type: 'launched' | 'started' | 'result' | 'failed';
+  /** The agent call's cache key: a resumed run starts the same call again under the same key */
+  key: string | null;
+  agentId: string | null;
+  /** On `started` only: the label the script gave the agent, and its phase */
+  label: string | null;
+  phase: string | null;
+  /** On `result` only */
+  result: unknown;
+}
+
+/** The directory the CLI keeps a workflow run's journal and agent transcripts in. */
+export function workflowRunDir(transcript: string, runId: string): string {
+  return join(transcript.slice(0, -'.jsonl'.length), 'subagents', 'workflows', runId);
+}
+
+/**
+ * The bytes a workflow run's directory holds: its journal and every agent's transcript. An agent at
+ * work writes to its transcript long before the journal hears of it, so this is what says the run
+ * is getting anywhere.
+ */
+export async function workflowRunBytes(transcript: string, runId: string): Promise<number> {
+  const dir = workflowRunDir(transcript, runId);
+  let bytes = 0;
+  for (const name of await readdir(dir).catch(() => [] as string[])) {
+    bytes += (await stat(join(dir, name)).catch(() => null))?.size ?? 0;
+  }
+  return bytes;
+}
+
+/** The journal of a workflow run, in the order it was written; a line still being written is left out. */
+export async function readWorkflowJournal(transcript: string, runId: string): Promise<WorkflowJournalLine[]> {
+  const out: WorkflowJournalLine[] = [];
+  for (const entry of await readLines(join(workflowRunDir(transcript, runId), 'journal.jsonl'))) {
+    const type = entry.type;
+    if (type !== 'launched' && type !== 'started' && type !== 'result' && type !== 'failed') continue;
+    out.push({ type, key: text(entry.key), agentId: text(entry.agentId), label: text(entry.label), phase: text(entry.phase), result: entry.result });
+  }
+  return out;
+}
+
+/** How a workflow agent's transcript ends: its last assistant message and, for one the API refused, why. */
+export interface WorkflowAgentEnd {
+  text: string | null;
+  /** The HTTP status of an API error the CLI recorded in place of an answer (429 at a usage limit, 401 signed out) */
+  apiErrorStatus: number | null;
+  /** The CLI's own word for that error, such as `rate_limit` */
+  error: string | null;
+  /** What the refusal said about the limit, when it was one */
+  rateLimit: { resetsAt: string | null; rateLimitType: string | null } | null;
+}
+
+/** The end of one agent's transcript in a workflow run; null when it has written no assistant message. */
+export async function readAgentEnd(transcript: string, runId: string, agentId: string): Promise<WorkflowAgentEnd | null> {
+  const lines = await readLines(join(workflowRunDir(transcript, runId), `agent-${agentId}.jsonl`));
+  const last = lines.findLast((l) => l.type === 'assistant');
+  if (!last) return null;
+  const message = (last.message ?? {}) as { content?: unknown };
+  const blocks = Array.isArray(message.content) ? (message.content as Array<{ type?: unknown; text?: unknown }>) : [];
+  const said = blocks
+    .filter((b) => b.type === 'text' && typeof b.text === 'string')
+    .map((b) => b.text as string)
+    .join('\n')
+    .trim();
+  const params = (last.apiErrorParams ?? {}) as { rate_limit_info?: Record<string, unknown> };
+  const info = params.rate_limit_info ?? null;
+  // The reset is in epoch seconds
+  const resetsAt = info && typeof info.resetsAt === 'number' && Number.isFinite(info.resetsAt) ? new Date(info.resetsAt * 1000).toISOString() : null;
+  return {
+    text: said || null,
+    apiErrorStatus: count(last.apiErrorStatus),
+    error: text(last.error),
+    rateLimit: info ? { resetsAt, rateLimitType: text(info.rateLimitType) } : null,
   };
 }
 
