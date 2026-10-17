@@ -138,3 +138,26 @@ test('one look answers `exiting` at once, and waiting it out leaves the server f
   assert.equal(await answered, true, 'another connection was served while the check waited');
   assert.equal(await verdict, 'unknown');
 });
+
+test('a first look slower than the whole old wait is still followed by another, so a loaded machine does not refuse the person', linux, async () => {
+  // Under a load near 60 one look took over 500 ms by itself (the process table and every chat's
+  // descriptors), and a wait measured in time was over before a second look: T8-1's detached
+  // process was refused because its parent, already gone a moment later, was caught exiting
+  const peer = await connection();
+  let looks = 0;
+  const check = new PeerCheck(noTable, reader({
+    fds: () => {
+      looks++;
+      if (looks === 1) {
+        for (const end = Date.now() + 700; Date.now() < end; ) {
+          // the slow first look
+        }
+        throw eacces();
+      }
+      throw enoent();
+    },
+    stat: () => (looks <= 1 ? statLine('R', PF_EXITING) : statLine('Z', 0)),
+  }));
+  assert.equal(await check.verdict(peer), 'not-agent');
+  assert.equal(looks, 2);
+});

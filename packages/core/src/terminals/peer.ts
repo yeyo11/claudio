@@ -52,10 +52,15 @@ const procReader: ProcReader = {
 
 /** The kernel's flag for a task inside `do_exit`, in the ninth field of its `stat` line */
 const PF_EXITING = 0x4;
-/** How long `verdict` keeps looking while a process caught exiting is to blame, before it answers unknown */
-const SETTLE_MS = 500;
+/**
+ * How many looks `verdict` makes while a process caught exiting is to blame, before it answers
+ * unknown. Counted, not timed: on a loaded machine one look (the process table and every chat's
+ * descriptors) took over 500 ms on its own, and a budget of time was spent before a second look was
+ * ever made, so the person was refused for a process that finished a moment later.
+ */
+const SETTLE_LOOKS = 25;
 /** Between two looks: a process's exit takes milliseconds, and each look reads /proc again */
-const SETTLE_STEP_MS = 10;
+const SETTLE_STEP_MS = 20;
 
 /** The fields of a `stat` line after the command name, which may itself contain spaces and parentheses */
 const statFields = (stat: string): string[] => stat.slice(stat.lastIndexOf(')') + 2).split(' ');
@@ -128,11 +133,10 @@ export class PeerCheck {
    * are spaced by timers, never a blocking wait, so the server goes on serving everyone else.
    */
   async verdict(peer: PeerSocket): Promise<PeerVerdict> {
-    const end = Date.now() + SETTLE_MS;
-    for (;;) {
+    for (let looks = 1; ; looks++) {
       const look = this.check(peer);
       if (look !== 'exiting') return look;
-      if (Date.now() >= end) return 'unknown';
+      if (looks >= SETTLE_LOOKS) return 'unknown';
       await delay(SETTLE_STEP_MS);
     }
   }
