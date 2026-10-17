@@ -295,7 +295,7 @@
     "mcpDefault": "MCP: CLI default",
     "mcpChosen_one": "MCP: {{count}} server",
     "mcpChosen_other": "MCP: {{count}} servers",
-    "open": "Run options: {{status}}",
+    "open": "Run options",
     "liveTitle": "How this chat runs",
     "resumeTitle": "Resume with",
     "forkTitle": "Fork with",
@@ -365,8 +365,8 @@
   },
   "edits": {
     "label": "Files this step edited",
-    "chip": "{{file}}: see this step",
-    "chipCounts": "{{file}}, {{additions}} lines added and {{deletions}} removed: see this step"
+    "chipAfter": ": see this step",
+    "chipCountsAfter": ", {{additions}} lines added and {{deletions}} removed: see this step"
   },
   "transcript": {
     "thinking": "Thinking",

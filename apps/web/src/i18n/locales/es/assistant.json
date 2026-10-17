@@ -121,7 +121,7 @@
     "discardNamed": "Descartar {{name}}",
     "discarded": "Propuesta descartada",
     "undo": "Deshacer",
-    "undoNamed": "Recuperar {{name}}",
+    "undoNamed": "Deshacer: recuperar {{name}}",
     "failed": "No se ha podido hacer"
   },
   "wizard": {

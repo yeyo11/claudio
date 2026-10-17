@@ -39,7 +39,7 @@
     "manual": "manual"
   },
   "row": {
-    "viewLog": "Ver el registro de {{name}}",
+    "viewLogHint": "abre su registro",
     "more": "Más acciones de {{name}}"
   },
   "menu": {

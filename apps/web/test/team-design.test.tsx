@@ -278,7 +278,8 @@ test("on a phone a run's whole row opens its chat, the member filter is the head
     />,
     activityClient([failed]),
   );
-  assert.match(html, /<a class="flow-run" aria-label="Developer, implementation of SHOP-7" data-status="failed" href="\/chats\/chat-7"/);
+  // The row is named by what it shows, not by a label of its own
+  assert.match(html, /<a class="flow-run" data-status="failed" href="\/chats\/chat-7"/);
   // Nothing inside the row is a control of its own: no retry, no link to the item
   assert.doesNotMatch(html, /flow-run-retry/);
   assert.doesNotMatch(html, /href="\/tasks\/SHOP-7"/);

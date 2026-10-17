@@ -52,7 +52,7 @@
     "toggleFailed": "Could not change the schedule",
     "runNow": "Run now",
     "runNowHint": "Start it now, whatever the timetable says",
-    "runNowNamed": "Run {{name}} now",
+    "runNowNamed": "Run now: {{name}}",
     "runStarted": "Started {{name}}",
     "runFailed": "The schedule could not start",
     "edit": "Edit",

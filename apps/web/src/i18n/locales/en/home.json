@@ -36,7 +36,7 @@
       "lastUpdate": "Last update",
       "actions": "Actions",
       "open": "Open memory",
-      "openNamed": "Open the memory of {{name}}"
+      "openNamed": "Open memory of {{name}}"
     }
   },
   "activity": {

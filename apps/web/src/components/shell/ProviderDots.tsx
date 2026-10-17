@@ -72,19 +72,20 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
       <NavLink
         to={PROVIDERS_SETTINGS_PATH}
         className={`statusbar-item ${tone === 'warn' ? 'statusbar-warn' : tone === 'bad' ? 'statusbar-bad' : ''}`.trim()}
-        aria-label={`${status.label}: ${hot ? limitWord : word}${reading?.percent != null ? `, ${reading.percent} %` : ''}`}
       >
+        {/* Named by what it shows (provider, state, percent, when it resumes), so a voice user can
+            say the words they see; the spaces keep the flex items' words apart in that name */}
         <StatusDot tone={tone} />
         <span className="ellipsis">{text}</span>
         {showBar && reading.percent !== null && (
           <>
             <span className="meter-track meter-thin statusbar-meter" aria-hidden>
               <span className={`meter-fill ${barTone === 'neutral' ? '' : `is-${barTone}`}`.trim()} style={{ width: `${reading.percent}%` }} />
-            </span>
-            <span aria-hidden>{reading.percent} %</span>
+            </span>{' '}
+            <span>{reading.percent} %</span>
           </>
         )}
-        {reading?.state === 'exhausted' && reading.resetsAt && <span className="statusbar-age">{ts('statusbar.limit.resumes', { when: resetWhen(reading.resetsAt) })}</span>}
+        {reading?.state === 'exhausted' && reading.resetsAt && <> <span className="statusbar-age">{ts('statusbar.limit.resumes', { when: resetWhen(reading.resetsAt) })}</span></>}
       </NavLink>
     </Tooltip>
   );

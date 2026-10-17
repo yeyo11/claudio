@@ -142,8 +142,8 @@ export function NewChat() {
       open={options}
       onOpenChange={setOptions}
       trigger={
-        <button type="button" className="composer-status" aria-label={t('new.options', { status: words.join(' · ') })} aria-expanded={options} onClick={() => setOptions(true)}>
-          <StatusChips words={words} accent={-1} icon={<FolderOpen size={13} strokeWidth={1.75} aria-hidden />} />
+        <button type="button" className="composer-status" aria-expanded={options} onClick={() => setOptions(true)}>
+          <StatusChips label={t('new.options')} words={words} accent={-1} icon={<FolderOpen size={13} strokeWidth={1.75} aria-hidden />} />
         </button>
       }
     >

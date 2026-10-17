@@ -271,7 +271,7 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
                   <button
                     type="button"
                     className="btn btn-small btn-primary"
-                    aria-label={busy ? undefined : `${plugin.installed ? 'Installed' : 'Install'} ${plugin.name}`}
+                    aria-label={busy ? undefined : t(plugin.installed ? 'plugins.installedNamed' : 'plugins.installNamed', { name: plugin.name })}
                     disabled={plugin.installed || mutation.isPending}
                     onClick={() => mutation.mutate({ action: 'install', plugin: plugin.pluginId, scope })}
                   >

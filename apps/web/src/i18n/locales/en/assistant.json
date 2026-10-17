@@ -121,7 +121,7 @@
     "discardNamed": "Discard {{name}}",
     "discarded": "Discarded",
     "undo": "Undo",
-    "undoNamed": "Restore {{name}}",
+    "undoNamed": "Undo: restore {{name}}",
     "failed": "Could not do it"
   },
   "wizard": {

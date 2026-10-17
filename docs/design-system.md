@@ -1916,7 +1916,7 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   keyboard. The terminal's own text stays at 12 px, but its hidden input is 16 px so iOS does not zoom.
 - **Panel above the status bar.** The terminal lives in the status bar. A **Terminal item** (`.statusbar-btn`: the
   `SquareTerminal` icon and the number of running shells in mono, tabular) sits beside the usage and the
-  account; it is a button with an accessible name ("Terminal (2 en marcha)") and `aria-expanded`, in `--fg-3`
+  account; it is a button with an accessible name ("Terminal: 2 en marcha") and `aria-expanded`, in `--fg-3`
   and `--fg` while the panel is open. It never moves or lights up: a shell is not an agent working. Clicking it
   and `Ctrl+\`` toggle `.term-dock.term-bar-panel`, a labelled region docked
   above the status bar on **every page**: `--bg-1`, a hairline `--line` on top, a `.term-dock-handle` resize bar
@@ -2155,7 +2155,9 @@ the file being edited is its only moving part.
 5. On a 390 px phone: touch targets are ≥ 44 px, inputs use 16 px text, and nothing scrolls
    sideways.
 6. Icon-only buttons have an `aria-label`, interactive elements are real `<button>` or `<a>`, focus
-   is visible, and the `a11y-*.spec.mjs` specs stay green.
+   is visible, and the `a11y-*.spec.mjs` specs stay green. A control's name holds the words it
+   shows (Label in Name): an `aria-label` starts with or contains them, or the control drops it and
+   says the rest in a `.sr-only` span ([decisions/label-in-name.md](decisions/label-in-name.md)).
 7. An empty, error or install state uses `Empty` with the matching illustration (§4), and uses at
    most one illustration per screen.
 8. A new variant or illustration is added to this document and to `claudio-ds.css` in the same PR.

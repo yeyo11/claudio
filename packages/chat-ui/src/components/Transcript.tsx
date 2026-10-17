@@ -414,9 +414,12 @@ function EditChips({ parts, edits }: { parts: StepPart[]; edits: TranscriptEdits
             to={paths.chatChangeStep(edits.chatId, chip.stepId)}
             className="edit-chip"
             title={chip.file}
-            aria-label={counted ? t('edits.chipCounts', { file: chip.name, additions: chip.additions, deletions: chip.deletions }) : t('edits.chip', { file: chip.name })}
           >
+            {/* Named by the file it shows; its counts, drawn for the eye, and where it leads are said off screen */}
             <span>{chip.name}</span>
+            <span className="sr-only">
+              {counted ? t('edits.chipCountsAfter', { additions: chip.additions, deletions: chip.deletions }) : t('edits.chipAfter')}
+            </span>
             {counted && (
               <span className="obs-counts" aria-hidden>
                 {chip.additions ? <span className="obs-add">+{chip.additions}</span> : null}

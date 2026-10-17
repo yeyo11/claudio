@@ -88,19 +88,22 @@ function CheckRow({
   const word = <span className={mark.tone === 'idle' && check.state === 'queued' ? 'badge' : markBadge(mark.tone)}>{t(mark.label)}</span>;
   return (
     <div className={`check-row ${open ? 'on' : ''} ${mark.tone === 'live' ? 'live-rail' : ''}`.trim()}>
-      <button type="button" className="check-main" aria-expanded={open} aria-controls={open ? 'check-log' : undefined} aria-label={t('row.viewLog', { name: check.name })} onClick={onOpen}>
+      {/* Named by what it shows, so a voice user can say the words they see; that it opens the log is
+          said off screen, and the spaces keep the flex items' words apart in the name */}
+      <button type="button" className="check-main" aria-expanded={open} aria-controls={open ? 'check-log' : undefined} onClick={onOpen}>
         <CheckMarkIcon check={check} />
         <span className="check-name">
           <b>{check.name}</b>
-          {check.group && <span className="stage">{check.group}</span>}
-        </span>
+          {check.group && <> <span className="stage">{check.group}</span></>}
+        </span>{' '}
         {/* On a phone the word, the stage and the clock sit on a second line */}
         <span className="meta">
-          {word}
-          {check.group && <span className="stage">{check.group}</span>}
+          {word}{' '}
+          {check.group && <span className="stage">{check.group} </span>}
           <span className="grow" />
           <span className="check-dur">{clock}</span>
         </span>
+        <span className="sr-only">{` · ${t('row.viewLogHint')}`}</span>
       </button>
       <MoreActions className="check-more" label={t('row.more', { name: check.name })} title={check.name} entries={entries} />
     </div>

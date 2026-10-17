@@ -586,7 +586,7 @@
     "scope": "Ámbito",
     "actions": "Acciones",
     "editNamed": "Editar {{name}}",
-    "editInUserNamed": "Editar {{name}} en el ámbito de usuario",
+    "editInUserNamed": "Editar en el ámbito del usuario: {{name}}",
     "removeNamed": "Quitar {{name}}"
   },
   "toolPresets": {
@@ -612,7 +612,7 @@
     "removeFailed": "No se ha podido eliminar el preset",
     "shipped": "Incluido",
     "editNamed": "Editar {{name}}",
-    "removeNamed": "Eliminar {{name}}",
+    "removeNamed": "Quitar {{name}}",
     "removeTitle": "¿Eliminar {{name}}?",
     "removeBody": "Los chats que ya están en marcha conservan las herramientas que recibieron.",
     "removeShippedBody": "Este preset viene con Claudio. «Restaurar los presets incluidos» lo recupera.",
@@ -876,6 +876,8 @@
     "installedTag": "instalado",
     "installing": "Instalando…",
     "installedButton": "Instalado",
+    "installedNamed": "Instalado: {{name}}",
+    "installNamed": "Instalar {{name}}",
     "install": "Instalar",
     "first100": "Se muestran los 100 primeros resultados. Afina la búsqueda para ver más.",
     "addFailed": "No se ha podido añadir el marketplace",

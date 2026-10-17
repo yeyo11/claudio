@@ -80,7 +80,7 @@
     "exportMarkdown": "Exportar Markdown",
     "delete": "Eliminar",
     "deleting": "Eliminando…",
-    "clear": "Quitar la selección",
+    "clear": "Cancelar: quitar la selección",
     "deleteTitle_one": "¿Eliminar {{count}} chat?",
     "deleteTitle_other": "¿Eliminar {{count}} chats?",
     "deleteBody_one": "Su transcripción se elimina con él. No se puede deshacer.",
@@ -129,7 +129,7 @@
     "startError": "No se ha podido iniciar el chat",
     "starting": "Iniciando…",
     "uploading": "Subiendo…",
-    "start": "Iniciar chat",
+    "start": "Empezar el chat",
     "welcome": {
       "examples": {
         "one": "Lee este proyecto y cuéntame cómo está organizado",
@@ -137,7 +137,7 @@
         "three": "Añade un test para el caso en que falta el archivo"
       }
     },
-    "options": "Dónde se ejecutará el chat: {{status}}"
+    "options": "Dónde se ejecutará el chat"
   },
   "provider": {
     "agent": "Agente",

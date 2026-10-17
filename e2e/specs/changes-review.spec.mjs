@@ -73,7 +73,7 @@ export default async ({ page, api, check }) => {
   const root = mkdtempSync(join(tmpdir(), 'claudio-e2e-review-'));
   let seeded = null;
   const review = `/chats/${SESSION}/changes`;
-  const current = () => page.eval(`return document.querySelector('.changes-file[aria-current=page], .changes-rail-file[aria-current=page]')?.getAttribute('aria-label')?.split(' · ')[0] ?? null`);
+  const current = () => page.eval(`return document.querySelector('.changes-file[aria-current=page], .changes-rail-file[aria-current=page]')?.getAttribute('title')?.split(' · ')[0] ?? null`);
   const mode = () => page.eval(`return document.querySelector('.changes-review .diff')?.dataset.mode ?? null`);
   try {
     const repo = seedRepo(root);
@@ -95,7 +95,7 @@ export default async ({ page, api, check }) => {
     check(head.includes('feature/review'), 'the header names the branch');
     check(/from [0-9a-f]{7}/.test(head), 'the header names the commit it branched from');
     check(head.includes('1 commit') && head.includes('4 files'), `the header counts the commits and the files (${head.replace(/\s+/g, ' ')})`);
-    const listed = await page.eval(`return [...document.querySelectorAll('.changes-file')].map((e) => e.getAttribute('aria-label'))`);
+    const listed = await page.eval(`return [...document.querySelectorAll('.changes-file')].map((e) => e.getAttribute('title'))`);
     for (const name of ['greet.ts', 'keep.ts', 'fresh.ts', 'long.ts']) check(listed.some((l) => l.startsWith(`${name} ·`)), `${name} is in the file map (${listed.join(' | ')})`);
     check(listed.some((l) => l.startsWith('fresh.ts · added') && l.includes('Not committed yet')), 'a file git has never seen is added and not committed yet');
     check(await page.eval(`return !!document.querySelector('.changes-print a[aria-current=true]')`), 'the fingerprint rings the current file');
@@ -108,7 +108,7 @@ export default async ({ page, api, check }) => {
     check(scopes.some((s) => s.includes('feat: greet with a comma and a bang')), `the scope menu lists the commit by its subject (${scopes.join(' | ')})`);
     await page.click('[role=menu] [role^=menuitem]', 'Not committed yet', 900);
     await page.waitFor(`return new URLSearchParams(location.search).get('scope') === 'uncommitted'`, { label: 'the uncommitted scope' });
-    const uncommitted = await page.eval(`return [...document.querySelectorAll('.changes-file')].map((e) => e.getAttribute('aria-label').split(' · ')[0]).sort().join(',')`);
+    const uncommitted = await page.eval(`return [...document.querySelectorAll('.changes-file')].map((e) => e.getAttribute('title').split(' · ')[0]).sort().join(',')`);
     check(uncommitted === 'fresh.ts,keep.ts', `"Not committed yet" lists only the uncommitted files (${uncommitted})`);
 
     // ---------- Reading: the file as it is now, the removed line folded into a pill ----------
@@ -154,7 +154,7 @@ export default async ({ page, api, check }) => {
     await page.waitFor(`return !!document.querySelector('.changes-seen button[role=checkbox]')`, { label: 'the file again' });
     check((await page.eval(`return document.querySelector('.changes-seen button[role=checkbox]').getAttribute('aria-checked')`)) === 'true', 'seen survives a reload');
     check((await page.text('.changes-map-head')).includes('1 of 4 seen'), 'the map counts what was seen');
-    check(await page.eval(`return !!document.querySelector('.changes-file.is-seen[aria-label^="long.ts"]')`), 'the seen file is marked in the map');
+    check(await page.eval(`return !!document.querySelector('.changes-file.is-seen[title^="long.ts"]')`), 'the seen file is marked in the map');
 
     // ---------- keyboard: j moves between blocks, p to the previous file (long.ts is the last) ----------
     // The header (and its Seen box) draws before the diff arrives, and j has no block to go to until then
@@ -163,7 +163,7 @@ export default async ({ page, api, check }) => {
     await page.waitFor(`return document.querySelector('.changes-blocks-count')?.textContent.includes('1 /')`, { label: 'j moves to the first block' });
     const before = await current();
     await page.key('p');
-    await page.waitFor(`return document.querySelector('.changes-file[aria-current=page], .changes-rail-file[aria-current=page]')?.getAttribute('aria-label')?.split(' · ')[0] !== ${JSON.stringify(before)}`, { label: 'p opens the previous file' });
+    await page.waitFor(`return document.querySelector('.changes-file[aria-current=page], .changes-rail-file[aria-current=page]')?.getAttribute('title')?.split(' · ')[0] !== ${JSON.stringify(before)}`, { label: 'p opens the previous file' });
 
     // ---------- accessibility ----------
     // The chrome of the screen in full; the diff's own dimmed context and line numbers are the

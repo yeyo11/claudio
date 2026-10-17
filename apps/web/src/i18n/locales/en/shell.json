@@ -11,7 +11,7 @@
     "running": "{{count}} running",
     "progress": "{{done}}/{{total}}",
     "progressWords": "{{done}} of {{total}} tasks done",
-    "chipLabel": "Live now: {{summary}}",
+    "chipLabel": "Live now, {{count}}: {{summary}}",
     "menu": "What is live",
     "groups": {
       "waiting": "Waiting for you",

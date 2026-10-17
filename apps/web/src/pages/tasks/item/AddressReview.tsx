@@ -74,7 +74,8 @@ function ThreadRow({ thread, mark, on, narrow, where, onToggle }: { thread: Revi
   // A phone has no checkboxes: the whole row is the button and says "Chosen"
   if (narrow)
     return (
-      <button type="button" className={`addr-thread ${on ? 'on' : ''}`.trim()} aria-pressed={on} aria-label={t('address.dialog.choose', { where })} onClick={onToggle}>
+      // Named by what the row shows, the thread and "Chosen"; aria-pressed says the state
+      <button type="button" className={`addr-thread ${on ? 'on' : ''}`.trim()} aria-pressed={on} onClick={onToggle}>
         {main}
         <span className={`addr-state ${on ? 'on' : ''}`.trim()}>{on && <Check {...ICON_SM} />}{on ? t('address.dialog.chosen') : null}</span>
       </button>

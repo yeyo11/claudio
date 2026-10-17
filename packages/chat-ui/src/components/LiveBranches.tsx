@@ -97,16 +97,17 @@ function BranchRow({ branch }: { branch: Branch }) {
   const { t } = useTranslation('chat');
   const verbOf = useVerb();
   const line = branch.kind === 'agent' && branch.status === 'running' ? verbOf(branch) : null;
+  // The spaces between the cells are not drawn (the row is flex) but keep its name in words
   return (
     <>
-      <BranchState branch={branch} word={t(`branches.state.${branch.status}`)} />
-      <span className="badge chat-branch-kind">{branch.label}</span>
-      <span className={`chat-branch-desc ${branch.mono ? 'mono' : ''}`.trimEnd()}>{branch.description}</span>
+      <BranchState branch={branch} word={t(`branches.state.${branch.status}`)} />{' '}
+      <span className="badge chat-branch-kind">{branch.label}</span>{' '}
+      <span className={`chat-branch-desc ${branch.mono ? 'mono' : ''}`.trimEnd()}>{branch.description}</span>{' '}
       <span className="chat-branch-act">
         {line && <span className="verb">{line.verb}</span>}
         {line?.target ? ` ${line.target}` : ''}
         {branch.kind === 'workflow' && branch.progress && branch.status === 'running' ? <WorkflowFacts branch={branch} /> : null}
-      </span>
+      </span>{' '}
       <span className="chat-branch-time">
         <BranchClock branch={branch} />
       </span>
@@ -134,13 +135,14 @@ function BranchList({ branches, onOpen }: { branches: Branch[]; onOpen: (branch:
             key={branch.key}
             type="button"
             className={`chat-branch-row is-${branch.status} ${owner ? 'is-nested' : ''}`.trimEnd()}
-            // The row's own text is what it shows; its name says where it leads
-            aria-label={owner ? `${t('branches.open', { what: branch.description })} · ${t('branches.nested', { owner: owner.description })}` : t('branches.open', { what: branch.description })}
+            // Named by what it shows, so a voice user can say the words they see; the indent that
+            // says whose it is cannot be read, so a nested row says its owner off screen
             onClick={() => onOpen(branch)}
             exit={level === 'full' ? { height: 0, opacity: 0 } : { opacity: 0 }}
             transition={{ duration: level === 'full' ? 0.2 : 0, ease: EASE_OUT }}
           >
             <BranchRow branch={branch} />
+            {owner && <span className="sr-only"> · {t('branches.nested', { owner: owner.description })}</span>}
           </motion.button>
         );
       })}

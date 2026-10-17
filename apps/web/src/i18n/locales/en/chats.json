@@ -80,7 +80,7 @@
     "exportMarkdown": "Export Markdown",
     "delete": "Delete",
     "deleting": "Deleting…",
-    "clear": "Clear the selection",
+    "clear": "Cancel: clear the selection",
     "deleteTitle_one": "Delete {{count}} chat?",
     "deleteTitle_other": "Delete {{count}} chats?",
     "deleteBody_one": "Its transcript is deleted with it. This cannot be undone.",
@@ -137,7 +137,7 @@
         "three": "Add a test for the case where the file is missing"
       }
     },
-    "options": "Where the chat will run: {{status}}"
+    "options": "Where the chat will run"
   },
   "provider": {
     "agent": "Agent",

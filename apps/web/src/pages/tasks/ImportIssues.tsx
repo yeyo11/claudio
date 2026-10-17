@@ -106,7 +106,8 @@ function IssueRow({ issue, on, narrow, selecting, onToggle }: { issue: TrackerIs
   if (narrow && !selecting) return <div className="addr-thread static">{main}</div>;
   if (narrow)
     return (
-      <button type="button" className={`addr-thread ${on ? 'on' : ''}`.trim()} aria-pressed={on} aria-label={t('import.choose', { ref })} onClick={onToggle}>
+      // Named by what the row shows, its issue and "Choose" or "Chosen"; aria-pressed says the state
+      <button type="button" className={`addr-thread ${on ? 'on' : ''}`.trim()} aria-pressed={on} onClick={onToggle}>
         {main}
         <span className={`addr-state ${on ? 'on' : ''}`.trim()}>
           {on && <Check {...ICON_SM} />}

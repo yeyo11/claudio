@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestration, useWorkItemByKey } from '../api';
-import { Counts, FileMap, MapLegend, StatusLetter, useRowWords, type MapFile } from '../components/changes/FileMap';
+import { Counts, FileMap, MapLegend, RowDetails, StatusLetter, type MapFile } from '../components/changes/FileMap';
 import { FileReview } from '../components/changes/FileReview';
 import { findingCounts, useReviewFindings } from '../components/changes/ReviewFindings';
 import { Fingerprint } from '../components/changes/Fingerprint';
@@ -686,7 +686,6 @@ function LensSwitch({ lens, noWorktree, hasSteps, hrefWith }: { lens: Lens; noWo
 
 function PhoneFiles({ files, to, seenCount, total }: { files: MapFile[]; to: (path: string) => string; seenCount: number; total: number }) {
   const { t } = useTranslation('changes');
-  const words = useRowWords();
   return (
     <div className="changes-cells">
       <div className="changes-cells-head">
@@ -701,7 +700,6 @@ function PhoneFiles({ files, to, seenCount, total }: { files: MapFile[]; to: (pa
               key={m.file.path}
               to={to(m.file.path)}
               className={`changes-cell${m.seen ? ' is-seen' : ''}${m.live ? ' is-live' : ''}`}
-              aria-label={words(m)}
             >
               <StatusLetter file={m.file} />
               <span className="changes-cell-text">
@@ -709,7 +707,8 @@ function PhoneFiles({ files, to, seenCount, total }: { files: MapFile[]; to: (pa
                   <span className="changes-file-name">{name}</span>
                   {m.uncommitted && <span className="changes-dot" aria-hidden />}
                 </span>
-                {dir && <span className="changes-cell-dir">{dir}</span>}
+                {dir && <> <span className="changes-cell-dir">{dir}</span></>}
+                <RowDetails m={m} />
               </span>
               <span className="changes-file-end" aria-hidden>
                 {m.seen && <Check size={16} strokeWidth={2.2} />}

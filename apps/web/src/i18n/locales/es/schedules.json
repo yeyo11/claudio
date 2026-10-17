@@ -52,7 +52,7 @@
     "toggleFailed": "No se ha podido cambiar la programación",
     "runNow": "Ejecutar ahora",
     "runNowHint": "Lánzala ya, diga lo que diga el horario",
-    "runNowNamed": "Ejecutar {{name}} ahora",
+    "runNowNamed": "Ejecutar ahora: {{name}}",
     "runStarted": "{{name}} lanzada",
     "runFailed": "La programación no ha podido arrancar",
     "edit": "Editar",

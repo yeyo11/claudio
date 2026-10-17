@@ -48,13 +48,12 @@ export function StatusLetter({ file }: { file: ChangedFile }) {
   );
 }
 
-/** What a row says in words, for its title and a screen reader: status, not committed, seen, live */
-export function useRowWords() {
+/** What a row says after its path, in words: status, not committed, seen, live */
+function useRowDetails() {
   const { t } = useTranslation('changes');
   const { Agent } = useAgentCopy();
   return (m: MapFile) =>
     [
-      m.file.path,
       t(m.file.binary ? 'status.binary' : `status.${m.file.status}`),
       m.file.previousPath ? t('row.renamedFrom', { path: m.file.previousPath }) : null,
       m.uncommitted ? t('row.uncommitted') : null,
@@ -64,6 +63,22 @@ export function useRowWords() {
     ]
       .filter(Boolean)
       .join(' · ');
+}
+
+/** What a row says in words, for its title and a screen reader: its path, then its details */
+export function useRowWords() {
+  const details = useRowDetails();
+  return (m: MapFile) => `${m.file.path} · ${details(m)}`;
+}
+
+/**
+ * A row's details said off screen. A row is named by what it shows (its name), so a voice user can
+ * say the words they see; its status letter, counts and marks are drawn for the eye and hidden,
+ * and this carries them in words.
+ */
+export function RowDetails({ m }: { m: MapFile }) {
+  const details = useRowDetails();
+  return <span className="sr-only"> · {details(m)}</span>;
 }
 
 export function FileMap({
@@ -170,11 +185,12 @@ function FileRow({ m, current, to, words }: { m: MapFile; current: boolean; to: 
   const { name } = splitPath(m.file.path);
   const cls = ['changes-file', current ? 'is-current' : '', m.seen ? 'is-seen' : '', m.live ? 'is-live' : ''].filter(Boolean).join(' ');
   return (
-    <Link to={to} replace className={cls} title={words} aria-label={words} aria-current={current ? 'page' : undefined}>
+    <Link to={to} replace className={cls} title={words} aria-current={current ? 'page' : undefined}>
       <StatusLetter file={m.file} />
       <span className="changes-file-main">
         <span className="changes-file-name">{name}</span>
         {m.uncommitted && <span className="changes-dot" aria-hidden />}
+        <RowDetails m={m} />
       </span>
       <span className="changes-file-end" aria-hidden>
         {m.seen && <Check size={14} strokeWidth={2.2} />}

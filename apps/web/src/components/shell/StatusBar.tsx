@@ -293,7 +293,8 @@ function TerminalItem() {
       <button type="button" className={`statusbar-item statusbar-btn${bar.open ? ' is-open' : ''}`} aria-expanded={bar.open} aria-controls={bar.open ? 'terminal-bar' : undefined} aria-label={t('bar.item', { count })} onClick={bar.toggle}>
         <SquareTerminal size={13} strokeWidth={1.75} aria-hidden />
         <span>{t('bar.label')}</span>
-        {count > 0 && <span className="mono">{count}</span>}
+        {/* The space keeps the word and the count apart in the name; the flex item does not draw it */}
+        {count > 0 && <> <span className="mono">{count}</span></>}
       </button>
     </Tooltip>
   );
