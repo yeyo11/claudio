@@ -34,17 +34,55 @@ function inodeOf(table: string, local: number, remote: number): string | null {
   return null;
 }
 
+/** How `/proc` is read for one process: the names in its descriptor directory, and its `stat` line. A test gives its own. */
+export interface ProcReader {
+  fds(pid: number): string[];
+  link(pid: number, fd: string): string;
+  stat(pid: number): string;
+}
+
+const procReader: ProcReader = {
+  fds: (pid) => readdirSync(`/proc/${String(pid)}/fd`),
+  link: (pid, fd) => readlinkSync(`/proc/${String(pid)}/fd/${fd}`),
+  stat: (pid) => readFileSync(`/proc/${String(pid)}/stat`, 'utf8'),
+};
+
+/** The kernel's flag for a task inside `do_exit`, in the ninth field of its `stat` line */
+const PF_EXITING = 0x4;
+/** How long a check waits for a process caught exiting to finish before it answers */
+const SETTLE_MS = 500;
+const SETTLE_STEP_MS = 5;
+
+/** The fields of a `stat` line after the command name, which may itself contain spaces and parentheses */
+const statFields = (stat: string): string[] => stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+
 /** Whether a process has ended and only waits to be reaped: it holds no descriptors, and the kernel refuses to list them (EACCES) */
-function finished(pid: number): boolean {
+function finished(proc: ProcReader, pid: number): boolean {
   try {
-    const stat = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
-    // The state follows the command name, which may itself contain spaces and parentheses
-    const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3);
+    const state = statFields(proc.stat(pid))[0];
     return state === 'Z' || state === 'X';
   } catch {
     return true;
   }
 }
+
+/**
+ * Whether a process is on its way out: between the start of its exit and becoming a zombie, the
+ * kernel already refuses to list its descriptors (EACCES) while its state still reads running. That
+ * lasts milliseconds, and it is the one refusal that clears up on its own.
+ */
+function exiting(proc: ProcReader, pid: number): boolean {
+  try {
+    return (Number(statFields(proc.stat(pid))[6]) & PF_EXITING) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+const pause = (ms: number): void => {
+  // The gate asks synchronously; a wait of a few milliseconds is cheaper than making every caller async
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
 
 /**
  * Which process opened a loopback connection, as far as it matters: whether it is a chat's, or one
@@ -67,6 +105,7 @@ export class PeerCheck {
       // A verification command is not a chat's child, but it runs what an agent wrote (T8-2)
       chatPids: () => [...claudioChildren().map((chat) => chat.pid), ...agentRunProcesses()],
     },
+    private readonly proc: ProcReader = procReader,
   ) {}
 
   /** Whether this machine lets the check work at all */
@@ -81,6 +120,22 @@ export class PeerCheck {
   }
 
   check(peer: PeerSocket): PeerVerdict {
+    // A process of a chat's tree caught exiting made the answer unknown, and under `mode: none` the
+    // person's own browser was refused with it: on a machine whose agents start and end processes
+    // all the time, 1 to 3 requests in 100 were. Once it has finished it holds nothing, so the check
+    // is made again from the start, the socket's inode included: a process that exited holding the
+    // client's socket took the socket with it, and that answer stays unknown. Another may be caught
+    // exiting on the next look, so it goes on until the answer is not owed to one, or time is up.
+    const end = Date.now() + SETTLE_MS;
+    for (;;) {
+      const look = this.inspect(peer);
+      if (look.verdict !== 'unknown' || look.exiting.length === 0 || Date.now() >= end) return look.verdict;
+      while (Date.now() < end && look.exiting.some((pid) => !finished(this.proc, pid))) pause(SETTLE_STEP_MS);
+    }
+  }
+
+  /** One look: the verdict, and the processes whose descriptors could not be read because they were exiting */
+  private inspect(peer: PeerSocket): { verdict: PeerVerdict; exiting: number[] } {
     // A v4-mapped peer is an IPv4 socket: it is in tcp, not tcp6
     const v6 = peer.address.includes(':') && !peer.address.toLowerCase().startsWith('::ffff:');
     const tables = v6 ? ['/proc/net/tcp6'] : ['/proc/net/tcp'];
@@ -96,28 +151,33 @@ export class PeerCheck {
       inode = inodeOf(table, peer.port, peer.serverPort);
       if (inode) break;
     }
-    if (!readable || !inode) return 'unknown';
+    if (!readable || !inode) return { verdict: 'unknown', exiting: [] };
     const { pids, complete } = this.chatTree();
     const wanted = `socket:[${inode}]`;
     let sealed = complete;
+    const leaving: number[] = [];
     for (const pid of pids) {
       let names: string[];
       try {
-        names = readdirSync(`/proc/${String(pid)}/fd`);
+        names = this.proc.fds(pid);
       } catch (error) {
         // Gone since the table was read is fine, and so is a zombie; a directory this user may not read is not
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'ESRCH' && !finished(pid)) sealed = false;
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT' && code !== 'ESRCH' && !finished(this.proc, pid)) {
+          sealed = false;
+          if (exiting(this.proc, pid)) leaving.push(pid);
+        }
         continue;
       }
       for (const name of names) {
         try {
-          if (readlinkSync(`/proc/${String(pid)}/fd/${name}`) === wanted) return 'agent';
+          if (this.proc.link(pid, name) === wanted) return { verdict: 'agent', exiting: [] };
         } catch {
           // closed while looking
         }
       }
     }
-    return sealed ? 'not-agent' : 'unknown';
+    return { verdict: sealed ? 'not-agent' : 'unknown', exiting: leaving };
   }
 
   /** The chats' CLI processes and everything below them, from `CLAUDIO_CHAT_ID` in their environment */
