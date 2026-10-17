@@ -112,7 +112,7 @@ function ConnectorCard({
         </div>
         {connector.status === 'needs-auth' && (
           <div className="task-actions connector-actions">
-            <button type="button" className="btn btn-small" disabled={authBusy || waiting} onClick={() => onAuthorise(connector)} aria-label={t('authorise.named', { connector: connector.name })}>
+            <button type="button" className="btn btn-small" disabled={authBusy || waiting} onClick={() => onAuthorise(connector)} aria-label={authBusy ? undefined : t('authorise.named', { connector: connector.name })}>
               <ExternalLink {...ICON_SM} aria-hidden /> {authBusy ? t('authorise.starting') : t('authorise.action')}
             </button>
           </div>
@@ -126,7 +126,8 @@ function ConnectorCard({
                   className="btn btn-small"
                   disabled={pending !== null}
                   onClick={() => onAsk(connector, action)}
-                  aria-label={t('ask.named', { action: connectorActionLabel(action), connector: connector.name })}
+                  // While it starts the button says so, and that word is its name
+                  aria-label={pending === `${connector.id}:${action.id}` ? undefined : t('ask.named', { action: connectorActionLabel(action), connector: connector.name })}
                 >
                   <Sparkles {...ICON_SM} /> {pending === `${connector.id}:${action.id}` ? t('ask.starting') : t('ask.try', { action: connectorActionLabel(action) })}
                 </button>

@@ -365,8 +365,8 @@
   },
   "edits": {
     "label": "Archivos que editó este paso",
-    "chip": "{{file}}: ver este paso",
-    "chipCounts": "{{file}}, {{additions}} líneas añadidas y {{deletions}} quitadas: ver este paso"
+    "chipAfter": ": ver este paso",
+    "chipCountsAfter": ", {{additions}} líneas añadidas y {{deletions}} quitadas: ver este paso"
   },
   "transcript": {
     "thinking": "Thinking",

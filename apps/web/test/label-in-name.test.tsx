@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
-import type { ChatChildren, ChatSubagent, IssueRef } from '@claudio/shared';
+import type { ChatChildren, ChatSubagent, IssueRef, ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as React from 'react';
 import type { ReactNode } from 'react';
@@ -15,7 +15,9 @@ import { ChatUiProvider, type ChatUiConfig } from '@claudio/chat-ui/lib/context'
 import { nameFromContent } from '@claudio/ui/components/controls/Select';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
+import { keys } from '../src/api';
 import { FileMap, type MapFile } from '../src/components/changes/FileMap';
+import { ProviderDots } from '../src/components/shell/ProviderDots';
 import i18n, { setLanguage } from '../src/i18n';
 import { AssigneeMark } from '../src/pages/tasks/item/fields';
 import { IssueChips } from '../src/pages/tasks/item/Issues';
@@ -167,26 +169,101 @@ test('an option with a hint is named by all it shows, not by its label alone', (
   assert.deepEqual(nameFromContent(undefined), {}, 'without a hint Radix names it by the label it shows');
 });
 
+test("a provider's status bar item is named by what it shows: state, percent and when it resumes", () => {
+  const status = (over: Partial<ProviderStatus>): ProviderStatus => ({
+    id: 'claude-code', label: 'Claude Code', state: 'degraded', reason: 'limit-reached', version: '2.1.282', compatibleRange: '>=2.1 <3', binaryPath: '/usr/local/bin/x',
+    configHome: null, account: null, capabilities: ['rateLimitWindows'], checkedAt: '2026-10-02T10:00:00Z', ...over,
+  });
+  const limit = (over: Partial<ProviderLimit>): ProviderLimit => ({
+    provider: 'claude-code', state: 'exhausted', window: '5h', utilization: 1, resetsAt: new Date(Date.now() + 2 * 3600_000).toISOString(), windows: {},
+    observedAt: new Date(Date.now() - 120_000).toISOString(), source: 'stream', ...over,
+  });
+  for (const lang of ['en', 'es'] as const) {
+    for (const [s, l] of [
+      [status({}), limit({})],
+      [status({ reason: 'limit-near' }), limit({ state: 'near', utilization: 0.72 })],
+    ] as const) {
+      setLanguage(lang);
+      const client = new QueryClient();
+      client.setQueryData(keys.providers, [s]);
+      client.setQueryData(keys.providerSettings, { providers: { 'claude-code': { enabled: true, binaryPath: null } }, order: ['claude-code'], defaultProvider: null });
+      const html = renderToStaticMarkup(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <TooltipProvider>
+              <ProviderDots limits={[l]} />
+            </TooltipProvider>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      assert.deepEqual(labelMismatches(html), [], lang);
+      const [item] = controls(html).filter((c) => c.className.startsWith('statusbar-item'));
+      assert.ok(item, lang);
+      assert.equal(item.name, item.visible, `${lang}: named by what it shows`);
+      assert.doesNotMatch(item.name, /Claude Code ·\S/, `${lang}: words stay apart`);
+    }
+  }
+});
+
 test('a name given in words of its own holds the words the control shows, in both languages', () => {
-  // [what the control shows, what names it, its values]
-  const pairs: Array<[string, string, Record<string, unknown>]> = [
-    ['projects:worktrees.newChatHere', 'projects:worktrees.newChatIn', { name: 'e2e-a11y' }],
-    ['home:settings.memory.open', 'home:settings.memory.openNamed', { name: 'e2e-a11y' }],
-    ['schedules:card.runNow', 'schedules:card.runNowNamed', { name: 'e2e nightly check' }],
-    ['config:mcp.editInUser', 'config:mcp.editInUserNamed', { name: 'github' }],
-    ['assistant:proposal.undo', 'assistant:proposal.undoNamed', { name: 'qa.md' }],
-    ['terminal:bar.label', 'terminal:bar.item', { count: 1 }],
+  // [what names it, what the control shows, its values]: every button and link in the app whose
+  // aria-label goes beside a visible word of its own
+  const pairs: Array<[string, string, Record<string, unknown>?]> = [
+    ['projects:worktrees.newChatIn', 'projects:worktrees.newChatHere'],
+    ['home:settings.memory.openNamed', 'home:settings.memory.open'],
+    ['schedules:card.runNowNamed', 'schedules:card.runNow'],
+    ['config:mcp.editInUserNamed', 'config:mcp.editInUser'],
+    ['assistant:proposal.undoNamed', 'assistant:proposal.undo'],
+    ['orchestrationV2:templates.launchNamed', 'orchestrationV2:templates.launch'],
+    ['setup:row.signInAria', 'setup:row.signIn'],
+    ['setup:signOut.aria', 'setup:signOut.action'],
+    ['chats:bulk.clear', 'chats:bulk.cancel'],
+    ['chats:new.start', 'chat:newChat.start'],
+    ['connectors:ask.named', 'connectors:ask.try', { action: 'Summarise the inbox', connector: 'Gmail' }],
+    ['connectors:authorise.named', 'connectors:authorise.action', { connector: 'Gmail' }],
+    ['projects:candidates.importNamed', 'projects:importForm.import'],
+    ['projects:card.openNamed', 'common:actions.open'],
+    ['projects:head.assistantOf', 'projects:head.assistant'],
+    ['accountsConfig:card.signInAgainFor', 'accountsConfig:card.signInAgain'],
+    ['assistant:proposal.discardNamed', 'assistant:proposal.discard'],
+    ['assistant:proposal.acceptNamed', 'assistant:proposal.accept'],
+    ['assistant:resources.reviewNamed', 'assistant:resources.review'],
+    ['chat:side.workItem.openLabel', 'chat:side.workItem.open', { key: 'AGN-1' }],
+    ['collaborators:sharedWithYou.openIn', 'collaborators:sharedWithYou.open', { project: 'shop' }],
+    ['collaborators:sharedWithYou.openReadOnly', 'collaborators:sharedWithYou.open', { project: 'shop' }],
+    ['decisions:consent.withdrawPoint', 'decisions:consent.withdrawAction', { point: 'triage' }],
+    ['config:mcp.editNamed', 'config:shared.edit'],
+    ['config:mcp.removeNamed', 'common:actions.remove'],
+    ['config:notifications.devices.testNamed', 'config:notifications.devices.test'],
+    ['config:notifications.devices.removeNamed', 'config:notifications.devices.remove'],
+    ['config:plugins.detailsOf', 'config:plugins.details'],
+    ['config:plugins.uninstallNamed', 'config:plugins.uninstall'],
+    ['config:plugins.updateNamed', 'config:plugins.update'],
+    ['config:plugins.removeNamed', 'common:actions.remove'],
+    ['config:plugins.installNamed', 'config:plugins.install'],
+    ['config:plugins.installedNamed', 'config:plugins.installedButton'],
+    ['config:toolPresets.editNamed', 'config:shared.edit'],
+    ['config:toolPresets.removeNamed', 'common:actions.remove'],
+    ['config:resourcesAi.discardName', 'config:resourcesAi.discard'],
+    ['config:resourcesAi.reviewName', 'config:resourcesAi.review'],
+    ['home:edit.addNamed', 'home:edit.addShort', { title: 'Usage' }],
+    ['tasks:suggest.discardTitle', 'tasks:suggest.discard', { title: 'Fix the cart' }],
+    ['chat:attachments.attachFiles', 'chat:attachments.attach'],
+    ['chat:branches.open', 'chat:branches.openButton', { what: 'Survey the build' }],
   ];
   // The keys are listed as plain strings, which the typed `t` does not take
   const t = i18n.t.bind(i18n) as unknown as (key: string, values?: Record<string, unknown>) => string;
   for (const lang of ['en', 'es'] as const) {
     setLanguage(lang);
-    for (const [shown, named, values] of pairs) {
-      let visible = t(shown);
-      // The Terminal item shows its count after its word
-      if (named === 'terminal:bar.item') visible = `${visible} 1`;
-      const name = t(named, values);
+    for (const [named, shown, values] of pairs) {
+      assert.ok(i18n.exists(named) && i18n.exists(shown), `${named} and ${shown} exist`);
+      const visible = t(shown, values);
+      const name = t(named, { name: 'shop', ...values });
       assert.ok(holdsWords(name, visible), `${lang}: "${name}" should hold "${visible}"`);
     }
+    // Words drawn beside a count: the Terminal item, the checklist in a chat's head, the live rail
+    assert.ok(holdsWords(t('terminal:bar.item', { count: 2 }), `${t('terminal:bar.label')} 2`), lang);
+    assert.ok(holdsWords(t('chat:head.checklist', { progress: '1/3 · x' }), '1/3'), lang);
+    assert.ok(holdsWords(t('shell:live.chipLabel', { count: 12, summary: 'x' }), '12'), lang);
   }
 });

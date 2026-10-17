@@ -128,13 +128,16 @@ function CheckRow({
   if (check.url) entries.push({ id: 'host', label: t('checks.row.openOnHost', { host: words.host }), icon: ExternalLink, href: check.url });
   return (
     <div className={`ochk-row${selected ? ' on' : ''}`}>
-      <button type="button" className="ochk-main" aria-label={t('checks.row.open', { name: check.name })} aria-pressed={selected} onClick={onOpen}>
+      {/* Named by what it shows, so a voice user can say the words they see; that it opens the log is
+          said off screen, and the spaces keep the grid cells' words apart in the name */}
+      <button type="button" className="ochk-main" aria-pressed={selected} onClick={onOpen}>
         <span className="ochk-state">
           <StateBadge check={check} />
-        </span>
-        <span className="ochk-name">{check.name}</span>
-        <span className="ochk-stage">{check.group ?? ''}</span>
+        </span>{' '}
+        <span className="ochk-name">{check.name}</span>{' '}
+        <span className="ochk-stage">{check.group ?? ''}</span>{' '}
         <Clock check={check} />
+        <span className="sr-only">{` · ${t('checks.row.openHint')}`}</span>
       </button>
       {entries.length > 0 && <MoreActions entries={entries} label={t('checks.row.more', { name: check.name })} className="btn-ghost btn-icon" />}
     </div>

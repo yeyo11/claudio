@@ -81,7 +81,8 @@ function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void })
   const said = [t('observe:checklist.progress', { done, total }), current ? t('observe:checklist.onIt', { text: current.text }) : ''].filter(Boolean).join(' · ');
   return (
     <Tooltip content={said}>
-      <button type="button" className="chat-checklist" aria-label={t('head.checklist', { progress: said })} onClick={onOpen}>
+      {/* The name starts with the count it shows, so a voice user can say the words they see */}
+      <button type="button" className="chat-checklist" aria-label={t('head.checklist', { progress: `${done}/${total} · ${said}` })} onClick={onOpen}>
         <span aria-hidden>
           <ProgressBar counts={checklistCounts(data.items)} variant="blocks" />
         </span>

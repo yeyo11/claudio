@@ -177,7 +177,7 @@ export function LiveSection({ live, rail }: { live: LiveSummary & { any: boolean
   const total = live.working + live.waiting + live.running;
 
   if (rail) {
-    const name = t('live.chipLabel', { summary: words.join(', ') });
+    const name = t('live.chipLabel', { count: total, summary: words.join(', ') });
     return (
       <div className="live-section is-rail">
         <Menu

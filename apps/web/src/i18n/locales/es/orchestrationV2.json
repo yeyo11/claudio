@@ -182,7 +182,7 @@
     "fixPrompt": "El flujo del proyecto está desactivado, así que no se ha iniciado ningún chat. El prompt para uno propio viene en la respuesta.",
     "fixing": "Un chat está arreglando los checks que fallan en la rama de integración.",
     "row": {
-      "open": "Ver el log de {{name}}",
+      "openHint": "abre su registro",
       "more": "Más acciones de {{name}}",
       "rerun": "Volver a ejecutar este job",
       "run": "Ejecutar este job",

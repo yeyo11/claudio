@@ -11,7 +11,7 @@
     "running": "{{count}} en curso",
     "progress": "{{done}}/{{total}}",
     "progressWords": "{{done}} de {{total}} tareas hechas",
-    "chipLabel": "En directo: {{summary}}",
+    "chipLabel": "En directo, {{count}}: {{summary}}",
     "menu": "Qué está en marcha",
     "groups": {
       "waiting": "Esperándote",

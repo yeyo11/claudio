@@ -876,6 +876,8 @@
     "installedTag": "installed",
     "installing": "Installing…",
     "installedButton": "Installed",
+    "installedNamed": "Installed: {{name}}",
+    "installNamed": "Install {{name}}",
     "install": "Install",
     "first100": "Showing the first 100 results. Refine the search to see more.",
     "addFailed": "Could not add the marketplace",

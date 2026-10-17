@@ -302,7 +302,8 @@ export function FlowRunRow({ run, days, context, phone, projectId }: { run: Flow
   const status = flowRunStatus(run);
   if (phone && run.chatId)
     return (
-      <Link to={(run.guardBlocks ?? 0) > 0 ? guardChatPath(run.chatId) : `/chats/${run.chatId}`} className={className} aria-label={label} data-status={status}>
+      // The whole row is the link, named by what it shows: a label of its own would hide those words
+      <Link to={(run.guardBlocks ?? 0) > 0 ? guardChatPath(run.chatId) : `/chats/${run.chatId}`} className={className} data-status={status}>
         {body}
       </Link>
     );

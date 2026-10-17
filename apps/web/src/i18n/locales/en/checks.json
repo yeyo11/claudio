@@ -39,7 +39,7 @@
     "manual": "manual"
   },
   "row": {
-    "viewLog": "View the log of {{name}}",
+    "viewLogHint": "opens its log",
     "more": "More actions of {{name}}"
   },
   "menu": {

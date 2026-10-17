@@ -182,7 +182,7 @@
     "fixPrompt": "The project's flow is off, so no chat started. The prompt for a chat of your own is in the response.",
     "fixing": "A chat is fixing the failing checks on the integration branch.",
     "row": {
-      "open": "View the log of {{name}}",
+      "openHint": "opens its log",
       "more": "More actions for {{name}}",
       "rerun": "Re-run this job",
       "run": "Run this job",

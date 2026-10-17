@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T09:00:00Z
-updated_at: 2026-10-17T09:00:00Z
+updated_at: 2026-10-17T12:00:00Z
 tags:
     - decision
     - decisions
@@ -57,6 +57,17 @@ shows (`nameFromContent` in `packages/ui/src/components/controls/Select.tsx`).
 - `IssueChips`, `StatusChips` (chat-ui composer), the branch rows of `LiveBranches`, the phone
   `ModelPicker`, and the strings of the project cards, Settings → Memory, Schedules, the MCP tab,
   the assistant's proposals and the Terminal item.
+
+A second CI run, and a sweep of every `<button>`, `<a>`, `Link` and Radix trigger that has an
+`aria-label` beside visible text, added: the provider item of the status bar (named by what it
+shows: provider, state, percent, when it resumes), the check rows of a task and of an orchestration
+("opens its log" off screen), the edit chips of the transcript, the phone rows of the issue import
+and the review-address dialogs (`aria-pressed` says the state), a run row on a phone, the chat
+head's checklist count, the live rail's count, a connector button while it starts, the plugin
+Install button (its label was hard-coded English), "Cancel: clear the selection", and two Spanish
+labels that used another verb than their button ("Empezar el chat", "Quitar {{name}}"). The
+pairs test lists every remaining `aria-label` that goes beside a visible word of its own, in both
+languages, so a new string that breaks the rule fails a unit test before it reaches an e2e scan.
 
 `apps/web/test/accessible-name.ts` reads server-rendered markup the way the rule does, and
 `apps/web/test/label-in-name.test.tsx` holds each of these controls to it in English and Spanish.

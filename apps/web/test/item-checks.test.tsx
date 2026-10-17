@@ -71,8 +71,9 @@ test('a failing list shows failures first, with the allowed one as a warning and
 test('the passed group is folded away beside a failure, and its rows stay out of the page', () => {
   const html = render(list(FAILING));
   assert.match(html, /<button[^>]*aria-expanded="false"[^>]*>(?:(?!<\/button>).)*Passed/);
-  assert.ok(!html.includes('View the log of build'));
-  assert.ok(html.includes('View the log of unit-tests'));
+  // A row is named by what it shows, its check's name first
+  assert.ok(!html.includes('<b>build</b>'));
+  assert.ok(html.includes('<b>unit-tests</b>'));
 });
 
 test('Fix failing checks is the one gradient action, offered only for a failure that counts', () => {

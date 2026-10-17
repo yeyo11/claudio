@@ -365,8 +365,8 @@
   },
   "edits": {
     "label": "Files this step edited",
-    "chip": "{{file}}: see this step",
-    "chipCounts": "{{file}}, {{additions}} lines added and {{deletions}} removed: see this step"
+    "chipAfter": ": see this step",
+    "chipCountsAfter": ", {{additions}} lines added and {{deletions}} removed: see this step"
   },
   "transcript": {
     "thinking": "Thinking",
