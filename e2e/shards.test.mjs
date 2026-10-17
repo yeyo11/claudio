@@ -39,12 +39,13 @@ test('median of the known durations, or 1 when none is known', () => {
   assert.equal(median([4, 1, 3, 2]), 2.5);
 });
 
-test('every fakeCli spec is one group; every other spec is its own', () => {
+test('every spec is a group of its own, the fakeCli ones included', () => {
   const groups = groupSpecs([spec('b'), spec('z', true), spec('a'), spec('y', true)], { a: 2, b: 3, y: 10, z: 20 });
   assert.deepEqual(groups, [
     { files: ['a'], weight: 2 },
     { files: ['b'], weight: 3 },
-    { files: ['y', 'z'], weight: 30 },
+    { files: ['y'], weight: 10 },
+    { files: ['z'], weight: 20 },
   ]);
 });
 
@@ -57,12 +58,12 @@ test('the split is longest first into the lightest shard, and covers every spec 
   const entries = [spec('a'), spec('b'), spec('c'), spec('d'), spec('e'), spec('f1', true), spec('f2', true)];
   const timings = { a: 50, b: 40, c: 30, d: 20, e: 10, f1: 25, f2: 20 };
   const shards = splitSpecs(entries, timings, 3);
-  // a (50) → 1, the fake group (45) → 2, b (40) → 3, then each to the lightest: c → 3, d → 2, e → 1
+  // a (50) → 1, b (40) → 2, c (30) → 3, f1 (25) → 3, then each to the lightest: d → 2, f2 → 1, e → 3
   assert.deepEqual(
     shards.map((s) => s.files),
-    [['a', 'e'], ['d', 'f1', 'f2'], ['b', 'c']],
+    [['a', 'f2'], ['b', 'd'], ['c', 'e', 'f1']],
   );
-  assert.deepEqual(shards.map((s) => s.seconds), [60, 65, 70]);
+  assert.deepEqual(shards.map((s) => s.seconds), [70, 60, 65]);
   assert.deepEqual(shards.flatMap((s) => s.files).sort(), entries.map((e) => e.file).sort());
 });
 
@@ -72,8 +73,16 @@ test('the same inputs give the same split, whatever order the specs came in', ()
   const once = splitSpecs(entries, timings, 4);
   const again = splitSpecs([...entries].reverse(), { ...timings }, 4);
   assert.deepEqual(again, once);
-  const fakes = once.filter((s) => s.files.some((f) => entries.find((e) => e.file === f)?.fake));
-  assert.equal(fakes.length, 1, 'every fakeCli spec is in one shard');
+});
+
+test('many fakeCli specs spread over the shards instead of piling into one', () => {
+  // The shape of 2026-10-17: a third of the specs on the fake CLI, together near half of the time
+  const entries = Array.from({ length: 90 }, (_, i) => spec(`s${String(i).padStart(2, '0')}.spec.mjs`, i % 3 === 0));
+  const timings = Object.fromEntries(entries.map((e, i) => [e.file, e.fake ? 30 : 15 + (i % 5)]));
+  const shards = splitSpecs(entries, timings, 4);
+  const seconds = shards.map((s) => s.seconds);
+  assert.ok(Math.max(...seconds) - Math.min(...seconds) <= 30, `balanced: ${seconds}`);
+  for (const s of shards) assert.ok(s.files.some((f) => entries.find((e) => e.file === f)?.fake), 'each shard runs some fakeCli specs');
 });
 
 test('ties go to the lower shard and by file name, and no timings means equal weights', () => {
@@ -83,7 +92,7 @@ test('ties go to the lower shard and by file name, and no timings means equal we
 
 test('more shards than groups leaves the extra shards empty', () => {
   const shards = splitSpecs([spec('a'), spec('b', true), spec('c', true)], {}, 4);
-  assert.deepEqual(shards.map((s) => s.files), [['b', 'c'], ['a'], [], []]);
+  assert.deepEqual(shards.map((s) => s.files), [['a'], ['b'], ['c'], []]);
 });
 
 test('the default count is one shard per two cores, at most 4 and at most one per group', () => {

@@ -359,7 +359,7 @@ test('a navigation that never reached the app fails at the goto, and a read of s
 
 // ---------- shards ----------
 
-/** Probe specs that say they ran; two want the fake CLI and must share a shard */
+/** Probe specs that say they ran; two want the fake CLI, and each shard runs its own after the rest */
 const probe = (name, { fake = false, fail = false } = {}) =>
   `${fake ? 'export const fakeCli = true;\n' : ''}export default async () => { console.log('RAN ${name} ' + process.pid); ${fail ? `throw new Error('${name} failed on purpose');` : ''} };`;
 const probes = {
@@ -371,7 +371,7 @@ const probes = {
 };
 const ran = (output) => [...output.matchAll(/^RAN (\S+) (\d+)$/gm)].map(([, name, pid]) => ({ name, pid }));
 
-test('E2E_SHARD=k/N: the shards together run every spec once, the fakeCli specs in one, the same k/N the same specs', { skip }, async () => {
+test('E2E_SHARD=k/N: the shards together run every spec once, fakeCli ones last in theirs, the same k/N the same specs', { skip }, async () => {
   const count = 3;
   const seen = [];
   for (let k = 1; k <= count; k++) {
@@ -383,9 +383,10 @@ test('E2E_SHARD=k/N: the shards together run every spec once, the fakeCli specs 
   }
   const all = seen.flat();
   assert.deepEqual([...all].sort(), Object.keys(probes).sort(), `every spec exactly once: ${JSON.stringify(seen)}`);
-  const fakeShards = seen.filter((names) => names.some((n) => n.includes('fake')));
-  assert.equal(fakeShards.length, 1, `the fakeCli specs share one shard: ${JSON.stringify(seen)}`);
-  assert.deepEqual(fakeShards[0]?.filter((n) => n.includes('fake')), ['x-fake.spec.mjs', 'y-fake.spec.mjs']);
+  for (const names of seen) {
+    const firstFake = names.findIndex((n) => n.includes('fake'));
+    if (firstFake >= 0) assert.ok(names.slice(firstFake).every((n) => n.includes('fake')), `a shard runs its fakeCli specs last: ${JSON.stringify(names)}`);
+  }
   const again = await run({ specs: probes, env: { E2E_SHARD: `2/${count}` } });
   assert.deepEqual(ran(again.output).map((x) => x.name), seen[1], 'the same shard runs the same specs again');
   assert.deepEqual(again.survivors, { chrome: [], server: false });

@@ -25,8 +25,8 @@ developer's machine `pnpm e2e` refuses to start, and agents run the specs they n
 - **GitHub decides anyway.** No pull request merges without the `test` check, which needs the four
   e2e shards. A local run only predicts what CI will say.
 - **It costs nothing and is faster.** The repository is public, so standard runners are free. Four
-  shards on clean machines take about 7 minutes of wall time, against 17–18 minutes for the suite in
-  one process.
+  shards on clean machines take about 10 minutes of wall time, against about 33 minutes for the
+  suite in one process (1,970 seconds of specs).
 - **The results are cleaner.** One machine per shard removes the failures that came only from load,
   which took much of the week before this decision.
 
@@ -60,9 +60,20 @@ A rule in `CLAUDE.md` alone was not enough: agents forget prose. The runner enfo
   [development.md](../development.md) now say to push and use `pnpm e2e:remote`. The new repo skill
   `e2e-on-github` (`.claude/skills/e2e-on-github/SKILL.md`) is what an agent loads to do it.
 
+## Balanced shards (2026-10-17, #30)
+
+The first CI run through `e2e.yml` showed one shard at 16 minutes while the other three took 6 to 7:
+every spec that asks for the fake CLI was one group, so the split put all 35 of them (about 900 of
+the suite's 1,970 seconds) in one shard, to restart the server with the fake CLI only once. Now every
+spec is placed on its own (`groupSpecs` in `e2e/shards.mjs`). Each shard runs its own fakeCli specs
+last, behind one restart of its own server, which costs seconds. `e2e/timings.json` was re-measured from
+that run's four shards (85 of the 86 specs; `chat.spec.mjs` is live-only and weighs the median). The
+split now estimates about 500 seconds per shard, so a pull request's e2e takes about 10 minutes
+instead of 16.
+
 ## What it costs
 
-- **Iterating on one spec is slower.** A push and 3–4 minutes on GitHub, most of it setup, against
+- **Iterating on one spec is slower.** A push and one to two minutes on GitHub for a spec or two (40 seconds for `config` in the first try), most of it setup, against
   one or two minutes here. Running only the specs a change touches keeps it close.
 - **Work in progress is pushed to a public repository.** The suite uses the fake CLI and needs no
   secret, so nothing private goes with it, but unfinished branches are visible.
