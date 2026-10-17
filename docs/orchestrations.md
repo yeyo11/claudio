@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-10-17T02:30:00Z
+updated_at: 2026-10-17T12:00:00Z
 tags:
     - orchestration
     - planner
@@ -181,6 +181,28 @@ that leaves it out. The full design is in [plans/review-gate.md](plans/review-ga
   [Outcome](plans/review-gate.md#outcome); the review's time is in
   [orchestration-timings.md](orchestration-timings.md#what-is-recorded).
 
+## A task held at a usage limit
+
+A graph task whose turn dies at a usage limit is not failed: the rotation moves its chat to an
+account with room, or holds it in a wait for the reset, and the task stays `running` with the
+wait (`LimitWait`) on it ([accounts.md](accounts.md#choosing-and-switching)).
+
+- **A wait goes on with the first account that has room**, not only at the reset it began with
+  (R10): every change of an account's reading or state, every reset and every poll makes it look
+  again.
+- **The ways out are two**, at the task's foot: "Stop waiting" ends the task `stopped`, and "Run
+  now" sends the turn on at once on an account with room (`POST /limits/waits/:id/run-now`).
+- **A stopped task has its way back** (R11). Retry, Retry clean and Skip branch take a `stopped`
+  task as they take a `failed` one (`retryTask`, `retryTaskClean`, `skipTask`), and the blocked
+  tasks behind it name it. Before, the only way out was to stop the whole graph and resume it,
+  which interrupts its running tasks.
+- **A graph that waits for a decision can be resumed whole** (`resume`, the page's menu): every
+  task it waits on goes on, in its chat, as for a stopped graph. It is refused while one of those
+  tasks' chats is still working (a person went on in it by hand).
+- **Tests.** `packages/core/test/orchestrator.test.ts` (the R11 cases, and a turn replayed while
+  the limited process was still exiting), `accounts-rotation.test.ts`, and
+  `apps/web/test/orchestration-board.test.ts`.
+
 ## The workflow engine
 
 A graph with `engine: 'workflow'` runs as one Claude Code session, the *lead*, which calls the CLI's
@@ -235,7 +257,7 @@ holds or rotates at a usage limit, and is never left running unwatched.
   the deny list could reach its subagents; the watchdog is the guarantee.
 - **Where it shows.** The orchestration page lists every task of a workflow step as a row with its
   journal state, says a limit wait once above the steps (a warn `WaitLine` with the reset hour and
-  one "Stop waiting"), and shows why a workflow did not finish or was stopped at the top, with the
+  one "Stop waiting" beside "Run now"), and shows why a workflow did not finish or was stopped at the top, with the
   note that resuming goes on from the cache.
 - **Tests.** `packages/core/test/workflow-journal.test.ts`, `workflow-engine.test.ts`,
   `workflow-limits.test.ts`, `workflow-watchdog.test.ts` and `rotation.test.ts` against the fixture

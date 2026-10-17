@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-17T02:30:00Z
+updated_at: 2026-10-17T12:00:00Z
 tags:
     - accounts
     - rotation
@@ -85,6 +85,22 @@ Accounts page and the status bar card show "Sign-in expired" with a "Sign in aga
   chat, resumed on the new account. A person's chat does it when `rotateOnLimit` is on (the
   default); automated work always does. With no account left, the work waits for the earliest
   reset.
+- **A wait looks again whenever an account changes** (R10). On 2026-10-16 every account was out at
+  12:44 UTC, the waits took the earliest reset they knew (13:10), and the CLI's own login restarted
+  its window around 12:50 with 0 % used while twelve tasks kept waiting. Now every kept reading
+  and every stored change of an account (a sign-in marked or cleared, an account enabled, added or
+  removed, the settings) is announced (`AccountStore.onChange`), and so is every reset that passes
+  and every poll: each open wait then asks the accounts again (`ChatManager.roomFor`) and goes on
+  with the first one that has room, recorded as a `switch`. An account the turn already died on
+  is a candidate again once a reading taken after the wait began says it is not out; without such
+  a reading it stays passed over. A reading that leaves every account out but brings a reset
+  closer moves the wait's timer to it. Graph tasks and workflow leads go through the same path.
+- **Run now.** Beside "Stop waiting", a person can end a wait by sending its turn on at once
+  (`POST /limits/waits/:id/run-now`, `ProviderRotation.runNow`): on an account a newer reading
+  gives room if there is one, else on the first the readings allow, passing over the accounts the
+  turn died on (the person decided to try). An account whose reading says it is out is never
+  chosen; with every account out the answer is a 409 `no-room` that says until when. It is
+  recorded as a `switch` with `reason: 'person'`, and a chat's token gets 403.
 - **At a sign-in failure** the CLI ends the turn with an error `result` whose `api_error_status` is
   401 (never read from its wording). The account is marked `expired` and the turn moves exactly as
   at a limit, replayed in the same chat on another account, with `reason: 'auth'` on the rotation
@@ -135,6 +151,10 @@ line, and the chat is replayed on another account; one starting with `fake-expir
 the `FAKE-AUTH-EXPIRED-ACCOUNT` line, and the chat moves with the account marked "Sign-in expired".
 The retry is guarded in core by `packages/core/test/orchestration-retry-account.test.ts`, and a
 workflow's limit by `workflow-limits.test.ts` and `rotation.test.ts`.
+The R10 waits and run now are guarded by `accounts-rotation.test.ts` (a new reading, a sign-in
+restored, an earlier reset, run now and its refusal; the fake's `FAKE_CLAUDE_LIMIT_RESETS_IN` sends
+the rejected `rate_limit_event` before the 429), `workflow-limits.test.ts` for a workflow lead, and
+`apps/api/test/provider-rotation.test.ts` for the route.
 `e2e/specs/chat-account-switch.spec.mjs` covers the on-demand switch from the "+" menu: idle, while
 working, and an exhausted account shown disabled.
 
