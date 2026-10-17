@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T22:32:57.97745428Z
-updated_at: 2026-10-17T09:00:00Z
+updated_at: 2026-10-17T12:00:00Z
 tags:
     - collaborators
     - peer-to-peer
@@ -71,7 +71,8 @@ nobody's quota is spent: serving a copy never runs Claude.
 The Shared tab only appears when Collaborators is on and a teammate's project matches this one. A
 teammate's chats never mix into the person's own chat list, counts or badges. A chat that is running
 on the teammate's machine shows the live rail and the braille spinner, since an agent is working
-there now; the transcript has a "Read only · from Ana" bar where the composer would be. Documents
+there now. A chat between turns is not running, even though its process waits for the next message:
+its copy stands still, as the owner's own list draws it; the transcript has a "Read only · from Ana" bar where the composer would be. Documents
 carry "Working copy on Ana's machine": what is shared is the owner's working tree, which may be
 ahead of the committed files a teammate has through git. Terminal sessions are not shared.
 
@@ -97,7 +98,12 @@ as soon as it meets any member, and nobody can forge a roster for a group they d
   before this answers `forbidden` and refuses `joinAnswers` as a frame it does not know, which reads as
   "still waiting": nothing breaks, the joiner just learns nothing until its invite expires.
 - **Removing** a member makes every unmodified Claudio stop serving that person. The copies they
-  already hold stay on their machine, and the page says so before the owner confirms.
+  already hold stay on their machine, and the page says so before the owner confirms. Nobody sends
+  the removed install the version that removes it, so its own roster may still list it; a join it
+  makes later is therefore always asked of the owner or a member, never answered from that roster,
+  and its request waits and can be denied like anyone's. A member who pastes an invite again is
+  answered with the chain by the owner or any member, and from its own roster only when nobody
+  answers.
 - **Transferring ownership** is one click: the owner signs a version naming the new owner. Do it
   before changing machines.
 - **If the owner's install is lost** nobody can sign again. The group is frozen with its last roster,
