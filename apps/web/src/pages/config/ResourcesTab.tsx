@@ -83,7 +83,8 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
 
   return (
     <Card
-      title={t(`config.tabs.${kind}`)}
+      // In Settings the detail's title names the kind already; a project's Resources view has none
+      title={scope.projectId ? t(`config.tabs.${kind}`) : undefined}
       actions={
         // One primary per zone: while the list is empty, its empty state holds it
         <button className={`btn btn-small ${resources.length > 0 ? 'btn-primary' : ''}`} onClick={() => void guard().then((ok) => ok && setNaming(''))}>

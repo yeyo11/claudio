@@ -9,7 +9,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { ProgramMark } from '@claudio/ui/components/BrandMark';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { changeRequestWords } from '../../lib/code-hosts';
@@ -38,7 +38,7 @@ function shownKind(overview: ProjectWebhooks): WebhookRowKind {
 }
 
 /**
- * Integrations → Webhooks: one row per project with a code host remote. A webhook only makes
+ * Settings → Connections → Webhooks: one row per project with a code host remote. A webhook only makes
  * Claudio read sooner; nothing here changes a pull request. The secret never reaches the page.
  */
 export function WebhooksSection({ projects }: { projects: Project[] }) {
@@ -79,15 +79,15 @@ export function WebhooksSection({ projects }: { projects: Project[] }) {
     </div>
   ) : null;
 
+  // The section's heading names it: the surface keeps the rows and the address they arrive at
   return (
-    <Card
-      className="prov-card wh-card"
-      title={<span>{t('title')}</span>}
-      actions={<span className="prov-summary tnum">{t('summary', { count: entries.length, active: withHook })}</span>}
-    >
-      {bar}
-      {entries.length === 0 ? <p className="wh-none">{t('none')}</p> : <div role="list" aria-label={t('aria')}>{rows}</div>}
-    </Card>
+    <>
+      <p className="prov-summary tnum">{t('summary', { count: entries.length, active: withHook })}</p>
+      <div className="card prov-card wh-card">
+        {bar}
+        {entries.length === 0 ? <p className="wh-none">{t('none')}</p> : <div role="list" aria-label={t('aria')}>{rows}</div>}
+      </div>
+    </>
   );
 }
 

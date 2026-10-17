@@ -1,5 +1,4 @@
 {
-  "title": "Webhooks",
   "intro": "A webhook makes your code host tell Claudio the moment a pull or merge request changes, instead of waiting for the next read. It only makes Claudio read sooner: Claudio reads the request again and changes nothing because of what a notice says. Without a webhook, or if a notice is lost, it keeps reading every few minutes.",
   "aria": "Webhooks by project",
   "summary_one": "{{count}} project · {{active}} with a webhook",
@@ -90,5 +89,6 @@
     "pipeline_events": "A pipeline changes",
     "note_events": "A comment on a merge request or an issue",
     "issues_events": "An issue changes"
-  }
+  },
+  "line": "Your code host tells Claudio the moment a request changes."
 }

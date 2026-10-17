@@ -1,9 +1,8 @@
 {
   "nav": "Connectors",
-  "title": "Connectors",
-  "subtitle": "checked {{when}}",
+  "checked": "Checked {{when}}",
   "subtitleLoading": "Asking the CLI…",
-  "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Claudio can start a connector's sign-in through the CLI, and the person finishes it in their browser.",
+  "line": "Your claude.ai connectors, as Claude Code lists them.",
   "refresh": "Ask the CLI again",
   "refreshing": "Asking…",
   "cliFailed": "The CLI could not list its connectors",
@@ -46,8 +45,6 @@
     "timedOut": "{{connector}} is still not connected after two minutes. Authorise it again, or ask the CLI again once you have signed in."
   },
   "unavailable": {
-    "title": "Out of reach",
-    "intro": "Claudio talks to Claude Code only through its CLI, so anything the CLI has no command for stays out of reach:",
     "short": "{{items}} are out of Claudio’s reach."
   }
 }

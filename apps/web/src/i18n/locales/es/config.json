@@ -392,8 +392,9 @@
     "projectPlaceholder": "# Instrucciones del proyecto\n\nConvenciones, comandos y contexto que Claude debe conocer en este proyecto.",
     "userPlaceholder": "# Instrucciones aplicadas a todas las sesiones de esta cuenta",
     "projectTitle": "Instrucciones del proyecto",
-    "userTitle": "Instrucciones del usuario (CLAUDE.md)",
-    "file": "Archivo de instrucciones"
+    "file": "Archivo de instrucciones",
+    "row": "Lo que Claude lee al empezar cada sesión",
+    "notWritten": "aún sin escribir"
   },
   "settings": {
     "variants": {
@@ -1005,7 +1006,9 @@
     "actions": "Acciones",
     "editNamed": "Editar {{name}}",
     "editInUserNamed": "Editar en el ámbito del usuario: {{name}}",
-    "removeNamed": "Quitar {{name}}"
+    "removeNamed": "Quitar {{name}}",
+    "row": "Añadir, editar y comprobar servidores",
+    "listAria": "Servidores MCP de esta cuenta"
   },
   "toolPresets": {
     "intro": "Conjuntos con nombre de herramientas permitidas y bloqueadas. Elige uno al iniciar o reanudar un chat; el chat conserva el conjunto que recibió aunque edites el preset después.",
@@ -1045,7 +1048,10 @@
     "restoreTitle": "¿Restaurar los presets incluidos?",
     "restoreBody": "Read-only, No network y Everything vuelven a estar como vienen, y los que eliminaste vuelven. Tus propios presets y el preset predeterminado se quedan como están.",
     "restored": "Presets incluidos restaurados",
-    "restoreFailed": "No se han podido restaurar los presets incluidos"
+    "restoreFailed": "No se han podido restaurar los presets incluidos",
+    "row": "Las herramientas que puede usar un chat, al empezar",
+    "shippedCount_one": "{{count}} incluido",
+    "shippedCount_other": "{{count}} incluidos"
   },
   "resources": {
     "kinds": {
@@ -1064,7 +1070,8 @@
         "createFirst": "Crear el primer agente",
         "content": "Contenido del agente",
         "create": "Crear el agente",
-        "deleteTitle": "¿Eliminar el agente “{{name}}”?"
+        "deleteTitle": "¿Eliminar el agente “{{name}}”?",
+        "row": "Subagentes en los que Claude puede delegar"
       },
       "skills": {
         "hint": "Instrucciones empaquetadas que Claude carga cuando las necesita. Cada skill es un directorio con un SKILL.md; los archivos extra están en la pestaña Archivos.",
@@ -1081,7 +1088,8 @@
         "createFirst": "Crear la primera skill",
         "content": "Contenido de la skill",
         "create": "Crear la skill",
-        "deleteTitle": "¿Eliminar la skill “{{name}}”?"
+        "deleteTitle": "¿Eliminar la skill “{{name}}”?",
+        "row": "Instrucciones que Claude carga cuando una tarea las necesita"
       },
       "commands": {
         "hint": "Slash commands personalizados: el nombre del archivo es el nombre del comando. $ARGUMENTS se sustituye por lo que escribe el usuario.",
@@ -1098,7 +1106,8 @@
         "createFirst": "Crear el primer comando",
         "content": "Contenido del comando",
         "create": "Crear el comando",
-        "deleteTitle": "¿Eliminar el comando “{{name}}”?"
+        "deleteTitle": "¿Eliminar el comando “{{name}}”?",
+        "row": "Tus propios slash commands"
       },
       "output-styles": {
         "hint": "Estilos alternativos del system prompt, que se eligen con el ajuste outputStyle.",
@@ -1115,7 +1124,8 @@
         "createFirst": "Crear el primer estilo de salida",
         "content": "Contenido del estilo de salida",
         "create": "Crear el estilo de salida",
-        "deleteTitle": "¿Eliminar el estilo de salida “{{name}}”?"
+        "deleteTitle": "¿Eliminar el estilo de salida “{{name}}”?",
+        "row": "Otras formas de redactar las respuestas de Claude"
       },
       "rules": {
         "hint": "Instrucciones modulares que se cargan junto a CLAUDE.md. El frontmatter opcional `paths:` limita una regla a los archivos que coinciden.",
@@ -1132,7 +1142,8 @@
         "createFirst": "Crear la primera regla",
         "content": "Contenido de la regla",
         "create": "Crear la regla",
-        "deleteTitle": "¿Eliminar la regla “{{name}}”?"
+        "deleteTitle": "¿Eliminar la regla “{{name}}”?",
+        "row": "Instrucciones que se cargan junto a CLAUDE.md, por ruta"
       },
       "workflows": {
         "hint": "Scripts guardados que la herramienta Workflow ejecuta por nombre. El nombre de `meta` es el que usa Claude; ejecuta uno desde Nuevo chat.",
@@ -1149,7 +1160,8 @@
         "createFirst": "Crear el primer workflow",
         "content": "Contenido del workflow",
         "create": "Crear el workflow",
-        "deleteTitle": "¿Eliminar el workflow “{{name}}”?"
+        "deleteTitle": "¿Eliminar el workflow “{{name}}”?",
+        "row": "Scripts que la herramienta Workflow ejecuta por nombre"
       }
     },
     "exists": "Ya existe",
@@ -1318,7 +1330,10 @@
     "updateNamed": "Actualizar {{name}}",
     "cliOutput": "Salida del CLI",
     "uninstallNamed": "Desinstalar {{name}}",
-    "removeNamed": "Quitar el marketplace {{name}}"
+    "removeNamed": "Quitar el marketplace {{name}}",
+    "row": "Paquetes de skills, agentes, comandos y hooks",
+    "fromMarketplaces_one": "de {{count}} marketplace",
+    "fromMarketplaces_other": "de {{count}} marketplaces"
   },
   "orchestration": {
     "errors": {
@@ -1738,7 +1753,6 @@
     "globalHint": "Lecciones que has promovido desde un proyecto. Se entregan en todos los proyectos que las permiten.",
     "emptyTitle": "No hay lecciones globales",
     "emptyBody": "Haz global una lección desde su menú en la pestaña Memoria de un proyecto.",
-    "settingsTitle": "Extracción y entrega",
     "model": "Modelo del extractor",
     "modelHint": "El chat de un solo turno que escribe los candidatos a lección.",
     "effort": "Effort del extractor",
@@ -1763,7 +1777,9 @@
     "save": "Guardar",
     "problem": {
       "range": "Un valor está fuera de rango.",
-      "order": "Las lecciones deben retirarse por debajo de la confianza desde la que se entregan."
-    }
+      "order": "Las lecciones deben retirarse por debajo de la confianza desde la que se entregan.",
+      "field": "{{field}} va de {{min}} a {{max}}."
+    },
+    "globalRow": "Lecciones para cada proyecto que las permita"
   }
 }

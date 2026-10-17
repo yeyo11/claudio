@@ -1,5 +1,4 @@
 {
-  "title": "Webhooks",
   "intro": "Un webhook hace que tu host de código avise a Claudio en cuanto una PR o MR cambia, en lugar de esperar a la siguiente lectura. Solo sirve de aviso: Claudio vuelve a leer la petición y no cambia nada por lo que diga el aviso. Sin webhook, o si un aviso se pierde, la sigue leyendo cada pocos minutos.",
   "aria": "Webhooks por proyecto",
   "summary_one": "{{count}} proyecto · {{active}} con webhook",
@@ -90,5 +89,6 @@
     "pipeline_events": "Un pipeline cambia",
     "note_events": "Un comentario en una MR o en una incidencia",
     "issues_events": "Una incidencia cambia"
-  }
+  },
+  "line": "Tu servidor de código avisa a Claudio en cuanto cambia una PR."
 }

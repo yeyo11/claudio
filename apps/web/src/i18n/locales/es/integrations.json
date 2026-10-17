@@ -1,13 +1,11 @@
 {
   "tab": "Integraciones",
-  "intro": "Claudio abre y sigue las PR de GitHub (#12) y las MR de GitLab (!12) con los programas gh y glab de este equipo. No guarda ninguna clave: usa la sesión que ya tiene cada programa.",
   "checkedAgo": "Comprobado {{time}}",
   "notChecked": "Sin comprobar todavía",
   "refresh": "Volver a comprobar",
   "refreshFailed": "No se han podido comprobar los programas",
   "saveFailed": "No se han podido guardar las integraciones",
   "list": {
-    "title": "Programas",
     "aria": "Programas",
     "total_one": "{{count}} programa",
     "total_other": "{{count}} programas",
@@ -71,7 +69,6 @@
     "title": "Gestores de incidencias",
     "total_one": "{{count}} gestor",
     "total_other": "{{count}} gestores",
-    "note": "Claudio importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR, y de YouTrack (PROJ-12) con youtrack-app, el programa de JetBrains, y la dirección y el token que le des aquí abajo.",
     "notAvailable": "Aún no disponible",
     "reason": {
       "ready": "Lee y escribe incidencias con {{cli}}, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en {{host}}.",
@@ -113,5 +110,9 @@
       "failed": "No se ha podido guardar el acceso a YouTrack",
       "loadFailed": "No se ha podido leer el acceso a YouTrack"
     }
+  },
+  "section": {
+    "hosts": "Abre las PR y las MR con gh y glab; no guarda ninguna clave.",
+    "trackers": "Importa incidencias con gh, glab y youtrack-app."
   }
 }

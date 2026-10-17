@@ -146,13 +146,22 @@ test('a signed-out host is a word beside its name, and a missing program offers 
   assert.match(html, /data-action="install"/);
 });
 
-test('with neither program found the page is the one empty state', async () => {
+test('code hosts, trackers and webhooks are three sections, their rows carrying the ids settings search names', async () => {
+  const html = await render([host({}), gitlab({})]);
+  for (const id of ['code-hosts', 'trackers', 'webhooks']) assert.match(html, new RegExp(`<section id="${id}" class="settings-section">`), id);
+  for (const id of ['code-hosts.github', 'code-hosts.gitlab', 'trackers.youtrack']) assert.match(html, new RegExp(`data-setting="${id}"`), id);
+  // The sections' headings name the lists: no card repeats them
+  assert.doesNotMatch(html, /class="card-head"/);
+});
+
+test('with neither program found the code hosts are the one empty state, compact beside the other sections', async () => {
   const html = await render([
     host({ state: 'not-installed', binaryPath: null, version: null, hosts: [] }),
     gitlab({ binaryPath: null, version: null, state: 'not-installed', hosts: [] }),
   ]);
   assert.match(words(html), /Claudio cannot find gh or glab/);
-  assert.equal((html.match(/data-illustration=/g) ?? []).length, 1);
+  assert.equal((html.match(/class="state state-empty/g) ?? []).length, 1);
+  assert.equal((html.match(/data-illustration=/g) ?? []).length, 0);
 });
 
 test('the trackers section lists the three trackers', async () => {

@@ -37,12 +37,49 @@ export function SettingsSection({ id, title, children }: { id: string; title: st
  * A row that opens a detail screen: its name, a count and where the items come from, and a chevron
  * ("Skills · 12 · 3 from plugins"). The whole row is the link, 44 px high on a phone.
  */
-export function SettingsDetailRow({ to, label, note, setting }: { to: string; label: string; note?: ReactNode; setting?: string }) {
+export function SettingsDetailRow({
+  to,
+  label,
+  description,
+  note,
+  setting,
+}: {
+  to: string;
+  label: string;
+  /** One line under the name: what the items are, when the row stands for a whole section */
+  description?: string | undefined;
+  note?: ReactNode;
+  setting?: string;
+}) {
   return (
     <Link className="settings-detail-row" to={to} {...(setting ? { 'data-setting': setting } : {})}>
-      <span className="settings-detail-name">{label}</span>
+      {description ? (
+        <span className="settings-detail-text">
+          <span className="settings-detail-name">{label}</span>
+          <span className="settings-detail-desc">{description}</span>
+        </span>
+      ) : (
+        <span className="settings-detail-name">{label}</span>
+      )}
       {note !== undefined && <span className="settings-detail-note tnum">{note}</span>}
       <ChevronRight {...ICON_SM} className="settings-detail-chevron" aria-hidden />
     </Link>
   );
+}
+
+/**
+ * A section that is one detail row: the row names it, so it takes no heading of its own, and `#<id>`
+ * lands on the row (docs/plans/settings-ia.md §6.0). Consecutive ones sit in a `RowSections` list.
+ */
+export function SettingsRowSection({ id, ...row }: { id: string } & Parameters<typeof SettingsDetailRow>[0]) {
+  return (
+    <section id={id} className="settings-row-section" aria-label={row.label}>
+      <SettingsDetailRow {...row} />
+    </section>
+  );
+}
+
+/** One-row sections side by side with a row's gap, not a section's. */
+export function RowSections({ children }: { children: ReactNode }) {
+  return <div className="settings-row-sections">{children}</div>;
 }
