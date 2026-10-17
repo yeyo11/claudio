@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, TYPED_COMPACT, chatActor, type Core, type RuntimeHosts } from '@claudio/core';
+import { DESKTOP_ACTOR, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -475,9 +475,10 @@ const CHAT_FORBIDDEN_TERMINAL = new Set([
 
 /**
  * Collaborators carries teammates' work, transcripts with their tool output included: a chat's token
- * must never pull one into its own context, nor change who this install shares with. Every route is
- * here, reads included, and like the terminal's it is refused under `mode: none` too, where the
- * token only labels the request.
+ * must never pull one into its own context unasked, nor change who this install shares with. Every
+ * route is here, reads included, and like the terminal's it is refused under `mode: none` too, where
+ * the token only labels the request. The copy reads of `AGENT_READABLE` are the one way out, and only
+ * for a chat in scope (docs/plans/collaborators-agent-access.md).
  */
 const CHAT_FORBIDDEN_COLLABORATORS = new Set([
   `GET ${API_PREFIX}/collaborators`,
@@ -508,9 +509,55 @@ const CHAT_FORBIDDEN_COLLABORATORS = new Set([
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/transcript`,
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`,
   `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/blobs/:sha256`,
+  `GET ${API_PREFIX}/collaborators/agent-reads`,
 ]);
 
 const CHAT_COLLABORATORS_REFUSAL = "a chat's token cannot read or change Collaborators: what teammates share is the person's alone";
+
+/**
+ * The reads of a teammate's copy a chat's token may make, when `agentReadScope` lets it: the
+ * assistant every copy whose sharer allows it, a chat of a project that opted in only that project's
+ * copies, and never a chat that runs commands without asking. Blobs are not here: an agent is told an
+ * upload's name and size, never handed its bytes. Nothing else of Collaborators is, either: linking,
+ * settings and a project's sharing stay the person's.
+ */
+export const AGENT_READABLE = new Set([
+  `GET ${API_PREFIX}/collaborators/shared`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/memory`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/journal`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/documents`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/work-items`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/artifacts`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/transcript`,
+  `GET ${API_PREFIX}/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId`,
+]);
+
+/** What each refusal of `agentReadScope` tells the agent, so its tool can say why it read nothing */
+const AGENT_READ_REFUSALS: Record<AgentReadRefusal | 'copy', string> = {
+  off: 'Collaborators is off on this install',
+  'assistant-off': "the person turned off the assistant's reads of what teammates share",
+  'no-chat': 'no chat of this install holds this token',
+  mode: "a chat that runs commands without asking cannot read teammates' shares",
+  'no-project': "a chat under no project cannot read teammates' shares",
+  'project-off': "this chat's project does not let its agents read what teammates share",
+  copy: "this chat cannot read that shared project: it is not its project's, or its sharer does not let agents read it",
+};
+
+/**
+ * Whether a chat's token may make this copy read, and if not, the refusal to answer. The scope is
+ * the chat's now; the copy, when the route names one, has to be in it. The list is filtered by the
+ * route itself, from the same scope.
+ */
+export async function agentReadRefusal(core: Pick<Core, 'agentReadScope' | 'collaborators'>, chatId: string, params: { owner?: unknown; shareId?: unknown } | undefined): Promise<{ code: string; error: string } | null> {
+  const decision = core.agentReadScope(chatId);
+  if ('refusal' in decision) return { code: `collaborators.agent-read.${decision.refusal}`, error: AGENT_READ_REFUSALS[decision.refusal] };
+  const { owner, shareId } = params ?? {};
+  if (owner === undefined && shareId === undefined) return null;
+  if (typeof owner === 'string' && typeof shareId === 'string' && (await core.collaborators.agentMayRead(decision.scope, owner, shareId))) return null;
+  return { code: 'collaborators.agent-read.copy', error: AGENT_READ_REFUSALS.copy };
+}
 
 /**
  * The browser's `WebSocket` cannot send `Authorization`, so the terminal's socket carries its own
@@ -821,7 +868,13 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       return reply;
     }
 
-    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_COLLABORATORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+    if (req.actor.startsWith('chat:') && AGENT_READABLE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+      const refusal = await agentReadRefusal(core, req.actor.slice('chat:'.length), req.params as { owner?: unknown; shareId?: unknown } | undefined);
+      if (refusal) {
+        void reply.status(403).send(refusal);
+        return reply;
+      }
+    } else if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_COLLABORATORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
       void reply.status(403).send({ error: CHAT_COLLABORATORS_REFUSAL, code: 'collaborators.chat-token' });
       return reply;
     }

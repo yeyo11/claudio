@@ -117,6 +117,7 @@ import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
 import { CollabStore, Db } from './db.ts';
 import { CollaboratorsService, collabHostSettings } from './collab/index.ts';
+import type { AgentReadChat, AgentReadDecision } from './collab/agent-access.ts';
 import { liveChatsOf } from './collab/readers.ts';
 import { ChatUploads } from './chat-uploads.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
@@ -246,6 +247,7 @@ export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, t
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
+export { AGENT_READ_MODES, agentReadScope, copyInScope, type AgentReadChat, type AgentReadDecision, type AgentReadRefusal } from './collab/agent-access.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
 export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
@@ -1675,6 +1677,23 @@ export class Core {
       // Heard from the chat's stream: a closed database (shutting down) must not become the chat's error
       console.warn(`guard: the verdict on ${chatId} was not recorded: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  /**
+   * Which teammates' copies a chat may read through its own token, or why none
+   * (docs/plans/collaborators-agent-access.md). Decided on the live process Claudio has for the chat:
+   * its marker, its permission mode now and the project it works in.
+   */
+  agentReadScope(chatId: string): AgentReadDecision {
+    const runtime = this.runtime.get(chatId);
+    const chat: AgentReadChat | null = runtime
+      ? {
+          assistant: !!runtime.claudioAssistant,
+          projectId: this.projectOf(resolve(runtime.workingDir || runtime.cwd)).project?.id ?? null,
+          permissionMode: runtime.permissionMode,
+        }
+      : null;
+    return this.collaborators.agentReadScope(chat);
   }
 
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {

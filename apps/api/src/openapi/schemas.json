@@ -19743,6 +19743,14 @@
       "remote": {
         "type": "string",
         "description": "The git remote the key was computed from, when the person picked one other than the default"
+      },
+      "agentsMayRead": {
+        "type": "boolean",
+        "description": "The sharer's own flag, carried to every reader with the share: teammates' agents may read this project's copy. Absent is on: a share made before the flag existed is readable"
+      },
+      "agentReads": {
+        "type": "boolean",
+        "description": "The reader's switch: this project's chats get the read tools for the copies teammates share into it (level 2 of docs/plans/collaborators-agent-access.md). Absent is off"
       }
     },
     "required": [
@@ -33433,13 +33441,18 @@
           "null"
         ],
         "description": "A self-hosted `iroh-relay` that replaces n0's public relays; null for the default ones"
+      },
+      "assistantReads": {
+        "type": "boolean",
+        "description": "The Claudio assistant reads the copies teammates share, while Collaborators is on and the sharer allows it (docs/plans/collaborators-agent-access.md, level 1). On by default"
       }
     },
     "required": [
       "enabled",
       "displayName",
       "label",
-      "relayUrl"
+      "relayUrl",
+      "assistantReads"
     ],
     "description": "`<dataDir>/collaborators/settings.json`."
   },
@@ -33474,6 +33487,10 @@
           "null"
         ],
         "description": "A self-hosted `iroh-relay` that replaces n0's public relays; null for the default ones"
+      },
+      "assistantReads": {
+        "type": "boolean",
+        "description": "The Claudio assistant reads the copies teammates share, while Collaborators is on and the sharer allows it (docs/plans/collaborators-agent-access.md, level 1). On by default"
       }
     },
     "description": "`PUT /collaborators`: the settings to change, and only those. Turning on generates the key once."
@@ -33924,6 +33941,14 @@
           "remote"
         ],
         "description": "What a collaborator sees as the project's name and remote"
+      },
+      "agentsMayRead": {
+        "type": "boolean",
+        "description": "Teammates' agents may read what this project shares (the sharer's flag, on by default)"
+      },
+      "agentReads": {
+        "type": "boolean",
+        "description": "This project's chats may read what teammates share into it (off by default)"
       }
     },
     "required": [
@@ -33938,7 +33963,9 @@
       "subpath",
       "keyInUse",
       "kinds",
-      "seenAs"
+      "seenAs",
+      "agentsMayRead",
+      "agentReads"
     ],
     "description": "`GET /projects/:id/sharing`, and the answer of `PUT`."
   },
@@ -33983,6 +34010,12 @@
           "null"
         ],
         "description": "Recomputes the key from this remote; null goes back to the default remote"
+      },
+      "agentsMayRead": {
+        "type": "boolean"
+      },
+      "agentReads": {
+        "type": "boolean"
       }
     },
     "description": "`PUT /projects/:id/sharing`: the fields to change, and only those."
@@ -34103,6 +34136,10 @@
           "null"
         ],
         "description": "The local project it was linked to by hand; null when it was not"
+      },
+      "agentsMayRead": {
+        "type": "boolean",
+        "description": "The sharer lets teammates' agents read it. Off, neither the assistant nor any chat of this install gets the copy; the person still reads it here"
       }
     },
     "required": [
@@ -34119,7 +34156,8 @@
       "counts",
       "sync",
       "matches",
-      "linkedProjectId"
+      "linkedProjectId",
+      "agentsMayRead"
     ],
     "description": "A project a teammate's install shares with this one (`GET /collaborators/shared`)."
   },
@@ -34559,5 +34597,112 @@
       }
     ],
     "description": "An artifact of the owner's project: an orchestration's result, an upload of a shared chat, a plan draft."
+  },
+  "AgentReadScope": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "assistant"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "project"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "projectId"
+        ]
+      }
+    ],
+    "description": "Why a chat may read teammates' copies through its token (docs/plans/collaborators-agent-access.md): `assistant` reads every copy whose sharer allows it, `project` only those of its own project."
+  },
+  "AgentReadEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number"
+      },
+      "at": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": "string",
+        "description": "The chat whose token read it"
+      },
+      "tool": {
+        "type": "string",
+        "description": "The MCP tool that asked, as it named itself; the route's summary when it named none"
+      },
+      "owner": {
+        "$ref": "#/components/schemas/EndpointId",
+        "description": "The sharing install, the `:owner` of the routes"
+      },
+      "shareKey": {
+        "type": "string"
+      },
+      "shareId": {
+        "type": "string"
+      },
+      "kind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CollaboratorsKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null for the list of shared projects, which reads no one copy"
+      },
+      "recordIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The records read: a chat's id for its transcript, the ids a list answered"
+      }
+    },
+    "required": [
+      "id",
+      "at",
+      "chatId",
+      "tool",
+      "owner",
+      "shareKey",
+      "shareId",
+      "kind",
+      "recordIds"
+    ],
+    "description": "What an agent read of a copy, one row per read: `GET /collaborators/agent-reads`."
+  },
+  "AgentReadList": {
+    "type": "object",
+    "properties": {
+      "reads": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AgentReadEntry"
+        }
+      }
+    },
+    "required": [
+      "reads"
+    ],
+    "description": "`GET /collaborators/agent-reads`: newest first."
   }
 }

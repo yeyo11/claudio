@@ -4,6 +4,8 @@ import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import {
   COLLABORATORS_KINDS,
+  type AgentReadEntry,
+  type AgentReadScope,
   type CollaboratorsConnection,
   type CollaboratorsKind,
   type CollaboratorsPath,
@@ -49,6 +51,7 @@ import { GroupsStore } from './groups-store.ts';
 import { CollabHost, type CollabHostOptions, type HostPeer, type HostStatus, type HostUnavailable } from './host-client.ts';
 import type { HostPreset } from './host/protocol.ts';
 import { checkJoin, createInvite, decodeInvite, denialTag, encodeInvite, InviteFormatError, isInviteExpired, joinPayloadFor, openJoin, sealJoin, secretHash, type Invite } from './invite.ts';
+import { agentReadScope, copyInScope, type AgentReadChat, type AgentReadDecision } from './agent-access.ts';
 import { createReaders, type ReaderSources, type SharedPlace } from './readers.ts';
 import {
   addMember,
@@ -67,7 +70,7 @@ import {
 } from './roster.ts';
 import { describeMember, nameOf, rosterChangeTitle } from './names.ts';
 import { CollabServer, type HeldGroup, type JoinPort, type ReplySink } from './serve.ts';
-import { CollaboratorsSettingsStore } from './settings.ts';
+import { CollaboratorsSettingsStore, parseCollaboratorsUpdate } from './settings.ts';
 import { isValidShareKey, listRemotes, preferredRemote, shareIdOf, shareKeyFor } from './share-key.ts';
 import { isAgentFile, parseRequest, type WireReply, type WireRequest } from './wire.ts';
 
@@ -365,7 +368,14 @@ export class CollaboratorsService {
   }
 
   /** `PUT /collaborators`: turning on generates the key once and binds; off lets the host go */
-  async update(patch: UpdateCollaboratorsRequest): Promise<CollaboratorsStatus> {
+  async update(input: UpdateCollaboratorsRequest): Promise<CollaboratorsStatus> {
+    // What the person sent is validated here, so a value that is not one is refused rather than stored
+    let patch: UpdateCollaboratorsRequest;
+    try {
+      patch = parseCollaboratorsUpdate(input);
+    } catch (error) {
+      throw new CollaboratorsError('invalid', error instanceof Error ? error.message : String(error));
+    }
     const { before, after } = await this.settings.update(patch);
     if (after.enabled && !before.enabled) await this.bind();
     else if (!after.enabled && before.enabled) await this.unbind();
@@ -1081,7 +1091,7 @@ export class CollaboratorsService {
       if (!sharing) continue;
       const groups = sharing.groups.filter((g) => mine.has(g));
       if (!groups.length) continue;
-      out.push({ projectId: project.id, name: project.name, path: project.path, shareKey: sharing.shareKey, groups, ...keyParts(sharing.shareKey), kinds: [...COLLABORATORS_KINDS] });
+      out.push({ projectId: project.id, name: project.name, path: project.path, shareKey: sharing.shareKey, groups, ...keyParts(sharing.shareKey), kinds: [...COLLABORATORS_KINDS], agentsMayRead: sharing.agentsMayRead !== false });
     }
     return out;
   }
@@ -1140,6 +1150,8 @@ export class CollaboratorsService {
       keyInUse: holder ? { projectId: holder.id, projectName: holder.name } : null,
       kinds: [...COLLABORATORS_KINDS],
       seenAs: { name: project.name, remote: parts.remote },
+      agentsMayRead: sharing.agentsMayRead !== false,
+      agentReads: sharing.agentReads === true,
     };
   }
 
@@ -1151,7 +1163,14 @@ export class CollaboratorsService {
     const project = this.requireProject(projectId);
     const current = (await this.projectSharing(projectId)) satisfies ProjectSharing;
     const me = this.endpointId();
-    const next: ProjectSharingSettings = { groups: current.groups, shareKey: current.shareKey, ...(this.stored(project)?.sharing?.remote ? { remote: this.stored(project)?.sharing?.remote as string } : {}) };
+    const stored = this.stored(project)?.sharing;
+    const next: ProjectSharingSettings = {
+      groups: current.groups,
+      shareKey: current.shareKey,
+      ...(stored?.remote ? { remote: stored.remote } : {}),
+      ...(stored?.agentsMayRead !== undefined ? { agentsMayRead: stored.agentsMayRead } : {}),
+      ...(stored?.agentReads !== undefined ? { agentReads: stored.agentReads } : {}),
+    };
     if (patch.groups !== undefined) {
       if (!Array.isArray(patch.groups)) throw new CollaboratorsError('invalid', 'groups must be a list of group ids');
       const groups = [...new Set(patch.groups)];
@@ -1178,6 +1197,11 @@ export class CollaboratorsService {
     if (patch.shareKey !== undefined) {
       if (typeof patch.shareKey !== 'string' || !isValidShareKey(patch.shareKey)) throw new CollaboratorsError('invalid', 'A share key is 3 to 200 of a-z, 0-9, ".", "_", "/", "#" and "-"');
       next.shareKey = patch.shareKey;
+    }
+    for (const flag of ['agentsMayRead', 'agentReads'] as const) {
+      if (patch[flag] === undefined) continue;
+      if (typeof patch[flag] !== 'boolean') throw new CollaboratorsError('invalid', `${flag} must be true or false`);
+      next[flag] = patch[flag];
     }
     await this.deps.projectSettings.update(project, (settings) => ({ ...settings, sharing: next }), this.deps.projects());
     this.changed('sharing', null, project.id);
@@ -1241,6 +1265,8 @@ export class CollaboratorsService {
         sync: this.syncState(owner, share.shareKey),
         matches: keys.get(share.shareKey) ?? [],
         linkedProjectId: linked && projects.some((p) => p.id === linked) ? linked : null,
+        // Only a catalog that said so: a share cached before the flag reads as off until the next one
+        agentsMayRead: share.agentsMayRead === true,
       });
     }
     return out.sort((a, b) => a.ownerName.localeCompare(b.ownerName) || a.name.localeCompare(b.name));
@@ -1399,6 +1425,46 @@ export class CollaboratorsService {
     } catch {
       // The copy held is what is shown
     }
+  }
+
+  // ---------- What agents read (docs/plans/collaborators-agent-access.md) ----------
+
+  /** Which copies the chat whose token asks may read, or why none; the guard and the routes ask */
+  agentReadScope(chat: AgentReadChat | null): AgentReadDecision {
+    return agentReadScope(chat, this.settings.read(), (projectId) => {
+      const project = this.deps.projects().find((p) => p.id === projectId);
+      return !!project && this.stored(project)?.sharing?.agentReads === true;
+    });
+  }
+
+  /** The shared projects a scope reaches: `GET /collaborators/shared` as a chat's token sees it */
+  async sharedForAgent(scope: AgentReadScope): Promise<SharedProject[]> {
+    return (await this.shared()).filter((share) => copyInScope(scope, share));
+  }
+
+  /** Whether one copy is in a scope; a copy not listed for this install is in none */
+  async agentMayRead(scope: AgentReadScope, owner: string, shareId: string): Promise<boolean> {
+    const found = (await this.shared()).find((p) => p.owner === owner && p.shareId === shareId);
+    return !!found && copyInScope(scope, found);
+  }
+
+  /** The share key of a copy this install lists, for the audit; null once it no longer does */
+  sharedKey(owner: string, shareId: string): string | null {
+    try {
+      return this.resolveShare(owner, shareId).shareKey;
+    } catch {
+      return null;
+    }
+  }
+
+  /** One read by an agent, as a row: what Settings → Security and the shared copy count */
+  recordAgentRead(read: Omit<AgentReadEntry, 'id' | 'shareId' | 'at'> & { at?: string }): AgentReadEntry {
+    return this.deps.store.appendAgentRead({ ...read, shareId: shareIdOf(read.shareKey), at: read.at ?? new Date().toISOString() });
+  }
+
+  /** `GET /collaborators/agent-reads`: newest first, of one copy when `owner` and `shareId` are given */
+  agentReads(filter: { owner?: string; shareId?: string; chatId?: string; since?: string; limit?: number } = {}): AgentReadEntry[] {
+    return this.deps.store.agentReads(filter);
   }
 
   // ---------- Events ----------

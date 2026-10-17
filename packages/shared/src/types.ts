@@ -5020,6 +5020,11 @@ export interface CollaboratorsSettings {
   label: string;
   /** A self-hosted `iroh-relay` that replaces n0's public relays; null for the default ones */
   relayUrl: string | null;
+  /**
+   * The Claudio assistant reads the copies teammates share, while Collaborators is on and the sharer
+   * allows it (docs/plans/collaborators-agent-access.md, level 1). On by default
+   */
+  assistantReads: boolean;
 }
 
 /** `GET /collaborators`. */
@@ -5210,6 +5215,16 @@ export interface ProjectSharingSettings {
   shareKey: string;
   /** The git remote the key was computed from, when the person picked one other than the default */
   remote?: string;
+  /**
+   * The sharer's own flag, carried to every reader with the share: teammates' agents may read this
+   * project's copy. Absent is on: a share made before the flag existed is readable
+   */
+  agentsMayRead?: boolean;
+  /**
+   * The reader's switch: this project's chats get the read tools for the copies teammates share into
+   * it (level 2 of docs/plans/collaborators-agent-access.md). Absent is off
+   */
+  agentReads?: boolean;
 }
 
 /** A git remote of the project, as the Sharing section offers it. */
@@ -5246,6 +5261,10 @@ export interface ProjectSharing {
   kinds: CollaboratorsKind[];
   /** What a collaborator sees as the project's name and remote */
   seenAs: { name: string; remote: string | null };
+  /** Teammates' agents may read what this project shares (the sharer's flag, on by default) */
+  agentsMayRead: boolean;
+  /** This project's chats may read what teammates share into it (off by default) */
+  agentReads: boolean;
 }
 
 /** `PUT /projects/:id/sharing`: the fields to change, and only those. */
@@ -5255,6 +5274,8 @@ export interface UpdateProjectSharingRequest {
   shareKey?: string;
   /** Recomputes the key from this remote; null goes back to the default remote */
   remote?: string | null;
+  agentsMayRead?: boolean;
+  agentReads?: boolean;
 }
 
 /** The 409 body of `PUT /projects/:id/sharing` when another project already shares the key. */
@@ -5307,6 +5328,40 @@ export interface SharedProject {
   matches: string[];
   /** The local project it was linked to by hand; null when it was not */
   linkedProjectId: string | null;
+  /**
+   * The sharer lets teammates' agents read it. Off, neither the assistant nor any chat of this
+   * install gets the copy; the person still reads it here
+   */
+  agentsMayRead: boolean;
+}
+
+/**
+ * Why a chat may read teammates' copies through its token (docs/plans/collaborators-agent-access.md):
+ * `assistant` reads every copy whose sharer allows it, `project` only those of its own project.
+ */
+export type AgentReadScope = { kind: 'assistant' } | { kind: 'project'; projectId: string };
+
+/** What an agent read of a copy, one row per read: `GET /collaborators/agent-reads`. */
+export interface AgentReadEntry {
+  id: number;
+  at: string;
+  /** The chat whose token read it */
+  chatId: string;
+  /** The MCP tool that asked, as it named itself; the route's summary when it named none */
+  tool: string;
+  /** The sharing install, the `:owner` of the routes */
+  owner: EndpointId;
+  shareKey: string;
+  shareId: string;
+  /** Null for the list of shared projects, which reads no one copy */
+  kind: CollaboratorsKind | null;
+  /** The records read: a chat's id for its transcript, the ids a list answered */
+  recordIds: string[];
+}
+
+/** `GET /collaborators/agent-reads`: newest first. */
+export interface AgentReadList {
+  reads: AgentReadEntry[];
 }
 
 /** `PUT /collaborators/shared/:owner/:shareId/link`: shows the shared project inside a local one. */

@@ -30,7 +30,7 @@ const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
 const status = (extra: Partial<CollaboratorsStatus> = {}): CollaboratorsStatus => ({
   unavailable: null,
-  settings: { enabled: true, displayName: 'Jose', label: 'desktop', relayUrl: null },
+  settings: { enabled: true, displayName: 'Jose', label: 'desktop', relayUrl: null, assistantReads: true },
   endpointId: SELF,
   connection: 'online',
   homeRelay: 'https://euc1-1.relay.n0.iroh.link./',
@@ -79,6 +79,7 @@ const shared = (extra: Partial<SharedProject> = {}): SharedProject => ({
   sync: { state: 'live', lastSyncedAt: ago(60_000), path: 'relay', error: null },
   matches: ['p1'],
   linkedProjectId: null,
+  agentsMayRead: true,
   ...extra,
 });
 
@@ -173,7 +174,7 @@ test('counts skip the empty kinds and keep the Shared tab order; the local proje
 // ---------- off and unavailable ----------
 
 test('off: the illustration, what it is in a sentence, and Turn on as the one gradient', () => {
-  const html = page(status({ settings: { enabled: false, displayName: '', label: '', relayUrl: null }, endpointId: null, connection: 'off' }));
+  const html = page(status({ settings: { enabled: false, displayName: '', label: '', relayUrl: null, assistantReads: true }, endpointId: null, connection: 'off' }));
   assert.equal((html.match(/state-illustrated/g) ?? []).length, 1);
   assert.match(html, /data-illustration="collaborators"/);
   assert.match(html, /class="il il-lg"/);
@@ -184,7 +185,7 @@ test('off: the illustration, what it is in a sentence, and Turn on as the one gr
 });
 
 test('unavailable: the warn illustration and the reason, with no action', () => {
-  const html = page(status({ unavailable: { code: 'platform', reason: { code: 'collaborators.platform', text: 'No prebuild for darwin-x64' } }, settings: { enabled: true, displayName: 'Jose', label: '', relayUrl: null } }));
+  const html = page(status({ unavailable: { code: 'platform', reason: { code: 'collaborators.platform', text: 'No prebuild for darwin-x64' } }, settings: { enabled: true, displayName: 'Jose', label: '', relayUrl: null, assistantReads: true } }));
   assert.match(html, /class="il il-warn"/);
   assert.ok(text(html).includes('Not available on this platform'));
   assert.ok(text(html).includes('No prebuild for darwin-x64'));
@@ -216,7 +217,7 @@ test('the You card: name, label, the shortened endpoint id with copy, and the co
   // Ana is reached through a relay: said in words, with no status colour
   assert.match(html, /class="collab-tone tone-muted"[^>]*>.*?<span>Connected through a relay<\/span>/);
   assert.ok(words.includes('Discovery and relays are run by n0'));
-  const own = page(status({ settings: { enabled: true, displayName: 'Jose', label: '', relayUrl: 'https://relay.acme.dev' } }), { groups: [], pendingJoins: [] });
+  const own = page(status({ settings: { enabled: true, displayName: 'Jose', label: '', relayUrl: 'https://relay.acme.dev', assistantReads: true } }), { groups: [], pendingJoins: [] });
   assert.ok(text(own).includes('Discovery is run by n0 · relay https://relay.acme.dev'));
 });
 

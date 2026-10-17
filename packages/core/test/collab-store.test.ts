@@ -310,14 +310,20 @@ test('the Collaborators settings default when absent, validate a change, and are
   assert.throws(() => parseCollaboratorsUpdate({ relayUrl: 'https://me:pw@relay.acme.dev' }), /credentials/);
   assert.throws(() => parseCollaboratorsUpdate({ displayName: 'x'.repeat(101) }), /displayName/);
   assert.throws(() => parseCollaboratorsUpdate([]), /object/);
+  // The assistant's reads of teammates' shares: on by default, a boolean to change
+  assert.equal(DEFAULT_COLLABORATORS_SETTINGS.assistantReads, true);
+  assert.deepEqual(parseCollaboratorsUpdate({ assistantReads: false }), { assistantReads: false });
+  assert.throws(() => parseCollaboratorsUpdate({ assistantReads: 'off' }), /assistantReads/);
 
   await Promise.all([settings.update({ enabled: true }), settings.update({ displayName: 'Ana' }), settings.update({ label: 'desktop' })]);
-  assert.deepEqual(settings.read(), { enabled: true, displayName: 'Ana', label: 'desktop', relayUrl: null });
+  assert.deepEqual(settings.read(), { enabled: true, displayName: 'Ana', label: 'desktop', relayUrl: null, assistantReads: true });
   assert.deepEqual(readdirSync(join(config.dataDir, 'collaborators')), ['settings.json']);
 
   // A hand edit with one bad field keeps the others
-  writeFileSync(settings.file, JSON.stringify({ enabled: true, displayName: 'Ana', label: 7, relayUrl: 'nope' }));
-  assert.deepEqual(settings.read(), { enabled: true, displayName: 'Ana', label: '', relayUrl: null });
+  writeFileSync(settings.file, JSON.stringify({ enabled: true, displayName: 'Ana', label: 7, relayUrl: 'nope', assistantReads: 'no' }));
+  assert.deepEqual(settings.read(), { enabled: true, displayName: 'Ana', label: '', relayUrl: null, assistantReads: true });
   writeFileSync(settings.file, '{');
   assert.deepEqual(settings.read(), DEFAULT_COLLABORATORS_SETTINGS);
+  await settings.update({ assistantReads: false });
+  assert.equal(settings.read().assistantReads, false);
 });

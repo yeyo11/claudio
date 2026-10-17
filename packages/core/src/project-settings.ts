@@ -424,6 +424,11 @@ export function parseSharing(value: unknown): ProjectSharingSettings {
     if (typeof value.remote !== 'string' || !REMOTE_NAME.test(value.remote)) throw new Error('sharing.remote must be a git remote name');
     sharing.remote = value.remote;
   }
+  for (const flag of ['agentsMayRead', 'agentReads'] as const) {
+    if (value[flag] === undefined || value[flag] === null) continue;
+    if (typeof value[flag] !== 'boolean') throw new Error(`sharing.${flag} must be true or false`);
+    sharing[flag] = value[flag];
+  }
   return sharing;
 }
 
