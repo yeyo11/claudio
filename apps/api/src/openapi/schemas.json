@@ -27108,10 +27108,15 @@
         "type": "string",
         "enum": [
           "stream",
+          "cli",
           "cache",
           "failure"
         ],
-        "description": "`stream`: a run reported it; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it"
+        "description": "`stream`: a run reported it; `cli`: the CLI answered `get_usage`; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it"
+      },
+      "cli": {
+        "$ref": "#/components/schemas/AccountCliUsage",
+        "description": "The last `get_usage` answer, kept even when a newer stream reading supplied the windows: the per-model limits and the credits come from it only. Absent until the account was refreshed."
       }
     },
     "required": [
@@ -27123,7 +27128,133 @@
       "observedAt",
       "source"
     ],
-    "description": "One account's usage, folded from its stream events and, when idle, the CLI's cache."
+    "description": "One account's usage, folded from its stream events, the CLI's `get_usage` and, when idle, the CLI's cache."
+  },
+  "AccountCliUsage": {
+    "type": "object",
+    "properties": {
+      "observedAt": {
+        "type": "string",
+        "description": "ISO time the CLI was asked"
+      },
+      "plan": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Subscription type as the CLI states it (`max`, `pro`, `team`, `enterprise`); null for none"
+      },
+      "available": {
+        "type": "boolean",
+        "description": "False for an API-key account: it has no subscription limits to read"
+      },
+      "scoped": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ScopedRateLimit"
+        }
+      },
+      "credits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountCredits"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "observedAt",
+      "plan",
+      "available",
+      "scoped",
+      "credits"
+    ],
+    "description": "What only the CLI's `get_usage` control request states about an account; kept beside the folded windows."
+  },
+  "ScopedRateLimit": {
+    "type": "object",
+    "properties": {
+      "utilization": {
+        "type": "number"
+      },
+      "resetsAt": {
+        "type": "number"
+      },
+      "model": {
+        "type": "string",
+        "description": "The model's display name as the CLI states it (`Fable`)"
+      },
+      "window": {
+        "type": "string",
+        "description": "The window it counts in; today always `seven_day`"
+      }
+    },
+    "required": [
+      "model",
+      "resetsAt",
+      "utilization",
+      "window"
+    ],
+    "description": "A weekly limit that applies to one model only (`Fable`), beside the account-wide windows."
+  },
+  "AccountCredits": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "usedMinor": {
+        "type": "number",
+        "description": "Spent this month, in minor units"
+      },
+      "limitMinor": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The monthly cap in minor units; null when there is none"
+      },
+      "currency": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO 4217 code; null when the CLI states none"
+      },
+      "exponent": {
+        "type": "number",
+        "description": "Decimal places of the currency (2 for USD, EUR)"
+      },
+      "limitReached": {
+        "type": "boolean",
+        "description": "The cap is reached: nothing more is spent until the month turns"
+      },
+      "disabledReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why the CLI says they are off, when it does"
+      },
+      "everEnabled": {
+        "type": "boolean",
+        "description": "They were on once: tells \"never set up\" from \"turned off\""
+      }
+    },
+    "required": [
+      "enabled",
+      "usedMinor",
+      "limitMinor",
+      "currency",
+      "exponent",
+      "limitReached",
+      "disabledReason",
+      "everEnabled"
+    ],
+    "description": "The usage credits of a subscription account: what it may spend beyond its plan limits. Amounts are in minor units (`1230` with `exponent: 2` is 12.30), as the CLI states them."
   },
   "AccountsSettings": {
     "type": "object",
@@ -27434,6 +27565,41 @@
       "failed",
       "cancelled"
     ]
+  },
+  "AccountsRefreshResult": {
+    "type": "object",
+    "properties": {
+      "accounts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Account"
+        }
+      },
+      "failed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "error"
+          ]
+        },
+        "description": "An account whose read failed or timed out keeps its last reading"
+      }
+    },
+    "required": [
+      "accounts",
+      "failed"
+    ],
+    "description": "The answer of refreshing accounts' usage: every account as it lists now, and those the CLI could not read."
   },
   "AccountLoginCodeRequest": {
     "type": "object",

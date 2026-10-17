@@ -1,7 +1,8 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ModelOption, ModelTier } from '@claudio/shared';
+import { controlRequest } from './control.ts';
 import { envFor, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { cliLogin } from './usage.ts';
@@ -77,53 +78,8 @@ export function parseInitialize(response: unknown): Initialized {
  * Sends the CLI an `initialize` control request in the account's own environment and reads the
  * answer: no prompt, no turn, no tokens. The process is ended as soon as it has answered.
  */
-export function readInitialize(account: AccountRef, opts: ModelsOptions = {}): Promise<Initialized> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(opts.claude ?? 'claude', ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'], {
-      env: envFor(account, opts.env),
-      stdio: ['pipe', 'pipe', 'ignore'],
-    });
-    const requestId = 'claudio-initialize';
-    let buffer = '';
-    let settled = false;
-    const finish = (err: Error | null, value?: Initialized): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.kill();
-      if (err) reject(err);
-      else resolve(value as Initialized);
-    };
-    const timer = setTimeout(() => finish(new Error('the CLI did not answer initialize in time')), opts.timeoutMs ?? 20_000);
-    child.on('error', (e) => finish(e));
-    child.on('close', () => finish(new Error('the CLI ended without answering initialize')));
-    child.stdin.on('error', () => undefined);
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      buffer += chunk;
-      let nl: number;
-      while ((nl = buffer.indexOf('\n')) !== -1) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        let msg: unknown;
-        try {
-          msg = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (!isRecord(msg) || msg.type !== 'control_response' || !isRecord(msg.response) || msg.response.request_id !== requestId) continue;
-        if (msg.response.subtype === 'error') return finish(new Error(str(msg.response.error) ?? 'the CLI refused initialize'));
-        try {
-          finish(null, parseInitialize(msg.response.response));
-        } catch (e) {
-          finish(e instanceof Error ? e : new Error(String(e)));
-        }
-        return;
-      }
-    });
-    child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: requestId, request: { subtype: 'initialize' } })}\n`);
-  });
+export async function readInitialize(account: AccountRef, opts: ModelsOptions = {}): Promise<Initialized> {
+  return parseInitialize(await controlRequest(account, 'initialize', opts));
 }
 
 /** `claude --version`, the half of the cache key that moves with a CLI update. */

@@ -78,7 +78,8 @@
     "usageRead": "usage read {{ago}}",
     "refresh": "Refresh",
     "none": "No accounts",
-    "noneHint": "Claude Code runs on its own config directory until you add accounts. Add one to switch to it at a limit."
+    "noneHint": "Claude Code runs on its own config directory until you add accounts. Add one to switch to it at a limit.",
+    "refreshing": "Reading usage…"
   },
   "kind": {
     "login": "Sign-in",
@@ -87,7 +88,8 @@
   },
   "window": {
     "fiveHour": "5 hours",
-    "sevenDay": "7 days"
+    "sevenDay": "7 days",
+    "scoped": "7 days · {{model}}"
   },
   "card": {
     "inUse": "in use",
@@ -106,6 +108,7 @@
     "noLimitsApiKey": "An API key has no usage limits to read.",
     "source": {
       "stream": "read from a run {{ago}}",
+      "cli": "read from the CLI {{ago}}",
       "cache": "read from the CLI's cache {{ago}}",
       "failure": "hit a limit {{ago}}"
     },
@@ -114,7 +117,14 @@
     "signInAgain": "Sign in again",
     "signInAgainFor": "Sign in again: {{name}}",
     "expiredHint": "Its session ended and could not be refreshed. It is out of rotation until you sign in again.",
-    "incompleteHint": "Its stored sign-in is incomplete (no refresh token). It is out of rotation until you sign in again."
+    "incompleteHint": "Its stored sign-in is incomplete (no refresh token). It is out of rotation until you sign in again.",
+    "credits": {
+      "used": "Credits · {{used}} of {{limit}} this month",
+      "usedNoLimit": "Credits · {{used}} used this month",
+      "none": "No extra credits",
+      "limitReached": "Limit reached"
+    },
+    "noLimitsToken": "The CLI gives no usage for a token. Limits show here once a chat runs on this account."
   },
   "toast": {
     "heldOut": "{{name}} is out of rotation",
@@ -123,7 +133,9 @@
     "backInRotationFailed": "Could not return {{name}} to rotation",
     "removed": "{{name}} removed",
     "removeFailed": "Could not remove {{name}}",
-    "signedInAgain": "{{name}} is signed in again"
+    "signedInAgain": "{{name}} is signed in again",
+    "refreshFailed": "Could not read the usage of {{names}}",
+    "refreshError": "Could not read the usage"
   },
   "remove": {
     "title": "Remove {{name}}?",
@@ -228,5 +240,12 @@
     "disabled": "held out of rotation",
     "signed-out": "signed out",
     "auth": "sign-in expired"
+  },
+  "plan": {
+    "max": "Max",
+    "pro": "Pro",
+    "team": "Team",
+    "enterprise": "Enterprise",
+    "apiKey": "API key"
   }
 }

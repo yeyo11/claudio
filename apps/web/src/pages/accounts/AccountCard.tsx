@@ -6,7 +6,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
 import { formatDateTime, formatPercent, timeAgo } from '@claudio/ui/lib/format';
-import { accountExhausted, accountName, canSignInAgain, isDefaultAccount, signInProblem, timeToReset, usagePct, windowRows, type WindowRow } from '../../lib/accounts';
+import { accountExhausted, accountName, canSignInAgain, creditsView, isDefaultAccount, planOf, scopedRows, signInProblem, timeToReset, usagePct, windowRows, type ScopedRow, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */
 function useResetText() {
@@ -19,12 +19,12 @@ function useResetText() {
   };
 }
 
-function WindowMeter({ row }: { row: WindowRow }) {
+function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
   const { t } = useTranslation('accountsConfig');
   const resetText = useResetText();
   const spent = row.pct >= 100;
   const tone = usageTone(row.pct, spent);
-  const label = row.key === 'five_hour' ? t('window.fiveHour') : row.key === 'seven_day' ? t('window.sevenDay') : row.key;
+  const label = 'model' in row ? t('window.scoped', { model: row.model }) : row.key === 'five_hour' ? t('window.fiveHour') : row.key === 'seven_day' ? t('window.sevenDay') : row.key;
   const reset = resetText(row.resetsAt, spent);
   return (
     <div className="account-meter">
@@ -41,6 +41,20 @@ function WindowMeter({ row }: { row: WindowRow }) {
         <div className={`meter-fill ${tone === 'neutral' ? '' : `is-${tone}`}`.trim()} style={{ width: `${row.pct}%` }} />
       </div>
     </div>
+  );
+}
+
+/** The credits an account may spend beyond its plan: nothing until they were ever set up, then on, off or at their cap. */
+function CreditsLine({ account }: { account: Account }) {
+  const { t } = useTranslation('accountsConfig');
+  const view = creditsView(account.limits?.cli?.credits);
+  if (!view) return null;
+  if (view.kind === 'off') return <p className="account-credits tnum">{t('card.credits.none')}</p>;
+  return (
+    <p className="account-credits tnum">
+      {view.limit ? t('card.credits.used', { used: view.used, limit: view.limit }) : t('card.credits.usedNoLimit', { used: view.used })}
+      {view.kind === 'reached' && <Tag tone="warn">{t('card.credits.limitReached')}</Tag>}
+    </p>
   );
 }
 
@@ -67,9 +81,11 @@ export function AccountCard({
   const exhausted = accountExhausted(account);
   const pct = usagePct(account.limits);
   const backIn = exhausted ? resetText(account.limits?.resetsAt ?? null, true) : null;
-  const sub = [account.alias ? account.email : null, account.organization, account.plan].filter(Boolean).join(' · ');
+  const sub = [account.alias ? account.email : null, account.organization].filter(Boolean).join(' · ');
+  const plan = planOf(account);
+  const planText = plan ? ('key' in plan ? t(`plan.${plan.key}`) : plan.raw) : null;
   const toggleLabel = account.enabled ? t('card.holdOut') : t('card.returnToRotation');
-  const rows = windowRows(account.limits);
+  const rows = [...windowRows(account.limits), ...scopedRows(account.limits)];
   const problem = signInProblem(account);
 
   const toggleItem: MenuItem = { id: 'toggle', label: toggleLabel, icon: account.enabled ? CirclePause : CircleCheck, disabled: busy, onSelect: onToggle };
@@ -86,6 +102,7 @@ export function AccountCard({
         <span className="account-id">
           <span className="account-name">
             <span className="account-email">{name}</span>
+            {planText && <Tag tone="muted">{planText}</Tag>}
             {current && <span className="badge badge-grad">{t('card.inUse')}</span>}
             {isDefaultAccount(account) && <Tag tone="muted">{t('card.default')}</Tag>}
             {!account.enabled && <Tag tone="muted">{t('card.outOfRotation')}</Tag>}
@@ -100,7 +117,8 @@ export function AccountCard({
           </span>
           <span className="account-sub">
             {sub && <span className="account-org">{sub}</span>}
-            <span>{t(`kind.${account.kind}`)}</span>
+            {/* The plan tag already says "API key" */}
+            {account.kind !== 'api-key' && <span>{t(`kind.${account.kind}`)}</span>}
           </span>
         </span>
         {pct !== null && (
@@ -125,8 +143,9 @@ export function AccountCard({
         {rows.length > 0 ? (
           rows.map((row) => <WindowMeter key={row.key} row={row} />)
         ) : (
-          <p className="muted small">{account.kind === 'api-key' ? t('card.noLimitsApiKey') : t('card.noUsage')}</p>
+          <p className="muted small">{account.kind === 'api-key' ? t('card.noLimitsApiKey') : account.limits?.cli?.available === false ? t('card.noLimitsToken') : t('card.noUsage')}</p>
         )}
+        <CreditsLine account={account} />
         {account.limits && (
           // The cache can be days old and a stream reading is as old as the run that sent it: say how old
           <p className="muted small tnum" title={formatDateTime(account.limits.observedAt)}>

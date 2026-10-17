@@ -28,6 +28,8 @@ import type {
   MemoryFile,
   MemoryProjectSummary,
   Overview,
+  Account,
+  AccountsRefreshResult,
   AccountsSnapshot,
   PermissionDecision,
   PermissionMode,
@@ -3277,6 +3279,28 @@ export class Core {
   private readyAccountLabel(): string | null {
     const found = this.accounts.list().find((a) => a.id !== DEFAULT_ID && a.enabled && a.signedIn);
     return found ? (found.alias ?? found.email ?? found.id) : null;
+  }
+
+  /**
+   * Asks the CLI for the real usage of the accounts (`get_usage`, no turn): who they are for a login
+   * account, then their windows, per-model limits and credits. One account at a time, each with its
+   * own timeout, so one that hangs costs the others nothing. With `ids` only those are read (an
+   * unknown id throws); otherwise every enabled one. A failure is reported per account and leaves
+   * its last reading as it was.
+   */
+  async refreshAccountUsage(ids?: string[]): Promise<AccountsRefreshResult> {
+    this.accounts.reload();
+    const targets = ids ? ids.map((id) => this.accounts.get(id).id) : this.accounts.list().filter((a) => a.enabled).map((a) => a.id);
+    const failed: { id: string; error: string }[] = [];
+    for (const id of targets) {
+      try {
+        if (this.accounts.ref(id).kind === 'login') await this.accounts.refresh(id).catch(() => undefined);
+        await this.runtime.noteAccountReading(id, await this.accounts.fetchUsage(id));
+      } catch (e) {
+        failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { accounts: this.accounts.list(), failed };
   }
 
   /**

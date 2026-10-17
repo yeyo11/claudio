@@ -1,15 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useAccounts, useOverview } from '../api';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { formatDateTime, timeAgo, toMs } from '@claudio/ui/lib/format';
-import { accountName, sortAccounts } from '../lib/accounts';
+import { accountName, sortAccounts, usageStale } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { SignInAgainDialog } from './accounts/SignInAgainDialog';
@@ -24,7 +25,7 @@ import { UsageHistoryCard } from './accounts/UsageHistoryCard';
  */
 export function Accounts() {
   const { t } = useTranslation(['accountsConfig', 'common']);
-  const { data, error, isLoading, refetch, isFetching } = useAccounts();
+  const { data, error, isLoading } = useAccounts();
   const overview = useOverview();
   const settings = useQuery({ queryKey: keys.accountsSettings, queryFn: ({ signal }) => api.accountsSettings({ signal }) });
   const policies = useQuery({ queryKey: keys.accountPolicies, queryFn: ({ signal }) => api.accountPolicies({ signal }) });
@@ -48,6 +49,37 @@ export function Accounts() {
     void queryClient.invalidateQueries({ queryKey: keys.accounts });
     void queryClient.invalidateQueries({ queryKey: keys.overview });
   }, [queryClient]);
+
+  // The CLI is asked for the real usage (no tokens); the answer replaces the list, and an account it
+  // could not read is named, since it keeps its last reading and would otherwise look fresh
+  const [reading, setReading] = useState(false);
+  const readUsage = useCallback(async () => {
+    setReading(true);
+    try {
+      const result = await api.refreshAccounts();
+      queryClient.setQueryData(keys.accounts, result.accounts);
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+      if (result.failed.length > 0) {
+        const names = result.failed.map((f) => {
+          const found = result.accounts.find((a) => a.id === f.id);
+          return found ? accountName(found) : f.id;
+        });
+        toast.error(t('toast.refreshFailed', { names: names.join(', ') }), new Error(result.failed.map((f) => f.error).join('; ')));
+      }
+    } catch (err) {
+      toast.error(t('toast.refreshError'), err);
+    } finally {
+      setReading(false);
+    }
+  }, [queryClient, toast, t]);
+  // Opening Accounts reads the CLI when its last answer is older than ten minutes, once per visit
+  const autoRead = useRef(false);
+  const stale = data ? usageStale(data) : false;
+  useEffect(() => {
+    if (!stale || autoRead.current) return;
+    autoRead.current = true;
+    void readUsage();
+  }, [stale, readUsage]);
 
   const act = async (label: string, failure: string, fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -133,8 +165,10 @@ export function Accounts() {
         }}
         actions={
           <>
-            <button type="button" className="btn" onClick={() => void refetch()} disabled={isFetching} aria-label={t('page.refresh')}>
-              <RefreshCw {...ICON_SM} /> <span className="accounts-action-text">{t('page.refresh')}</span>
+            <button type="button" className="btn" onClick={() => void readUsage()} disabled={reading} aria-busy={reading} aria-label={t('page.refresh')}>
+              <span className="accounts-refresh-icon">{reading ? <Spinner /> : <RefreshCw {...ICON_SM} />}</span>
+              <span className="accounts-action-text">{t('page.refresh')}</span>
+              {reading && <span className="sr-only" role="status">{t('page.refreshing')}</span>}
             </button>
             {addButton}
           </>

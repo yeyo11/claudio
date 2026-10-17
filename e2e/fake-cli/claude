@@ -1131,6 +1131,25 @@ function control(message) {
     reply(contextUsage(detail));
     return;
   }
+  if (request.subtype === 'get_usage') {
+    // The shape of the recorded answer (packages/accounts/test/fixtures/get-usage-max.json), small and a day from its resets
+    const reset = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString();
+    reply({
+      subscription_type: 'max',
+      rate_limits_available: true,
+      rate_limits: {
+        five_hour: { utilization: 5, resets_at: reset(4) },
+        seven_day: { utilization: 27, resets_at: reset(96) },
+        extra_usage: { is_enabled: false, monthly_limit: null, used_credits: null, currency: null, decimal_places: null, disabled_reason: null, spend_limit_reached: false, credits_ever_enabled: false },
+        limits: [
+          { kind: 'session', group: 'session', percent: 5, resets_at: reset(4), scope: null },
+          { kind: 'weekly_all', group: 'weekly', percent: 27, resets_at: reset(96), scope: null },
+          { kind: 'weekly_scoped', group: 'weekly', percent: 5, resets_at: reset(96), scope: { model: { id: null, display_name: 'Fable' }, surface: null } },
+        ],
+      },
+    });
+    return;
+  }
   if (request.subtype === 'mcp_status') {
     reply({ mcpServers });
     return;
