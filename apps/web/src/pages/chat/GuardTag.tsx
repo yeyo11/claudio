@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { guardTag } from '../../lib/guards';
+import { settingsHref } from '../config/settingsGroups';
 
 /**
  * What the guard on this chat's process is doing: "Guards" when armed, "Observe" in observe mode,
@@ -35,7 +36,7 @@ export function GuardTag({ guards }: { guards: ChatGuards | null | undefined }) 
             </li>
           ))}
         </ul>
-        <Link to="/settings?tab=security#guards" className="team-link" onClick={() => setOpen(false)}>
+        <Link to={settingsHref('access', { section: 'guards' })} className="team-link" onClick={() => setOpen(false)}>
           {t('guards.popover.settings')}
         </Link>
       </Sheet>

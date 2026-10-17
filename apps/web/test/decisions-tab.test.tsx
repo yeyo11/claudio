@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import i18n from '../src/i18n';
 import { PointRow } from '../src/pages/config/DecisionsTab';
-import { GROUPS, resolveTab } from '../src/pages/config/settingsTabs';
+import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
 // Settings → Decisions (D3 u1): where the tab lives, where the old Supervisor link lands, and what a
 // point's row says about what it may do.
@@ -51,19 +51,18 @@ test.beforeEach(async () => {
   await i18n.changeLanguage('es');
 });
 
-test('Decisions sits in the Claudio group and the Supervisor tab is gone from System', () => {
-  const claudio = GROUPS.find((group) => group.id === 'claudio');
-  assert.ok(claudio?.tabs.includes('decisions'));
-  assert.ok(!GROUPS.some((group) => (group.tabs as readonly string[]).includes('supervisor')));
+test('Decisions is a group of its own, with History as its detail and no Supervisor section', () => {
+  assert.deepEqual(sectionsOf('decisions'), ['engine', 'points']);
+  assert.deepEqual(detailsOf('decisions'), ['history']);
 });
 
-test('?tab=supervisor lands on Decisions, scrolled to the Supervisor section', () => {
-  assert.deepEqual(resolveTab('supervisor'), { tab: 'decisions', section: 'supervisor' });
-  assert.deepEqual(resolveTab('decisions'), { tab: 'decisions' });
-  assert.deepEqual(resolveTab('nope'), { tab: null });
-  assert.deepEqual(resolveTab(null), { tab: null });
+test('?tab=supervisor lands on Decisions, at the supervisor.intervene point', () => {
+  assert.equal(resolveSettingsAddress('?tab=supervisor', ''), '/settings/decisions#point-supervisor-intervene');
+  assert.equal(resolveSettingsAddress('?tab=decisions', ''), '/settings/decisions');
+  assert.equal(resolveSettingsAddress('?tab=nope', ''), '/settings');
+  assert.equal(resolveSettingsAddress('', ''), null);
   // An inherited key of Object.prototype is not a tab
-  assert.deepEqual(resolveTab('constructor'), { tab: null });
+  assert.equal(resolveSettingsAddress('?tab=constructor', ''), '/settings');
 });
 
 test('an act point on the CLI cannot be active, and says why', () => {

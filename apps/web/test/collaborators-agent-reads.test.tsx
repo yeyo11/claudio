@@ -81,7 +81,7 @@ test('Collaborators: the assistant switch follows assistantReads and leads to th
   const on = render(<AgentsCard settings={settings()} busy={false} onSave={async () => true} />);
   assert.match(on, /role="switch" aria-checked="true"/);
   assert.ok(text(on).includes('The assistant reads what is shared with you'));
-  assert.match(on, /href="\/settings\?tab=security#agent-reads"/);
+  assert.match(on, /href="\/settings\/access\/agent-reads"/);
   const off = render(<AgentsCard settings={settings({ assistantReads: false })} busy={false} onSave={async () => true} />);
   assert.match(off, /role="switch" aria-checked="false"/);
 });
@@ -157,7 +157,7 @@ test("the copy's line: chats that read it today, the sharer's refusal, and nothi
   assert.equal(render(<AgentReadsLineView agentsMayRead chats={0} />), empty());
   const three = render(<AgentReadsLineView agentsMayRead chats={3} />);
   assert.ok(text(three).includes('Read by 3 chats today'));
-  assert.match(three, /href="\/settings\?tab=security#agent-reads"/);
+  assert.match(three, /href="\/settings\/access\/agent-reads"/);
   assert.ok(text(render(<AgentReadsLineView agentsMayRead chats={1} />)).includes('Read by 1 chat today'));
   const forbidden = render(<AgentReadsLineView agentsMayRead={false} chats={0} />);
   assert.ok(text(forbidden).includes('The sharer does not let agents read this'));

@@ -11,7 +11,6 @@ import {
   FolderPlus,
   Gauge,
   GitBranch,
-  Globe,
   House,
   KeyRound,
   Languages,
@@ -25,12 +24,15 @@ import {
   Play,
   Plug,
   Puzzle,
+  Scale,
   Search,
   Settings2,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkle,
   SquareCheck,
   SquarePlus,
+  SquareTerminal,
   Sun,
   Waypoints,
   Workflow,
@@ -54,7 +56,23 @@ import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
 import { statusText } from '@claudio/ui/components/ui';
 import { formatNumber } from '@claudio/ui/lib/format';
 import '../palette.css';
+import { groupLabel, settingsHref, type SettingsGroupId } from '../pages/config/settingsGroups';
+import { SETTINGS_INDEX } from '../pages/config/settingsIndex';
+import { entryHref, revealState } from '../pages/config/search/reveal';
+import { translator } from '../pages/config/search/match';
 import { createPaletteReporter, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
+
+/** Each settings group's mark in the palette, so a result says where it lives before its hint does. */
+const SETTINGS_ICONS: Record<SettingsGroupId, LucideIcon> = {
+  general: SlidersHorizontal,
+  'claude-code': SquareTerminal,
+  connections: Plug,
+  instructions: Brain,
+  extensions: Puzzle,
+  decisions: Scale,
+  runs: Gauge,
+  access: ShieldCheck,
+};
 
 const OPEN_EVENT = 'cw:open-command-palette';
 /** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
@@ -157,7 +175,7 @@ export function CommandPalette() {
         ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: Sparkle, run: go(assistantPath(selected.id)) }]
         : []),
       { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory template modules', icon: FolderPlus, run: go(NEW_PROJECT_PATH) },
-      { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
+      { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go(settingsHref('claude-code', { section: 'sign-in' })) },
       { id: 'act:api-docs', group: 'actions', title: t('palette.apiReference'), hint: t('palette.apiReferenceHint'), keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
       { id: 'theme:light', group: 'theme', title: t('theme.light'), icon: Sun, run: () => setThemePreference('light') },
       { id: 'theme:dark', group: 'theme', title: t('theme.dark'), icon: Moon, run: () => setThemePreference('dark') },
@@ -171,28 +189,21 @@ export function CommandPalette() {
       { id: 'nav:/projects', group: 'goTo', title: t('nav.projects'), keywords: 'import workspace directories', icon: FolderGit2, run: go('/projects') },
       { id: 'nav:/schedules', group: 'goTo', title: t('nav.schedules'), keywords: 'cron recurring timetable automatic every', icon: CalendarClock, run: go('/schedules') },
       { id: 'nav:/usage', group: 'goTo', title: t('nav.usage'), keywords: 'cost spend tokens money chart model project', icon: ChartColumn, run: go('/usage') },
-      { id: 'nav:/connectors', group: 'goTo', title: t('connectors:nav'), keywords: 'claude.ai docs gmail calendar mcp authorise', icon: Plug, run: go('/connectors') },
       { id: 'nav:/settings', group: 'goTo', title: t('nav.settings'), keywords: 'config preferences', icon: Settings2, run: go('/settings') },
     ];
-    const tabs: Array<[string, string, string, LucideIcon]> = [
-      ['appearance', t('shell:appearance.tab'), 'theme language motion dark light', SlidersHorizontal],
-      ['instructions', t('palette.settingsTabs.instructions'), 'CLAUDE.md', SlidersHorizontal],
-      ['settings', t('palette.settingsTabs.settings'), 'settings.json permissions hooks env model', SlidersHorizontal],
-      ['mcp', t('palette.settingsTabs.mcp'), 'connectors tools', SlidersHorizontal],
-      ['agents', t('palette.settingsTabs.agents'), 'subagents', SlidersHorizontal],
-      ['skills', t('palette.settingsTabs.skills'), 'SKILL.md', SlidersHorizontal],
-      ['commands', t('palette.settingsTabs.commands'), 'slash', SlidersHorizontal],
-      ['output-styles', t('palette.settingsTabs.outputStyles'), '', SlidersHorizontal],
-      ['rules', t('palette.settingsTabs.rules'), '', SlidersHorizontal],
-      ['workflows', t('palette.settingsTabs.workflows'), 'saved script', SlidersHorizontal],
-      ['files', t('palette.settingsTabs.files'), 'explorer hooks scripts keybindings', SlidersHorizontal],
-      ['memory', t('palette.settingsTabs.memory'), 'facts feedback MEMORY.md projects', Brain],
-      ['plugins', t('palette.settingsTabs.plugins'), 'marketplace install extensions', Puzzle],
-      ['remote', t('palette.settingsTabs.remote'), 'tunnel tailscale tailnet serve phone address qr', Globe],
-    ];
-    for (const [tab, title, extra, icon] of tabs) {
-      // Remote access is Claudio's own, not a file in ~/.claude
-      list.push({ id: `settings:${tab}`, group: 'settings', title, hint: tab === 'remote' ? undefined : t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
+    // Every section and setting of Settings, from the registry search reads too; the group is the hint
+    const text = translator(t);
+    for (const entry of SETTINGS_INDEX) {
+      const consequence = entry.consequence ? ` ${text(entry.consequence)}` : '';
+      list.push({
+        id: `settings:${entry.id}`,
+        group: 'settings',
+        title: text(entry.label),
+        hint: text(groupLabel(entry.group)),
+        keywords: `${text(entry.keywords)}${consequence}`,
+        icon: SETTINGS_ICONS[entry.group],
+        run: () => navigate(entryHref(entry), { state: revealState(entry) }),
+      });
     }
     // What is live goes first: it is what a person most often jumps to
     const live = liveSummary({ chats: [...(working.data ?? []), ...(waiting.data ?? [])], orchestrations: orchestrations.data ?? [] });

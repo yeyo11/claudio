@@ -17,6 +17,7 @@ import { baseName, requestFor, tabLabels, unavailableKey } from '../components/t
 import { terminalPath } from '../components/terminal/terminal-path';
 import { useCloseTerminal, useOpenTerminal, useTerminalList, useTerminalStatus } from '../components/terminal/use-terminals';
 import { useProjectScope } from '../lib/project-scope';
+import { settingsHref } from './config/settingsGroups';
 
 /** The feature is there but cannot be opened from here and now: the reason, and where it is changed. */
 export function Unavailable({ status }: { status: TerminalStatusInfo | undefined }) {
@@ -24,7 +25,7 @@ export function Unavailable({ status }: { status: TerminalStatusInfo | undefined
   return (
     <Empty icon={SquareTerminal} title={t('unavailable.title')}>
       <p>{status?.reason ? t(unavailableKey(status.reason)) : t('unavailable.unknown')}</p>
-      <Link to="/settings?tab=security" className="btn btn-small">
+      <Link to={settingsHref('access', { section: 'terminal' })} className="btn btn-small">
         {t('unavailable.settings')}
       </Link>
     </Empty>

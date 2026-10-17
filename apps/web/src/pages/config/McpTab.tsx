@@ -14,6 +14,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { isObject, parseObject, stringList } from './settingsModel';
+import { settingsHref } from './settingsGroups';
 
 type Transport = 'stdio' | 'http' | 'sse';
 
@@ -457,7 +458,7 @@ export function McpTab({ scope }: { scope: Scope }) {
                             </button>
                           </>
                         ) : (
-                          <Link className="btn btn-small" to="/settings?tab=mcp" aria-label={t('mcp.editInUserNamed', { name: server.name })}>
+                          <Link className="btn btn-small" to={settingsHref('connections', { detail: 'mcp' })} aria-label={t('mcp.editInUserNamed', { name: server.name })}>
                             {t('mcp.editInUser')}
                           </Link>
                         )}

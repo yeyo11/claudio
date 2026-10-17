@@ -188,7 +188,7 @@ test('a closed tunnel offers the one primary action, with the node, its port and
 test('while the guard is open, the warning and the way to Security replace the start button', () => {
   const html = panel(status('stopped'), 'none');
   assert.match(html, /data-testid="tunnel-auth-required"/);
-  assert.match(html, /href="\/settings\?tab=security"/);
+  assert.match(html, /href="\/settings\/access#access"/);
   assert.doesNotMatch(html, /tunnel-start|btn-primary/);
 });
 

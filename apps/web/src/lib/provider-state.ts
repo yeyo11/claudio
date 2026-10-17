@@ -1,4 +1,5 @@
 import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@claudio/shared';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 // What a provider's state looks like and what can be done about it, as plain data: the row, the
 // first-run step and the status bar all read it, and a test reads it without a page.
@@ -72,7 +73,7 @@ export function providerLink(id: string, kind: 'install' | 'sign-in'): string | 
 
 /** Claude Code signs in inside Claudio, on Settings → Account; every other provider on its vendor's page. */
 export const CLAUDE_CODE_ID = 'claude-code';
-export const SIGN_IN_SETTINGS_PATH = '/settings?tab=account';
+export const SIGN_IN_SETTINGS_PATH = settingsHref('claude-code', { section: 'sign-in' });
 
 /** A provider reads as usable when it can start work: ready, or working with a warning. */
 export const isUsable = (status: Pick<ProviderStatus, 'state'>): boolean => status.state === 'ready' || status.state === 'degraded';

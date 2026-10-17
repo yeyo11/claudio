@@ -12,13 +12,13 @@ export interface NavItem {
   count?: { value: number | undefined; what: string; live?: boolean };
   /** Something here wants a look (a newer Claudio): shown as a dot, and this is what it says to a screen reader */
   dot?: string;
-  /** Where the link lands inside the page, e.g. the settings tab the dot is about */
-  search?: string;
+  /** Where the link lands inside the section, e.g. the settings the dot is about */
+  target?: string;
 }
 
-/** The link's target: the page, plus the tab its dot points at */
-export function navTarget(item: NavItem): string | { pathname: string; search: string } {
-  return item.search ? { pathname: item.to, search: item.search } : item.to;
+/** The link's target: the section, or the place inside it its dot points at */
+export function navTarget(item: NavItem): string {
+  return item.target ?? item.to;
 }
 
 /**

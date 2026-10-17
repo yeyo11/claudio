@@ -13,6 +13,7 @@ import { LAYER_ATTR, layerCollisionPadding } from '@claudio/ui/components/contro
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox } from '@claudio/ui/components/ui';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 /** Enough to cover the subjects on a board or a list: the newest visible decisions of one kind. */
 const RECENT = 200;
@@ -187,7 +188,7 @@ function DecisionAnswer({ decision, lines, said }: { decision: DecisionRecord; l
         <button type="button" className="btn btn-small" aria-pressed={rated === 'not_useful'} disabled={rate.isPending} onClick={() => rate.mutate('not_useful')}>
           <ThumbsDown {...ICON_SM} /> {t('history.notUseful')}
         </button>
-        <Link to="/settings?tab=decisions">{t('mark.history')}</Link>
+        <Link to={settingsHref('decisions', { detail: 'history' })}>{t('mark.history')}</Link>
       </div>
     </>
   );

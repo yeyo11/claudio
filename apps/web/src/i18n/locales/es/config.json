@@ -430,7 +430,432 @@
     },
     "projectTitle": "Ajustes del proyecto",
     "userTitle": "Ajustes del usuario",
-    "file": "Archivo de ajustes"
+    "file": "Archivo de ajustes",
+    "nav": "Grupos de ajustes",
+    "search": {
+      "label": "Buscar ajustes",
+      "placeholder": "Buscar ajustes",
+      "none": "Ningún ajuste coincide con «{{query}}»",
+      "results": "Ajustes encontrados"
+    },
+    "back": "← {{group}}",
+    "backTo": "Volver a {{group}}",
+    "behaviour": "Comportamiento (settings.json)",
+    "memory": {
+      "line_one": "{{count}} proyecto guarda memoria",
+      "line_other": "{{count}} proyectos guardan memoria",
+      "none": "Ningún proyecto guarda memoria todavía"
+    },
+    "overridden_one": "Cambiado en {{count}} proyecto",
+    "overridden_other": "Cambiado en {{count}} proyectos",
+    "groups": {
+      "general": "General",
+      "claude-code": "Claude Code",
+      "connections": "Conexiones",
+      "instructions": "Instrucciones y memoria",
+      "extensions": "Extensiones",
+      "decisions": "Decisiones",
+      "runs": "Ejecuciones y gasto",
+      "access": "Acceso y seguridad"
+    },
+    "sections": {
+      "appearance": "Apariencia",
+      "notifications": "Notificaciones",
+      "updates": "Actualizaciones",
+      "install": "Instalar",
+      "sign-in": "Inicio de sesión",
+      "provider": "Proveedor",
+      "behaviour": "Comportamiento",
+      "files": "Archivos",
+      "connectors": "Conectores",
+      "code-hosts": "Servidores de código",
+      "trackers": "Gestores de incidencias",
+      "webhooks": "Webhooks",
+      "mcp": "Servidores MCP",
+      "instructions": "Instrucciones",
+      "memory": "Memoria",
+      "lessons": "Lecciones",
+      "rules": "Reglas",
+      "output-styles": "Estilos de salida",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "agents": "Agentes",
+      "commands": "Comandos",
+      "workflows": "Workflows",
+      "tool-presets": "Presets de herramientas",
+      "engine": "Quién responde",
+      "points": "Puntos de decisión",
+      "runs": "Ejecuciones",
+      "spend-cap": "Tope de gasto diario",
+      "evals": "Evaluaciones",
+      "access": "Acceso",
+      "hosts": "Hosts permitidos",
+      "remote": "Acceso remoto",
+      "secrets": "Secretos",
+      "guards": "Guardas",
+      "terminal": "Terminal",
+      "audit": "Registro de auditoría",
+      "agent-reads": "Lecturas de agentes"
+    },
+    "details": {
+      "behaviour": "Comportamiento (settings.json)",
+      "files": "Archivos de ~/.claude",
+      "mcp": "Servidores MCP",
+      "claude-md": "CLAUDE.md",
+      "memory": "Memoria",
+      "lessons": "Lecciones globales",
+      "rules": "Reglas",
+      "output-styles": "Estilos de salida",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "agents": "Agentes",
+      "commands": "Comandos",
+      "workflows": "Workflows",
+      "tool-presets": "Presets de herramientas",
+      "history": "Todas las decisiones",
+      "audit": "Registro de auditoría",
+      "agent-reads": "Lecturas de agentes"
+    },
+    "rows": {
+      "appearance": {
+        "theme": "Tema",
+        "language": "Idioma",
+        "motion": "Movimiento"
+      },
+      "notifications": {
+        "kinds": "Qué notificar",
+        "devices": "Dispositivos"
+      },
+      "updates": {
+        "claudio": "Actualizaciones de Claudio",
+        "cli": "Versión del CLI de Claude Code"
+      },
+      "install": {
+        "app": "Instalar la app en este dispositivo"
+      },
+      "sign-in": {
+        "account": "Cuenta en uso",
+        "panel": "Iniciar sesión en Claude Code",
+        "accounts": "Cuentas"
+      },
+      "provider": {
+        "binary": "Binario de Claude Code",
+        "limits": "Límites de uso",
+        "check": "Comprobar de nuevo"
+      },
+      "behaviour": {
+        "settings-json": "Comportamiento (settings.json)"
+      },
+      "files": {
+        "tree": "Archivos de ~/.claude"
+      },
+      "connectors": {
+        "authorise": "Autorizar un conector"
+      },
+      "code-hosts": {
+        "github": "GitHub",
+        "gitlab": "GitLab"
+      },
+      "trackers": {
+        "youtrack": "YouTrack"
+      },
+      "mcp": {
+        "servers": "Servidores MCP"
+      },
+      "instructions": {
+        "claude-md": "CLAUDE.md"
+      },
+      "memory": {
+        "projects": "Memoria de cada proyecto"
+      },
+      "lessons": {
+        "miner-model": "Modelo del minero",
+        "miner-effort": "Effort del minero",
+        "max-cost": "Coste por ejecución",
+        "project-daily": "Tope diario por proyecto",
+        "global-daily": "Tope diario, todos los proyectos",
+        "chat-minutes": "Minutos entre ejecuciones en un chat",
+        "jobs-daily": "Trabajos de minado por proyecto al día",
+        "approve-floor": "Confianza al aprobar",
+        "deliver-at": "Entregar desde la confianza",
+        "budget": "Presupuesto del traspaso",
+        "loose-chats": "Lecciones globales en chats sin proyecto",
+        "repeated-errors": "Mirar también los errores repetidos",
+        "manual-mining": "Permitir «Buscar lecciones» en un chat",
+        "global": "Lecciones globales"
+      },
+      "rules": {
+        "list": "Reglas"
+      },
+      "output-styles": {
+        "list": "Estilos de salida"
+      },
+      "plugins": {
+        "list": "Plugins"
+      },
+      "skills": {
+        "list": "Skills"
+      },
+      "agents": {
+        "list": "Agentes"
+      },
+      "commands": {
+        "list": "Comandos"
+      },
+      "workflows": {
+        "list": "Workflows"
+      },
+      "tool-presets": {
+        "list": "Presets de herramientas"
+      },
+      "engine": {
+        "who-answers": "Quién responde",
+        "jev-key": "Clave de Jev",
+        "cap": "Tope por decisión",
+        "cli-model": "Modelo del CLI",
+        "cli-effort": "Effort del CLI",
+        "history-days": "Días de historial guardados"
+      },
+      "points": {
+        "history": "Ver todas las decisiones"
+      },
+      "runs": {
+        "permission-mode": "Modo de permisos predeterminado",
+        "concurrent": "Ejecuciones simultáneas"
+      },
+      "spend-cap": {
+        "daily": "Tope de gasto diario"
+      },
+      "evals": {
+        "phase-2": "Evaluaciones, fase 2"
+      },
+      "access": {
+        "mode": "Modo de acceso",
+        "token": "Token de la API",
+        "read-only": "Solo lectura"
+      },
+      "hosts": {
+        "allowed": "Hosts permitidos"
+      },
+      "remote": {
+        "tunnel": "Túnel"
+      },
+      "secrets": {
+        "storage": "Dónde se guardan los secretos"
+      },
+      "guards": {
+        "rules": "Reglas de las guardas"
+      },
+      "terminal": {
+        "enabled": "Acceso al terminal"
+      },
+      "audit": {
+        "log": "Registro de auditoría"
+      },
+      "agent-reads": {
+        "log": "Lo que han leído los agentes"
+      }
+    },
+    "keywords": {
+      "appearance": {
+        "section": "tema aspecto colores oscuro claro",
+        "theme": "oscuro claro sistema colores",
+        "language": "inglés español english idioma",
+        "motion": "animación reducir spinner"
+      },
+      "notifications": {
+        "section": "avisos push campana alertas",
+        "kinds": "tipos niveles avisos",
+        "devices": "móvil push navegador teléfono"
+      },
+      "updates": {
+        "section": "versión actualizar nueva",
+        "claudio": "versión actualizar",
+        "cli": "cli binario versión ruta comprobar"
+      },
+      "install": {
+        "section": "app pwa escritorio pantalla de inicio",
+        "app": "pwa escritorio móvil"
+      },
+      "sign-in": {
+        "section": "cuenta login credencial suscripción",
+        "account": "suscripción credencial verificar quitar",
+        "panel": "login token clave autenticación",
+        "accounts": "rotación cambiar"
+      },
+      "provider": {
+        "section": "agente claude code binario",
+        "binary": "ruta ejecutable cli",
+        "limits": "cuota sesión semanal",
+        "check": "actualizar estado"
+      },
+      "behaviour": {
+        "section": "settings.json permisos hooks entorno modelo",
+        "settings-json": "permisos hooks entorno modelo"
+      },
+      "files": {
+        "section": "~/.claude árbol explorador",
+        "tree": "explorador hooks scripts atajos"
+      },
+      "connectors": {
+        "section": "claude.ai gmail calendario drive",
+        "authorise": "claude.ai oauth gmail calendario"
+      },
+      "code-hosts": {
+        "section": "github gitlab gh glab pull request",
+        "github": "gh pull request",
+        "gitlab": "glab merge request"
+      },
+      "trackers": {
+        "section": "incidencias tickets",
+        "youtrack": "incidencias tickets token"
+      },
+      "webhooks": {
+        "section": "eventos pull request frescura"
+      },
+      "mcp": {
+        "section": "herramientas conectores",
+        "servers": "herramientas stdio http"
+      },
+      "instructions": {
+        "section": "CLAUDE.md prompt",
+        "claude-md": "instrucciones prompt"
+      },
+      "memory": {
+        "section": "hechos feedback MEMORY.md proyectos",
+        "projects": "MEMORY.md proyectos"
+      },
+      "lessons": {
+        "section": "minado aprendizaje",
+        "miner-model": "modelo haiku sonnet",
+        "miner-effort": "effort razonamiento",
+        "max-cost": "tope dólares",
+        "project-daily": "coste dólares",
+        "global-daily": "coste dólares",
+        "chat-minutes": "intervalo",
+        "jobs-daily": "límite",
+        "approve-floor": "aprobar",
+        "deliver-at": "traspaso umbral",
+        "budget": "bytes tamaño",
+        "loose-chats": "chats",
+        "repeated-errors": "errores",
+        "manual-mining": "manual",
+        "global": "promovidas"
+      },
+      "rules": {
+        "section": "reglas archivos",
+        "list": ".claude/rules"
+      },
+      "output-styles": {
+        "section": "estilo tono",
+        "list": "outputStyle"
+      },
+      "plugins": {
+        "section": "marketplace instalar extensiones",
+        "list": "instalados explorar marketplaces"
+      },
+      "skills": {
+        "section": "SKILL.md",
+        "list": "SKILL.md"
+      },
+      "agents": {
+        "section": "subagentes",
+        "list": "subagentes .claude/agents"
+      },
+      "commands": {
+        "section": "slash comandos",
+        "list": "slash .claude/commands"
+      },
+      "workflows": {
+        "section": "script guardado",
+        "list": ".claude/workflows script"
+      },
+      "tool-presets": {
+        "section": "herramientas permitidas denegadas",
+        "list": "herramientas permitidas denegadas"
+      },
+      "engine": {
+        "section": "motor proveedor jev cli",
+        "who-answers": "motor proveedor jev cli modelo",
+        "jev-key": "clave api secreto",
+        "cap": "coste dólares límite",
+        "cli-model": "avanzado haiku",
+        "cli-effort": "avanzado razonamiento",
+        "history-days": "retención avanzado"
+      },
+      "points": {
+        "section": "modos sombra activo apagado",
+        "history": "historial registro",
+        "point": "punto de decisión modo sombra activo apagado"
+      },
+      "runs": {
+        "section": "permisos simultáneas chats",
+        "permission-mode": "acceptEdits plan bypass",
+        "concurrent": "paralelo cola"
+      },
+      "spend-cap": {
+        "section": "coste dinero presupuesto dólares",
+        "daily": "coste dinero presupuesto"
+      },
+      "evals": {
+        "section": "fase 2 evaluación",
+        "phase-2": "evaluación"
+      },
+      "access": {
+        "section": "autenticación token oidc login",
+        "mode": "ninguno token oidc",
+        "token": "bearer clave",
+        "read-only": "bloquear lectura"
+      },
+      "hosts": {
+        "section": "host origen dominio",
+        "allowed": "host origen dominio"
+      },
+      "remote": {
+        "section": "túnel tailscale móvil dirección qr",
+        "tunnel": "tailscale tailnet serve"
+      },
+      "secrets": {
+        "section": "cifrados llavero claves",
+        "storage": "cifrados llavero"
+      },
+      "guards": {
+        "section": "bloquear reglas comandos peligrosos",
+        "rules": "bloquear denegar"
+      },
+      "terminal": {
+        "section": "shell pty consola",
+        "enabled": "shell pty"
+      },
+      "audit": {
+        "section": "escrituras peticiones historial",
+        "log": "peticiones filtrar"
+      },
+      "agent-reads": {
+        "section": "colaboradores compartido",
+        "log": "colaboradores compartido"
+      }
+    },
+    "consequences": {
+      "engine": {
+        "who-answers": "Usa tu cuota de Claude Code, o Jev."
+      },
+      "runs": {
+        "concurrent": "Las siguientes esperan un hueco libre."
+      },
+      "spend-cap": {
+        "daily": "Las ejecuciones nuevas esperan cuando el gasto de hoy lo alcanza."
+      },
+      "access": {
+        "read-only": "Nadie puede cambiar nada a través de la API."
+      },
+      "hosts": {
+        "allowed": "Las demás direcciones se rechazan."
+      },
+      "remote": {
+        "tunnel": "Llega a Claudio desde el móvil por Tailscale."
+      }
+    }
   },
   "settingsGuided": {
     "notSet": "Sin definir (hereda)",

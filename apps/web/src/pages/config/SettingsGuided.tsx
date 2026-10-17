@@ -18,6 +18,7 @@ import {
   type HookGroup,
   type Json,
 } from './settingsModel';
+import { settingsHref } from './settingsGroups';
 
 const DEFAULT_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions'] as const;
 
@@ -377,7 +378,7 @@ export function SettingsGuided({
         summary={enabledPlugins.length > 0 ? t('settingsGuided.pluginCount', { count: enabledPlugins.length }) : undefined}
       >
         <p className="small muted">
-          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ anchor: <Link to="/settings?tab=plugins" /> }} />
+          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ anchor: <Link to={settingsHref('extensions', { detail: 'plugins' })} /> }} />
         </p>
         <div className="chips">
           {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">{t('settingsGuided.nothingConfigured')}</span>}
