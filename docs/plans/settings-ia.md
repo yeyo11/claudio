@@ -35,6 +35,7 @@ listed in §11. Built by the orchestration in §10.
 9. [Tests that change](#9-tests-that-change)
 10. [Orchestration](#10-orchestration)
 11. [Choices taken in this plan](#11-choices-taken-in-this-plan)
+12. [Outcome](#outcome)
 
 ## 1. What the owner decided
 
@@ -446,6 +447,39 @@ Where the audit left a choice open, the manifesto decided:
   hints automatically today would lose it.
 - **Search indexes i18n keys**, so it works in both languages, and the palette reads the same
   registry, so every setting is one Ctrl K away (manifesto §6).
+
+## Outcome
+
+Built on 2026-10-17 by the orchestration of §10 (`c1`, `w1`–`w5`, `e1`, `x1`), as the plan settles
+it; the person's guide is [settings.md](../settings.md) and the design rules are in
+[design-system.md](../design-system.md#settings-groups-rows-details-and-search). Verification (the
+whole test suite and the e2e suite on GitHub) runs on the merged branch and is not part of this
+record.
+
+**Built**
+
+- **Core and API (`c1`):** the Supervisor reads the `supervisor.intervene` point's mode; Active works
+  under the CLI for that point only; a one-time migration of `supervisor.json` with its mark; the
+  deprecated `GET/PUT /settings/supervisor` over the point.
+- **Shell and search (`w1`):** `settingsGroups.ts` (groups, sections, details, `resolveSettingsAddress`,
+  `settingsHref`), `settingsIndex.ts` and `search/`, the palette reading the registry, the links
+  migrated, `/connectors` redirecting, the sidebar at 11 entries.
+- **Screens (`w2`–`w5`):** the eight group screens under `pages/config/groups/`, `MemoryOverview` and
+  the Connectors section in their own files, the `audit`, `agent-reads` and `history` details, and
+  Decisions without chips or a Supervisor screen.
+- **Tests (`e1`):** the specs of §9, a new `settings-search.spec.mjs`, the three web fixtures
+  regenerated.
+
+**Where it differs from the plan**
+
+- The shared row and section pieces (`PrefRow`, `groups/Section.tsx`, `groups/Block.tsx`) were added
+  to build the screens; their classes are in the design system's
+  [setting row](../design-system.md#the-setting-row-settings) and a section's parts, not in §6.
+- `e2e/ui/routes.mjs` has no interaction for the Jev reveal or Advanced on `/settings/decisions`: they
+  reveal content on purpose, which that file excludes.
+- Not confirmed against a running page: opening a search result may focus a `tabindex="-1"` button
+  (for "Concurrent runs", the number field's "Decrease") because `search/reveal.ts` takes the first
+  button of the row; the e2e spec only checks that the focus is inside the row.
 
 ## Related
 
