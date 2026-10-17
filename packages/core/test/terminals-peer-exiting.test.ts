@@ -66,7 +66,7 @@ test('a chat process caught exiting is waited for, and the browser beside it is 
     // Exiting on the first look, a zombie by the time the check looks again
     stat: () => (looks <= 1 ? statLine('R', PF_EXITING) : statLine('Z', 0)),
   }));
-  assert.equal(check.check(peer), 'not-agent');
+  assert.equal(await check.verdict(peer), 'not-agent');
   assert.equal(looks, 2, 'the check looked again once the process had finished');
 });
 
@@ -74,7 +74,7 @@ test('a chat process whose descriptors are refused for good keeps the answer unk
   const peer = await connection();
   const check = new PeerCheck(noTable, reader({ fds: () => { throw eacces(); }, stat: () => statLine('S', 0) }));
   const started = Date.now();
-  assert.equal(check.check(peer), 'unknown');
+  assert.equal(await check.verdict(peer), 'unknown');
   assert.ok(Date.now() - started < 100, `a process that is not exiting is not waited for (${String(Date.now() - started)} ms)`);
 });
 
@@ -82,7 +82,7 @@ test('a chat process that stays caught exiting is waited for only so long, and t
   const peer = await connection();
   const check = new PeerCheck(noTable, reader({ fds: () => { throw eacces(); }, stat: () => statLine('R', PF_EXITING) }));
   const started = Date.now();
-  assert.equal(check.check(peer), 'unknown');
+  assert.equal(await check.verdict(peer), 'unknown');
   const waited = Date.now() - started;
   assert.ok(waited >= 400 && waited < 2000, `the wait is bounded (${String(waited)} ms)`);
 });
@@ -105,6 +105,36 @@ test('a chat process that exits holding the client socket is never let through',
     },
     stat: () => (looks <= 1 ? statLine('R', PF_EXITING) : statLine('Z', 0)),
   }));
-  assert.equal(check.check(peer), 'unknown');
+  assert.equal(await check.verdict(peer), 'unknown');
   assert.equal(looks, 1, 'the second look found no socket to look for');
+});
+
+test('one look answers `exiting` at once, and waiting it out leaves the server free to serve everyone else', linux, async () => {
+  const peer = await connection();
+  const check = new PeerCheck(noTable, reader({ fds: () => { throw eacces(); }, stat: () => statLine('R', PF_EXITING) }));
+  const started = Date.now();
+  assert.equal(check.check(peer), 'exiting');
+  assert.ok(Date.now() - started < 100, 'a single look does not wait');
+  // A timer due during the wait fires on time, and a request to another server is answered: the
+  // wait is spaced by timers, never a blocking one
+  const timer = new Promise<number>((resolve) => {
+    const at = Date.now();
+    setTimeout(() => resolve(Date.now() - at), 50);
+  });
+  const answered = new Promise<boolean>((resolve) => {
+    const server = createServer((socket) => socket.end('pong'));
+    servers.push(server);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      assert.ok(address && typeof address === 'object');
+      const other = connect(address.port, '127.0.0.1');
+      sockets.push(other);
+      other.on('data', () => resolve(Date.now() - started < 400));
+    });
+  });
+  const verdict = check.verdict(peer);
+  const late = await timer;
+  assert.ok(late < 200, `the timer fired ${String(late)} ms after it was set, for 50`);
+  assert.equal(await answered, true, 'another connection was served while the check waited');
+  assert.equal(await verdict, 'unknown');
 });

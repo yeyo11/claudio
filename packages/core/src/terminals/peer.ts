@@ -1,8 +1,11 @@
 import { readFileSync, readdirSync, readlinkSync } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 import { agentRunProcesses, claudioChildren, descendantsOf, processTable, type ProcessEntry } from '../processes.ts';
 
 /** `agent`: the connection belongs to a chat's process or one of its descendants. `unknown` is not "not an agent". */
 export type PeerVerdict = 'agent' | 'not-agent' | 'unknown';
+/** One synchronous look: a verdict, or `exiting` when a process caught exiting stood in the way, which a look a moment later may settle */
+export type PeerLook = PeerVerdict | 'exiting';
 
 export interface PeerSocket {
   /** The client's address as the server's socket reports it (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`) */
@@ -49,9 +52,10 @@ const procReader: ProcReader = {
 
 /** The kernel's flag for a task inside `do_exit`, in the ninth field of its `stat` line */
 const PF_EXITING = 0x4;
-/** How long a check waits for a process caught exiting to finish before it answers */
+/** How long `verdict` keeps looking while a process caught exiting is to blame, before it answers unknown */
 const SETTLE_MS = 500;
-const SETTLE_STEP_MS = 5;
+/** Between two looks: a process's exit takes milliseconds, and each look reads /proc again */
+const SETTLE_STEP_MS = 10;
 
 /** The fields of a `stat` line after the command name, which may itself contain spaces and parentheses */
 const statFields = (stat: string): string[] => stat.slice(stat.lastIndexOf(')') + 2).split(' ');
@@ -79,10 +83,6 @@ function exiting(proc: ProcReader, pid: number): boolean {
   }
 }
 
-const pause = (ms: number): void => {
-  // The gate asks synchronously; a wait of a few milliseconds is cheaper than making every caller async
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-};
 
 /**
  * Which process opened a loopback connection, as far as it matters: whether it is a chat's, or one
@@ -119,19 +119,28 @@ export class PeerCheck {
     }
   }
 
-  check(peer: PeerSocket): PeerVerdict {
-    // A process of a chat's tree caught exiting made the answer unknown, and under `mode: none` the
-    // person's own browser was refused with it: on a machine whose agents start and end processes
-    // all the time, 1 to 3 requests in 100 were. Once it has finished it holds nothing, so the check
-    // is made again from the start, the socket's inode included: a process that exited holding the
-    // client's socket took the socket with it, and that answer stays unknown. Another may be caught
-    // exiting on the next look, so it goes on until the answer is not owed to one, or time is up.
+  /**
+   * The answer for a connection. A process of a chat's tree caught exiting made it unknown, and under
+   * `mode: none` the person's own browser was refused with it: on a machine whose agents start and
+   * end processes all the time, 1 to 3 requests in 100 were. Once it has finished it holds nothing,
+   * so the look is made again from the start, the socket's inode included: a process that exited
+   * holding the client's socket took the socket with it, and that answer stays unknown. The looks
+   * are spaced by timers, never a blocking wait, so the server goes on serving everyone else.
+   */
+  async verdict(peer: PeerSocket): Promise<PeerVerdict> {
     const end = Date.now() + SETTLE_MS;
     for (;;) {
-      const look = this.inspect(peer);
-      if (look.verdict !== 'unknown' || look.exiting.length === 0 || Date.now() >= end) return look.verdict;
-      while (Date.now() < end && look.exiting.some((pid) => !finished(this.proc, pid))) pause(SETTLE_STEP_MS);
+      const look = this.check(peer);
+      if (look !== 'exiting') return look;
+      if (Date.now() >= end) return 'unknown';
+      await delay(SETTLE_STEP_MS);
     }
+  }
+
+  /** One look, synchronous and as fast as reading /proc: `exiting` asks the caller to look again shortly, through `verdict` */
+  check(peer: PeerSocket): PeerLook {
+    const look = this.inspect(peer);
+    return look.verdict === 'unknown' && look.exiting.length > 0 ? 'exiting' : look.verdict;
   }
 
   /** One look: the verdict, and the processes whose descriptors could not be read because they were exiting */
