@@ -21,8 +21,9 @@
 // Chrome, and prints one report in the order a single run would (default: one shard per two cores,
 // at most 4, never more than there are groups; E2E_PORT, when set, is the first of N ports). The
 // split is greedy longest-first over e2e/timings.json (seconds per spec, checked in so every CI job
-// computes the same split; a spec missing from it weighs the median), and every fakeCli spec stays
-// in one shard, behind one restart of its server. See e2e/shards.mjs.
+// computes the same split; a spec missing from it weighs the median). fakeCli specs spread over the
+// shards like any other, and each shard runs its own last, behind one restart of its server. See
+// e2e/shards.mjs.
 // Collaborators (docs/plans/collaborators.md, C4): a spec that exports `peers = ['ben', …]` gets one
 // more wrapper per name, each with a sandbox, a port and a fake `claude` of its own, started before
 // it and stopped after it; its context gains `peers.<name>` (`api`, `dirs`, `fakeCli`, `baseUrl`,

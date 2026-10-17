@@ -145,8 +145,9 @@ function reportFailure(id, jobs) {
   const files = newestFiles(dir);
   for (const log of files.filter((f) => f.endsWith('e2e.log'))) {
     const lines = readFileSync(log, 'utf8').trimEnd().split('\n');
-    say(`\n--- ${log} (last 60 of ${lines.length} lines)`);
-    say(lines.slice(-60).join('\n'));
+    const tail = lines.slice(-60);
+    say(`\n--- ${log} (${tail.length < lines.length ? `last ${tail.length} of ${lines.length} lines` : `${lines.length} lines`})`);
+    say(tail.join('\n'));
   }
   const shots = files.filter((f) => f.endsWith('.png'));
   say(`\nArtifacts of the failed shards: ${dir} (${shots.length} screenshot(s))`);

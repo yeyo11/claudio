@@ -171,6 +171,7 @@ export default async ({ page, api, check, dirs }) => {
     const refused = await api.get(`/projects/${projectId}/tracker/issues`);
     check(refused.status === 409, `the import refuses without access (${refused.status})`);
   } finally {
+    await page.reduceMotion(false).catch(() => {});
     await api.del('/trackers/youtrack/credentials').catch(() => undefined);
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => undefined);
     rmSync(root, { recursive: true, force: true });

@@ -21,8 +21,8 @@ public repository. The decision is in `docs/decisions/e2e-on-github.md`.
    timeout 590 pnpm e2e:remote config palette
    ```
 
-   A few specs take about 3–4 minutes, most of it setup. The whole suite (`pnpm e2e:remote` with no
-   prefix) takes about 7 minutes of wall time on 4 shards; a pull request runs it anyway, so run it
+   A spec or two take one to two minutes, most of it setup. The whole suite (`pnpm e2e:remote` with no
+   prefix) takes about 10 minutes of wall time on 4 shards; a pull request runs it anyway, so run it
    yourself only when the change is broad.
 3. **Wait in the foreground.** The command waits up to 9 minutes (`E2E_REMOTE_WAIT`, seconds), then
    exits 3 and prints the line to go on with. Run that line, again under `timeout 590`:

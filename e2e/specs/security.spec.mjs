@@ -81,16 +81,18 @@ export default async ({ page, api, check }) => {
     await page.goto('/settings?tab=security', 0);
     await page.waitFor(`return document.querySelector('[role=tabpanel]')?.innerText.includes('Audit log')`, { label: 'this browser is still signed in after turning the guard on' });
 
-    // The audit log lists the writes, filterable by path, and records who made them
+    // The audit log lists the writes, filterable by path, and records who made them. Its table is
+    // named: the tab has others before it once a spec has run a terminal (Terminal history)
+    const auditTable = `[role=tabpanel] .table-wrap[aria-label="Audit log"] table`;
     await page.fill('input[type=search]', '/security');
-    await page.waitFor(`const t=document.querySelector('[role=tabpanel] table');return !!t&&t.textContent.includes('/api/security/auth')&&t.textContent.includes('token:')`, { label: 'the audit rows for /security' });
+    await page.waitFor(`const t=document.querySelector('${auditTable}');return !!t&&t.textContent.includes('/api/security/auth')&&t.textContent.includes('token:')`, { label: 'the audit rows for /security' });
     // Badges are uppercase by CSS: the words are read from the DOM
-    const rows = await page.eval(`return document.querySelector('[role=tabpanel] table')?.textContent ?? ''`);
+    const rows = await page.eval(`return document.querySelector('${auditTable}')?.textContent ?? ''`);
     check(rows.includes('PUT') && rows.includes('token:'), 'the audit log names the method and the token that made the write');
     check(/done/.test(rows), 'a result is said in words as well as a status code');
 
     // Method and status narrow the same list; every row left is what was asked for
-    const auditRows = `[...document.querySelectorAll('[role=tabpanel] table tbody tr')]`;
+    const auditRows = `[...document.querySelectorAll('${auditTable} tbody tr')]`;
     await page.select('[role=tabpanel] .filter-bar .select-trigger', 'PUT');
     await page.waitFor(`const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.strong')?.textContent==='PUT')`, { label: 'only PUT rows' });
     await page.fill('input[type=search]', '');

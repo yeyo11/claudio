@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AssistantProposal, AssistantResourceProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal } from '@claudio/shared';
 import { byDecision, proposalRuns, resourceProposals, savePath, sectionFrom, sectionKinds, shownName } from '../src/pages/home/resources/model';
-import { initialSelection, isRunning, latestFocus, readPhrases, selectedPending, suggestRequest, workItemProposals } from '../src/pages/tasks/suggest/model';
+import { initialSelection, isRunning, latestFocus, readPhrases, selectedPending, stillRunning, suggestRequest, workItemProposals } from '../src/pages/tasks/suggest/model';
 
 const base = { runId: 'r1', projectId: 'p1', reason: 'why', decidedBy: null, decidedAt: null, createdAt: '2026-09-27T10:00:00Z' };
 
@@ -88,6 +88,15 @@ test('a run moves only while it runs', () => {
   assert.equal(isRunning({ status: 'running' }), true);
   assert.equal(isRunning({ status: 'completed' }), false);
   assert.equal(isRunning(null), false);
+});
+
+test('the dialog is done only once the list and the run’s own record both say the run ended', () => {
+  // The list came back completed first; the record is still the running one, without its proposals
+  assert.equal(stillRunning({ status: 'completed' }, { status: 'running' }), true);
+  assert.equal(stillRunning({ status: 'running' }, { status: 'completed' }), true);
+  assert.equal(stillRunning({ status: 'completed' }, { status: 'completed' }), false);
+  assert.equal(stillRunning({ status: 'failed' }, null), false);
+  assert.equal(stillRunning(null, null), false);
 });
 
 test('resources: the section in the address, and the kinds it shows', () => {
