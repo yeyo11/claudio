@@ -298,8 +298,11 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     await until(async () => (await api.get('/collaborators')).body?.connection === 'off', 'Ana to go offline again');
     const asked = await cleo.api.post('/collaborators/join', { invite: third.body.text });
     check(asked.body?.state === 'pending' && asked.body.pending?.relayedBy?.endpointId === benId, `Ben holds Cleo's second request (${asked.status} ${JSON.stringify(asked.body)})`);
-    await cleo.page.goto('/collaborators', 1200);
-    await cleo.page.waitFor(`return (document.querySelector('[data-testid=collab-pending-join]')?.innerText ?? '').includes('Backend')`, { label: "Cleo's second request, waiting" });
+    // Cleo's page stays open in a tab of its own while Ana answers from hers; the mark proves it is never reloaded
+    const cleoTab = await cleo.openTab();
+    await cleoTab.goto('/collaborators', 1200);
+    await cleoTab.waitFor(`return (document.querySelector('[data-testid=collab-pending-join]')?.innerText ?? '').includes('Backend')`, { label: "Cleo's second request, waiting" });
+    await cleoTab.eval(`window.__e2eNotReloaded = true; return true`);
     check((await api.put('/collaborators', { enabled: true })).status === 200, 'Ana is back');
     await ready(api, 'Ana');
     await page.goto('/collaborators', 1200);
@@ -308,13 +311,14 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     await page.waitFor(`return !document.querySelector('[data-testid=collab-join-request]')`, { label: 'the request gone from Ana’s page' });
     // Cleo's page is not reloaded: the next time her install asks, the event turns the card
     const deniedCard = `document.querySelector('[data-testid=collab-ended-join][data-state=denied]')`;
-    await cleo.page.waitFor(`return (${deniedCard}?.innerText ?? '').includes('Ana denied your request to join Backend.')`, { label: "Cleo's page says Ana denied her", timeout: 120_000 });
-    check(!(await cleo.page.eval(`return !!document.querySelector('[data-testid=collab-pending-join]')`)), 'nothing on Cleo’s page still waits');
-    const word = await cleo.page.eval(`const w = ${deniedCard}?.querySelector('.collab-tone'); return w ? { cls: w.className, text: w.innerText, icon: !!w.querySelector('svg') } : null`);
+    await cleoTab.waitFor(`return (${deniedCard}?.innerText ?? '').includes('Ana denied your request to join Backend.')`, { label: "Cleo's page says Ana denied her", timeout: 120_000 });
+    check(await cleoTab.eval(`return window.__e2eNotReloaded === true`), 'Cleo’s page turned the card without a reload');
+    check(!(await cleoTab.eval(`return !!document.querySelector('[data-testid=collab-pending-join]')`)), 'nothing on Cleo’s page still waits');
+    const word = await cleoTab.eval(`const w = ${deniedCard}?.querySelector('.collab-tone'); return w ? { cls: w.className, text: w.innerText, icon: !!w.querySelector('svg') } : null`);
     check(word?.cls.includes('tone-bad') && word.text.includes('Denied') && word.icon, `the denial is a word and an icon in the bad tone (${JSON.stringify(word)})`);
     check(JSON.stringify(await memberNames(api)) === '["Ana","Ben"]', 'Cleo is not in the group');
-    await cleo.page.click('[data-testid=collab-ended-join] button', 'Dismiss', 800);
-    await cleo.page.waitFor(`return !document.querySelector('[data-testid=collab-ended-join]')`, { label: 'the denied join dismissed' });
+    await cleoTab.click('[data-testid=collab-ended-join] button', 'Dismiss', 800);
+    await cleoTab.waitFor(`return !document.querySelector('[data-testid=collab-ended-join]')`, { label: 'the denied join dismissed' });
     check(((await cleo.api.get('/collaborators/groups')).body?.pendingJoins ?? []).length === 0, 'nothing is left of the denied join');
 
     // ---------- Ana stops sharing the notes: Ben's view says so, and offers the way back ----------

@@ -131,7 +131,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben } })
     // The file, among the artifacts: what it is, how big, from which chat, and a way to save it
     await ben.page.goto(`${base}?section=artifacts&file=${encodeURIComponent(`upload:${attachment.id}`)}`, 1200);
     await ben.page.waitFor(`return (document.querySelector('.shared-artifacts')?.innerText ?? '').includes(${JSON.stringify(UPLOAD)})`, { label: 'the upload in the artifacts', timeout: 30_000 });
-    const item = await ben.page.eval(`return document.querySelector('.shared-artifacts .master-item-on')?.innerText ?? ''`);
+    // textContent: the kind is a Tag, drawn in capitals by CSS, so innerText would read it in capitals
+    const item = await ben.page.eval(`return document.querySelector('.shared-artifacts .master-item-on')?.textContent ?? ''`);
     check(item.includes(UPLOAD) && item.includes('Attachment'), `the upload is the open artifact, marked as an attachment (${item})`);
     const detail = await ben.page.eval(`return document.querySelector('.shared-artifacts .detail')?.innerText ?? ''`);
     check(detail.includes('text/plain') && detail.includes(chatId.slice(0, 8)), `the detail says its type and its chat (${detail})`);
@@ -159,7 +160,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben } })
     const line = await ben.page.eval(`return (${soloCard}).querySelector('.alert-warn').innerText`);
     check(line.includes("The owner's install is gone: the group can no longer change.") && line.includes('Create a new group'), `the warn line, in words, with its way out (${line})`);
     check(await ben.page.eval(`return !!(${soloCard}).querySelector('.alert-warn .alert-icon')`), 'the warn colour comes with an icon');
-    check(!(await ben.page.eval(`return !!(${soloCard}).querySelector('[aria-label^="Actions for"]')`)), 'a frozen group offers no member actions');
+    // Scoped to the member rows: the card's own menu, Leave the group, shares the "Actions for" label
+    check(!(await ben.page.eval(`return !!(${soloCard}).querySelector('[data-testid=collab-member] [aria-label^="Actions for"]')`)), 'a frozen group offers no member actions');
     const frontendCard = `[...document.querySelectorAll('.collab-group')].find((g) => g.innerText.includes('Frontend'))`;
     check(!(await ben.page.eval(`return !!(${frontendCard})?.querySelector('.alert-warn')`)), "Ana's group carries no frozen line");
     await ben.page.eval(`[...(${soloCard}).querySelectorAll('.alert-warn button')].find((b) => b.innerText.includes('Create a new group')).click(); return true`);
