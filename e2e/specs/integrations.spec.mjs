@@ -94,6 +94,9 @@ export default async ({ page, api, check, dirs }) => {
     check(signIn?.tag === 'BUTTON' && signIn.pressed === 'false', `signed out offers Sign in, a button that stays in Claudio (${JSON.stringify(signIn)})`);
     await page.click('.prov-row[data-host="github"] [data-action="sign-in"]', undefined, 300);
     await page.waitFor(`return !!document.querySelector('.prov-bin.signin-panel')`, { label: 'the sign-in panel under the row' });
+    // The panel opens at once with a skeleton and offers its methods once GET /setup has answered,
+    // which a loaded machine takes its time over
+    await page.waitFor(`return !!document.querySelector('.prov-bin.signin-panel [role="radiogroup"]')`, { label: 'the sign-in methods, once GET /setup answered' });
     check((await page.eval(`return document.querySelector('.prov-bin.signin-panel [role="radiogroup"]')?.textContent ?? ''`)).includes('Code'), 'gh offers the device code and a key');
     await page.click('.prov-bin.signin-panel .prov-quiet', undefined, 200);
     // The badge is uppercase on screen (innerText), so its word is read from the DOM's own text
