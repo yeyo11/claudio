@@ -1,22 +1,31 @@
 ---
 created_at: 2026-10-16T22:39:11.27908455Z
-updated_at: 2026-10-16T22:43:16.458615471Z
+updated_at: 2026-10-17T14:30:00Z
 tags:
     - collaborators
     - iroh
     - upstream
     - report
 ---
-# Two upstream issues for `@number0/iroh`, ready to file
+# Two upstream issues in `@number0/iroh`, and where they stand
 
 Stage C0 of [plans/collaborators.md](../plans/collaborators.md) (§7.2 C0 facts) found two defects in
-the Node binding of iroh. The plan said to file them upstream, but nobody did
-([requests.md](../requests.md) R12). Claudio keeps `@number0/iroh` pinned at `1.1.0` until both are
-answered (plan §8). **Neither issue has been filed.** The owner decides whether to file them.
+the Node binding of iroh. The plan said to file them upstream ([requests.md](../requests.md) R12).
+Claudio keeps `@number0/iroh` pinned at `1.1.0` until both are answered (plan §8).
 
 The binding is published from [n0-computer/iroh-ffi](https://github.com/n0-computer/iroh-ffi) (the
-`repository` field of its `package.json`), so that is where both issues go. Each one below is
-written to be pasted as it stands: a title, then the body.
+`repository` field of its `package.json`). Before filing, a search there on 2026-10-17 found that
+other users had already reported all of it, so nothing new was filed. Instead, with the owner's
+go-ahead, Claudio's reproduction and measurements were added to the open reports that day:
+
+| Defect | Upstream | State on 2026-10-17 | What we added |
+| --- | --- | --- | --- |
+| Every `watch*` method panics and aborts the process (Issue 1 below) | [#277](https://github.com/n0-computer/iroh-ffi/issues/277) | Closed: fixed by [#281](https://github.com/n0-computer/iroh-ffi/pull/281), merged 2026-07-28, **not released** (npm's latest is still 1.1.0 of 2026-07-16) | [A comment](https://github.com/n0-computer/iroh-ffi/issues/277#issuecomment-6234345796) confirming the five panics on 1.1.0 and asking for a release |
+| Byte parameters take only `Array<number>` (Issue 2 below) | [#276](https://github.com/n0-computer/iroh-ffi/issues/276) | Open, no answer yet | [A comment](https://github.com/n0-computer/iroh-ffi/issues/276#issuecomment-6234345540) with the stream and signing reproduction, the conversion cost and the loopback throughput |
+| `DEP0128` warning from the `main` field | [#290](https://github.com/n0-computer/iroh-ffi/issues/290) | Open | Nothing |
+
+The two sections below are the drafts as written before that search. They stay as the record of what
+C0 found and of Claudio's workarounds.
 
 ## How they were checked
 
@@ -34,6 +43,9 @@ C0 had already seen the same results on Node 24 (Electron 44 with `ELECTRON_RUN_
 ---
 
 ## Issue 1
+
+**Upstream:** [#277](https://github.com/n0-computer/iroh-ffi/issues/277), fixed in
+[#281](https://github.com/n0-computer/iroh-ffi/pull/281), waiting for a release.
 
 **Title:** `@number0/iroh` 1.1.0: every `watch*` method panics ("there is no reactor running") and
 aborts the Node process
@@ -136,6 +148,8 @@ would probably fix it. A test that calls each `watch*` method once would have ca
 
 ## Issue 2
 
+**Upstream:** [#276](https://github.com/n0-computer/iroh-ffi/issues/276), open.
+
 **Title:** `@number0/iroh` 1.1.0: byte parameters accept only `Array<number>`. `Buffer` and
 `Uint8Array` fail with "Failed to get Array length".
 
@@ -208,10 +222,6 @@ writeAll Buffer threw: Failed to get Array length
 writeAll Uint8Array threw: Failed to get Array length
 ```
 
-**A related problem worth mentioning in the issue:** when a `writeAll` fails, the binding can also
-leave a promise rejected with nothing handling it (`LocallyClosed`). In C0 this ended the test
-process.
-
 **Workaround in Claudio:**
 
 - **Streams:** bytes go into the binding as `Array.from(...)`, in pieces of at most 1 MiB
@@ -228,18 +238,20 @@ process.
 
 ---
 
-## Seen while checking, not drafted
+## Seen while checking
 
-Loading the package prints a Node `DEP0128` warning: the `main` field of `@number0/iroh`'s
-`package.json` is `iroh-js/index.js`, a path that is not in the published package, so Node falls
-back to `index.js`. This is harmless, but it is a one-line fix and could go into either issue as a
-note.
+Loading the package with `require` prints a Node `DEP0128` warning: the `main` field of
+`@number0/iroh`'s `package.json` is `iroh-js/index.js`, a path that is not in the published package,
+so Node falls back to `index.js`. It is harmless and already reported as
+[#290](https://github.com/n0-computer/iroh-ffi/issues/290).
 
 ## When they are answered
 
-Once a release fixes either issue, unpin `@number0/iroh` in `packages/core/package.json`:
+Watch [#276](https://github.com/n0-computer/iroh-ffi/issues/276) and the
+[iroh-ffi releases](https://github.com/n0-computer/iroh-ffi/releases). Once a release fixes either
+issue, unpin `@number0/iroh` in `packages/core/package.json`:
 
-- **Issue 1 fixed:** the polling may stay. Keep the `watch*` grep test until a watch has been tried
+- **Issue 1 fixed** (the first release after 1.1.0 should carry #281): the polling may stay. Keep the `watch*` grep test until a watch has been tried
   in the host process.
 - **Issue 2 fixed:** the `Array.from` conversions and the 1 MiB pieces in `host.ts` can go. Measure
   the throughput again with `collaborators-c0/spike/tput.mjs`.
