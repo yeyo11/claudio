@@ -201,8 +201,10 @@ function Shell() {
   }, []);
 
   // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
-  // longer be there, so focus moves to the page, unless the page already took it (an autofocus), or
-  // a dialog has it: a redirect can commit after the person opened the palette, portalled outside main.
+  // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
+  // While a dialog holds the focus it waits: a redirect can commit after the person opened the
+  // palette (portalled outside main), which keeps it; the dialog that navigated closes, and the
+  // focus it leaves on the body comes to the page then.
   const mainRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
   useEffect(() => {
@@ -210,10 +212,20 @@ function Shell() {
       firstRender.current = false;
       return;
     }
-    const main = mainRef.current;
-    const active = document.activeElement;
-    if (active?.closest('[role=dialog], [role=alertdialog]')) return;
-    if (main && !main.contains(active)) main.focus({ preventScroll: true });
+    let frame = 0;
+    const park = () => {
+      const main = mainRef.current;
+      const active = document.activeElement;
+      if (active?.isConnected && active.closest('[role=dialog], [role=alertdialog]')) {
+        frame = requestAnimationFrame(park);
+        return;
+      }
+      if (main && !main.contains(active) && (frame === 0 || !active || active === document.body || !active.isConnected)) {
+        main.focus({ preventScroll: true });
+      }
+    };
+    park();
+    return () => cancelAnimationFrame(frame);
   }, [pathname]);
 
   // The palette asks for the workflow dialog it cannot host itself
